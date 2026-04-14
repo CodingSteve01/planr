@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { leafNodes, parentId } from '../../utils/scheduler.js';
 
 const SIZES = [
   { label: 'XS', days: 1, desc: 'Trivial change, config, typo fix' },
@@ -40,8 +41,8 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
   // Related items for context
   const relatedItems = useMemo(() => {
     if (!node) return [];
-    const parentId = node.id.split('.').slice(0, -1).join('.');
-    return tree.filter(r => r.id !== node.id && r.lvl === 3 && r.id.startsWith(parentId + '.') && r.best > 0);
+    const pid = parentId(node.id);
+    return leafNodes(tree).filter(r => r.id !== node.id && r.id.startsWith(pid + '.') && r.best > 0);
   }, [node, tree]);
 
   const steps = ['Scope', 'Size', 'Risks', 'Three-Point', 'Dependencies', 'Summary'];

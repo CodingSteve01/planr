@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
-import { re } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafProgress, re } from '../../utils/scheduler.js';
 
 export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEstimate}){
   const[f,setF]=useState({...node});
@@ -8,23 +8,31 @@ export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEst
   const s=(k,v)=>{const n={...f,[k]:v};setF(n);onUpdate(n);};
   const fl=()=>onUpdate(f);
   const isCp=cpSet?.has(node?.id);
+  const isLeaf=isLeafNode(tree,node);
   return<>
     {isCp&&<div style={{background:'#3d0a0e',border:'1px solid var(--re)',borderRadius:'var(--r)',padding:'6px 10px',marginBottom:10,fontSize:11,color:'#fda4af',display:'flex',gap:6,alignItems:'center'}}>⚡ Critical path item</div>}
     <div className="field"><label>Name</label><input value={f.name||''} onChange={e=>setF(x=>({...x,name:e.target.value}))} onBlur={fl}/></div>
     <div className="frow">
       <div className="field"><label>Status</label>
-        <select value={f.status||'open'} onChange={e=>s('status',e.target.value)}>
-          <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
-        </select>
+        {isLeaf
+          ? <select value={f.status||'open'} onChange={e=>s('status',e.target.value)}>
+            <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
+          </select>
+          : <div className={`badge b${(f.status||'open')[0]}`}>Auto from children</div>}
       </div>
       <div className="field"><label>Team</label>
         <select value={f.team||''} onChange={e=>s('team',e.target.value)}>
-          <option value="">—</option>
+          <option value="">— None —</option>
           {teams.map(t=><option key={t.id} value={t.id}>{t.name || t.id}</option>)}
         </select>
       </div>
     </div>
-    {node.lvl===3&&<>
+    {isLeaf&&<div className="field"><label>Progress {f.progress??leafProgress(f)}%</label>
+      <input type="range" min="0" max="100" step="5" value={f.progress??leafProgress(f)}
+        onChange={e=>{const v=+e.target.value;s('progress',v);if(v>=100&&f.status!=='done')s('status','done');else if(v>0&&v<100&&f.status!=='wip')s('status','wip');else if(v===0&&f.status!=='open')s('status','open');}}
+        style={{width:'100%',accentColor:'var(--ac)'}}/>
+    </div>}
+    {isLeaf&&<>
       {onEstimate&&<button className="btn btn-sec btn-sm" style={{width:'100%',marginBottom:10}} onClick={()=>onEstimate(node)}>Estimation Wizard...</button>}
       <div className="frow">
         <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best||0} onChange={e=>setF(x=>({...x,best:+e.target.value}))} onBlur={fl}/></div>
@@ -58,6 +66,6 @@ export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEst
     </>}
     <div className="field"><label>Notes</label><textarea value={f.note||''} onChange={e=>setF(x=>({...x,note:e.target.value}))} onBlur={fl} rows={2}/></div>
     <hr className="divider"/>
-    {onDelete&&<button className="btn btn-danger" style={{width:'100%'}} onClick={()=>{if(confirm(`Delete ${node.id}${node.lvl<3?' and all children':''}?`))onDelete(node.id);}}>Delete {node.id}</button>}
+    {onDelete&&<button className="btn btn-danger" style={{width:'100%'}} onClick={()=>{if(confirm(`Delete ${node.id}${hasChildren(tree,node.id)?' and all children':''}?`))onDelete(node.id);}}>Delete item</button>}
   </>;
 }

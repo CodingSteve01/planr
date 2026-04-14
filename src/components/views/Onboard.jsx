@@ -8,7 +8,7 @@ export function Onboard({onCreate,onLoad,fRef}){
           ['📅','Auto-schedule','Person-level parallel scheduling + capacity planning'],
           ['⚡','Critical Path','CPM analysis — see what drives your end date'],
           ['🕸','Network Graph','Visual dependency map, zoom/pan, click to edit'],
-          ['⚑','Deadlines','Track key dates with risk indicators'],
+          ['🎯','Focus Areas','Goals, painpoints, deadlines, and top-down planning'],
           ['💾','Save / Load','JSON export/import — works offline & GitHub Pages'],
         ].map(([i,t,d])=><div key={t} className="feat">
           <span className="feat-icon">{i}</span>

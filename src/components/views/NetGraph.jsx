@@ -10,45 +10,60 @@ const GAP_Y = 10;
 const TREE_GAP = 24;
 const LEVEL_GAP = 20; // vertical gap between parent and children levels
 
-// ── Layout: L2 group (L2 centered, L3s split left/right) ───────────────────
-function layoutL2Group(l2, tree) {
-  const l3s = tree.filter(r => r.lvl === 3 && r.id.startsWith(l2.id + '.'));
-  const items = {};
-  if (!l3s.length) { items[l2.id] = { x: 0, y: 0 }; return { items, w: NODE_W, h: NODE_H }; }
-
-  const half = Math.ceil(l3s.length / 2);
-  const left = l3s.slice(0, half), right = l3s.slice(half);
-  const l3Y = NODE_H + LEVEL_GAP;
-
-  left.forEach((t, i) => { items[t.id] = { x: 0, y: l3Y + i * (NODE_H + GAP_Y) }; });
-  const rx = right.length ? NODE_W + GAP_X : 0;
-  right.forEach((t, i) => { items[t.id] = { x: rx, y: l3Y + i * (NODE_H + GAP_Y) }; });
-
-  const gw = right.length ? NODE_W * 2 + GAP_X : NODE_W;
-  const lastY = l3Y + (Math.max(left.length, right.length) - 1) * (NODE_H + GAP_Y) + NODE_H;
-  items[l2.id] = { x: (gw - NODE_W) / 2, y: 0 };
-  return { items, w: gw, h: lastY };
+function buildChildMap(tree) {
+  const map = {};
+  tree.forEach(r => {
+    const pid = r.id.split('.').slice(0, -1).join('.');
+    if (!map[pid]) map[pid] = [];
+    map[pid].push(r);
+  });
+  Object.values(map).forEach(items => items.sort((a, b) => a.id.localeCompare(b.id)));
+  return map;
 }
 
-// ── Layout: L1 tree (L1 centered, L2 groups in row) ────────────────────────
-function layoutTree(p1, tree) {
+function layoutSubtree(node, childMap) {
+  const children = childMap[node.id] || [];
   const pos = {};
-  const l2s = tree.filter(r => r.lvl === 2 && r.id.startsWith(p1.id + '.'));
-  if (!l2s.length) { pos[p1.id] = { x: 0, y: 0 }; return { pos, w: NODE_W, h: NODE_H }; }
 
-  const groups = l2s.map(l2 => layoutL2Group(l2, tree));
-  const l2Y = NODE_H + LEVEL_GAP;
+  if (!children.length) {
+    pos[node.id] = { x: 0, y: 0 };
+    return { pos, w: NODE_W, h: NODE_H };
+  }
+
+  // If ALL children are leaves → compact 2-column layout (like old L2 groups)
+  const allLeaves = children.every(c => !(childMap[c.id]?.length));
+  if (allLeaves) {
+    const half = Math.ceil(children.length / 2);
+    const left = children.slice(0, half), right = children.slice(half);
+    const cy = NODE_H + LEVEL_GAP;
+    left.forEach((c, i) => { pos[c.id] = { x: 0, y: cy + i * (NODE_H + GAP_Y) }; });
+    const rx = right.length ? NODE_W + GAP_X : 0;
+    right.forEach((c, i) => { pos[c.id] = { x: rx, y: cy + i * (NODE_H + GAP_Y) }; });
+    const gw = right.length ? NODE_W * 2 + GAP_X : NODE_W;
+    const lastY = cy + (Math.max(left.length, right.length) - 1) * (NODE_H + GAP_Y) + NODE_H;
+    pos[node.id] = { x: (gw - NODE_W) / 2, y: 0 };
+    return { pos, w: gw, h: lastY };
+  }
+
+  // Otherwise: children in a row (each child is a subtree)
+  const childLayouts = children.map(child => layoutSubtree(child, childMap));
   let x = 0;
-  groups.forEach(g => {
-    Object.entries(g.items).forEach(([id, p]) => { pos[id] = { x: x + p.x, y: l2Y + p.y }; });
-    x += g.w + TREE_GAP;
+  childLayouts.forEach(layout => {
+    Object.entries(layout.pos).forEach(([id, p]) => {
+      pos[id] = { x: x + p.x, y: NODE_H + LEVEL_GAP + p.y };
+    });
+    x += layout.w + TREE_GAP;
   });
-  const totalW = Math.max(0, x - TREE_GAP);
-  const treeW = Math.max(NODE_W, totalW);
-  pos[p1.id] = { x: (treeW - NODE_W) / 2, y: 0 };
-  if (totalW < treeW) { const off = (treeW - totalW) / 2; Object.keys(pos).forEach(id => { if (id !== p1.id) pos[id].x += off; }); }
-  const maxH = groups.length ? Math.max(...groups.map(g => g.h)) : 0;
-  return { pos, w: treeW, h: l2Y + maxH };
+
+  const totalChildW = Math.max(0, x - TREE_GAP);
+  const width = Math.max(NODE_W, totalChildW);
+  if (totalChildW < width) {
+    const off = (width - totalChildW) / 2;
+    Object.keys(pos).forEach(id => { pos[id].x += off; });
+  }
+
+  pos[node.id] = { x: (width - NODE_W) / 2, y: 0 };
+  return { pos, w: width, h: NODE_H + LEVEL_GAP + Math.max(...childLayouts.map(l => l.h)) };
 }
 
 // ── Flip a tree vertically (parent at bottom instead of top) ────────────────
@@ -60,21 +75,30 @@ function flipTree(t) {
   return { ...t, pos: flipped, flipped: true };
 }
 
+// ── Node-level overlap check (tighter than bounding box) ────────────────────
+function nodesOverlap(treeA, ax, ay, treeB, bx, by) {
+  const gap = TREE_GAP / 2;
+  const nodesA = Object.values(treeA.pos);
+  const nodesB = Object.values(treeB.pos);
+  return nodesA.some(a => nodesB.some(b =>
+    ax + a.x < bx + b.x + NODE_W + gap && ax + a.x + NODE_W + gap > bx + b.x &&
+    ay + a.y < by + b.y + NODE_H + gap && ay + a.y + NODE_H + gap > by + b.y
+  ));
+}
+
 // ── Bin-pack trees with TD/BU flip optimization ─────────────────────────────
 function binPackTrees(trees) {
   const sorted = [...trees].sort((a, b) => (b.w * b.h) - (a.w * a.h));
   const placed = [];
 
   sorted.forEach(t => {
-    const variants = [t, flipTree(t)]; // try both orientations
+    const variants = [t, flipTree(t)];
     const cands = [{ x: 0, y: 0 }];
     placed.forEach(p => {
-      // Right edge and below edge of each placed tree
       cands.push({ x: p.x + p.w + TREE_GAP, y: p.y });
       cands.push({ x: p.x, y: p.y + p.h + TREE_GAP });
       cands.push({ x: p.x + p.w + TREE_GAP, y: 0 });
       cands.push({ x: 0, y: p.y + p.h + TREE_GAP });
-      // Cross-positions: X from one tree, Y from another
       placed.forEach(q => {
         if (p === q) return;
         cands.push({ x: p.x + p.w + TREE_GAP, y: q.y + q.h + TREE_GAP });
@@ -93,7 +117,6 @@ function binPackTrees(trees) {
         if (overlaps) return;
         const bx = Math.max(c.x + v.w, ...placed.map(p => p.x + p.w));
         const by = Math.max(c.y + v.h, ...placed.map(p => p.y + p.h));
-        // Score: area × aspect ratio penalty (target ~2:1)
         const ratio = bx / Math.max(by, 1);
         const ratioPenalty = 1 + Math.abs(Math.log(ratio / 2)) * 3;
         const score = bx * by * ratioPenalty;
@@ -104,7 +127,7 @@ function binPackTrees(trees) {
     placed.push({ x: bestX, y: bestY, w: bestVariant.w, h: bestVariant.h, tree: bestVariant });
   });
 
-  // Post-process: flip trees in the bottom half to BU (parent at bottom)
+  // Post-process: flip trees in the bottom half to BU
   if (placed.length > 1) {
     const medianY = placed.reduce((s, p) => s + p.y, 0) / placed.length;
     placed.forEach(p => {
@@ -118,23 +141,23 @@ function binPackTrees(trees) {
     });
   }
 
-  // Compaction: push each tree as far up-left as possible without overlap
-  for (let pass = 0; pass < 3; pass++) {
+  // Compaction: push each tree as far up-left as possible (node-level collision)
+  for (let pass = 0; pass < 4; pass++) {
     placed.forEach((t, i) => {
       const others = placed.filter((_, j) => j !== i);
-      // Try moving up
-      for (let step = TREE_GAP; step > 0; step = Math.floor(step / 2)) {
+      // Move up
+      for (let step = TREE_GAP * 2; step > 0; step = Math.floor(step / 2)) {
         while (t.y - step >= 0) {
           const ny = t.y - step;
-          const ok = !others.some(o => t.x < o.x + o.w + TREE_GAP && t.x + t.w + TREE_GAP > o.x && ny < o.y + o.h + TREE_GAP && ny + t.h + TREE_GAP > o.y);
+          const ok = !others.some(o => nodesOverlap(t.tree, t.x, ny, o.tree, o.x, o.y));
           if (ok) t.y = ny; else break;
         }
       }
-      // Try moving left
-      for (let step = TREE_GAP; step > 0; step = Math.floor(step / 2)) {
+      // Move left
+      for (let step = TREE_GAP * 2; step > 0; step = Math.floor(step / 2)) {
         while (t.x - step >= 0) {
           const nx = t.x - step;
-          const ok = !others.some(o => nx < o.x + o.w + TREE_GAP && nx + t.w + TREE_GAP > o.x && t.y < o.y + o.h + TREE_GAP && t.y + t.h + TREE_GAP > o.y);
+          const ok = !others.some(o => nodesOverlap(t.tree, nx, t.y, o.tree, o.x, o.y));
           if (ok) t.x = nx; else break;
         }
       }
@@ -146,10 +169,11 @@ function binPackTrees(trees) {
 
 function computeLayout(tree) {
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
-  const l1s = tree.filter(r => r.lvl === 1);
-  const trees = l1s.map(p1 => ({ id: p1.id, ...layoutTree(p1, tree) }));
+  const childMap = buildChildMap(tree);
+  const roots = (childMap[''] || []).filter(r => !r.id.includes('.'));
 
-  // Bin-pack all trees
+  // Layout each root tree recursively (N-level), then bin-pack
+  const trees = roots.map(root => ({ id: root.id, ...layoutSubtree(root, childMap) }));
   const packed = binPackTrees(trees);
 
   const pos = {};
@@ -164,18 +188,18 @@ function computeLayout(tree) {
   let oy = totalH + NODE_H;
   tree.filter(r => !pos[r.id]).forEach(r => { pos[r.id] = { x: 0, y: oy }; oy += NODE_H + GAP_Y; });
 
-  // Build edges
   const edges = [];
   tree.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid] && pos[pid] && pos[r.id])
+    if (pid && iMap[pid] && pos[pid] && pos[r.id]) {
       edges.push({ id: `h|${pid}|${r.id}`, from: pid, to: r.id, isHier: true });
+    }
   });
-  // Dep edges: FROM the item that has the dep TO the prerequisite (arrow points at prereq)
   tree.forEach(r => {
     (r.deps || []).forEach(d => {
-      if (iMap[d] && pos[d] && pos[r.id])
+      if (iMap[d] && pos[d] && pos[r.id]) {
         edges.push({ id: `d|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d });
+      }
     });
   });
 
@@ -274,7 +298,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -316,8 +340,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     if (!activeId) return null;
     const s = new Set([activeId]);
     const active = iMap[activeId];
-    if (active?.lvl === 1) {
-      // L1 hover: highlight entire subtree
+    if (active && items.some(r => r.id.startsWith(activeId + '.'))) {
+      // Parent hover: highlight entire subtree
       items.forEach(r => { if (r.id.startsWith(activeId + '.')) s.add(r.id); });
     } else {
       // Normal: highlight direct connections
@@ -421,26 +445,37 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
           const subtreeDimmed = connectedSet && connectedSet.size > 3 && !connectedSet.has(r.id);
+          const isRoot = !r.id.includes('.');
+          const depth = r.id.split('.').length;
+          const prog = stats?.[r.id]?._progress ?? 0;
+          const pR = 5, pCx = NODE_W - 8, pCy = 8;
+          const pCirc = 2 * Math.PI * pR;
+          const pOff = pCirc * (1 - prog / 100);
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={subtreeDimmed ? .2 : 1}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : r.lvl === 1 ? tc : 'var(--bg2)'}
-              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : r.lvl === 1 ? tc : tc + '44'}
-              strokeWidth={isSel ? 2.5 : r.lvl === 1 ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
+              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
+              strokeWidth={isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}
               onDoubleClick={e => { e.stopPropagation(); onNodeClick(r); }}
               onContextMenu={e => onCtx(e, r)}
               onMouseEnter={e => { setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY }); setHoverId(r.id); }}
               onMouseLeave={() => { setTip(null); setHoverId(null); }} />
-            {/* Status dot */}
-            <circle cx={NODE_W - 7} cy={7} r={3.5} fill={stC} style={{ pointerEvents: 'none' }} />
+            {/* Circular progress */}
+            <circle cx={pCx} cy={pCy} r={pR} fill="none" stroke={isRoot ? '#ffffff22' : 'var(--b2)'} strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
+            {prog > 0 && <circle cx={pCx} cy={pCy} r={pR} fill="none" stroke={prog >= 100 ? 'var(--gr)' : stC} strokeWidth={1.5}
+              strokeDasharray={pCirc} strokeDashoffset={pOff} strokeLinecap="round"
+              transform={`rotate(-90 ${pCx} ${pCy})`} style={{ pointerEvents: 'none' }} />}
+            {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>✓</text>}
+            {prog > 0 && prog < 100 && <text x={pCx} y={pCy + 2} fontSize={4} textAnchor="middle" fill={isRoot ? '#ffffffcc' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{prog}</text>}
             {/* ID */}
-            <text x={5} y={10} fontSize={6} fill={r.lvl === 1 ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
+            <text x={5} y={10} fontSize={6} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
             {/* Name (2 lines) */}
-            <text x={5} y={21} fontSize={7.5} fill={r.lvl === 1 ? '#ffffff' : tc} fontWeight={r.lvl === 1 ? 700 : r.lvl === 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
+            <text x={5} y={21} fontSize={7.5} fill={isRoot ? '#ffffff' : tc} fontWeight={depth <= 1 ? 700 : depth <= 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
               {r.name.length <= 26 ? r.name : <>{r.name.slice(0, 26)}<tspan x={5} dy={10}>{r.name.slice(26, 52)}{r.name.length > 52 ? '..' : ''}</tspan></>}
             </text>
             {/* Info line */}
-            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill={r.lvl === 1 ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             {isDone && <text x={NODE_W - 14} y={NODE_H - 5} fontSize={10} style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { re } from '../../utils/scheduler.js';
+import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
 export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate }) {
@@ -11,19 +11,20 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
   if (!node) return null;
+  const isLeaf = isLeafNode(tree, node.id);
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   return <div className="overlay" onClick={onClose}>
     <div className="modal fade" onClick={e => e.stopPropagation()}>
       <h2>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 13 }}>{node.id}</span>
-        {node.lvl === 3 && <SBadge s={node.status} />}
+        {isLeaf && <SBadge s={node.status} />}
         {isCp && <span className="badge b-cp">Critical Path</span>}
       </h2>
       <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} /></div>
       <div className="frow">
         <div className="field"><label>Status</label>
-          {node.lvl < 3 ? <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>
+          {!isLeaf ? <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>
           : <select value={f.status || 'open'} onChange={e => s('status', e.target.value)}>
             <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
           </select>}
@@ -35,24 +36,30 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           </select>
         </div>
       </div>
-      {node.lvl < 3 && (() => {
+      {isLeaf && <div className="field"><label>Progress {f.progress ?? leafProgress(f)}%</label>
+        <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
+          onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
+          style={{ width: '100%', accentColor: 'var(--ac)' }} />
+      </div>}
+      {!isLeaf && (() => {
         const st = stats?.[node.id];
-        const childCount = tree.filter(c => c.id.startsWith(node.id + '.') && c.lvl === node.lvl + 1).length;
-        const leafCount = tree.filter(c => c.lvl === 3 && c.id.startsWith(node.id + '.')).length;
-        const doneCount = tree.filter(c => c.lvl === 3 && c.id.startsWith(node.id + '.') && c.status === 'done').length;
+        const childCount = directChildren(tree, node.id).length;
+        const leafCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length;
+        const doneCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length;
         return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>Aggregated from {leafCount} tasks</div>
+          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>Aggregated from {leafCount} leaf items</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+            <span style={{ color: 'var(--tx3)' }}>Children</span><span>{childCount}</span>
             <span style={{ color: 'var(--tx3)' }}>Progress</span><span>{doneCount}/{leafCount} done ({leafCount > 0 ? Math.round(doneCount / leafCount * 100) : 0}%)</span>
             <span style={{ color: 'var(--tx3)' }}>Best</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Realistic</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Worst</span><span>{st?._w?.toFixed(0) || 0}d</span>
             {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Status, estimates, and dates are derived from child tasks.</div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Status, estimates, and dates are derived from child items.</div>
         </div>;
       })()}
-      {node.lvl === 3 && <>
+      {isLeaf && <>
         {onEstimate && <button className="btn btn-sec" style={{ width: '100%', marginBottom: 12 }} onClick={() => { onClose(); onEstimate(node); }}>Open Estimation Wizard...</button>}
         <div className="field"><label>Quick estimate (T-shirt size)</label>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -86,11 +93,11 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           </div>
           <select onChange={e => { if (!e.target.value) return; s('assign', [...new Set([...(f.assign || []), e.target.value])]); e.target.value = ''; }}>
             <option value="">+ Assign person</option>
-            {members.filter(m => !f.team || m.team === f.team || (f.team || '').includes(m.team)).map(m => (
+            {members.filter(m => !f.team || m.team === f.team).map(m => (
               <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
             ))}
             {f.team && <option disabled>───</option>}
-            {f.team && members.filter(m => m.team !== f.team && !(f.team || '').includes(m.team)).map(m => (
+            {f.team && members.filter(m => m.team !== f.team).map(m => (
               <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
             ))}
           </select>
@@ -112,7 +119,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
       </>}
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
       <div className="modal-footer">
-        {onDelete && <button className="btn btn-danger" onClick={() => { onDelete(node.id); onClose(); }}>Delete</button>}
+        {onDelete && <button className="btn btn-danger" onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) { onDelete(node.id); onClose(); } }}>Delete item</button>}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={onClose}>Cancel</button>
         <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }}>Save</button>

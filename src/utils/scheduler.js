@@ -3,13 +3,38 @@ import { buildWeeks } from './holidays.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 export const re = (best, factor) => best && best > 0 ? best * Math.min(factor || 1.5, 1.3) * 1.15 : 0;
+export const parentId = id => id.split('.').slice(0, -1).join('.');
+
+export function directChildren(tree, id) {
+  return tree.filter(r => parentId(r.id) === id);
+}
+
+export function hasChildren(tree, id) {
+  return tree.some(r => parentId(r.id) === id);
+}
+
+export function isLeafNode(tree, nodeOrId) {
+  const id = typeof nodeOrId === 'string' ? nodeOrId : nodeOrId?.id;
+  return !!id && !hasChildren(tree, id);
+}
+
+export function leafNodes(tree) {
+  return tree.filter(r => isLeafNode(tree, r.id));
+}
+
+export function resolveToLeafIds(tree, id) {
+  const item = typeof id === 'string' ? tree.find(r => r.id === id) : id;
+  if (!item) return [];
+  if (isLeafNode(tree, item.id)) return [item.id];
+  return leafNodes(tree).filter(l => l.id.startsWith(item.id + '.')).map(l => l.id);
+}
 
 export function schedule(tree, members, vacations, ps, pe, hm) {
   const wks = buildWeeks(ps, pe, hm);
   if (!wks.length) return { results: [], weeks: [] };
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
-  const lvs = tree.filter(r => r.lvl === 3);
-  function resD(id) { const it = iMap[id]; if (!it) return []; if (it.lvl === 3) return [id]; return lvs.filter(l => l.id.startsWith(id + '.')).map(l => l.id); }
+  const lvs = leafNodes(tree);
+  function resD(id) { return resolveToLeafIds(tree, id); }
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
   const visit = id => { if (vis.has(id)) return; vis.add(id); const r = iMap[id]; if (r)(r.deps || []).flatMap(resD).forEach(visit); ord.push(id); };
@@ -29,7 +54,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   ord.forEach(id => {
     if (tEW[id] != null && tEW[id] === -1) return;
     const r = iMap[id];
-    if (!r || r.lvl !== 3 || !r.best || r.best === 0) { tEW[id] = -1; return; }
+    if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = -1; return; }
     const eff = re(r.best, r.factor);
     const team = pt(r.team);
     const tM = members.filter(m => pt(m.team) === team);
@@ -54,7 +79,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
     const eW = Math.min(wi - 1, wks.length - 1);
     tEW[id] = eW; pF[bp.id] = eW + 1;
-    res.push({ id: r.id, name: r.name, team, person: asgn.length > 0 ? bp.id : '(unassigned)', prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: wks[bs].mon, endD: addD(wks[eW].mon, 4),
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
@@ -62,22 +87,36 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   return { results: res, weeks: wks };
 }
 
+// Derive leaf progress: explicit field > status-based default
+export function leafProgress(r) {
+  if (r.progress != null && r.progress >= 0) return r.progress;
+  if (r.status === 'done') return 100;
+  if (r.status === 'wip') return 50;
+  return 0;
+}
+
 export function treeStats(tree) {
   const m = Object.fromEntries(tree.map(r => [r.id, { ...r }]));
   [...tree].reverse().forEach(r => {
-    if (r.lvl === 3) { m[r.id]._b = r.best || 0; m[r.id]._r = re(r.best || 0, r.factor || 1.5); m[r.id]._w = (r.best || 0) * (r.factor || 1.5); }
-    else {
-      const ch = tree.filter(c => c.id !== r.id && c.id.startsWith(r.id + '.') && c.id.split('.').length === r.id.split('.').length + 1);
+    if (isLeafNode(tree, r.id)) {
+      m[r.id]._b = r.best || 0;
+      m[r.id]._r = re(r.best || 0, r.factor || 1.5);
+      m[r.id]._w = (r.best || 0) * (r.factor || 1.5);
+      m[r.id]._progress = leafProgress(r);
+    } else {
+      const ch = directChildren(tree, r.id);
       m[r.id]._b = ch.reduce((s, c) => s + (m[c.id]?._b || 0), 0);
       m[r.id]._r = ch.reduce((s, c) => s + (m[c.id]?._r || 0), 0);
       m[r.id]._w = ch.reduce((s, c) => s + (m[c.id]?._w || 0), 0);
-      // Auto-derive status from leaf descendants
-      const leaves = tree.filter(c => c.lvl === 3 && c.id.startsWith(r.id + '.'));
+      // Weighted progress: by realistic effort (fall back to equal weight)
+      const leaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.'));
       if (leaves.length) {
+        const totalEff = leaves.reduce((s, l) => s + (m[l.id]?._r || 1), 0);
+        const weightedProg = leaves.reduce((s, l) => s + (m[l.id]?._progress || 0) * (m[l.id]?._r || 1), 0);
+        m[r.id]._progress = Math.round(weightedProg / Math.max(totalEff, 1));
         const done = leaves.filter(l => l.status === 'done').length;
         const wip = leaves.filter(l => l.status === 'wip').length;
-        m[r.id]._autoStatus = done === leaves.length ? 'done' : (done > 0 || wip > 0) ? 'wip' : 'open';
-        m[r.id]._progress = leaves.length > 0 ? Math.round(done / leaves.length * 100) : 0;
+        m[r.id]._autoStatus = done === leaves.length ? 'done' : (done > 0 || wip > 0 || m[r.id]._progress > 0) ? 'wip' : 'open';
       }
     }
   });
@@ -86,7 +125,7 @@ export function treeStats(tree) {
 
 // Enrich stats with scheduled date ranges for parent items (L1, L2)
 export function enrichParentSchedules(stats, tree, results) {
-  tree.filter(r => r.lvl < 3).forEach(parent => {
+  tree.filter(r => !isLeafNode(tree, r.id)).forEach(parent => {
     const ch = results.filter(s => s.id.startsWith(parent.id + '.') && s.startD && s.endD);
     if (!ch.length) return;
     if (stats[parent.id]) {
@@ -100,7 +139,7 @@ export function enrichParentSchedules(stats, tree, results) {
 // Compute auto-status for parent items (call after treeStats)
 export function deriveParentStatuses(tree, stats) {
   return tree.map(r => {
-    if (r.lvl === 3) return r;
+    if (isLeafNode(tree, r.id)) return r;
     const s = stats[r.id];
     if (s?._autoStatus && s._autoStatus !== r.status) return { ...r, status: s._autoStatus };
     return r;

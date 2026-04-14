@@ -5,7 +5,7 @@ export function Tip({ item, x, y, teams, tree }) {
   const sx = Math.min(x + 14, window.innerWidth - 300), sy = Math.max(y - 60, 8);
   // Resolve team name
   const teamName = item.team && teams
-    ? (item.team.includes('/') ? item.team.split('/').map(t => teams.find(x => x.id === t)?.name || t).join(' / ') : teams.find(t => t.id === item.team)?.name || item.team)
+    ? (teams.find(t => t.id === item.team)?.name || item.team)
     : item.team;
   // Resolve dep names
   const depList = item.deps && tree

@@ -2,7 +2,10 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Tip } from '../shared/Tooltip.jsx';
 import { WPX, MDE } from '../../constants.js';
 import { iso } from '../../utils/date.js';
-import { pt } from '../../utils/scheduler.js';
+import { resolveToLeafIds } from '../../utils/scheduler.js';
+
+const NO_TEAM = '__no_team__';
+const NO_TEAM_COLOR = '#64748b';
 
 export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onBarClick, onSeqUpdate }) {
   const [tip, setTip] = useState(null);
@@ -19,9 +22,9 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
   weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) months.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
   if (cm) months.push({ ym: cm, count: cc, start: cs });
 
-  const usedT = [...new Set(scheduled.map(s => s.team))].filter(Boolean);
+  const usedT = [...new Set(scheduled.map(s => s.team || NO_TEAM))];
   const tOrd = [...new Set([...teams.map(t => t.id), ...usedT])].filter(t => usedT.includes(t));
-  const grp = {}; tOrd.forEach(t => { grp[t] = scheduled.filter(s => s.team === t).sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id)); });
+  const grp = {}; tOrd.forEach(t => { grp[t] = scheduled.filter(s => (s.team || NO_TEAM) === t).sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id)); });
 
   const rows = []; tOrd.forEach(t => { const tasks = grp[t] || []; if (!tasks.length) return; rows.push({ type: 'team', team: t }); tasks.forEach(s => rows.push({ type: 'task', s, team: t })); });
   const RH = 28, HH = 28;
@@ -29,7 +32,8 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
     const di = weeks.findIndex(w => w.mon > new Date(dl.date));
     const wi = di >= 0 ? di : weeks.length;
     // Check on-track: find latest scheduled end for linked items
-    const linked = scheduled.filter(s => (dl.linkedItems || []).includes(s.id));
+    const linkedIds = new Set((dl.linkedItems || []).flatMap(id => resolveToLeafIds(tree || [], id)));
+    const linked = scheduled.filter(s => linkedIds.has(s.id));
     const maxEnd = linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
     const isLate = maxEnd && new Date(dl.date) < maxEnd;
     return { ...dl, wi, isLate, maxEnd };
@@ -42,13 +46,13 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
     return w.mon <= now && (!next || next.mon > now);
   });
   const todayX = todayWi >= 0 ? todayWi * WPX : -1;
-  const gTC = t => teams.find(x => x.id === t)?.color || '#3b82f6';
+  const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teams.find(x => x.id === t)?.color || '#3b82f6');
 
   // CP dependency lines
   const rowIdx = {}; rows.forEach((r, i) => { if (r.type === 'task') rowIdx[r.s.id] = i; });
   const iMap = Object.fromEntries((tree || []).map(r => [r.id, r]));
   const sMap = Object.fromEntries(scheduled.map(s => [s.id, s]));
-  function resD(id) { return iMap[id]?.lvl === 3 ? [id] : (tree || []).filter(l => l.lvl === 3 && l.id.startsWith(id + '.')).map(l => l.id); }
+  function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
     if (!cpSet?.size || !tree) return [];
     const lines = [];
@@ -101,7 +105,7 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
         {rows.map((row) => {
           if (row.type === 'team') { const tc = gTC(row.team);
             return <div key={'h' + row.team} className="gteam" style={{ color: tc, borderLeft: `3px solid ${tc}`, background: 'var(--bg2)', paddingLeft: 10, height: RH }}>
-              {teams.find(t => t.id === row.team)?.name || row.team}
+              {row.team === NO_TEAM ? 'No team' : (teams.find(t => t.id === row.team)?.name || row.team)}
             </div>; }
           const s = row.s; const tc = gTC(row.team); const isCp = cpSet?.has(s.id);
           return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer' }}

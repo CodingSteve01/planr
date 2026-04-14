@@ -1,8 +1,10 @@
+import { leafNodes, resolveToLeafIds } from './scheduler.js';
+
 // Global critical path (longest path to project end)
 export function cpm(tree) {
-  const lv = Object.fromEntries(tree.filter(r => r.lvl === 3).map(r => [r.id, r]));
+  const lv = Object.fromEntries(leafNodes(tree).map(r => [r.id, r]));
   const eff = r => r.status === 'done' ? 0 : Math.max((r.best || 0) * Math.min(r.factor || 1.5, 1.3) * 1.15, 0.01);
-  function resD(id) { return lv[id] ? [id] : Object.keys(lv).filter(k => k.startsWith(id + '.')); }
+  function resD(id) { return resolveToLeafIds(tree, id).filter(d => lv[d]); }
   const rd = Object.fromEntries(Object.keys(lv).map(id => [id, new Set((lv[id].deps || []).flatMap(resD).filter(d => lv[d]))]));
   const vis = new Set(), order = [];
   const visit = id => { if (vis.has(id)) return; vis.add(id); rd[id].forEach(d => visit(d)); order.push(id); };
@@ -24,13 +26,12 @@ export function cpm(tree) {
 // Returns { [deadlineId]: { critical: Set<taskId>, chainLength: number, items: string[] } }
 export function goalCpm(tree, deadlines) {
   const all = Object.fromEntries(tree.map(r => [r.id, r]));
-  const lv = Object.fromEntries(tree.filter(r => r.lvl === 3).map(r => [r.id, r]));
+  const lv = Object.fromEntries(leafNodes(tree).map(r => [r.id, r]));
   const eff = r => r.status === 'done' ? 0 : Math.max((r.best || 0) * Math.min(r.factor || 1.5, 1.3) * 1.15, 0.01);
 
   // Resolve an ID to leaf task IDs (handles group references like P2.1)
   function resolveTo(id) {
-    if (lv[id]) return [id];
-    return Object.keys(lv).filter(k => k.startsWith(id + '.'));
+    return resolveToLeafIds(tree, id).filter(id2 => lv[id2]);
   }
 
   // Build dependency graph for all leaf tasks
