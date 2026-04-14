@@ -8,128 +8,90 @@ const elk = new ELK();
 const NW = { 1: 120, 2: 105, 3: 95 };
 const NH = { 1: 28, 2: 24, 3: 34 };
 
-// ── Stress-based layout: balanced, compact, optimization-based ──────────────
+// ── Flat layered graph: hierarchy + dep edges, orthogonal routing ────────────
 function buildElkGraph(tree) {
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
-  const children = tree.map(r => ({ id: r.id, width: NW[r.lvl] || 95, height: NH[r.lvl] || 34 }));
+
+  const children = [];
+  tree.filter(r => r.lvl === 1).forEach(p1 => {
+    children.push({ id: p1.id, width: NW[1], height: NH[1] });
+    tree.filter(r => r.lvl === 2 && r.id.startsWith(p1.id + '.')).forEach(p2 => {
+      children.push({ id: p2.id, width: NW[2], height: NH[2] });
+      tree.filter(r => r.lvl === 3 && r.id.startsWith(p2.id + '.')).forEach(t => {
+        children.push({ id: t.id, width: NW[3], height: NH[3] });
+      });
+    });
+  });
+  const placed = new Set(children.map(c => c.id));
+  tree.filter(r => !placed.has(r.id)).forEach(r => {
+    children.push({ id: r.id, width: NW[r.lvl] || 95, height: NH[r.lvl] || 34 });
+  });
 
   const edges = [];
-  // Hierarchy edges — desired length > node widths to prevent overlap
   tree.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid]) {
-      const len = r.lvl === 2 ? 150 : 120; // L1→L2 wider, L2→L3 tighter
-      edges.push({
-        id: `h|${pid}|${r.id}`, sources: [pid], targets: [r.id],
-        layoutOptions: { 'elk.stress.desiredEdgeLength': String(len) },
-      });
-    }
+    if (pid && iMap[pid]) edges.push({ id: `h|${pid}|${r.id}`, sources: [pid], targets: [r.id] });
   });
-  // Dependency edges — longer to visually separate from hierarchy
   tree.forEach(r => {
     (r.deps || []).forEach(d => {
-      if (iMap[d]) edges.push({
-        id: `d|${d}|${r.id}`, sources: [d], targets: [r.id],
-        layoutOptions: { 'elk.stress.desiredEdgeLength': '200' },
-      });
+      if (iMap[d]) edges.push({ id: `d|${d}|${r.id}`, sources: [d], targets: [r.id] });
     });
   });
 
   return {
     id: 'root',
     layoutOptions: {
-      'elk.algorithm': 'stress',
-      'elk.stress.desiredEdgeLength': '140',
-      'elk.stress.epsilon': '0.00001',
-      'elk.stress.fixed': 'NONE',
-      'elk.spacing.nodeNode': '20',
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.spacing.nodeNode': '8',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '22',
+      'elk.spacing.edgeNode': '8',
+      'elk.spacing.edgeEdge': '6',
+      'elk.edgeRouting': 'ORTHOGONAL',
+      'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
     },
     children,
     edges,
   };
 }
 
-// ── Extract positions from ELK result ───────────────────────────────────────
-function extractLayout(result, tree, iMap) {
+// ── Extract positions & edge routes from ELK ────────────────────────────────
+function extractLayout(result) {
   const pos = {};
   (result.children || []).forEach(n => { pos[n.id] = { x: n.x, y: n.y }; });
 
-  // Build edge paths from positions (stress produces straight-line routes)
-  const hierRoutes = [];
-  const depRoutes = [];
-
+  const edgeMap = {};
   (result.edges || []).forEach(edge => {
-    const parts = edge.id.split('|');
-    const from = parts[1], to = parts[2];
+    if (!edge.sections?.length) return;
+    const pts = [];
+    edge.sections.forEach(s => {
+      pts.push(s.startPoint);
+      (s.bendPoints || []).forEach(p => pts.push(p));
+      pts.push(s.endPoint);
+    });
+    const path = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
     const isHier = edge.id.startsWith('h|');
-
-    let path;
-    if (edge.sections?.length) {
-      const pts = [];
-      edge.sections.forEach(s => {
-        pts.push(s.startPoint);
-        (s.bendPoints || []).forEach(p => pts.push(p));
-        pts.push(s.endPoint);
-      });
-      path = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
-    }
-
-    (isHier ? hierRoutes : depRoutes).push({ id: edge.id, from, to, path });
+    const parts = edge.id.split('|');
+    edgeMap[edge.id] = { id: edge.id, from: parts[1], to: parts[2], isHier, path };
   });
 
-  return { pos, hierRoutes, depRoutes };
+  return { pos, edgeMap };
 }
 
-// ── Compute edge path from node positions ───────────────────────────────────
-function edgePath(fp, tp, fw, fh, tw, th, curved) {
-  // Find best connection points (closest sides)
-  const fcx = fp.x + fw / 2, fcy = fp.y + fh / 2;
-  const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
-  const dx = tcx - fcx, dy = tcy - fcy;
-  const angle = Math.atan2(dy, dx);
-
-  // Exit/enter points on node borders
-  let x1, y1, x2, y2;
-  if (Math.abs(dx) * fh > Math.abs(dy) * fw) {
-    // Horizontal connection
-    x1 = dx > 0 ? fp.x + fw : fp.x;
-    y1 = fcy + (dx > 0 ? 1 : -1) * dy * (fw / 2) / Math.abs(dx);
-    x2 = dx > 0 ? tp.x : tp.x + tw;
-    y2 = tcy - (dx > 0 ? 1 : -1) * dy * (tw / 2) / Math.abs(dx);
-  } else {
-    // Vertical connection
-    y1 = dy > 0 ? fp.y + fh : fp.y;
-    x1 = fcx + (dy > 0 ? 1 : -1) * dx * (fh / 2) / Math.abs(dy);
-    y2 = dy > 0 ? tp.y : tp.y + th;
-    x2 = tcx - (dy > 0 ? 1 : -1) * dx * (th / 2) / Math.abs(dy);
+// ── Simple elbow route for live drag updates ────────────────────────────────
+function elbowPath(fp, tp, fw, fh, tw, th) {
+  // RIGHT-flowing: exit right side, enter left side
+  const x1 = fp.x + fw, y1 = fp.y + fh / 2;
+  const x2 = tp.x, y2 = tp.y + th / 2;
+  if (x2 > x1 + 10) {
+    const mx = (x1 + x2) / 2;
+    return `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
   }
-
-  y1 = Math.max(fp.y, Math.min(fp.y + fh, y1));
-  x1 = Math.max(fp.x, Math.min(fp.x + fw, x1));
-  y2 = Math.max(tp.y, Math.min(tp.y + th, y2));
-  x2 = Math.max(tp.x, Math.min(tp.x + tw, x2));
-
-  if (curved) {
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    const off = Math.min(15, Math.sqrt(dx * dx + dy * dy) * 0.15);
-    const nx = -(y2 - y1), ny = x2 - x1;
-    const len = Math.sqrt(nx * nx + ny * ny) || 1;
-    return `M${x1},${y1} Q${mx + nx / len * off},${my + ny / len * off} ${x2},${y2}`;
-  }
-  return `M${x1},${y1} L${x2},${y2}`;
-}
-
-// ── L1 group bounding boxes ─────────────────────────────────────────────────
-function groupBoxes(tree, pos) {
-  const PAD = 10;
-  return tree.filter(r => r.lvl === 1).map(p1 => {
-    const desc = tree.filter(r => r.id === p1.id || r.id.startsWith(p1.id + '.'));
-    const rects = desc.map(r => { const p = pos[r.id]; if (!p) return null; return { l: p.x, t: p.y, r: p.x + (NW[r.lvl] || 95), b: p.y + (NH[r.lvl] || 34) }; }).filter(Boolean);
-    if (!rects.length) return null;
-    const x = Math.min(...rects.map(r => r.l)) - PAD;
-    const y = Math.min(...rects.map(r => r.t)) - PAD;
-    return { id: p1.id, x, y, w: Math.max(...rects.map(r => r.r)) + PAD - x, h: Math.max(...rects.map(r => r.b)) + PAD - y };
-  }).filter(Boolean);
+  // Target is to the left or same x: route around
+  const by = Math.max(fp.y + fh, tp.y + th) + 15;
+  return `M${x1},${y1} L${x1 + 12},${y1} L${x1 + 12},${by} L${x2 - 12},${by} L${x2 - 12},${y2} L${x2},${y2}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,12 +119,12 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
   const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
 
-  // ── ELK stress layout ──────────────────────────────
+  // ── ELK layout ──────────────────────────────────────
   useEffect(() => {
     if (!items.length) { setLayout(null); return; }
     let cancelled = false;
     elk.layout(buildElkGraph(items))
-      .then(r => { if (!cancelled) setLayout(extractLayout(r, items, iMap)); })
+      .then(r => { if (!cancelled) setLayout(extractLayout(r)); })
       .catch(e => console.error('ELK layout error:', e));
     return () => { cancelled = true; };
   }, [items]);
@@ -174,40 +136,17 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     return p;
   }, [layout, manualPos]);
 
-  const l1Boxes = useMemo(() => layout ? groupBoxes(items, pos) : [], [layout, items, pos]);
-
-  // Compute edge paths from positions
-  const hierLines = useMemo(() => {
+  // All edges with live path computation
+  const allEdges = useMemo(() => {
     if (!layout) return [];
-    return layout.hierRoutes.map(r => {
-      if (r.path) return r;
-      const fp = pos[r.from], tp = pos[r.to];
-      if (!fp || !tp) return null;
-      return { ...r, path: edgePath(fp, tp, nw(r.from), nh(r.from), nw(r.to), nh(r.to), false) };
-    }).filter(Boolean);
-  }, [layout, pos]);
-
-  const depLines = useMemo(() => {
-    if (!layout) return [];
-    // Include ELK-computed routes + any deps without routes
-    const edgeSet = new Set(layout.depRoutes.map(r => r.id));
-    const all = [...layout.depRoutes];
-    // Add deps that weren't in the ELK graph (shouldn't happen, but safety)
-    items.forEach(r => {
-      (r.deps || []).forEach(d => {
-        const id = `d|${d}|${r.id}`;
-        if (!edgeSet.has(id) && iMap[d] && pos[d] && pos[r.id]) {
-          all.push({ id, from: d, to: r.id, path: null });
-        }
-      });
+    return Object.values(layout.edgeMap).map(e => {
+      const dragAffected = dragNode && (e.from === dragNode.id || e.to === dragNode.id);
+      if (dragAffected && pos[e.from] && pos[e.to]) {
+        return { ...e, path: elbowPath(pos[e.from], pos[e.to], nw(e.from), nh(e.from), nw(e.to), nh(e.to)) };
+      }
+      return e;
     });
-    return all.map(r => {
-      if (r.path) return r;
-      const fp = pos[r.from], tp = pos[r.to];
-      if (!fp || !tp) return null;
-      return { ...r, path: edgePath(fp, tp, nw(r.from), nh(r.from), nw(r.to), nh(r.to), true) };
-    }).filter(Boolean);
-  }, [layout, pos, items]);
+  }, [layout, pos, dragNode]);
 
   const allPos = Object.entries(pos);
   const graphW = allPos.length ? Math.max(...allPos.map(([id, p]) => p.x + nw(id))) + 30 : 400;
@@ -296,31 +235,28 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       </defs>
       <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
 
-        {/* L1 group backgrounds */}
-        {l1Boxes.map(b => {
-          const tc = gTC(iMap[b.id]?.team);
-          return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={10} fill={tc + '06'} stroke={tc + '15'} strokeWidth={.8} />;
+        {/* Hierarchy edges (ELK orthogonal routing) */}
+        {allEdges.filter(e => e.isHier).map(e => {
+          const isL1 = iMap[e.from]?.lvl === 1;
+          return <path key={e.id} d={e.path} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .6 : .8} opacity={.3} markerEnd="url(#ar-h)" />;
         })}
 
-        {/* Hierarchy edges */}
-        {hierLines.map(r => {
-          const isL1 = iMap[r.from]?.lvl === 1;
-          return <path key={r.id} d={r.path} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .7 : .9} opacity={.3} markerEnd="url(#ar-h)" />;
-        })}
-
-        {/* Dependency edges */}
-        {depLines.map(r => {
-          const isCp = cpSet?.has(r.from) && cpSet?.has(r.to);
-          const isActive = activeId && (r.from === activeId || r.to === activeId);
+        {/* Dependency edges (ELK orthogonal routing) */}
+        {allEdges.filter(e => !e.isHier).map(e => {
+          const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
+          const isActive = activeId && (e.from === activeId || e.to === activeId);
           if (!isActive && !isCp && activeId) return null;
-          const op = isActive ? .75 : isCp ? .45 : .1;
-          return <path key={r.id} d={r.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2 : isCp ? 1.2 : .7} strokeDasharray="4 3" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />;
+          const op = isActive ? .8 : isCp ? .5 : .12;
+          const item = iMap[e.to]; const label = item?._depLabels?.[e.from] || '';
+          return <g key={e.id}>
+            <path d={e.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2 : isCp ? 1.2 : .8} strokeDasharray="4 3" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
+          </g>;
         })}
 
         {/* Drawing line */}
         {drawing && (() => { const fp = pos[drawing.fromId]; if (!fp) return null; const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return null;
           const mx = (drawing.mx - rect.left - pan.x) / zoom, my = (drawing.my - rect.top - pan.y) / zoom;
-          return <line x1={fp.x + nw(drawing.fromId) / 2} y1={fp.y + nh(drawing.fromId)} x2={mx} y2={my} stroke="var(--ac)" strokeWidth={1.5} strokeDasharray="5 3" />; })()}
+          return <line x1={fp.x + nw(drawing.fromId)} y1={fp.y + nh(drawing.fromId) / 2} x2={mx} y2={my} stroke="var(--ac)" strokeWidth={1.5} strokeDasharray="5 3" />; })()}
 
         {/* Nodes */}
         {items.map(r => {
@@ -342,7 +278,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
               onMouseEnter={e => { if (!dragNode && !drawing) { setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY }); setHoverId(r.id); } }}
               onMouseLeave={() => { setTip(null); setHoverId(null); }} />
             <rect x={0} y={isL1 ? h - 2 : 0} width={isL1 ? w : 2} height={isL1 ? 2 : h} rx={1} fill={stC} style={{ pointerEvents: 'none' }} />
-            <circle cx={w / 2} cy={h} r={2.5} fill={tc + '44'} stroke={tc} strokeWidth={.5}
+            <circle cx={w} cy={h / 2} r={2.5} fill={tc + '44'} stroke={tc} strokeWidth={.5}
               style={{ cursor: 'crosshair', opacity: .2 }} onMouseDown={e => onConnStart(e, r)}
               onMouseEnter={e => { e.target.style.opacity = '1'; e.target.setAttribute('r', '4'); }}
               onMouseLeave={e => { e.target.style.opacity = '.2'; e.target.setAttribute('r', '2.5'); }} />
@@ -372,7 +308,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       <div className="ng-li"><div style={{ width: 14, height: 1, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
       <div className="ng-li"><div style={{ width: 14, height: 0, borderTop: '1.5px dashed var(--ac)', flexShrink: 0 }} />Dependency</div>
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
-      <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Drag=move · Right-click=menu</span>
+      <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Drag=move · Dbl-click=add</span>
     </div>
     {tip && !drawing && !dragNode && <Tip item={tip.item} x={tip.x} y={tip.y} teams={teams} tree={tree} />}
   </div>;
