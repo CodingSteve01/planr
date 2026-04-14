@@ -83,18 +83,18 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const sMap = Object.fromEntries(scheduled.map(s => [s.id, s]));
 
-  const NW_MAP = { 1: 220, 2: 170, 3: 150 };
-  const NH_MAP = { 1: 30, 2: 28, 3: 40 };
-  const nw = id => NW_MAP[iMap[id]?.lvl] || 150;
-  const nh = id => NH_MAP[iMap[id]?.lvl] || 40;
+  const NW_MAP = { 1: 240, 2: 180, 3: 160 };
+  const NH_MAP = { 1: 36, 2: 34, 3: 50 };
+  const nw = id => NW_MAP[iMap[id]?.lvl] || 160;
+  const nh = id => NH_MAP[iMap[id]?.lvl] || 50;
 
   const [hoverId, setHoverId] = useState(null);
 
-  // Edges: only L2→L3 hierarchy (L1→L2 shown by container background)
+  // Edges: all parent→child hierarchy + explicit deps
   const hierEdges = []; const depEdges = [];
   items.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid] && items.find(x => x.id === pid) && iMap[pid].lvl >= 2) hierEdges.push({ from: pid, to: r.id });
+    if (pid && iMap[pid] && items.find(x => x.id === pid)) hierEdges.push({ from: pid, to: r.id });
     (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id, label: r._depLabels?.[d] || '' }); });
   });
 
@@ -130,7 +130,12 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     setPan({ x: (rect.width - graphW * z) / 2, y: Math.max(20, (rect.height - graphH * z) / 2) });
     setZoom(z);
   }
-  useEffect(() => { if (items.length) setTimeout(fitToScreen, 100); }, [items.length]);
+  function resetTo100() {
+    if (!svgRef.current) return;
+    setZoom(1); setPan({ x: 20, y: 20 });
+  }
+  // Start at 100% zoom, scrolled to top-left
+  useEffect(() => { if (items.length) setTimeout(resetTo100, 100); }, [items.length]);
 
   // SVG coordinate helpers
   function svgPt(e) { const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return { x: 0, y: 0 }; return { x: (e.clientX - rect.left - pan.x) / zoom, y: (e.clientY - rect.top - pan.y) / zoom }; }
@@ -173,28 +178,28 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
   useEffect(() => { function onKey(e) { if ((e.key === 'Delete' || e.key === 'Backspace') && selId && onDeleteNode && !e.target.closest('input,textarea,select')) { if (confirm(`Delete ${selId}?`)) { onDeleteNode(selId); setSelId(null); } } } window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [selId]);
 
-  // Edge path: smart routing - go down from parent, right to child
-  function edgePath(fromId, toId, dashed) {
+  // Edge path: orthogonal elbow routing
+  function edgePath(fromId, toId, isDep) {
     const fp = pos[fromId], tp = pos[toId]; if (!fp || !tp) return null;
     const fw = nw(fromId), fh = nh(fromId), tw = nw(toId), th = nh(toId);
-    // Determine best connection points
     const fcx = fp.x + fw / 2, fcy = fp.y + fh / 2;
     const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
 
-    if (dashed) {
-      // Dependency: side-to-side bezier
-      const x1 = fcx > tcx ? fp.x : fp.x + fw;
+    if (isDep) {
+      // Dependency: horizontal elbow connector (side-to-side)
+      const goRight = fcx < tcx;
+      const x1 = goRight ? fp.x + fw : fp.x;
       const y1 = fcy;
-      const x2 = fcx > tcx ? tp.x + tw : tp.x;
+      const x2 = goRight ? tp.x : tp.x + tw;
       const y2 = tcy;
-      const dx = Math.abs(x2 - x1) || 40;
-      return `M${x1},${y1} C${x1 + (x2 > x1 ? dx * .4 : -dx * .4)},${y1} ${x2 - (x2 > x1 ? dx * .4 : -dx * .4)},${y2} ${x2},${y2}`;
+      const midX = (x1 + x2) / 2;
+      return `M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}`;
     }
-    // Hierarchy: top-down straight with small bend
+    // Hierarchy: vertical elbow (top-down, go down then across)
     const x1 = fcx, y1 = fp.y + fh;
     const x2 = tcx, y2 = tp.y;
-    const my = (y1 + y2) / 2;
-    return `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+    const midY = (y1 + y2) / 2;
+    return `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`;
   }
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
@@ -227,8 +232,9 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const tc = gTC(iMap[b.id]?.team);
           return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={tc + '06'} stroke={tc + '18'} strokeWidth={1} />;
         })}
-        {/* Hierarchy edges: only L2→L3, subtle top-down */}
-        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to, false); return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={1} opacity={.3} />; })}
+        {/* Hierarchy edges: all parent→child, subtle elbow connectors */}
+        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to, false); const isL1 = iMap[e.from]?.lvl === 1;
+          return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .8 : 1} opacity={isL1 ? .2 : .35} markerEnd="url(#ar-h)" />; })}
         {/* Dependency edges: show all faded, highlight on hover/select */}
         {depEdges.map((e, i) => { const d = edgePath(e.from, e.to, true); if (!d) return null;
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
@@ -273,18 +279,22 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
               style={{ cursor: 'crosshair', opacity: .3 }} onMouseDown={e => onConnStart(e, r)}
               onMouseEnter={e => { e.target.style.opacity = '1'; e.target.setAttribute('r', '6'); }}
               onMouseLeave={e => { e.target.style.opacity = '.3'; e.target.setAttribute('r', '4'); }} />
-            {/* Text */}
+            {/* Text with word wrap */}
             {isL1 ? <>
-              <text x={w / 2} y={h / 2} fontSize={11} fill={tc} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>{r.name.length > 28 ? r.name.slice(0, 27) + '...' : r.name}</text>
+              <text x={w / 2} y={h / 2} fontSize={11} fill={tc} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>{r.name.length > 30 ? r.name.slice(0, 29) + '...' : r.name}</text>
             </> : isL2 ? <>
               <text x={6} y={11} fontSize={7} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
-              <text x={6} y={22} fontSize={9.5} fill={tc} fontWeight={600} style={{ pointerEvents: 'none' }}>{r.name.length > 22 ? r.name.slice(0, 21) + '...' : r.name}</text>
+              <text x={6} y={22} fontSize={9.5} fill={tc} fontWeight={600} style={{ pointerEvents: 'none' }}>
+                {r.name.length <= 24 ? r.name : <>{r.name.slice(0, 24)}<tspan x={6} dy={11}>{r.name.slice(24, 48)}{r.name.length > 48 ? '...' : ''}</tspan></>}
+              </text>
             </> : <>
               <text x={8} y={12} fontSize={7} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
-              <text x={8} y={24} fontSize={9} fill={tc} fontWeight={500} style={{ pointerEvents: 'none' }}>{r.name.length > 20 ? r.name.slice(0, 19) + '...' : r.name}</text>
-              {sc && <text x={8} y={35} fontSize={7.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+              <text x={8} y={24} fontSize={9} fill={tc} fontWeight={500} style={{ pointerEvents: 'none' }}>
+                {r.name.length <= 22 ? r.name : <>{r.name.slice(0, 22)}<tspan x={8} dy={11}>{r.name.slice(22, 44)}{r.name.length > 44 ? '...' : ''}</tspan></>}
+              </text>
+              {sc && <text x={8} y={r.name.length > 22 ? 46 : 36} fontSize={7.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             </>}
-            {isDone && <text x={w - 14} y={isL1 ? h / 2 + 1 : h / 2 + 1} fontSize={12} dominantBaseline="middle" style={{ pointerEvents: 'none' }}>&#x2705;</text>}
+            {isDone && <text x={w - 16} y={h / 2 + 1} fontSize={13} dominantBaseline="middle" style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
       </g>
@@ -301,6 +311,6 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 10 }}>Scroll=pan · Pinch=zoom · Drag=move · Right-click=menu</span>
     </div>
-    {tip && !drawing && !dragNode && <Tip item={tip.item} x={tip.x} y={tip.y} />}
+    {tip && !drawing && !dragNode && <Tip item={tip.item} x={tip.x} y={tip.y} teams={teams} tree={tree} />}
   </div>;
 }

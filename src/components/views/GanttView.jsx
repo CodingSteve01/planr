@@ -158,6 +158,6 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
       {cpSet?.size > 0 && <span className="badge b-cp">Crit. path: {cpSet.size}</span>}
       <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Drag bars to reorder</span>
     </div>
-    {tip && !drag && <Tip item={tip.item} x={tip.x} y={tip.y} />}
+    {tip && !drag && <Tip item={tip.item} x={tip.x} y={tip.y} teams={teams} tree={tree} />}
   </div>;
 }
