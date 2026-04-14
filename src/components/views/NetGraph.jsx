@@ -137,11 +137,25 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { if (items.length) setTimeout(fitToScreen, 100); }, [items.length]);
 
   function svgPt(e) { const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return { x: 0, y: 0 }; return { x: (e.clientX - rect.left - pan.x) / zoom, y: (e.clientY - rect.top - pan.y) / zoom }; }
-  // Use native event listener for wheel to allow preventDefault (React onWheel is passive)
+  // Wheel: Ctrl/pinch = zoom, normal scroll = pan
   useEffect(() => {
     const el = svgRef.current?.parentElement;
     if (!el) return;
-    const handler = (e) => { e.preventDefault(); const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return; const mx = e.clientX - rect.left, my = e.clientY - rect.top; const f = e.deltaY > 0 ? .88 : 1.12; const nz = Math.min(3, Math.max(.08, zoom * f)); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); };
+    const handler = (e) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        // Pinch/Ctrl+scroll = zoom
+        const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return;
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const f = e.deltaY > 0 ? .92 : 1.08;
+        const nz = Math.min(3, Math.max(.08, zoom * f));
+        setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) }));
+        setZoom(nz);
+      } else {
+        // Normal scroll = pan
+        setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+      }
+    };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
   });

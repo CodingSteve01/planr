@@ -18,6 +18,7 @@ import { AddModal } from './components/modals/AddModal.jsx';
 import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { DLModal } from './components/modals/DLModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
+import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 
 export default function App() {
   const [data, setData] = useState(() => { try { const s = localStorage.getItem(SK); return s ? JSON.parse(s) : null; } catch { return null; } });
@@ -135,7 +136,7 @@ export default function App() {
             <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
             <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
           </div>
-          <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} /></div>
+          <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
         </div>}
       </>}
       {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} deadlines={deadlines} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} /></div>}
@@ -154,5 +155,8 @@ export default function App() {
     {modal === 'settings' && <SettingsModal meta={meta} teams={teams} onSave={(m, ts) => { setD('meta', m); setD('teams', ts); }} onClose={() => setModal(null)} />}
     {modal === 'deadlines' && <DLModal deadlines={deadlines} tree={tree} onSave={v => setD('deadlines', v)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); }} />}
+    {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree}
+      onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
+      onClose={() => { setModal(null); setMN(null); }} />}
   </div>;
 }

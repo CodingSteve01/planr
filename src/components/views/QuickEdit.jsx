@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 import { re } from '../../utils/scheduler.js';
 
-export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete}){
+export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEstimate}){
   const[f,setF]=useState({...node});
   useEffect(()=>setF({...node}),[node?.id]);
   const s=(k,v)=>{const n={...f,[k]:v};setF(n);onUpdate(n);};
@@ -25,6 +25,7 @@ export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete}){
       </div>
     </div>
     {node.lvl===3&&<>
+      {onEstimate&&<button className="btn btn-sec btn-sm" style={{width:'100%',marginBottom:10}} onClick={()=>onEstimate(node)}>Estimation Wizard...</button>}
       <div className="frow">
         <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best||0} onChange={e=>setF(x=>({...x,best:+e.target.value}))} onBlur={fl}/></div>
         <div className="field"><label>Factor</label><input type="number" step="0.1" min="1" value={f.factor||1.5} onChange={e=>setF(x=>({...x,factor:+e.target.value}))} onBlur={fl}/></div>
