@@ -1,3 +1,6 @@
-# Project data (user-specific, not part of the tool)
+node_modules/
+dist/
 /data/
 *.partial
+index.html.bak
+.DS_Store

@@ -1,0 +1,85 @@
+import { useState, useEffect } from 'react';
+import { SBadge } from '../shared/Badges.jsx';
+import { re } from '../../utils/scheduler.js';
+import { iso } from '../../utils/date.js';
+
+export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClose, onUpdate, onDelete }) {
+  const [f, setF] = useState({ ...node });
+  useEffect(() => setF({ ...node }), [node?.id]);
+  const sc = scheduled?.find(s => s.id === node?.id);
+  const isCp = cpSet?.has(node?.id);
+  if (!node) return null;
+  const s = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const allIds = tree.map(r => r.id).filter(i => i !== node.id);
+  return <div className="overlay" onClick={onClose}>
+    <div className="modal fade" onClick={e => e.stopPropagation()}>
+      <h2>
+        <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 13 }}>{node.id}</span>
+        {node.lvl === 3 && <SBadge s={node.status} />}
+        {isCp && <span className="badge b-cp">Critical Path</span>}
+      </h2>
+      <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} /></div>
+      <div className="frow">
+        <div className="field"><label>Status</label>
+          <select value={f.status || 'open'} onChange={e => s('status', e.target.value)}>
+            <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
+          </select>
+        </div>
+        <div className="field"><label>Team</label>
+          <select value={f.team || ''} onChange={e => s('team', e.target.value)}>
+            <option value="">— None —</option>
+            {teams.map(t => <option key={t.id} value={t.id}>{t.id} — {t.name}</option>)}
+            {['T1/T2', 'T1/T3', 'T2/T3', 'T2/T4'].map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </div>
+      </div>
+      {node.lvl === 3 && <>
+        <div className="frow">
+          <div className="field"><label>Best case (days)</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} /></div>
+          <div className="field"><label>Uncertainty factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
+        </div>
+        <div className="frow">
+          <div className="field"><label>Priority</label>
+            <select value={f.prio || 1} onChange={e => s('prio', +e.target.value)}>
+              <option value={1}>1 — Critical</option><option value={2}>2 — High</option>
+              <option value={3}>3 — Medium</option><option value={4}>4 — Low</option>
+            </select>
+          </div>
+          <div className="field"><label>Sequence</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} /></div>
+        </div>
+        <div className="calc">
+          <span>Realistic:</span><b>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
+          <span>Worst:</span><b>{((f.best || 0) * (f.factor || 1.5)).toFixed(0)}d</b>
+          {sc && <><span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b></>}
+          {isCp && <span className="cp">On critical path</span>}
+        </div>
+        <div className="field"><label>Assigned to</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+            {(f.assign || []).map(a => <span key={a} className="tag">{a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>)}
+          </div>
+          <select onChange={e => { if (!e.target.value) return; s('assign', [...new Set([...(f.assign || []), e.target.value])]); e.target.value = ''; }}>
+            <option value="">+ Add person</option>
+            {members.map(m => <option key={m.id}>{m.id}{m.name && m.name !== m.id ? ` — ${m.name}` : ''}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>Dependencies</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+            {(f.deps || []).map(d => <span key={d} className="tag">{d}<span className="tag-x" onClick={() => s('deps', (f.deps || []).filter(x => x !== d))}>×</span></span>)}
+          </div>
+          <select onChange={e => { if (!e.target.value) return; s('deps', [...new Set([...(f.deps || []), e.target.value])]); e.target.value = ''; }}>
+            <option value="">+ Add dependency</option>
+            {allIds.map(i => <option key={i}>{i}</option>)}
+          </select>
+          <p className="helper">This task is blocked until ALL dependencies finish.</p>
+        </div>
+      </>}
+      <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
+      <div className="modal-footer">
+        {onDelete && <button className="btn btn-danger" onClick={() => { onDelete(node.id); onClose(); }}>Delete</button>}
+        <div style={{ flex: 1 }} />
+        <button className="btn btn-sec" onClick={onClose}>Cancel</button>
+        <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }}>Save</button>
+      </div>
+    </div>
+  </div>;
+}
