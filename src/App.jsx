@@ -70,6 +70,23 @@ export default function App() {
     a.download = `${(meta.name || 'project').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.json`; a.click();
   }
   function exportPDF() { window.print(); }
+  function exportSVG() {
+    const svg = document.querySelector('.netgraph-wrap svg');
+    if (!svg) return alert('Switch to the Network tab first.');
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-network.svg`; a.click();
+  }
+  function exportCSV() {
+    const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Notes'];
+    const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${(r.note || '').replace(/"/g, '""')}"`]);
+    const csv = [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.csv`; a.click();
+  }
   function loadFile(e) {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
@@ -110,8 +127,10 @@ export default function App() {
       {tab === 'deadlines' && <button className="btn btn-sec btn-sm" onClick={() => setModal('deadlines')}>Edit</button>}
       <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
       <div className="vsep" />
-      <button className="btn btn-sec btn-sm" onClick={exportJSON}>JSON</button>
-      <button className="btn btn-sec btn-sm" onClick={exportPDF}>PDF</button>
+      <button className="btn btn-sec btn-sm" onClick={exportJSON} title="Export project as JSON">JSON</button>
+      <button className="btn btn-sec btn-sm" onClick={exportCSV} title="Export tree as CSV (Excel)">CSV</button>
+      {tab === 'net' && <button className="btn btn-sec btn-sm" onClick={exportSVG} title="Download graph as SVG">SVG</button>}
+      <button className="btn btn-sec btn-sm" onClick={exportPDF} title="Print / PDF">Print</button>
       <button className="btn btn-sec btn-sm" onClick={() => fRef.current?.click()}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />

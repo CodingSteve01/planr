@@ -88,13 +88,21 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const nw = id => NW_MAP[iMap[id]?.lvl] || 150;
   const nh = id => NH_MAP[iMap[id]?.lvl] || 40;
 
-  // Edges
+  const [hoverId, setHoverId] = useState(null);
+
+  // Edges: only L2→L3 hierarchy (L1→L2 shown by container background)
   const hierEdges = []; const depEdges = [];
   items.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid] && items.find(x => x.id === pid)) hierEdges.push({ from: pid, to: r.id });
+    if (pid && iMap[pid] && items.find(x => x.id === pid) && iMap[pid].lvl >= 2) hierEdges.push({ from: pid, to: r.id });
     (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id, label: r._depLabels?.[d] || '' }); });
   });
+
+  // Dep visibility: only show deps connected to hovered or selected node
+  const activeId = hoverId || selId;
+  const visibleDeps = activeId
+    ? depEdges.filter(e => e.from === activeId || e.to === activeId)
+    : depEdges; // show all if nothing selected (but very faded)
 
   // Compute layout
   const { pos: autoPos, l1Boxes } = useMemo(() => treeLayout(items, iMap, NW_MAP, NH_MAP), [items]);
@@ -219,17 +227,21 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const tc = gTC(iMap[b.id]?.team);
           return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={tc + '06'} stroke={tc + '18'} strokeWidth={1} />;
         })}
-        {/* Hierarchy edges: solid, subtle, top-down */}
-        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to, false); return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={1.2} opacity={.5} markerEnd="url(#ar-h)" />; })}
-        {/* Dependency edges: dashed, colored, with labels */}
+        {/* Hierarchy edges: only L2→L3, subtle top-down */}
+        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to, false); return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={1} opacity={.3} />; })}
+        {/* Dependency edges: show all faded, highlight on hover/select */}
         {depEdges.map((e, i) => { const d = edgePath(e.from, e.to, true); if (!d) return null;
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
+          const isActive = activeId && (e.from === activeId || e.to === activeId);
+          const show = isActive || isCp || !activeId;
+          if (!show) return null;
           const fp = pos[e.from], tp = pos[e.to]; if (!fp || !tp) return null;
           const mx = (fp.x + nw(e.from) / 2 + tp.x + nw(e.to) / 2) / 2;
           const my = (fp.y + nh(e.from) / 2 + tp.y + nh(e.to) / 2) / 2;
+          const op = isActive ? .8 : isCp ? .5 : .15;
           return <g key={'d' + i}>
-            <path d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isCp ? 2 : 1.2} strokeDasharray="6 4" opacity={isCp ? .7 : .4} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
-            {e.label && <text x={mx} y={my - 5} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" opacity={.7} style={{ pointerEvents: 'none' }}>{e.label}</text>}
+            <path d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2.5 : isCp ? 1.5 : 1} strokeDasharray="6 4" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
+            {e.label && (isActive || !activeId) && <text x={mx} y={my - 5} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" opacity={isActive ? .9 : .4} style={{ pointerEvents: 'none' }}>{e.label}</text>}
           </g>;
         })}
         {/* Drawing line */}
@@ -253,8 +265,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}
               onDoubleClick={e => { e.stopPropagation(); onNodeClick(r); }}
               onContextMenu={e => onCtx(e, r)}
-              onMouseEnter={e => !dragNode && !drawing && setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY })}
-              onMouseLeave={() => setTip(null)} />
+              onMouseEnter={e => { if (!dragNode && !drawing) { setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY }); setHoverId(r.id); } }}
+              onMouseLeave={() => { setTip(null); setHoverId(null); }} />
             <rect x={0} y={isL1 ? h - 3 : 0} width={isL1 ? w : 3} height={isL1 ? 3 : h} rx={2} fill={stC} style={{ pointerEvents: 'none' }} />
             {/* Connection handle at bottom */}
             <circle cx={w / 2} cy={h} r={4} fill={tc + '55'} stroke={tc} strokeWidth={.8}
