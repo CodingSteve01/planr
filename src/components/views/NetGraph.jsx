@@ -96,10 +96,11 @@ function computeLayout(tree, maxRowW) {
     if (pid && iMap[pid] && pos[pid] && pos[r.id])
       edges.push({ id: `h|${pid}|${r.id}`, from: pid, to: r.id, isHier: true });
   });
+  // Dep edges: FROM the item that has the dep TO the prerequisite (arrow points at prereq)
   tree.forEach(r => {
     (r.deps || []).forEach(d => {
       if (iMap[d] && pos[d] && pos[r.id])
-        edges.push({ id: `d|${d}|${r.id}`, from: d, to: r.id, isHier: false });
+        edges.push({ id: `d|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d });
     });
   });
 
@@ -117,21 +118,18 @@ function hierPath(fp, tp) {
 // ── Dep edge: obstacle-aware orthogonal routing ─────────────────────────────
 function depPath(fp, tp, allBoxes) {
   const PAD = 6;
-  // Determine best exit/entry sides based on relative position
+  const ARR = 8; // space for arrowhead before target node
   const fcx = fp.x + NODE_W / 2, fcy = fp.y + NODE_H / 2;
   const tcx = tp.x + NODE_W / 2, tcy = tp.y + NODE_H / 2;
   const dx = tcx - fcx, dy = tcy - fcy;
 
-  // Choose exit/entry points
   let x1, y1, x2, y2;
   if (Math.abs(dx) > Math.abs(dy) * 0.5) {
-    // Mostly horizontal: exit right/left side
     x1 = dx > 0 ? fp.x + NODE_W : fp.x; y1 = fcy;
-    x2 = dx > 0 ? tp.x : tp.x + NODE_W; y2 = tcy;
+    x2 = dx > 0 ? tp.x - ARR : tp.x + NODE_W + ARR; y2 = tcy;
   } else {
-    // Mostly vertical: exit bottom/top
     x1 = fcx; y1 = dy > 0 ? fp.y + NODE_H : fp.y;
-    x2 = tcx; y2 = dy > 0 ? tp.y : tp.y + NODE_H;
+    x2 = tcx; y2 = dy > 0 ? tp.y - ARR : tp.y + NODE_H + ARR;
   }
 
   // Try simple 3-segment elbow
@@ -159,15 +157,14 @@ function depPath(fp, tp, allBoxes) {
       return { path: `M${x1},${y1} L${x1},${my} L${x2},${my} L${x2},${y2}`, labelPt: { x: Math.max(x1, x2) + 8, y: my } };
   }
 
-  // Fallback: route around via margin (go wide to avoid obstacles)
+  // Fallback: route around via margin
   const goRight = dx > 0;
   const margin = goRight
     ? Math.max(fp.x + NODE_W, tp.x + NODE_W) + 20
     : Math.min(fp.x, tp.x) - 20;
-  const exitY = fcy, enterY = tcy;
   return {
-    path: `M${x1},${exitY} L${margin},${exitY} L${margin},${enterY} L${x2},${enterY}`,
-    labelPt: { x: margin + (goRight ? 5 : -5), y: (exitY + enterY) / 2 },
+    path: `M${x1},${y1} L${margin},${y1} L${margin},${y2} L${x2},${y2}`,
+    labelPt: { x: margin + (goRight ? 5 : -5), y: (y1 + y2) / 2 },
   };
 }
 
@@ -290,7 +287,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
           const isActive = activeId && (e.from === activeId || e.to === activeId);
           const op = isActive ? .85 : isCp ? .5 : .2;
-          const item = iMap[e.to]; const label = item?._depLabels?.[e.from] || '';
+          const owner = iMap[e.depOwner || e.from]; const label = owner?._depLabels?.[e.depTarget || e.to] || '';
           const lp = e.labelPt;
           return <g key={e.id}>
             <path d={e.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'}
