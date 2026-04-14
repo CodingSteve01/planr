@@ -397,6 +397,13 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   }
   useEffect(() => { if (layout) setTimeout(fitToScreen, 50); }, [layout]);
 
+  // Escape key deselects
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') setSelId(null); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
+
   function svgPt(e) { const r = svgRef.current?.getBoundingClientRect(); return r ? { x: (e.clientX - r.left - pan.x) / zoom, y: (e.clientY - r.top - pan.y) / zoom } : { x: 0, y: 0 }; }
 
   useEffect(() => {
@@ -439,7 +446,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
     </div>
 
     <svg ref={svgRef} style={{ width: '100%', height: '100%' }} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU}
-      onMouseLeave={() => setPanning(false)}>
+      onMouseLeave={() => setPanning(false)} onClick={() => setSelId(null)}>
       <defs>
         <marker id="ar-d" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="5" markerHeight="4" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--ac)" /></marker>
         <marker id="ar-cp" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="5" markerHeight="4" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker>
