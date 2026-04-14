@@ -95,7 +95,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   items.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
     if (pid && iMap[pid] && items.find(x => x.id === pid)) hierEdges.push({ from: pid, to: r.id });
-    (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id, label: r._depLabels?.[d] || '' }); });
+    // Arrow FROM the item TOWARDS its dependency (showing "I need this")
+    (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: r.id, to: d, label: r._depLabels?.[d] || '' }); });
   });
 
   // Dep visibility: only show deps connected to hovered or selected node
@@ -186,20 +187,23 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
 
     if (isDep) {
-      // Dependency: horizontal elbow connector (side-to-side)
+      // Dependency: elbow connector, route around nodes
       const goRight = fcx < tcx;
       const x1 = goRight ? fp.x + fw : fp.x;
       const y1 = fcy;
       const x2 = goRight ? tp.x : tp.x + tw;
       const y2 = tcy;
-      const midX = (x1 + x2) / 2;
+      // Offset the midpoint to avoid overlapping nodes
+      const midX = goRight ? x1 + 20 : x1 - 20;
       return `M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}`;
     }
-    // Hierarchy: vertical elbow (top-down, go down then across)
-    const x1 = fcx, y1 = fp.y + fh;
-    const x2 = tcx, y2 = tp.y;
-    const midY = (y1 + y2) / 2;
-    return `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`;
+    // Hierarchy: tree-style branching (parent ├── child)
+    // Go down from parent left side, then branch right to child
+    const x1 = fp.x + 8; // left side of parent
+    const y1 = fp.y + fh;
+    const x2 = tp.x; // left side of child
+    const y2 = tcy;
+    return `M${x1},${y1} L${x1},${y2} L${x2},${y2}`;
   }
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
@@ -247,7 +251,10 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const op = isActive ? .8 : isCp ? .5 : .15;
           return <g key={'d' + i}>
             <path d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2.5 : isCp ? 1.5 : 1} strokeDasharray="6 4" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
-            {e.label && (isActive || !activeId) && <text x={mx} y={my - 5} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" opacity={isActive ? .9 : .4} style={{ pointerEvents: 'none' }}>{e.label}</text>}
+            {e.label && isActive && <>
+              <rect x={mx - e.label.length * 2.8 - 4} y={my - 18} width={e.label.length * 5.6 + 8} height={14} rx={3} fill="var(--bg2)" stroke="var(--ac)" strokeWidth={.5} opacity={.9} style={{ pointerEvents: 'none' }} />
+              <text x={mx} y={my - 8} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{e.label}</text>
+            </>}
           </g>;
         })}
         {/* Drawing line */}

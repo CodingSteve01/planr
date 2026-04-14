@@ -35,7 +35,12 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
     return { ...dl, wi, isLate, maxEnd };
   });
   // Today line
-  const todayWi = weeks.findIndex(w => w.mon > new Date()); // first week after today
+  // Find the week that contains today (not the one after)
+  const now = new Date();
+  const todayWi = weeks.findIndex((w, i) => {
+    const next = weeks[i + 1];
+    return w.mon <= now && (!next || next.mon > now);
+  });
   const todayX = todayWi >= 0 ? todayWi * WPX : -1;
   const gTC = t => teams.find(x => x.id === t)?.color || '#3b82f6';
 
@@ -84,7 +89,7 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
         </div>
         <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
-            const isNow = todayWi >= 0 && (i === todayWi || i === todayWi - 1);
+            const isNow = todayWi >= 0 && i === todayWi;
             return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b2)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 8, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, background: isNow ? 'rgba(34,197,94,.12)' : w.hasH ? 'rgba(244,63,94,.06)' : isYB ? 'rgba(37,99,235,.06)' : '' }}>
               {w.kw}
             </div>; })}
