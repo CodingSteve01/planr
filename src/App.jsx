@@ -75,6 +75,40 @@ export default function App() {
     if (!svg) return alert('Switch to the Network tab first.');
     const clone = svg.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    // Set viewBox to encompass the full graph content
+    const g = clone.querySelector('g');
+    if (g) {
+      // Remove transform so we get the raw coordinates
+      const transform = g.getAttribute('transform');
+      g.removeAttribute('transform');
+    }
+    // Inject light mode styles so the SVG is readable on white background
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = `
+      svg { background: #f8f9fc; --bg: #f8f9fc; --bg2: #ffffff; --bg3: #f0f2f5; --bg4: #e5e8ee;
+        --b: #e0e4ea; --b2: #ccd2dc; --b3: #b0b8c8; --tx: #1a1e2a; --tx2: #4a5268; --tx3: #7a839a;
+        --ac: #2563eb; --ac2: #1d4ed8; --gr: #16a34a; --am: #d97706; --re: #dc2626;
+        --r: 7px; --mono: 'JetBrains Mono', monospace; --font: 'Inter', sans-serif; }
+      text { font-family: 'Inter', sans-serif; }
+    `;
+    clone.prepend(style);
+    // Calculate bounds from all elements
+    const rects = clone.querySelectorAll('rect, text, path, line, circle');
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Use the content group's children positions
+    const allNodes = clone.querySelectorAll('g > g');
+    allNodes.forEach(n => {
+      const t = n.getAttribute('transform');
+      if (t) {
+        const m = t.match(/translate\(([^,]+),([^)]+)\)/);
+        if (m) { const x = +m[1], y = +m[2]; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + 250); maxY = Math.max(maxY, y + 60); }
+      }
+    });
+    if (minX === Infinity) { minX = 0; minY = 0; maxX = 1200; maxY = 800; }
+    const pad = 40;
+    clone.setAttribute('viewBox', `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`);
+    clone.setAttribute('width', maxX - minX + pad * 2);
+    clone.setAttribute('height', maxY - minY + pad * 2);
     const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-network.svg`; a.click();

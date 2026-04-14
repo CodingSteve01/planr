@@ -5,13 +5,16 @@ import { pt } from '../../utils/scheduler.js';
 
 // ── Top-Down Tree Layout ────────────────────────────────────────────────────
 // L1 across the top as wide headers, L2 as columns below, L3 as stacked cards
+// RAIL_W = space reserved on the left for hierarchy connector rails
+const RAIL_W = 18;
+
 function treeLayout(items, iMap, NW, NH) {
   const pos = {};
   const PAD = 14;
   const l1s = items.filter(r => r.lvl === 1);
 
-  let l1X = 0;
-  const l1Boxes = []; // { id, x, y, w, h } for background rendering
+  let l1X = RAIL_W; // start with rail space
+  const l1Boxes = [];
 
   l1s.forEach(p1 => {
     const l2s = items.filter(r => r.lvl === 2 && r.id.startsWith(p1.id + '.'));
@@ -19,39 +22,37 @@ function treeLayout(items, iMap, NW, NH) {
 
     if (!l2s.length) {
       pos[p1.id] = { x: l1X, y: L1_Y };
-      l1Boxes.push({ id: p1.id, x: l1X - 6, y: L1_Y - 6, w: NW[1] + 12, h: NH[1] + 12 });
+      l1Boxes.push({ id: p1.id, x: l1X - RAIL_W, y: L1_Y - 8, w: NW[1] + RAIL_W + 8, h: NH[1] + 16 });
       l1X += NW[1] + PAD * 3;
       return;
     }
 
-    // Measure L2 columns
     const l2Cols = l2s.map(p2 => {
       const l3s = items.filter(r => r.lvl === 3 && r.id.startsWith(p2.id + '.'));
       const colH = NH[2] + PAD + l3s.length * (NH[3] + PAD);
       return { p2, l3s, colH };
     });
 
-    // Place L2 columns side by side, starting below L1 header
-    const L2_TOP = NH[1] + PAD * 2;
+    const L2_TOP = NH[1] + PAD * 3;
     let colX = l1X;
 
     l2Cols.forEach(col => {
-      pos[col.p2.id] = { x: colX, y: L2_TOP };
-      // L3 tasks stacked under L2
+      // L2 header with rail space to the left for L3 connectors
+      pos[col.p2.id] = { x: colX + RAIL_W, y: L2_TOP };
+      // L3 tasks indented under L2 with rail space
       let taskY = L2_TOP + NH[2] + PAD;
       col.l3s.forEach(t => {
-        pos[t.id] = { x: colX + (NW[2] - NW[3]) / 2, y: taskY };
+        pos[t.id] = { x: colX + RAIL_W + (NW[2] - NW[3]) / 2, y: taskY };
         taskY += NH[3] + PAD;
       });
-      colX += Math.max(NW[2], NW[3]) + PAD;
+      colX += RAIL_W + Math.max(NW[2], NW[3]) + PAD;
     });
 
-    // L1 header spans the full width of its children
     const totalW = colX - l1X - PAD;
     pos[p1.id] = { x: l1X + (totalW - NW[1]) / 2, y: L1_Y };
 
     const maxH = Math.max(...l2Cols.map(c => c.colH)) + L2_TOP;
-    l1Boxes.push({ id: p1.id, x: l1X - 8, y: L1_Y - 8, w: totalW + 16, h: maxH + 16 });
+    l1Boxes.push({ id: p1.id, x: l1X - RAIL_W, y: L1_Y - 8, w: totalW + RAIL_W + 8, h: maxH + 16 });
 
     l1X = colX + PAD * 2;
   });
@@ -188,30 +189,26 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
 
     if (isDep) {
-      // Dependency: route outside - go UP from source, across, DOWN to target
-      const above = Math.min(fcy, tcy) - 20;
-      const below = Math.max(fcy, tcy) + 20;
-      // Pick route that's shorter
-      const x1 = fp.x + fw / 2, y1 = fp.y;
-      const x2 = tp.x + tw / 2, y2 = tp.y + th;
-      const routeY = above > -50 ? above : below;
-      return `M${fcx},${fp.y} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${tp.y + th}`;
+      // Dependency: route ABOVE all nodes to avoid crossings
+      // Find the topmost Y of source and target, then route 30px above that
+      const minY = Math.min(fp.y, tp.y) - 35;
+      const routeY = Math.max(minY, -30);
+      return `M${fcx},${fp.y} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${tp.y}`;
     }
-    // Hierarchy: route to the LEFT of children, then branch
-    // Find the leftmost x of all children of this parent
+    // Hierarchy: vertical rail to the LEFT of all children (in reserved RAIL_W space)
     const siblings = items.filter(r => {
       const pid = r.id.split('.').slice(0, -1).join('.');
       return pid === fromId;
     });
+    // Rail runs in the reserved space to the left of children
     const railX = siblings.length > 0
-      ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - 12
-      : fp.x - 12;
+      ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - RAIL_W / 2
+      : fp.x - RAIL_W / 2;
 
-    const x1 = fp.x + fw / 2; // center bottom of parent
+    const x1 = fp.x + fw / 2;
     const y1 = fp.y + fh;
-    const y2 = tp.y + th / 2; // middle of child
-    // Go down from parent center, left to rail, down to child level, right to child
-    return `M${x1},${y1} L${x1},${y1 + 8} L${railX},${y1 + 8} L${railX},${y2} L${tp.x},${y2}`;
+    const y2 = tp.y + th / 2;
+    return `M${x1},${y1} L${x1},${y1 + 10} L${railX},${y1 + 10} L${railX},${y2} L${tp.x},${y2}`;
   }
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
