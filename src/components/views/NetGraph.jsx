@@ -145,15 +145,15 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     });
   }, [layout, pos, manualPos]);
 
+  const activeId = hoverId || selId;
+
   // Connected set for highlighting
   const connectedSet = useMemo(() => {
     if (!activeId || !layout) return null;
     const s = new Set([activeId]);
     allEdges.forEach(e => { if (e.from === activeId || e.to === activeId) { s.add(e.from); s.add(e.to); } });
     return s;
-  }, [hoverId, selId, allEdges]);
-
-  const activeId = hoverId || selId;
+  }, [activeId, allEdges]);
 
   const allPos = Object.entries(pos);
   const graphW = allPos.length ? Math.max(...allPos.map(([id, p]) => p.x + nw(id))) + 20 : 400;
