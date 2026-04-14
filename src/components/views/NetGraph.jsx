@@ -105,6 +105,7 @@ function computeLayout(tree) {
   });
 
   // Orphans
+  const totalH = packed.length ? Math.max(...packed.map(p => p.y + p.h)) : 0;
   let oy = totalH + NODE_H;
   tree.filter(r => !pos[r.id]).forEach(r => { pos[r.id] = { x: 0, y: oy }; oy += NODE_H + GAP_Y; });
 
