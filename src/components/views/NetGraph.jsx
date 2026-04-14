@@ -120,11 +120,13 @@ function computeLayout(tree, maxRowW) {
   return { pos, edges };
 }
 
-// ── Hierarchy edge: tree connector (parent bottom → bus → child top) ────────
+// ── Hierarchy edge: parent bottom → vertical spine → horizontal tap → child top
+// The vertical spine runs at the parent's center X, then taps out to each child
 function hierPath(fp, tp) {
   const px = fp.x + NODE_W / 2, py = fp.y + NODE_H;
   const cx = tp.x + NODE_W / 2, cy = tp.y;
-  const busY = py + (cy - py) / 2;
+  const busY = py + LEVEL_GAP / 2; // bus just below parent
+  // Vertical down from parent, horizontal to child X, vertical down to child
   return `M${px},${py} L${px},${busY} L${cx},${busY} L${cx},${cy}`;
 }
 
@@ -350,10 +352,10 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
             <text x={5} y={10} fontSize={6} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
             {/* Name (2 lines) */}
             <text x={5} y={21} fontSize={7.5} fill={tc} fontWeight={r.lvl === 1 ? 700 : r.lvl === 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
-              {r.name.length <= 18 ? r.name : <>{r.name.slice(0, 18)}<tspan x={5} dy={10}>{r.name.slice(18, 36)}{r.name.length > 36 ? '..' : ''}</tspan></>}
+              {r.name.length <= 26 ? r.name : <>{r.name.slice(0, 26)}<tspan x={5} dy={10}>{r.name.slice(26, 52)}{r.name.length > 52 ? '..' : ''}</tspan></>}
             </text>
             {/* Info line */}
-            {sc && <text x={5} y={r.name.length > 18 ? 40 : 33} fontSize={5.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             {isDone && <text x={NODE_W - 14} y={NODE_H - 5} fontSize={10} style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
