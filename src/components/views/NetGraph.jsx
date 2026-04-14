@@ -392,8 +392,18 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   function fitToScreen() {
     if (!svgRef.current) return;
     const r = svgRef.current.getBoundingClientRect();
-    const z = Math.max(.05, Math.min((r.width - 16) / graphW, (r.height - 50) / graphH, 2));
-    setPan({ x: (r.width - graphW * z) / 2, y: Math.max(8, (r.height - graphH * z) / 2) }); setZoom(z);
+    // If a selection is active, fit to the highlighted nodes only
+    const fitNodes = connectedSet && connectedSet.size > 1
+      ? allPos.filter(([id]) => connectedSet.has(id))
+      : allPos;
+    if (!fitNodes.length) return;
+    const minX = Math.min(...fitNodes.map(([, p]) => p.x));
+    const minY = Math.min(...fitNodes.map(([, p]) => p.y));
+    const maxX = Math.max(...fitNodes.map(([, p]) => p.x + NODE_W));
+    const maxY = Math.max(...fitNodes.map(([, p]) => p.y + NODE_H));
+    const fw = maxX - minX + 40, fh = maxY - minY + 40;
+    const z = Math.max(.05, Math.min((r.width - 16) / fw, (r.height - 50) / fh, 2));
+    setPan({ x: (r.width - fw * z) / 2 - minX * z + 20 * z, y: (r.height - fh * z) / 2 - minY * z + 20 * z }); setZoom(z);
   }
   useEffect(() => { if (layout) setTimeout(fitToScreen, 50); }, [layout]);
 
