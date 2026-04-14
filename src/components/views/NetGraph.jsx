@@ -45,7 +45,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const [dragNode, setDragNode] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
 
-  const items = tree.filter(r => r.status !== 'done' || r.lvl < 3);
+  const items = tree; // show ALL items including done
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const sMap = Object.fromEntries(scheduled.map(s => [s.id, s]));
 
@@ -196,16 +196,27 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
         <marker id="ar-cp" viewBox="0 0 10 6" refX="9" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="var(--re)" /></marker>
       </defs>
       <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to); return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b2)" strokeWidth={1} strokeDasharray="4 3" opacity={.5} />; })}
-        {depEdges.map((e, i) => { const d = edgePath(e.from, e.to); if (!d) return null; const isCp = cpSet?.has(e.from) && cpSet?.has(e.to); return <path key={'d' + i} d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isCp ? 2.5 : 1.5} opacity={isCp ? .8 : .5} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />; })}
+        {/* Hierarchy edges: solid, visible */}
+        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to); return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={1.5} opacity={.6} markerEnd="url(#ar)" />; })}
+        {/* Dependency edges: dashed, colored, with label */}
+        {depEdges.map((e, i) => { const d = edgePath(e.from, e.to); if (!d) return null;
+          const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
+          const dep = iMap[e.to]; const label = dep?._depLabels?.[e.from] || '';
+          const fp = pos[e.from], tp = pos[e.to]; if (!fp || !tp) return null;
+          const mx = (fp.x + nw(e.from) + tp.x) / 2, my = (fp.y + nh(e.from) / 2 + tp.y + nh(e.to) / 2) / 2;
+          return <g key={'d' + i}>
+            <path d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isCp ? 2 : 1.2} strokeDasharray={isCp ? '' : '6 4'} opacity={isCp ? .7 : .4} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
+            {label && <text x={mx} y={my - 4} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{label}</text>}
+          </g>;
+        })}
         {drawing && (() => { const fp = pos[drawing.fromId]; if (!fp) return null; const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return null; const mx = (drawing.mx - rect.left - pan.x) / zoom, my = (drawing.my - rect.top - pan.y) / zoom; return <line x1={fp.x + nw(drawing.fromId)} y1={fp.y + nh(drawing.fromId) / 2} x2={mx} y2={my} stroke="var(--ac)" strokeWidth={2} strokeDasharray="6 3" />; })()}
         {items.map(r => {
           const p = pos[r.id]; if (!p) return null;
           const w = nw(r.id), h = nh(r.id);
           const isCp = cpSet?.has(r.id); const sc = sMap[r.id]; const tc = gTC(r.team); const stC = SC[r.status] || '#4f8ef7';
-          const isSel = selId === r.id;
+          const isSel = selId === r.id; const isDone = r.status === 'done';
           const isL1 = r.lvl === 1, isL2 = r.lvl === 2;
-          return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
+          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={isDone ? .5 : 1}>
             <rect width={w} height={h} rx={isL1 ? 10 : isL2 ? 7 : 5}
               fill={isL1 ? tc + '15' : isL2 ? tc + '12' : tc + '18'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : tc + (isL1 ? '55' : '44')}
@@ -234,6 +245,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
               <text x={8} y={26} fontSize={9.5} fill={tc} fontWeight={500} style={{ pointerEvents: 'none' }}>{r.name.length > 18 ? r.name.slice(0, 17) + '...' : r.name}</text>
               {sc && <text x={8} y={37} fontSize={7.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             </>}
+            {isDone && <text x={w - 16} y={h / 2 + 1} fontSize={14} dominantBaseline="middle" style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
       </g>
@@ -244,8 +256,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       <div style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { if (confirm(`Delete ${ctxMenu.id}?`)) { onDeleteNode(ctxMenu.id); setSelId(null); } setCtxMenu(null); }}>Delete</div>
     </div>}
     <div className="ng-legend">
-      <div className="ng-li"><div className="ng-dot" style={{ background: 'var(--b2)', border: '1px dashed var(--b3)' }} />Hierarchy</div>
-      <div className="ng-li"><div className="ng-dot" style={{ background: 'var(--ac)' }} />Dependency</div>
+      <div className="ng-li"><div style={{ width: 20, height: 2, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
+      <div className="ng-li"><div style={{ width: 20, height: 0, borderTop: '2px dashed var(--ac)', flexShrink: 0 }} />Dependency</div>
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 10 }}>Drag=move · Circle=connect · Dbl-click=edit · Right-click=menu</span>
     </div>

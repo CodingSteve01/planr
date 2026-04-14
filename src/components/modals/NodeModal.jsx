@@ -70,14 +70,17 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
           </select>
         </div>
         <div className="field"><label>Dependencies</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-            {(f.deps || []).map(d => <span key={d} className="tag">{d}<span className="tag-x" onClick={() => s('deps', (f.deps || []).filter(x => x !== d))}>×</span></span>)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+            {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="tag" style={{ flexShrink: 0 }}>{d} {dn?.name ? `— ${dn.name}` : ''}<span className="tag-x" onClick={() => { s('deps', (f.deps || []).filter(x => x !== d)); const dl = { ...(f._depLabels || {}) }; delete dl[d]; s('_depLabels', dl); }}>×</span></span>
+              <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label (optional)" style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
+            </div>; })}
           </div>
           <select onChange={e => { if (!e.target.value) return; s('deps', [...new Set([...(f.deps || []), e.target.value])]); e.target.value = ''; }}>
             <option value="">+ Add dependency</option>
             {allIds.map(i => { const n = tree.find(r => r.id === i); return <option key={i} value={i}>{i} — {n?.name || ''}</option>; })}
           </select>
-          <p className="helper">This task is blocked until ALL dependencies finish.</p>
+          <p className="helper">Blocked until all deps finish. Optional: add a label to describe the relation.</p>
         </div>
       </>}
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
