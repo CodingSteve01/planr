@@ -45,25 +45,61 @@ function layoutSubtree(node, childMap) {
     return { pos, w: gw, h: lastY };
   }
 
-  // Otherwise: children in a row (each child is a subtree)
+  // Otherwise: children as subtrees — use multi-row grid if too many
   const childLayouts = children.map(child => layoutSubtree(child, childMap));
-  let x = 0;
-  childLayouts.forEach(layout => {
-    Object.entries(layout.pos).forEach(([id, p]) => {
-      pos[id] = { x: x + p.x, y: NODE_H + LEVEL_GAP + p.y };
-    });
-    x += layout.w + TREE_GAP;
-  });
 
-  const totalChildW = Math.max(0, x - TREE_GAP);
-  const width = Math.max(NODE_W, totalChildW);
-  if (totalChildW < width) {
-    const off = (width - totalChildW) / 2;
-    Object.keys(pos).forEach(id => { pos[id].x += off; });
+  // Determine optimal number of columns: target ~2:1 aspect ratio
+  const avgW = childLayouts.reduce((s, l) => s + l.w, 0) / childLayouts.length;
+  const avgH = childLayouts.reduce((s, l) => s + l.h, 0) / childLayouts.length;
+  let cols = childLayouts.length;
+  if (childLayouts.length > 3) {
+    // Try different column counts, pick the one closest to 2:1
+    let bestCols = cols, bestRatio = Infinity;
+    for (let c = 2; c <= Math.min(childLayouts.length, 6); c++) {
+      const rows = Math.ceil(childLayouts.length / c);
+      const estW = c * (avgW + TREE_GAP);
+      const estH = rows * (avgH + LEVEL_GAP);
+      const ratio = estW / Math.max(estH, 1);
+      const penalty = Math.abs(Math.log(ratio / 2));
+      if (penalty < bestRatio) { bestRatio = penalty; bestCols = c; }
+    }
+    cols = bestCols;
   }
 
+  // Place children in grid rows
+  const rows = [];
+  for (let i = 0; i < childLayouts.length; i += cols) {
+    rows.push(childLayouts.slice(i, i + cols));
+  }
+
+  let maxRowW = 0;
+  let totalH = 0;
+  const rowMeta = rows.map(row => {
+    const rowW = row.reduce((s, l) => s + l.w + TREE_GAP, -TREE_GAP);
+    const rowH = Math.max(...row.map(l => l.h));
+    maxRowW = Math.max(maxRowW, rowW);
+    return { rowW, rowH };
+  });
+
+  const cy = NODE_H + LEVEL_GAP;
+  let yOff = 0;
+  rows.forEach((row, ri) => {
+    const { rowW, rowH } = rowMeta[ri];
+    const rowXOff = (maxRowW - rowW) / 2; // center each row
+    let x = rowXOff;
+    row.forEach(layout => {
+      Object.entries(layout.pos).forEach(([id, p]) => {
+        pos[id] = { x: x + p.x, y: cy + yOff + p.y };
+      });
+      x += layout.w + TREE_GAP;
+    });
+    yOff += rowH + LEVEL_GAP;
+  });
+
+  const width = Math.max(NODE_W, maxRowW);
+  const height = cy + yOff - LEVEL_GAP;
   pos[node.id] = { x: (width - NODE_W) / 2, y: 0 };
-  return { pos, w: width, h: NODE_H + LEVEL_GAP + Math.max(...childLayouts.map(l => l.h)) };
+  return { pos, w: width, h: height };
 }
 
 // ── Flip a tree vertically (parent at bottom instead of top) ────────────────
@@ -141,23 +177,22 @@ function binPackTrees(trees) {
     });
   }
 
-  // Compaction: push each tree as far up-left as possible (node-level collision)
-  for (let pass = 0; pass < 4; pass++) {
+  // Compaction: push each tree as far up-left as possible (bounding-box, clean gaps)
+  const G = TREE_GAP;
+  for (let pass = 0; pass < 3; pass++) {
     placed.forEach((t, i) => {
       const others = placed.filter((_, j) => j !== i);
-      // Move up
-      for (let step = TREE_GAP * 2; step > 0; step = Math.floor(step / 2)) {
+      for (let step = G * 2; step > 0; step = Math.floor(step / 2)) {
         while (t.y - step >= 0) {
           const ny = t.y - step;
-          const ok = !others.some(o => nodesOverlap(t.tree, t.x, ny, o.tree, o.x, o.y));
+          const ok = !others.some(o => t.x < o.x + o.w + G && t.x + t.w + G > o.x && ny < o.y + o.h + G && ny + t.h + G > o.y);
           if (ok) t.y = ny; else break;
         }
       }
-      // Move left
-      for (let step = TREE_GAP * 2; step > 0; step = Math.floor(step / 2)) {
+      for (let step = G * 2; step > 0; step = Math.floor(step / 2)) {
         while (t.x - step >= 0) {
           const nx = t.x - step;
-          const ok = !others.some(o => nodesOverlap(t.tree, nx, t.y, o.tree, o.x, o.y));
+          const ok = !others.some(o => nx < o.x + o.w + G && nx + t.w + G > o.x && t.y < o.y + o.h + G && t.y + t.h + G > o.y);
           if (ok) t.x = nx; else break;
         }
       }
@@ -476,7 +511,6 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
             </text>
             {/* Info line */}
             {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
-            {isDone && <text x={NODE_W - 14} y={NODE_H - 5} fontSize={10} style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
       </g>

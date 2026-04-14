@@ -321,7 +321,7 @@ export default function App() {
     <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
   </>;
 
-  const topDownReady = tree.length > 0 && !tree.some(r => r.lvl > 1);
+  // removed: topDownReady guide bubble (was blocking tree view)
 
   const TABS = [
     { id: 'summary', label: 'Overview' }, { id: 'tree', label: 'Work Tree' }, { id: 'gantt', label: 'Schedule' },
@@ -385,22 +385,11 @@ export default function App() {
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full">
-          {topDownReady && <div style={{ padding: '16px 20px 0' }}>
-            <div className="guide-card">
-              <div className="guide-kicker">Top-down flow</div>
-              <div className="guide-title">Break each top item into causes, measures, and estimated tasks.</div>
-              <div className="guide-steps">
-                <span>1. Start with a focus item.</span>
-                <span>2. Add groups for causes or measures.</span>
-                <span>3. Turn those into leaf tasks and estimate them.</span>
-              </div>
-            </div>
-          </div>}
           <div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={tree} selected={selected} onSelect={setSel} onDbl={n => { setMN(n); setModal('node'); }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
-              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const lvl = parent.lvl + 1; const node = { id, lvl, name: 'New child item', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); }}
+              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); }}
               onDelete={deleteNode} />
           }
           </div>

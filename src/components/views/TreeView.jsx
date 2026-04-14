@@ -2,9 +2,31 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 import { hasChildren, isLeafNode, leafNodes } from '../../utils/scheduler.js';
 
+function depth(id) { return id.split('.').length; }
+
 export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, stats, teams, cpSet, onQuickAdd, onDelete }) {
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
+
+  // Sort tree hierarchically: parent before children, siblings by numeric suffix
+  const sorted = useMemo(() => {
+    const byParent = {};
+    tree.forEach(r => {
+      const pid = r.id.split('.').slice(0, -1).join('.') || '';
+      if (!byParent[pid]) byParent[pid] = [];
+      byParent[pid].push(r);
+    });
+    // Sort siblings: numeric suffix, then string
+    Object.values(byParent).forEach(arr => arr.sort((a, b) => {
+      const aLast = a.id.split('.').pop(), bLast = b.id.split('.').pop();
+      const an = parseInt(aLast.replace(/\D/g, '')) || 0, bn = parseInt(bLast.replace(/\D/g, '')) || 0;
+      return an !== bn ? an - bn : aLast.localeCompare(bLast);
+    }));
+    const result = [];
+    const visit = pid => { (byParent[pid] || []).forEach(r => { result.push(r); visit(r.id); }); };
+    visit('');
+    return result;
+  }, [tree]);
 
   // When navigating to a child of a collapsed parent, expand ancestors first, then scroll
   useEffect(() => {
@@ -25,8 +47,11 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
     return n;
   });
 
+  const collapseAll = () => setCollapsed(new Set(tree.filter(r => hasChildren(tree, r.id)).map(r => r.id)));
+  const expandAll = () => setCollapsed(new Set());
+
   const filt = useMemo(() => {
-    let f = tree;
+    let f = sorted;
     if (teamFilter) {
       const matchIds = new Set();
       f.forEach(r => {
@@ -47,9 +72,15 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
       }
       return true;
     });
-  }, [tree, search, teamFilter, collapsed]);
+  }, [sorted, search, teamFilter, collapsed]);
 
-  return <table className="tree-tbl">
+  return <div>
+    <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg)' }}>
+      <button className="btn btn-sec btn-xs" onClick={collapseAll}>Collapse all</button>
+      <button className="btn btn-sec btn-xs" onClick={expandAll}>Expand all</button>
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} items</span>
+    </div>
+    <table className="tree-tbl">
     <thead><tr>
       <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>ID</th>
       <th style={{ background: 'var(--bg)', width: '100%' }}>Name</th>
@@ -67,14 +98,16 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
         const s = stats[r.id] || r; const isLeaf = isLeafNode(tree, r.id); const isCp = isLeaf && cpSet?.has(r.id); const canAdd = true;
         const childNodes = hasChildren(tree, r.id);
         const isCollapsed = collapsed.has(r.id);
-        return <tr key={r.id} ref={selected?.id === r.id ? selRef : null} className={`tr l${r.lvl}${selected?.id === r.id ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
+        const d = depth(r.id);
+        return <tr key={r.id} ref={selected?.id === r.id ? selRef : null} className={`tr${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${selected?.id === r.id ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
           onClick={() => onSelect(r)} onDoubleClick={() => onDbl(r)}>
           <td><span className="tid">{r.id}</span></td>
           <td style={{ whiteSpace: 'normal' }}>
-            <span style={{ display: 'inline-block', width: (r.lvl - 1) * 16 }} />
+            <span style={{ display: 'inline-block', width: (d - 1) * 16 }} />
             {childNodes && <span style={{ display: 'inline-block', width: 16, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center' }}
               onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>}
-            <span className={`tn l${r.lvl}`}>{r.name}</span>
+            {!childNodes && <span style={{ display: 'inline-block', width: 16 }} />}
+            <span className={`tn${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}>{r.name}</span>
             {isCollapsed && <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 6 }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
             {isCp && <span style={{ fontSize: 9, color: 'var(--re)', marginLeft: 5 }}>crit</span>}
             {r.note && <span className="note-inline">{r.note}</span>}
@@ -102,5 +135,5 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
         </tr>;
       })}
     </tbody>
-  </table>;
+  </table></div>;
 }
