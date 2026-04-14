@@ -3,7 +3,7 @@ import { SBadge } from '../shared/Badges.jsx';
 import { re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClose, onUpdate, onDelete }) {
+export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClose, onUpdate, onDelete, onEstimate }) {
   const [f, setF] = useState({ ...node });
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
@@ -34,6 +34,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
         </div>
       </div>
       {node.lvl === 3 && <>
+        {onEstimate && <button className="btn btn-sec" style={{ width: '100%', marginBottom: 12 }} onClick={() => { onClose(); onEstimate(node); }}>Open Estimation Wizard...</button>}
         <div className="field"><label>Quick estimate (T-shirt size)</label>
           <div style={{ display: 'flex', gap: 4 }}>
             {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
