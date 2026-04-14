@@ -22,8 +22,7 @@ export function NewProjModal({ onCreate, onClose }) {
     const cleanGoals = goals.map(g => ({ ...g, name: (g.name || '').trim(), description: (g.description || '').trim() })).filter(g => g.name);
     const tree = cleanGoals.map((g, i) => ({
       id: `P${i + 1}`,
-      lvl: 1,
-      name: `${GL[g.type]}: ${g.name}`,
+      name: g.name,
       status: 'open',
       team: '',
       best: 0,
@@ -31,11 +30,15 @@ export function NewProjModal({ onCreate, onClose }) {
       prio: toPrio(g.severity),
       seq: (i + 1) * 10,
       deps: [],
-      note: [g.date ? `Target ${g.date}` : '', g.description].filter(Boolean).join(' · '),
+      note: '',
       assign: [],
+      // Goal metadata directly on the tree root
+      type: g.type,
+      severity: g.severity || 'high',
+      date: g.date || '',
+      description: g.description || '',
     }));
-    const linkedGoals = cleanGoals.map((g, i) => ({ ...g, linkedItems: [...new Set([...(g.linkedItems || []), tree[i].id])] }));
-    onCreate({ meta: { ...f, version: '2' }, teams: ts, members: [], deadlines: linkedGoals, vacations: [], tree, holidays: hols });
+    onCreate({ meta: { ...f, version: '2' }, teams: ts, members: [], vacations: [], tree, holidays: hols });
   }
 
   return <div className="overlay">

@@ -22,31 +22,27 @@ export function cpm(tree) {
   return { critical, goalPaths: {} };
 }
 
-// Goal-based critical path: per deadline, trace backward from linked items
-// Returns { [deadlineId]: { critical: Set<taskId>, chainLength: number, items: string[] } }
-export function goalCpm(tree, deadlines) {
-  const all = Object.fromEntries(tree.map(r => [r.id, r]));
+// Goal-based critical path: per goal (tree root with type), trace all leaf descendants
+// Returns { [goalId]: { critical: Set<taskId>, chainLength: number, ... } }
+export function goalCpm(tree) {
   const lv = Object.fromEntries(leafNodes(tree).map(r => [r.id, r]));
   const eff = r => r.status === 'done' ? 0 : Math.max((r.best || 0) * Math.min(r.factor || 1.5, 1.3) * 1.15, 0.01);
 
-  // Resolve an ID to leaf task IDs (handles group references like P2.1)
   function resolveTo(id) {
     return resolveToLeafIds(tree, id).filter(id2 => lv[id2]);
   }
 
-  // Build dependency graph for all leaf tasks
   const deps = {};
   Object.keys(lv).forEach(id => {
     deps[id] = new Set((lv[id].deps || []).flatMap(d => resolveTo(d)).filter(d => lv[d]));
   });
 
   const goalPaths = {};
+  const goals = tree.filter(r => !r.id.includes('.') && r.type);
 
-  (deadlines || []).forEach(dl => {
-    if (!dl.linkedItems?.length) return;
-
-    // Find all target leaf tasks for this deadline
-    const targets = dl.linkedItems.flatMap(id => resolveTo(id)).filter(id => lv[id]);
+  goals.forEach(dl => {
+    // All leaf descendants of this root = targets
+    const targets = leafNodes(tree).filter(l => l.id.startsWith(dl.id + '.')).map(l => l.id).filter(id => lv[id]);
     if (!targets.length) return;
 
     // Trace backward from targets: find ALL tasks that are ancestors (transitively needed)

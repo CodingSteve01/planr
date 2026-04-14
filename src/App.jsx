@@ -198,14 +198,27 @@ export default function App() {
   // Ctrl+S → save to file
   useEffect(() => { const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); });
 
-  const { tree = [], members = [], teams = [], deadlines = [], vacations = [], meta = {} } = data || {};
+  const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
+  // Backward compat: migrate old deadlines[] into tree roots
+  useEffect(() => {
+    if (!data?.deadlines?.length) return;
+    const dl = data.deadlines; const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
+    const updated = [...tree];
+    dl.forEach(g => {
+      // Find matching root by name similarity
+      const root = updated.find(r => !r.id.includes('.') && (r.name.includes(g.name) || g.name.includes(r.name.split(' ')[0])));
+      if (root && !root.type) { root.type = g.type || 'goal'; root.severity = g.severity || 'high'; if (g.date) root.date = g.date; if (g.description) root.description = g.description; }
+    });
+    setData(d => { const { deadlines, ...rest } = d; return { ...rest, tree: updated }; });
+  }, []);
+  const goals = useMemo(() => tree.filter(r => !r.id.includes('.') && r.type), [tree]);
   const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
   const planStart = meta.planStart || iso(new Date());
   const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm]);
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
-  const goalPaths = useMemo(() => goalCpm(tree, deadlines), [tree, deadlines]);
+  const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
 
   // Auto-derive parent statuses from children
@@ -362,7 +375,7 @@ export default function App() {
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
         {selected && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selected.id} and all children?`)) deleteNode(selected.id); }}>Delete item</button>}
       </>}
-      {tab === 'goals' && <button className="btn btn-sec btn-sm" onClick={() => setModal('deadlines')}>Edit focus</button>}
+      {tab === 'goals' && <button className="btn btn-sec btn-sm" onClick={() => setModal('goals')}>Edit focus</button>}
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
@@ -381,7 +394,7 @@ export default function App() {
       <div style={{ flex: 1 }} />
     </div>
     <div className="main">
-      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} deadlines={deadlines} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths}
+      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full">
@@ -402,13 +415,13 @@ export default function App() {
           <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} deadlines={deadlines} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
-      {tab === 'goals' && <div className="pane"><DLView deadlines={deadlines} scheduled={scheduled} tree={tree} onEdit={() => setModal('deadlines')} /></div>}
+      {tab === 'goals' && <div className="pane"><DLView goals={goals} scheduled={scheduled} tree={tree} stats={stats} onEdit={() => setModal('goals')} /></div>}
       {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onDel={deleteMember} onVac={v => setD('vacations', v)} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
@@ -416,7 +429,7 @@ export default function App() {
       onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} teams={teams} onSave={(m, ts) => { setD('meta', m); setD('teams', ts); }} onClose={() => setModal(null)} />}
-    {modal === 'deadlines' && <DLModal deadlines={deadlines} tree={tree} onSave={v => setD('deadlines', v)} onClose={() => setModal(null)} />}
+    {modal === 'goals' && <DLModal goals={goals} tree={tree} onSave={updated => { setD('tree', tree.map(r => { const u = updated.find(g => g.id === r.id); return u ? { ...r, ...u } : r; })); }} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

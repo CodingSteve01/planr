@@ -7,7 +7,7 @@ import { resolveToLeafIds } from '../../utils/scheduler.js';
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 
-export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onBarClick, onSeqUpdate }) {
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate }) {
   const [tip, setTip] = useState(null);
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -28,12 +28,11 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
 
   const rows = []; tOrd.forEach(t => { const tasks = grp[t] || []; if (!tasks.length) return; rows.push({ type: 'team', team: t }); tasks.forEach(s => rows.push({ type: 'task', s, team: t })); });
   const RH = 28, HH = 28;
-  const dlL = (deadlines || []).filter(d => d.date).map(dl => {
+  const dlL = (goals || []).filter(d => d.date).map(dl => {
     const di = weeks.findIndex(w => w.mon > new Date(dl.date));
     const wi = di >= 0 ? di : weeks.length;
-    // Check on-track: find latest scheduled end for linked items
-    const linkedIds = new Set((dl.linkedItems || []).flatMap(id => resolveToLeafIds(tree || [], id)));
-    const linked = scheduled.filter(s => linkedIds.has(s.id));
+    // Check on-track: find latest scheduled end for descendants
+    const linked = scheduled.filter(s => s.id.startsWith(dl.id + '.'));
     const maxEnd = linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
     const isLate = maxEnd && new Date(dl.date) < maxEnd;
     return { ...dl, wi, isLate, maxEnd };

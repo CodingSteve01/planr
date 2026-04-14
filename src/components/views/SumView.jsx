@@ -7,8 +7,7 @@ import { GT, GL } from '../../constants.js';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goalPaths, onNavigate }) {
-  const stats = treeStats(tree);
+export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, onNavigate }) {
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -18,8 +17,7 @@ export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goa
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
-  const items = deadlines.map(d => ({ ...d, type: d.type || 'deadline' }));
-  const grouped = ORDER.map(t => ({ type: t, items: items.filter(d => d.type === t) })).filter(g => g.items.length);
+  const grouped = ORDER.map(t => ({ type: t, items: goals.filter(g => g.type === t) })).filter(g => g.items.length);
 
   return <div style={{ maxWidth: 900 }}>
     {/* Progress header */}
@@ -36,8 +34,8 @@ export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goa
       <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px' }}>{GT[g.type]} {GL[g.type]}s</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
-        const linkedIds = new Set((dl.linkedItems || []).flatMap(id => resolveToLeafIds(tree, id)));
-        const linked = scheduled.filter(s => linkedIds.has(s.id));
+        const st = stats?.[dl.id];
+        const linked = scheduled.filter(s => s.id.startsWith(dl.id + '.'));
         const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
         const dlDate = dl.date ? new Date(dl.date) : null;
         const isLate = maxEnd && dlDate && dlDate < maxEnd;
