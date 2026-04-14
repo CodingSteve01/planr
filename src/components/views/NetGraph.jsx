@@ -95,8 +95,9 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   items.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
     if (pid && iMap[pid] && items.find(x => x.id === pid)) hierEdges.push({ from: pid, to: r.id });
-    // Arrow FROM the item TOWARDS its dependency (showing "I need this")
-    (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: r.id, to: d, label: r._depLabels?.[d] || '' }); });
+    // Dep edge: FROM prerequisite TO dependent item (flow direction: dep → item)
+    // Arrow at the END points at the item that needs the dep
+    (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id, label: r._depLabels?.[d] || '' }); });
   });
 
   // Dep visibility: only show deps connected to hovered or selected node
@@ -179,7 +180,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
   useEffect(() => { function onKey(e) { if ((e.key === 'Delete' || e.key === 'Backspace') && selId && onDeleteNode && !e.target.closest('input,textarea,select')) { if (confirm(`Delete ${selId}?`)) { onDeleteNode(selId); setSelId(null); } } } window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [selId]);
 
-  // Edge path: orthogonal elbow routing
+  // Edge path: orthogonal routing that avoids crossing nodes
   function edgePath(fromId, toId, isDep) {
     const fp = pos[fromId], tp = pos[toId]; if (!fp || !tp) return null;
     const fw = nw(fromId), fh = nh(fromId), tw = nw(toId), th = nh(toId);
@@ -187,23 +188,30 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
 
     if (isDep) {
-      // Dependency: elbow connector, route around nodes
-      const goRight = fcx < tcx;
-      const x1 = goRight ? fp.x + fw : fp.x;
-      const y1 = fcy;
-      const x2 = goRight ? tp.x : tp.x + tw;
-      const y2 = tcy;
-      // Offset the midpoint to avoid overlapping nodes
-      const midX = goRight ? x1 + 20 : x1 - 20;
-      return `M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}`;
+      // Dependency: route outside - go UP from source, across, DOWN to target
+      const above = Math.min(fcy, tcy) - 20;
+      const below = Math.max(fcy, tcy) + 20;
+      // Pick route that's shorter
+      const x1 = fp.x + fw / 2, y1 = fp.y;
+      const x2 = tp.x + tw / 2, y2 = tp.y + th;
+      const routeY = above > -50 ? above : below;
+      return `M${fcx},${fp.y} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${tp.y + th}`;
     }
-    // Hierarchy: tree-style branching (parent ├── child)
-    // Go down from parent left side, then branch right to child
-    const x1 = fp.x + 8; // left side of parent
+    // Hierarchy: route to the LEFT of children, then branch
+    // Find the leftmost x of all children of this parent
+    const siblings = items.filter(r => {
+      const pid = r.id.split('.').slice(0, -1).join('.');
+      return pid === fromId;
+    });
+    const railX = siblings.length > 0
+      ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - 12
+      : fp.x - 12;
+
+    const x1 = fp.x + fw / 2; // center bottom of parent
     const y1 = fp.y + fh;
-    const x2 = tp.x; // left side of child
-    const y2 = tcy;
-    return `M${x1},${y1} L${x1},${y2} L${x2},${y2}`;
+    const y2 = tp.y + th / 2; // middle of child
+    // Go down from parent center, left to rail, down to child level, right to child
+    return `M${x1},${y1} L${x1},${y1 + 8} L${railX},${y1 + 8} L${railX},${y2} L${tp.x},${y2}`;
   }
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
