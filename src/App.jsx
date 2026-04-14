@@ -163,7 +163,7 @@ export default function App() {
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
-        onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === toId); if (node) { const deps = [...new Set([...(node.deps || []), fromId])]; updateNode({ ...node, deps }); } }}
+        onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
       {tab === 'deadlines' && <div className="pane"><DLView deadlines={deadlines} scheduled={scheduled} onEdit={() => setModal('deadlines')} /></div>}
       {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onDel={deleteMember} onVac={v => setD('vacations', v)} /></div>}
