@@ -3,7 +3,7 @@ import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { buildHMap } from './utils/holidays.js';
 import { schedule, treeStats, nextChildId, deriveParentStatuses } from './utils/scheduler.js';
-import { cpm } from './utils/cpm.js';
+import { cpm, goalCpm } from './utils/cpm.js';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -40,6 +40,7 @@ export default function App() {
   const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm]);
   const stats = useMemo(() => treeStats(tree), [tree]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
+  const goalPaths = useMemo(() => goalCpm(tree, deadlines), [tree, deadlines]);
 
   // Auto-derive parent statuses from children
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function App() {
       {!saved && <div style={{ display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--tx3)', padding: '0 12px' }} className="saving">saving...</div>}
     </div>
     <div className="main">
-      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} deadlines={deadlines} members={members} teams={teams} cpSet={cpSet} /></div>}
+      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} deadlines={deadlines} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full"><div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length

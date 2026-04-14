@@ -3,7 +3,7 @@ import { SBadge, TBadge } from '../shared/Badges.jsx';
 import { re, treeStats } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function SumView({tree,scheduled,deadlines,members,teams,cpSet}){
+export function SumView({tree,scheduled,deadlines,members,teams,cpSet,goalPaths}){
   const stats=treeStats(tree);
   const lvs=tree.filter(r=>r.lvl===3);
   const done=lvs.filter(r=>r.status==='done').length;
@@ -46,6 +46,30 @@ export function SumView({tree,scheduled,deadlines,members,teams,cpSet}){
         {!isLate&&maxEnd&&<span className="badge bd">✓ On track</span>}
       </div>;
     })}
+    {/* Goal-based critical paths */}
+    {goalPaths&&Object.keys(goalPaths).length>0&&<>
+      <div className="section-h">Critical paths per goal</div>
+      {Object.entries(goalPaths).map(([dlId,gp])=>{
+        const critCount=gp.critical.size;const totalNeeded=gp.needed.length;
+        const doneCount=gp.needed.filter(id=>{const r=tree.find(x=>x.id===id);return r?.status==='done';}).length;
+        const prog=totalNeeded>0?Math.round(doneCount/totalNeeded*100):0;
+        return<div key={dlId} style={{background:'var(--bg2)',border:'1px solid var(--b)',borderRadius:'var(--r)',padding:12,marginBottom:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+            <span className={`badge b${gp.severity==='critical'?'c':'h'}`}>{gp.name}</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--tx3)'}}>{gp.date}</span>
+            <span style={{fontSize:11,color:'var(--tx2)'}}>{critCount} critical / {totalNeeded} needed tasks</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--tx3)',marginBottom:4}}>
+            <span>Progress: {doneCount}/{totalNeeded} done</span><span>{prog}%</span>
+          </div>
+          <div className="prog-wrap"><div className="prog-fill" style={{width:`${prog}%`}}/></div>
+          {critCount>0&&<div style={{marginTop:6,display:'flex',gap:4,flexWrap:'wrap'}}>
+            {[...gp.critical].slice(0,8).map(id=>{const r=tree.find(x=>x.id===id);return<span key={id} className="tag" style={{borderColor:'var(--re)',color:'var(--re)'}}>{id} {r?.name||''}</span>;})}
+            {critCount>8&&<span style={{fontSize:10,color:'var(--tx3)'}}>+{critCount-8} more</span>}
+          </div>}
+        </div>;
+      })}
+    </>}
     <div className="section-h">Effort by team</div>
     <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:18}}>
       {Object.entries(byT).sort().map(([t,d])=>{const team=teams.find(x=>x.id===t);

@@ -84,7 +84,8 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
         </div>
         <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
-            return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b2)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 8, color: w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', background: w.hasH ? 'rgba(244,63,94,.06)' : isYB ? 'rgba(37,99,235,.06)' : '' }}>
+            const isNow = todayWi >= 0 && (i === todayWi || i === todayWi - 1);
+            return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b2)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 8, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, background: isNow ? 'rgba(34,197,94,.12)' : w.hasH ? 'rgba(244,63,94,.06)' : isYB ? 'rgba(37,99,235,.06)' : '' }}>
               {w.kw}
             </div>; })}
         </div>
