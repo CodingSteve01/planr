@@ -14,22 +14,23 @@ function buildElkGraph(tree) {
   const children = tree.map(r => ({ id: r.id, width: NW[r.lvl] || 95, height: NH[r.lvl] || 34 }));
 
   const edges = [];
-  // Hierarchy edges (shorter desired length → tight parent-child clusters)
+  // Hierarchy edges — desired length > node widths to prevent overlap
   tree.forEach(r => {
     const pid = r.id.split('.').slice(0, -1).join('.');
     if (pid && iMap[pid]) {
+      const len = r.lvl === 2 ? 150 : 120; // L1→L2 wider, L2→L3 tighter
       edges.push({
         id: `h|${pid}|${r.id}`, sources: [pid], targets: [r.id],
-        layoutOptions: { 'elk.stress.desiredEdgeLength': String(r.lvl === 2 ? 60 : 50) },
+        layoutOptions: { 'elk.stress.desiredEdgeLength': String(len) },
       });
     }
   });
-  // Dependency edges (longer → visible as cross-links)
+  // Dependency edges — longer to visually separate from hierarchy
   tree.forEach(r => {
     (r.deps || []).forEach(d => {
       if (iMap[d]) edges.push({
         id: `d|${d}|${r.id}`, sources: [d], targets: [r.id],
-        layoutOptions: { 'elk.stress.desiredEdgeLength': '120' },
+        layoutOptions: { 'elk.stress.desiredEdgeLength': '200' },
       });
     });
   });
@@ -38,10 +39,10 @@ function buildElkGraph(tree) {
     id: 'root',
     layoutOptions: {
       'elk.algorithm': 'stress',
-      'elk.stress.desiredEdgeLength': '80',
-      'elk.stress.epsilon': '0.0001',
+      'elk.stress.desiredEdgeLength': '140',
+      'elk.stress.epsilon': '0.00001',
       'elk.stress.fixed': 'NONE',
-      'elk.spacing.nodeNode': '14',
+      'elk.spacing.nodeNode': '20',
     },
     children,
     edges,
