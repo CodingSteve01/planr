@@ -181,34 +181,94 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
   useEffect(() => { function onKey(e) { if ((e.key === 'Delete' || e.key === 'Backspace') && selId && onDeleteNode && !e.target.closest('input,textarea,select')) { if (confirm(`Delete ${selId}?`)) { onDeleteNode(selId); setSelId(null); } } } window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [selId]);
 
-  // Edge path: orthogonal routing that avoids crossing nodes
-  function edgePath(fromId, toId, isDep) {
+  // Obstacle-aware orthogonal edge routing
+  const obstacles = useMemo(() => {
+    const PAD = 6;
+    return items.map(r => {
+      const p = pos[r.id]; if (!p) return null;
+      return { id: r.id, x: p.x - PAD, y: p.y - PAD, w: nw(r.id) + PAD * 2, h: nh(r.id) + PAD * 2 };
+    }).filter(Boolean);
+  }, [pos, items]);
+
+  function hitsObstacle(x1, y1, x2, y2, skipIds) {
+    // Check if a line segment intersects any obstacle box
+    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+    return obstacles.some(o => {
+      if (skipIds?.includes(o.id)) return false;
+      // Horizontal line
+      if (Math.abs(y1 - y2) < 1) return y1 > o.y && y1 < o.y + o.h && maxX > o.x && minX < o.x + o.w;
+      // Vertical line
+      if (Math.abs(x1 - x2) < 1) return x1 > o.x && x1 < o.x + o.w && maxY > o.y && minY < o.y + o.h;
+      return false;
+    });
+  }
+
+  function routeEdge(fromId, toId, isDep) {
     const fp = pos[fromId], tp = pos[toId]; if (!fp || !tp) return null;
     const fw = nw(fromId), fh = nh(fromId), tw = nw(toId), th = nh(toId);
-    const fcx = fp.x + fw / 2, fcy = fp.y + fh / 2;
-    const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
+    const skip = [fromId, toId];
 
-    if (isDep) {
-      // Dependency: route ABOVE all nodes to avoid crossings
-      // Find the topmost Y of source and target, then route 30px above that
-      const minY = Math.min(fp.y, tp.y) - 35;
-      const routeY = Math.max(minY, -30);
-      return `M${fcx},${fp.y} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${tp.y}`;
+    if (!isDep) {
+      // Hierarchy: rail on the left of children
+      const siblings = items.filter(r => r.id.split('.').slice(0, -1).join('.') === fromId);
+      const railX = siblings.length > 0
+        ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - RAIL_W / 2
+        : fp.x - RAIL_W / 2;
+      const x1 = fp.x + fw / 2, y1 = fp.y + fh;
+      const y2 = tp.y + th / 2;
+      return { path: `M${x1},${y1} L${x1},${y1 + 8} L${railX},${y1 + 8} L${railX},${y2} L${tp.x},${y2}` };
     }
-    // Hierarchy: vertical rail to the LEFT of all children (in reserved RAIL_W space)
-    const siblings = items.filter(r => {
-      const pid = r.id.split('.').slice(0, -1).join('.');
-      return pid === fromId;
-    });
-    // Rail runs in the reserved space to the left of children
-    const railX = siblings.length > 0
-      ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - RAIL_W / 2
-      : fp.x - RAIL_W / 2;
 
-    const x1 = fp.x + fw / 2;
-    const y1 = fp.y + fh;
-    const y2 = tp.y + th / 2;
-    return `M${x1},${y1} L${x1},${y1 + 10} L${railX},${y1 + 10} L${railX},${y2} L${tp.x},${y2}`;
+    // Dependency: try multiple orthogonal routes, pick best (fewest obstacle hits)
+    const fcx = fp.x + fw / 2, tcx = tp.x + tw / 2;
+    const routes = [];
+
+    // Route options: go via different Y levels
+    const yOptions = [
+      Math.min(fp.y, tp.y) - 30,
+      Math.min(fp.y, tp.y) - 60,
+      Math.max(fp.y + fh, tp.y + th) + 30,
+      Math.max(fp.y + fh, tp.y + th) + 60,
+      (fp.y + tp.y) / 2 - 50,
+    ];
+
+    // Also try going via the sides
+    const xOptions = [
+      { x1: fp.x + fw, y1: fp.y + fh / 2, x2: tp.x, y2: tp.y + th / 2, side: true },
+      { x1: fp.x, y1: fp.y + fh / 2, x2: tp.x + tw, y2: tp.y + th / 2, side: true },
+    ];
+
+    // Y-routing: exit top/bottom, go horizontal, enter top/bottom
+    for (const routeY of yOptions) {
+      const exitY = routeY < fp.y ? fp.y : fp.y + fh;
+      const enterY = routeY < tp.y ? tp.y : tp.y + th;
+      const path = `M${fcx},${exitY} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${enterY}`;
+      const hits = [
+        hitsObstacle(fcx, exitY, fcx, routeY, skip),
+        hitsObstacle(fcx, routeY, tcx, routeY, skip),
+        hitsObstacle(tcx, routeY, tcx, enterY, skip),
+      ].filter(Boolean).length;
+      const labelPt = { x: (fcx + tcx) / 2, y: routeY - 8 };
+      routes.push({ path, hits, labelPt, len: Math.abs(fcx - tcx) + Math.abs(exitY - routeY) * 2 });
+    }
+
+    // X-routing: exit side, go vertical, enter side
+    for (const opt of xOptions) {
+      const midX = (opt.x1 + opt.x2) / 2;
+      const path = `M${opt.x1},${opt.y1} L${midX},${opt.y1} L${midX},${opt.y2} L${opt.x2},${opt.y2}`;
+      const hits = [
+        hitsObstacle(opt.x1, opt.y1, midX, opt.y1, skip),
+        hitsObstacle(midX, opt.y1, midX, opt.y2, skip),
+        hitsObstacle(midX, opt.y2, opt.x2, opt.y2, skip),
+      ].filter(Boolean).length;
+      const labelPt = { x: midX, y: (opt.y1 + opt.y2) / 2 - 8 };
+      routes.push({ path, hits, labelPt, len: Math.abs(opt.x1 - opt.x2) + Math.abs(opt.y1 - opt.y2) });
+    }
+
+    // Pick route with fewest hits, then shortest
+    routes.sort((a, b) => a.hits - b.hits || a.len - b.len);
+    return routes[0] || { path: `M${fcx},${fp.y} L${tcx},${tp.y}`, labelPt: { x: (fcx + tcx) / 2, y: (fp.y + tp.y) / 2 } };
   }
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
@@ -241,24 +301,22 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const tc = gTC(iMap[b.id]?.team);
           return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={tc + '06'} stroke={tc + '18'} strokeWidth={1} />;
         })}
-        {/* Hierarchy edges: all parent→child, subtle elbow connectors */}
-        {hierEdges.map((e, i) => { const d = edgePath(e.from, e.to, false); const isL1 = iMap[e.from]?.lvl === 1;
-          return d && <path key={'h' + i} d={d} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .8 : 1} opacity={isL1 ? .2 : .35} markerEnd="url(#ar-h)" />; })}
-        {/* Dependency edges: show all faded, highlight on hover/select */}
-        {depEdges.map((e, i) => { const d = edgePath(e.from, e.to, true); if (!d) return null;
+        {/* Hierarchy edges: rail-routed */}
+        {hierEdges.map((e, i) => { const r = routeEdge(e.from, e.to, false); if (!r) return null; const isL1 = iMap[e.from]?.lvl === 1;
+          return <path key={'h' + i} d={r.path} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .8 : 1} opacity={isL1 ? .2 : .35} markerEnd="url(#ar-h)" />; })}
+        {/* Dependency edges: obstacle-aware routing, visible on hover */}
+        {depEdges.map((e, i) => {
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
           const isActive = activeId && (e.from === activeId || e.to === activeId);
-          const show = isActive || isCp || !activeId;
-          if (!show) return null;
-          const fp = pos[e.from], tp = pos[e.to]; if (!fp || !tp) return null;
-          const mx = (fp.x + nw(e.from) / 2 + tp.x + nw(e.to) / 2) / 2;
-          const my = (fp.y + nh(e.from) / 2 + tp.y + nh(e.to) / 2) / 2;
+          if (!isActive && !isCp && activeId) return null;
+          const r = routeEdge(e.from, e.to, true); if (!r) return null;
           const op = isActive ? .8 : isCp ? .5 : .15;
+          const lp = r.labelPt;
           return <g key={'d' + i}>
-            <path d={d} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2.5 : isCp ? 1.5 : 1} strokeDasharray="6 4" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
-            {e.label && isActive && <>
-              <rect x={mx - e.label.length * 2.8 - 4} y={my - 18} width={e.label.length * 5.6 + 8} height={14} rx={3} fill="var(--bg2)" stroke="var(--ac)" strokeWidth={.5} opacity={.9} style={{ pointerEvents: 'none' }} />
-              <text x={mx} y={my - 8} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{e.label}</text>
+            <path d={r.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2.5 : isCp ? 1.5 : 1} strokeDasharray="6 4" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
+            {e.label && isActive && lp && <>
+              <rect x={lp.x - e.label.length * 2.8 - 4} y={lp.y - 6} width={e.label.length * 5.6 + 8} height={14} rx={3} fill="var(--bg2)" stroke="var(--ac)" strokeWidth={.5} opacity={.9} style={{ pointerEvents: 'none' }} />
+              <text x={lp.x} y={lp.y + 5} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{e.label}</text>
             </>}
           </g>;
         })}
