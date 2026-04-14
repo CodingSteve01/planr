@@ -20,7 +20,7 @@ export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEst
       <div className="field"><label>Team</label>
         <select value={f.team||''} onChange={e=>s('team',e.target.value)}>
           <option value="">—</option>
-          {teams.map(t=><option key={t.id} value={t.id}>{t.id}</option>)}
+          {teams.map(t=><option key={t.id} value={t.id}>{t.name || t.id}</option>)}
         </select>
       </div>
     </div>

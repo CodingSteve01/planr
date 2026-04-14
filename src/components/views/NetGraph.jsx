@@ -381,7 +381,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
           return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#e8f5e9' : '#ffffff'}
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : 'var(--bg2)'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : r.lvl === 1 ? tc : tc + '44'}
               strokeWidth={isSel ? 2.5 : r.lvl === 1 ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}

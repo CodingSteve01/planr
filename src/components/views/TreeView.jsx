@@ -58,7 +58,7 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
       <th className="r" style={{ width: 50, background: 'var(--bg)' }}>Best</th>
       <th className="r" style={{ width: 55, background: 'var(--bg)' }}>Real</th>
       <th className="r" style={{ width: 50, background: 'var(--bg)' }}>Worst</th>
-      <th style={{ width: 65, background: 'var(--bg)' }}>Prio</th>
+      <th style={{ width: 80, background: 'var(--bg)' }}>Prio</th>
     </tr></thead>
     <tbody>
       {filt.map(r => {
