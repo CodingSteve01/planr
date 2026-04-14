@@ -1,0 +1,3 @@
+# Project data (user-specific, not part of the tool)
+/data/
+*.partial
