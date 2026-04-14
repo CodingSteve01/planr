@@ -338,7 +338,7 @@ export default function App() {
 
   const TABS = [
     { id: 'summary', label: 'Overview' }, { id: 'tree', label: 'Work Tree' }, { id: 'gantt', label: 'Schedule' },
-    { id: 'net', label: 'Network' }, { id: 'goals', label: 'Focus' }, { id: 'resources', label: 'Resources' }, { id: 'holidays', label: 'Holidays' },
+    { id: 'net', label: 'Network' }, { id: 'resources', label: 'Resources' }, { id: 'holidays', label: 'Holidays' },
   ];
 
   return <div className="app">
@@ -375,7 +375,7 @@ export default function App() {
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
         {selected && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selected.id} and all children?`)) deleteNode(selected.id); }}>Delete item</button>}
       </>}
-      {tab === 'goals' && <button className="btn btn-sec btn-sm" onClick={() => setModal('goals')}>Edit focus</button>}
+      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('goals')}>Edit focus</button>}
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
@@ -421,7 +421,6 @@ export default function App() {
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
-      {tab === 'goals' && <div className="pane"><DLView goals={goals} scheduled={scheduled} tree={tree} stats={stats} onEdit={() => setModal('goals')} /></div>}
       {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onDel={deleteMember} onVac={v => setD('vacations', v)} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>

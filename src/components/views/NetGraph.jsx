@@ -440,7 +440,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   return <div className="netgraph-wrap" style={{ cursor: panning ? 'grabbing' : 'default' }}>
     <div className="ng-toolbar">
       <button className="btn btn-pri btn-sm" onClick={fitToScreen}>Fit</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { setZoom(1.5); setPan({ x: 12, y: 12 }); }}>{Math.round(zoom * 100)}%</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { setZoom(1.5); setPan({ x: 12, y: 12 }); }}>{Math.round(zoom / 1.5 * 100)}%</button>
       <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.min(3, zoom * 1.25); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>+</button>
       <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.max(.05, zoom * .8); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>-</button>
     </div>

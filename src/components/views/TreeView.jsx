@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 import { hasChildren, isLeafNode, leafNodes } from '../../utils/scheduler.js';
+import { GT } from '../../constants.js';
 
 function depth(id) { return id.split('.').length; }
 
@@ -107,10 +108,14 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
             {childNodes && <span style={{ display: 'inline-block', width: 16, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center' }}
               onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>}
             {!childNodes && <span style={{ display: 'inline-block', width: 16 }} />}
+            {d === 1 && r.type && <span style={{ fontSize: 11, marginRight: 4 }}>{GT[r.type]}</span>}
             <span className={`tn${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}>{r.name}</span>
+            {d === 1 && r.severity && <span className={`badge b${r.severity === 'critical' ? 'c' : 'h'}`} style={{ marginLeft: 6, fontSize: 8 }}>{r.severity}</span>}
+            {d === 1 && r.date && <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 6, fontFamily: 'var(--mono)' }}>{r.date}</span>}
             {isCollapsed && <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 6 }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
             {isCp && <span style={{ fontSize: 9, color: 'var(--re)', marginLeft: 5 }}>crit</span>}
-            {r.note && <span className="note-inline">{r.note}</span>}
+            {d === 1 && r.description && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{r.description}</div>}
+            {d > 1 && r.note && <span className="note-inline">{r.note}</span>}
           </td>
           <td style={{ whiteSpace: 'nowrap' }}>
             {canAdd && <button className="btn btn-sec btn-xs action-btn"
