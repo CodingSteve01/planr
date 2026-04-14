@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
+import { SL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
@@ -22,9 +23,10 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} /></div>
       <div className="frow">
         <div className="field"><label>Status</label>
-          <select value={f.status || 'open'} onChange={e => s('status', e.target.value)}>
+          {node.lvl < 3 ? <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>
+          : <select value={f.status || 'open'} onChange={e => s('status', e.target.value)}>
             <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
-          </select>
+          </select>}
         </div>
         <div className="field"><label>Team</label>
           <select value={f.team || ''} onChange={e => s('team', e.target.value)}>
