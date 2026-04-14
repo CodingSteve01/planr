@@ -170,15 +170,17 @@ function depPath(fp, tp, allBoxes) {
   const tcx = tp.x + NODE_W / 2, tcy = tp.y + NODE_H / 2;
   const dx = tcx - fcx, dy = tcy - fcy;
 
-  // Exit/entry: always pick the side closest to the other node
-  // Source exit
-  let x1, y1;
-  if (Math.abs(dx) > Math.abs(dy)) { x1 = dx > 0 ? fp.x + NODE_W : fp.x; y1 = fcy; }
-  else { x1 = fcx; y1 = dy > 0 ? fp.y + NODE_H : fp.y; }
-  // Target entry: from the side the edge arrives at
-  let x2, y2;
-  if (Math.abs(dx) > Math.abs(dy)) { x2 = dx > 0 ? tp.x - ARR : tp.x + NODE_W + ARR; y2 = tcy; }
-  else { x2 = tcx; y2 = dy > 0 ? tp.y - ARR : tp.y + NODE_H + ARR; }
+  // Exit point from source (side closest to target)
+  const exitR = { x: fp.x + NODE_W, y: fcy };
+  const exitL = { x: fp.x, y: fcy };
+  const exitB = { x: fcx, y: fp.y + NODE_H };
+  const exitT = { x: fcx, y: fp.y };
+
+  // Entry point on target — from the side the LAST segment approaches
+  const enterL = { x: tp.x - ARR, y: tcy };
+  const enterR = { x: tp.x + NODE_W + ARR, y: tcy };
+  const enterT = { x: tcx, y: tp.y - ARR };
+  const enterB = { x: tcx, y: tp.y + NODE_H + ARR };
 
   function hitsNode(ax, ay, bx, by) {
     const lx = Math.min(ax, bx) - PAD, rx = Math.max(ax, bx) + PAD;
@@ -190,41 +192,50 @@ function depPath(fp, tp, allBoxes) {
     });
   }
 
-  // Try multiple routing strategies, pick first that doesn't hit nodes
+  function route(exit, mid, enter) {
+    const pts = mid ? [exit, ...mid, enter] : [exit, enter];
+    let hits = 0;
+    for (let i = 0; i < pts.length - 1; i++) if (hitsNode(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y)) hits++;
+    const path = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
+    const lp = pts[Math.floor(pts.length / 2)];
+    return { path, hits, labelPt: { x: lp.x, y: lp.y - 8 } };
+  }
+
   const routes = [];
+  const mx = (fcx + tcx) / 2, my = (fcy + tcy) / 2;
 
-  // Strategy 1: H-V-H (horizontal exit, vertical mid, horizontal enter)
-  const mx1 = (x1 + x2) / 2;
-  routes.push({ path: `M${x1},${y1} L${mx1},${y1} L${mx1},${y2} L${x2},${y2}`,
-    hits: [hitsNode(x1, y1, mx1, y1), hitsNode(mx1, y1, mx1, y2), hitsNode(mx1, y2, x2, y2)].filter(Boolean).length,
-    labelPt: { x: mx1, y: Math.min(y1, y2) - 8 } });
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    // Mostly horizontal
+    const ex = dx > 0 ? exitR : exitL;
+    const en = dx > 0 ? enterL : enterR; // enter from the side facing the source
+    routes.push(route(ex, [{ x: mx, y: ex.y }, { x: mx, y: en.y }], en));
+    // Also try vertical mid
+    routes.push(route(exitB, [{ x: exitB.x, y: my }, { x: enterT.x, y: my }], enterT));
+  } else {
+    // Mostly vertical
+    const ex = dy > 0 ? exitB : exitT;
+    const en = dy > 0 ? enterT : enterB;
+    routes.push(route(ex, [{ x: ex.x, y: my }, { x: en.x, y: my }], en));
+    // Also try horizontal mid
+    routes.push(route(exitR, [{ x: mx, y: exitR.y }, { x: mx, y: enterL.y }], enterL));
+  }
 
-  // Strategy 2: V-H-V (vertical exit, horizontal mid, vertical enter)
-  const my1 = (y1 + y2) / 2;
-  routes.push({ path: `M${x1},${y1} L${x1},${my1} L${x2},${my1} L${x2},${y2}`,
-    hits: [hitsNode(x1, y1, x1, my1), hitsNode(x1, my1, x2, my1), hitsNode(x2, my1, x2, y2)].filter(Boolean).length,
-    labelPt: { x: Math.max(x1, x2) + 8, y: my1 } });
-
-  // Strategy 3: route via top margin
+  // Via top margin — enter from TOP
   const topY = Math.min(fp.y, tp.y) - 30;
-  routes.push({ path: `M${x1},${y1} L${x1},${topY} L${x2},${topY} L${x2},${y2}`,
-    hits: [hitsNode(x1, y1, x1, topY), hitsNode(x1, topY, x2, topY), hitsNode(x2, topY, x2, y2)].filter(Boolean).length,
-    labelPt: { x: (x1 + x2) / 2, y: topY - 8 } });
+  routes.push(route(exitT, [{ x: exitT.x, y: topY }, { x: enterT.x, y: topY }], enterT));
 
-  // Strategy 4: route via bottom margin
+  // Via bottom margin — enter from BOTTOM
   const botY = Math.max(fp.y + NODE_H, tp.y + NODE_H) + 30;
-  routes.push({ path: `M${x1},${y1} L${x1},${botY} L${x2},${botY} L${x2},${y2}`,
-    hits: [hitsNode(x1, y1, x1, botY), hitsNode(x1, botY, x2, botY), hitsNode(x2, botY, x2, y2)].filter(Boolean).length,
-    labelPt: { x: (x1 + x2) / 2, y: botY + 10 } });
+  routes.push(route(exitB, [{ x: exitB.x, y: botY }, { x: enterB.x, y: botY }], enterB));
 
-  // Strategy 5: wide margin route
-  const goRight = dx > 0;
-  const wideX = goRight ? Math.max(fp.x + NODE_W, tp.x + NODE_W) + 25 : Math.min(fp.x, tp.x) - 25;
-  routes.push({ path: `M${x1},${y1} L${wideX},${y1} L${wideX},${y2} L${x2},${y2}`,
-    hits: 0, // margin is always clear
-    labelPt: { x: wideX + (goRight ? 5 : -5), y: (y1 + y2) / 2 } });
+  // Via right margin — enter from RIGHT
+  const rightX = Math.max(fp.x + NODE_W, tp.x + NODE_W) + 25;
+  routes.push(route(exitR, [{ x: rightX, y: exitR.y }, { x: rightX, y: enterR.y }], enterR));
 
-  // Pick best route (fewest hits, prefer shorter)
+  // Via left margin — enter from LEFT
+  const leftX = Math.min(fp.x, tp.x) - 25;
+  routes.push(route(exitL, [{ x: leftX, y: exitL.y }, { x: leftX, y: enterL.y }], enterL));
+
   routes.sort((a, b) => a.hits - b.hits || a.path.length - b.path.length);
   return routes[0];
 }
@@ -370,9 +381,9 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
           return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#22c55e18' : r.lvl === 1 ? tc + '28' : 'var(--bg2)'}
-              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc + '88' : tc + '33'}
-              strokeWidth={isSel ? 2.5 : isConn ? 1.5 : isCp ? 1.5 : .7}
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#e8f5e9' : '#ffffff'}
+              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : r.lvl === 1 ? tc : tc + '44'}
+              strokeWidth={isSel ? 2.5 : r.lvl === 1 ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}
               onDoubleClick={e => { e.stopPropagation(); onNodeClick(r); }}
