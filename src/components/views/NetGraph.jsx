@@ -86,7 +86,10 @@ function binPackTrees(trees) {
         if (overlaps) return;
         const bx = Math.max(c.x + v.w, ...placed.map(p => p.x + p.w));
         const by = Math.max(c.y + v.h, ...placed.map(p => p.y + p.h));
-        const score = bx * by;
+        // Score: area × aspect ratio penalty (target ~2:1)
+        const ratio = bx / Math.max(by, 1);
+        const ratioPenalty = 1 + Math.abs(Math.log(ratio / 2)) * 3;
+        const score = bx * by * ratioPenalty;
         if (score < bestScore) { bestScore = score; bestX = c.x; bestY = c.y; bestVariant = v; }
       });
     });
