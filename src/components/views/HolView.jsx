@@ -3,7 +3,7 @@ import { computeNRW } from '../../utils/holidays.js';
 import { DOW_DE } from '../../constants.js';
 
 export function HolView({holidays,planStart,planEnd,onUpdate}){
-  const planYears=[];for(let y=new Date(planStart).getFullYear();y<=new Date(planEnd).getFullYear();y++)planYears.push(y);
+  const planYears=[];const nowY=new Date().getFullYear();for(let y=Math.min(nowY,new Date(planStart).getFullYear());y<=Math.max(nowY+2,new Date(planEnd).getFullYear());y++)planYears.push(y);
   const sorted=[...(holidays||[])].sort((a,b)=>a.date.localeCompare(b.date));
   const byY={};sorted.forEach(h=>{const y=h.date.split('-')[0];if(!byY[y])byY[y]=[];byY[y].push(h);});
   function importNRW(){
