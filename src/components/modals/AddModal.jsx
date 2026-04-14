@@ -42,7 +42,7 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
       <div className="frow">
         <div className="field"><label>Team</label>
           <select value={f.team} onChange={e => s('team', e.target.value)}>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.id} — {t.name}</option>)}
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
           </select>
         </div>
         <div className="field"><label>Status</label>
@@ -51,7 +51,14 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
           </select>
         </div>
       </div>
-      {autoLvl === 3 && <div className="frow">
+      {autoLvl === 3 && <><div className="field"><label>Quick estimate</label>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
+            <button key={sz} type="button" className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
+              onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>)}
+        </div>
+      </div>
+      <div className="frow">
         <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best} onChange={e => s('best', +e.target.value)} /></div>
         <div className="field"><label>Factor</label><input type="number" step="0.1" min="1" value={f.factor} onChange={e => s('factor', +e.target.value)} /></div>
         <div className="field"><label>Priority</label>
@@ -59,7 +66,7 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
             <option value={1}>1 Critical</option><option value={2}>2 High</option><option value={3}>3 Medium</option><option value={4}>4 Low</option>
           </select>
         </div>
-      </div>}
+      </div></>}
       <div className="field"><label>Notes</label><textarea value={f.note} onChange={e => s('note', e.target.value)} rows={2} /></div>
       <div className="modal-footer">
         <button className="btn btn-sec" onClick={onClose}>Cancel</button>

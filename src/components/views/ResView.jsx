@@ -14,7 +14,7 @@ export function ResView({members,teams,vacations,onUpd,onAdd,onDel,onVac}){
         </div>
         {[['ID',<input value={m.id} onChange={e=>onUpd({...m,id:e.target.value})}/>],
           ['Full name',<input value={m.name||''} onChange={e=>onUpd({...m,name:e.target.value})}/>],
-          ['Team',<select value={m.team||''} onChange={e=>onUpd({...m,team:e.target.value})}>{teams.map(t=><option key={t.id} value={t.id}>{t.id} — {t.name}</option>)}</select>],
+          ['Team',<select value={m.team||''} onChange={e=>onUpd({...m,team:e.target.value})}>{teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}</select>],
           ['Role',<input value={m.role||''} onChange={e=>onUpd({...m,role:e.target.value})} placeholder="e.g. Senior Dev"/>],
           ['Capacity %',<input type="number" min="0" max="100" step="5" value={Math.round((m.cap||1)*100)} onChange={e=>onUpd({...m,cap:+e.target.value/100})}/>],
           ['Vacation days/yr',<input type="number" min="0" max="40" value={m.vac||25} onChange={e=>onUpd({...m,vac:+e.target.value})}/>],

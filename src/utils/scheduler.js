@@ -62,9 +62,27 @@ export function treeStats(tree) {
       m[r.id]._b = ch.reduce((s, c) => s + (m[c.id]?._b || 0), 0);
       m[r.id]._r = ch.reduce((s, c) => s + (m[c.id]?._r || 0), 0);
       m[r.id]._w = ch.reduce((s, c) => s + (m[c.id]?._w || 0), 0);
+      // Auto-derive status from leaf descendants
+      const leaves = tree.filter(c => c.lvl === 3 && c.id.startsWith(r.id + '.'));
+      if (leaves.length) {
+        const done = leaves.filter(l => l.status === 'done').length;
+        const wip = leaves.filter(l => l.status === 'wip').length;
+        m[r.id]._autoStatus = done === leaves.length ? 'done' : (done > 0 || wip > 0) ? 'wip' : 'open';
+        m[r.id]._progress = leaves.length > 0 ? Math.round(done / leaves.length * 100) : 0;
+      }
     }
   });
   return m;
+}
+
+// Compute auto-status for parent items (call after treeStats)
+export function deriveParentStatuses(tree, stats) {
+  return tree.map(r => {
+    if (r.lvl === 3) return r;
+    const s = stats[r.id];
+    if (s?._autoStatus && s._autoStatus !== r.status) return { ...r, status: s._autoStatus };
+    return r;
+  });
 }
 
 export function nextChildId(tree, parentId) {

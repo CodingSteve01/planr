@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { buildHMap } from './utils/holidays.js';
-import { schedule, treeStats, nextChildId } from './utils/scheduler.js';
+import { schedule, treeStats, nextChildId, deriveParentStatuses } from './utils/scheduler.js';
 import { cpm } from './utils/cpm.js';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
@@ -39,6 +39,13 @@ export default function App() {
   const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm]);
   const stats = useMemo(() => treeStats(tree), [tree]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
+
+  // Auto-derive parent statuses from children
+  useEffect(() => {
+    if (!data || !tree.length) return;
+    const updated = deriveParentStatuses(tree, stats);
+    if (updated.some((r, i) => r.status !== tree[i].status)) { setData(d => ({ ...d, tree: updated })); }
+  }, [stats]);
 
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
   function updateNode(u) { setD('tree', tree.map(r => r.id === u.id ? u : r)); }

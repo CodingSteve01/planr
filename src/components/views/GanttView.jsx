@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Tip } from '../shared/Tooltip.jsx';
 import { WPX, MDE } from '../../constants.js';
 import { iso } from '../../utils/date.js';
@@ -25,7 +25,18 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
 
   const rows = []; tOrd.forEach(t => { const tasks = grp[t] || []; if (!tasks.length) return; rows.push({ type: 'team', team: t }); tasks.forEach(s => rows.push({ type: 'task', s, team: t })); });
   const RH = 28, HH = 28;
-  const dlL = (deadlines || []).filter(d => d.date).map(dl => { const di = weeks.findIndex(w => w.mon > new Date(dl.date)); return { ...dl, wi: di >= 0 ? di : weeks.length }; });
+  const dlL = (deadlines || []).filter(d => d.date).map(dl => {
+    const di = weeks.findIndex(w => w.mon > new Date(dl.date));
+    const wi = di >= 0 ? di : weeks.length;
+    // Check on-track: find latest scheduled end for linked items
+    const linked = scheduled.filter(s => (dl.linkedItems || []).includes(s.id));
+    const maxEnd = linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+    const isLate = maxEnd && new Date(dl.date) < maxEnd;
+    return { ...dl, wi, isLate, maxEnd };
+  });
+  // Today line
+  const todayWi = weeks.findIndex(w => w.mon > new Date()); // first week after today
+  const todayX = todayWi >= 0 ? todayWi * WPX : -1;
   const gTC = t => teams.find(x => x.id === t)?.color || '#3b82f6';
 
   // CP dependency lines
@@ -101,7 +112,14 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
         <div style={{ width: tw, position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.06)' : '' }} />)}
-            {dlL.map(dl => <div key={dl.id} style={{ position: 'absolute', left: dl.wi * WPX, top: 0, width: 2, height: '100%', background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', opacity: .5, zIndex: 4 }} title={dl.name} />)}
+            {/* Today line */}
+            {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
+            {todayX >= 0 && <div style={{ position: 'absolute', left: todayX - 14, top: 0, background: 'var(--gr)', color: '#fff', fontSize: 8, fontWeight: 600, padding: '1px 4px', borderRadius: '0 0 3px 3px', zIndex: 6 }}>Today</div>}
+            {/* Deadline lines with labels */}
+            {dlL.map(dl => <React.Fragment key={dl.id}>
+              <div style={{ position: 'absolute', left: dl.wi * WPX, top: 0, width: 2, height: '100%', background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', opacity: .6, zIndex: 4 }} />
+              <div style={{ position: 'absolute', left: dl.wi * WPX - 2, top: 0, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', color: '#fff', fontSize: 7, fontWeight: 600, padding: '1px 4px', borderRadius: '0 0 3px 3px', zIndex: 6, whiteSpace: 'nowrap' }}>{dl.name}</div>
+            </React.Fragment>)}
           </div>
           {rows.map((row) => {
             if (row.type === 'team') { const tc = gTC(row.team); return <div key={'h' + row.team} style={{ height: RH, background: 'var(--bg2)', borderBottom: '1px solid var(--b2)', position: 'sticky', top: 0, zIndex: 2 }} />; }
@@ -133,8 +151,10 @@ export function GanttView({ scheduled, weeks, deadlines, teams, cpSet, tree, onB
       </div>
     </div>
     <div className="gantt-footer">
-      {dlL.map(dl => <span key={dl.id} className={`badge b${dl.severity === 'critical' ? 'c' : 'h'}`}>{dl.name} {dl.date}</span>)}
-      {cpSet?.size > 0 && <span className="badge b-cp">Critical path: {cpSet.size} items</span>}
+      {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
+        {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ' AT RISK' : dl.maxEnd ? ' on track' : ''}
+      </span>)}
+      {cpSet?.size > 0 && <span className="badge b-cp">Crit. path: {cpSet.size}</span>}
       <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Drag bars to reorder</span>
     </div>
     {tip && !drag && <Tip item={tip.item} x={tip.x} y={tip.y} />}

@@ -28,12 +28,19 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
         <div className="field"><label>Team</label>
           <select value={f.team || ''} onChange={e => s('team', e.target.value)}>
             <option value="">— None —</option>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.id} — {t.name}</option>)}
-            {['T1/T2', 'T1/T3', 'T2/T3', 'T2/T4'].map(x => <option key={x} value={x}>{x}</option>)}
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
+            {teams.length >= 2 && teams.flatMap((a, i) => teams.slice(i + 1).map(b => `${a.id}/${b.id}`)).map(x => <option key={x} value={x}>{x}</option>)}
           </select>
         </div>
       </div>
       {node.lvl === 3 && <>
+        <div className="field"><label>Quick estimate (T-shirt size)</label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
+              <button key={sz} className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
+                onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 3 }}>{d}d</span></button>)}
+          </div>
+        </div>
         <div className="frow">
           <div className="field"><label>Best case (days)</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} /></div>
           <div className="field"><label>Uncertainty factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
@@ -68,7 +75,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
           </div>
           <select onChange={e => { if (!e.target.value) return; s('deps', [...new Set([...(f.deps || []), e.target.value])]); e.target.value = ''; }}>
             <option value="">+ Add dependency</option>
-            {allIds.map(i => <option key={i}>{i}</option>)}
+            {allIds.map(i => { const n = tree.find(r => r.id === i); return <option key={i} value={i}>{i} — {n?.name || ''}</option>; })}
           </select>
           <p className="helper">This task is blocked until ALL dependencies finish.</p>
         </div>

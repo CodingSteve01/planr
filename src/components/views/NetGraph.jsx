@@ -137,7 +137,14 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { if (items.length) setTimeout(fitToScreen, 100); }, [items.length]);
 
   function svgPt(e) { const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return { x: 0, y: 0 }; return { x: (e.clientX - rect.left - pan.x) / zoom, y: (e.clientY - rect.top - pan.y) / zoom }; }
-  function onW(e) { e.preventDefault(); const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return; const mx = e.clientX - rect.left, my = e.clientY - rect.top; const f = e.deltaY > 0 ? .88 : 1.12; const nz = Math.min(3, Math.max(.08, zoom * f)); setPan({ x: mx - (mx - pan.x) * (nz / zoom), y: my - (my - pan.y) * (nz / zoom) }); setZoom(nz); }
+  // Use native event listener for wheel to allow preventDefault (React onWheel is passive)
+  useEffect(() => {
+    const el = svgRef.current?.parentElement;
+    if (!el) return;
+    const handler = (e) => { e.preventDefault(); const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return; const mx = e.clientX - rect.left, my = e.clientY - rect.top; const f = e.deltaY > 0 ? .88 : 1.12; const nz = Math.min(3, Math.max(.08, zoom * f)); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  });
   function onMD(e) { if (drawing || dragNode) return; if (e.button === 0) { setPanning(true); setPanSt({ x: e.clientX - pan.x, y: e.clientY - pan.y }); } }
   function onMM(e) {
     if (dragNode) { const p = svgPt(e); setManualPos(np => ({ ...np, [dragNode.id]: { x: p.x - dragNode.ox, y: p.y - dragNode.oy } })); return; }
@@ -150,7 +157,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     setPanning(false); setPanSt(null);
   }
   function onNodeMD(e, r) { e.stopPropagation(); const p = svgPt(e); const np = pos[r.id] || { x: 0, y: 0 }; setDragNode({ id: r.id, ox: p.x - np.x, oy: p.y - np.y }); }
-  function onConnStart(e, r) { e.stopPropagation(); e.preventDefault(); setDrawing({ fromId: r.id, mx: e.clientX, my: e.clientY }); }
+  function onConnStart(e, r) { e.stopPropagation(); setDrawing({ fromId: r.id, mx: e.clientX, my: e.clientY }); }
   function onCtx(e, r) { e.preventDefault(); e.stopPropagation(); setCtxMenu({ id: r.id, x: e.clientX, y: e.clientY }); }
 
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
@@ -171,7 +178,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     </div>
   </div>;
 
-  return <div className="netgraph-wrap" onWheel={onW} style={{ cursor: dragNode ? 'grabbing' : drawing ? 'crosshair' : panning ? 'grabbing' : 'grab' }}>
+  return <div className="netgraph-wrap" style={{ cursor: dragNode ? 'grabbing' : drawing ? 'crosshair' : panning ? 'grabbing' : 'grab' }}>
     <div className="ng-toolbar">
       <button className="btn btn-pri btn-sm" onClick={fitToScreen}>Fit</button>
       <button className="btn btn-sec btn-sm" onClick={() => setZoom(1)}>100%</button>
