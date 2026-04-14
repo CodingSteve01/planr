@@ -51,52 +51,58 @@ function layoutTree(p1, tree) {
   return { pos, w: treeW, h: l2Y + maxH };
 }
 
-// ── Arrange trees: rows, second row flipped + pushed up tight ───────────────
-function computeLayout(tree, maxRowW) {
+// ── Bin-pack trees: place each tree where it fits best (Tetris-style) ───────
+function binPackTrees(trees) {
+  // Sort by area descending (big trees first for better packing)
+  const sorted = [...trees].sort((a, b) => (b.w * b.h) - (a.w * a.h));
+  const placed = []; // { x, y, w, h, tree }
+
+  sorted.forEach(t => {
+    // Generate candidate positions: (0,0) + right/below edges of all placed trees
+    const cands = [{ x: 0, y: 0 }];
+    placed.forEach(p => {
+      cands.push({ x: p.x + p.w + TREE_GAP, y: p.y });
+      cands.push({ x: p.x, y: p.y + p.h + TREE_GAP });
+      cands.push({ x: p.x + p.w + TREE_GAP, y: 0 });
+      cands.push({ x: 0, y: p.y + p.h + TREE_GAP });
+    });
+
+    let bestX = 0, bestY = 0, bestScore = Infinity;
+    cands.forEach(c => {
+      if (c.x < 0 || c.y < 0) return;
+      // Check no overlap with any placed tree
+      const overlaps = placed.some(p =>
+        c.x < p.x + p.w + TREE_GAP && c.x + t.w + TREE_GAP > p.x &&
+        c.y < p.y + p.h + TREE_GAP && c.y + t.h + TREE_GAP > p.y
+      );
+      if (overlaps) return;
+      // Score: minimize total bounding box area (compact)
+      const bx = Math.max(c.x + t.w, ...placed.map(p => p.x + p.w));
+      const by = Math.max(c.y + t.h, ...placed.map(p => p.y + p.h));
+      const score = bx * by; // total area
+      if (score < bestScore) { bestScore = score; bestX = c.x; bestY = c.y; }
+    });
+
+    placed.push({ x: bestX, y: bestY, w: t.w, h: t.h, tree: t });
+  });
+
+  return placed;
+}
+
+function computeLayout(tree) {
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const l1s = tree.filter(r => r.lvl === 1);
   const trees = l1s.map(p1 => ({ id: p1.id, ...layoutTree(p1, tree) }));
 
-  const rows = [[]]; let rowW = 0;
-  trees.forEach(t => {
-    if (rows[rows.length - 1].length > 0 && rowW + TREE_GAP + t.w > maxRowW) { rows.push([t]); rowW = t.w; }
-    else { if (rows[rows.length - 1].length > 0) rowW += TREE_GAP; rows[rows.length - 1].push(t); rowW += t.w; }
-  });
+  // Bin-pack all trees
+  const packed = binPackTrees(trees);
 
   const pos = {};
-
-  // Row 0: place trees, track bottom edge per horizontal band
-  const row0 = rows[0] || [];
-  const row0H = row0.length ? Math.max(...row0.map(t => t.h)) : 0;
-  const row0Rects = []; // { x, w, h } for each tree in row 0
-  let x0 = 0;
-  row0.forEach(t => {
-    Object.entries(t.pos).forEach(([id, p]) => { pos[id] = { x: x0 + p.x, y: p.y }; });
-    row0Rects.push({ x: x0, w: t.w, h: t.h });
-    x0 += t.w + TREE_GAP;
-  });
-
-  // Row 1+: flipped, pushed up into whitespace gaps of row 0
-  let totalH = row0H;
-  for (let ri = 1; ri < rows.length; ri++) {
-    const row = rows[ri];
-    const rowH = row.length ? Math.max(...row.map(t => t.h)) : 0;
-    let x = 0;
-    row.forEach(t => {
-      // Find how high the row0 trees extend at this X range
-      let maxRow0H = 0;
-      row0Rects.forEach(r0 => {
-        if (r0.x < x + t.w + TREE_GAP && r0.x + r0.w > x - TREE_GAP)
-          maxRow0H = Math.max(maxRow0H, r0.h);
-      });
-      const rowTop = maxRow0H + NODE_H; // push just below the tallest overlapping row0 tree
-      Object.entries(t.pos).forEach(([id, p]) => {
-        pos[id] = { x: x + p.x, y: rowTop + (t.h - p.y - NODE_H) };
-      });
-      totalH = Math.max(totalH, rowTop + t.h);
-      x += t.w + TREE_GAP;
+  packed.forEach(p => {
+    Object.entries(p.tree.pos).forEach(([id, np]) => {
+      pos[id] = { x: p.x + np.x, y: p.y + np.y };
     });
-  }
+  });
 
   // Orphans
   let oy = totalH + NODE_H;
@@ -215,7 +221,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
   const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
 
-  const layout = useMemo(() => items.length ? computeLayout(items, 1400) : null, [items]);
+  const layout = useMemo(() => items.length ? computeLayout(items) : null, [items]);
   const pos = layout?.pos || {};
 
   // Build obstacle list for dep routing
