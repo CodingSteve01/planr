@@ -51,14 +51,22 @@ function layoutTree(p1, tree) {
   return { pos, w: treeW, h: l2Y + maxH };
 }
 
-// ── Bin-pack trees: place each tree where it fits best (Tetris-style) ───────
+// ── Flip a tree vertically (parent at bottom instead of top) ────────────────
+function flipTree(t) {
+  const flipped = {};
+  Object.entries(t.pos).forEach(([id, p]) => {
+    flipped[id] = { x: p.x, y: t.h - p.y - NODE_H };
+  });
+  return { ...t, pos: flipped, flipped: true };
+}
+
+// ── Bin-pack trees with TD/BU flip optimization ─────────────────────────────
 function binPackTrees(trees) {
-  // Sort by area descending (big trees first for better packing)
   const sorted = [...trees].sort((a, b) => (b.w * b.h) - (a.w * a.h));
-  const placed = []; // { x, y, w, h, tree }
+  const placed = [];
 
   sorted.forEach(t => {
-    // Generate candidate positions: (0,0) + right/below edges of all placed trees
+    const variants = [t, flipTree(t)]; // try both orientations
     const cands = [{ x: 0, y: 0 }];
     placed.forEach(p => {
       cands.push({ x: p.x + p.w + TREE_GAP, y: p.y });
@@ -67,23 +75,23 @@ function binPackTrees(trees) {
       cands.push({ x: 0, y: p.y + p.h + TREE_GAP });
     });
 
-    let bestX = 0, bestY = 0, bestScore = Infinity;
-    cands.forEach(c => {
-      if (c.x < 0 || c.y < 0) return;
-      // Check no overlap with any placed tree
-      const overlaps = placed.some(p =>
-        c.x < p.x + p.w + TREE_GAP && c.x + t.w + TREE_GAP > p.x &&
-        c.y < p.y + p.h + TREE_GAP && c.y + t.h + TREE_GAP > p.y
-      );
-      if (overlaps) return;
-      // Score: minimize total bounding box area (compact)
-      const bx = Math.max(c.x + t.w, ...placed.map(p => p.x + p.w));
-      const by = Math.max(c.y + t.h, ...placed.map(p => p.y + p.h));
-      const score = bx * by; // total area
-      if (score < bestScore) { bestScore = score; bestX = c.x; bestY = c.y; }
+    let bestX = 0, bestY = 0, bestScore = Infinity, bestVariant = t;
+    variants.forEach(v => {
+      cands.forEach(c => {
+        if (c.x < 0 || c.y < 0) return;
+        const overlaps = placed.some(p =>
+          c.x < p.x + p.w + TREE_GAP && c.x + v.w + TREE_GAP > p.x &&
+          c.y < p.y + p.h + TREE_GAP && c.y + v.h + TREE_GAP > p.y
+        );
+        if (overlaps) return;
+        const bx = Math.max(c.x + v.w, ...placed.map(p => p.x + p.w));
+        const by = Math.max(c.y + v.h, ...placed.map(p => p.y + p.h));
+        const score = bx * by;
+        if (score < bestScore) { bestScore = score; bestX = c.x; bestY = c.y; bestVariant = v; }
+      });
     });
 
-    placed.push({ x: bestX, y: bestY, w: t.w, h: t.h, tree: t });
+    placed.push({ x: bestX, y: bestY, w: bestVariant.w, h: bestVariant.h, tree: bestVariant });
   });
 
   return placed;
