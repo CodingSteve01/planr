@@ -75,10 +75,21 @@ export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goa
     {tree.filter(r => r.lvl === 1).length > 0 && <>
       <div className="section-h">Projects</div>
       <table className="tree-tbl">
-        <thead><tr><th>Project</th><th className="r">Best</th><th className="r">Realistic</th><th className="r">Worst</th></tr></thead>
+        <thead><tr><th>Project</th><th className="r">Effort</th><th className="r">Progress</th><th>Projected end</th></tr></thead>
         <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
-          return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}><td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
-            <td className="nc">{s._b?.toFixed(0)}</td><td className="nc g">{s._r?.toFixed(1)}</td><td className="nc">{s._w?.toFixed(0)}</td>
+          const leaves = tree.filter(c => c.lvl === 3 && c.id.startsWith(r.id + '.'));
+          const done = leaves.filter(l => l.status === 'done').length;
+          const prog = leaves.length > 0 ? Math.round(done / leaves.length * 100) : 0;
+          return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}>
+            <td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
+            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{s._r > 0 ? s._r.toFixed(0) + 'd' : ''}</td>
+            <td className="nc"><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog === 100 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
+              <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>{done}/{leaves.length}</span>
+            </div></td>
+            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: s._endD ? 'var(--tx)' : 'var(--tx3)' }}>
+              {s._endD ? s._endD.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+            </td>
           </tr>; })}</tbody>
       </table>
     </>}

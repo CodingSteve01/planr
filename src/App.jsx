@@ -32,9 +32,31 @@ export default function App() {
   const fRef = useRef(null);
   const fileHandleRef = useRef(null);
   const [fileName, setFileName] = useState(null);
+  const [autoSave, setAutoSave] = useState(false);
 
-  // Auto-save to localStorage
-  useEffect(() => { if (!data) return; const t = setTimeout(() => { localStorage.setItem(SK, JSON.stringify(data)); setSaved(true); }, 800); return () => clearTimeout(t); }, [data]);
+  // Auto-save to localStorage + optionally to file
+  useEffect(() => {
+    if (!data) return;
+    const t = setTimeout(async () => {
+      localStorage.setItem(SK, JSON.stringify(data));
+      if (autoSave && fileHandleRef.current) {
+        try {
+          const wr = await fileHandleRef.current.createWritable();
+          await wr.write(JSON.stringify(data, null, 2));
+          await wr.close();
+        } catch (e) { console.error('Auto-save failed:', e); setAutoSave(false); }
+      }
+      setSaved(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [data, autoSave]);
+
+  // Guard: warn on browser close/reload with unsaved changes
+  useEffect(() => {
+    const h = (e) => { if (!saved) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [saved]);
 
   // Save to file (File System Access API)
   async function saveToFile(saveAs) {
@@ -184,7 +206,13 @@ export default function App() {
       <span className="logo" title="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
       <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
-      {fileName && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{fileName}</span>}
+      {fileName && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        {fileName}
+        <label title="Auto-save to file on every change" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} style={{ width: 12, height: 12 }} />
+          <span style={{ fontSize: 9 }}>auto</span>
+        </label>
+      </span>}
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {tree.filter(r => r.lvl === 3 && r.status === 'done').length}/{tree.filter(r => r.lvl === 3).length} done</span>
       <div className="sp" />
@@ -200,12 +228,14 @@ export default function App() {
       {tab === 'deadlines' && <button className="btn btn-sec btn-sm" onClick={() => setModal('deadlines')}>Edit</button>}
       <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
       <div className="vsep" />
+      <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
+      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as new file">Save as</button>
+      <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={exportJSON} title="Export project as JSON">JSON</button>
       <button className="btn btn-sec btn-sm" onClick={exportCSV} title="Export tree as CSV (Excel)">CSV</button>
       {tab === 'net' && <button className="btn btn-sec btn-sm" onClick={exportSVG} title="Download graph as SVG">SVG</button>}
       <button className="btn btn-sec btn-sm" onClick={exportPDF} title="Print / PDF">Print</button>
-      <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
     </div>
@@ -244,7 +274,7 @@ export default function App() {
       {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onDel={deleteMember} onVac={v => setD('vacations', v)} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} teams={teams} onSave={(m, ts) => { setD('meta', m); setD('teams', ts); }} onClose={() => setModal(null)} />}

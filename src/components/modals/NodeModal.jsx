@@ -4,7 +4,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClose, onUpdate, onDelete, onEstimate }) {
+export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate }) {
   const [f, setF] = useState({ ...node });
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
@@ -33,6 +33,23 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
           </select>
         </div>
       </div>
+      {node.lvl < 3 && (() => {
+        const st = stats?.[node.id];
+        const childCount = tree.filter(c => c.id.startsWith(node.id + '.') && c.lvl === node.lvl + 1).length;
+        const leafCount = tree.filter(c => c.lvl === 3 && c.id.startsWith(node.id + '.')).length;
+        const doneCount = tree.filter(c => c.lvl === 3 && c.id.startsWith(node.id + '.') && c.status === 'done').length;
+        return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>Aggregated from {leafCount} tasks</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+            <span style={{ color: 'var(--tx3)' }}>Progress</span><span>{doneCount}/{leafCount} done ({leafCount > 0 ? Math.round(doneCount / leafCount * 100) : 0}%)</span>
+            <span style={{ color: 'var(--tx3)' }}>Best</span><span>{st?._b?.toFixed(0) || 0}d</span>
+            <span style={{ color: 'var(--tx3)' }}>Realistic</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
+            <span style={{ color: 'var(--tx3)' }}>Worst</span><span>{st?._w?.toFixed(0) || 0}d</span>
+            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Status, estimates, and dates are derived from child tasks.</div>
+        </div>;
+      })()}
       {node.lvl === 3 && <>
         {onEstimate && <button className="btn btn-sec" style={{ width: '100%', marginBottom: 12 }} onClick={() => { onClose(); onEstimate(node); }}>Open Estimation Wizard...</button>}
         <div className="field"><label>Quick estimate (T-shirt size)</label>
