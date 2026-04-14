@@ -97,6 +97,21 @@ function binPackTrees(trees) {
     placed.push({ x: bestX, y: bestY, w: bestVariant.w, h: bestVariant.h, tree: bestVariant });
   });
 
+  // Post-process: flip trees in the bottom half to BU (parent at bottom)
+  if (placed.length > 1) {
+    const medianY = placed.reduce((s, p) => s + p.y, 0) / placed.length;
+    placed.forEach(p => {
+      if (p.y > medianY && !p.tree.flipped) {
+        // Flip this tree to BU
+        const flipped = {};
+        Object.entries(p.tree.pos).forEach(([id, np]) => {
+          flipped[id] = { x: np.x, y: p.tree.h - np.y - NODE_H };
+        });
+        p.tree = { ...p.tree, pos: flipped, flipped: true };
+      }
+    });
+  }
+
   return placed;
 }
 
@@ -309,8 +324,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     <div className="ng-toolbar">
       <button className="btn btn-pri btn-sm" onClick={fitToScreen}>Fit</button>
       <button className="btn btn-sec btn-sm" onClick={() => { setZoom(1); setPan({ x: 12, y: 12 }); }}>{Math.round(zoom * 100)}%</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setZoom(z => Math.min(3, z * 1.25))}>+</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setZoom(z => Math.max(.05, z * .8))}>-</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.min(3, zoom * 1.25); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>+</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.max(.05, zoom * .8); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>-</button>
     </div>
 
     <svg ref={svgRef} style={{ width: '100%', height: '100%' }} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU}
@@ -355,7 +370,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
           return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#22c55e12' : 'var(--bg2)'}
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#22c55e18' : r.lvl === 1 ? tc + '28' : 'var(--bg2)'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc + '88' : tc + '33'}
               strokeWidth={isSel ? 2.5 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
