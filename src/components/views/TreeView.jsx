@@ -1,8 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 
 export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, stats, teams, cpSet, onQuickAdd, onDelete }) {
   const [collapsed, setCollapsed] = useState(new Set());
+  const selRef = useRef(null);
+
+  // When navigating to a child of a collapsed parent, expand ancestors first, then scroll
+  useEffect(() => {
+    if (!selected?.id) return;
+    const parts = selected.id.split('.');
+    const toExpand = [];
+    for (let i = 1; i < parts.length; i++) {
+      const anc = parts.slice(0, i).join('.');
+      if (collapsed.has(anc)) toExpand.push(anc);
+    }
+    if (toExpand.length) setCollapsed(s => { const n = new Set(s); toExpand.forEach(a => n.delete(a)); return n; });
+    setTimeout(() => { if (selRef.current) selRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+  }, [selected?.id]);
 
   const toggle = (id) => setCollapsed(s => {
     const n = new Set(s);
@@ -39,7 +53,7 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
       <th style={{ width: 100, background: 'var(--bg)' }}>ID</th>
       <th style={{ background: 'var(--bg)' }}>Name</th>
       <th style={{ width: 55, background: 'var(--bg)' }}></th>
-      <th style={{ width: 70, background: 'var(--bg)' }}>Status</th>
+      <th style={{ width: 95, background: 'var(--bg)' }}>Status</th>
       <th style={{ width: 70, background: 'var(--bg)' }}>Team</th>
       <th className="r" style={{ width: 50, background: 'var(--bg)' }}>Best</th>
       <th className="r" style={{ width: 55, background: 'var(--bg)' }}>Real</th>
@@ -51,7 +65,7 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
         const s = stats[r.id] || r; const isCp = r.lvl === 3 && cpSet?.has(r.id); const canAdd = r.lvl < 3;
         const hasChildren = r.lvl < 3 && tree.some(c => c.id.startsWith(r.id + '.'));
         const isCollapsed = collapsed.has(r.id);
-        return <tr key={r.id} className={`tr l${r.lvl}${selected?.id === r.id ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
+        return <tr key={r.id} ref={selected?.id === r.id ? selRef : null} className={`tr l${r.lvl}${selected?.id === r.id ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
           onClick={() => onSelect(r)} onDoubleClick={() => onDbl(r)}>
           <td><span className="tid">{r.id}</span></td>
           <td>
@@ -70,9 +84,16 @@ export function TreeView({ tree, selected, onSelect, onDbl, search, teamFilter, 
               title={`Delete ${r.id}`} onClick={e => { e.stopPropagation(); if (confirm(`Delete ${r.id}${r.lvl < 3 ? ' and all children' : ''}?`)) onDelete(r.id); }}>×</button>
           </td>
           <td><SBadge s={r.status} /></td><td><TBadge t={r.team} teams={teams} /></td>
-          <td className="nc">{s._b > 0 ? s._b : ''}</td>
-          <td className="nc g">{s._r > 0 ? s._r.toFixed(1) : ''}</td>
-          <td className="nc">{s._w > 0 ? s._w.toFixed(0) : ''}</td>
+          {r.lvl < 3 ? <td colSpan={3} className="nc" style={{ fontSize: 10 }}>
+            {s._r > 0 && <span style={{ fontFamily: 'var(--mono)' }}>{s._r.toFixed(0)}d</span>}
+            {s._startD && <span style={{ color: 'var(--tx3)', marginLeft: 8, fontFamily: 'var(--mono)' }}>
+              {s._startD.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: '2-digit' })} — {s._endD.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: '2-digit' })}
+            </span>}
+          </td> : <>
+            <td className="nc">{s._b > 0 ? s._b : ''}</td>
+            <td className="nc g">{s._r > 0 ? s._r.toFixed(1) : ''}</td>
+            <td className="nc">{s._w > 0 ? s._w.toFixed(0) : ''}</td>
+          </>}
           <td>{r.lvl === 3 && <PBadge p={r.prio} />}</td>
         </tr>;
       })}

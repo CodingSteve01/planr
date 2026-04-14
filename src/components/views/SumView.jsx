@@ -3,7 +3,7 @@ import { TBadge } from '../shared/Badges.jsx';
 import { re, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 
-export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goalPaths }) {
+export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goalPaths, onNavigate }) {
   const stats = treeStats(tree);
   const lvs = tree.filter(r => r.lvl === 3);
   const done = lvs.filter(r => r.status === 'done').length;
@@ -51,7 +51,7 @@ export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goa
           </div>
           <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
           {gp.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-            {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3 }}>{id}</span>; })}
+            {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} title={r?.name}>{id}</span>; })}
             {gp.critical.size > 6 && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
           </div>}
         </>}
@@ -77,7 +77,7 @@ export function SumView({ tree, scheduled, deadlines, members, teams, cpSet, goa
       <table className="tree-tbl">
         <thead><tr><th>Project</th><th className="r">Best</th><th className="r">Realistic</th><th className="r">Worst</th></tr></thead>
         <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
-          return <tr key={r.id} className="tr l1"><td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
+          return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}><td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
             <td className="nc">{s._b?.toFixed(0)}</td><td className="nc g">{s._r?.toFixed(1)}</td><td className="nc">{s._w?.toFixed(0)}</td>
           </tr>; })}</tbody>
       </table>

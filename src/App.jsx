@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { buildHMap } from './utils/holidays.js';
-import { schedule, treeStats, nextChildId, deriveParentStatuses } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
@@ -30,15 +30,53 @@ export default function App() {
   const [teamFilter, setTeamFilter] = useState('');
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
+  const fileHandleRef = useRef(null);
+  const [fileName, setFileName] = useState(null);
 
+  // Auto-save to localStorage
   useEffect(() => { if (!data) return; const t = setTimeout(() => { localStorage.setItem(SK, JSON.stringify(data)); setSaved(true); }, 800); return () => clearTimeout(t); }, [data]);
+
+  // Save to file (File System Access API)
+  async function saveToFile(saveAs) {
+    if (!data) return;
+    try {
+      let handle = saveAs ? null : fileHandleRef.current;
+      if (!handle) {
+        if (!window.showSaveFilePicker) { exportJSON(); return; }
+        handle = await window.showSaveFilePicker({
+          suggestedName: `${(meta.name || 'project').toLowerCase().replace(/\s+/g, '-')}.planr.json`,
+          types: [{ description: 'Planr Project', accept: { 'application/json': ['.json'] } }],
+        });
+        fileHandleRef.current = handle;
+        setFileName(handle.name);
+      }
+      const wr = await handle.createWritable();
+      await wr.write(JSON.stringify(data, null, 2));
+      await wr.close();
+      setSaved(true);
+    } catch (e) { if (e.name !== 'AbortError') { console.error('Save failed:', e); fileHandleRef.current = null; setFileName(null); } }
+  }
+  async function loadFromFile() {
+    try {
+      if (window.showOpenFilePicker) {
+        const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Planr Project', accept: { 'application/json': ['.json'] } }] });
+        const file = await handle.getFile();
+        const d = JSON.parse(await file.text());
+        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid');
+        setData(d); fileHandleRef.current = handle; setFileName(handle.name); setTab('summary'); setSel(null);
+      } else { fRef.current?.click(); }
+    } catch (e) { if (e.name !== 'AbortError') alert('Could not load file.'); }
+  }
+
+  // Ctrl+S → save to file
+  useEffect(() => { const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); });
 
   const { tree = [], members = [], teams = [], deadlines = [], vacations = [], meta = {} } = data || {};
   const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
   const planStart = meta.planStart || iso(new Date());
   const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm]);
-  const stats = useMemo(() => treeStats(tree), [tree]);
+  const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree, deadlines), [tree, deadlines]);
 
@@ -131,7 +169,7 @@ export default function App() {
   function newProject() { setData(null); setSel(null); setModal(null); setTab('summary'); }
 
   if (!data) return <>
-    <Onboard onCreate={() => setModal('new')} onLoad={() => fRef.current?.click()} fRef={fRef} />
+    <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef} />
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); }} />}
     <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
   </>;
@@ -146,6 +184,7 @@ export default function App() {
       <span className="logo" title="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
       <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
+      {fileName && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{fileName}</span>}
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {tree.filter(r => r.lvl === 3 && r.status === 'done').length}/{tree.filter(r => r.lvl === 3).length} done</span>
       <div className="sp" />
@@ -153,7 +192,7 @@ export default function App() {
         <input className="btn btn-sec" style={{ padding: '5px 10px', width: 160 }} placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
         <select className="btn btn-sec" style={{ padding: '5px 8px', width: 100 }} value={teamFilter} onChange={e => setTeamFilter(e.target.value)}>
           <option value="">All teams</option>
-          {teams.map(t => <option key={t.id} value={t.id}>{t.id}</option>)}
+          {teams.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
         </select>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add</button>
         {selected && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selected.id} and all children?`)) deleteNode(selected.id); }}>Delete</button>}
@@ -161,11 +200,12 @@ export default function App() {
       {tab === 'deadlines' && <button className="btn btn-sec btn-sm" onClick={() => setModal('deadlines')}>Edit</button>}
       <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
       <div className="vsep" />
+      <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
       <button className="btn btn-sec btn-sm" onClick={exportJSON} title="Export project as JSON">JSON</button>
       <button className="btn btn-sec btn-sm" onClick={exportCSV} title="Export tree as CSV (Excel)">CSV</button>
       {tab === 'net' && <button className="btn btn-sec btn-sm" onClick={exportSVG} title="Download graph as SVG">SVG</button>}
       <button className="btn btn-sec btn-sm" onClick={exportPDF} title="Print / PDF">Print</button>
-      <button className="btn btn-sec btn-sm" onClick={() => fRef.current?.click()}>Load</button>
+      <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
     </div>
@@ -175,7 +215,8 @@ export default function App() {
       {!saved && <div style={{ display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--tx3)', padding: '0 12px' }} className="saving">saving...</div>}
     </div>
     <div className="main">
-      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} deadlines={deadlines} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} /></div>}
+      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} deadlines={deadlines} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths}
+        onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full"><div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length

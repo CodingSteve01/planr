@@ -29,8 +29,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
         <div className="field"><label>Team</label>
           <select value={f.team || ''} onChange={e => s('team', e.target.value)}>
             <option value="">— None —</option>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
-            {teams.length >= 2 && teams.flatMap((a, i) => teams.slice(i + 1).map(b => `${a.id}/${b.id}`)).map(x => <option key={x} value={x}>{x}</option>)}
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
           </select>
         </div>
       </div>
@@ -62,13 +61,19 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
           {sc && <><span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b></>}
           {isCp && <span className="cp">On critical path</span>}
         </div>
-        <div className="field"><label>Assigned to</label>
+        <div className="field"><label>Assignee</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-            {(f.assign || []).map(a => <span key={a} className="tag">{a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>)}
+            {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
           </div>
           <select onChange={e => { if (!e.target.value) return; s('assign', [...new Set([...(f.assign || []), e.target.value])]); e.target.value = ''; }}>
-            <option value="">+ Add person</option>
-            {members.map(m => <option key={m.id}>{m.id}{m.name && m.name !== m.id ? ` — ${m.name}` : ''}</option>)}
+            <option value="">+ Assign person</option>
+            {members.filter(m => !f.team || m.team === f.team || (f.team || '').includes(m.team)).map(m => (
+              <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
+            ))}
+            {f.team && <option disabled>───</option>}
+            {f.team && members.filter(m => m.team !== f.team && !(f.team || '').includes(m.team)).map(m => (
+              <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
+            ))}
           </select>
         </div>
         <div className="field"><label>Dependencies</label>

@@ -1,72 +1,137 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import ELK from 'elkjs/lib/elk.bundled.js';
 import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
 
-// ── Top-Down Tree Layout ────────────────────────────────────────────────────
-// L1 across the top as wide headers, L2 as columns below, L3 as stacked cards
-// RAIL_W = space reserved on the left for hierarchy connector rails
-const RAIL_W = 18;
+const elk = new ELK();
+const NW = { 1: 120, 2: 105, 3: 95 };
+const NH = { 1: 28, 2: 24, 3: 34 };
 
-function treeLayout(items, iMap, NW, NH) {
-  const pos = {};
-  const PAD = 14;
-  const l1s = items.filter(r => r.lvl === 1);
+// ── Stress-based layout: balanced, compact, optimization-based ──────────────
+function buildElkGraph(tree) {
+  const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
+  const children = tree.map(r => ({ id: r.id, width: NW[r.lvl] || 95, height: NH[r.lvl] || 34 }));
 
-  let l1X = RAIL_W; // start with rail space
-  const l1Boxes = [];
-
-  l1s.forEach(p1 => {
-    const l2s = items.filter(r => r.lvl === 2 && r.id.startsWith(p1.id + '.'));
-    const L1_Y = 0;
-
-    if (!l2s.length) {
-      pos[p1.id] = { x: l1X, y: L1_Y };
-      l1Boxes.push({ id: p1.id, x: l1X - RAIL_W, y: L1_Y - 8, w: NW[1] + RAIL_W + 8, h: NH[1] + 16 });
-      l1X += NW[1] + PAD * 3;
-      return;
-    }
-
-    const l2Cols = l2s.map(p2 => {
-      const l3s = items.filter(r => r.lvl === 3 && r.id.startsWith(p2.id + '.'));
-      const colH = NH[2] + PAD + l3s.length * (NH[3] + PAD);
-      return { p2, l3s, colH };
-    });
-
-    const L2_TOP = NH[1] + PAD * 3;
-    let colX = l1X;
-
-    l2Cols.forEach(col => {
-      // L2 header with rail space to the left for L3 connectors
-      pos[col.p2.id] = { x: colX + RAIL_W, y: L2_TOP };
-      // L3 tasks indented under L2 with rail space
-      let taskY = L2_TOP + NH[2] + PAD;
-      col.l3s.forEach(t => {
-        pos[t.id] = { x: colX + RAIL_W + (NW[2] - NW[3]) / 2, y: taskY };
-        taskY += NH[3] + PAD;
+  const edges = [];
+  // Hierarchy edges (shorter desired length → tight parent-child clusters)
+  tree.forEach(r => {
+    const pid = r.id.split('.').slice(0, -1).join('.');
+    if (pid && iMap[pid]) {
+      edges.push({
+        id: `h|${pid}|${r.id}`, sources: [pid], targets: [r.id],
+        layoutOptions: { 'elk.stress.desiredEdgeLength': String(r.lvl === 2 ? 60 : 50) },
       });
-      colX += RAIL_W + Math.max(NW[2], NW[3]) + PAD;
+    }
+  });
+  // Dependency edges (longer → visible as cross-links)
+  tree.forEach(r => {
+    (r.deps || []).forEach(d => {
+      if (iMap[d]) edges.push({
+        id: `d|${d}|${r.id}`, sources: [d], targets: [r.id],
+        layoutOptions: { 'elk.stress.desiredEdgeLength': '120' },
+      });
     });
-
-    const totalW = colX - l1X - PAD;
-    pos[p1.id] = { x: l1X + (totalW - NW[1]) / 2, y: L1_Y };
-
-    const maxH = Math.max(...l2Cols.map(c => c.colH)) + L2_TOP;
-    l1Boxes.push({ id: p1.id, x: l1X - RAIL_W, y: L1_Y - 8, w: totalW + RAIL_W + 8, h: maxH + 16 });
-
-    l1X = colX + PAD * 2;
   });
 
-  // Orphans (items without a parent in the tree)
-  let orphanY = (l1Boxes.length ? Math.max(...l1Boxes.map(b => b.y + b.h)) : 0) + PAD * 2;
-  items.filter(r => !pos[r.id]).forEach(r => {
-    pos[r.id] = { x: 0, y: orphanY };
-    orphanY += (NH[r.lvl] || 42) + PAD;
-  });
-
-  return { pos, l1Boxes };
+  return {
+    id: 'root',
+    layoutOptions: {
+      'elk.algorithm': 'stress',
+      'elk.stress.desiredEdgeLength': '80',
+      'elk.stress.epsilon': '0.0001',
+      'elk.stress.fixed': 'NONE',
+      'elk.spacing.nodeNode': '14',
+    },
+    children,
+    edges,
+  };
 }
 
+// ── Extract positions from ELK result ───────────────────────────────────────
+function extractLayout(result, tree, iMap) {
+  const pos = {};
+  (result.children || []).forEach(n => { pos[n.id] = { x: n.x, y: n.y }; });
+
+  // Build edge paths from positions (stress produces straight-line routes)
+  const hierRoutes = [];
+  const depRoutes = [];
+
+  (result.edges || []).forEach(edge => {
+    const parts = edge.id.split('|');
+    const from = parts[1], to = parts[2];
+    const isHier = edge.id.startsWith('h|');
+
+    let path;
+    if (edge.sections?.length) {
+      const pts = [];
+      edge.sections.forEach(s => {
+        pts.push(s.startPoint);
+        (s.bendPoints || []).forEach(p => pts.push(p));
+        pts.push(s.endPoint);
+      });
+      path = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
+    }
+
+    (isHier ? hierRoutes : depRoutes).push({ id: edge.id, from, to, path });
+  });
+
+  return { pos, hierRoutes, depRoutes };
+}
+
+// ── Compute edge path from node positions ───────────────────────────────────
+function edgePath(fp, tp, fw, fh, tw, th, curved) {
+  // Find best connection points (closest sides)
+  const fcx = fp.x + fw / 2, fcy = fp.y + fh / 2;
+  const tcx = tp.x + tw / 2, tcy = tp.y + th / 2;
+  const dx = tcx - fcx, dy = tcy - fcy;
+  const angle = Math.atan2(dy, dx);
+
+  // Exit/enter points on node borders
+  let x1, y1, x2, y2;
+  if (Math.abs(dx) * fh > Math.abs(dy) * fw) {
+    // Horizontal connection
+    x1 = dx > 0 ? fp.x + fw : fp.x;
+    y1 = fcy + (dx > 0 ? 1 : -1) * dy * (fw / 2) / Math.abs(dx);
+    x2 = dx > 0 ? tp.x : tp.x + tw;
+    y2 = tcy - (dx > 0 ? 1 : -1) * dy * (tw / 2) / Math.abs(dx);
+  } else {
+    // Vertical connection
+    y1 = dy > 0 ? fp.y + fh : fp.y;
+    x1 = fcx + (dy > 0 ? 1 : -1) * dx * (fh / 2) / Math.abs(dy);
+    y2 = dy > 0 ? tp.y : tp.y + th;
+    x2 = tcx - (dy > 0 ? 1 : -1) * dx * (th / 2) / Math.abs(dy);
+  }
+
+  y1 = Math.max(fp.y, Math.min(fp.y + fh, y1));
+  x1 = Math.max(fp.x, Math.min(fp.x + fw, x1));
+  y2 = Math.max(tp.y, Math.min(tp.y + th, y2));
+  x2 = Math.max(tp.x, Math.min(tp.x + tw, x2));
+
+  if (curved) {
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const off = Math.min(15, Math.sqrt(dx * dx + dy * dy) * 0.15);
+    const nx = -(y2 - y1), ny = x2 - x1;
+    const len = Math.sqrt(nx * nx + ny * ny) || 1;
+    return `M${x1},${y1} Q${mx + nx / len * off},${my + ny / len * off} ${x2},${y2}`;
+  }
+  return `M${x1},${y1} L${x2},${y2}`;
+}
+
+// ── L1 group bounding boxes ─────────────────────────────────────────────────
+function groupBoxes(tree, pos) {
+  const PAD = 10;
+  return tree.filter(r => r.lvl === 1).map(p1 => {
+    const desc = tree.filter(r => r.id === p1.id || r.id.startsWith(p1.id + '.'));
+    const rects = desc.map(r => { const p = pos[r.id]; if (!p) return null; return { l: p.x, t: p.y, r: p.x + (NW[r.lvl] || 95), b: p.y + (NH[r.lvl] || 34) }; }).filter(Boolean);
+    if (!rects.length) return null;
+    const x = Math.min(...rects.map(r => r.l)) - PAD;
+    const y = Math.min(...rects.map(r => r.t)) - PAD;
+    return { id: p1.id, x, y, w: Math.max(...rects.map(r => r.r)) + PAD - x, h: Math.max(...rects.map(r => r.b)) + PAD - y };
+  }).filter(Boolean);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -79,71 +144,86 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const [manualPos, setManualPos] = useState({});
   const [dragNode, setDragNode] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
+  const [layout, setLayout] = useState(null);
 
   const items = tree;
-  const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
-  const sMap = Object.fromEntries(scheduled.map(s => [s.id, s]));
+  const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
+  const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
 
-  const NW_MAP = { 1: 240, 2: 180, 3: 160 };
-  const NH_MAP = { 1: 36, 2: 34, 3: 50 };
-  const nw = id => NW_MAP[iMap[id]?.lvl] || 160;
-  const nh = id => NH_MAP[iMap[id]?.lvl] || 50;
-
-  const [hoverId, setHoverId] = useState(null);
-
-  // Edges: all parent→child hierarchy + explicit deps
-  const hierEdges = []; const depEdges = [];
-  items.forEach(r => {
-    const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid] && items.find(x => x.id === pid)) hierEdges.push({ from: pid, to: r.id });
-    // Dep edge: FROM prerequisite TO dependent item (flow direction: dep → item)
-    // Arrow at the END points at the item that needs the dep
-    (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id, label: r._depLabels?.[d] || '' }); });
-  });
-
-  // Dep visibility: only show deps connected to hovered or selected node
-  const activeId = hoverId || selId;
-  const visibleDeps = activeId
-    ? depEdges.filter(e => e.from === activeId || e.to === activeId)
-    : depEdges; // show all if nothing selected (but very faded)
-
-  // Compute layout
-  const { pos: autoPos, l1Boxes } = useMemo(() => treeLayout(items, iMap, NW_MAP, NH_MAP), [items]);
-
-  // Merge manual overrides
-  const pos = useMemo(() => {
-    const p = { ...autoPos };
-    Object.entries(manualPos).forEach(([id, mp]) => { if (p[id]) p[id] = mp; });
-    return p;
-  }, [autoPos, manualPos]);
-
+  const nw = id => NW[iMap[id]?.lvl] || 95;
+  const nh = id => NH[iMap[id]?.lvl] || 34;
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
   const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
 
-  // Graph bounds
+  // ── ELK stress layout ──────────────────────────────
+  useEffect(() => {
+    if (!items.length) { setLayout(null); return; }
+    let cancelled = false;
+    elk.layout(buildElkGraph(items))
+      .then(r => { if (!cancelled) setLayout(extractLayout(r, items, iMap)); })
+      .catch(e => console.error('ELK layout error:', e));
+    return () => { cancelled = true; };
+  }, [items]);
+
+  const pos = useMemo(() => {
+    if (!layout) return {};
+    const p = { ...layout.pos };
+    Object.entries(manualPos).forEach(([id, mp]) => { if (p[id]) p[id] = mp; });
+    return p;
+  }, [layout, manualPos]);
+
+  const l1Boxes = useMemo(() => layout ? groupBoxes(items, pos) : [], [layout, items, pos]);
+
+  // Compute edge paths from positions
+  const hierLines = useMemo(() => {
+    if (!layout) return [];
+    return layout.hierRoutes.map(r => {
+      if (r.path) return r;
+      const fp = pos[r.from], tp = pos[r.to];
+      if (!fp || !tp) return null;
+      return { ...r, path: edgePath(fp, tp, nw(r.from), nh(r.from), nw(r.to), nh(r.to), false) };
+    }).filter(Boolean);
+  }, [layout, pos]);
+
+  const depLines = useMemo(() => {
+    if (!layout) return [];
+    // Include ELK-computed routes + any deps without routes
+    const edgeSet = new Set(layout.depRoutes.map(r => r.id));
+    const all = [...layout.depRoutes];
+    // Add deps that weren't in the ELK graph (shouldn't happen, but safety)
+    items.forEach(r => {
+      (r.deps || []).forEach(d => {
+        const id = `d|${d}|${r.id}`;
+        if (!edgeSet.has(id) && iMap[d] && pos[d] && pos[r.id]) {
+          all.push({ id, from: d, to: r.id, path: null });
+        }
+      });
+    });
+    return all.map(r => {
+      if (r.path) return r;
+      const fp = pos[r.from], tp = pos[r.to];
+      if (!fp || !tp) return null;
+      return { ...r, path: edgePath(fp, tp, nw(r.from), nh(r.from), nw(r.to), nh(r.to), true) };
+    }).filter(Boolean);
+  }, [layout, pos, items]);
+
   const allPos = Object.entries(pos);
-  const graphW = allPos.length ? Math.max(...allPos.map(([id, p]) => p.x + nw(id))) + 40 : 400;
-  const graphH = allPos.length ? Math.max(...allPos.map(([id, p]) => p.y + nh(id))) + 40 : 300;
+  const graphW = allPos.length ? Math.max(...allPos.map(([id, p]) => p.x + nw(id))) + 30 : 400;
+  const graphH = allPos.length ? Math.max(...allPos.map(([id, p]) => p.y + nh(id))) + 30 : 300;
 
   function fitToScreen() {
     if (!svgRef.current || !items.length) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const vw = rect.width - 20, vh = rect.height - 60;
-    const z = Math.max(.05, Math.min(vw / graphW, vh / graphH, 1.2));
-    setPan({ x: (rect.width - graphW * z) / 2, y: Math.max(20, (rect.height - graphH * z) / 2) });
+    const vw = rect.width - 16, vh = rect.height - 50;
+    const z = Math.max(.05, Math.min(vw / graphW, vh / graphH, 1.5));
+    setPan({ x: (rect.width - graphW * z) / 2, y: Math.max(10, (rect.height - graphH * z) / 2) });
     setZoom(z);
   }
-  function resetTo100() {
-    if (!svgRef.current) return;
-    setZoom(1); setPan({ x: 20, y: 20 });
-  }
-  // Start at 100% zoom, scrolled to top-left
-  useEffect(() => { if (items.length) setTimeout(resetTo100, 100); }, [items.length]);
+  useEffect(() => { if (layout) setTimeout(fitToScreen, 80); }, [layout]);
 
-  // SVG coordinate helpers
   function svgPt(e) { const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return { x: 0, y: 0 }; return { x: (e.clientX - rect.left - pan.x) / zoom, y: (e.clientY - rect.top - pan.y) / zoom }; }
 
-  // Wheel: scroll=pan, pinch=zoom
   useEffect(() => {
     const el = svgRef.current?.parentElement; if (!el) return;
     const handler = (e) => {
@@ -155,9 +235,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
         const nz = Math.min(3, Math.max(.05, zoom * f));
         setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) }));
         setZoom(nz);
-      } else {
-        setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
-      }
+      } else { setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY })); }
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
@@ -171,7 +249,12 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   }
   function onMU(e) {
     if (dragNode) { setDragNode(null); return; }
-    if (drawing) { const p = svgPt(e); const target = items.find(r => { const np = pos[r.id]; return np && p.x >= np.x && p.x <= np.x + nw(r.id) && p.y >= np.y && p.y <= np.y + nh(r.id); }); if (target && target.id !== drawing.fromId && onAddDep) onAddDep(drawing.fromId, target.id); setDrawing(null); return; }
+    if (drawing) {
+      const p = svgPt(e);
+      const target = items.find(r => { const np = pos[r.id]; return np && p.x >= np.x && p.x <= np.x + nw(r.id) && p.y >= np.y && p.y <= np.y + nh(r.id); });
+      if (target && target.id !== drawing.fromId && onAddDep) onAddDep(drawing.fromId, target.id);
+      setDrawing(null); return;
+    }
     setPanning(false); setPanSt(null);
   }
   function onNodeMD(e, r) { e.stopPropagation(); const p = svgPt(e); const np = pos[r.id] || { x: 0, y: 0 }; setDragNode({ id: r.id, ox: p.x - np.x, oy: p.y - np.y }); }
@@ -181,95 +264,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
   useEffect(() => { function onKey(e) { if ((e.key === 'Delete' || e.key === 'Backspace') && selId && onDeleteNode && !e.target.closest('input,textarea,select')) { if (confirm(`Delete ${selId}?`)) { onDeleteNode(selId); setSelId(null); } } } window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [selId]);
 
-  // Obstacle-aware orthogonal edge routing
-  const obstacles = useMemo(() => {
-    const PAD = 6;
-    return items.map(r => {
-      const p = pos[r.id]; if (!p) return null;
-      return { id: r.id, x: p.x - PAD, y: p.y - PAD, w: nw(r.id) + PAD * 2, h: nh(r.id) + PAD * 2 };
-    }).filter(Boolean);
-  }, [pos, items]);
-
-  function hitsObstacle(x1, y1, x2, y2, skipIds) {
-    // Check if a line segment intersects any obstacle box
-    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-    return obstacles.some(o => {
-      if (skipIds?.includes(o.id)) return false;
-      // Horizontal line
-      if (Math.abs(y1 - y2) < 1) return y1 > o.y && y1 < o.y + o.h && maxX > o.x && minX < o.x + o.w;
-      // Vertical line
-      if (Math.abs(x1 - x2) < 1) return x1 > o.x && x1 < o.x + o.w && maxY > o.y && minY < o.y + o.h;
-      return false;
-    });
-  }
-
-  function routeEdge(fromId, toId, isDep) {
-    const fp = pos[fromId], tp = pos[toId]; if (!fp || !tp) return null;
-    const fw = nw(fromId), fh = nh(fromId), tw = nw(toId), th = nh(toId);
-    const skip = [fromId, toId];
-
-    if (!isDep) {
-      // Hierarchy: rail on the left of children
-      const siblings = items.filter(r => r.id.split('.').slice(0, -1).join('.') === fromId);
-      const railX = siblings.length > 0
-        ? Math.min(...siblings.map(s => pos[s.id]?.x ?? fp.x)) - RAIL_W / 2
-        : fp.x - RAIL_W / 2;
-      const x1 = fp.x + fw / 2, y1 = fp.y + fh;
-      const y2 = tp.y + th / 2;
-      return { path: `M${x1},${y1} L${x1},${y1 + 8} L${railX},${y1 + 8} L${railX},${y2} L${tp.x},${y2}` };
-    }
-
-    // Dependency: try multiple orthogonal routes, pick best (fewest obstacle hits)
-    const fcx = fp.x + fw / 2, tcx = tp.x + tw / 2;
-    const routes = [];
-
-    // Route options: go via different Y levels
-    const yOptions = [
-      Math.min(fp.y, tp.y) - 30,
-      Math.min(fp.y, tp.y) - 60,
-      Math.max(fp.y + fh, tp.y + th) + 30,
-      Math.max(fp.y + fh, tp.y + th) + 60,
-      (fp.y + tp.y) / 2 - 50,
-    ];
-
-    // Also try going via the sides
-    const xOptions = [
-      { x1: fp.x + fw, y1: fp.y + fh / 2, x2: tp.x, y2: tp.y + th / 2, side: true },
-      { x1: fp.x, y1: fp.y + fh / 2, x2: tp.x + tw, y2: tp.y + th / 2, side: true },
-    ];
-
-    // Y-routing: exit top/bottom, go horizontal, enter top/bottom
-    for (const routeY of yOptions) {
-      const exitY = routeY < fp.y ? fp.y : fp.y + fh;
-      const enterY = routeY < tp.y ? tp.y : tp.y + th;
-      const path = `M${fcx},${exitY} L${fcx},${routeY} L${tcx},${routeY} L${tcx},${enterY}`;
-      const hits = [
-        hitsObstacle(fcx, exitY, fcx, routeY, skip),
-        hitsObstacle(fcx, routeY, tcx, routeY, skip),
-        hitsObstacle(tcx, routeY, tcx, enterY, skip),
-      ].filter(Boolean).length;
-      const labelPt = { x: (fcx + tcx) / 2, y: routeY - 8 };
-      routes.push({ path, hits, labelPt, len: Math.abs(fcx - tcx) + Math.abs(exitY - routeY) * 2 });
-    }
-
-    // X-routing: exit side, go vertical, enter side
-    for (const opt of xOptions) {
-      const midX = (opt.x1 + opt.x2) / 2;
-      const path = `M${opt.x1},${opt.y1} L${midX},${opt.y1} L${midX},${opt.y2} L${opt.x2},${opt.y2}`;
-      const hits = [
-        hitsObstacle(opt.x1, opt.y1, midX, opt.y1, skip),
-        hitsObstacle(midX, opt.y1, midX, opt.y2, skip),
-        hitsObstacle(midX, opt.y2, opt.x2, opt.y2, skip),
-      ].filter(Boolean).length;
-      const labelPt = { x: midX, y: (opt.y1 + opt.y2) / 2 - 8 };
-      routes.push({ path, hits, labelPt, len: Math.abs(opt.x1 - opt.x2) + Math.abs(opt.y1 - opt.y2) });
-    }
-
-    // Pick route with fewest hits, then shortest
-    routes.sort((a, b) => a.hits - b.hits || a.len - b.len);
-    return routes[0] || { path: `M${fcx},${fp.y} L${tcx},${tp.y}`, labelPt: { x: (fcx + tcx) / 2, y: (fp.y + tp.y) / 2 } };
-  }
+  const activeId = hoverId || selId;
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>🕸</div>
@@ -277,6 +272,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       {onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>}
     </div>
   </div>;
+
+  if (!layout) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tx3)' }}>Computing layout...</div>;
 
   return <div className="netgraph-wrap" style={{ cursor: dragNode ? 'grabbing' : drawing ? 'crosshair' : panning ? 'grabbing' : 'default' }}>
     <div className="ng-toolbar">
@@ -287,43 +284,43 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
       {Object.keys(manualPos).length > 0 && <button className="btn btn-sec btn-sm" onClick={() => setManualPos({})}>Reset</button>}
       {selId && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selId}?`)) { onDeleteNode(selId); setSelId(null); } }}>Del {selId}</button>}
     </div>
+
     <svg ref={svgRef} style={{ width: '100%', height: '100%' }} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU}
       onMouseLeave={() => { setPanning(false); setDragNode(null); setDrawing(null); }}
       onDoubleClick={e => { if (e.target === svgRef.current || e.target.tagName === 'svg') onAddNode?.(); }}>
       <defs>
-        <marker id="ar-h" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="5" markerHeight="4" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--b3)" /></marker>
-        <marker id="ar-d" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--ac)" /></marker>
-        <marker id="ar-cp" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker>
+        <marker id="ar-h" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="4" markerHeight="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--b3)" /></marker>
+        <marker id="ar-d" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="5" markerHeight="4" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--ac)" /></marker>
+        <marker id="ar-cp" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="5" markerHeight="4" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker>
       </defs>
       <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+
         {/* L1 group backgrounds */}
         {l1Boxes.map(b => {
           const tc = gTC(iMap[b.id]?.team);
-          return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={tc + '06'} stroke={tc + '18'} strokeWidth={1} />;
+          return <rect key={'bg' + b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={10} fill={tc + '06'} stroke={tc + '15'} strokeWidth={.8} />;
         })}
-        {/* Hierarchy edges: rail-routed */}
-        {hierEdges.map((e, i) => { const r = routeEdge(e.from, e.to, false); if (!r) return null; const isL1 = iMap[e.from]?.lvl === 1;
-          return <path key={'h' + i} d={r.path} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .8 : 1} opacity={isL1 ? .2 : .35} markerEnd="url(#ar-h)" />; })}
-        {/* Dependency edges: obstacle-aware routing, visible on hover */}
-        {depEdges.map((e, i) => {
-          const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
-          const isActive = activeId && (e.from === activeId || e.to === activeId);
+
+        {/* Hierarchy edges */}
+        {hierLines.map(r => {
+          const isL1 = iMap[r.from]?.lvl === 1;
+          return <path key={r.id} d={r.path} fill="none" stroke="var(--b3)" strokeWidth={isL1 ? .7 : .9} opacity={.3} markerEnd="url(#ar-h)" />;
+        })}
+
+        {/* Dependency edges */}
+        {depLines.map(r => {
+          const isCp = cpSet?.has(r.from) && cpSet?.has(r.to);
+          const isActive = activeId && (r.from === activeId || r.to === activeId);
           if (!isActive && !isCp && activeId) return null;
-          const r = routeEdge(e.from, e.to, true); if (!r) return null;
-          const op = isActive ? .8 : isCp ? .5 : .15;
-          const lp = r.labelPt;
-          return <g key={'d' + i}>
-            <path d={r.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2.5 : isCp ? 1.5 : 1} strokeDasharray="6 4" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
-            {e.label && isActive && lp && <>
-              <rect x={lp.x - e.label.length * 2.8 - 4} y={lp.y - 6} width={e.label.length * 5.6 + 8} height={14} rx={3} fill="var(--bg2)" stroke="var(--ac)" strokeWidth={.5} opacity={.9} style={{ pointerEvents: 'none' }} />
-              <text x={lp.x} y={lp.y + 5} fontSize={8} fill="var(--ac)" textAnchor="middle" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{e.label}</text>
-            </>}
-          </g>;
+          const op = isActive ? .75 : isCp ? .45 : .1;
+          return <path key={r.id} d={r.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'} strokeWidth={isActive ? 2 : isCp ? 1.2 : .7} strokeDasharray="4 3" opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />;
         })}
+
         {/* Drawing line */}
         {drawing && (() => { const fp = pos[drawing.fromId]; if (!fp) return null; const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return null;
           const mx = (drawing.mx - rect.left - pan.x) / zoom, my = (drawing.my - rect.top - pan.y) / zoom;
-          return <line x1={fp.x + nw(drawing.fromId) / 2} y1={fp.y + nh(drawing.fromId)} x2={mx} y2={my} stroke="var(--ac)" strokeWidth={2} strokeDasharray="6 3" />; })()}
+          return <line x1={fp.x + nw(drawing.fromId) / 2} y1={fp.y + nh(drawing.fromId)} x2={mx} y2={my} stroke="var(--ac)" strokeWidth={1.5} strokeDasharray="5 3" />; })()}
+
         {/* Nodes */}
         {items.map(r => {
           const p = pos[r.id]; if (!p) return null;
@@ -331,11 +328,11 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id); const sc = sMap[r.id]; const tc = gTC(r.team); const stC = SC[r.status] || '#4f8ef7';
           const isSel = selId === r.id; const isDone = r.status === 'done';
           const isL1 = r.lvl === 1, isL2 = r.lvl === 2;
-          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={isDone ? .45 : 1}>
-            <rect width={w} height={h} rx={isL1 ? 8 : isL2 ? 6 : 5}
-              fill={isL1 ? tc + '20' : isL2 ? tc + '15' : 'var(--bg2)'}
-              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : tc + (isL1 ? '66' : '44')}
-              strokeWidth={isSel ? 2.5 : isL1 ? 1.5 : isCp ? 2 : 1}
+          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={isDone ? .4 : 1}>
+            <rect width={w} height={h} rx={isL1 ? 6 : 4}
+              fill={isL1 ? tc + '20' : isL2 ? tc + '12' : 'var(--bg2)'}
+              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : tc + (isL1 ? '55' : '30')}
+              strokeWidth={isSel ? 2 : isCp ? 1.5 : .7}
               style={{ cursor: dragNode?.id === r.id ? 'grabbing' : 'grab' }}
               onMouseDown={e => onNodeMD(e, r)}
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}
@@ -343,43 +340,38 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
               onContextMenu={e => onCtx(e, r)}
               onMouseEnter={e => { if (!dragNode && !drawing) { setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY }); setHoverId(r.id); } }}
               onMouseLeave={() => { setTip(null); setHoverId(null); }} />
-            <rect x={0} y={isL1 ? h - 3 : 0} width={isL1 ? w : 3} height={isL1 ? 3 : h} rx={2} fill={stC} style={{ pointerEvents: 'none' }} />
-            {/* Connection handle at bottom */}
-            <circle cx={w / 2} cy={h} r={4} fill={tc + '55'} stroke={tc} strokeWidth={.8}
-              style={{ cursor: 'crosshair', opacity: .3 }} onMouseDown={e => onConnStart(e, r)}
-              onMouseEnter={e => { e.target.style.opacity = '1'; e.target.setAttribute('r', '6'); }}
-              onMouseLeave={e => { e.target.style.opacity = '.3'; e.target.setAttribute('r', '4'); }} />
-            {/* Text with word wrap */}
-            {isL1 ? <>
-              <text x={w / 2} y={h / 2} fontSize={11} fill={tc} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>{r.name.length > 30 ? r.name.slice(0, 29) + '...' : r.name}</text>
-            </> : isL2 ? <>
-              <text x={6} y={11} fontSize={7} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
-              <text x={6} y={22} fontSize={9.5} fill={tc} fontWeight={600} style={{ pointerEvents: 'none' }}>
-                {r.name.length <= 24 ? r.name : <>{r.name.slice(0, 24)}<tspan x={6} dy={11}>{r.name.slice(24, 48)}{r.name.length > 48 ? '...' : ''}</tspan></>}
+            <rect x={0} y={isL1 ? h - 2 : 0} width={isL1 ? w : 2} height={isL1 ? 2 : h} rx={1} fill={stC} style={{ pointerEvents: 'none' }} />
+            <circle cx={w / 2} cy={h} r={2.5} fill={tc + '44'} stroke={tc} strokeWidth={.5}
+              style={{ cursor: 'crosshair', opacity: .2 }} onMouseDown={e => onConnStart(e, r)}
+              onMouseEnter={e => { e.target.style.opacity = '1'; e.target.setAttribute('r', '4'); }}
+              onMouseLeave={e => { e.target.style.opacity = '.2'; e.target.setAttribute('r', '2.5'); }} />
+            {isL1 ? <text x={w / 2} y={h / 2} fontSize={8.5} fill={tc} fontWeight={700} textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>
+              {r.name.length > 18 ? r.name.slice(0, 17) + '..' : r.name}
+            </text>
+            : <>
+              <text x={4} y={8} fontSize={5.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
+              <text x={4} y={isL2 ? 16 : 18} fontSize={isL2 ? 7 : 6.5} fill={tc} fontWeight={isL2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
+                {r.name.length <= 16 ? r.name : <>{r.name.slice(0, 16)}<tspan x={4} dy={isL2 ? 8 : 8}>{r.name.slice(16, 32)}{r.name.length > 32 ? '..' : ''}</tspan></>}
               </text>
-            </> : <>
-              <text x={8} y={12} fontSize={7} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
-              <text x={8} y={24} fontSize={9} fill={tc} fontWeight={500} style={{ pointerEvents: 'none' }}>
-                {r.name.length <= 22 ? r.name : <>{r.name.slice(0, 22)}<tspan x={8} dy={11}>{r.name.slice(22, 44)}{r.name.length > 44 ? '...' : ''}</tspan></>}
-              </text>
-              {sc && <text x={8} y={r.name.length > 22 ? 46 : 36} fontSize={7.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+              {!isL2 && sc && <text x={4} y={r.name.length > 16 ? 33 : 27} fontSize={5.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             </>}
-            {isDone && <text x={w - 16} y={h / 2 + 1} fontSize={13} dominantBaseline="middle" style={{ pointerEvents: 'none' }}>&#x2705;</text>}
+            {isDone && <text x={w - 8} y={h / 2 + 1} fontSize={9} dominantBaseline="middle" style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
       </g>
     </svg>
-    {/* Context menu */}
-    {ctxMenu && <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 150 }} onClick={e => e.stopPropagation()}>
-      <div style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onNodeClick(iMap[ctxMenu.id]); setCtxMenu(null); }}>Edit {ctxMenu.id}</div>
-      {iMap[ctxMenu.id]?.lvl < 3 && <div style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onAddNode?.(); setCtxMenu(null); }}>+ Add child</div>}
-      <div style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { if (confirm(`Delete ${ctxMenu.id}?`)) { onDeleteNode(ctxMenu.id); setSelId(null); } setCtxMenu(null); }}>Delete</div>
+
+    {ctxMenu && <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 140 }} onClick={e => e.stopPropagation()}>
+      <div style={{ padding: '5px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onNodeClick(iMap[ctxMenu.id]); setCtxMenu(null); }}>Edit {ctxMenu.id}</div>
+      {iMap[ctxMenu.id]?.lvl < 3 && <div style={{ padding: '5px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onAddNode?.(); setCtxMenu(null); }}>+ Add child</div>}
+      <div style={{ padding: '5px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { if (confirm(`Delete ${ctxMenu.id}?`)) { onDeleteNode(ctxMenu.id); setSelId(null); } setCtxMenu(null); }}>Delete</div>
     </div>}
+
     <div className="ng-legend">
-      <div className="ng-li"><div style={{ width: 20, height: 2, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
-      <div className="ng-li"><div style={{ width: 20, height: 0, borderTop: '2px dashed var(--ac)', flexShrink: 0 }} />Dependency</div>
+      <div className="ng-li"><div style={{ width: 14, height: 1, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
+      <div className="ng-li"><div style={{ width: 14, height: 0, borderTop: '1.5px dashed var(--ac)', flexShrink: 0 }} />Dependency</div>
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
-      <span style={{ color: 'var(--tx3)', fontSize: 10 }}>Scroll=pan · Pinch=zoom · Drag=move · Right-click=menu</span>
+      <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Drag=move · Right-click=menu</span>
     </div>
     {tip && !drawing && !dragNode && <Tip item={tip.item} x={tip.x} y={tip.y} teams={teams} tree={tree} />}
   </div>;

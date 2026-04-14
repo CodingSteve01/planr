@@ -37,15 +37,24 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     let dE = -1; allD.forEach(d => { const fw = tEW[d]; if (fw != null && fw > dE) dE = fw; });
     const early = dE >= 0 ? dE + 2 : 0;
     const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
-    const cands = asgn.length > 0 ? members.filter(m => asgn.includes(m.id)) : (tM.length > 0 ? tM : members);
+    // Only use explicitly assigned people — no auto-assignment
+    const cands = asgn.length > 0 ? members.filter(m => asgn.includes(m.id)) : [];
     let bp = null, bs = 9999;
-    cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+    if (cands.length) {
+      cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+    } else {
+      // Unassigned: schedule based on team capacity (earliest available slot)
+      const poolM = tM.length > 0 ? tM : members;
+      if (poolM.length) {
+        poolM.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+      }
+    }
     if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
     let rem = eff, wi = bs;
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
     const eW = Math.min(wi - 1, wks.length - 1);
     tEW[id] = eW; pF[bp.id] = eW + 1;
-    res.push({ id: r.id, name: r.name, team, person: bp.id, prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: asgn.length > 0 ? bp.id : '(unassigned)', prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: wks[bs].mon, endD: addD(wks[eW].mon, 4),
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
@@ -73,6 +82,19 @@ export function treeStats(tree) {
     }
   });
   return m;
+}
+
+// Enrich stats with scheduled date ranges for parent items (L1, L2)
+export function enrichParentSchedules(stats, tree, results) {
+  tree.filter(r => r.lvl < 3).forEach(parent => {
+    const ch = results.filter(s => s.id.startsWith(parent.id + '.') && s.startD && s.endD);
+    if (!ch.length) return;
+    if (stats[parent.id]) {
+      stats[parent.id]._startD = new Date(Math.min(...ch.map(s => new Date(s.startD))));
+      stats[parent.id]._endD = new Date(Math.max(...ch.map(s => new Date(s.endD))));
+      stats[parent.id]._taskCount = ch.length;
+    }
+  });
 }
 
 // Compute auto-status for parent items (call after treeStats)
