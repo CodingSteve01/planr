@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
@@ -77,10 +78,11 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, onClos
               <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label (optional)" style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
             </div>; })}
           </div>
-          <select onChange={e => { if (!e.target.value) return; s('deps', [...new Set([...(f.deps || []), e.target.value])]); e.target.value = ''; }}>
-            <option value="">+ Add dependency</option>
-            {allIds.map(i => { const n = tree.find(r => r.id === i); return <option key={i} value={i}>{i} — {n?.name || ''}</option>; })}
-          </select>
+          <SearchSelect
+            options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
+            onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
+            placeholder="Search and add dependency..."
+          />
           <p className="helper">Blocked until all deps finish. Optional: add a label to describe the relation.</p>
         </div>
       </>}
