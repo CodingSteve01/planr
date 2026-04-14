@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL } from '../../constants.js';
+import { SL, GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
@@ -12,6 +12,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
   const isCp = cpSet?.has(node?.id);
   if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
+  const isRoot = !node.id.includes('.');
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   return <div className="overlay" onClick={onClose}>
@@ -22,6 +23,21 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
         {isCp && <span className="badge b-cp">Critical Path</span>}
       </h2>
       <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} /></div>
+      {isRoot && <div className="frow">
+        <div className="field"><label>Focus type</label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {['', 'goal', 'painpoint', 'deadline'].map(t =>
+              <button key={t} className={`goal-type-btn${(f.type || '') === t ? ' active' : ''}`} onClick={() => s('type', t)}>{t ? `${GT[t]} ${GL[t]}` : '— None'}</button>)}
+          </div>
+        </div>
+        {f.type && <div className="field" style={{ flex: '0 0 90px' }}><label>Severity</label>
+          <select value={f.severity || 'high'} onChange={e => s('severity', e.target.value)}>
+            <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option>
+          </select>
+        </div>}
+        {f.type === 'deadline' && <div className="field" style={{ flex: '0 0 140px' }}><label>Date</label><input type="date" value={f.date || ''} onChange={e => s('date', e.target.value)} /></div>}
+      </div>}
+      {isRoot && f.type && <div className="field"><label>Description</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder="Why does this matter?" /></div>}
       <div className="frow">
         <div className="field"><label>Status</label>
           {!isLeaf ? <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>

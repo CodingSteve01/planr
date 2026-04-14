@@ -375,18 +375,21 @@ export default function App() {
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
         {selected && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selected.id} and all children?`)) deleteNode(selected.id); }}>Delete item</button>}
       </>}
-      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('goals')}>Edit focus</button>}
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
+      <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as new file">Save as</button>
       <div className="vsep" />
-      <button className="btn btn-sec btn-sm" onClick={exportJSON} title="Export project as JSON">JSON</button>
-      <button className="btn btn-sec btn-sm" onClick={exportCSV} title="Export tree as CSV (Excel)">CSV</button>
-      {tab === 'net' && <button className="btn btn-sec btn-sm" onClick={exportSVG} title="Download graph as SVG">SVG</button>}
-      <button className="btn btn-sec btn-sm" onClick={exportPDF} title="Print / PDF">Print</button>
-      <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'json') exportJSON(); if (v === 'csv') exportCSV(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); if (v === 'new') { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); } }}>
+        <option value="">Export ▾</option>
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        {tab === 'net' && <option value="svg">SVG</option>}
+        <option value="print">Print</option>
+        <option disabled>───</option>
+        <option value="new">New project</option>
+      </select>
       <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">
@@ -428,7 +431,6 @@ export default function App() {
       onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} teams={teams} onSave={(m, ts) => { setD('meta', m); setD('teams', ts); }} onClose={() => setModal(null)} />}
-    {modal === 'goals' && <DLModal goals={goals} tree={tree} onSave={updated => { setD('tree', tree.map(r => { const u = updated.find(g => g.id === r.id); return u ? { ...r, ...u } : r; })); }} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
