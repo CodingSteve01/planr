@@ -109,12 +109,34 @@ function binPackTrees(trees) {
     const medianY = placed.reduce((s, p) => s + p.y, 0) / placed.length;
     placed.forEach(p => {
       if (p.y > medianY && !p.tree.flipped) {
-        // Flip this tree to BU
         const flipped = {};
         Object.entries(p.tree.pos).forEach(([id, np]) => {
           flipped[id] = { x: np.x, y: p.tree.h - np.y - NODE_H };
         });
         p.tree = { ...p.tree, pos: flipped, flipped: true };
+      }
+    });
+  }
+
+  // Compaction: push each tree as far up-left as possible without overlap
+  for (let pass = 0; pass < 3; pass++) {
+    placed.forEach((t, i) => {
+      const others = placed.filter((_, j) => j !== i);
+      // Try moving up
+      for (let step = TREE_GAP; step > 0; step = Math.floor(step / 2)) {
+        while (t.y - step >= 0) {
+          const ny = t.y - step;
+          const ok = !others.some(o => t.x < o.x + o.w + TREE_GAP && t.x + t.w + TREE_GAP > o.x && ny < o.y + o.h + TREE_GAP && ny + t.h + TREE_GAP > o.y);
+          if (ok) t.y = ny; else break;
+        }
+      }
+      // Try moving left
+      for (let step = TREE_GAP; step > 0; step = Math.floor(step / 2)) {
+        while (t.x - step >= 0) {
+          const nx = t.x - step;
+          const ok = !others.some(o => nx < o.x + o.w + TREE_GAP && nx + t.w + TREE_GAP > o.x && t.y < o.y + o.h + TREE_GAP && t.y + t.h + TREE_GAP > o.y);
+          if (ok) t.x = nx; else break;
+        }
       }
     });
   }
@@ -293,9 +315,16 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
   const connectedSet = useMemo(() => {
     if (!activeId) return null;
     const s = new Set([activeId]);
-    allEdges.forEach(e => { if (e.from === activeId || e.to === activeId) { s.add(e.from); s.add(e.to); } });
+    const active = iMap[activeId];
+    if (active?.lvl === 1) {
+      // L1 hover: highlight entire subtree
+      items.forEach(r => { if (r.id.startsWith(activeId + '.')) s.add(r.id); });
+    } else {
+      // Normal: highlight direct connections
+      allEdges.forEach(e => { if (e.from === activeId || e.to === activeId) { s.add(e.from); s.add(e.to); } });
+    }
     return s;
-  }, [activeId, allEdges]);
+  }, [activeId, allEdges, items]);
 
   const allPos = Object.entries(pos);
   const graphW = allPos.length ? Math.max(...allPos.map(([, p]) => p.x + NODE_W)) + 20 : 400;
@@ -391,7 +420,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isSel = selId === r.id; const isDone = r.status === 'done';
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
-          return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
+          const subtreeDimmed = connectedSet && connectedSet.size > 3 && !connectedSet.has(r.id);
+          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={subtreeDimmed ? .2 : 1}>
             <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : r.lvl === 1 ? tc : 'var(--bg2)'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : r.lvl === 1 ? tc : tc + '44'}
               strokeWidth={isSel ? 2.5 : r.lvl === 1 ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}

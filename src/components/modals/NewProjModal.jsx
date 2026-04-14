@@ -38,7 +38,7 @@ export function NewProjModal({ onCreate, onClose }) {
         <button className="btn btn-sec" onClick={onClose}>Cancel</button>
         <button className="btn btn-pri" disabled={!f.name} onClick={() => {
           if (!f.name) return;
-          const planYears = []; for (let y = new Date(f.planStart).getFullYear(); y <= new Date(f.planEnd).getFullYear(); y++) planYears.push(y);
+          const nowY = new Date().getFullYear(); const planYears = []; for (let y = Math.min(nowY - 1, new Date(f.planStart).getFullYear()); y <= Math.max(nowY + 2, new Date(f.planEnd).getFullYear()); y++) planYears.push(y);
           const hols = f.holidays === 'NRW' ? computeNRW(planYears) : [];
           onCreate({ meta: { ...f, version: '2' }, teams: ts, members: [], deadlines: [], vacations: [], tree: [], holidays: hols });
         }}>Create project</button>
