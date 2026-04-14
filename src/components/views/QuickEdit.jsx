@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 import { hasChildren, isLeafNode, leafProgress, re } from '../../utils/scheduler.js';
+import { GT, GL } from '../../constants.js';
 
 export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEstimate}){
   const[f,setF]=useState({...node});
@@ -12,6 +13,24 @@ export function QuickEdit({node,tree,members,teams,cpSet,onUpdate,onDelete,onEst
   return<>
     {isCp&&<div style={{background:'#3d0a0e',border:'1px solid var(--re)',borderRadius:'var(--r)',padding:'6px 10px',marginBottom:10,fontSize:11,color:'#fda4af',display:'flex',gap:6,alignItems:'center'}}>⚡ Critical path item</div>}
     <div className="field"><label>Name</label><input value={f.name||''} onChange={e=>setF(x=>({...x,name:e.target.value}))} onBlur={fl}/></div>
+    {!node?.id?.includes('.')&&<>
+      <div className="field"><label>Focus type</label>
+        <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+          {['','goal','painpoint','deadline'].map(t=>
+            <button key={t} className={`goal-type-btn${(f.type||'')===t?' active':''}`} style={{fontSize:10,padding:'3px 7px'}}
+              onClick={()=>s('type',t)}>{t?`${GT[t]} ${GL[t]}`:'— None'}</button>)}
+        </div>
+      </div>
+      {f.type&&<div className="frow">
+        <div className="field"><label>Severity</label>
+          <select value={f.severity||'high'} onChange={e=>s('severity',e.target.value)}>
+            <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option>
+          </select>
+        </div>
+        {f.type==='deadline'&&<div className="field"><label>Date</label><input type="date" value={f.date||''} onChange={e=>s('date',e.target.value)}/></div>}
+      </div>}
+      {f.type&&<div className="field"><label>Description</label><input value={f.description||''} onChange={e=>setF(x=>({...x,description:e.target.value}))} onBlur={fl} placeholder="Why does this matter?"/></div>}
+    </>}
     <div className="frow">
       <div className="field"><label>Status</label>
         {isLeaf

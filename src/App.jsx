@@ -373,7 +373,6 @@ export default function App() {
           {teams.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
         </select>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
-        {selected && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Delete ${selected.id} and all children?`)) deleteNode(selected.id); }}>Delete item</button>}
       </>}
       <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
       <div className="vsep" />
