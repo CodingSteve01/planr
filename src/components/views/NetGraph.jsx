@@ -69,10 +69,17 @@ function binPackTrees(trees) {
     const variants = [t, flipTree(t)]; // try both orientations
     const cands = [{ x: 0, y: 0 }];
     placed.forEach(p => {
+      // Right edge and below edge of each placed tree
       cands.push({ x: p.x + p.w + TREE_GAP, y: p.y });
       cands.push({ x: p.x, y: p.y + p.h + TREE_GAP });
       cands.push({ x: p.x + p.w + TREE_GAP, y: 0 });
       cands.push({ x: 0, y: p.y + p.h + TREE_GAP });
+      // Cross-positions: X from one tree, Y from another
+      placed.forEach(q => {
+        if (p === q) return;
+        cands.push({ x: p.x + p.w + TREE_GAP, y: q.y + q.h + TREE_GAP });
+        cands.push({ x: p.x, y: q.y + q.h + TREE_GAP });
+      });
     });
 
     let bestX = 0, bestY = 0, bestScore = Infinity, bestVariant = t;
@@ -153,14 +160,18 @@ function computeLayout(tree) {
   return { pos, edges };
 }
 
-// ── Hierarchy edge: parent bottom → vertical spine → horizontal tap → child top
-// The vertical spine runs at the parent's center X, then taps out to each child
+// ── Hierarchy edge: adapts to TD (parent above) or BU (parent below) ────────
 function hierPath(fp, tp) {
-  const px = fp.x + NODE_W / 2, py = fp.y + NODE_H;
-  const cx = tp.x + NODE_W / 2, cy = tp.y;
-  const busY = py + LEVEL_GAP / 2; // bus just below parent
-  // Vertical down from parent, horizontal to child X, vertical down to child
-  return `M${px},${py} L${px},${busY} L${cx},${busY} L${cx},${cy}`;
+  const px = fp.x + NODE_W / 2, cx = tp.x + NODE_W / 2;
+  if (fp.y < tp.y) {
+    // TD: parent above child — exit bottom, enter top
+    const busY = fp.y + NODE_H + LEVEL_GAP / 2;
+    return `M${px},${fp.y + NODE_H} L${px},${busY} L${cx},${busY} L${cx},${tp.y}`;
+  } else {
+    // BU: parent below child — exit top, enter bottom
+    const busY = fp.y - LEVEL_GAP / 2;
+    return `M${px},${fp.y} L${px},${busY} L${cx},${busY} L${cx},${tp.y + NODE_H}`;
+  }
 }
 
 // ── Dep edge: obstacle-aware orthogonal routing ─────────────────────────────
@@ -381,7 +392,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
           return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : 'var(--bg2)'}
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : r.lvl === 1 ? tc : 'var(--bg2)'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : r.lvl === 1 ? tc : tc + '44'}
               strokeWidth={isSel ? 2.5 : r.lvl === 1 ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
@@ -393,13 +404,13 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
             {/* Status dot */}
             <circle cx={NODE_W - 7} cy={7} r={3.5} fill={stC} style={{ pointerEvents: 'none' }} />
             {/* ID */}
-            <text x={5} y={10} fontSize={6} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
+            <text x={5} y={10} fontSize={6} fill={r.lvl === 1 ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
             {/* Name (2 lines) */}
-            <text x={5} y={21} fontSize={7.5} fill={tc} fontWeight={r.lvl === 1 ? 700 : r.lvl === 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
+            <text x={5} y={21} fontSize={7.5} fill={r.lvl === 1 ? '#ffffff' : tc} fontWeight={r.lvl === 1 ? 700 : r.lvl === 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
               {r.name.length <= 26 ? r.name : <>{r.name.slice(0, 26)}<tspan x={5} dy={10}>{r.name.slice(26, 52)}{r.name.length > 52 ? '..' : ''}</tspan></>}
             </text>
             {/* Info line */}
-            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill="var(--tx3)" fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill={r.lvl === 1 ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
             {isDone && <text x={NODE_W - 14} y={NODE_H - 5} fontSize={10} style={{ pointerEvents: 'none' }}>&#x2705;</text>}
           </g>;
         })}
