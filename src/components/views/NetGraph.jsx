@@ -64,25 +64,38 @@ function computeLayout(tree, maxRowW) {
   });
 
   const pos = {};
+
+  // Row 0: place trees, track bottom edge per horizontal band
   const row0 = rows[0] || [];
   const row0H = row0.length ? Math.max(...row0.map(t => t.h)) : 0;
+  const row0Rects = []; // { x, w, h } for each tree in row 0
   let x0 = 0;
-  row0.forEach(t => { Object.entries(t.pos).forEach(([id, p]) => { pos[id] = { x: x0 + p.x, y: p.y }; }); x0 += t.w + TREE_GAP; });
+  row0.forEach(t => {
+    Object.entries(t.pos).forEach(([id, p]) => { pos[id] = { x: x0 + p.x, y: p.y }; });
+    row0Rects.push({ x: x0, w: t.w, h: t.h });
+    x0 += t.w + TREE_GAP;
+  });
 
-  // Row 1+: flipped, gap = 1 item height
+  // Row 1+: flipped, pushed up into whitespace gaps of row 0
   let totalH = row0H;
   for (let ri = 1; ri < rows.length; ri++) {
     const row = rows[ri];
     const rowH = row.length ? Math.max(...row.map(t => t.h)) : 0;
-    const rowTop = totalH + NODE_H; // gap = one item height
     let x = 0;
     row.forEach(t => {
+      // Find how high the row0 trees extend at this X range
+      let maxRow0H = 0;
+      row0Rects.forEach(r0 => {
+        if (r0.x < x + t.w + TREE_GAP && r0.x + r0.w > x - TREE_GAP)
+          maxRow0H = Math.max(maxRow0H, r0.h);
+      });
+      const rowTop = maxRow0H + NODE_H; // push just below the tallest overlapping row0 tree
       Object.entries(t.pos).forEach(([id, p]) => {
         pos[id] = { x: x + p.x, y: rowTop + (t.h - p.y - NODE_H) };
       });
+      totalH = Math.max(totalH, rowTop + t.h);
       x += t.w + TREE_GAP;
     });
-    totalH = rowTop + rowH;
   }
 
   // Orphans
@@ -117,55 +130,68 @@ function hierPath(fp, tp) {
 
 // ── Dep edge: obstacle-aware orthogonal routing ─────────────────────────────
 function depPath(fp, tp, allBoxes) {
-  const PAD = 6;
-  const ARR = 8; // space for arrowhead before target node
+  const PAD = 6, ARR = 8;
   const fcx = fp.x + NODE_W / 2, fcy = fp.y + NODE_H / 2;
   const tcx = tp.x + NODE_W / 2, tcy = tp.y + NODE_H / 2;
   const dx = tcx - fcx, dy = tcy - fcy;
 
-  let x1, y1, x2, y2;
-  if (Math.abs(dx) > Math.abs(dy) * 0.5) {
-    x1 = dx > 0 ? fp.x + NODE_W : fp.x; y1 = fcy;
-    x2 = dx > 0 ? tp.x - ARR : tp.x + NODE_W + ARR; y2 = tcy;
-  } else {
-    x1 = fcx; y1 = dy > 0 ? fp.y + NODE_H : fp.y;
-    x2 = tcx; y2 = dy > 0 ? tp.y - ARR : tp.y + NODE_H + ARR;
-  }
+  // Exit/entry: always pick the side closest to the other node
+  // Source exit
+  let x1, y1;
+  if (Math.abs(dx) > Math.abs(dy)) { x1 = dx > 0 ? fp.x + NODE_W : fp.x; y1 = fcy; }
+  else { x1 = fcx; y1 = dy > 0 ? fp.y + NODE_H : fp.y; }
+  // Target entry: from the side the edge arrives at
+  let x2, y2;
+  if (Math.abs(dx) > Math.abs(dy)) { x2 = dx > 0 ? tp.x - ARR : tp.x + NODE_W + ARR; y2 = tcy; }
+  else { x2 = tcx; y2 = dy > 0 ? tp.y - ARR : tp.y + NODE_H + ARR; }
 
-  // Try simple 3-segment elbow
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const horiz = Math.abs(x1 - x2) > Math.abs(y1 - y2);
-
-  // Check if midpoint segment crosses any node
   function hitsNode(ax, ay, bx, by) {
     const lx = Math.min(ax, bx) - PAD, rx = Math.max(ax, bx) + PAD;
     const ty = Math.min(ay, by) - PAD, by2 = Math.max(ay, by) + PAD;
     return allBoxes.some(b => {
-      if (b.x === fp.x && b.y === fp.y) return false; // skip source
-      if (b.x === tp.x && b.y === tp.y) return false; // skip target
+      if (b.x === fp.x && b.y === fp.y) return false;
+      if (b.x === tp.x && b.y === tp.y) return false;
       return b.x < rx && b.x + NODE_W > lx && b.y < by2 && b.y + NODE_H > ty;
     });
   }
 
-  if (horiz) {
-    // H-V-H: right, down, right
-    if (!hitsNode(x1, y1, mx, y1) && !hitsNode(mx, y1, mx, y2) && !hitsNode(mx, y2, x2, y2))
-      return { path: `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`, labelPt: { x: mx, y: Math.min(y1, y2) - 8 } };
-  } else {
-    // V-H-V: down, right, down
-    if (!hitsNode(x1, y1, x1, my) && !hitsNode(x1, my, x2, my) && !hitsNode(x2, my, x2, y2))
-      return { path: `M${x1},${y1} L${x1},${my} L${x2},${my} L${x2},${y2}`, labelPt: { x: Math.max(x1, x2) + 8, y: my } };
-  }
+  // Try multiple routing strategies, pick first that doesn't hit nodes
+  const routes = [];
 
-  // Fallback: route around via margin
+  // Strategy 1: H-V-H (horizontal exit, vertical mid, horizontal enter)
+  const mx1 = (x1 + x2) / 2;
+  routes.push({ path: `M${x1},${y1} L${mx1},${y1} L${mx1},${y2} L${x2},${y2}`,
+    hits: [hitsNode(x1, y1, mx1, y1), hitsNode(mx1, y1, mx1, y2), hitsNode(mx1, y2, x2, y2)].filter(Boolean).length,
+    labelPt: { x: mx1, y: Math.min(y1, y2) - 8 } });
+
+  // Strategy 2: V-H-V (vertical exit, horizontal mid, vertical enter)
+  const my1 = (y1 + y2) / 2;
+  routes.push({ path: `M${x1},${y1} L${x1},${my1} L${x2},${my1} L${x2},${y2}`,
+    hits: [hitsNode(x1, y1, x1, my1), hitsNode(x1, my1, x2, my1), hitsNode(x2, my1, x2, y2)].filter(Boolean).length,
+    labelPt: { x: Math.max(x1, x2) + 8, y: my1 } });
+
+  // Strategy 3: route via top margin
+  const topY = Math.min(fp.y, tp.y) - 30;
+  routes.push({ path: `M${x1},${y1} L${x1},${topY} L${x2},${topY} L${x2},${y2}`,
+    hits: [hitsNode(x1, y1, x1, topY), hitsNode(x1, topY, x2, topY), hitsNode(x2, topY, x2, y2)].filter(Boolean).length,
+    labelPt: { x: (x1 + x2) / 2, y: topY - 8 } });
+
+  // Strategy 4: route via bottom margin
+  const botY = Math.max(fp.y + NODE_H, tp.y + NODE_H) + 30;
+  routes.push({ path: `M${x1},${y1} L${x1},${botY} L${x2},${botY} L${x2},${y2}`,
+    hits: [hitsNode(x1, y1, x1, botY), hitsNode(x1, botY, x2, botY), hitsNode(x2, botY, x2, y2)].filter(Boolean).length,
+    labelPt: { x: (x1 + x2) / 2, y: botY + 10 } });
+
+  // Strategy 5: wide margin route
   const goRight = dx > 0;
-  const margin = goRight
-    ? Math.max(fp.x + NODE_W, tp.x + NODE_W) + 20
-    : Math.min(fp.x, tp.x) - 20;
-  return {
-    path: `M${x1},${y1} L${margin},${y1} L${margin},${y2} L${x2},${y2}`,
-    labelPt: { x: margin + (goRight ? 5 : -5), y: (y1 + y2) / 2 },
-  };
+  const wideX = goRight ? Math.max(fp.x + NODE_W, tp.x + NODE_W) + 25 : Math.min(fp.x, tp.x) - 25;
+  routes.push({ path: `M${x1},${y1} L${wideX},${y1} L${wideX},${y2} L${x2},${y2}`,
+    hits: 0, // margin is always clear
+    labelPt: { x: wideX + (goRight ? 5 : -5), y: (y1 + y2) / 2 } });
+
+  // Pick best route (fewest hits, prefer shorter)
+  routes.sort((a, b) => a.hits - b.hits || a.path.length - b.path.length);
+  return routes[0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -308,8 +334,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
           const isSel = selId === r.id; const isDone = r.status === 'done';
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
-          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={isDone ? .35 : 1}>
-            <rect width={NODE_W} height={NODE_H} rx={5} fill="var(--bg2)"
+          return <g key={r.id} transform={`translate(${p.x},${p.y})`}>
+            <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? '#22c55e12' : 'var(--bg2)'}
               stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc + '88' : tc + '33'}
               strokeWidth={isSel ? 2.5 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
