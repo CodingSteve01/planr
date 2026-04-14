@@ -62,49 +62,59 @@ export function NetGraph({ tree, scheduled, teams, cpSet, onNodeClick, onAddNode
     (r.deps || []).forEach(d => { if (iMap[d] && items.find(x => x.id === d)) depEdges.push({ from: d, to: r.id }); });
   });
 
-  // Hierarchical layout: group by L1, then L2, then L3
+  // Hierarchical layout: L1 as rows, L2 groups flow left-to-right, L3 as columns under L2
   const layout = useMemo(() => {
     const pos = {};
-    const P = 12;
+    const P = 14;
     const l1s = items.filter(r => r.lvl === 1);
     let globalY = 0;
 
     l1s.forEach(p1 => {
       const l2s = items.filter(r => r.lvl === 2 && r.id.startsWith(p1.id + '.'));
-      pos[p1.id] = { x: 0, y: globalY };
-      let colX = NW_MAP[1] + 50;
       const startY = globalY;
 
-      if (!l2s.length) { globalY += NH_MAP[1] + P * 2; return; }
+      if (!l2s.length) { pos[p1.id] = { x: 0, y: globalY }; globalY += NH_MAP[1] + P * 2; return; }
 
-      l2s.forEach(p2 => {
+      // Measure each L2 block to arrange in a grid
+      const blocks = l2s.map(p2 => {
         const l3s = items.filter(r => r.lvl === 3 && r.id.startsWith(p2.id + '.'));
-        pos[p2.id] = { x: colX, y: globalY };
-        let taskX = colX + NW_MAP[2] + 35;
-        let taskY = globalY;
-        const COL_MAX = 5;
-
-        l3s.forEach((t, idx) => {
-          pos[t.id] = { x: taskX, y: taskY };
-          taskY += NH_MAP[3] + P;
-          if ((idx + 1) % COL_MAX === 0 && idx < l3s.length - 1) { taskY = globalY; taskX += NW_MAP[3] + 25; }
-        });
-        const blockBottom = Math.max(taskY, globalY + NH_MAP[2] + P);
-        globalY = blockBottom + 6;
+        const taskCols = Math.ceil(l3s.length / 4) || 1; // max 4 tasks per column
+        const taskRows = Math.min(l3s.length, 4);
+        const w = NW_MAP[2] + 30 + taskCols * (NW_MAP[3] + 16);
+        const h = Math.max(NH_MAP[2] + P, taskRows * (NH_MAP[3] + P));
+        return { p2, l3s, w, h };
       });
 
-      // Center L1 box beside its children
-      pos[p1.id].y = startY + (globalY - P - startY - NH_MAP[1]) / 2;
-      globalY += P;
+      // Flow L2 blocks left-to-right, wrapping rows
+      const L1_OFFSET = NW_MAP[1] + 50;
+      let rowX = L1_OFFSET, rowY = globalY, rowMaxH = 0;
+
+      blocks.forEach(b => {
+        // Place L2 header
+        pos[b.p2.id] = { x: rowX, y: rowY };
+        // Place L3 tasks in columns beside L2
+        let taskX = rowX + NW_MAP[2] + 20;
+        let taskY = rowY;
+        b.l3s.forEach((t, idx) => {
+          pos[t.id] = { x: taskX, y: taskY };
+          taskY += NH_MAP[3] + P;
+          if ((idx + 1) % 4 === 0 && idx < b.l3s.length - 1) { taskY = rowY; taskX += NW_MAP[3] + 16; }
+        });
+        rowMaxH = Math.max(rowMaxH, b.h);
+        rowX += b.w + P;
+      });
+      globalY = rowY + rowMaxH + P * 2;
+
+      // Place L1 header centered vertically on the left
+      pos[p1.id] = { x: 0, y: startY + (globalY - P - startY - NH_MAP[1]) / 2 };
     });
 
     // Orphans
     items.filter(r => !pos[r.id]).forEach(r => { pos[r.id] = { x: 0, y: globalY }; globalY += (NH_MAP[r.lvl] || 42) + P; });
 
-    // Apply manual overrides before overlap removal
+    // Apply manual overrides
     Object.entries(manualPos).forEach(([id, p]) => { if (pos[id]) pos[id] = p; });
 
-    // Remove overlaps with force-directed separation
     return removeOverlaps(pos, items, NW_MAP, NH_MAP);
   }, [items, manualPos]);
 
