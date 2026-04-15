@@ -250,20 +250,27 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     return () => clearTimeout(id);
   }, [search]);
 
-  function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
+  function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id] }); setDDelta(0); }
   function onMM(e) {
-    if (drag) { const dx = e.clientX - drag.ox; setDDelta(Math.round(dx / WPX)); }
+    if (drag) {
+      const dx = e.clientX - drag.ox;
+      // Day-level zoom → snap to individual days; otherwise snap to full weeks.
+      const stepPx = showDays ? WPX / 5 : WPX;
+      setDDelta(Math.round(dx / stepPx));
+    }
     if (linkDrag) { setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null); }
   }
   function onMU() {
     if (drag) {
       if (dDelta !== 0) {
-        const newWi = Math.max(0, drag.startWi + dDelta);
-        const targetWeek = weeks[newWi];
-        if (targetWeek?.mon) {
-          const iso = targetWeek.mon.toISOString().slice(0, 10);
-          onSeqUpdate(drag.id, { pinnedStart: iso });
-        }
+        const startMon = new Date(weeks[drag.startWi].mon);
+        // Day mode: dDelta is in days; week mode: dDelta is in weeks (× 7 days).
+        const dayDelta = showDays ? dDelta : dDelta * 7;
+        const targetDate = addD(startMon, dayDelta);
+        // Never pin earlier than the plan horizon.
+        const planStartDate = weeks[0]?.mon;
+        const finalDate = planStartDate && targetDate < planStartDate ? planStartDate : targetDate;
+        onSeqUpdate(drag.id, { pinnedStart: iso(finalDate) });
       }
       setDrag(null); setDDelta(0);
     }
