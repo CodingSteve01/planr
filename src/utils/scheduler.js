@@ -2,7 +2,8 @@ import { addD, iso } from './date.js';
 import { buildWeeks } from './holidays.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
-export const re = (best, factor) => best && best > 0 ? best * Math.min(factor || 1.5, 1.3) * 1.15 : 0;
+// Realistic effort: best × factor (no hidden caps — user's factor is respected)
+export const re = (best, factor) => best && best > 0 ? best * (factor || 1.5) : 0;
 export const parentId = id => id.split('.').slice(0, -1).join('.');
 
 export function directChildren(tree, id) {
@@ -42,13 +43,26 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   const pF = Object.fromEntries(members.map(m => [m.id, 0]));
   const tEW = {};
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = -1; });
+  // Vacation: explicit weeks per person
   const vs = {}; (vacations || []).forEach(v => { if (!vs[v.person]) vs[v.person] = {}; vs[v.person][v.week] = true; });
+  // Total working days in plan period (for blanket vacation deduction)
+  const totalWDs = wks.reduce((s, w) => s + w.wds.length, 0);
+  // Per-person: count of explicit vacation weeks, remaining unplanned vacation
+  const vacInfo = {};
+  members.forEach(m => {
+    const explicitWeeks = Object.keys(vs[m.id] || {}).length;
+    const explicitDays = explicitWeeks * 5;
+    const totalVac = m.vac || 25;
+    const remainingVac = Math.max(0, totalVac - explicitDays);
+    // Blanket deduction only for unplanned vacation days
+    vacInfo[m.id] = totalWDs > 0 ? 1 - remainingVac / totalWDs : 1;
+  });
   function pC(m, wmon) {
-    if (vs[m.id]?.[iso(wmon)]) return 0;
+    if (vs[m.id]?.[iso(wmon)]) return 0; // explicit vacation week
     const st = new Date(m.start || ps); if (st > addD(wmon, 6)) return 0;
     const w = wks.find(x => x.mon.getTime() === wmon.getTime());
     if (!w) return 0;
-    return w.wds.filter(d => d >= st).length * (m.cap || 1) * (1 - (m.vac || 25) / 230);
+    return w.wds.filter(d => d >= st).length * (m.cap || 1) * vacInfo[m.id];
   }
   const res = [];
   ord.forEach(id => {

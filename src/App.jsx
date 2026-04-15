@@ -39,6 +39,7 @@ export default function App() {
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
   const [selected, setSel] = useState(null);
+  const [multiSel, setMultiSel] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [search, setSearch] = useState('');
@@ -192,13 +193,73 @@ export default function App() {
       setLastSavedAt(new Date());
     } catch (e) { if (e.name !== 'AbortError') { console.error('Save failed:', e); await forgetHandle(); } }
   }
+  function parseMdToProject(text) {
+    const lines = text.split('\n');
+    const tree = [], mems = [];
+    let projName = 'Imported Project';
+    const idStack = []; // stack of {id, depth}
+    let inResources = false;
+    lines.forEach(line => {
+      const hm = line.match(/^#+\s+(.+)/);
+      if (hm) {
+        projName = hm[1];
+        inResources = /resource|team|member/i.test(hm[1]);
+        return;
+      }
+      // Resources section
+      if (inResources) {
+        const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*\s*—?\s*(.*)/);
+        if (rm) { mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: '', role: rm[2]?.trim() || '', cap: 1, vac: 25, start: '' }); }
+        return;
+      }
+      // Tree items
+      const m = line.match(/^(\s*)[-*]\s+(.*)/);
+      if (!m) return;
+      const indent = m[1].length;
+      const raw = m[2].trim();
+      // Parse status
+      const done = raw.startsWith('✅');
+      const wip = raw.includes('🟡');
+      let name = raw.replace(/^✅\s*/, '').replace(/🟡/g, '').trim();
+      // Parse estimate: (NT) or (SZ NT)
+      let best = 0, factor = 1.5;
+      const estM = name.match(/\((\w+\s+)?(\d+)T\)/);
+      if (estM) { best = parseInt(estM[2]); name = name.replace(estM[0], '').trim(); }
+      // Parse progress: NN%
+      let progress = null;
+      const prgM = name.match(/(\d+)%/);
+      if (prgM) { progress = parseInt(prgM[1]); name = name.replace(prgM[0], '').trim(); }
+      // Parse type emojis
+      let type = '';
+      if (name.includes('⏰')) { type = 'deadline'; name = name.replace('⏰', '').trim(); }
+      else if (name.includes('⚡')) { type = 'painpoint'; name = name.replace('⚡', '').trim(); }
+      else if (name.includes('🎯')) { type = 'goal'; name = name.replace('🎯', '').trim(); }
+      // Strip bold markers
+      name = name.replace(/\*\*/g, '').trim();
+      // Determine parent by indent level
+      while (idStack.length && idStack[idStack.length - 1].indent >= indent) idStack.pop();
+      const parentId = idStack.length ? idStack[idStack.length - 1].id : '';
+      // Generate ID
+      const siblings = tree.filter(r => { const pid = r.id.split('.').slice(0, -1).join('.'); return pid === parentId; });
+      const num = siblings.length + 1;
+      const id = parentId ? `${parentId}.${num}` : `P${tree.filter(r => !r.id.includes('.')).length + 1}`;
+      idStack.push({ id, indent });
+      const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team: '', best, factor, prio: 2, deps: [], note: '', assign: [] };
+      if (progress != null) item.progress = progress;
+      if (type) { item.type = type; item.severity = 'high'; }
+      tree.push(item);
+    });
+    return { meta: { name: projName, version: '2' }, teams: [], members: mems, tree, vacations: [], holidays: [] };
+  }
+
   async function loadFromFile() {
     try {
       if (window.showOpenFilePicker) {
-        const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Planr Project', accept: { 'application/json': ['.json'] } }] });
+        const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Planr Project', accept: { 'application/json': ['.json', '.md'] } }] });
         const file = await handle.getFile();
         const text = await file.text();
-        const d = JSON.parse(text);
+        const isMd = handle.name.endsWith('.md');
+        const d = isMd ? parseMdToProject(text) : JSON.parse(text);
         if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid project file');
         // Establish write permission immediately (still in user gesture)
         let canWrite = false;
@@ -219,6 +280,7 @@ export default function App() {
       } else { fRef.current?.click(); }
     } catch (e) { if (e.name !== 'AbortError') alert('Could not load file: ' + e.message); }
   }
+  // Accept both .json and .md files
 
   // Ctrl+S → save to file
   useEffect(() => { const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); });
@@ -359,7 +421,9 @@ export default function App() {
     const r = new FileReader();
     r.onload = async ev => {
       try {
-        const d = JSON.parse(ev.target.result);
+        const text = ev.target.result;
+        const isMd = f.name.endsWith('.md');
+        const d = isMd ? parseMdToProject(text) : JSON.parse(text);
         if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid');
         await forgetHandle();
         setFileWriteOk(false);
@@ -445,7 +509,7 @@ export default function App() {
         <option value="print">Print</option>
       </select>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
-      <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
+      <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">
       {TABS.map(t => <div key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</div>)}
@@ -459,18 +523,58 @@ export default function App() {
           <div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView tree={tree} selected={selected} onSelect={setSel} onDbl={n => { setMN(n); setModal('node'); }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
-              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); }}
+            : <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={(node, e) => {
+                if (e?.ctrlKey || e?.metaKey) {
+                  setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
+                  if (!selected) setSel(node);
+                } else { setSel(node); setMultiSel(new Set()); }
+              }} onDbl={n => { setMN(n); setModal('node'); }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
+              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} />
           }
           </div>
         </div>
         {selected && <div className="side fade">
-          <div className="side-hdr"><h3>{selected.id}</h3>
-            <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
-            <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
-          </div>
-          <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
+          {multiSel.size > 0 ? <>
+            <div className="side-hdr"><h3>{multiSel.size} items selected</h3>
+              <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}>×</button>
+            </div>
+            <div className="side-body">
+              <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Changes apply to all selected.</p>
+              <div className="field"><label>Set team for all</label>
+                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r)); e.target.value = ''; }}>
+                  <option value="">Choose team...</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Assign person to all</label>
+                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r)); e.target.value = ''; }}>
+                  <option value="">Choose person...</option>
+                  {members.map(m => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Set status for all</label>
+                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r)); e.target.value = ''; }}>
+                  <option value="">Choose status...</option>
+                  <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
+                </select>
+              </div>
+              <div className="field"><label>Set priority for all</label>
+                <select value="" onChange={e => { if (!e.target.value) return; const v = +e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: v } : r)); e.target.value = ''; }}>
+                  <option value="">Choose priority...</option>
+                  <option value="1">1 Critical</option><option value="2">2 High</option><option value="3">3 Medium</option><option value="4">4 Low</option>
+                </select>
+              </div>
+              <hr className="divider" />
+              <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
+            </div>
+          </> : <>
+            <div className="side-hdr"><h3>{selected.id}</h3>
+              <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
+              <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
+            </div>
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
+          </>}
         </div>}
       </>}
       {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} /></div>}
