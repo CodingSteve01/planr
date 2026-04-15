@@ -20,6 +20,7 @@ import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { DLModal } from './components/modals/DLModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
+import { SearchSelect } from './components/shared/SearchSelect.jsx';
 
 function loadLocalProject() {
   try {
@@ -76,10 +77,14 @@ export default function App() {
 
   async function ensureHandlePermission(handle, interactive = false) {
     if (!handle) return false;
-    let permission = await queryHandlePermission(handle, 'readwrite');
-    if (permission === 'granted') return true;
-    if (!interactive) return false;
-    permission = await requestHandlePermission(handle, 'readwrite');
+    if (!interactive) {
+      // Non-interactive: only check existing permission, do not prompt
+      const permission = await queryHandlePermission(handle, 'readwrite');
+      return permission === 'granted';
+    }
+    // Interactive: try requestPermission directly (preserves Chrome user activation)
+    // requestPermission returns 'granted' if already granted, otherwise prompts the user
+    const permission = await requestHandlePermission(handle, 'readwrite');
     return permission === 'granted';
   }
 
@@ -93,10 +98,12 @@ export default function App() {
         if (!cancelled) setFileName(handle.name || null);
 
         const readPermission = await queryHandlePermission(handle, 'read');
-        if (readPermission !== 'granted') return;
+        // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
+        if (readPermission !== 'granted') { if (!cancelled) setFileWriteOk(false); return; }
 
         const file = await handle.getFile();
-        const restored = JSON.parse(await file.text());
+        const text = await file.text();
+        const restored = handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text);
         if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
 
         if (!cancelled) {
@@ -122,6 +129,7 @@ export default function App() {
 
   // Auto-save to localStorage + optionally to file
   const [fileWriteOk, setFileWriteOk] = useState(true);
+  const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
   useEffect(() => {
     if (!data) return;
     const t = setTimeout(async () => {
@@ -136,6 +144,7 @@ export default function App() {
             await wr.write(content);
             await wr.close();
             setFileWriteOk(true);
+            lastOwnWriteRef.current = Date.now();
           } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
         }
       }
@@ -153,9 +162,16 @@ export default function App() {
       try {
         const file = await fileHandleRef.current.getFile();
         const mod = file.lastModified;
-        if (lastModRef.current && mod > lastModRef.current && saved) {
-          const d = JSON.parse(await file.text());
-          if (d.tree && Array.isArray(d.tree)) { setData(d); setLastSavedAt(new Date(mod)); }
+        // Skip if this is our own write (within 3s window) or if user has unsaved edits
+        const isOwnWrite = (Date.now() - lastOwnWriteRef.current) < 3000;
+        if (lastModRef.current && mod > lastModRef.current && saved && !isOwnWrite) {
+          const text = await file.text();
+          const isMd = file.name.endsWith('.md');
+          const d = isMd ? parseMdToProject(text) : JSON.parse(text);
+          if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
+            setData(d);
+            setLastSavedAt(new Date(mod));
+          }
         }
         lastModRef.current = mod;
       } catch {}
@@ -173,8 +189,8 @@ export default function App() {
   // Save to file (File System Access API)
   async function saveToFile(saveAs) {
     if (!data) return;
+    let handle = saveAs ? null : fileHandleRef.current;
     try {
-      let handle = saveAs ? null : fileHandleRef.current;
       if (!handle) {
         if (!window.showSaveFilePicker) { exportJSON(); return; }
         const slug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
@@ -187,102 +203,167 @@ export default function App() {
         });
       }
       const canWrite = await ensureHandlePermission(handle, true);
-      if (!canWrite) return;
+      if (!canWrite) {
+        setFileWriteOk(false);
+        alert('File access was not granted. Click the disk icon again and allow access in the browser prompt to save.');
+        return;
+      }
       const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
       const wr = await handle.createWritable();
       await wr.write(content);
       await wr.close();
+      lastOwnWriteRef.current = Date.now();
       await rememberHandle(handle);
       setAutoSave(true);
       setFileWriteOk(true);
       setSaved(true);
       setLastSavedAt(new Date());
-    } catch (e) { if (e.name !== 'AbortError') { console.error('Save failed:', e); await forgetHandle(); } }
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user cancelled file picker
+      console.error('Save failed:', e);
+      // Don't forget the handle on transient errors — only on definitive "handle is invalid"
+      const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError';
+      if (isInvalidHandle && saveAs) { await forgetHandle(); }
+      setFileWriteOk(false);
+      alert('Could not save: ' + (e.message || e.name || 'unknown error'));
+    }
   }
   function parseMdToProject(text) {
     const lines = text.split('\n');
-    const tree = [], mems = [];
-    let projName = 'Imported Project';
-    const idStack = []; // stack of {id, depth}
+    const tree = [], mems = [], teamSet = new Set();
+    let projName = null;
+    const idStack = []; // stack of {id, indent}
     let inResources = false;
+    let lastItem = null; // for multi-line notes/deps/desc
     lines.forEach(line => {
       const hm = line.match(/^#+\s+(.+)/);
       if (hm) {
-        projName = hm[1];
+        if (!projName) projName = hm[1]; // only first heading = project name
         inResources = /resource|team|member/i.test(hm[1]);
+        lastItem = null;
         return;
       }
-      // Resources section
+      // Resources section: parse team, role, cap, start
       if (inResources) {
         const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*\s*—?\s*(.*)/);
-        if (rm) { mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: '', role: rm[2]?.trim() || '', cap: 1, vac: 25, start: '' }); }
+        if (rm) {
+          const meta = rm[2] || '';
+          const parts = meta.split(',').map(s => s.trim());
+          const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
+          // Strip all "(NN%)" patterns from role parts to avoid accumulation on save+load cycles
+          const roleParts = parts.slice(1)
+            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p))
+            .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
+            .filter(Boolean);
+          const capM = meta.match(/\((\d+)%\)/);
+          const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
+          if (teamPart) teamSet.add(teamPart);
+          mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: 25, start: startM?.[1] || '' });
+        }
         return;
       }
-      // Tree items
-      const m = line.match(/^(\s*)[-*]\s+(.*)/);
-      if (!m) return;
-      const indent = m[1].length;
-      const raw = m[2].trim();
-      // Parse status
+      // Non-bullet indented lines → note/description on last item
+      const bullet = line.match(/^(\s*)[-*]\s+(.*)/);
+      if (!bullet) {
+        if (lastItem) {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          // Dependency line: *Benötigt: X, Y*
+          const depM = trimmed.match(/^\*Benötigt:\s*(.+?)\*$/);
+          if (depM) { lastItem.deps = depM[1].split(',').map(s => s.trim()); return; }
+          // Italic note: *some note*
+          if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
+          // Plain description text (for root items)
+          if (!lastItem.id.includes('.')) { lastItem.description = (lastItem.description || '') + (lastItem.description ? ' ' : '') + trimmed; }
+          else { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed; }
+        }
+        return;
+      }
+      // Tree items: parse bullet line
+      const indent = bullet[1].length;
+      let raw = bullet[2].trim();
+      // Status
       const done = raw.startsWith('✅');
       const wip = raw.includes('🟡');
-      let name = raw.replace(/^✅\s*/, '').replace(/🟡/g, '').trim();
-      // Parse estimate: (NT) or (SZ NT)
+      raw = raw.replace(/^✅\s*/, '').replace(/🟡\s*/g, '').trim();
+      // Extract embedded ID: **P1.2.3** or **D1**
+      let id = '';
+      const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
+      if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
+      // Extract team: — TeamName (at end, optionally with [assigned] after)
+      let team = '';
+      const teamM = raw.match(/\s*—\s+(\S[^[\]]*?)(?:\s*\[.*\])?\s*$/);
+      if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.indexOf(teamM[0])); if (team) teamSet.add(team); }
+      // Extract assigned members: [Name1, Name2]
+      let assign = [];
+      const assignM = raw.match(/\[(.+?)\]\s*$/);
+      if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.indexOf(assignM[0])).trim(); }
+      // Estimate: (SZ NT) or (NT)
       let best = 0, factor = 1.5;
-      const estM = name.match(/\((\w+\s+)?(\d+)T\)/);
-      if (estM) { best = parseInt(estM[2]); name = name.replace(estM[0], '').trim(); }
-      // Parse progress: NN%
+      const estM = raw.match(/\((\w+\s+)?(\d+)T\)/);
+      if (estM) { best = parseInt(estM[2]); raw = raw.replace(estM[0], '').trim(); }
+      // Progress: NN%
       let progress = null;
-      const prgM = name.match(/(\d+)%/);
-      if (prgM) { progress = parseInt(prgM[1]); name = name.replace(prgM[0], '').trim(); }
-      // Parse type emojis
+      const prgM = raw.match(/(\d+)%/);
+      if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
+      // Type emoji
       let type = '';
-      if (name.includes('⏰')) { type = 'deadline'; name = name.replace('⏰', '').trim(); }
-      else if (name.includes('⚡')) { type = 'painpoint'; name = name.replace('⚡', '').trim(); }
-      else if (name.includes('🎯')) { type = 'goal'; name = name.replace('🎯', '').trim(); }
-      // Strip bold markers
-      name = name.replace(/\*\*/g, '').trim();
-      // Determine parent by indent level
-      while (idStack.length && idStack[idStack.length - 1].indent >= indent) idStack.pop();
-      const parentId = idStack.length ? idStack[idStack.length - 1].id : '';
-      // Generate ID
-      const siblings = tree.filter(r => { const pid = r.id.split('.').slice(0, -1).join('.'); return pid === parentId; });
-      const num = siblings.length + 1;
-      const id = parentId ? `${parentId}.${num}` : `P${tree.filter(r => !r.id.includes('.')).length + 1}`;
+      if (raw.includes('⏰')) { type = 'deadline'; raw = raw.replace('⏰', '').trim(); }
+      else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
+      else if (raw.includes('🎯')) { type = 'goal'; raw = raw.replace('🎯', '').trim(); }
+      // Deadline date: (YYYY-MM-DD)
+      let date = '';
+      const dateM = raw.match(/\((\d{4}-\d{2}-\d{2})\)/);
+      if (dateM) { date = dateM[1]; raw = raw.replace(dateM[0], '').trim(); }
+      // Clean up name
+      const name = raw.replace(/\*\*/g, '').trim();
+      // Use embedded ID if found, otherwise generate
+      if (!id) {
+        while (idStack.length && idStack[idStack.length - 1].indent >= indent) idStack.pop();
+        const parentId = idStack.length ? idStack[idStack.length - 1].id : '';
+        const siblings = tree.filter(r => { const pid = r.id.split('.').slice(0, -1).join('.'); return pid === parentId; });
+        id = parentId ? `${parentId}.${siblings.length + 1}` : `P${tree.filter(r => !r.id.includes('.')).length + 1}`;
+      }
       idStack.push({ id, indent });
-      const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team: '', best, factor, prio: 2, deps: [], note: '', assign: [] };
+      const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team, best, factor, prio: 2, deps: [], note: '', assign };
       if (progress != null) item.progress = progress;
       if (type) { item.type = type; item.severity = 'high'; }
+      if (date) item.date = date;
       tree.push(item);
+      lastItem = item;
     });
-    return { meta: { name: projName, version: '2' }, teams: [], members: mems, tree, vacations: [], holidays: [] };
+    // Build teams from discovered team names, match members to team IDs
+    const teamsArr = [...teamSet].map((name, i) => ({ id: `T${i + 1}`, name, color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][i % 6] }));
+    const teamLookup = Object.fromEntries(teamsArr.map(t => [t.name, t.id]));
+    tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; });
+    mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
+    // Resolve assigned names to member IDs
+    tree.forEach(r => { if (r.assign?.length) r.assign = r.assign.map(name => { const m = mems.find(m => m.name === name); return m ? m.id : name; }); });
+    return { meta: { name: projName || 'Imported Project', version: '2' }, teams: teamsArr, members: mems, tree, vacations: [], holidays: [] };
   }
 
   async function loadFromFile() {
     try {
       if (window.showOpenFilePicker) {
-        const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Planr Project', accept: { 'application/json': ['.json', '.md'] } }] });
+        const [handle] = await window.showOpenFilePicker({ types: [
+          { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
+          { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+        ] });
         const file = await handle.getFile();
         const text = await file.text();
         const isMd = handle.name.endsWith('.md');
         const d = isMd ? parseMdToProject(text) : JSON.parse(text);
-        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid project file');
-        // Establish write permission immediately (still in user gesture)
-        let canWrite = false;
-        try {
-          const wr = await handle.createWritable();
-          await wr.write(text); // write original content back
-          await wr.close();
-          canWrite = true;
-        } catch { /* read-only is fine */ }
-        // Now apply the loaded data
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.' : 'Invalid JSON project file — no tree items found.');
+        // Apply data immediately — don't block on file write permission
         await rememberHandle(handle);
-        setFileWriteOk(canWrite);
-        setAutoSave(true);
+        setData(d);
+        setSel(null);
         setSaved(true);
         setLastSavedAt(new Date());
-        setSel(null);
-        setData(d); // this triggers re-render with new data
+        // Try to establish write permission (non-blocking for UI update)
+        const canWrite = await ensureHandlePermission(handle, true);
+        setFileWriteOk(canWrite);
+        setAutoSave(true);
       } else { fRef.current?.click(); }
     } catch (e) { if (e.name !== 'AbortError') alert('Could not load file: ' + e.message); }
   }
@@ -333,6 +414,7 @@ export default function App() {
   }
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
+  function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   function onSeqUpdate(taskId, newSeq) { setD('tree', tree.map(r => r.id === taskId ? { ...r, seq: newSeq } : r)); }
 
@@ -438,16 +520,17 @@ export default function App() {
         const text = ev.target.result;
         const isMd = f.name.endsWith('.md');
         const d = isMd ? parseMdToProject(text) : JSON.parse(text);
-        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid');
-        await forgetHandle();
-        setFileWriteOk(false);
-        setAutoSave(false);
-        setSaved(true);
-        setSel(null);
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
+        // Set data first, then clean up handle in background
         setData(d);
+        setSel(null);
+        setSaved(true);
         setFileName(f.name);
-      } catch {
-        alert('Invalid project file.');
+        setFileWriteOk(false);
+        setAutoSave(true);
+        forgetHandle().catch(() => {});
+      } catch (e) {
+        alert(e.message || 'Invalid project file.');
       }
     };
     r.readAsText(f); e.target.value = '';
@@ -455,10 +538,50 @@ export default function App() {
   function onBarClick(s) { const node = tree.find(r => r.id === s.id); if (node) { setMN({ ...node, ...s }); setModal('node'); } }
   async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); setSel(null); setModal(null); setTab('summary'); }
 
+  // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
+  async function restoreMountedFile() {
+    const handle = fileHandleRef.current;
+    if (!handle) return;
+    try {
+      const granted = await requestHandlePermission(handle, 'readwrite');
+      if (granted !== 'granted') {
+        const readOnly = await requestHandlePermission(handle, 'read');
+        if (readOnly !== 'granted') return;
+      }
+      const file = await handle.getFile();
+      const text = await file.text();
+      const d = handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text);
+      if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
+      setData(d);
+      setSel(null);
+      setSaved(true);
+      setLastSavedAt(new Date());
+      const canWrite = await ensureHandlePermission(handle, false);
+      setFileWriteOk(canWrite);
+      setAutoSave(true);
+    } catch (e) {
+      alert('Could not restore mounted file: ' + (e.message || e));
+      await forgetHandle();
+    }
+  }
+
   if (!bootstrapped) return <div className="onboard">
     <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
       <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
       <div className="onboard-sub" style={{ marginBottom: 0 }}>Restoring project context...</div>
+    </div>
+  </div>;
+
+  if (!data && fileName && fileHandleRef.current) return <div className="onboard">
+    <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
+      <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
+      <div className="onboard-sub" style={{ marginBottom: 22 }}>Restore mounted project</div>
+      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {fileName}</div>
+      <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>Browser security requires you to grant file access again after a page reload.</p>
+      <div className="ob-actions">
+        <button className="ob-btn ob-pri" onClick={restoreMountedFile}>Reactivate file access</button>
+        <button className="ob-btn ob-sec" onClick={async () => { await forgetHandle(); }}>Discard mount</button>
+      </div>
     </div>
   </div>;
 
@@ -485,28 +608,25 @@ export default function App() {
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
-        {(!autoSave || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save (Ctrl+S)" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
-        <label title={autoSave ? 'Auto-save is on — click to disable' : 'Auto-save is off — click to enable'} className="toggle">
-          <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
-          <span className="slider" />
-        </label>
-        <span style={{ fontSize: 9, color: autoSave ? (fileWriteOk ? 'var(--ac)' : 'var(--am)') : 'var(--tx3)', cursor: autoSave && !fileWriteOk ? 'pointer' : 'default' }}
-          onClick={async () => { if (autoSave && !fileWriteOk && fileHandleRef.current) { try { const wr = await fileHandleRef.current.createWritable(); await wr.write(JSON.stringify(data, null, 2)); await wr.close(); setFileWriteOk(true); setSaved(true); setLastSavedAt(new Date()); } catch { setFileWriteOk(false); } } }}>
-          {autoSave ? (fileWriteOk ? 'auto' : '⚠ click to grant file access') : 'auto off'}
-        </span>
+        {((!autoSave && !saved) || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save now (Ctrl+S)" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
+      <label title={autoSave ? 'Auto-save is on — click to disable' : 'Auto-save is off — click to enable'} className="toggle">
+        <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
+        <span className="slider" />
+      </label>
+      <span style={{ fontSize: 9, color: !fileName ? 'var(--tx3)' : autoSave ? (fileWriteOk ? 'var(--ac)' : 'var(--am)') : 'var(--tx3)', cursor: fileName && !fileWriteOk ? 'pointer' : 'default', userSelect: 'none' }}
+        onClick={() => { if (fileName && !fileWriteOk) saveToFile(); }}>
+        {!fileName ? (autoSave ? 'auto (no file)' : 'off') : autoSave ? (fileWriteOk ? 'auto' : '⚠ click to grant') : 'auto off'}
+      </span>
       {lastSavedAt && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
-        {saved ? `saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'saving...'}
+        {saved ? `${fileName ? 'saved' : 'local'} ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'saving...'}
       </span>}
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
       {tab === 'tree' && <>
         <input className="btn btn-sec" style={{ padding: '5px 10px', width: 160 }} placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="btn btn-sec" style={{ padding: '5px 8px', width: 100 }} value={teamFilter} onChange={e => setTeamFilter(e.target.value)}>
-          <option value="">All teams</option>
-          {teams.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
-        </select>
+        <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => setTeamFilter(v)} placeholder="All teams" allowEmpty emptyLabel="All teams" /></div>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
       </>}
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
@@ -557,41 +677,37 @@ export default function App() {
             <div className="side-hdr"><h3>{multiSel.size} items selected</h3>
               <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}>×</button>
             </div>
-            <div className="side-body">
-              <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Changes apply to all selected.</p>
-              <div className="field"><label>Set team for all</label>
-                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r)); e.target.value = ''; }}>
-                  <option value="">Choose team...</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div className="field"><label>Assign person to all</label>
-                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r)); e.target.value = ''; }}>
-                  <option value="">Choose person...</option>
-                  {members.map(m => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
-                </select>
-              </div>
-              <div className="field"><label>Set status for all</label>
-                <select value="" onChange={e => { if (!e.target.value) return; const v = e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r)); e.target.value = ''; }}>
-                  <option value="">Choose status...</option>
-                  <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
-                </select>
-              </div>
-              <div className="field"><label>Set priority for all</label>
-                <select value="" onChange={e => { if (!e.target.value) return; const v = +e.target.value; setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: v } : r)); e.target.value = ''; }}>
-                  <option value="">Choose priority...</option>
-                  <option value="1">1 Critical</option><option value="2">2 High</option><option value="3">3 Medium</option><option value="4">4 Low</option>
-                </select>
-              </div>
-              <hr className="divider" />
-              <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
-            </div>
+            {(() => {
+              const selItems = tree.filter(r => multiSel.has(r.id));
+              const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
+              const commonAssign = (() => { const first = selItems[0]?.assign?.[0]; if (!first) return null; return selItems.every(r => (r.assign || []).length === 1 && r.assign[0] === first) ? first : null; })();
+              const commonTeam = commonOf('team');
+              const commonStatus = commonOf('status');
+              const commonPrio = commonOf('prio');
+              return <div className="side-body">
+                <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Common values shown — changes apply to all selected.</p>
+                <div className="field"><label>Team{commonTeam == null ? ' (mixed)' : ''}</label>
+                  <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
+                </div>
+                <div className="field"><label>Add person to all (cumulative)</label>
+                  <SearchSelect options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r))} placeholder="Add person..." />
+                </div>
+                <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
+                  <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
+                </div>
+                <div className="field"><label>Priority{commonPrio == null ? ' (mixed)' : ''}</label>
+                  <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
+                </div>
+                <hr className="divider" />
+                <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
+              </div>;
+            })()}
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
           </>}
         </div>}
       </>}
@@ -601,7 +717,7 @@ export default function App() {
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
-      {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
+      {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
         onTeamUpd={(i, k, v) => setD('teams', teams.map((t, j) => j === i ? { ...t, [k]: v } : t))}
         onTeamAdd={() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }])}
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}

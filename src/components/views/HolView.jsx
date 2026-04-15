@@ -1,6 +1,7 @@
 import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
 import { DOW_DE } from '../../constants.js';
+import { LazyInput } from '../shared/LazyInput.jsx';
 
 export function HolView({holidays,planStart,planEnd,onUpdate}){
   const planYears=[];const nowY=new Date().getFullYear();for(let y=Math.min(nowY-1,new Date(planStart).getFullYear());y<=Math.max(nowY+2,new Date(planEnd).getFullYear());y++)planYears.push(y);
@@ -35,7 +36,7 @@ export function HolView({holidays,planStart,planEnd,onUpdate}){
           return<div key={h.date+gi} className="hol-row">
             {h.auto
               ?<><span className="hol-d">{dow} {h.date}</span><span style={{flex:1,fontSize:12}}>{h.name}</span><span className="badge bo" style={{fontSize:9}}>NRW</span><button className="btn btn-ghost btn-xs" onClick={()=>del(gi)}>×</button></>
-              :<><input type="date" value={h.date} onChange={e=>upd(gi,'date',e.target.value)} style={{background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:4,color:'var(--tx)',fontSize:11,padding:'3px 6px',fontFamily:'var(--mono)',width:110,outline:'none',flexShrink:0}}/><input value={h.name} onChange={e=>upd(gi,'name',e.target.value)} style={{flex:1,minWidth:0,background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:4,color:'var(--tx)',fontSize:11,padding:'3px 6px',outline:'none'}} placeholder="Name"/><button className="btn btn-danger btn-xs" style={{flexShrink:0}} onClick={()=>del(gi)}>×</button></>
+              :<><LazyInput type="date" value={h.date} onCommit={v=>upd(gi,'date',v)} style={{background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:4,color:'var(--tx)',fontSize:11,padding:'3px 6px',fontFamily:'var(--mono)',width:110,outline:'none',flexShrink:0}}/><LazyInput value={h.name} onCommit={v=>upd(gi,'name',v)} style={{flex:1,minWidth:0,background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:4,color:'var(--tx)',fontSize:11,padding:'3px 6px',outline:'none'}} placeholder="Name"/><button className="btn btn-danger btn-xs" style={{flexShrink:0}} onClick={()=>del(gi)}>×</button></>
             }
           </div>;
         })}

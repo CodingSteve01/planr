@@ -1,51 +1,54 @@
 import { TBadge } from '../shared/Badges.jsx';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { LazyInput } from '../shared/LazyInput.jsx';
 
-export function ResView({members,teams,vacations,onUpd,onAdd,onDel,onVac,onTeamUpd,onTeamAdd,onTeamDel}){
-  return<div>
-    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
-      <div className="section-h" style={{margin:0}}>Teams</div>
+export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+  return <div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      <div className="section-h" style={{ margin: 0 }}>Teams</div>
       <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>+ Add team</button>
     </div>
-    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:18}}>
-      {teams.map((t,i)=><div key={t.id} style={{display:'flex',alignItems:'center',gap:6,background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:'var(--r)',padding:'6px 10px',borderLeft:`3px solid ${t.color}`}}>
-        <input value={t.name} onChange={e=>onTeamUpd(i,'name',e.target.value)} style={{background:'transparent',border:'none',color:'var(--tx)',fontSize:12,fontWeight:600,outline:'none',width:100}}/>
-        <input type="color" value={t.color||'#3b82f6'} onChange={e=>onTeamUpd(i,'color',e.target.value)} style={{width:24,height:24,padding:0,border:'none',cursor:'pointer',background:'transparent'}}/>
-        <button className="btn btn-danger btn-xs" onClick={()=>onTeamDel(i)}>×</button>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+      {teams.map((t, i) => <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: '6px 10px', borderLeft: `3px solid ${t.color}` }}>
+        <LazyInput value={t.name} onCommit={v => onTeamUpd(i, 'name', v)} style={{ background: 'transparent', border: 'none', color: 'var(--tx)', fontSize: 12, fontWeight: 600, outline: 'none', width: 100 }} />
+        <input type="color" value={t.color || '#3b82f6'} onChange={e => onTeamUpd(i, 'color', e.target.value)} style={{ width: 24, height: 24, padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+        <button className="btn btn-danger btn-xs" onClick={() => onTeamDel(i)}>×</button>
       </div>)}
     </div>
-    <hr className="divider"/>
-    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
-      <div className="section-h" style={{margin:0}}>Team Members</div>
+    <hr className="divider" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      <div className="section-h" style={{ margin: 0 }}>Team Members</div>
       <button className="btn btn-sec btn-sm" onClick={onAdd}>+ Add person</button>
     </div>
-    {!members.length&&<div className="empty"><div style={{fontSize:24,marginBottom:8}}>👥</div>No team members yet.<p>Add people to assign tasks and plan capacity.</p></div>}
+    {!members.length && <div className="empty"><div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>No team members yet.<p>Add people to assign tasks and plan capacity.</p></div>}
     <div className="res-grid">
-      {members.map(m=><div key={m.id} className="res-card">
-        <div className="res-ch"><span className="res-name">{m.name||m.id}</span>
-          <div style={{display:'flex',gap:6,alignItems:'center'}}><TBadge t={m.team} teams={teams}/><button className="btn btn-danger btn-xs" onClick={()=>onDel(m.id)}>Remove</button></div>
+      {members.map(m => <div key={m.id} className="res-card">
+        <div className="res-ch"><span className="res-name">{m.name || m.id}</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><TBadge t={m.team} teams={teams} />{onClone && <button className="btn btn-sec btn-xs" onClick={() => onClone(m)} title="Clone for another team">⧉ Clone</button>}<button className="btn btn-danger btn-xs" onClick={() => onDel(m.id)}>Remove</button></div>
         </div>
-        {[['Full name',<input value={m.name||''} onChange={e=>onUpd({...m,name:e.target.value})}/>],
-          ['Team',<select value={m.team||''} onChange={e=>onUpd({...m,team:e.target.value})}><option value="">— None —</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>],
-          ['Role',<input value={m.role||''} onChange={e=>onUpd({...m,role:e.target.value})} placeholder="e.g. Senior Dev"/>],
-          ['Capacity %',<input type="number" min="0" max="100" step="5" value={Math.round((m.cap||1)*100)} onChange={e=>onUpd({...m,cap:+e.target.value/100})}/>],
-          ['Vacation days/yr',<input type="number" min="0" max="40" value={m.vac||25} onChange={e=>onUpd({...m,vac:+e.target.value})}/>],
-          ['Start date',<input type="date" value={m.start||''} onChange={e=>onUpd({...m,start:e.target.value})}/>],
-        ].map(([l,c])=><div key={l} className="rf"><label>{l}</label>{c}</div>)}
+        {[
+          ['Full name', <LazyInput value={m.name || ''} onCommit={v => onUpd({ ...m, name: v })} />],
+          ['Team', <SearchSelect value={m.team || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => onUpd({ ...m, team: v })} placeholder="Choose team..." allowEmpty />],
+          ['Role', <LazyInput value={m.role || ''} onCommit={v => onUpd({ ...m, role: v })} placeholder="e.g. Senior Dev" />],
+          ['Capacity %', <LazyInput type="number" min="0" max="100" step="5" value={Math.round((m.cap || 1) * 100)} onCommit={v => onUpd({ ...m, cap: v / 100 })} />],
+          ['Vacation days/yr', <LazyInput type="number" min="0" max="40" value={m.vac || 25} onCommit={v => onUpd({ ...m, vac: v })} />],
+          ['Start date', <LazyInput type="date" value={m.start || ''} onCommit={v => onUpd({ ...m, start: v })} />],
+        ].map(([l, c]) => <div key={l} className="rf"><label>{l}</label>{c}</div>)}
       </div>)}
     </div>
-    <hr className="divider"/>
-    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-      <div className="section-h" style={{margin:0}}>Vacation Weeks</div>
-      <button className="btn btn-sec btn-sm" onClick={()=>onVac([...vacations,{person:members[0]?.id||'',week:'',note:''}])}>+ Add week</button>
+    <hr className="divider" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <div className="section-h" style={{ margin: 0 }}>Vacation Weeks</div>
+      <button className="btn btn-sec btn-sm" onClick={() => onVac([...vacations, { person: members[0]?.id || '', week: '', note: '' }])}>+ Add week</button>
     </div>
-    <p className="helper" style={{marginBottom:10}}>Enter Monday date of each vacation week (YYYY-MM-DD). Scheduler skips that week for the person.</p>
-    {vacations.length>0&&<table className="vac-tbl">
+    <p className="helper" style={{ marginBottom: 10 }}>Enter Monday date of each vacation week (YYYY-MM-DD). Scheduler skips that week for the person.</p>
+    {vacations.length > 0 && <table className="vac-tbl">
       <thead><tr><th>Person</th><th>Week start (Mon)</th><th>Note</th><th></th></tr></thead>
-      <tbody>{vacations.map((v,i)=><tr key={i}>
-        <td><select value={v.person} onChange={e=>onVac(vacations.map((x,j)=>j===i?{...x,person:e.target.value}:x))}>{members.map(m=><option key={m.id} value={m.id}>{m.name||m.id}</option>)}</select></td>
-        <td><input value={v.week} onChange={e=>onVac(vacations.map((x,j)=>j===i?{...x,week:e.target.value}:x))} placeholder="2026-07-13"/></td>
-        <td><input value={v.note||''} onChange={e=>onVac(vacations.map((x,j)=>j===i?{...x,note:e.target.value}:x))}/></td>
-        <td><button className="btn btn-danger btn-xs" onClick={()=>onVac(vacations.filter((_,j)=>j!==i))}>Remove</button></td>
+      <tbody>{vacations.map((v, i) => <tr key={i}>
+        <td><SearchSelect value={v.person} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={val => onVac(vacations.map((x, j) => j === i ? { ...x, person: val } : x))} placeholder="Choose person..." /></td>
+        <td><LazyInput value={v.week} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, week: val } : x))} placeholder="2026-07-13" /></td>
+        <td><LazyInput value={v.note || ''} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, note: val } : x))} /></td>
+        <td><button className="btn btn-danger btn-xs" onClick={() => onVac(vacations.filter((_, j) => j !== i))}>Remove</button></td>
       </tr>)}</tbody>
     </table>}
   </div>;

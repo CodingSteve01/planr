@@ -30,10 +30,8 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
               <button key={t} className={`goal-type-btn${(f.type || '') === t ? ' active' : ''}`} onClick={() => s('type', t)}>{t ? `${GT[t]} ${GL[t]}` : '— None'}</button>)}
           </div>
         </div>
-        {f.type && <div className="field" style={{ flex: '0 0 90px' }}><label>Severity</label>
-          <select value={f.severity || 'high'} onChange={e => s('severity', e.target.value)}>
-            <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option>
-          </select>
+        {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>Severity</label>
+          <SearchSelect value={f.severity || 'high'} options={[{ id: 'critical', label: 'Critical' }, { id: 'high', label: 'High' }, { id: 'medium', label: 'Medium' }]} onSelect={v => s('severity', v)} />
         </div>}
         {f.type === 'deadline' && <div className="field" style={{ flex: '0 0 140px' }}><label>Date</label><input type="date" value={f.date || ''} onChange={e => s('date', e.target.value)} /></div>}
       </div>}
@@ -41,15 +39,10 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="frow">
         <div className="field"><label>Status</label>
           {!isLeaf ? <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>
-          : <select value={f.status || 'open'} onChange={e => s('status', e.target.value)}>
-            <option value="open">Open</option><option value="wip">In Progress</option><option value="done">Done</option>
-          </select>}
+          : <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />}
         </div>
         <div className="field"><label>Team</label>
-          <select value={f.team || ''} onChange={e => s('team', e.target.value)}>
-            <option value="">— None —</option>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
-          </select>
+          <SearchSelect value={f.team || ''} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
         </div>
       </div>
       {isLeaf && <div className="field"><label>Progress {f.progress ?? leafProgress(f)}%</label>
@@ -64,13 +57,13 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
         const doneCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length;
         return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>Aggregated from {leafCount} leaf items</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 16px', fontFamily: 'var(--mono)', fontSize: 11 }}>
             <span style={{ color: 'var(--tx3)' }}>Children</span><span>{childCount}</span>
             <span style={{ color: 'var(--tx3)' }}>Progress</span><span>{doneCount}/{leafCount} done ({leafCount > 0 ? Math.round(doneCount / leafCount * 100) : 0}%)</span>
             <span style={{ color: 'var(--tx3)' }}>Best</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Realistic</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Worst</span><span>{st?._w?.toFixed(0) || 0}d</span>
-            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')} ({Math.round((st._endD - st._startD) / 864e5)} cal days)</span></>}
+            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')} ({Math.round((st._endD - st._startD) / 864e5)}d)</span></>}
           </div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Status, estimates, and dates are derived from child items.</div>
         </div>;
@@ -91,10 +84,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
             </div>
             <div className="frow">
               <div className="field"><label>Priority</label>
-                <select value={f.prio || 1} onChange={e => s('prio', +e.target.value)}>
-                  <option value={1}>1 Critical</option><option value={2}>2 High</option>
-                  <option value={3}>3 Medium</option><option value={4}>4 Low</option>
-                </select>
+                <SearchSelect value={String(f.prio || 1)} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => s('prio', +v)} />
               </div>
               <div className="field"><label>Seq</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} /></div>
             </div>
@@ -113,9 +103,15 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
         </div>
         <div className="field"><label>Dependencies</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
-            {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span className="tag" style={{ flexShrink: 0 }}>{d} {dn?.name ? `— ${dn.name}` : ''}<span className="tag-x" onClick={() => { s('deps', (f.deps || []).filter(x => x !== d)); const dl = { ...(f._depLabels || {}) }; delete dl[d]; s('_depLabels', dl); }}>×</span></span>
-              <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label (optional)" style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
+            {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 80, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
+                <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => { s('deps', (f.deps || []).filter(x => x !== d)); const dl = { ...(f._depLabels || {}) }; delete dl[d]; s('_depLabels', dl); }}>×</span>
+              </div>
             </div>; })}
           </div>
           <SearchSelect
@@ -135,7 +131,9 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
         {sc && <div className="calc" style={{ fontSize: 10 }}>
           <span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b>
           <span>Duration:</span><b>{sc.weeks}w ({sc.calDays} cal days)</b>
-          <span>Person:</span><b>{sc.person} ({sc.capPct}% cap, {sc.vacDed}% vac)</b>
+          <span>Person:</span>
+          <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{sc.person}</b>
+          <span>({sc.capPct}% cap, {sc.vacDed}% vac)</span>
         </div>}
       </>}
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>

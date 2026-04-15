@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
 
 const SIZES = [
   { label: 'XS', days: 1, desc: 'Trivial change, config, typo fix' },
@@ -143,10 +144,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
           {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}>×</span></span>; })}
         </div>
-        <select onChange={e => { if (!e.target.value) return; setSelDeps(ds => [...new Set([...ds, e.target.value])]); e.target.value = ''; }}>
-          <option value="">+ Add dependency</option>
-          {tree.filter(r => r.id !== node?.id).map(r => <option key={r.id} value={r.id}>{r.id} — {r.name}</option>)}
-        </select>
+        <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder="+ Add dependency" />
         {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>
           This task is blocked by {selDeps.length} item{selDeps.length > 1 ? 's' : ''}. The scheduler will only start it after all dependencies are done.
         </div>}

@@ -54,7 +54,8 @@ export async function requestHandlePermission(handle, mode = 'readwrite') {
   if (!handle?.requestPermission) return 'granted';
   try {
     return await handle.requestPermission({ mode });
-  } catch {
+  } catch (e) {
+    console.error('requestPermission failed:', e);
     return 'denied';
   }
 }

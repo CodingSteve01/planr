@@ -41,6 +41,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   const visit = id => { if (vis.has(id)) return; vis.add(id); const r = iMap[id]; if (r)(r.deps || []).flatMap(resD).forEach(visit); ord.push(id); };
   sv.forEach(r => visit(r.id));
   const pF = Object.fromEntries(members.map(m => [m.id, 0]));
+  const tSlots = {}; // per-team slot array for unassigned task sequencing
   const tEW = {};
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = -1; });
   // Vacation: explicit weeks per person
@@ -78,28 +79,35 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
     // ONLY explicitly assigned people — never auto-assign from team pool
     if (!asgn.length) {
-      // No assignee: schedule by effort/calendar only (no person binding)
-      // Use average team capacity for duration estimate, or 1 PT/day if no team
+      // No assignee: schedule using team slot array to prevent over-parallelism
+      // Each team gets one slot per member; unassigned tasks queue across slots
+      const tk = team || '__none';
+      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(0) : [0];
+      const slots = tSlots[tk];
+      // Find the earliest available slot
+      const si = slots.reduce((best, fw, i) => fw < slots[best] ? i : best, 0);
+      const slotEarly = Math.max(early, slots[si]);
       const avgCap = tM.length > 0
         ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length
         : 1;
       const avgVac = tM.length > 0
         ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length
         : 0.9;
-      let rem = eff, wi = early;
+      let rem = eff, wi = slotEarly;
       while (rem > 0 && wi < wks.length) {
         const w = wks[wi];
-        const wdCount = w.wds.length;
-        rem -= wdCount * avgCap * avgVac;
+        rem -= w.wds.length * avgCap * avgVac;
         wi++;
       }
-      const eW = Math.min(Math.max(wi - 1, early), wks.length - 1);
+      const eW = Math.min(Math.max(wi - 1, slotEarly), wks.length - 1);
       tEW[id] = eW;
-      const calDays = Math.round((addD(wks[eW].mon, 4) - wks[early < wks.length ? early : 0].mon) / 864e5);
+      slots[si] = eW + 1; // occupy the slot until this task finishes
+      const startWi = slotEarly < wks.length ? slotEarly : 0;
+      const calDays = Math.round((addD(wks[eW].mon, 4) - wks[startWi].mon) / 864e5);
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
-        best: r.best, effort: eff, startWi: early, endWi: eW,
-        startD: wks[early < wks.length ? early : 0].mon, endD: addD(wks[eW].mon, 4), calDays,
-        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - early + 1,
+        best: r.best, effort: eff, startWi: slotEarly, endWi: eW,
+        startD: wks[startWi].mon, endD: addD(wks[eW].mon, 4), calDays,
+        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - slotEarly + 1,
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
     }

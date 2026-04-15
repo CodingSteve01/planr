@@ -93,7 +93,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
             const isNow = todayWi >= 0 && i === todayWi;
-            return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, background: isNow ? '#1a2e1e' : w.hasH ? '#2a1a1e' : isYB ? '#1a2040' : '' }}>
+            return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, background: isNow ? '#1a3020' : w.hasH ? '#301e22' : isYB ? '#1e2448' : '' }}>
               {w.kw}
             </div>; })}
         </div>
@@ -112,7 +112,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             onMouseMove={e => setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}
             onMouseLeave={() => setTip(null)}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
-            <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }}>{s.person}</span>
+            <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--mono)' }}>{s.person}</span>
             <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
           </div>;
         })}
@@ -120,7 +120,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
         <div style={{ width: tw, position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
-            {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.06)' : '' }} />)}
+            {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
             {/* Today line */}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX - 14, top: 0, background: 'var(--gr)', color: '#000', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: '0 0 3px 3px', zIndex: 6 }}>Today</div>}
