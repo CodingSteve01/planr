@@ -92,6 +92,19 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="field"><label>Decide by</label>
         <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
       </div>
+      <div className="field">
+        <label>Pinned start {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 6 }}>📌 hard floor</span>}</label>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <input type="date" value={f.pinnedStart || ''}
+            onChange={e => { const v = e.target.value; const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }}
+            style={{ flex: 1 }}
+            title="Scheduler will not start this task earlier than this date. Deps and capacity can still push it later." />
+          <button className="btn btn-sec btn-sm" onClick={() => { const v = iso(new Date()); const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }}
+            title="Mark this as the next task to start — pins to today.">Start today</button>
+          {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => { const n = { ...f, pinnedStart: '' }; setF(n); onUpdate(n); }} title="Unpin">×</button>}
+        </div>
+        <p className="helper">Pin a task's start date when you want it to begin on or after a specific day. Click "Start today" to make it your next task.</p>
+      </div>
       {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 12 }} onClick={() => onEstimate(node)}>Estimation Wizard...</button>}
       <div className="field"><label>Assignee</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>

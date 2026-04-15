@@ -95,8 +95,14 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
       const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
       if (pinWi >= 0) early = Math.max(early, pinWi);
     }
-    const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
-    // ONLY explicitly assigned people — never auto-assign from team pool
+    let asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
+    // Single-member teams: treat "team only" identically to "that person assigned" —
+    // picking the team shouldn't produce a coarser schedule than picking its only member.
+    // The precise assigned-path (per-person pF counter + explicit vacation weeks) kicks in.
+    if (!asgn.length && tM.length === 1) {
+      asgn = [tM[0].id];
+    }
+    // Still no assignee → fall through to team-slot scheduling (multi-member team pool).
     if (!asgn.length) {
       // No assignee: schedule using team slot array to prevent over-parallelism
       // Each team gets one slot per member; unassigned tasks queue across slots
