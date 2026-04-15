@@ -36,6 +36,7 @@ Dependency arrows between nodes, routed with obstacle-awareness so they don't cu
 
 - **Pinch to zoom** (trackpad) — wheel is deliberately **not** zoom
 - **Scroll to pan** — two-finger scroll moves the viewport
+- **Cursor-anchored zoom** — the point under the cursor stays fixed while zooming in/out. Implemented with refs for pan/zoom so rapid wheel events read the freshest values (the prior closure-captured-state approach caused the viewport to jump erratically during fast scrolls).
 - **Perceived 100 % = 150 % real zoom** — the zoom label divides by 1.5 so what looks like "100 %" is comfortable
 
 This mapping matches what users actually want: "too small" at real 100 % vs. "right" at real 150 %.
@@ -44,10 +45,22 @@ This mapping matches what users actually want: "too small" at real 100 % vs. "ri
 
 The **Fit** button's behavior depends on what's selected:
 
-- **Nothing selected** — fit the whole graph
+- **Search active** — fit to the search match set (takes priority)
+- **Nothing selected, no search** — fit the whole graph
 - **One or more nodes highlighted** — zoom to the bounding box of the selection
 
 Great for jumping back to a subtree after panning far away.
+
+## Search and highlight
+
+The search field lives in the shared sub-toolbar (top right, driven by App's global `search` state). When you type:
+
+- Matching nodes keep full opacity with a 2.5 px amber outline
+- Non-matches dim to 25 %
+- On every query change, the viewport auto-pans/zooms to fit the match set via `fitToNodes(searchMatches)`
+- Match count shows next to the Fit / zoom controls
+
+`Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
 ## Interaction
 

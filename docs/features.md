@@ -7,6 +7,8 @@ Full catalog of what Planr does. Grouped by area. Links point to detail docs whe
 - **N-level tree** — unlimited nesting (leaves are detected structurally, not by fixed depth)
 - **Root item types** — every tree root can carry a `type` (goal, painpoint, deadline) with `severity`, target `date`, and long-form `description`; no separate deadlines list
 - **Hierarchical sort** — children always follow parents; collapse/expand all
+- **Sibling reorder** — move a selected item up / down / to first / to last within its sibling group; all IDs (including descendants) and dep references auto-renumber
+- **Contextual action toolbar** — a sticky row above the tree surfaces reorder + delete for the currently selected item; per-row actions collapse to just `+` (add child)
 - **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click selects a range; bulk edit team, priority, status, assignee
 - **Status derivation** — parent status is computed from children (done / wip / open)
 - **Progress tracking** — 0–100 % slider on leaves; weighted (by realistic effort) cascade to parents; circular indicator in the network graph
@@ -19,7 +21,8 @@ See [scheduler.md](scheduler.md) for semantics.
 - **Topological ordering** by dependency; deps inherited from ancestors
 - **Per-person capacity** — `pF[person]` tracker sequentializes assigned work
 - **Team slots for unassigned tasks** — team-sized slot array prevents infinite parallelism
-- **Pinned start** — hard floor on the start week; deps and capacity can still push later
+- **Single-member team fast-path** — an unassigned task on a 1-person team is routed through the per-person scheduler (identical behavior to assigning that person directly)
+- **Pinned start** — hard floor on the start week; deps and capacity can still push later. Settable in QuickEdit with a one-click "Start today" shortcut, or via Gantt bar-drag / right-click.
 - **Legacy `parallel` flag** — bypasses person capacity (kept for MD round-trip only; not in UI)
 - **NRW public holidays** — built-in via Easter algorithm; custom holidays supported
 - **Explicit vacation weeks** — per person, zero-capacity weeks
@@ -37,13 +40,17 @@ See [scheduler.md](scheduler.md) for semantics.
 See [gantt.md](gantt.md).
 
 - **Grouping** — project, project › team, team, or person
-- **Zoom** — pixels per week, persisted in localStorage
+- **Zoom** — `− [value] +` buttons in the Gantt footer; value doubles as a "reset to default" click. Persisted in localStorage.
+- **Day-level view** — at zoom ≥ 70 px/week a third header row shows day-of-month numbers and the body gets faint vertical day separators; today's number is green
+- **Per-day holiday tint** — at day-level zoom, only the actual holiday days are red-tinted (not the whole week)
 - **Drag to pin** — drag a bar horizontally to set `pinnedStart`
 - **Link handles** — drag from a bar's right edge onto another bar to add a dependency
-- **Bezier dependency arrows** — 5 px stubs + cubic bezier between (forward and backward)
+- **Bezier dependency arrows** — 10 px straight stubs + cubic bezier between (forward and backward); the straight runway in/out of the arrowhead stays readable at large vertical gaps
 - **Click an arrow to remove it** — "×" badge at the arrow origin
 - **Right-click context menu** — open editor, add predecessor/successor, pin/unpin, remove dep
-- **Deadline markers** — vertical lines with labels; "at risk" badge when linked work overruns
+- **Solid team-colored bars** — white bold text with subtle shadow for legibility across the team palette
+- **CP marker** — 1.5 px red inset ring on the bar (doesn't fight the link-mode outline)
+- **Deadline flags with backfill** — flag-shaped pennant at the deadline week plus a gradient backfill stretching up to 8 weeks left; at-risk flags show an `!`
 - **Today marker** — green vertical line
 - **Decide-by diamond** — amber/red 45°-rotated marker per task
 
@@ -71,9 +78,19 @@ See [network-graph.md](network-graph.md).
 ## QuickEdit sidebar
 
 - **Primary interaction** — single click on a node opens the sidebar
-- **Searchable dropdowns** (`SearchSelect`) for any list with more than 5 items
+- **Searchable dropdowns** (`SearchSelect`) for any list with more than 5 items; popup renders via React Portal so it escapes modal overflow clipping and auto-flips upward when there's no room below
 - **Predecessors and successors** — add/remove both directions without leaving the sidebar
+- **Pinned start + "Start today"** — date picker and one-click shortcut to mark "this is my next task"; shows "📌 hard floor" when active, `×` to clear
+- **Decide by** — date field for decision-gate items; overdue dates render red
 - **Escape or click-outside** deselects
+
+## Global search
+
+- **Single input** in the sub-toolbar (top right), shared across Work Tree, Schedule, and Network tabs
+- **Ctrl/Cmd+F** focuses and selects the field; **Esc** clears
+- **Live highlight** — matches get an amber outline; non-matches dim
+- **Auto-scroll to first match** — Tree scrolls the row into view, Gantt scrolls both axes to land on the first matching bar, Network pans/fits to the match set
+- **Match count** — shown inline in the Gantt footer / Network toolbar
 
 ## Estimation
 
@@ -86,9 +103,11 @@ See [import-export.md](import-export.md).
 
 - **localStorage** as fallback when no file is mounted (`planr_v2` key)
 - **File System Access API** for native `.json` / `.md` mounts
-- **Auto-save** — debounced write to the mounted file
+- **Debounced auto-save** — writes the file 5 s after your last edit; rapid edits coalesce into one write
+- **Save status pill** — one consolidated indicator with semantic color: `all saved · 14:32` (green) / `unsaved · saving in 4s` (amber, live countdown) / `saving…` (blue)
+- **Re-mount on permission loss** — when the browser drops the file handle (typically after a reload) the status becomes `⚠ click to re-mount`; clicking opens a Save-As dialog pre-filled with the original filename, reliably re-creating the handle with a fresh permission grant
 - **External change polling** — 5 s interval; picks up edits made outside the app
-- **Ctrl+S / Cmd+S** — save now
+- **Ctrl+S / Cmd+S** — save now (bypasses the debounce)
 - **Save as** — choose JSON or Markdown
 
 ## Import / Export
@@ -113,8 +132,9 @@ See [import-export.md](import-export.md).
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+S` / `Cmd+S` | Save to the mounted file |
-| `Esc` | Deselect / close modal |
+| `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypass debounce) |
+| `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Esc` | Clear search / deselect / close modal |
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle item in multi-selection |
 | `Shift+Click` | Select range in tree |

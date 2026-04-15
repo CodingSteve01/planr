@@ -65,6 +65,8 @@ On each leaf:
 
 If no one is assigned, the scheduler uses team-wide slots (see [scheduler.md](scheduler.md)) — the task still runs, but it shares time with other unassigned tasks on the same team.
 
+**Teams of one:** If a team has exactly one member, picking just the team is equivalent to assigning that member directly. The scheduler routes through the per-person path so vacation weeks and the person-capacity counter apply precisely — no accuracy loss compared to an explicit assign.
+
 ## 6. Declare dependencies
 
 A dependency means: this task can only start after its predecessor finishes.
@@ -109,16 +111,25 @@ Toggle **Critical Path Only** in the Gantt to dim everything non-critical.
 
 Common moves:
 
-- **Push a task later** — drag its Gantt bar horizontally. It becomes pinned (`📌` icon). Unpin via the right-click menu.
+- **"This is my next task"** — select it in the Work Tree, open QuickEdit, click **Start today**. Pins `pinnedStart` to today so the scheduler won't place it any earlier.
+- **Push a task later** — drag its Gantt bar horizontally, or set a future Pinned start date in QuickEdit. A pin is a **hard floor** only (capacity/deps can still push it rightward — that shows as `⚠📌`).
+- **Reorder siblings** — select an item in the Work Tree, then use the contextual toolbar: `⤒ First`, `▲ Up`, `▼ Down`, `⤓ Last`. All IDs in the sibling group renumber sequentially, dep references update everywhere.
 - **Move work earlier** — reduce the estimate, remove a blocking dep, or bump `prio` (lower number = higher priority, breaks ties).
-- **Split a task** — add children under it. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
+- **Split a task** — add children under it via the `+` row button or the Add modal. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
 - **Mark done** — set status to `done` or slide progress to 100 %. The bar disappears from the timeline.
+- **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). Matches highlight amber across Tree, Gantt, and Network tabs, and each view auto-scrolls/pans to the first match.
 
 ## 10. Save
 
-- **Ctrl+S / Cmd+S** — save now.
-- **Save as** — choose `.json` or `.md` format.
-- If a file is mounted, changes auto-save (debounced). The file-change poller picks up external edits every 5 s.
+- **Ctrl+S / Cmd+S** — save now (bypasses the 5 s debounce).
+- **Save as** — choose `.json` or `.md` format; this is also the reliable way to re-mount a file after the browser drops permission (page reload).
+- If a file is mounted, changes auto-save **5 s after your last edit**. Rapid edits coalesce into one write.
+- The **status pill** in the topbar tells you exactly where you stand:
+  - `all saved · 14:32` (green) — disk and app are in sync
+  - `unsaved · saving in 4s` (amber) — debounce countdown ticking down
+  - `saving…` (blue) — write in flight
+  - `⚠ click to re-mount` (amber, clickable) — permission lost; click triggers Save-As with the original filename
+- **External change polling** runs every 5 s; edits you make in another app are picked up automatically.
 
 See [import-export.md](import-export.md) for format details and round-trip caveats.
 
@@ -126,8 +137,9 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+S` / `Cmd+S` | Save to the mounted file |
-| `Esc` | Deselect / close modal |
+| `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypasses the 5 s debounce) |
+| `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Esc` | Clear search / deselect / close modal |
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle multi-selection |
 | `Shift+Click` | Range-select in tree |

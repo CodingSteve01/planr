@@ -50,7 +50,8 @@ If `pinnedStart` is set, take `max(depEarly, pinWeek)`. Pinning can only **delay
 
 **c. Branch on assignment**
 
-- **No `assign`** → schedule into a **team slot** (see "Team slots" below)
+- **No `assign`** + team has **exactly 1 member** → auto-promote: the single member is treated as assigned. Routes through the per-person path (step d) so vacation weeks and the `pF[person]` counter apply precisely. Picking "team only" in the UI produces the same schedule as picking that member directly.
+- **No `assign`** + multi-member team → schedule into a **team slot** (see "Team slots" below)
 - **With `assign`** → pick the earliest available assignee, respecting their capacity counter
 
 **d. Consume capacity**
@@ -66,7 +67,7 @@ Walk forward week-by-week, subtracting the assignee's weekly capacity from the r
 
 If not `parallel`, set `pF[assignee] = endWi + 1` so their next assigned task can't overlap.
 
-## Team slots (unassigned tasks)
+## Team slots (multi-member unassigned tasks)
 
 Unassigned leaves used to schedule in parallel from the same start — a known critical bug. The current fix:
 
@@ -74,9 +75,11 @@ Unassigned leaves used to schedule in parallel from the same start — a known c
 tSlots[team] = new Array(team.memberCount).fill(0)
 ```
 
-Each team has a slot array the size of the team. An unassigned task takes the earliest free slot. Slots occupy until `endWi + 1`. Effort is scheduled against the team's average cap and average vacation-info multiplier.
+Each multi-member team has a slot array the size of the team. An unassigned task takes the earliest free slot. Slots occupy until `endWi + 1`. Effort is scheduled against the team's average cap and average vacation-info multiplier.
 
 Trade-off: the slot count defaults to the team's member count. A team of three can run three unassigned tasks in parallel. If the team has no members, a single virtual slot is created.
+
+**Single-member teams are NOT routed through this path** — see step 5c above. They use the precise per-person scheduler instead, which handles explicit vacation weeks and the per-person sequencing counter. This avoids a subtle accuracy gap where "pick the team" (slot path) and "pick the sole member" (person path) produced different schedules.
 
 ## Pinning semantics
 

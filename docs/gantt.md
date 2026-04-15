@@ -15,15 +15,32 @@ The selection is persisted in `localStorage` (`planr_gantt_group`). Collapse ind
 
 ## Zoom
 
-Pixels-per-week (`WPX`) drives the horizontal density. The state and persistence are in place (`planr_gantt_zoom` in localStorage), but the zoom buttons are currently not wired into the toolbar. Planned: a `+` / `−` pair or a slider next to the group buttons.
+Pixels-per-week (`WPX`) drives the horizontal density. Controls live in the **footer**, left side:
 
-Valid range: 8 px (very compact months) to 140 px (wide enough to read individual days within a week).
+```
+Zoom  [−]  [20]  [+]   [day grid]  …
+```
+
+- `−` / `+` multiply by 0.8 / 1.25
+- The middle button shows the current WPX value and clicks-to-reset to the default
+- A `day grid` badge appears once the zoom threshold (≥ 70 px / week) kicks in
+
+Persisted in `localStorage` under `planr_gantt_zoom`. Valid range: 8 px (very compact months) to 140 px (wide days within a week).
+
+## Day-level view
+
+When zoom reaches 70 px / week or more:
+
+- **Third header row** appears with day-of-month numbers (Mo–Fr per week). Today's number is green.
+- **Faint vertical day separators** in the body make it easy to line up a bar with a specific date.
+- **Per-day holiday tint** — only the actual holiday days are red-tinted (not the whole week as at coarser zoom). Derived from the `wds` working-days list: a weekday in plan range that's not in `wds` is a holiday.
 
 ## Bars
 
-- **Colored by team** — each team's color becomes the bar fill
-- **Semi-transparent fill** with a thicker left border in the team's solid color
-- **Critical-path bars** have a stronger opacity (60 vs 40) so they stand out
+- **Colored by team** — solid team color as the bar fill (100 % opacity), matched to the network graph's root-node style
+- **White bold text** with a subtle `0 1px 1.5px rgba(0,0,0,.3)` shadow for legibility on the lighter team palette entries
+- **Critical-path bars** get a 1.5 px red inset ring (via `.cp-bar`). A link-mode blue outline takes precedence when the user is actively creating a dependency.
+- **Row hover** is a neutral rgba tint (`rgba(127,127,127,.10)` for direct, `.05` for connected rows) so the bar color stays untouched
 - **Dragging cursor** appears on hover; link-mode switches to a crosshair
 - **Done tasks** are not drawn
 - **Unestimated leaves** show an empty row with a `no estimate` badge on the left — a reminder, not hidden
@@ -47,10 +64,12 @@ To **unpin**, right-click the bar → `📌 Unpin (currently YYYY-MM-DD)`.
 
 Arrows are drawn in the Gantt background with SVG. Shape:
 
-- **5 px stubs** horizontally out of the source end and into the target start
-- **Cubic bezier** between the two stub endpoints
+- **10 px straight stubs** horizontally out of the source end and into the target start — the "runway" keeps the line readable at large vertical gaps
+- **Cubic bezier** between the two stub endpoints with control-point offsets that scale with the horizontal distance (minimum 30 px) so backward links get a visible loop
 
 This makes forward links (target right of source) smooth, and backward links (target left of source) loop naturally without the earlier step-routing 6-shape.
+
+Default default opacity is 0.55 (CP: 0.7); hover bumps to 0.95 with a thicker stroke so the arrow stays visible against solid-fill bars.
 
 ### Creating a dependency
 
@@ -77,8 +96,20 @@ Each tree root with a `date` becomes a deadline marker.
 
 - **Vertical mast** at the week containing the date (amber for normal severity, red for critical)
 - **Backfill** — a subtle gradient fades from transparent to the severity color, reaching back up to 8 weeks, so the eye traces a "runway" toward the date
-- **Flag label** at the top with the deadline name, shaped with a small notch for a flag-like silhouette
+- **Flag pennant** at the top with the deadline name — polygonal `clipPath` gives the flag a leading notch for the silhouette
 - **At-risk marker** — an `!` prefix on the flag when any linked task ends after the date
+
+## Search and highlight
+
+The search field in the sub-toolbar (top right, shared across Tree / Gantt / Network) drives a match set. In the Gantt:
+
+- Matching bars get a 2.5 px amber outline on top of their team color
+- Non-matches dim to 25 % opacity
+- The left row label dims to 35 %
+- On query change, the body auto-scrolls both axes so the first match lands near the middle of the viewport
+- The footer shows `🔍 N matches` so you can see at a glance whether the query hit anything
+
+`Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
 ## Today marker
 

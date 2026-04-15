@@ -67,17 +67,38 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 
 ## Auto-save and file mount
 
-- **localStorage** (`planr_v2`) is always the fallback
+- **localStorage** (`planr_v2`) is always the fallback — every edit lands there immediately (300 ms debounce) so nothing is lost on refresh even without a mounted file
 - Mount a file via **Open File…** or the New Project Wizard's "save as" step
 - Mounted files use the **File System Access API** — no copies, no conversions
-- Auto-save is debounced and runs on change
+- **Debounced auto-save**: the file on disk is written 5 s after your last edit; rapid edits coalesce into one write
 - **External change polling** — every 5 s, Planr reads the mounted file's timestamp; if it's newer than the last save, the external content is loaded (so you can edit the file in another app and the changes pick up)
 
 The auto-save format follows the mounted extension: mounted `.md` → writes MD, mounted `.json` → writes JSON.
 
-### The "click to grant" indicator
+### Save status pill
 
-If the File System Access API loses write permission (e.g. after a reload), a yellow indicator appears in the header. Click it to re-grant. Data is never lost — it stays in localStorage.
+One consolidated indicator in the topbar replaces the prior three-item status row. Possible states:
+
+| State | Label | Color | Meaning |
+|---|---|---|---|
+| No file mounted | `no file mounted` | grey | localStorage only; data is safe but not on disk |
+| Synced | `all saved · 14:32` | green | Disk and app match |
+| Pending | `unsaved · saving in 4s` | amber | Debounce countdown, ticks down live |
+| Writing | `saving…` | blue | Write in flight |
+| Permission lost | `⚠ click to re-mount` | amber, clickable | Browser dropped the handle — click to re-pick |
+| Auto off | `auto-save off · last saved HH:MM` | grey | Use 💾 or `Ctrl+S` |
+
+Tooltip on each state explains the underlying mechanic.
+
+### Re-mounting after lost permission
+
+Browsers drop `FileSystemFileHandle` write permission on page reload and in some other scenarios. Planr detects this and shows `⚠ click to re-mount`. A click opens a Save-As dialog with the original filename pre-selected — confirm and the handle is re-created with a fresh permission grant.
+
+Why not just re-request permission silently? The browser's `requestPermission()` call requires an unbroken user-gesture context; any `await` before it typically invalidates that context, and the prompt never appears. Going straight to Save-As is the reliable path.
+
+### Disk icon (💾)
+
+Appears next to the filename whenever there's anything to save — **dirty** (localStorage ahead of disk) **or** pending (debounce window not yet elapsed). One click skips the countdown and writes immediately. `Ctrl/Cmd+S` does the same.
 
 ## Export-only formats
 
