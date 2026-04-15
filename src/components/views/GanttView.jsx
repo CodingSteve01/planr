@@ -233,6 +233,23 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     return new Set(allItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
   }, [search, allItems]);
 
+  // On search change, scroll the body to the first matching task — vertically to its row
+  // and horizontally so its bar is comfortably in view.
+  useEffect(() => {
+    if (!searchMatches?.size || !bR.current) return;
+    // Defer one frame so rows have committed to the DOM before measuring/scrolling.
+    const id = setTimeout(() => {
+      const firstIdx = rows.findIndex(r => r.type === 'task' && searchMatches.has(r.s.id));
+      if (firstIdx < 0 || !bR.current) return;
+      const targetY = firstIdx * RH;
+      const row = rows[firstIdx];
+      const startWi = row.s?.startWi ?? 0;
+      const targetX = Math.max(0, startWi * WPX - 80);
+      bR.current.scrollTo({ top: Math.max(0, targetY - bR.current.clientHeight / 2 + RH), left: targetX, behavior: 'smooth' });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [search]);
+
   function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
   function onMM(e) {
     if (drag) { const dx = e.clientX - drag.ox; setDDelta(Math.round(dx / WPX)); }

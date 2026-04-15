@@ -39,6 +39,7 @@ const PRIO_LBL = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
 export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, stats, teams, members, cpSet, onQuickAdd, onDelete, onReorder }) {
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
+  const firstMatchRef = useRef(null);
 
   const sorted = useMemo(() => {
     const byParent = {};
@@ -69,6 +70,12 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     if (toExpand.length) setCollapsed(s => { const n = new Set(s); toExpand.forEach(a => n.delete(a)); return n; });
     setTimeout(() => { if (selRef.current) selRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
   }, [selected?.id]);
+
+  // Scroll to first search match whenever the query changes (and the filtered list updates).
+  useEffect(() => {
+    if (!search) return;
+    setTimeout(() => { firstMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+  }, [search]);
 
   const toggle = (id) => setCollapsed(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // If there's a selection, collapse/expand only acts on selected items + their descendants. Otherwise, all items.
@@ -158,7 +165,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
       </tr></thead>
       <tbody>
-        {filt.map(r => {
+        {filt.map((r, idx) => {
           const s = stats[r.id] || r;
           const isLeaf = isLeafNode(tree, r.id);
           const isCp = isLeaf && cpSet?.has(r.id);
@@ -172,7 +179,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
           const tName = r.team ? teamName(r.team) : '';
           const prog = s._progress || 0;
           const effortDays = isLeaf ? (s._r > 0 ? s._r.toFixed(1) : '') : (s._r > 0 ? s._r.toFixed(0) + 'd' : '');
-          return <tr key={r.id} ref={selected?.id === r.id ? selRef : null}
+          return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             onClick={e => onSelect(r, e, filt.map(x => x.id))}>
             {/* ID column */}
