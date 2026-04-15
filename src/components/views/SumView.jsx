@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
@@ -16,6 +16,31 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
   const prog = lvs.length > 0 ? (done / lvs.length) * 100 : 0;
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
+
+  // Sprint horizon (next-N-days) — for the "Up next" planning view
+  const [horizonDays, setHorizonDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
+  const setHd = v => { setHorizonDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
+  const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + horizonDays); return d; }, [horizonDays]);
+  const now = new Date();
+  // Collect: scheduled tasks that are not done and start within the horizon (or are already in progress)
+  const upcoming = useMemo(() => scheduled
+    .filter(s => s.status !== 'done' && s.startD && s.startD <= sprintEnd)
+    .sort((a, b) => (a.startD - b.startD) || (a.prio || 4) - (b.prio || 4))
+  , [scheduled, sprintEnd]);
+  // Group by person (with NO_PERSON bucket per team)
+  const sprintGroups = useMemo(() => {
+    const groups = new Map();
+    upcoming.forEach(s => {
+      const key = s.personId || `team:${s.team || 'none'}`;
+      if (!groups.has(key)) {
+        const tName = teams.find(t => t.id === s.team)?.name || s.team || 'No team';
+        groups.set(key, { key, label: s.personId ? s.person : `${tName} (unassigned)`, isPerson: !!s.personId, color: s.personId ? 'var(--ac)' : 'var(--tx3)', items: [] });
+      }
+      groups.get(key).items.push(s);
+    });
+    return [...groups.values()].sort((a, b) => a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1);
+  }, [upcoming, teams]);
+  const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
 
   const grouped = ORDER.map(t => ({ type: t, items: goals.filter(g => g.type === t) })).filter(g => g.items.length);
 
@@ -70,6 +95,47 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
         </div>;
       })}
     </div>)}
+
+    {/* Sprint planning — Up next per person/team */}
+    {sprintGroups.length > 0 && <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 0 8px' }}>
+        <div className="section-h" style={{ margin: 0 }}>Up next</div>
+        <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(scheduled to start within)</span>
+        {[14, 30, 60, 90].map(d => <button key={d} className={`btn btn-xs ${horizonDays === d ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => setHd(d)}>{d}d</button>)}
+        <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{upcoming.length} tasks · {sprintGroups.length} {sprintGroups.length === 1 ? 'lane' : 'lanes'}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10, marginBottom: 18 }}>
+        {sprintGroups.map(g => <div key={g.key} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid var(--b)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{g.items.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {g.items.slice(0, 8).map(s => {
+              const node = iMap[s.id];
+              const isWip = s.status === 'wip';
+              const startsSoon = s.startD && diffDays(now, s.startD) <= 7;
+              const overdue = node?.decideBy && new Date(node.decideBy) < now;
+              const team = teams.find(t => t.id === s.team);
+              return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'var(--bg-done)' : 'transparent', border: '1px solid', borderColor: isWip ? 'var(--gr)' : 'var(--b2)' }}
+                onClick={() => onNavigate?.(s.id, 'tree')}
+                title={`${s.id} — ${s.name}\n${iso(s.startD)} → ${iso(s.endD)}\n${s.effort?.toFixed(1)}d effort`}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 60 }}>{iso(s.startD)?.slice(5)}</span>
+                <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {isWip && <span style={{ color: 'var(--am)', marginRight: 3 }}>◐</span>}
+                  {s.name}
+                </span>
+                {team && <span style={{ fontSize: 9, color: team.color, fontWeight: 500, flexShrink: 0 }}>{team.name}</span>}
+                {overdue && <span style={{ fontSize: 9, color: 'var(--re)', flexShrink: 0 }} title={`Decide by ${node.decideBy} — overdue`}>⏰!</span>}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{s.effort?.toFixed(0)}d</span>
+              </div>;
+            })}
+            {g.items.length > 8 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: '3px 0' }}>+ {g.items.length - 8} more</div>}
+          </div>
+        </div>)}
+      </div>
+    </>}
 
     {/* Team effort - compact */}
     <div className="section-h">Resources</div>

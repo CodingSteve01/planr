@@ -211,6 +211,9 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Date for deadlines */}
               {d === 1 && r.date && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>📅 {r.date}</span>}
 
+              {/* Decide-by date — overdue check */}
+              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} title={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
+
               {/* Critical path indicator */}
               {isCp && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--re)' }} title="On critical path">⚡</span>}
 

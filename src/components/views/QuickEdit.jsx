@@ -5,7 +5,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate }) {
+export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate }) {
   const [f, setF] = useState({ ...node });
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
@@ -89,6 +89,9 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
         </div>
         <div className="field"><label>Seq</label><input type="number" value={f.seq || 0} onChange={e => setF(x => ({ ...x, seq: +e.target.value }))} onBlur={fl} /></div>
       </div>
+      <div className="field"><label>Decide by</label>
+        <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
+      </div>
       {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 12 }} onClick={() => onEstimate(node)}>Estimation Wizard...</button>}
       <div className="field"><label>Assignee</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -138,8 +141,30 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       />
       <p className="helper">{isLeaf ? 'Blocked until all deps finish.' : 'Constraint propagates to every leaf under this item.'}</p>
     </div>
+    {(() => {
+      const successors = tree.filter(r => (r.deps || []).includes(node.id));
+      if (!successors.length) return null;
+      return <div className="field"><label>Successors (waiting for this)</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {successors.map(succ => <div key={succ.id} className="dep-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 600 }}>{succ.id}</span>
+              <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {succ.name}</span>
+            </div>
+            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} title="Release this successor"
+              onClick={() => { if (confirm(`Remove dependency? "${succ.name}" will no longer wait for this task.`)) onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) }); }}>×</span>
+          </div>)}
+        </div>
+      </div>;
+    })()}
     <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
     <hr className="divider" />
-    {onDelete && <button className="btn btn-danger" style={{ width: '100%' }} onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) onDelete(node.id); }}>Delete item</button>}
+    <div style={{ display: 'flex', gap: 6 }}>
+      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1 }} onClick={() => {
+        const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
+        if (confirm(sub > 1 ? `Duplicate "${node.name}" with ${sub - 1} descendant${sub === 2 ? '' : 's'}?` : `Duplicate "${node.name}"?`)) onDuplicate(node.id);
+      }} title="Create a copy of this item and all its children">⧉ Duplicate</button>}
+      {onDelete && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) onDelete(node.id); }}>Delete</button>}
+    </div>
   </>;
 }

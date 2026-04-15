@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { Tip } from '../shared/Tooltip.jsx';
-import { WPX, MDE, GT } from '../../constants.js';
+import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
 import { iso } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 
@@ -9,14 +8,23 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate }) {
-  const [tip, setTip] = useState(null);
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate, onTaskUpdate }) {
+  // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
   const [groupBy, setGroupBy] = useState(() => { try { return localStorage.getItem('planr_gantt_group') || 'project'; } catch { return 'project'; } });
   const [collapsed, setCollapsed] = useState(new Set());
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
+  const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
+  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, taskId}
+  const [linkMode, setLinkMode] = useState(null); // {fromId, mode: 'pred'|'succ'} — click a second bar to add dep
+  const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
+  // Zoom: WPX = pixels per week. 20 = default, lower zooms out (months), higher zooms in (toward day-level)
+  const [zoom, setZoom] = useState(() => { try { return +localStorage.getItem('planr_gantt_zoom') || DEFAULT_WPX; } catch { return DEFAULT_WPX; } });
+  const setZ = v => { const c = Math.max(8, Math.min(140, v)); setZoom(c); try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {} };
+  const WPX = zoom;
+  const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
   const setGB = v => { setGroupBy(v); try { localStorage.setItem('planr_gantt_group', v); } catch {} };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
 
@@ -150,6 +158,31 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
     return lines;
   }, [scheduled, cpSet, tree, rows]);
 
+  // ALL dep lines (always rendered, faint by default; hovered ones highlight)
+  const allDepLines = useMemo(() => {
+    if (!tree) return [];
+    const lines = [];
+    scheduled.forEach(s => {
+      const node = iMap[s.id]; if (!node) return;
+      (node.deps || []).forEach(rawDep => {
+        resD(rawDep).forEach(depId => {
+          const dep = sMap[depId]; if (!dep) return;
+          const srcRow = rowIdx[depId], tgtRow = rowIdx[s.id];
+          if (srcRow == null || tgtRow == null) return;
+          lines.push({
+            key: `${depId}->${s.id}->${rawDep}`,
+            x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2,
+            x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2,
+            removeFromId: s.id, removeDepId: rawDep,
+            srcId: depId, tgtId: s.id,
+            isCp: cpSet?.has(depId) && cpSet?.has(s.id),
+          });
+        });
+      });
+    });
+    return lines;
+  }, [scheduled, tree, rows, cpSet]);
+
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
     if (!hoverDepId || !tree) return { lines: [], rowIds: new Set() };
@@ -160,24 +193,29 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
     const target = sMap[hoverDepId];
     // Outgoing: this task depends on these (deps must finish before this starts)
     if (target) {
-      (node.deps || []).flatMap(resD).forEach(depId => {
-        const dep = sMap[depId]; if (!dep) return;
-        const srcRow = rowIdx[depId], tgtRow = rowIdx[hoverDepId];
-        if (srcRow == null || tgtRow == null) return;
-        rowIds.add(depId);
-        lines.push({ x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: target.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'in' });
+      (node.deps || []).forEach(rawDep => {
+        // Resolve to leaves but keep the original dep ID for removal targeting
+        resD(rawDep).forEach(depId => {
+          const dep = sMap[depId]; if (!dep) return;
+          const srcRow = rowIdx[depId], tgtRow = rowIdx[hoverDepId];
+          if (srcRow == null || tgtRow == null) return;
+          rowIds.add(depId);
+          lines.push({ x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: target.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+        });
       });
     }
     // Incoming: which tasks depend on this one (this must finish before they start)
     scheduled.forEach(s => {
       const sNode = iMap[s.id]; if (!sNode) return;
-      const allDeps = (sNode.deps || []).flatMap(resD);
-      if (!allDeps.includes(hoverDepId)) return;
-      if (!target) return;
-      const srcRow = rowIdx[hoverDepId], tgtRow = rowIdx[s.id];
-      if (srcRow == null || tgtRow == null) return;
-      rowIds.add(s.id);
-      lines.push({ x1: (target.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'out' });
+      (sNode.deps || []).forEach(rawDep => {
+        const resolved = resD(rawDep);
+        if (!resolved.includes(hoverDepId)) return;
+        if (!target) return;
+        const srcRow = rowIdx[hoverDepId], tgtRow = rowIdx[s.id];
+        if (srcRow == null || tgtRow == null) return;
+        rowIds.add(s.id);
+        lines.push({ x1: (target.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
+      });
     });
     return { lines, rowIds };
   }, [hoverDepId, tree, scheduled, rows]);
@@ -192,8 +230,42 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   const expandAll = () => setCollapsed(new Set());
 
   function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
-  function onMM(e) { if (!drag) return; const dx = e.clientX - drag.ox; setDDelta(Math.round(dx / WPX)); }
-  function onMU() { if (!drag) return; if (dDelta !== 0) { const ns = Math.max(0, (drag.startWi + dDelta) * 2); onSeqUpdate(drag.id, ns); } setDrag(null); setDDelta(0); }
+  function onMM(e) {
+    if (drag) { const dx = e.clientX - drag.ox; setDDelta(Math.round(dx / WPX)); }
+    if (linkDrag) { setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null); }
+  }
+  function onMU() {
+    if (drag) {
+      if (dDelta !== 0) {
+        const newWi = Math.max(0, drag.startWi + dDelta);
+        const targetWeek = weeks[newWi];
+        if (targetWeek?.mon) {
+          const iso = targetWeek.mon.toISOString().slice(0, 10);
+          onSeqUpdate(drag.id, { pinnedStart: iso });
+        }
+      }
+      setDrag(null); setDDelta(0);
+    }
+    // Link-drag is finalized via the drop-target's onMouseUp; clear here as fallback
+    if (linkDrag) setLinkDrag(null);
+  }
+  // Start a link-drag from a bar's right-edge handle
+  function onLinkStart(e, fromId) {
+    e.stopPropagation();
+    e.preventDefault();
+    setLinkDrag({ fromId, mouseX: e.clientX, mouseY: e.clientY });
+  }
+  // Complete a link-drag onto a target bar
+  function onLinkDrop(targetId) {
+    if (!linkDrag || linkDrag.fromId === targetId) { setLinkDrag(null); return; }
+    const target = iMap[targetId];
+    if (target) {
+      // target depends on linkDrag.fromId (predecessor → successor)
+      const newDeps = [...new Set([...(target.deps || []), linkDrag.fromId])];
+      onTaskUpdate?.({ ...target, deps: newDeps });
+    }
+    setLinkDrag(null);
+  }
 
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
@@ -225,7 +297,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
             const isNow = todayWi >= 0 && i === todayWi;
-            return <div key={i} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, background: isNow ? '#1a3020' : w.hasH ? '#301e22' : isYB ? '#1e2448' : '' }}>
+            return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400 }}>
               {w.kw}
             </div>; })}
         </div>
@@ -253,8 +325,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={() => setHoverDepId(s.id)}
-            onMouseLeave={() => { setHoverDepId(null); setTip(null); }}
-            onMouseMove={e => setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}>
+            onMouseLeave={() => setHoverDepId(null)}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>no estimate</span>
@@ -268,10 +339,11 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
-            {todayX >= 0 && <div style={{ position: 'absolute', left: todayX - 14, top: 0, background: 'var(--gr)', color: '#000', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: '0 0 3px 3px', zIndex: 6 }}>Today</div>}
+            {/* Today: vertical green line is enough — no badge cluttering the header area */}
             {dlL.map(dl => <React.Fragment key={dl.id}>
-              <div style={{ position: 'absolute', left: dl.wi * WPX, top: 0, width: 2, height: '100%', background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', opacity: .6, zIndex: 4 }} />
-              <div style={{ position: 'absolute', left: dl.wi * WPX - 2, top: 0, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', color: '#000', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: '0 0 3px 3px', zIndex: 6, whiteSpace: 'nowrap' }}>{dl.name}</div>
+              <div style={{ position: 'absolute', left: dl.wi * WPX, top: 0, width: 2, height: '100%', background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', opacity: .5, zIndex: 4 }} title={`${dl.name} ${dl.date}`} />
+              {/* Compact deadline label, max-width with ellipsis so it never bleeds across weeks */}
+              <div style={{ position: 'absolute', left: dl.wi * WPX + 4, top: 2, color: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', fontSize: 9, fontWeight: 600, fontFamily: 'var(--mono)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', zIndex: 6, pointerEvents: 'none' }} title={`${dl.name} ${dl.date}`}>{dl.name}</div>
             </React.Fragment>)}
           </div>
           {rows.map((row) => {
@@ -285,36 +357,114 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             const dim = cpOnly && !isCp;
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
+            const node = iMap[s.id];
+            const decideBy = node?.decideBy;
+            const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
+            const isDecideOverdue = decideBy && new Date(decideBy) < now;
             return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
-              onMouseLeave={() => { setHoverDepId(null); setTip(null); }}
-              onMouseMove={e => !drag && setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}>
-              {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`}
-                style={{ left: wiS * WPX + 2, width: Math.max(bW, 6), background: tc + (isCp ? '60' : '40'), color: '#fff', borderLeft: `2px solid ${tc}`, cursor: drag ? 'grabbing' : 'grab' }}
-                onMouseDown={e => onBMD(e, s)}
-                onClick={() => { if (Math.abs(dDelta) === 0) onBarClick(s); }}>
+              onMouseLeave={() => setHoverDepId(null)}>
+              {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
+                style={{ left: wiS * WPX + 2, width: Math.max(bW, 6), background: tc + (isCp ? '60' : '40'), color: '#fff', borderLeft: `2px solid ${tc}`, cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab', boxShadow: linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined }}
+                onMouseDown={e => { if (linkMode || linkDrag) return; onBMD(e, s); }}
+                onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
+                onClick={() => {
+                  if (linkMode && linkMode.fromId !== s.id) {
+                    // Click-link mode (legacy via context menu): this bar becomes successor (depends on linkMode.fromId) or predecessor
+                    const fromNode = iMap[linkMode.fromId]; const toNode = iMap[s.id];
+                    if (fromNode && toNode) {
+                      if (linkMode.mode === 'pred') {
+                        const newDeps = [...new Set([...(toNode.deps || []), linkMode.fromId])];
+                        onTaskUpdate?.({ ...toNode, deps: newDeps });
+                      } else {
+                        const newDeps = [...new Set([...(fromNode.deps || []), s.id])];
+                        onTaskUpdate?.({ ...fromNode, deps: newDeps });
+                      }
+                    }
+                    setLinkMode(null);
+                  } else if (Math.abs(dDelta) === 0 && !linkDrag) onBarClick(s);
+                }}
+                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id }); }}>
+                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass; legacy field)">≡</span>}
+                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10 }} title={s.pinOverridden ? `Pin to ${node.pinnedStart} was overridden by capacity — task starts later because the assignee is busy until then` : `Pinned to ${node.pinnedStart}`}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                 {bW > 35 && s.name}
+                {/* Right-edge link handle: drag from here to another bar to add a dependency */}
+                <div title="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
+                  style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', border: `1.5px solid ${tc}`, opacity: linkDrag ? 1 : 0.7 }} />
+                </div>
               </div>}
+              {/* Decision-by marker: diamond on the row at the decideBy week */}
+              {decideWi >= 0 && s.status !== 'done' && <div title={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
+                style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
             </div>;
           })}
-          {(cpLines.length > 0 || hoverLines.lines.length > 0) && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 3 }}>
+          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, zIndex: 3 }}>
             <defs>
-              <marker id="gar" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker>
-              <marker id="garHIn" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="7" markerHeight="6" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--ac)" /></marker>
-              <marker id="garHOut" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="7" markerHeight="6" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--am)" /></marker>
+              <marker id="gar" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--re)" /></marker>
+              <marker id="garH" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker>
+              <marker id="garN" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--tx3)" /></marker>
             </defs>
-            {!hoverDepId && cpLines.map((l, i) => {
-              const mx = (l.x1 + l.x2) / 2;
-              return <path key={i} d={`M${l.x1},${l.y1} C${mx},${l.y1} ${mx},${l.y2} ${l.x2},${l.y2}`}
-                fill="none" stroke="var(--re)" strokeWidth={1.5} opacity={.6} markerEnd="url(#gar)" />;
-            })}
-            {hoverDepId && hoverLines.lines.map((l, i) => {
-              const mx = (l.x1 + l.x2) / 2;
-              const col = l.kind === 'in' ? 'var(--ac)' : 'var(--am)';
-              const marker = l.kind === 'in' ? 'url(#garHIn)' : 'url(#garHOut)';
-              return <path key={i} d={`M${l.x1},${l.y1} C${mx},${l.y1} ${mx},${l.y2} ${l.x2},${l.y2}`}
-                fill="none" stroke={col} strokeWidth={2} opacity={.9} markerEnd={marker} />;
-            })}
+            {(() => {
+              // Path layout per user spec: straight stub out of source, bezier in middle, straight stub into target.
+              // Stubs guarantee the arrow head enters horizontally for clean visual termination.
+              const buildPath = (l) => {
+                const stub = 10;
+                const sx = l.x1 + stub;        // end of source stub
+                const tx = l.x2 - stub;        // start of target stub
+                if (tx > sx) {
+                  // FORWARD link: single bezier with control points pulling horizontally outward
+                  // from each stub end. This guarantees the curve leaves source horizontally and
+                  // enters target horizontally — the arrow head sits on a straight horizontal line.
+                  const ctrlOffset = Math.min((tx - sx) / 2, 60);
+                  return `M${l.x1},${l.y1} L${sx},${l.y1} C${sx + ctrlOffset},${l.y1} ${tx - ctrlOffset},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
+                }
+                // BACKWARD link: orthogonal route below both rows to avoid crossing bars.
+                // strokeLinejoin=round on the path softens the corners visually.
+                const lane = Math.max(l.y1, l.y2) + RH * 0.6;
+                return `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${lane} L${tx},${lane} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
+              };
+              return allDepLines.map(l => {
+                const path = buildPath(l);
+                const isHovered = hoverLineKey === l.key;
+                const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
+                const emphasized = isHovered || isHoveredTask;
+                const col = l.isCp ? 'var(--re)' : emphasized ? 'var(--ac)' : 'var(--tx3)';
+                const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
+                const opacity = emphasized ? 0.95 : (l.isCp ? 0.55 : 0.32);
+                const strokeWidth = emphasized ? 1.8 : 1.1;
+                const stub = 10;
+                const sx = l.x1 + stub, tx = l.x2 - stub;
+                const mx = tx > sx ? (sx + tx) / 2 : sx + 14;
+                const my = tx > sx ? (l.y1 + l.y2) / 2 : Math.max(l.y1, l.y2) + RH * 0.6;
+                const removeDep = () => {
+                  const fromNode = iMap[l.removeFromId]; if (!fromNode) return;
+                  if (confirm(`Remove dependency: ${l.removeFromId} no longer depends on ${l.removeDepId}?`)) {
+                    onTaskUpdate?.({ ...fromNode, deps: (fromNode.deps || []).filter(d => d !== l.removeDepId) });
+                  }
+                };
+                return <g key={l.key}>
+                  <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} style={{ pointerEvents: 'none' }} />
+                  {/* Wide invisible hover/click target */}
+                  <path d={path} fill="none" stroke="transparent" strokeWidth={14}
+                    style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                    onMouseEnter={() => setHoverLineKey(l.key)}
+                    onMouseLeave={() => setHoverLineKey(k => k === l.key ? null : k)}
+                    onClick={removeDep}>
+                    <title>Click to remove this dependency</title>
+                  </path>
+                  {isHovered && <>
+                    <circle cx={mx} cy={my} r={7} fill="var(--bg2)" stroke="var(--re)" strokeWidth={1.5}
+                      style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                      onMouseEnter={() => setHoverLineKey(l.key)}
+                      onClick={removeDep}>
+                      <title>Remove dependency</title>
+                    </circle>
+                    <text x={mx} y={my + 3.5} fontSize="11" textAnchor="middle" fill="var(--re)" fontWeight="700" style={{ pointerEvents: 'none', userSelect: 'none' }}>×</text>
+                  </>}
+                </g>;
+              });
+            })()}
           </svg>}
         </div>
       </div>
@@ -325,8 +475,60 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
       {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} no estimate</span>}
-      <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Drag bars to reorder</span>
+      {linkMode && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>
+        🔗 Click another bar to {linkMode.mode === 'pred' ? 'make it depend on' : 'add it as predecessor of'} <b>{linkMode.fromId}</b>
+        <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
+      </span>}
+      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 Drop on a bar to link as dependency</span>}
+      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Bar drag = pin · edge handle drag = link · Right-click = options</span>}
     </div>
-    {tip && !drag && <Tip item={tip.item} x={tip.x} y={tip.y} teams={teams} tree={tree} />}
+    {/* Viewport overlay for the live drag-to-link line */}
+    {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
+      <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>
+      {(() => {
+        const el = document.querySelector(`[data-link-from="${linkDrag.fromId}"]`);
+        const rect = el?.getBoundingClientRect();
+        const x1 = rect ? rect.right : linkDrag.mouseX;
+        const y1 = rect ? rect.top + rect.height / 2 : linkDrag.mouseY;
+        const x2 = linkDrag.mouseX, y2 = linkDrag.mouseY;
+        const stub = 10;
+        const sx = x1 + stub;
+        const tx = x2 - stub;
+        let d;
+        if (tx > sx) {
+          // Same straight-stub + bezier + straight-stub structure as the rendered links
+          const ctrl = Math.min((tx - sx) / 2, 60);
+          d = `M${x1},${y1} L${sx},${y1} C${sx + ctrl},${y1} ${tx - ctrl},${y2} ${tx},${y2} L${x2 - 1},${y2}`;
+        } else {
+          // Backward: orthogonal route below source row
+          const lane = Math.max(y1, y2) + 22;
+          d = `M${x1},${y1} L${sx},${y1} L${sx},${lane} L${tx},${lane} L${tx},${y2} L${x2 - 1},${y2}`;
+        }
+        return <path d={d} stroke="var(--ac)" strokeWidth={2} fill="none" strokeDasharray="4 3" strokeLinejoin="round" strokeLinecap="round" markerEnd="url(#ldArr)" />;
+      })()}
+    </svg>}
+    {/* Hover tooltip removed — too intrusive. The QuickEdit sidebar shows full task details. */}
+    {ctxMenu && (() => {
+      const node = iMap[ctxMenu.taskId]; if (!node) return null;
+      const close = () => setCtxMenu(null);
+      return <>
+        <div onClick={close} onContextMenu={e => { e.preventDefault(); close(); }} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+        <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 200 }}>
+          <div style={{ padding: '5px 10px', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', borderBottom: '1px solid var(--b)', marginBottom: 4 }}>{ctxMenu.taskId} — {node.name?.slice(0, 30)}</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 Open / edit…</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }} title="This task must finish before the next clicked task starts">⬇ Add a successor… (this → other)</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }} title="The next clicked task must finish before this one starts">⬆ Add a predecessor… (other → this)</div>
+          <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
+          {node.pinnedStart
+            ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 Unpin (currently {node.pinnedStart})</div>
+            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: sched.startD.toISOString().slice(0, 10) }); } close(); }}>📌 Pin to current start week</div>}
+          {node.deps?.length > 0 && <>
+            <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
+            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Remove dependency</div>
+            {node.deps.map(d => <div key={d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onTaskUpdate?.({ ...node, deps: node.deps.filter(x => x !== d) }); close(); }}>× {d}</div>)}
+          </>}
+        </div>
+      </>;
+    })()}
   </div>;
 }

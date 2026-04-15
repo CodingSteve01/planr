@@ -444,11 +444,20 @@ export default function App() {
         });
         raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
       }
-      // Assigned: [Name1, Name2] at end — extract FIRST so team regex doesn't eat it
+      // Decide-by deadline + Pinned start + Parallel marker — extract FIRST so they're not swallowed by team/type regexes
+      let decideBy = '';
+      const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+      if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
+      let pinnedStart = '';
+      const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
+      if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
+      let parallel = false;
+      if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
+      // Assigned: [Name1, Name2] at end — extract before team regex so it doesn't get eaten
       let assign = [];
       const assignM = raw.match(/\s*\[(.+?)\]\s*$/);
       if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.lastIndexOf(assignM[0])).trim(); }
-      // Team: — TeamName (now at the end since assignment is removed)
+      // Team: — TeamName (now at the end since assignment + decideBy are removed)
       let team = '';
       const teamM = raw.match(/\s*—\s+([^—]+?)\s*$/);
       if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.lastIndexOf(teamM[0])); if (team) teamSet.add(team); }
@@ -460,7 +469,7 @@ export default function App() {
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
       if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
-      // Type emoji
+      // Type emoji (decideBy ⏰ has already been removed, so no false positive)
       let type = '';
       if (raw.includes('⏰')) { type = 'deadline'; raw = raw.replace('⏰', '').trim(); }
       else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
@@ -482,9 +491,42 @@ export default function App() {
       if (progress != null) item.progress = progress;
       if (type) { item.type = type; item.severity = severity; }
       if (date) item.date = date;
+      if (decideBy) item.decideBy = decideBy;
+      if (pinnedStart) item.pinnedStart = pinnedStart;
+      if (parallel) item.parallel = true;
       tree.push(item);
       lastItem = item;
     });
+
+    // Self-healing: clean team values that may carry noise from older corrupt exports
+    // (e.g. "Backend [SL] ⏰decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
+    const sanitizeTeam = (t) => {
+      if (!t) return t;
+      let v = t;
+      v = v.replace(/⏰decide:\d{4}-\d{2}-\d{2}/g, '');
+      v = v.replace(/📌\d{4}-\d{2}-\d{2}/g, '');
+      v = v.replace(/\[[^\]]*\]/g, ''); // strip any [assignees] residue
+      v = v.replace(/\{[^}]*\}/g, ''); // strip any {tags} residue
+      v = v.trim();
+      return v;
+    };
+    tree.forEach(r => {
+      if (r.team) {
+        const cleaned = sanitizeTeam(r.team);
+        if (cleaned !== r.team) {
+          // If the original team string contained a decideBy/pinned, recover them
+          const decM = r.team.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+          if (decM && !r.decideBy) r.decideBy = decM[1];
+          const pinM2 = r.team.match(/📌(\d{4}-\d{2}-\d{2})/);
+          if (pinM2 && !r.pinnedStart) r.pinnedStart = pinM2[1];
+          r.team = cleaned;
+        }
+      }
+    });
+    // Re-collect team names after sanitization (so cleaned names are added to the team set)
+    teamSet.clear();
+    tree.forEach(r => { if (r.team) teamSet.add(r.team); });
+    mems.forEach(m => { if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); } });
 
     // Build teams: prefer explicit team table, fall back to inferred
     const usedTeamNames = [...teamSet];
@@ -609,11 +651,100 @@ export default function App() {
     else { let ins = -1; for (let i = nt.length - 1; i >= 0; i--) { if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) { ins = i + 1; break; } } ins >= 0 ? nt.splice(ins, 0, node) : nt.push(node); }
     setD('tree', nt);
   }
+
+  // Compute an ID map for moving/duplicating a subtree rooted at `nodeId` under `newParentId`.
+  // Returns: { [oldId]: newId } for the node and every descendant.
+  function computeIdMap(tree, nodeId, newParentId) {
+    const subtreeIds = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)];
+    const newBase = nextChildId(tree, newParentId);
+    const map = { [nodeId]: newBase };
+    subtreeIds.slice(1).forEach(old => { map[old] = newBase + old.slice(nodeId.length); });
+    return map;
+  }
+
+  // Duplicate a node + its entire subtree. Deps pointing INSIDE the subtree are remapped;
+  // deps pointing OUTSIDE are preserved. Returns the new root node id.
+  function duplicateNode(nodeId) {
+    const node = tree.find(r => r.id === nodeId); if (!node) return null;
+    const parentOfNode = nodeId.split('.').slice(0, -1).join('.'); // stays under same parent
+    const idMap = computeIdMap(tree, nodeId, parentOfNode);
+    const copies = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)].map(oldId => {
+      const orig = tree.find(r => r.id === oldId);
+      const copy = { ...orig, id: idMap[oldId] };
+      // Remap deps that point within the subtree, keep deps pointing outside
+      copy.deps = (orig.deps || []).map(d => idMap[d] || d);
+      // Preserve _depLabels but remap keys
+      if (orig._depLabels) {
+        copy._depLabels = {};
+        Object.entries(orig._depLabels).forEach(([k, v]) => { copy._depLabels[idMap[k] || k] = v; });
+      }
+      // Reset progress/status for fresh copy (user decides)
+      delete copy.pinnedStart;
+      return copy;
+    });
+    setD('tree', [...tree, ...copies]);
+    return idMap[nodeId];
+  }
+
+  // Move a node (and its subtree) under a new parent ('' for top-level).
+  // Updates IDs, dep references everywhere, and re-sorts so siblings are grouped.
+  function moveNode(nodeId, newParentId) {
+    if (nodeId === newParentId) return;
+    // Prevent moving into own descendant (would create a cycle)
+    if (newParentId && (newParentId === nodeId || newParentId.startsWith(nodeId + '.'))) {
+      alert('Cannot move an item under itself or one of its descendants.');
+      return;
+    }
+    const currentParent = nodeId.split('.').slice(0, -1).join('.');
+    if (currentParent === newParentId) return; // no-op
+    const idMap = computeIdMap(tree, nodeId, newParentId);
+    // Rename moved items AND update dep references in all other items
+    const renamed = tree.map(r => {
+      if (idMap[r.id] != null) {
+        // Moved item — rename + remap any internal-subtree deps
+        const newR = { ...r, id: idMap[r.id], deps: (r.deps || []).map(d => idMap[d] || d) };
+        if (r._depLabels) {
+          newR._depLabels = {};
+          Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
+        }
+        return newR;
+      }
+      // Other item — only update deps that pointed to moved items
+      const newDeps = (r.deps || []).map(d => idMap[d] || d);
+      if (newDeps.some((d, i) => d !== (r.deps || [])[i])) {
+        const newR = { ...r, deps: newDeps };
+        if (r._depLabels) {
+          newR._depLabels = {};
+          Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
+        }
+        return newR;
+      }
+      return r;
+    });
+    // Re-sort so parent-then-children order is preserved globally
+    renamed.sort((a, b) => {
+      const ap = a.id.split('.'), bp = b.id.split('.');
+      for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
+        if (ap[i] !== bp[i]) {
+          // Sort by numeric suffix when both are numeric, else lexicographic
+          const an = parseInt(ap[i].replace(/\D/g, '')) || 0, bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
+          return an !== bn ? an - bn : ap[i].localeCompare(bp[i]);
+        }
+      }
+      return ap.length - bp.length;
+    });
+    setD('tree', renamed);
+    return idMap[nodeId];
+  }
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
-  function onSeqUpdate(taskId, newSeq) { setD('tree', tree.map(r => r.id === taskId ? { ...r, seq: newSeq } : r)); }
+  // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
+  function onSeqUpdate(taskId, patch) {
+    const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
+    setD('tree', tree.map(r => r.id === taskId ? { ...r, ...update } : r));
+  }
 
   function exportJSON() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -861,6 +992,54 @@ export default function App() {
   }
 
   // Mermaid flowchart for Confluence pages (Mermaid macro). Captures hierarchy + dependencies.
+  // Sprint plan as Markdown — grouped by person, ordered by start date.
+  // Asks the user for a horizon (default: 30 days from today).
+  function exportSprintMarkdown() {
+    if (!scheduled.length) return alert('No scheduled tasks. Add estimates first.');
+    const horizonStr = prompt('Sprint horizon in days from today?', String(30));
+    if (horizonStr === null) return; // cancelled
+    const horizon = Math.max(1, parseInt(horizonStr) || 30);
+    const now = new Date();
+    const sprintEnd = new Date(); sprintEnd.setDate(sprintEnd.getDate() + horizon);
+    const upcoming = scheduled
+      .filter(s => s.status !== 'done' && s.startD && s.startD <= sprintEnd)
+      .sort((a, b) => (a.startD - b.startD) || (a.prio || 4) - (b.prio || 4));
+    if (!upcoming.length) return alert(`No tasks scheduled within ${horizon} days.`);
+    const teamName = id => teams.find(t => t.id === id)?.name || id;
+    // Group by person (or team-unassigned bucket)
+    const groups = new Map();
+    upcoming.forEach(s => {
+      const key = s.personId || `team:${s.team || 'none'}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key, isPerson: !!s.personId,
+          label: s.personId ? s.person : `${teamName(s.team) || 'No team'} (unassigned)`,
+          items: [],
+        });
+      }
+      groups.get(key).items.push(s);
+    });
+    const sorted = [...groups.values()].sort((a, b) => a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1);
+    let md = `# ${meta.name || 'Project'} — Sprint Plan\n\n`;
+    md += `_Horizon: ${horizon} days (from ${iso(now)} to ${iso(sprintEnd)})_\n`;
+    md += `_${upcoming.length} tasks across ${sorted.length} ${sorted.length === 1 ? 'lane' : 'lanes'}_\n\n`;
+    sorted.forEach(g => {
+      md += `## ${g.label}\n\n`;
+      md += `| Start | Task | Team | Effort | Status |\n`;
+      md += `|---|---|---|---|---|\n`;
+      g.items.forEach(s => {
+        const node = tree.find(r => r.id === s.id);
+        const stat = s.status === 'wip' ? '🟡 In progress' : 'Open';
+        const note = node?.decideBy ? ` ⏰ decide by ${node.decideBy}` : '';
+        md += `| ${iso(s.startD)} | ${s.id} ${s.name.replace(/\|/g, '\\|')}${note} | ${teamName(s.team)} | ${s.effort?.toFixed(1)}d | ${stat} |\n`;
+      });
+      md += '\n';
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-sprint-${horizon}d.md`; a.click();
+  }
+
   function exportMermaid() {
     if (!tree.length) return alert('No items to export.');
     const safeId = id => id.replace(/[^A-Za-z0-9_]/g, '_');
@@ -988,8 +1167,11 @@ export default function App() {
       const note = r.note ? `\n${indent}  *${r.note}*` : '';
       const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
       const date = r.date ? ` (${r.date})` : '';
+      const decideBy = r.decideBy ? ` ⏰decide:${r.decideBy}` : '';
+      const pinned = r.pinnedStart ? ` 📌${r.pinnedStart}` : '';
+      const parallel = r.parallel ? ` ≡` : '';
       const desc = r.description ? `\n${indent}  ${r.description}` : '';
-      md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${deps}${note}${desc}\n`;
+      md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${note}${desc}\n`;
     });
     return md;
   }
@@ -1123,8 +1305,9 @@ export default function App() {
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); else if (v === 'svg-net') exportSVG(); else if (v === 'png-net') exportNetworkPNG(); else if (v === 'svg-gantt') exportGanttSVG(); else if (v === 'png-gantt') exportGanttPNG(); else if (v === 'mermaid') exportMermaid(); else if (v === 'print') exportPDF(); }}>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); else if (v === 'sprint') exportSprintMarkdown(); else if (v === 'svg-net') exportSVG(); else if (v === 'png-net') exportNetworkPNG(); else if (v === 'svg-gantt') exportGanttSVG(); else if (v === 'png-gantt') exportGanttPNG(); else if (v === 'mermaid') exportMermaid(); else if (v === 'print') exportPDF(); }}>
         <option value="">Export ▾</option>
+        <option value="sprint">Sprint plan as Markdown</option>
         <option value="csv">Tasks as CSV</option>
         {tab === 'net' && <option value="svg-net">Network as SVG</option>}
         {tab === 'net' && <option value="png-net">Network as PNG (for Whiteboard)</option>}
@@ -1225,11 +1408,12 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} /></div>
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
+              onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }} /></div>
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
@@ -1242,7 +1426,9 @@ export default function App() {
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats}
-      onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }} />}
+      onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
+      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} onSave={m => setD('meta', m)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}

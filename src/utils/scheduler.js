@@ -86,7 +86,15 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     const allDepsRaw = [...new Set([...(r.deps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
     let dE = -1; allD.forEach(d => { const fw = tEW[d]; if (fw != null && fw > dE) dE = fw; });
-    const early = dE >= 0 ? dE + 2 : 0;
+    // Successor starts the week AFTER the predecessor finishes (no buffer week).
+    let early = dE >= 0 ? dE + 1 : 0;
+    // Pinned start: user manually pinned this task to a specific date.
+    // We honor it as a HARD floor (start no earlier), but deps can still push it later.
+    if (r.pinnedStart) {
+      const pinDate = new Date(r.pinnedStart);
+      const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
+      if (pinWi >= 0) early = Math.max(early, pinWi);
+    }
     const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
     // ONLY explicitly assigned people — never auto-assign from team pool
     if (!asgn.length) {
@@ -122,22 +130,34 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
     }
-    // Explicitly assigned: find earliest available
+    // Explicitly assigned: find earliest available person.
+    // CAPACITY-FIRST RULE: a task can never start before its assignee is free, regardless of pinning.
+    // Pinning can only DELAY a task (push later); it cannot force overlap with the person's other work.
+    // The legacy `parallel` flag still bypasses person-capacity (kept for back-compat with markdown
+    // round-tripping), but it is intentionally NOT exposed in the UI to prevent accidental misuse.
     const cands = members.filter(m => asgn.includes(m.id));
     let bp = null, bs = 9999;
-    cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+    cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = r.parallel ? Math.max(early, ji >= 0 ? ji : 0) : Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
     if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
+    // Detect when a manual pin was overridden by capacity (so the UI can flag it)
+    let pinOverridden = false;
+    if (r.pinnedStart && !r.parallel) {
+      const pinDate = new Date(r.pinnedStart);
+      const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
+      if (pinWi >= 0 && bs > pinWi) pinOverridden = true;
+    }
     let rem = eff, wi = bs;
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
     const eW = Math.min(wi - 1, wks.length - 1);
-    tEW[id] = eW; pF[bp.id] = eW + 1;
+    tEW[id] = eW;
+    if (!r.parallel) pF[bp.id] = eW + 1;
     const calDays = Math.round((addD(wks[eW].mon, 4) - wks[bs].mon) / 864e5);
     const capPct = Math.round((bp.cap || 1) * 100);
     const vacDed = Math.round((1 - vacInfo[bp.id]) * 100);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: wks[bs].mon, endD: addD(wks[eW].mon, 4), calDays,
-      capPct, vacDed, weeks: eW - bs + 1,
+      capPct, vacDed, weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
   });
   return { results: res, weeks: wks };
