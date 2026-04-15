@@ -5,7 +5,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate }) {
+export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue }) {
   const [f, setF] = useState({ ...node });
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
@@ -92,6 +92,18 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="field"><label>Decide by</label>
         <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
       </div>
+      {onReorderInQueue && (
+        <div className="field">
+          <label>Queue position <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 4 }}>among same assignee / team</span></label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'first')} title="Move to the front of this person's / team's queue" style={{ flex: 1 }}>⤒ First</button>
+            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'earlier')} title="One step earlier in queue" style={{ flex: 1 }}>▲ Earlier</button>
+            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'later')} title="One step later in queue" style={{ flex: 1 }}>▼ Later</button>
+            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'last')} title="Move to the end of this person's / team's queue" style={{ flex: 1 }}>⤓ Last</button>
+          </div>
+          <p className="helper">Order within the same person's (or team's, if unassigned) workload. Writes `seq`; scheduler breaks ties by prio → seq → id.</p>
+        </div>
+      )}
       <div className="field">
         <label>Pinned start {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 6 }}>📌 hard floor</span>}</label>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>

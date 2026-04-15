@@ -906,6 +906,55 @@ export default function App() {
     if (selected?.id === nodeId && idMap[nodeId]) setSel(renamed.find(r => r.id === idMap[nodeId]));
   }
 
+  // Reorder a task within its "queue" — the set of tasks that share the same
+  // assignee (or team when unassigned). Renumbers the `seq` field for every
+  // task in the queue (steps of 10 with gaps) so the scheduler's tiebreak
+  // (prio, seq, id) honors the new order. `target` can be:
+  //   'first' | 'last' | 'earlier' | 'later'   — relative moves
+  //   number                                   — absolute queue index
+  //   { direction, steps }                     — relative with step count
+  function reorderInQueue(taskId, target, stepsArg) {
+    const task = tree.find(r => r.id === taskId);
+    if (!task || !isLeafNode(tree, task.id)) return;
+    const queueKey = (task.assign || []).length
+      ? [...(task.assign || [])].sort().join(',')
+      : `team:${task.team || ''}`;
+    const queueTasks = tree.filter(r => {
+      if (!isLeafNode(tree, r.id)) return false;
+      if (!r.best) return false;
+      const k = (r.assign || []).length
+        ? [...(r.assign || [])].sort().join(',')
+        : `team:${r.team || ''}`;
+      return k === queueKey;
+    }).sort((a, b) =>
+      (a.prio || 4) - (b.prio || 4)
+      || (a.seq || 0) - (b.seq || 0)
+      || a.id.localeCompare(b.id)
+    );
+    if (queueTasks.length < 2) return;
+    const idx = queueTasks.findIndex(t => t.id === taskId);
+    if (idx < 0) return;
+    const steps = Math.max(1, stepsArg || 1);
+    let newIdx = idx;
+    if (target === 'first') newIdx = 0;
+    else if (target === 'last') newIdx = queueTasks.length - 1;
+    else if (target === 'earlier') newIdx = idx - steps;
+    else if (target === 'later') newIdx = idx + steps;
+    else if (typeof target === 'number') newIdx = target;
+    newIdx = Math.max(0, Math.min(queueTasks.length - 1, newIdx));
+    if (newIdx === idx) return;
+    const reordered = [...queueTasks];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(newIdx, 0, moved);
+    // Renumber seq with gaps (10, 20, 30…) so future single inserts can land between.
+    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
+    setData(d => ({
+      ...d,
+      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r)
+    }));
+    setSaved(false);
+  }
+
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
@@ -1610,11 +1659,12 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
-              onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }} /></div>
+              onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
+              onReorderInQueue={reorderInQueue} /></div>
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}

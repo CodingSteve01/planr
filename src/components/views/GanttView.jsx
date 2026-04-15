@@ -8,7 +8,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep }) {
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -268,24 +268,44 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     return () => clearTimeout(id);
   }, [search]);
 
-  function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id] }); setDDelta(0); }
+  // Ref consulted by the bar's onClick to suppress the click-after-drag that would
+  // otherwise reopen the QuickEdit sidebar right after a pin-drag or reorder-drag.
+  const justDraggedRef = useRef(false);
+  function onBMD(e, s) {
+    e.stopPropagation();
+    justDraggedRef.current = false;
+    setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false });
+    setDDelta(0);
+  }
   function onMM(e) {
     if (drag) {
       const dx = e.clientX - drag.ox;
-      // Day-level zoom → snap to individual days; otherwise snap to full weeks.
-      const stepPx = showDays ? WPX / 5 : WPX;
-      setDDelta(Math.round(dx / stepPx));
+      const dy = e.clientY - drag.oy;
+      // Any meaningful motion suppresses the subsequent onClick.
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) justDraggedRef.current = true;
+      // Primarily vertical → treat as queue-reorder drag (needs a drop to commit in onMU).
+      const isReorder = Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2;
+      if (isReorder) {
+        if (!drag.isReorder || drag.lastDy !== dy) setDrag(d => d ? { ...d, isReorder: true, lastDy: dy } : null);
+      } else {
+        if (drag.isReorder) setDrag(d => d ? { ...d, isReorder: false, lastDy: 0 } : null);
+        const stepPx = showDays ? WPX / 5 : WPX;
+        setDDelta(Math.round(dx / stepPx));
+      }
     }
     if (linkDrag) { setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null); }
   }
   function onMU() {
     if (drag) {
-      if (dDelta !== 0) {
+      if (drag.isReorder && drag.lastDy) {
+        // Vertical drag → queue reorder. One row-crossing = one queue step.
+        const rowShift = Math.max(1, Math.abs(Math.round(drag.lastDy / RH)));
+        const dir = drag.lastDy > 0 ? 'later' : 'earlier';
+        onReorderInQueue?.(drag.id, dir, rowShift);
+      } else if (dDelta !== 0) {
         const startMon = new Date(weeks[drag.startWi].mon);
-        // Day mode: dDelta is in days; week mode: dDelta is in weeks (× 7 days).
         const dayDelta = showDays ? dDelta : dDelta * 7;
         const targetDate = addD(startMon, dayDelta);
-        // Never pin earlier than the plan horizon.
         const planStartDate = weeks[0]?.mon;
         const finalDate = planStartDate && targetDate < planStartDate ? planStartDate : targetDate;
         onSeqUpdate(drag.id, { pinnedStart: iso(finalDate) });
@@ -470,7 +490,9 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                   left: barLeft, width: Math.max(bW, 6),
                   background: tc, color: '#fff',
                   textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
-                  cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab',
+                  cursor: linkMode || linkDrag ? 'crosshair'
+                    : (drag?.id === s.id && drag.isReorder) ? 'ns-resize'
+                    : drag ? 'grabbing' : 'grab',
                   // Search match outline > link-mode outline > CP outline (.cp-bar CSS).
                   boxShadow: isMatch
                     ? '0 0 0 2.5px var(--am)'
@@ -486,7 +508,13 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                     if (linkMode.mode === 'pred') onAddDep?.(s.id, linkMode.fromId);
                     else onAddDep?.(linkMode.fromId, s.id);
                     setLinkMode(null);
-                  } else if (Math.abs(dDelta) === 0 && !linkDrag) onBarClick(s);
+                    return;
+                  }
+                  // Suppress the click-after-drag: drag gestures (pin, reorder) shouldn't
+                  // also open the QuickEdit sidebar on mouse-up.
+                  if (justDraggedRef.current) { justDraggedRef.current = false; return; }
+                  if (linkDrag) return;
+                  onBarClick(s);
                 }}
                 onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id }); }}>
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass; legacy field)">≡</span>}
@@ -603,7 +631,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
         <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
       </span>}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 Drop on a bar to link as dependency</span>}
-      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Bar drag = pin · edge handle drag = link · Right-click = options</span>}
+      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Bar drag ← → = pin · ↑ ↓ = reorder queue · edge handle = link · Right-click = more</span>}
     </div>
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
@@ -634,10 +662,18 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 Open / edit…</div>
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }} title="This task must finish before the next clicked task starts">⬇ Add a successor… (this → other)</div>
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }} title="The next clicked task must finish before this one starts">⬆ Add a predecessor… (other → this)</div>
+          {onReorderInQueue && <>
+            <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
+            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Queue order</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }} title="Move to the front of this person's / team's queue">⤒ Run first</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'earlier'); close(); }}>▲ Run earlier</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'later'); close(); }}>▼ Run later</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }} title="Move to the end of this person's / team's queue">⤓ Run last</div>
+          </>}
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           {node.pinnedStart
             ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 Unpin (currently {node.pinnedStart})</div>
-            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: sched.startD.toISOString().slice(0, 10) }); } close(); }}>📌 Pin to current start week</div>}
+            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: iso(sched.startD) }); } close(); }}>📌 Pin to current start</div>}
           {node.deps?.length > 0 && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Remove dependency</div>
