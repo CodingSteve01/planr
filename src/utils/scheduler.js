@@ -118,20 +118,32 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
       const avgVac = tM.length > 0
         ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length
         : 0.9;
+      // Day-granular effort consumption (team-slot path). Same shape as the per-person
+      // path below, using team-average daily capacity.
+      const dailyAvgCap = avgCap * avgVac;
       let rem = eff, wi = slotEarly;
+      let firstWorkDay = null, lastWorkDay = null;
       while (rem > 0 && wi < wks.length) {
         const w = wks[wi];
-        rem -= w.wds.length * avgCap * avgVac;
+        for (const d of w.wds) {
+          if (!firstWorkDay) firstWorkDay = d;
+          rem -= dailyAvgCap;
+          lastWorkDay = d;
+          if (rem <= 0) break;
+        }
+        if (rem <= 0) break;
         wi++;
       }
-      const eW = Math.min(Math.max(wi - 1, slotEarly), wks.length - 1);
+      const eW = Math.min(Math.max(wi, slotEarly), wks.length - 1);
       tEW[id] = eW;
       slots[si] = eW + 1; // occupy the slot until this task finishes
       const startWi = slotEarly < wks.length ? slotEarly : 0;
-      const calDays = Math.round((addD(wks[eW].mon, 4) - wks[startWi].mon) / 864e5);
+      const actualStartD = firstWorkDay || wks[startWi].mon;
+      const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+      const calDays = Math.round((actualEndD - actualStartD) / 864e5) + 1;
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
         best: r.best, effort: eff, startWi: slotEarly, endWi: eW,
-        startD: wks[startWi].mon, endD: addD(wks[eW].mon, 4), calDays,
+        startD: actualStartD, endD: actualEndD, calDays,
         capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - slotEarly + 1,
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
@@ -161,17 +173,40 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
       const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
       if (pinWi >= 0 && bs > pinWi) pinOverridden = true;
     }
+    // Day-granular effort consumption. Walk working days one-by-one so a short task
+    // (e.g. 1 day of work for a 25 %-cap person = 4 calendar work-days) produces an
+    // accurate startD/endD pair instead of being rounded up to a full week.
+    const mStart = new Date(bp.start || ps);
+    const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
     let rem = eff, wi = bs;
-    while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
-    const eW = Math.min(wi - 1, wks.length - 1);
+    let firstWorkDay = null, lastWorkDay = null;
+    while (rem > 0 && wi < wks.length) {
+      const w = wks[wi];
+      // Explicit vacation week for this person: skip entirely.
+      if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
+      for (const d of w.wds) {
+        if (d < mStart) continue;
+        if (!firstWorkDay) firstWorkDay = d;
+        rem -= dailyBaseCap;
+        lastWorkDay = d;
+        if (rem <= 0) break;
+      }
+      if (rem <= 0) break;
+      wi++;
+    }
+    const eW = Math.min(wi, wks.length - 1);
     tEW[id] = eW;
+    // pF tracker stays week-based: next task for this person starts the week after
+    // this one finishes. Intra-week stacking isn't supported yet.
     if (!r.parallel) pF[bp.id] = eW + 1;
-    const calDays = Math.round((addD(wks[eW].mon, 4) - wks[bs].mon) / 864e5);
+    const actualStartD = firstWorkDay || wks[bs].mon;
+    const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+    const calDays = Math.round((actualEndD - actualStartD) / 864e5) + 1;
     const capPct = Math.round((bp.cap || 1) * 100);
     const vacDed = Math.round((1 - vacInfo[bp.id]) * 100);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
-      startD: wks[bs].mon, endD: addD(wks[eW].mon, 4), calDays,
+      startD: actualStartD, endD: actualEndD, calDays,
       capPct, vacDed, weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
   });

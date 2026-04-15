@@ -33,6 +33,24 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
   function onLWheel(e) { if (bR.current) { bR.current.scrollTop += e.deltaY; bR.current.scrollLeft += e.deltaX; } }
 
   const tw = weeks.length * WPX;
+  // Map a Date to its pixel X position on the Gantt body.
+  // Each week = WPX px covering Mo–Fr (5 working-day columns of WPX/5 each).
+  // Weekend dates clamp to Friday of their containing week (they never appear in
+  // scheduler output but we stay defensive).
+  function dateToX(date) {
+    if (!date) return 0;
+    const d = date instanceof Date ? date : new Date(date);
+    if (!weeks.length) return 0;
+    if (d < weeks[0].mon) return 0;
+    let wi = -1;
+    for (let i = 0; i < weeks.length; i++) {
+      if (d < addD(weeks[i].mon, 7)) { wi = i; break; }
+    }
+    if (wi < 0) return weeks.length * WPX;
+    const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const dayInWeek = dow === 0 ? 4 : Math.min(dow - 1, 4);
+    return wi * WPX + dayInWeek * (WPX / 5);
+  }
   const months = []; let cm = null, cc = 0, cs = 0;
   weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) months.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
   if (cm) months.push({ ym: cm, count: cc, start: cs });
@@ -421,9 +439,20 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
             const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
             if (s._unestimated) return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
             const isDrag = drag?.id === s.id;
-            const wiS = isDrag ? Math.max(0, s.startWi + dDelta) : s.startWi;
-            const wiE = isDrag ? Math.max(wiS, s.endWi + dDelta) : s.endWi;
-            const bW = (wiE - wiS + 1) * WPX - 4;
+            // Bar geometry — day-accurate in day-mode (using scheduler's per-day startD/endD),
+            // week-aligned otherwise.
+            let baseLeft, baseWidth;
+            if (showDays && s.startD && s.endD) {
+              baseLeft = dateToX(s.startD) + 2;
+              baseWidth = dateToX(s.endD) + (WPX / 5) - dateToX(s.startD) - 4;
+            } else {
+              baseLeft = s.startWi * WPX + 2;
+              baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
+            }
+            // Drag offset: dDelta is in days when showDays, weeks otherwise.
+            const dragPxOffset = isDrag ? dDelta * (showDays ? WPX / 5 : WPX) : 0;
+            const barLeft = Math.max(0, baseLeft + dragPxOffset);
+            const bW = baseWidth;
             const dim = cpOnly && !isCp;
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
@@ -438,7 +467,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
               onMouseLeave={() => setHoverDepId(null)}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
                 style={{
-                  left: wiS * WPX + 2, width: Math.max(bW, 6),
+                  left: barLeft, width: Math.max(bW, 6),
                   background: tc, color: '#fff',
                   textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
                   cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab',
