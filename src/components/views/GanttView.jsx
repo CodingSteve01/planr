@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
-import { iso, addD } from '../../utils/date.js';
+import { iso, addD, addWorkDays } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 
 const NO_TEAM = '__no_team__';
@@ -304,8 +304,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
         onReorderInQueue?.(drag.id, dir, rowShift);
       } else if (dDelta !== 0) {
         const startMon = new Date(weeks[drag.startWi].mon);
-        const dayDelta = showDays ? dDelta : dDelta * 7;
-        const targetDate = addD(startMon, dayDelta);
+        // Day mode: dDelta is "day-column" steps which only count working days
+        // (the day grid skips Sat/Sun). Use addWorkDays so +5 day-columns from Mon
+        // lands on next Mon, not on Sat. Week mode: still ±7 cal days per step.
+        const targetDate = showDays ? addWorkDays(startMon, dDelta) : addD(startMon, dDelta * 7);
         const planStartDate = weeks[0]?.mon;
         const finalDate = planStartDate && targetDate < planStartDate ? planStartDate : targetDate;
         onSeqUpdate(drag.id, { pinnedStart: iso(finalDate) });

@@ -7,6 +7,20 @@ export const iso = d => {
   return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}-${String(r.getDate()).padStart(2, '0')}`;
 };
 export const addD = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+// Step `n` working days (Mon–Fri) forward (positive) or backward (negative).
+// Skips Saturday/Sunday entirely so that "+5 working days from Monday" lands
+// on the next Monday, not on Saturday.
+export const addWorkDays = (d, n) => {
+  const r = new Date(d);
+  const step = n >= 0 ? 1 : -1;
+  let added = 0;
+  while (added < Math.abs(n)) {
+    r.setDate(r.getDate() + step);
+    const dow = r.getDay();
+    if (dow > 0 && dow < 6) added++;
+  }
+  return r;
+};
 export const monOf = d => { const r = new Date(d), w = r.getDay(); r.setDate(r.getDate() - (w === 0 ? 6 : w - 1)); return r; };
 export const isoWeek = d => {
   const j4 = new Date(d.getFullYear(), 0, 4), sw = new Date(j4);
