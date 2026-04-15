@@ -7,152 +7,73 @@
 ![Vite 6](https://img.shields.io/badge/Vite-6-646cff.svg)
 ![No Backend](https://img.shields.io/badge/backend-none-green.svg)
 
-<!-- screenshots -->
+## What it is
 
-## Features
+Planr turns a work breakdown tree into an auto-scheduled plan. You write goals, break them into tasks, assign people, declare dependencies — Planr schedules everything respecting capacity, vacations, holidays, and pinned dates, and highlights the critical path.
 
-- **N-level work breakdown tree** — unlimited nesting of goals, causes, measures, and tasks
-- **Goals / Painpoints / Deadlines** — focus items pinned to tree roots to drive analysis
-- **Auto-scheduler** — resource-based, capacity-aware, vacation-aware scheduling engine
-- **Critical path analysis** — global and per-goal CPM with slack calculation
-- **Network graph** — bin-packed layout with TD/BU flip and obstacle-aware edge routing
-- **Gantt chart** — drag-to-reorder, team color coding
-- **Progress tracking** — leaf-level input with automatic cascading to parents
-- **Multi-select bulk editing** — apply changes to many nodes at once
-- **Markdown + JSON import/export** — interoperable project files
-- **Auto-save with file mount** — File System Access API for seamless `.json`/`.md` persistence
-- **External file change detection** — picks up edits made outside the app
-- **Dark / Light mode** — full theme support
-- **NRW holiday calendar** — built-in German NRW public holidays for scheduling
-- **Estimation Wizard** — PERT 3-point estimation (optimistic, likely, pessimistic)
-- **Export** — SVG, CSV, JSON, Markdown, and Print
+No backend, no accounts, no cloud sync. A static React SPA that persists to `localStorage` or a local `.json` / `.md` file via the File System Access API.
 
-## Quick Start
+## Quick start
 
 ```bash
-git clone <repo-url> planr
+git clone https://github.com/CodingSteve01/planr planr
 cd planr
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173/planr/](http://localhost:5173/planr/).
 
-## User Guide
+From zero to a plan: **New Project Wizard → add members → build the tree → estimate leaves → assign people → review the Gantt**. Step-by-step in [docs/user-guide.md](docs/user-guide.md).
 
-### Creating a Project
+## Documentation
 
-The new-project wizard walks through three steps:
+Everything lives in [docs/](docs/). This README is an index.
 
-1. **Basics** — project name, start date, description
-2. **Teams** — define teams with colors and add members (capacity, vacation, role)
-3. **Goals** — create top-level goals, painpoints, or deadlines
+### For users
 
-### Top-Down Analysis Flow
+- **[docs/user-guide.md](docs/user-guide.md)** — end-to-end workflow, from new project to saved plan
+- **[docs/features.md](docs/features.md)** — full feature catalog
+- **[docs/gantt.md](docs/gantt.md)** — Gantt chart: drag-to-pin, link handles, dependency arrows, deadline flags, critical path
+- **[docs/network-graph.md](docs/network-graph.md)** — network graph: layout, zoom, fit-to-selection
+- **[docs/import-export.md](docs/import-export.md)** — JSON, Markdown, CSV, Sprint MD, Mermaid, SVG, PNG, round-trip caveats
 
-Planr follows a structured breakdown approach:
+### For developers
 
-**Goal → Causes → Measures → Tasks**
+- **[docs/architecture.md](docs/architecture.md)** — modules, tech stack, design decisions, backlog
+- **[docs/scheduler.md](docs/scheduler.md)** — the auto-scheduling algorithm in detail
+- **[docs/data-model.md](docs/data-model.md)** — full schema for tree items, members, teams, etc.
+- **[docs/contributing.md](docs/contributing.md)** — dev setup, code style, PR workflow
 
-Start with a high-level goal or painpoint, break it into causes, derive measures for each cause, then decompose measures into estimatable tasks.
+## Feature highlights
 
-### Estimating
+- **N-level work breakdown** — unlimited nesting, goals / painpoints / deadlines as tree roots
+- **Auto-scheduler** — capacity-aware, vacation-aware, holiday-aware (NRW preset built in)
+- **Critical path analysis** — global and per-goal, with slack calculation
+- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill
+- **Network graph** — bin-packed layout, obstacle-aware edge routing, fit-to-selection
+- **QuickEdit sidebar** — single-click opens, searchable dropdowns
+- **Markdown + JSON** — fully functional round-trip for both formats
+- **Auto-save** — File System Access API, external change polling, mounts either format
+- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range
+- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic)
+- **Dark / light mode** — system preference
 
-- **T-shirt sizes** — set `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) on leaf tasks
-- **PERT Wizard** — enter optimistic, most likely, and pessimistic estimates; the wizard calculates the weighted expected duration
+Full list in [docs/features.md](docs/features.md).
 
-### Scheduling
+## Tech
 
-1. Assign team members to leaf tasks
-2. Run **Auto-schedule** — the engine respects capacity, vacations, dependencies, and priorities
-3. Review the Gantt chart and network graph for the resulting plan
+- Vite 6 + React 18, plain JavaScript (no TypeScript, no PropTypes)
+- CSS with theme variables
+- `localStorage` + File System Access API (no server)
+- Deployed to GitHub Pages via `gh-pages` branch
 
-### Keyboard Shortcuts
+See [docs/architecture.md](docs/architecture.md) for details.
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+S` / `Cmd+S` | Save project |
-| `Esc` | Deselect graph / close modal |
-| `Delete` | Remove selected node |
+## Status
 
-## Architecture
-
-| Aspect | Detail |
-|---|---|
-| Framework | Vite 6 + React 18 |
-| Language | JavaScript (ES modules, no TypeScript) |
-| Styling | CSS (dark/light theme via CSS variables) |
-| Storage | `localStorage` + File System Access API (`.json` / `.md`) |
-| Backend | None — fully client-side |
-
-### Key Modules
-
-| File | Purpose |
-|---|---|
-| `src/App.jsx` | Main application shell, state management |
-| `src/utils/scheduler.js` | Auto-scheduling engine (resource allocation, capacity) |
-| `src/utils/cpm.js` | Critical path method, global + per-goal |
-| `src/components/views/NetGraph.jsx` | Network graph with bin-packed layout |
-| `src/components/views/TreeView.jsx` | Work breakdown tree |
-| `src/components/views/GanttView.jsx` | Gantt chart |
-| `src/components/views/ResView.jsx` | Resource / team view |
-| `src/components/modals/EstimationWizard.jsx` | PERT 3-point estimation |
-
-Source files target **< 400 LOC** each.
-
-## Data Model
-
-### Tree Item
-
-```js
-{
-  id,          // hierarchical dot-notation ("1", "1.1", "1.1.3")
-  name,        // display label
-  status,      // e.g. "open", "active", "done"
-  team,        // assigned team id
-  best,        // optimistic effort in days
-  factor,      // complexity multiplier (default 1.5)
-  prio,        // priority (lower = higher priority)
-  deps,        // dependency ids (array)
-  assign,      // assigned member id(s)
-  progress,    // 0–100, auto-cascaded for parents
-  type?,       // "goal", "painpoint", "deadline", "cause", "measure"
-  severity?,   // severity level for painpoints
-  date?,       // target date for deadlines
-  description? // rich text / notes
-}
-```
-
-### Member
-
-```js
-{ id, name, team, role, cap, vac, start }
-// cap  = capacity (fraction, e.g. 1.0 = full-time)
-// vac  = vacation periods
-// start = availability start date
-```
-
-### Team
-
-```js
-{ id, name, color }
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-change`)
-3. Make your changes
-4. Test in the browser — there is no test suite, manual QA is expected
-5. Open a pull request
-
-### Code Style
-
-- **Terse JSX** — minimal verbosity, functional components, hooks only
-- **No TypeScript, no PropTypes** — plain JavaScript throughout
-- **Module size** — keep each file under 400 LOC; split when it grows
-- **ES modules** — `import`/`export`, no CommonJS
+Actively developed. Known limitations and backlog items are listed in the respective doc files, notably [docs/scheduler.md#known-limitations](docs/scheduler.md#known-limitations) and [docs/architecture.md#known-issues--backlog](docs/architecture.md#known-issues--backlog).
 
 ## License
 
-MIT
+[MIT](LICENSE)
