@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
-import { buildHMap } from './utils/holidays.js';
+import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
@@ -654,6 +654,27 @@ export default function App() {
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
+
+  // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
+  // so NRW dates landed a day early in the file. Detect that and rewrite them
+  // from a fresh computeNRW(). Runs idempotently — if everything already matches,
+  // no state update fires.
+  useEffect(() => {
+    if (!data?.holidays?.length || !meta.planStart || !meta.planEnd) return;
+    const ys = new Date(meta.planStart).getFullYear(), ye = new Date(meta.planEnd).getFullYear();
+    const years = []; for (let y = ys; y <= ye; y++) years.push(y);
+    const fresh = computeNRW(years);
+    const freshByKey = new Map(fresh.map(h => [`${h.name}|${h.date.slice(0, 4)}`, h.date]));
+    let changed = false;
+    const migrated = data.holidays.map(h => {
+      if (!h.auto) return h;
+      const key = `${h.name}|${h.date.slice(0, 4)}`;
+      const expected = freshByKey.get(key);
+      if (expected && expected !== h.date) { changed = true; return { ...h, date: expected }; }
+      return h;
+    });
+    if (changed) setData(d => ({ ...d, holidays: migrated }));
+  }, [data?.holidays?.length, meta.planStart, meta.planEnd]);
 
   // Auto-derive parent statuses from children
   useEffect(() => {

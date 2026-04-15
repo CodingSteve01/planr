@@ -1,4 +1,11 @@
-export const iso = d => d.toISOString().split('T')[0];
+// Format a Date as YYYY-MM-DD using LOCAL date parts — not UTC.
+// toISOString() returns the UTC date; in any non-UTC timezone that shifts the
+// output by up to a day (e.g. midnight Europe/Berlin = 22:00 or 23:00 UTC the
+// previous day), which caused holidays to render a day early in the Gantt.
+export const iso = d => {
+  const r = d instanceof Date ? d : new Date(d);
+  return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}-${String(r.getDate()).padStart(2, '0')}`;
+};
 export const addD = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 export const monOf = d => { const r = new Date(d), w = r.getDay(); r.setDate(r.getDate() - (w === 0 ? 6 : w - 1)); return r; };
 export const isoWeek = d => {
