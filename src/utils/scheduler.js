@@ -143,7 +143,16 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     // round-tripping), but it is intentionally NOT exposed in the UI to prevent accidental misuse.
     const cands = members.filter(m => asgn.includes(m.id));
     let bp = null, bs = 9999;
-    cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = r.parallel ? Math.max(early, ji >= 0 ? ji : 0) : Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+    cands.forEach(m => {
+      // Earliest week where this person has at least one working day ≥ their availability start.
+      // Previously this compared w.mon >= m.start, which skipped the whole week if m.start fell
+      // mid-week (e.g. Tue start → Monday-of-the-week is less, so the whole week was lost even
+      // though Tue–Fri are perfectly usable). pC() already handles the partial-week capacity.
+      const mStart = new Date(m.start || ps);
+      const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
+      const fw = r.parallel ? Math.max(early, ji >= 0 ? ji : 0) : Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0);
+      if (fw < bs) { bs = fw; bp = m; }
+    });
     if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
     // Detect when a manual pin was overridden by capacity (so the UI can flag it)
     let pinOverridden = false;
