@@ -5,7 +5,7 @@ import { GT } from '../../constants.js';
 
 function depth(id) { return id.split('.').length; }
 
-export function TreeView({ tree, selected, multiSel, onSelect, onDbl, search, teamFilter, stats, teams, cpSet, onQuickAdd, onDelete }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, stats, teams, cpSet, onQuickAdd, onDelete }) {
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
 
@@ -102,7 +102,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, onDbl, search, te
         const d = depth(r.id);
         const isMulti = multiSel?.has(r.id);
         return <tr key={r.id} ref={selected?.id === r.id ? selRef : null} className={`tr${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
-          onClick={e => onSelect(r, e)} onDoubleClick={() => onDbl(r)}>
+          onClick={e => onSelect(r, e)}>
           <td><span className="tid">{r.id}</span></td>
           <td style={{ whiteSpace: 'normal' }}>
             <span style={{ display: 'inline-block', width: (d - 1) * 16 }} />

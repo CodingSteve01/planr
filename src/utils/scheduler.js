@@ -93,7 +93,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
     const eW = Math.min(wi - 1, wks.length - 1);
     tEW[id] = eW; pF[bp.id] = eW + 1;
-    res.push({ id: r.id, name: r.name, team, person: bp.id, prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: wks[bs].mon, endD: addD(wks[eW].mon, 4),
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });

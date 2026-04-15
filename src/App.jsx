@@ -131,8 +131,9 @@ export default function App() {
         if (!canWrite) { setFileWriteOk(false); }
         else {
           try {
+            const content = isMdFile ? buildMarkdownText() : JSON.stringify(data, null, 2);
             const wr = await fileHandleRef.current.createWritable();
-            await wr.write(JSON.stringify(data, null, 2));
+            await wr.write(content);
             await wr.close();
             setFileWriteOk(true);
           } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
@@ -183,8 +184,9 @@ export default function App() {
       }
       const canWrite = await ensureHandlePermission(handle, true);
       if (!canWrite) return;
+      const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
       const wr = await handle.createWritable();
-      await wr.write(JSON.stringify(data, null, 2));
+      await wr.write(content);
       await wr.close();
       await rememberHandle(handle);
       setAutoSave(true);
@@ -387,7 +389,8 @@ export default function App() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.csv`; a.click();
   }
-  function exportMarkdown() {
+  const isMdFile = fileName?.endsWith('.md');
+  function buildMarkdownText() {
     const teamName = id => teams.find(t => t.id === id)?.name || id;
     const memberName = id => members.find(m => m.id === id)?.name || id;
     const SZ = { 1: 'XS', 3: 'S', 7: 'M', 15: 'L', 30: 'XL', 45: 'XXL' };
@@ -412,9 +415,16 @@ export default function App() {
       const desc = r.description ? `\n${indent}  ${r.description}` : '';
       md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${deps}${note}${desc}\n`;
     });
+    return md;
+  }
+  function exportMarkdown() {
+    const md = buildMarkdownText();
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.md`; a.click();
+  }
+  function serializeForSave() {
+    return isMdFile ? buildMarkdownText() : JSON.stringify(data, null, 2);
   }
   function loadFile(e) {
     const f = e.target.files[0]; if (!f) return;
@@ -494,7 +504,7 @@ export default function App() {
         </select>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
       </>}
-      <button className="btn btn-ghost btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
@@ -528,7 +538,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} onDbl={n => { setMN(n); setModal('node'); }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
+              }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} />
           }
