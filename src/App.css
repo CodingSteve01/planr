@@ -113,7 +113,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .gbar{position:absolute;top:4px;height:20px;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:600;overflow:hidden;white-space:nowrap;z-index:2;transition:filter .1s;user-select:none;}
 .gbar:hover{filter:brightness(1.2);}
 .gbar.dragging{opacity:.85;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:10;cursor:grabbing;}
-.gbar.cp-bar{box-shadow:inset 0 0 0 1.5px var(--re)!important;}
+/* CP marker. No !important so an inline boxShadow (link-mode outline) can win. */
+.gbar.cp-bar{box-shadow:inset 0 0 0 1.5px var(--re);}
 .gantt-footer{flex-shrink:0;display:flex;gap:8px;padding:6px 12px;border-top:1px solid var(--b);background:var(--bg2);flex-wrap:wrap;align-items:center;}
 /* Gantt week header backgrounds — picked to be theme-aware (overridden in light mode) */
 .gw-now{background:#1a3020;}

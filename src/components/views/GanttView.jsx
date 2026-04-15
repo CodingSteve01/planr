@@ -375,7 +375,17 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
-                style={{ left: wiS * WPX + 2, width: Math.max(bW, 6), background: tc + (isCp ? '60' : '40'), color: '#fff', borderLeft: `2px solid ${tc}`, cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab', boxShadow: linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined }}
+                style={{
+                  left: wiS * WPX + 2, width: Math.max(bW, 6),
+                  background: tc, color: '#fff',
+                  textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
+                  cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab',
+                  // Link-mode outline takes priority over CP outline (it signals the
+                  // active user intent). CP marker otherwise via the .cp-bar CSS class.
+                  boxShadow: linkMode?.fromId === s.id || linkDrag?.fromId === s.id
+                    ? '0 0 0 2px var(--ac)'
+                    : undefined,
+                }}
                 onMouseDown={e => { if (linkMode || linkDrag) return; onBMD(e, s); }}
                 onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
                 onClick={() => {
