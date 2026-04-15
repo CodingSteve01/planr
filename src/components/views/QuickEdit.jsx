@@ -100,26 +100,6 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
           placeholder="Search and assign person..."
         />
       </div>
-      <div className="field"><label>Dependencies</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
-          {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 60, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
-              <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => { s('deps', (f.deps || []).filter(x => x !== d)); const dl = { ...(f._depLabels || {}) }; delete dl[d]; s('_depLabels', dl); }}>×</span>
-            </div>
-          </div>; })}
-        </div>
-        <SearchSelect
-          options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
-          onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
-          placeholder="Search and add dependency..."
-        />
-        <p className="helper">Blocked until all deps finish.</p>
-      </div>
       <div className="calc">
         <span>Realistic:</span><b>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
         <span>Worst:</span><b>{((f.best || 0) * (f.factor || 1.5)).toFixed(0)}d</b>
@@ -133,6 +113,27 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
         <span style={{ fontSize: 9 }}>({sc.capPct}% cap, {sc.vacDed}% vac)</span>
       </div>}
     </>}
+    <div className="field"><label>Dependencies{!isLeaf ? ' (apply to all leaves)' : ''}</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+        {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+            {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 60, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
+            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => { const newDeps = (f.deps || []).filter(x => x !== d); const newLabels = { ...(f._depLabels || {}) }; delete newLabels[d]; const n = { ...f, deps: newDeps, _depLabels: newLabels }; setF(n); onUpdate(n); }}>×</span>
+          </div>
+        </div>; })}
+      </div>
+      <SearchSelect
+        options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
+        onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
+        placeholder="Search and add dependency..."
+        showIds
+      />
+      <p className="helper">{isLeaf ? 'Blocked until all deps finish.' : 'Constraint propagates to every leaf under this item.'}</p>
+    </div>
     <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
     <hr className="divider" />
     {onDelete && <button className="btn btn-danger" style={{ width: '100%' }} onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) onDelete(node.id); }}>Delete item</button>}

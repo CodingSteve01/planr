@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { buildHMap } from './utils/holidays.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { TreeView } from './components/views/TreeView.jsx';
@@ -21,6 +21,7 @@ import { DLModal } from './components/modals/DLModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
+import { LazyInput } from './components/shared/LazyInput.jsx';
 
 function loadLocalProject() {
   try {
@@ -127,32 +128,43 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // Auto-save to localStorage + optionally to file
+  // Save to localStorage on every change (fast, in-memory) — separate from file save
   const [fileWriteOk, setFileWriteOk] = useState(true);
   const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
   useEffect(() => {
     if (!data) return;
-    const t = setTimeout(async () => {
+    const t = setTimeout(() => {
       localStorage.setItem(SK, JSON.stringify(data));
-      if (autoSave && fileHandleRef.current) {
-        const canWrite = await ensureHandlePermission(fileHandleRef.current, false);
-        if (!canWrite) { setFileWriteOk(false); }
-        else {
-          try {
-            const content = isMdFile ? buildMarkdownText() : JSON.stringify(data, null, 2);
-            const wr = await fileHandleRef.current.createWritable();
-            await wr.write(content);
-            await wr.close();
-            setFileWriteOk(true);
-            lastOwnWriteRef.current = Date.now();
-          } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
-        }
-      }
-      setSaved(true);
-      setLastSavedAt(new Date());
-    }, 800);
+      // If no file is mounted, localStorage IS the save → mark as saved
+      if (!fileHandleRef.current) { setSaved(true); setLastSavedAt(new Date()); }
+    }, 300);
     return () => clearTimeout(t);
-  }, [data, autoSave]);
+  }, [data]);
+
+  // File save: queued every 60s if there are unsaved changes (and auto-save is on)
+  // Manual force-save via disk icon (saveToFile) bypasses this and saves immediately
+  const FILE_SAVE_INTERVAL_MS = 60000;
+  useEffect(() => {
+    if (!data || !autoSave || !fileHandleRef.current) return;
+    const interval = setInterval(async () => {
+      if (saved) return; // nothing to save
+      const handle = fileHandleRef.current;
+      if (!handle) return;
+      const canWrite = await ensureHandlePermission(handle, false);
+      if (!canWrite) { setFileWriteOk(false); return; }
+      try {
+        const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
+        const wr = await handle.createWritable();
+        await wr.write(content);
+        await wr.close();
+        setFileWriteOk(true);
+        lastOwnWriteRef.current = Date.now();
+        setSaved(true);
+        setLastSavedAt(new Date());
+      } catch (e) { console.error('Queued auto-save failed:', e); setFileWriteOk(false); }
+    }, FILE_SAVE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [data, autoSave, saved]);
 
   // Detect external file changes (poll every 5s)
   const lastModRef = useRef(null);
@@ -231,78 +243,150 @@ export default function App() {
   function parseMdToProject(text) {
     const lines = text.split('\n');
     const tree = [], mems = [], teamSet = new Set();
+    const explicitTeams = []; // teams from "## Teams" table (with color)
+    const vacationsArr = [], holidaysArr = [];
     let projName = null;
-    const idStack = []; // stack of {id, indent}
-    let inResources = false;
-    let lastItem = null; // for multi-line notes/deps/desc
+    let planStart = '', planEnd = '';
+    const idStack = [];
+    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | null
+    let lastItem = null;
+
     lines.forEach(line => {
+      // Heading switches section
       const hm = line.match(/^#+\s+(.+)/);
       if (hm) {
-        if (!projName) projName = hm[1]; // only first heading = project name
-        inResources = /resource|team|member/i.test(hm[1]);
+        const h = hm[1].trim();
+        if (!projName) projName = h;
+        const lower = h.toLowerCase();
+        if (lower === 'plan') section = 'plan';
+        else if (lower === 'teams') section = 'teams';
+        else if (lower === 'resources' || /resources?$/i.test(lower)) section = 'resources';
+        else if (lower.startsWith('vacation')) section = 'vacations';
+        else if (lower === 'holidays') section = 'holidays';
+        else if (lower === 'work tree') section = 'tree';
+        else section = null;
         lastItem = null;
         return;
       }
-      // Resources section: parse team, role, cap, start
-      if (inResources) {
+
+      // Skip table separator rows like "|---|---|"
+      if (/^\s*\|[\s\-:|]+\|\s*$/.test(line)) return;
+
+      // Plan section: table rows | Field | Value |
+      if (section === 'plan') {
+        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$/);
+        if (m && !/^Field$/i.test(m[1])) {
+          if (/^start/i.test(m[1])) planStart = m[2].trim();
+          else if (/^end/i.test(m[1])) planEnd = m[2].trim();
+        }
+        return;
+      }
+
+      // Teams section: table rows | Name | Color |
+      if (section === 'teams') {
+        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*`?(#?[0-9a-fA-F]+)`?\s*\|\s*$/);
+        if (m && !/^Name$/i.test(m[1])) {
+          const name = m[1].trim();
+          const color = m[2].startsWith('#') ? m[2] : '#' + m[2];
+          explicitTeams.push({ name, color });
+          teamSet.add(name);
+        }
+        return;
+      }
+
+      // Resources section: bulleted list
+      if (section === 'resources') {
         const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*\s*—?\s*(.*)/);
         if (rm) {
           const meta = rm[2] || '';
           const parts = meta.split(',').map(s => s.trim());
           const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
-          // Strip all "(NN%)" patterns from role parts to avoid accumulation on save+load cycles
           const roleParts = parts.slice(1)
-            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p))
+            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^\d+d\/y$/.test(p))
             .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
             .filter(Boolean);
           const capM = meta.match(/\((\d+)%\)/);
+          const vacM = meta.match(/(\d+)d\/y/);
           const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
           if (teamPart) teamSet.add(teamPart);
-          mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: 25, start: startM?.[1] || '' });
+          mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '' });
         }
         return;
       }
-      // Non-bullet indented lines → note/description on last item
+
+      // Vacation Weeks section: table | Person | Week | Note |
+      if (section === 'vacations') {
+        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m && !/^Person$/i.test(m[1])) {
+          vacationsArr.push({ person: m[1].trim(), week: m[2].trim(), note: m[3].trim() });
+        }
+        return;
+      }
+
+      // Holidays section: table | Date | Name | Source |
+      if (section === 'holidays') {
+        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m && !/^Date$/i.test(m[1])) {
+          holidaysArr.push({ date: m[1].trim(), name: m[2].trim(), auto: /auto/i.test(m[3]) });
+        }
+        return;
+      }
+
+      // Tree section (or default if no Work Tree heading was seen): bullet items
       const bullet = line.match(/^(\s*)[-*]\s+(.*)/);
       if (!bullet) {
         if (lastItem) {
           const trimmed = line.trim();
           if (!trimmed) return;
-          // Dependency line: *Benötigt: X, Y*
           const depM = trimmed.match(/^\*Benötigt:\s*(.+?)\*$/);
-          if (depM) { lastItem.deps = depM[1].split(',').map(s => s.trim()); return; }
-          // Italic note: *some note*
+          if (depM) {
+            const items = depM[1].split(',').map(s => s.trim());
+            lastItem.deps = items.map(it => { const lm = it.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/); return lm ? lm[1] : it; });
+            // capture labels
+            const labels = {};
+            items.forEach(it => { const lm = it.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/); if (lm) labels[lm[1]] = lm[2]; });
+            if (Object.keys(labels).length) lastItem._depLabels = labels;
+            return;
+          }
           if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
-          // Plain description text (for root items)
           if (!lastItem.id.includes('.')) { lastItem.description = (lastItem.description || '') + (lastItem.description ? ' ' : '') + trimmed; }
           else { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed; }
         }
         return;
       }
-      // Tree items: parse bullet line
       const indent = bullet[1].length;
       let raw = bullet[2].trim();
-      // Status
       const done = raw.startsWith('✅');
       const wip = raw.includes('🟡');
       raw = raw.replace(/^✅\s*/, '').replace(/🟡\s*/g, '').trim();
-      // Extract embedded ID: **P1.2.3** or **D1**
       let id = '';
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
-      // Extract team: — TeamName (at end, optionally with [assigned] after)
-      let team = '';
-      const teamM = raw.match(/\s*—\s+(\S[^[\]]*?)(?:\s*\[.*\])?\s*$/);
-      if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.indexOf(teamM[0])); if (team) teamSet.add(team); }
-      // Extract assigned members: [Name1, Name2]
+      // Extract metadata tag block: {prio:N, seq:N, severity}
+      let prio = 2, seq = 0, severity = 'high';
+      const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
+      if (tagM) {
+        const tags = tagM[1].split(',').map(t => t.trim());
+        tags.forEach(t => {
+          const pm = t.match(/^prio:(\d+)$/i); if (pm) { prio = +pm[1]; return; }
+          const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
+          if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
+        });
+        raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
+      }
+      // Assigned: [Name1, Name2] at end — extract FIRST so team regex doesn't eat it
       let assign = [];
-      const assignM = raw.match(/\[(.+?)\]\s*$/);
-      if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.indexOf(assignM[0])).trim(); }
-      // Estimate: (SZ NT) or (NT)
+      const assignM = raw.match(/\s*\[(.+?)\]\s*$/);
+      if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.lastIndexOf(assignM[0])).trim(); }
+      // Team: — TeamName (now at the end since assignment is removed)
+      let team = '';
+      const teamM = raw.match(/\s*—\s+([^—]+?)\s*$/);
+      if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.lastIndexOf(teamM[0])); if (team) teamSet.add(team); }
+      // Estimate: (SZ NTd) or (SZ NTd ×F)
       let best = 0, factor = 1.5;
-      const estM = raw.match(/\((\w+\s+)?(\d+)T\)/);
-      if (estM) { best = parseInt(estM[2]); raw = raw.replace(estM[0], '').trim(); }
-      // Progress: NN%
+      const estM = raw.match(/\((\w+\s+)?(\d+)T(?:\s*×([\d.]+))?\)/);
+      if (estM) { best = parseInt(estM[2]); if (estM[3]) factor = parseFloat(estM[3]); raw = raw.replace(estM[0], '').trim(); }
+      // Progress
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
       if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
@@ -311,13 +395,11 @@ export default function App() {
       if (raw.includes('⏰')) { type = 'deadline'; raw = raw.replace('⏰', '').trim(); }
       else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
       else if (raw.includes('🎯')) { type = 'goal'; raw = raw.replace('🎯', '').trim(); }
-      // Deadline date: (YYYY-MM-DD)
+      // Date
       let date = '';
       const dateM = raw.match(/\((\d{4}-\d{2}-\d{2})\)/);
       if (dateM) { date = dateM[1]; raw = raw.replace(dateM[0], '').trim(); }
-      // Clean up name
       const name = raw.replace(/\*\*/g, '').trim();
-      // Use embedded ID if found, otherwise generate
       if (!id) {
         while (idStack.length && idStack[idStack.length - 1].indent >= indent) idStack.pop();
         const parentId = idStack.length ? idStack[idStack.length - 1].id : '';
@@ -325,21 +407,34 @@ export default function App() {
         id = parentId ? `${parentId}.${siblings.length + 1}` : `P${tree.filter(r => !r.id.includes('.')).length + 1}`;
       }
       idStack.push({ id, indent });
-      const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team, best, factor, prio: 2, deps: [], note: '', assign };
+      const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team, best, factor, prio, deps: [], note: '', assign };
+      if (seq) item.seq = seq;
       if (progress != null) item.progress = progress;
-      if (type) { item.type = type; item.severity = 'high'; }
+      if (type) { item.type = type; item.severity = severity; }
       if (date) item.date = date;
       tree.push(item);
       lastItem = item;
     });
-    // Build teams from discovered team names, match members to team IDs
-    const teamsArr = [...teamSet].map((name, i) => ({ id: `T${i + 1}`, name, color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][i % 6] }));
+
+    // Build teams: prefer explicit team table, fall back to inferred
+    const usedTeamNames = [...teamSet];
+    const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    const teamsArr = usedTeamNames.map((name, i) => {
+      const exp = explicitTeams.find(t => t.name === name);
+      return { id: `T${i + 1}`, name, color: exp?.color || palette[i % palette.length] };
+    });
     const teamLookup = Object.fromEntries(teamsArr.map(t => [t.name, t.id]));
     tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; });
     mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
-    // Resolve assigned names to member IDs
+    // Resolve assignee names to IDs
     tree.forEach(r => { if (r.assign?.length) r.assign = r.assign.map(name => { const m = mems.find(m => m.name === name); return m ? m.id : name; }); });
-    return { meta: { name: projName || 'Imported Project', version: '2' }, teams: teamsArr, members: mems, tree, vacations: [], holidays: [] };
+    // Resolve vacation person names to IDs
+    vacationsArr.forEach(v => { const m = mems.find(m => m.name === v.person); if (m) v.person = m.id; });
+
+    const metaObj = { name: projName || 'Imported Project', version: '2' };
+    if (planStart) metaObj.planStart = planStart;
+    if (planEnd) metaObj.planEnd = planEnd;
+    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr };
   }
 
   async function loadFromFile() {
@@ -481,25 +576,78 @@ export default function App() {
     const memberName = id => members.find(m => m.id === id)?.name || id;
     const SZ = { 1: 'XS', 3: 'S', 7: 'M', 15: 'L', 30: 'XL', 45: 'XXL' };
     const sz = b => { const k = Object.keys(SZ).map(Number).sort((a, c) => Math.abs(a - b) - Math.abs(c - b)); return SZ[k[0]] || ''; };
+    const esc = s => (s || '').toString().replace(/\|/g, '\\|').replace(/\n/g, ' ');
     let md = `# ${meta.name || 'Project'}\n\n`;
-    // Members
-    if (members.length) { md += `## Resources\n`; members.forEach(m => { md += `- **${m.name}** — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : ''}${m.start ? ', ab ' + m.start : ''}\n`; }); md += '\n'; }
-    // Tree
+
+    // Plan section (planStart, planEnd)
+    if (meta.planStart || meta.planEnd) {
+      md += `## Plan\n\n| Field | Value |\n|---|---|\n`;
+      if (meta.planStart) md += `| Start | ${meta.planStart} |\n`;
+      if (meta.planEnd) md += `| End | ${meta.planEnd} |\n`;
+      md += '\n';
+    }
+
+    // Teams section (name, color)
+    if (teams.length) {
+      md += `## Teams\n\n| Name | Color |\n|---|---|\n`;
+      teams.forEach(t => { md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` |\n`; });
+      md += '\n';
+    }
+
+    // Resources: keep existing format, with vacation days added
+    if (members.length) {
+      md += `## Resources\n`;
+      members.forEach(m => {
+        const cap = m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : '';
+        const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
+        md += `- **${m.name}** — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}\n`;
+      });
+      md += '\n';
+    }
+
+    // Vacation Weeks
+    if ((vacations || []).length) {
+      md += `## Vacation Weeks\n\n| Person | Week (Mon) | Note |\n|---|---|---|\n`;
+      vacations.forEach(v => { md += `| ${esc(memberName(v.person))} | ${v.week || ''} | ${esc(v.note)} |\n`; });
+      md += '\n';
+    }
+
+    // Holidays
+    if ((data?.holidays || []).length) {
+      md += `## Holidays\n\n| Date | Name | Source |\n|---|---|---|\n`;
+      data.holidays.forEach(h => { md += `| ${h.date} | ${esc(h.name)} | ${h.auto ? 'auto' : 'custom'} |\n`; });
+      md += '\n';
+    }
+
+    // Work Tree (extended inline metadata: factor, prio, severity, seq, dep labels)
     md += `## Work Tree\n`;
     tree.forEach(r => {
       const d = r.id.split('.').length;
       const indent = '  '.repeat(d - 1);
       const done = r.status === 'done' ? '✅ ' : r.status === 'wip' ? '🟡 ' : '';
-      const est = r.best > 0 ? ` (${sz(r.best)} ${r.best}T)` : '';
+      // estimate: (SZ NTd) or (SZ NTd ×F) when factor is non-default
+      const factorPart = (r.factor && r.factor !== 1.5) ? ` ×${r.factor}` : '';
+      const est = r.best > 0 ? ` (${sz(r.best)} ${r.best}T${factorPart})` : '';
       const prog = r.progress > 0 && r.progress < 100 ? ` ${r.progress}%` : '';
       const team = r.team ? ` — ${teamName(r.team)}` : '';
       const assign = (r.assign || []).length ? ` [${r.assign.map(memberName).join(', ')}]` : '';
-      const deps = (r.deps || []).length ? `\n${indent}  *Benötigt: ${r.deps.join(', ')}*` : '';
+      // Tags: prio (only if not 2), seq (only if non-zero), severity (root only)
+      const tags = [];
+      if (r.prio && r.prio !== 2) tags.push(`prio:${r.prio}`);
+      if (r.seq) tags.push(`seq:${r.seq}`);
+      if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
+      const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
+      // Deps: include labels when present
+      const depItems = (r.deps || []).map(d => {
+        const lbl = (r._depLabels || {})[d];
+        return lbl ? `${d} (${lbl})` : d;
+      });
+      const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';
       const note = r.note ? `\n${indent}  *${r.note}*` : '';
       const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
       const date = r.date ? ` (${r.date})` : '';
       const desc = r.description ? `\n${indent}  ${r.description}` : '';
-      md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${deps}${note}${desc}\n`;
+      md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${deps}${note}${desc}\n`;
     });
     return md;
   }
@@ -608,9 +756,9 @@ export default function App() {
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
-        {((!autoSave && !saved) || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save now (Ctrl+S)" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save now (Ctrl+S) — auto-save runs every 60s, click to force-save immediately" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
-      <label title={autoSave ? 'Auto-save is on — click to disable' : 'Auto-save is off — click to enable'} className="toggle">
+      <label title={autoSave ? 'Auto-save is on — saves to file every 60s when there are changes. Click 💾 to force-save now.' : 'Auto-save is off — click 💾 to save manually.'} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
         <span className="slider" />
       </label>
@@ -684,19 +832,43 @@ export default function App() {
               const commonTeam = commonOf('team');
               const commonStatus = commonOf('status');
               const commonPrio = commonOf('prio');
+              const commonBest = commonOf('best');
+              const commonFactor = commonOf('factor');
+              const commonNote = commonOf('note');
+              const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
               return <div className="side-body">
                 <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Common values shown — changes apply to all selected.</p>
                 <div className="field"><label>Team{commonTeam == null ? ' (mixed)' : ''}</label>
                   <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
                 </div>
-                <div className="field"><label>Add person to all (cumulative)</label>
-                  <SearchSelect options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r))} placeholder="Add person..." />
+                <div className="field"><label>Assigned to (common across all selected)</label>
+                  {(() => {
+                    // Find members assigned to ALL selected items (intersection)
+                    const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
+                    return <>
+                      {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                        {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" title="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
+                      </div>}
+                      <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r))} placeholder="Add person to all..." />
+                    </>;
+                  })()}
                 </div>
-                <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
+                {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
                   <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
-                </div>
+                </div>}
+                {allLeaf && <div className="frow">
+                  <div className="field"><label>Best (days){commonBest == null ? ' (mixed)' : ''}</label>
+                    <LazyInput type="number" min="0" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
+                  </div>
+                  <div className="field"><label>Factor{commonFactor == null ? ' (mixed)' : ''}</label>
+                    <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
+                  </div>
+                </div>}
                 <div className="field"><label>Priority{commonPrio == null ? ' (mixed)' : ''}</label>
                   <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
+                </div>
+                <div className="field"><label>Note{commonNote == null ? ' (mixed — overwrites all!)' : ''}</label>
+                  <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
                 </div>
                 <hr className="divider" />
                 <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>

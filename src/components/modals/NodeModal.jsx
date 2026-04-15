@@ -92,35 +92,15 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           </div>
           <div>
             <div className="field"><label>Assignee</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-            {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
-          </div>
-          <SearchSelect
-            options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}` }))}
-            onSelect={id => s('assign', [...new Set([...(f.assign || []), id])])}
-            placeholder="Search and assign person..."
-          />
-        </div>
-        <div className="field"><label>Dependencies</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
-            {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 80, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
-                <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => { s('deps', (f.deps || []).filter(x => x !== d)); const dl = { ...(f._depLabels || {}) }; delete dl[d]; s('_depLabels', dl); }}>×</span>
-              </div>
-            </div>; })}
-          </div>
-          <SearchSelect
-            options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
-            onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
-            placeholder="Search and add dependency..."
-          />
-          <p className="helper">Blocked until all deps finish.</p>
-        </div>
+              <SearchSelect
+                options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}` }))}
+                onSelect={id => s('assign', [...new Set([...(f.assign || []), id])])}
+                placeholder="Search and assign person..."
+              />
+            </div>
           </div>
         </div>
         <div className="calc">
@@ -136,6 +116,27 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           <span>({sc.capPct}% cap, {sc.vacDed}% vac)</span>
         </div>}
       </>}
+      <div className="field"><label>Dependencies{!isLeaf ? ' (apply to all leaves under this item)' : ''}</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+          {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 80, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
+              <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const newDeps = (x.deps || []).filter(y => y !== d); const newLabels = { ...(x._depLabels || {}) }; delete newLabels[d]; return { ...x, deps: newDeps, _depLabels: newLabels }; })}>×</span>
+            </div>
+          </div>; })}
+        </div>
+        <SearchSelect
+          options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
+          onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
+          placeholder="Search and add dependency..."
+          showIds
+        />
+        <p className="helper">{isLeaf ? 'Blocked until all deps finish.' : 'Constraint propagates: every leaf under this item is blocked until all listed deps finish.'}</p>
+      </div>
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
       <div className="modal-footer">
         {onDelete && <button className="btn btn-danger" onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) { onDelete(node.id); onClose(); } }}>Delete item</button>}

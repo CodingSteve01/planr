@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
 // - "Controlled mode" (with `value` prop): shows current selection, replaces <select>
-export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —' }) {
+export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —', showIds = false }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef(null);
@@ -56,7 +56,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
         padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         background: isControlled && o.id === value ? 'var(--bg4)' : ''
       }} className="tr" onClick={() => select(o.id)}>
-        {renderOption ? renderOption(o) : <><span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>{o.label}</>}
+        {renderOption ? renderOption(o) : (showIds ? <><span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>{o.label}</> : o.label)}
       </div>)}
     </div>}
   </div>;

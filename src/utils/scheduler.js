@@ -38,7 +38,14 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   function resD(id) { return resolveToLeafIds(tree, id); }
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
-  const visit = id => { if (vis.has(id)) return; vis.add(id); const r = iMap[id]; if (r)(r.deps || []).flatMap(resD).forEach(visit); ord.push(id); };
+  // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
+  const effectiveDeps = id => {
+    const r = iMap[id]; if (!r) return [];
+    const ownDeps = r.deps || [];
+    const ancestors = []; let aid = parentId(id); while (aid) { ancestors.push(aid); aid = parentId(aid); }
+    return [...new Set([...ownDeps, ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
+  };
+  const visit = id => { if (vis.has(id)) return; vis.add(id); effectiveDeps(id).flatMap(resD).filter(d => d !== id).forEach(visit); ord.push(id); };
   sv.forEach(r => visit(r.id));
   const pF = Object.fromEntries(members.map(m => [m.id, 0]));
   const tSlots = {}; // per-team slot array for unassigned task sequencing
@@ -73,7 +80,11 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     const eff = re(r.best, r.factor);
     const team = pt(r.team);
     const tM = members.filter(m => pt(m.team) === team);
-    const allD = (r.deps || []).flatMap(resD);
+    // Inherit deps from all ancestors so a parent dep blocks every leaf underneath
+    const ancestorIds = []; let aid = parentId(r.id); while (aid) { ancestorIds.push(aid); aid = parentId(aid); }
+    const inheritedDeps = ancestorIds.flatMap(a => iMap[a]?.deps || []);
+    const allDepsRaw = [...new Set([...(r.deps || []), ...inheritedDeps])];
+    const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
     let dE = -1; allD.forEach(d => { const fw = tEW[d]; if (fw != null && fw > dE) dE = fw; });
     const early = dE >= 0 ? dE + 2 : 0;
     const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));

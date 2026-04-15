@@ -144,7 +144,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
           {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}>×</span></span>; })}
         </div>
-        <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder="+ Add dependency" />
+        <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder="+ Add dependency" showIds />
         {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>
           This task is blocked by {selDeps.length} item{selDeps.length > 1 ? 's' : ''}. The scheduler will only start it after all dependencies are done.
         </div>}
