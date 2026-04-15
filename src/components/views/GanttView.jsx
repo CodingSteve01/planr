@@ -224,13 +224,6 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   }, [hoverDepId, tree, scheduled, rows]);
 
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const allGroupKeys = useMemo(() => {
-    const keys = [];
-    groups.forEach(g => { keys.push(g.key); (g.subGroups || []).forEach(sg => keys.push(sg.key)); });
-    return keys;
-  }, [groups]);
-  const collapseAll = () => setCollapsed(new Set(allGroupKeys));
-  const expandAll = () => setCollapsed(new Set());
 
   function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
   function onMM(e) {
@@ -283,8 +276,6 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Group</span>
           {[['project', 'Project'], ['projteam', 'Project › Team'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
-          <button className="btn btn-ghost btn-xs" onClick={collapseAll} title="Collapse all" style={{ padding: '2px 5px', fontSize: 10, marginLeft: 6 }}>▶</button>
-          <button className="btn btn-ghost btn-xs" onClick={expandAll} title="Expand all" style={{ padding: '2px 5px', fontSize: 10 }}>▼</button>
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
