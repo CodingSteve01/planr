@@ -122,7 +122,10 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
               </div>
               <SearchSelect
                 options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}` }))}
-                onSelect={id => s('assign', [...new Set([...(f.assign || []), id])])}
+                onSelect={id => {
+                  const m = members.find(x => x.id === id);
+                  setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: m?.team || x.team }));
+                }}
                 placeholder="Search and assign person..."
               />
             </div>

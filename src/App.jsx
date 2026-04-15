@@ -583,6 +583,22 @@ export default function App() {
     if (updated.some((r, i) => r.status !== tree[i].status)) { setData(d => ({ ...d, tree: updated })); }
   }, [stats]);
 
+  // Auto-reconcile team with assigned person — person's team always wins.
+  // Catches: stale data after team rename, MD imports with mismatching team,
+  // member changing team after assignment.
+  useEffect(() => {
+    if (!data || !tree.length || !members.length) return;
+    let changed = false;
+    const updated = tree.map(r => {
+      if (!r.assign?.length) return r;
+      const firstAssignee = members.find(m => m.id === r.assign[0]);
+      if (!firstAssignee?.team) return r;
+      if (r.team !== firstAssignee.team) { changed = true; return { ...r, team: firstAssignee.team }; }
+      return r;
+    });
+    if (changed) setData(d => ({ ...d, tree: updated }));
+  }, [tree, members]);
+
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
   function updateNode(u) { setD('tree', tree.map(r => r.id === u.id ? u : r)); }
   function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
@@ -605,19 +621,14 @@ export default function App() {
     a.download = `${(meta.name || 'project').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.json`; a.click();
   }
   function exportPDF() { window.print(); }
-  function exportSVG() {
+  // Build a clean light-mode SVG of the network graph (used for both SVG and PNG export)
+  function buildNetworkSvg() {
     const svg = document.querySelector('.netgraph-wrap svg');
-    if (!svg) return alert('Switch to the Network tab first.');
+    if (!svg) return null;
     const clone = svg.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    // Set viewBox to encompass the full graph content
     const g = clone.querySelector('g');
-    if (g) {
-      // Remove transform so we get the raw coordinates
-      const transform = g.getAttribute('transform');
-      g.removeAttribute('transform');
-    }
-    // Inject light mode styles so the SVG is readable on white background
+    if (g) g.removeAttribute('transform');
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
     style.textContent = `
       svg { background: #f8f9fc; --bg: #f8f9fc; --bg2: #ffffff; --bg3: #f0f2f5; --bg4: #e5e8ee;
@@ -627,10 +638,7 @@ export default function App() {
       text { font-family: 'Inter', sans-serif; }
     `;
     clone.prepend(style);
-    // Calculate bounds from all elements
-    const rects = clone.querySelectorAll('rect, text, path, line, circle');
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    // Use the content group's children positions
     const allNodes = clone.querySelectorAll('g > g');
     allNodes.forEach(n => {
       const t = n.getAttribute('transform');
@@ -641,12 +649,256 @@ export default function App() {
     });
     if (minX === Infinity) { minX = 0; minY = 0; maxX = 1200; maxY = 800; }
     const pad = 40;
-    clone.setAttribute('viewBox', `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`);
-    clone.setAttribute('width', maxX - minX + pad * 2);
-    clone.setAttribute('height', maxY - minY + pad * 2);
-    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+    const w = maxX - minX + pad * 2;
+    const h = maxY - minY + pad * 2;
+    clone.setAttribute('viewBox', `${minX - pad} ${minY - pad} ${w} ${h}`);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    return { svg: clone, width: w, height: h };
+  }
+
+  function exportSVG() {
+    const r = buildNetworkSvg();
+    if (!r) return alert('Switch to the Network tab first.');
+    const blob = new Blob([new XMLSerializer().serializeToString(r.svg)], { type: 'image/svg+xml' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-network.svg`; a.click();
+  }
+
+  // Convert SVG to PNG via Canvas (2× scale for crisp Retina/Whiteboard rendering)
+  async function svgToPng(svgEl, width, height, scale = 2) {
+    const xml = new XMLSerializer().serializeToString(svgEl);
+    const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f8f9fc';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas to blob failed')), 'image/png');
+      };
+      img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
+  async function exportNetworkPNG() {
+    const r = buildNetworkSvg();
+    if (!r) return alert('Switch to the Network tab first.');
+    try {
+      const blob = await svgToPng(r.svg, r.width, r.height, 2);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-network.png`; a.click();
+    } catch (e) { alert('PNG export failed: ' + (e.message || e)); }
+  }
+
+  // Build a printable SVG of the Gantt — scheduled bars per team/person, with date axis
+  function buildGanttSvg() {
+    if (!scheduled?.length || !weeks?.length) return null;
+    const WPX = 22; // wider than view for readability in export
+    const RH = 24, GH = 28, HH = 50;
+    const LW = 280; // left label width
+    // Group by team (sorted by team color/name), tasks sorted by start
+    const NO_TEAM = '__no_team__';
+    const usedT = [...new Set(scheduled.map(s => s.team || NO_TEAM))];
+    const tOrd = [...new Set([...teams.map(t => t.id), ...usedT])].filter(t => usedT.includes(t));
+    const grp = {};
+    tOrd.forEach(t => { grp[t] = scheduled.filter(s => (s.team || NO_TEAM) === t).sort((a, b) => (a.startWi || 0) - (b.startWi || 0)); });
+    const rows = [];
+    tOrd.forEach(t => { const tasks = grp[t] || []; if (!tasks.length) return; rows.push({ type: 'team', team: t }); tasks.forEach(s => rows.push({ type: 'task', s })); });
+    const tw = weeks.length * WPX;
+    const totalH = HH + rows.reduce((sum, r) => sum + (r.type === 'team' ? GH : RH), 0) + 20;
+    const totalW = LW + tw + 20;
+    // Months for header
+    const months = []; let cm = null, cc = 0, cs = 0;
+    weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) months.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
+    if (cm) months.push({ ym: cm, count: cc, start: cs });
+    const MDE = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const teamColor = tid => tid === NO_TEAM ? '#64748b' : (teams.find(x => x.id === tid)?.color || '#3b82f6');
+    const teamName = tid => tid === NO_TEAM ? 'No team' : (teams.find(x => x.id === tid)?.name || tid);
+
+    // Build SVG
+    const xmlns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(xmlns, 'svg');
+    svg.setAttribute('xmlns', xmlns);
+    svg.setAttribute('width', totalW);
+    svg.setAttribute('height', totalH);
+    svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+    svg.setAttribute('font-family', 'Inter, sans-serif');
+    // Background
+    const bg = document.createElementNS(xmlns, 'rect');
+    bg.setAttribute('width', totalW); bg.setAttribute('height', totalH); bg.setAttribute('fill', '#ffffff');
+    svg.appendChild(bg);
+    // Title
+    const title = document.createElementNS(xmlns, 'text');
+    title.setAttribute('x', 10); title.setAttribute('y', 18); title.setAttribute('font-size', 14); title.setAttribute('font-weight', '700'); title.setAttribute('fill', '#1a1e2a');
+    title.textContent = (meta.name || 'Project') + ' — Schedule';
+    svg.appendChild(title);
+    const sub = document.createElementNS(xmlns, 'text');
+    sub.setAttribute('x', 10); sub.setAttribute('y', 34); sub.setAttribute('font-size', 10); sub.setAttribute('fill', '#7a839a');
+    sub.textContent = `${weeks.length} weeks · ${scheduled.length} scheduled tasks · generated ${new Date().toLocaleDateString('de-DE')}`;
+    svg.appendChild(sub);
+    // Month header
+    let mx = LW;
+    months.forEach((m, i) => {
+      const [y, mo] = m.ym.split('-');
+      const w = WPX * m.count;
+      const r = document.createElementNS(xmlns, 'rect');
+      r.setAttribute('x', mx); r.setAttribute('y', HH - 24); r.setAttribute('width', w); r.setAttribute('height', 12);
+      r.setAttribute('fill', mo === '0' ? '#dbeafe' : '#f0f2f5'); r.setAttribute('stroke', '#ccd2dc');
+      svg.appendChild(r);
+      const t = document.createElementNS(xmlns, 'text');
+      t.setAttribute('x', mx + 4); t.setAttribute('y', HH - 14); t.setAttribute('font-size', 9); t.setAttribute('fill', mo === '0' ? '#1d4ed8' : '#4a5268'); t.setAttribute('font-weight', '600');
+      t.textContent = (mo === '0' ? y + ' ' : '') + MDE[+mo];
+      svg.appendChild(t);
+      mx += w;
+    });
+    // Week numbers
+    weeks.forEach((w, i) => {
+      const x = LW + i * WPX;
+      const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
+      const r = document.createElementNS(xmlns, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', HH - 12); r.setAttribute('width', WPX); r.setAttribute('height', 12);
+      r.setAttribute('fill', w.hasH ? '#fee2e2' : '#ffffff'); r.setAttribute('stroke', '#e0e4ea');
+      svg.appendChild(r);
+      if (isYB) { const ln = document.createElementNS(xmlns, 'line'); ln.setAttribute('x1', x); ln.setAttribute('x2', x); ln.setAttribute('y1', HH - 24); ln.setAttribute('y2', totalH); ln.setAttribute('stroke', '#1d4ed8'); ln.setAttribute('stroke-width', '1.5'); svg.appendChild(ln); }
+      const t = document.createElementNS(xmlns, 'text');
+      t.setAttribute('x', x + WPX / 2); t.setAttribute('y', HH - 3); t.setAttribute('font-size', 7); t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', w.hasH ? '#dc2626' : '#7a839a'); t.setAttribute('font-family', 'monospace');
+      t.textContent = w.kw;
+      svg.appendChild(t);
+    });
+    // Today line
+    const now = new Date();
+    const todayWi = weeks.findIndex((w, i) => { const next = weeks[i + 1]; return w.mon <= now && (!next || next.mon > now); });
+    if (todayWi >= 0) {
+      const tx = LW + todayWi * WPX;
+      const ln = document.createElementNS(xmlns, 'line');
+      ln.setAttribute('x1', tx); ln.setAttribute('x2', tx); ln.setAttribute('y1', HH); ln.setAttribute('y2', totalH); ln.setAttribute('stroke', '#16a34a'); ln.setAttribute('stroke-width', '2'); ln.setAttribute('opacity', '0.6');
+      svg.appendChild(ln);
+    }
+    // Rows
+    let y = HH;
+    rows.forEach(row => {
+      if (row.type === 'team') {
+        const col = teamColor(row.team);
+        const r = document.createElementNS(xmlns, 'rect');
+        r.setAttribute('x', 0); r.setAttribute('y', y); r.setAttribute('width', totalW); r.setAttribute('height', GH);
+        r.setAttribute('fill', '#f0f2f5');
+        svg.appendChild(r);
+        const cb = document.createElementNS(xmlns, 'rect');
+        cb.setAttribute('x', 0); cb.setAttribute('y', y); cb.setAttribute('width', 4); cb.setAttribute('height', GH);
+        cb.setAttribute('fill', col);
+        svg.appendChild(cb);
+        const t = document.createElementNS(xmlns, 'text');
+        t.setAttribute('x', 12); t.setAttribute('y', y + GH / 2 + 4); t.setAttribute('font-size', 11); t.setAttribute('font-weight', '700'); t.setAttribute('fill', col); t.setAttribute('text-transform', 'uppercase');
+        t.textContent = teamName(row.team);
+        svg.appendChild(t);
+        y += GH;
+        return;
+      }
+      const s = row.s;
+      // Row background line
+      const ln = document.createElementNS(xmlns, 'line');
+      ln.setAttribute('x1', 0); ln.setAttribute('x2', totalW); ln.setAttribute('y1', y + RH); ln.setAttribute('y2', y + RH); ln.setAttribute('stroke', '#f0f2f5');
+      svg.appendChild(ln);
+      // Left label: id + name + person
+      const lid = document.createElementNS(xmlns, 'text');
+      lid.setAttribute('x', 6); lid.setAttribute('y', y + RH / 2 + 4); lid.setAttribute('font-size', 9); lid.setAttribute('fill', '#7a839a'); lid.setAttribute('font-family', 'monospace');
+      lid.textContent = s.id;
+      svg.appendChild(lid);
+      const lname = document.createElementNS(xmlns, 'text');
+      lname.setAttribute('x', 70); lname.setAttribute('y', y + RH / 2 + 4); lname.setAttribute('font-size', 10); lname.setAttribute('fill', '#1a1e2a');
+      lname.textContent = s.name.length > 28 ? s.name.slice(0, 28) + '…' : s.name;
+      svg.appendChild(lname);
+      const lper = document.createElementNS(xmlns, 'text');
+      lper.setAttribute('x', LW - 6); lper.setAttribute('y', y + RH / 2 + 4); lper.setAttribute('font-size', 9); lper.setAttribute('fill', '#4a5268'); lper.setAttribute('text-anchor', 'end'); lper.setAttribute('font-family', 'monospace');
+      lper.textContent = s.person;
+      svg.appendChild(lper);
+      // Bar
+      if (s.status !== 'done' && s.startWi >= 0) {
+        const bx = LW + s.startWi * WPX + 1;
+        const bw = (s.endWi - s.startWi + 1) * WPX - 2;
+        const tc = teamColor(s.team || NO_TEAM);
+        const bar = document.createElementNS(xmlns, 'rect');
+        bar.setAttribute('x', bx); bar.setAttribute('y', y + 5); bar.setAttribute('width', Math.max(bw, 4)); bar.setAttribute('height', RH - 10);
+        bar.setAttribute('fill', tc + '55'); bar.setAttribute('stroke', tc); bar.setAttribute('stroke-width', '1'); bar.setAttribute('rx', 3);
+        svg.appendChild(bar);
+        if (bw > 30) {
+          const lbl = document.createElementNS(xmlns, 'text');
+          lbl.setAttribute('x', bx + 5); lbl.setAttribute('y', y + RH / 2 + 3); lbl.setAttribute('font-size', 9); lbl.setAttribute('fill', '#1a1e2a'); lbl.setAttribute('font-weight', '600');
+          lbl.textContent = s.name.length > Math.floor(bw / 7) ? s.name.slice(0, Math.floor(bw / 7) - 1) + '…' : s.name;
+          svg.appendChild(lbl);
+        }
+      }
+      y += RH;
+    });
+    return { svg, width: totalW, height: totalH };
+  }
+
+  function exportGanttSVG() {
+    const r = buildGanttSvg();
+    if (!r) return alert('No scheduled items — switch to Schedule tab and ensure tasks have estimates.');
+    const blob = new Blob([new XMLSerializer().serializeToString(r.svg)], { type: 'image/svg+xml' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-gantt.svg`; a.click();
+  }
+
+  async function exportGanttPNG() {
+    const r = buildGanttSvg();
+    if (!r) return alert('No scheduled items — switch to Schedule tab and ensure tasks have estimates.');
+    try {
+      const blob = await svgToPng(r.svg, r.width, r.height, 2);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-gantt.png`; a.click();
+    } catch (e) { alert('PNG export failed: ' + (e.message || e)); }
+  }
+
+  // Mermaid flowchart for Confluence pages (Mermaid macro). Captures hierarchy + dependencies.
+  function exportMermaid() {
+    if (!tree.length) return alert('No items to export.');
+    const safeId = id => id.replace(/[^A-Za-z0-9_]/g, '_');
+    const safeLabel = s => (s || '').replace(/"/g, "'").replace(/\n/g, ' ').slice(0, 60);
+    let out = '```mermaid\nflowchart TD\n';
+    // Node definitions
+    tree.forEach(r => {
+      const sid = safeId(r.id);
+      const lbl = `${r.id}: ${safeLabel(r.name)}`;
+      const isRoot = !r.id.includes('.');
+      // Shape: roots are stadium-shaped, others are rectangles. Done items use rounded.
+      const shape = isRoot ? `(["${lbl}"])` : r.status === 'done' ? `("${lbl}")` : `["${lbl}"]`;
+      out += `  ${sid}${shape}\n`;
+    });
+    out += '\n';
+    // Hierarchy (parent → child) as solid lines
+    tree.forEach(r => {
+      if (!r.id.includes('.')) return;
+      const pid = r.id.split('.').slice(0, -1).join('.');
+      out += `  ${safeId(pid)} --> ${safeId(r.id)}\n`;
+    });
+    out += '\n';
+    // Dependencies as dotted lines
+    tree.forEach(r => {
+      (r.deps || []).forEach(d => { out += `  ${safeId(d)} -.->|dep| ${safeId(r.id)}\n`; });
+    });
+    // Class definitions for done/wip/critical
+    out += '\n';
+    out += '  classDef done fill:#dcfce7,stroke:#16a34a,color:#15803d\n';
+    out += '  classDef wip fill:#fef3c7,stroke:#d97706,color:#a16207\n';
+    out += '  classDef root fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,font-weight:bold\n';
+    tree.filter(r => r.status === 'done').forEach(r => { out += `  class ${safeId(r.id)} done\n`; });
+    tree.filter(r => r.status === 'wip').forEach(r => { out += `  class ${safeId(r.id)} wip\n`; });
+    tree.filter(r => !r.id.includes('.')).forEach(r => { out += `  class ${safeId(r.id)} root\n`; });
+    out += '```\n';
+    const blob = new Blob([out], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-mermaid.md`; a.click();
   }
   function exportCSV() {
     const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Notes'];
@@ -871,11 +1123,15 @@ export default function App() {
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); }}>
-        <option value="">More ▾</option>
-        <option value="csv">Export CSV</option>
-        {tab === 'net' && <option value="svg">Export SVG</option>}
-        <option value="print">Print</option>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); else if (v === 'svg-net') exportSVG(); else if (v === 'png-net') exportNetworkPNG(); else if (v === 'svg-gantt') exportGanttSVG(); else if (v === 'png-gantt') exportGanttPNG(); else if (v === 'mermaid') exportMermaid(); else if (v === 'print') exportPDF(); }}>
+        <option value="">Export ▾</option>
+        <option value="csv">Tasks as CSV</option>
+        {tab === 'net' && <option value="svg-net">Network as SVG</option>}
+        {tab === 'net' && <option value="png-net">Network as PNG (for Whiteboard)</option>}
+        {tab === 'gantt' && <option value="svg-gantt">Gantt as SVG</option>}
+        {tab === 'gantt' && <option value="png-gantt">Gantt as PNG (for Whiteboard)</option>}
+        <option value="mermaid">Mermaid (for Confluence page)</option>
+        <option value="print">Print / PDF</option>
       </select>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
@@ -939,7 +1195,7 @@ export default function App() {
                       {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
                         {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" title="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
                       </div>}
-                      <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])] } : r))} placeholder="Add person to all..." />
+                      <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder="Add person to all..." />
                     </>;
                   })()}
                 </div>
