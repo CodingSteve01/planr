@@ -648,7 +648,35 @@ export default function App() {
   }, [tree, members]);
 
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
-  function updateNode(u) { setD('tree', tree.map(r => r.id === u.id ? u : r)); }
+  // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
+  // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
+  // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
+  function updateNode(u) {
+    setData(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
+    setSaved(false);
+  }
+  // Targeted dep mutations: read current tree state and touch ONLY the deps field.
+  // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
+  // out unrelated field changes that happened after the callback was created.
+  function removeDep(fromId, depId) {
+    setData(d => ({
+      ...d,
+      tree: (d.tree || []).map(r => r.id === fromId
+        ? { ...r, deps: (r.deps || []).filter(x => x !== depId) }
+        : r)
+    }));
+    setSaved(false);
+  }
+  function addDep(fromId, depId) {
+    if (fromId === depId) return;
+    setData(d => ({
+      ...d,
+      tree: (d.tree || []).map(r => r.id === fromId
+        ? { ...r, deps: [...new Set([...(r.deps || []), depId])] }
+        : r)
+    }));
+    setSaved(false);
+  }
   function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
   function addNode(node) {
     const pid = node.id.split('.').slice(0, -1).join('.');
@@ -1421,7 +1449,7 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}

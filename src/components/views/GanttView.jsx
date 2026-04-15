@@ -8,7 +8,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate, onTaskUpdate }) {
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep }) {
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -261,12 +261,9 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   // Complete a link-drag onto a target bar
   function onLinkDrop(targetId) {
     if (!linkDrag || linkDrag.fromId === targetId) { setLinkDrag(null); return; }
-    const target = iMap[targetId];
-    if (target) {
-      // target depends on linkDrag.fromId (predecessor → successor)
-      const newDeps = [...new Set([...(target.deps || []), linkDrag.fromId])];
-      onTaskUpdate?.({ ...target, deps: newDeps });
-    }
+    // Targeted add: reads latest tree state in App, touches only deps field.
+    // target depends on linkDrag.fromId (predecessor → successor)
+    onAddDep?.(targetId, linkDrag.fromId);
     setLinkDrag(null);
   }
 
@@ -374,16 +371,8 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                 onClick={() => {
                   if (linkMode && linkMode.fromId !== s.id) {
                     // Click-link mode (legacy via context menu): this bar becomes successor (depends on linkMode.fromId) or predecessor
-                    const fromNode = iMap[linkMode.fromId]; const toNode = iMap[s.id];
-                    if (fromNode && toNode) {
-                      if (linkMode.mode === 'pred') {
-                        const newDeps = [...new Set([...(toNode.deps || []), linkMode.fromId])];
-                        onTaskUpdate?.({ ...toNode, deps: newDeps });
-                      } else {
-                        const newDeps = [...new Set([...(fromNode.deps || []), s.id])];
-                        onTaskUpdate?.({ ...fromNode, deps: newDeps });
-                      }
-                    }
+                    if (linkMode.mode === 'pred') onAddDep?.(s.id, linkMode.fromId);
+                    else onAddDep?.(linkMode.fromId, s.id);
                     setLinkMode(null);
                   } else if (Math.abs(dDelta) === 0 && !linkDrag) onBarClick(s);
                 }}
@@ -409,23 +398,19 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
               <marker id="garN" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--tx3)" /></marker>
             </defs>
             {(() => {
-              // Pure orthogonal step routing (classic Gantt style). All segments are horizontal
-              // or vertical; corners are rounded via strokeLinejoin="round" on the path itself.
-              //   Bar A ]──┐
-              //            │
-              //            └──> [ Bar B
+              // Short 5px stubs horizontally out of source / into target, cubic bezier between.
+              // Works for both forward (target right of source) and backward (target left of source):
+              // in the backward case the control points' horizontal pull creates a natural S-loop
+              // without any orthogonal step pattern.
               const buildPath = (l) => {
-                const stub = 10;
+                const stub = 5;
                 const sx = l.x1 + stub;
                 const tx = l.x2 - stub;
-                if (tx > sx) {
-                  // FORWARD: stub right, vertical at midpoint, horizontal into target stub
-                  const mx = Math.round((sx + tx) / 2);
-                  return `M${l.x1},${l.y1} L${mx},${l.y1} L${mx},${l.y2} L${l.x2 - 1},${l.y2}`;
-                }
-                // BACKWARD: stub right past source, down/up to a lane, left under target column, into target
-                const lane = Math.max(l.y1, l.y2) + RH * 0.6;
-                return `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${lane} L${tx},${lane} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
+                // Control-point horizontal offset: at least 30px so backward links get a visible loop
+                const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
+                const c1x = sx + dx;
+                const c2x = tx - dx;
+                return `M${l.x1},${l.y1} L${sx},${l.y1} C${c1x},${l.y1} ${c2x},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
               };
               return allDepLines.map(l => {
                 const path = buildPath(l);
@@ -436,21 +421,19 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                 const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
                 const opacity = emphasized ? 0.95 : (l.isCp ? 0.55 : 0.32);
                 const strokeWidth = emphasized ? 1.8 : 1.1;
-                const stub = 10;
-                const sx = l.x1 + stub, tx = l.x2 - stub;
-                const mx = tx > sx ? (sx + tx) / 2 : sx + 14;
-                const my = tx > sx ? (l.y1 + l.y2) / 2 : Math.max(l.y1, l.y2) + RH * 0.6;
+                // × badge sits right at the start of the curve — close enough to the hover
+                // path that the pointer never leaves the hover target on the way to the badge.
+                const mx = l.x1 + 12;
+                const my = l.y1;
                 const removeDep = () => {
-                  const fromNode = iMap[l.removeFromId]; if (!fromNode) return;
-                  // Clear hover state BEFORE confirm: otherwise the dialog blocks while React still
-                  // holds a reference to a line key that's about to vanish from allDepLines, which
-                  // can cause render thrash on re-mount.
+                  // Clear hover state BEFORE confirm so React commits the hover-cleared render
+                  // before the dep mutation lands (avoids render thrash on the vanishing line).
                   setHoverLineKey(null);
                   setHoverDepId(null);
-                  // Defer the actual mutation so React commits the cleared hover state first
                   setTimeout(() => {
                     if (confirm(`Remove dependency: ${l.removeFromId} no longer depends on ${l.removeDepId}?`)) {
-                      onTaskUpdate?.({ ...fromNode, deps: (fromNode.deps || []).filter(d => d !== l.removeDepId) });
+                      // Targeted removal — reads latest tree state in App, touches only deps field.
+                      onRemoveDep?.(l.removeFromId, l.removeDepId);
                     }
                   }, 0);
                 };
@@ -502,18 +485,12 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         const x1 = rect ? rect.right : linkDrag.mouseX;
         const y1 = rect ? rect.top + rect.height / 2 : linkDrag.mouseY;
         const x2 = linkDrag.mouseX, y2 = linkDrag.mouseY;
-        const stub = 10;
+        const stub = 5;
         const sx = x1 + stub;
         const tx = x2 - stub;
-        let d;
-        if (tx > sx) {
-          // Step routing: stub right, vertical at midpoint, horizontal into target
-          const mx = Math.round((sx + tx) / 2);
-          d = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2 - 1},${y2}`;
-        } else {
-          const lane = Math.max(y1, y2) + 22;
-          d = `M${x1},${y1} L${sx},${y1} L${sx},${lane} L${tx},${lane} L${tx},${y2} L${x2 - 1},${y2}`;
-        }
+        const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
+        const c1x = sx + dx, c2x = tx - dx;
+        const d = `M${x1},${y1} L${sx},${y1} C${c1x},${y1} ${c2x},${y2} ${tx},${y2} L${x2 - 1},${y2}`;
         return <path d={d} stroke="var(--ac)" strokeWidth={2} fill="none" strokeDasharray="4 3" strokeLinejoin="round" strokeLinecap="round" markerEnd="url(#ldArr)" />;
       })()}
     </svg>}
@@ -535,7 +512,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           {node.deps?.length > 0 && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Remove dependency</div>
-            {node.deps.map(d => <div key={d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onTaskUpdate?.({ ...node, deps: node.deps.filter(x => x !== d) }); close(); }}>× {d}</div>)}
+            {node.deps.map(d => <div key={d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× {d}</div>)}
           </>}
         </div>
       </>;
