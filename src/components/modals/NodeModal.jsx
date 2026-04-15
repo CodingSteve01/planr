@@ -23,8 +23,25 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
   const isRoot = !node.id.includes('.');
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
-  return <div className="overlay" onClick={safeClose}>
+  // Build parent path for context: P1 → P1.1 → P1.1.2 (excluding the current item itself)
+  const ancestors = [];
+  if (!isRoot) {
+    const parts = node.id.split('.');
+    for (let i = 1; i < parts.length; i++) {
+      const aid = parts.slice(0, i).join('.');
+      const a = tree.find(r => r.id === aid);
+      if (a) ancestors.push(a);
+    }
+  }
+  return <div className="overlay">
     <div className={`modal${isLeaf ? ' modal-lg' : ''} fade`} onClick={e => e.stopPropagation()}>
+      {ancestors.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+        {ancestors.map((a, i) => <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{a.id}</span>
+          <span style={{ color: 'var(--tx2)' }}>{a.name}</span>
+          <span style={{ color: 'var(--b3)' }}>›</span>
+        </span>)}
+      </div>}
       <h2>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 13 }}>{node.id}</span>
         {isLeaf && <SBadge s={node.status} />}

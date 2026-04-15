@@ -10,7 +10,7 @@ export function DLModal({ goals, tree, onSave, onClose }) {
   const roots = tree.filter(r => !r.id.includes('.'));
   const untyped = roots.filter(r => !items.some(g => g.id === r.id));
 
-  return <div className="overlay" onClick={onClose}>
+  return <div className="overlay">
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
       <h2>Edit Focus</h2>
       <p className="helper" style={{ marginBottom: 14 }}>Set the type, priority, and deadline for your top-level items.</p>

@@ -3,7 +3,7 @@ import { useState } from 'react';
 export function SettingsModal({ meta, onSave, onClose }) {
   const [m, setM] = useState({ ...meta });
   const sm = (k, v) => setM(x => ({ ...x, [k]: v }));
-  return <div className="overlay" onClick={onClose}>
+  return <div className="overlay">
     <div className="modal fade" onClick={e => e.stopPropagation()}>
       <h2>Project Settings</h2>
       <div className="field"><label>Project name</label><input value={m.name || ''} onChange={e => sm('name', e.target.value)} /></div>

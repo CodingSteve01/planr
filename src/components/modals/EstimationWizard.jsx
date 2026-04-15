@@ -46,6 +46,19 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
     return leafNodes(tree).filter(r => r.id !== node.id && r.id.startsWith(pid + '.') && r.best > 0);
   }, [node, tree]);
 
+  // Ancestor breadcrumb for context
+  const ancestors = useMemo(() => {
+    if (!node) return [];
+    const out = [];
+    const parts = node.id.split('.');
+    for (let i = 1; i < parts.length; i++) {
+      const aid = parts.slice(0, i).join('.');
+      const a = tree.find(r => r.id === aid);
+      if (a) out.push(a);
+    }
+    return out;
+  }, [node, tree]);
+
   const steps = ['Scope', 'Size', 'Risks', 'Three-Point', 'Dependencies', 'Summary'];
 
   function onSizeSelect(idx) {
@@ -67,13 +80,21 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
     return () => window.removeEventListener('keydown', h);
   }, [isDirty]);
 
-  return <div className="overlay" onClick={safeClose}>
+  return <div className="overlay">
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
+      {ancestors.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+        {ancestors.map(a => <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{a.id}</span>
+          <span style={{ color: 'var(--tx2)' }}>{a.name}</span>
+          <span style={{ color: 'var(--b3)' }}>›</span>
+        </span>)}
+      </div>}
       <h2 style={{ flexWrap: 'wrap', gap: 8 }}>
         <span>Estimation Wizard</span>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 12, fontWeight: 400 }}>{node?.id}</span>
         <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{node?.name}</span>
       </h2>
+      {node?.note && <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderLeft: '3px solid var(--ac)', borderRadius: 'var(--r)', padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--tx2)', fontStyle: 'italic' }} title="Existing note on this task">{node.note}</div>}
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 2, marginBottom: 20 }}>

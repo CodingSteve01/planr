@@ -29,7 +29,7 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
     return () => window.removeEventListener('keydown', h);
   }, [isDirty]);
 
-  return <div className="overlay" onClick={safeClose}>
+  return <div className="overlay">
     <div className="modal fade" onClick={e => e.stopPropagation()}>
       <h2>Add {isTopLevel ? 'focus item' : 'child item'}</h2>
       <div className="frow">

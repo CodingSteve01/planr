@@ -16,6 +16,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   const [groupBy, setGroupBy] = useState(() => { try { return localStorage.getItem('planr_gantt_group') || 'project'; } catch { return 'project'; } });
   const [collapsed, setCollapsed] = useState(new Set());
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
+  const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const setGB = v => { setGroupBy(v); try { localStorage.setItem('planr_gantt_group', v); } catch {} };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
 
@@ -42,53 +43,75 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   const rootOf = id => id.split('.')[0];
   const iMap = Object.fromEntries((tree || []).map(r => [r.id, r]));
 
-  // Build groups based on groupBy
+  // Build groups based on groupBy. Groups can have subGroups for nested modes.
   const groups = useMemo(() => {
-    const result = []; // [{ key, label, color, items, tag? }]
-    if (groupBy === 'team') {
-      const usedT = [...new Set(allItems.map(s => s.team || NO_TEAM))];
+    const result = [];
+    const sortItems = arr => arr.sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
+    const teamGroupOf = (items, parentKey = '') => {
+      const usedT = [...new Set(items.map(s => s.team || NO_TEAM))];
       const tOrd = [...new Set([...teams.map(t => t.id), ...usedT])].filter(t => usedT.includes(t));
-      tOrd.forEach(tid => {
-        const items = allItems.filter(s => (s.team || NO_TEAM) === tid).sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
-        if (!items.length) return;
+      return tOrd.map(tid => {
+        const subItems = sortItems(items.filter(s => (s.team || NO_TEAM) === tid));
+        if (!subItems.length) return null;
         const t = teams.find(x => x.id === tid);
-        result.push({ key: 'team:' + tid, label: tid === NO_TEAM ? 'No team' : (t?.name || tid), color: tid === NO_TEAM ? NO_TEAM_COLOR : (t?.color || '#3b82f6'), items });
-      });
+        return {
+          key: parentKey + 'team:' + tid,
+          label: tid === NO_TEAM ? 'No team' : (t?.name || tid),
+          color: tid === NO_TEAM ? NO_TEAM_COLOR : (t?.color || '#3b82f6'),
+          items: subItems,
+        };
+      }).filter(Boolean);
+    };
+
+    if (groupBy === 'team') {
+      teamGroupOf(allItems).forEach(g => result.push(g));
     } else if (groupBy === 'person') {
       const personKey = s => s.personId || s.person || NO_PERSON;
       const personLabel = s => s.person || NO_PERSON;
       const used = [...new Set(allItems.map(personKey))];
       used.sort((a, b) => a === NO_PERSON ? 1 : b === NO_PERSON ? -1 : a.localeCompare(b));
       used.forEach(pk => {
-        const items = allItems.filter(s => personKey(s) === pk).sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
+        const items = sortItems(allItems.filter(s => personKey(s) === pk));
         if (!items.length) return;
         const lbl = personLabel(items[0]);
         result.push({ key: 'person:' + pk, label: lbl, color: pk === NO_PERSON ? NO_TEAM_COLOR : 'var(--ac)', items });
       });
-    } else { // project
-      // Group by root id (P1, D1, ...)
+    } else if (groupBy === 'project' || groupBy === 'projteam') {
       const used = [...new Set(allItems.map(s => rootOf(s.id)))];
-      // Order roots by their tree position
       const treeRootOrder = (tree || []).filter(r => !r.id.includes('.')).map(r => r.id);
       used.sort((a, b) => { const ai = treeRootOrder.indexOf(a), bi = treeRootOrder.indexOf(b); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi); });
       used.forEach(rid => {
-        const items = allItems.filter(s => rootOf(s.id) === rid).sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
-        if (!items.length) return;
+        const projItems = sortItems(allItems.filter(s => rootOf(s.id) === rid));
+        if (!projItems.length) return;
         const root = iMap[rid];
         const label = root ? `${root.type ? GT[root.type] + ' ' : ''}${rid} — ${root.name}` : rid;
         const color = root?.type === 'deadline' ? 'var(--re)' : root?.type === 'painpoint' ? 'var(--am)' : root?.type === 'goal' ? 'var(--ac)' : 'var(--tx3)';
-        result.push({ key: 'project:' + rid, label, color, items, tag: root?.type });
+        const baseKey = 'project:' + rid;
+        if (groupBy === 'projteam') {
+          // Nested: project contains team subgroups
+          const subGroups = teamGroupOf(projItems, baseKey + '/');
+          result.push({ key: baseKey, label, color, items: projItems, subGroups, tag: root?.type });
+        } else {
+          result.push({ key: baseKey, label, color, items: projItems, tag: root?.type });
+        }
       });
     }
     return result;
   }, [allItems, groupBy, teams, tree]);
 
-  // Build flat rows: group header + items (skipping items in collapsed groups)
+  // Flatten groups + subGroups into row stream, respecting collapsed state at each level
   const rows = [];
   groups.forEach(g => {
-    rows.push({ type: 'group', group: g });
-    if (!collapsed.has(g.key)) {
-      g.items.forEach(s => rows.push({ type: 'task', s, group: g }));
+    rows.push({ type: 'group', group: g, level: 0 });
+    if (collapsed.has(g.key)) return;
+    if (g.subGroups) {
+      g.subGroups.forEach(sg => {
+        rows.push({ type: 'group', group: sg, level: 1 });
+        if (collapsed.has(sg.key)) return;
+        sg.items.forEach(s => rows.push({ type: 'task', s, group: sg, level: 2 }));
+      });
+    } else {
+      g.items.forEach(s => rows.push({ type: 'task', s, group: g, level: 1 }));
     }
   });
 
@@ -127,8 +150,45 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
     return lines;
   }, [scheduled, cpSet, tree, rows]);
 
+  // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
+  const hoverLines = useMemo(() => {
+    if (!hoverDepId || !tree) return { lines: [], rowIds: new Set() };
+    const lines = [];
+    const rowIds = new Set([hoverDepId]);
+    const node = iMap[hoverDepId];
+    if (!node) return { lines, rowIds };
+    const target = sMap[hoverDepId];
+    // Outgoing: this task depends on these (deps must finish before this starts)
+    if (target) {
+      (node.deps || []).flatMap(resD).forEach(depId => {
+        const dep = sMap[depId]; if (!dep) return;
+        const srcRow = rowIdx[depId], tgtRow = rowIdx[hoverDepId];
+        if (srcRow == null || tgtRow == null) return;
+        rowIds.add(depId);
+        lines.push({ x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: target.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'in' });
+      });
+    }
+    // Incoming: which tasks depend on this one (this must finish before they start)
+    scheduled.forEach(s => {
+      const sNode = iMap[s.id]; if (!sNode) return;
+      const allDeps = (sNode.deps || []).flatMap(resD);
+      if (!allDeps.includes(hoverDepId)) return;
+      if (!target) return;
+      const srcRow = rowIdx[hoverDepId], tgtRow = rowIdx[s.id];
+      if (srcRow == null || tgtRow == null) return;
+      rowIds.add(s.id);
+      lines.push({ x1: (target.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'out' });
+    });
+    return { lines, rowIds };
+  }, [hoverDepId, tree, scheduled, rows]);
+
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const collapseAll = () => setCollapsed(new Set(groups.map(g => g.key)));
+  const allGroupKeys = useMemo(() => {
+    const keys = [];
+    groups.forEach(g => { keys.push(g.key); (g.subGroups || []).forEach(sg => keys.push(sg.key)); });
+    return keys;
+  }, [groups]);
+  const collapseAll = () => setCollapsed(new Set(allGroupKeys));
   const expandAll = () => setCollapsed(new Set());
 
   function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
@@ -149,7 +209,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Group</span>
-          {[['project', 'Project'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
+          {[['project', 'Project'], ['projteam', 'Project › Team'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
           <button className="btn btn-ghost btn-xs" onClick={collapseAll} title="Collapse all" style={{ padding: '2px 5px', fontSize: 10, marginLeft: 6 }}>▶</button>
           <button className="btn btn-ghost btn-xs" onClick={expandAll} title="Expand all" style={{ padding: '2px 5px', fontSize: 10 }}>▼</button>
@@ -177,7 +237,8 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           if (row.type === 'group') {
             const g = row.group;
             const isCol = collapsed.has(g.key);
-            return <div key={g.key} className="gteam" style={{ color: g.color, borderLeft: `3px solid ${g.color}`, background: 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+            const isSub = row.level === 1;
+            return <div key={g.key} className="gteam" style={{ color: g.color, borderLeft: `${isSub ? 2 : 3}px solid ${g.color}`, background: isSub ? 'var(--bg3)' : 'var(--bg2)', paddingLeft: isSub ? 18 : 6, height: RH, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: isSub ? 11 : 13, fontWeight: isSub ? 500 : 600, textTransform: isSub ? 'none' : 'uppercase', letterSpacing: isSub ? 0 : '.06em' }}
               onClick={() => toggleCollapse(g.key)}>
               <span style={{ fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center' }}>{isCol ? '▶' : '▼'}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
@@ -186,10 +247,14 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           }
           const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
           const dim = cpOnly && !isCp;
-          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1) }}
+          const indent = row.level === 2 ? 12 : 0;
+          const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
+          const isHov = hoverDepId === s.id;
+          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
             onClick={() => onBarClick(s)}
-            onMouseMove={e => setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}
-            onMouseLeave={() => setTip(null)}>
+            onMouseEnter={() => setHoverDepId(s.id)}
+            onMouseLeave={() => { setHoverDepId(null); setTip(null); }}
+            onMouseMove={e => setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>no estimate</span>
@@ -210,7 +275,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             </React.Fragment>)}
           </div>
           {rows.map((row) => {
-            if (row.type === 'group') { return <div key={row.group.key} style={{ height: RH, background: 'var(--bg2)', borderBottom: '1px solid var(--b2)', position: 'sticky', top: 0, zIndex: 2 }} />; }
+            if (row.type === 'group') { const isSub = row.level === 1; return <div key={row.group.key} style={{ height: RH, background: isSub ? 'var(--bg3)' : 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />; }
             const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
             if (s._unestimated) return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
             const isDrag = drag?.id === s.id;
@@ -218,9 +283,12 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             const wiE = isDrag ? Math.max(wiS, s.endWi + dDelta) : s.endWi;
             const bW = (wiE - wiS + 1) * WPX - 4;
             const dim = cpOnly && !isCp;
-            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1 }}
-              onMouseMove={e => !drag && setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}
-              onMouseLeave={() => setTip(null)}>
+            const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
+            const isHov = hoverDepId === s.id;
+            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
+              onMouseEnter={() => setHoverDepId(s.id)}
+              onMouseLeave={() => { setHoverDepId(null); setTip(null); }}
+              onMouseMove={e => !drag && setTip({ item: { ...s, isCp }, x: e.clientX, y: e.clientY })}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`}
                 style={{ left: wiS * WPX + 2, width: Math.max(bW, 6), background: tc + (isCp ? '60' : '40'), color: '#fff', borderLeft: `2px solid ${tc}`, cursor: drag ? 'grabbing' : 'grab' }}
                 onMouseDown={e => onBMD(e, s)}
@@ -229,12 +297,23 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
               </div>}
             </div>;
           })}
-          {cpLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 3 }}>
-            <defs><marker id="gar" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker></defs>
-            {cpLines.map((l, i) => {
+          {(cpLines.length > 0 || hoverLines.lines.length > 0) && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 3 }}>
+            <defs>
+              <marker id="gar" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="6" markerHeight="5" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--re)" /></marker>
+              <marker id="garHIn" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="7" markerHeight="6" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--ac)" /></marker>
+              <marker id="garHOut" viewBox="0 0 8 6" refX="7" refY="3" markerWidth="7" markerHeight="6" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--am)" /></marker>
+            </defs>
+            {!hoverDepId && cpLines.map((l, i) => {
               const mx = (l.x1 + l.x2) / 2;
               return <path key={i} d={`M${l.x1},${l.y1} C${mx},${l.y1} ${mx},${l.y2} ${l.x2},${l.y2}`}
                 fill="none" stroke="var(--re)" strokeWidth={1.5} opacity={.6} markerEnd="url(#gar)" />;
+            })}
+            {hoverDepId && hoverLines.lines.map((l, i) => {
+              const mx = (l.x1 + l.x2) / 2;
+              const col = l.kind === 'in' ? 'var(--ac)' : 'var(--am)';
+              const marker = l.kind === 'in' ? 'url(#garHIn)' : 'url(#garHOut)';
+              return <path key={i} d={`M${l.x1},${l.y1} C${mx},${l.y1} ${mx},${l.y2} ${l.x2},${l.y2}`}
+                fill="none" stroke={col} strokeWidth={2} opacity={.9} markerEnd={marker} />;
             })}
           </svg>}
         </div>

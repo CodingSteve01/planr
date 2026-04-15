@@ -135,12 +135,16 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
       <button className="btn btn-sec btn-xs" onClick={collapseAll} title={hasSelection ? `Collapse ${multiSel.size} selected items + their children` : 'Collapse all items'}>{hasSelection ? `Collapse selection (${multiSel.size})` : 'Collapse all'}</button>
       <button className="btn btn-sec btn-xs" onClick={expandAll} title={hasSelection ? `Expand ${multiSel.size} selected items + their children` : 'Expand all items'}>{hasSelection ? `Expand selection (${multiSel.size})` : 'Expand all'}</button>
-      <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 12 }} title="Status icons">○ open  ◐ wip  ● done</span>
-      <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 12 }} title="Priority icons">
-        <span style={{ color: 'var(--re)' }}>⏫</span> crit
-        <span style={{ color: 'var(--am)' }}> ▲</span> high
-        <span style={{ color: 'var(--ac)' }}> ▬</span> med
-        <span style={{ color: 'var(--tx3)' }}> ▼</span> low
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Status icons">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="open" /> open</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="wip" progress={50} /> wip</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="done" /> done</span>
+      </span>
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Priority icons">
+        <span style={{ color: 'var(--re)' }}>⏫</span>crit
+        <span style={{ color: 'var(--am)' }}>▲</span>high
+        <span style={{ color: 'var(--ac)' }}>▬</span>med
+        <span style={{ color: 'var(--tx3)' }}>▼</span>low
       </span>
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} items</span>
     </div>
