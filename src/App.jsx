@@ -177,9 +177,13 @@ export default function App() {
       let handle = saveAs ? null : fileHandleRef.current;
       if (!handle) {
         if (!window.showSaveFilePicker) { exportJSON(); return; }
+        const slug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
         handle = await window.showSaveFilePicker({
-          suggestedName: `${(meta.name || 'project').toLowerCase().replace(/\s+/g, '-')}.planr.json`,
-          types: [{ description: 'Planr Project', accept: { 'application/json': ['.json'] } }],
+          suggestedName: `${slug}.planr.json`,
+          types: [
+            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
+            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+          ],
         });
       }
       const canWrite = await ensureHandlePermission(handle, true);
@@ -507,15 +511,12 @@ export default function App() {
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
-      <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
-      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as new file">Save as</button>
-      <div className="vsep" />
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'json') exportJSON(); if (v === 'csv') exportCSV(); if (v === 'md') exportMarkdown(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); }}>
-        <option value="">Export ▾</option>
-        <option value="json">JSON</option>
-        <option value="csv">CSV</option>
-        <option value="md">Markdown</option>
-        {tab === 'net' && <option value="svg">SVG</option>}
+      <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to mounted file (Ctrl+S)">Save</button>
+      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format + location)">Save as</button>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); }}>
+        <option value="">More ▾</option>
+        <option value="csv">Export CSV</option>
+        {tab === 'net' && <option value="svg">Export SVG</option>}
         <option value="print">Print</option>
       </select>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>

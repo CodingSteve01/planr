@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { SBadge, PBadge, TBadge } from '../shared/Badges.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { GT, GL } from '../../constants.js';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
 
 export function QuickEdit({node,tree,members,teams,cpSet,stats,onUpdate,onDelete,onEstimate}){
   const[f,setF]=useState({...node});
@@ -91,9 +92,8 @@ export function QuickEdit({node,tree,members,teams,cpSet,stats,onUpdate,onDelete
         <div style={{display:'flex',flexWrap:'wrap',gap:3,marginBottom:4}}>
           {(f.assign||[]).map(a=>{const m=members.find(x=>x.id===a);return<span key={a} className="tag">{m?.name||a}<span className="tag-x" onClick={()=>s('assign',(f.assign||[]).filter(x=>x!==a))}>×</span></span>;})}
         </div>
-        <select onChange={e=>{if(!e.target.value)return;s('assign',[...new Set([...(f.assign||[]),e.target.value])]);e.target.value=''}}>
-          <option value="">+ Person</option>{members.map(m=><option key={m.id} value={m.id}>{m.name||m.id}</option>)}
-        </select>
+        <SearchSelect options={members.filter(m=>!(f.assign||[]).includes(m.id)).map(m=>({id:m.id,label:m.name||m.id}))}
+          onSelect={id=>s('assign',[...new Set([...(f.assign||[]),id])])} placeholder="Search person..." />
       </div>
       <div className="field"><label>Dependencies</label>
         <div style={{display:'flex',flexWrap:'wrap',gap:3,marginBottom:4}}>

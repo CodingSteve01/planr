@@ -107,16 +107,11 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
             {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
           </div>
-          <select onChange={e => { if (!e.target.value) return; s('assign', [...new Set([...(f.assign || []), e.target.value])]); e.target.value = ''; }}>
-            <option value="">+ Assign person</option>
-            {members.filter(m => !f.team || m.team === f.team).map(m => (
-              <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
-            ))}
-            {f.team && <option disabled>───</option>}
-            {f.team && members.filter(m => m.team !== f.team).map(m => (
-              <option key={m.id} value={m.id}>{m.name || m.id}{m.team ? ` (${teams.find(t => t.id === m.team)?.name || m.team})` : ''}</option>
-            ))}
-          </select>
+          <SearchSelect
+            options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}` }))}
+            onSelect={id => s('assign', [...new Set([...(f.assign || []), id])])}
+            placeholder="Search and assign person..."
+          />
         </div>
         <div className="field"><label>Dependencies</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
