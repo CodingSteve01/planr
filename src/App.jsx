@@ -785,6 +785,90 @@ export default function App() {
     setD('tree', renamed);
     return idMap[nodeId];
   }
+  // Reorder a node within its sibling list by renumbering trailing IDs (and all
+  // descendants, plus dep references everywhere). Direction: 'up'|'down'|'first'|'last'.
+  // For root items (no dot), only siblings sharing the same alphabetic prefix swap —
+  // mixing P-roots with D-roots would change category semantics.
+  function reorderSibling(nodeId, direction) {
+    const parts = nodeId.split('.');
+    const parentId = parts.slice(0, -1).join('.');
+    const node = tree.find(r => r.id === nodeId); if (!node) return;
+
+    // Build sibling list. For children: same parent. For roots: same alphabetic prefix.
+    const isRoot = !parentId;
+    const myPrefix = isRoot ? (nodeId.match(/^[A-Za-z]+/)?.[0] || '') : '';
+    const siblings = tree.filter(r => {
+      if (isRoot) {
+        if (r.id.includes('.')) return false;
+        return (r.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
+      }
+      const rp = r.id.split('.').slice(0, -1).join('.');
+      return rp === parentId;
+    }).sort((a, b) => {
+      const an = parseInt(a.id.split('.').pop().replace(/\D/g, '')) || 0;
+      const bn = parseInt(b.id.split('.').pop().replace(/\D/g, '')) || 0;
+      return an - bn;
+    });
+
+    const myIdx = siblings.findIndex(s => s.id === nodeId);
+    if (myIdx < 0) return;
+    let newIdx = myIdx;
+    if (direction === 'up') newIdx = myIdx - 1;
+    else if (direction === 'down') newIdx = myIdx + 1;
+    else if (direction === 'first') newIdx = 0;
+    else if (direction === 'last') newIdx = siblings.length - 1;
+    newIdx = Math.max(0, Math.min(siblings.length - 1, newIdx));
+    if (newIdx === myIdx) return;
+
+    // Reorder siblings array
+    const reordered = [...siblings];
+    const [moved] = reordered.splice(myIdx, 1);
+    reordered.splice(newIdx, 0, moved);
+
+    // Build idMap: old → new for every sibling whose position changed,
+    // plus for every descendant of those siblings.
+    const idMap = {};
+    reordered.forEach((s, i) => {
+      const newSuffix = i + 1;
+      const newId = isRoot ? `${myPrefix}${newSuffix}` : `${parentId}.${newSuffix}`;
+      if (newId === s.id) return;
+      idMap[s.id] = newId;
+      const descPrefix = s.id + '.';
+      tree.forEach(r => {
+        if (r.id.startsWith(descPrefix)) idMap[r.id] = newId + '.' + r.id.slice(descPrefix.length);
+      });
+    });
+    if (!Object.keys(idMap).length) return;
+
+    // Apply renaming + dep remapping (mirrors moveNode's logic).
+    const renamed = tree.map(r => {
+      const newId = idMap[r.id] || r.id;
+      const newDeps = (r.deps || []).map(d => idMap[d] || d);
+      const depsChanged = newDeps.some((d, i) => d !== (r.deps || [])[i]);
+      if (newId === r.id && !depsChanged) return r;
+      const newR = { ...r, id: newId, deps: newDeps };
+      if (r._depLabels) {
+        newR._depLabels = {};
+        Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
+      }
+      return newR;
+    });
+    // Re-sort so parent-then-children order is preserved globally
+    renamed.sort((a, b) => {
+      const ap = a.id.split('.'), bp = b.id.split('.');
+      for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
+        if (ap[i] !== bp[i]) {
+          const an = parseInt(ap[i].replace(/\D/g, '')) || 0, bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
+          return an !== bn ? an - bn : ap[i].localeCompare(bp[i]);
+        }
+      }
+      return ap.length - bp.length;
+    });
+    setD('tree', renamed);
+    // Keep the moved node selected under its new ID
+    if (selected?.id === nodeId && idMap[nodeId]) setSel(renamed.find(r => r.id === idMap[nodeId]));
+  }
+
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
@@ -1409,7 +1493,7 @@ export default function App() {
                 } else { setSel(node); setMultiSel(new Set()); }
               }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} members={members} cpSet={cpSet}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
-              onDelete={deleteNode} />
+              onDelete={deleteNode} onReorder={reorderSibling} />
           }
           </div>
         </div>
