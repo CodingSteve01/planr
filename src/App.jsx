@@ -483,8 +483,9 @@ export default function App() {
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
         <span className={`save-dot ${saved ? 'clean' : 'dirty'}`} title={saved ? 'All changes saved' : 'Unsaved changes'} />
       </span>
-      {fileName && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
+        {(!autoSave || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save (Ctrl+S)" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
         <label title={autoSave ? 'Auto-save is on — click to disable' : 'Auto-save is off — click to enable'} className="toggle">
           <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
           <span className="slider" />
@@ -508,11 +509,10 @@ export default function App() {
         </select>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
       </>}
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} title="Project settings">⚙ Settings</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
-      <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to mounted file (Ctrl+S)">Save</button>
-      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format + location)">Save as</button>
+      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
       <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); }}>
         <option value="">More ▾</option>
         <option value="csv">Export CSV</option>
