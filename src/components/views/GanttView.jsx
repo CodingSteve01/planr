@@ -340,11 +340,30 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
             {/* Today: vertical green line is enough — no badge cluttering the header area */}
-            {dlL.map(dl => <React.Fragment key={dl.id}>
-              <div style={{ position: 'absolute', left: dl.wi * WPX, top: 0, width: 2, height: '100%', background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', opacity: .5, zIndex: 4 }} title={`${dl.name} ${dl.date}`} />
-              {/* Compact deadline label, max-width with ellipsis so it never bleeds across weeks */}
-              <div style={{ position: 'absolute', left: dl.wi * WPX + 4, top: 2, color: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)', fontSize: 9, fontWeight: 600, fontFamily: 'var(--mono)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', zIndex: 6, pointerEvents: 'none' }} title={`${dl.name} ${dl.date}`}>{dl.name}</div>
-            </React.Fragment>)}
+            {dlL.map(dl => {
+              const x = dl.wi * WPX;
+              const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
+              // Backfill: gentle gradient fading from the deadline mast to the left, so the eye
+              // naturally traces the runway leading up to the date. Capped at 8 weeks.
+              const backfillW = Math.min(x, 8 * WPX);
+              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ' — AT RISK' : ''}`;
+              return <React.Fragment key={dl.id}>
+                {backfillW > 0 && <div style={{ position: 'absolute', left: x - backfillW, top: 0, width: backfillW, height: '100%',
+                  background: `linear-gradient(to right, transparent, ${dl.severity === 'critical' ? 'rgba(244,63,94,.14)' : 'rgba(245,158,11,.14)'})`,
+                  pointerEvents: 'none', zIndex: 3 }} title={titleStr} />}
+                {/* Mast: vertical line at the deadline week */}
+                <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: .7, zIndex: 4 }} title={titleStr} />
+                {/* Flag: triangle notch on the left (pointing back toward the backfill), label body to the right of the mast */}
+                <div style={{ position: 'absolute', left: x, top: 1, zIndex: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center', maxWidth: 120 }} title={titleStr}>
+                  <div style={{
+                    background: col, color: '#fff', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)',
+                    padding: '2px 6px 2px 8px', letterSpacing: '.02em',
+                    clipPath: 'polygon(6px 0, 100% 0, calc(100% - 4px) 50%, 100% 100%, 6px 100%, 0 50%)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 118,
+                  }}>{dl.isLate ? '! ' : ''}{dl.name}</div>
+                </div>
+              </React.Fragment>;
+            })}
           </div>
           {rows.map((row) => {
             if (row.type === 'group') { const isSub = row.level === 1; return <div key={row.group.key} style={{ height: RH, background: isSub ? 'var(--bg3)' : 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />; }
