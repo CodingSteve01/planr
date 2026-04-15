@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
-import { iso } from '../../utils/date.js';
+import { iso, addD } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 
 const NO_TEAM = '__no_team__';
@@ -272,10 +272,15 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag) { setDrag(null); setDDelta(0); } }}>
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Group</span>
           {[['project', 'Project'], ['projteam', 'Project › Team'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
+          <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 6px' }} />
+          <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Zoom</span>
+          <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
+          <button className="btn btn-sec btn-xs" onClick={() => setZ(DEFAULT_WPX)} title={`Reset zoom (${DEFAULT_WPX} px/wk)`} style={{ padding: '2px 7px', fontSize: 10 }}>{Math.round(WPX)}</button>
+          <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in (toward day-level at ~70 px/wk)" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
@@ -292,6 +297,16 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
               {w.kw}
             </div>; })}
         </div>
+        {/* Day-level header row, only when zoomed in enough that day numbers fit. */}
+        {showDays && <div style={{ display: 'flex', height: 14, borderTop: '1px solid var(--b2)' }}>
+          {weeks.map((w, i) => <div key={i} style={{ width: WPX, flexShrink: 0, display: 'flex' }}>
+            {[0, 1, 2, 3, 4].map(d => {
+              const date = addD(w.mon, d);
+              const isToday = date.toDateString() === now.toDateString();
+              return <div key={d} style={{ flex: 1, fontSize: 8, textAlign: 'center', color: isToday ? 'var(--gr)' : 'var(--tx3)', fontWeight: isToday ? 700 : 400, fontFamily: 'var(--mono)', borderRight: d < 4 ? '1px solid var(--b2)' : 'none', lineHeight: '14px' }}>{date.getDate()}</div>;
+            })}
+          </div>)}
+        </div>}
       </div>
     </div>
     <div className="gantt-body">
@@ -313,7 +328,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           const indent = row.level === 2 ? 12 : 0;
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
-          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
+          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={() => setHoverDepId(s.id)}
             onMouseLeave={() => setHoverDepId(null)}>
@@ -329,6 +344,11 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         <div style={{ width: tw, position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
+            {/* Day-level grid: faint vertical lines between days, only at zoom levels where days are wide enough to read. */}
+            {showDays && weeks.map((w, i) => [1, 2, 3, 4].map(d => <div key={`d-${i}-${d}`} style={{
+              position: 'absolute', left: i * WPX + d * (WPX / 5), top: 0, width: 1, height: '100%',
+              background: 'var(--b2)', opacity: .35,
+            }} />))}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
             {/* Today: vertical green line is enough — no badge cluttering the header area */}
             {dlL.map(dl => {
@@ -371,7 +391,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             const decideBy = node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
             const isDecideOverdue = decideBy && new Date(decideBy) < now;
-            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1, background: isHov ? 'var(--bg4)' : isHovDep ? 'var(--bg3)' : '' }}
+            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
@@ -439,8 +459,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                 const emphasized = isHovered || isHoveredTask;
                 const col = l.isCp ? 'var(--re)' : emphasized ? 'var(--ac)' : 'var(--tx3)';
                 const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
-                const opacity = emphasized ? 0.95 : (l.isCp ? 0.55 : 0.32);
-                const strokeWidth = emphasized ? 1.8 : 1.1;
+                // Default opacity raised because solid-fill bars made the prior 0.32
+                // grey arrows disappear visually between adjacent bars.
+                const opacity = emphasized ? 0.95 : (l.isCp ? 0.7 : 0.55);
+                const strokeWidth = emphasized ? 1.8 : 1.2;
                 // × badge sits right at the start of the curve — close enough to the hover
                 // path that the pointer never leaves the hover target on the way to the badge.
                 const mx = l.x1 + 12;
