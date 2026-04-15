@@ -75,6 +75,7 @@ export default function App() {
   const [teamFilter, setTeamFilter] = useState('');
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
+  const searchRef = useRef(null);
   const fileHandleRef = useRef(null);
   const [fileName, setFileName] = useState(null);
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
@@ -597,8 +598,22 @@ export default function App() {
   }
   // Accept both .json and .md files
 
-  // Ctrl+S → save to file
-  useEffect(() => { const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); });
+  // Global keyboard shortcuts: Ctrl/Cmd+S → save, Ctrl/Cmd+F → focus search
+  useEffect(() => {
+    const h = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        // Only intercept when a searchable view is active
+        if (tab === 'tree' || tab === 'gantt' || tab === 'net') {
+          e.preventDefault();
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
 
   const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
   // Backward compat: migrate old deadlines[] into tree roots
@@ -1321,8 +1336,14 @@ export default function App() {
         <span className="slider" />
       </label>
       <span style={{ fontSize: 9, color: !fileName ? 'var(--tx3)' : autoSave ? (fileWriteOk ? 'var(--ac)' : 'var(--am)') : 'var(--tx3)', cursor: fileName && !fileWriteOk ? 'pointer' : 'default', userSelect: 'none' }}
-        onClick={() => { if (fileName && !fileWriteOk) saveToFile(); }}>
-        {!fileName ? (autoSave ? 'auto (no file)' : 'off') : autoSave ? (fileWriteOk ? 'auto' : '⚠ click to grant') : 'auto off'}
+        title={fileName && !fileWriteOk ? 'File permission was lost (typically after a page reload). Click to re-pick the file with a Save-As dialog — it will suggest the original filename.' : ''}
+        onClick={() => {
+          // Browsers reject permission prompts that arrive after async hops because the
+          // user-gesture context is lost. Going straight to Save-As is the reliable
+          // path: the picker re-creates the handle with a fresh permission grant.
+          if (fileName && !fileWriteOk) saveToFile(true);
+        }}>
+        {!fileName ? (autoSave ? 'auto (no file)' : 'off') : autoSave ? (fileWriteOk ? 'auto' : '⚠ click to re-mount') : 'auto off'}
       </span>
       {lastSavedAt && <span style={{ fontSize: 9, color: fileName && !fileSynced ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }} title={fileName && !fileSynced ? 'Changes are saved locally but the file on disk is not yet updated. Auto-save retries every 60s, or click 💾 to force-save now.' : ''}>
         {!fileName ? `local ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
@@ -1332,11 +1353,6 @@ export default function App() {
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
-      {tab === 'tree' && <>
-        <input className="btn btn-sec" style={{ padding: '5px 10px', width: 160 }} placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => setTeamFilter(v)} placeholder="All teams" allowEmpty emptyLabel="All teams" /></div>
-        <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
-      </>}
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
@@ -1359,6 +1375,18 @@ export default function App() {
       {TABS.map(t => <div key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</div>)}
       <div style={{ flex: 1 }} />
     </div>
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net') && <div className="subtoolbar">
+      {tab === 'tree' && <>
+        <div style={{ width: 160 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => setTeamFilter(v)} placeholder="All teams" allowEmpty emptyLabel="All teams" /></div>
+        <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
+      </>}
+      <div style={{ flex: 1 }} />
+      <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
+        placeholder={`Search… (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+F)`}
+        value={search} onChange={e => setSearch(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); e.target.blur(); } }} />
+      {search && <button className="btn btn-ghost btn-xs" onClick={() => setSearch('')} title="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>}
+    </div>}
     <div className="main">
       {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
@@ -1449,8 +1477,8 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} /></div>}
+      {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}

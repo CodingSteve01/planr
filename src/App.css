@@ -22,6 +22,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .vsep{width:1px;height:18px;background:var(--b2);flex-shrink:0;}
 .sp{flex:1;}
 .tab-bar{display:flex;padding:0 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;}
+.subtoolbar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:wrap;}
 .tab{padding:8px 14px;font-size:12px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;letter-spacing:.01em;user-select:none;}
 .tab:hover{color:var(--tx2);}
 .tab.on{color:var(--ac);border-bottom-color:var(--ac);}
@@ -201,7 +202,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 
 /* ── Print ── */
 @media print{
-  .topbar,.tab-bar,.gantt-footer,.ng-toolbar,.ng-legend,.side,.modal-footer{display:none!important;}
+  .topbar,.tab-bar,.subtoolbar,.gantt-footer,.ng-toolbar,.ng-legend,.side,.modal-footer{display:none!important;}
   .app{height:auto!important;overflow:visible!important;}
   .main{overflow:visible!important;height:auto!important;}
   .pane,.pane-full{overflow:visible!important;height:auto!important;}
