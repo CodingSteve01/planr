@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -10,12 +10,20 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
+  const isDirty = useMemo(() => node && JSON.stringify({ ...node }) !== JSON.stringify(f), [node, f]);
+  const safeClose = () => { if (isDirty && !confirm('You have unsaved changes. Discard and close?')) return; onClose(); };
+  // ESC to close (with confirm if dirty)
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') safeClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [isDirty]);
   if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
-  return <div className="overlay" onClick={onClose}>
+  return <div className="overlay" onClick={safeClose}>
     <div className={`modal${isLeaf ? ' modal-lg' : ''} fade`} onClick={e => e.stopPropagation()}>
       <h2>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 13 }}>{node.id}</span>
@@ -141,8 +149,8 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="modal-footer">
         {onDelete && <button className="btn btn-danger" onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) { onDelete(node.id); onClose(); } }}>Delete item</button>}
         <div style={{ flex: 1 }} />
-        <button className="btn btn-sec" onClick={onClose}>Cancel</button>
-        <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }}>Save</button>
+        <button className="btn btn-sec" onClick={safeClose}>Cancel</button>
+        <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? 'Save' : 'No changes'}</button>
       </div>
     </div>
   </div>;

@@ -347,6 +347,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   const items = tree;
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
+  const hasChildrenSet = useMemo(() => { const s = new Set(); tree.forEach(r => { const p = r.id.split('.').slice(0, -1).join('.'); if (p) s.add(p); }); return s; }, [tree]);
 
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
   const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
@@ -526,8 +527,18 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
             <text x={5} y={21} fontSize={7.5} fill={isRoot ? '#ffffff' : tc} fontWeight={depth <= 1 ? 700 : depth <= 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
               {r.name.length <= 26 ? r.name : <>{r.name.slice(0, 26)}<tspan x={5} dy={10}>{r.name.slice(26, 52)}{r.name.length > 52 ? '..' : ''}</tspan></>}
             </text>
-            {/* Info line */}
-            {sc && <text x={5} y={r.name.length > 26 ? 40 : 33} fontSize={5.5} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+            {/* Info line with priority chevron (for leaves) */}
+            {(() => {
+              const isLeafNode = !hasChildrenSet.has(r.id);
+              const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
+              const PRIO_COL = { 1: '#f87171', 2: '#fbbf24', 3: '#6ca0ff', 4: '#8090a8' };
+              const showPrio = isLeafNode && r.prio;
+              const y = r.name.length > 26 ? 40 : 33;
+              return <>
+                {showPrio && <text x={5} y={y} fontSize={7} fill={PRIO_COL[r.prio]} fontWeight={700} style={{ pointerEvents: 'none' }}>{PRIO_GLYPH[r.prio]}</text>}
+                {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+              </>;
+            })()}
           </g>;
         })}
       </g>

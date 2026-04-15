@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { nextChildId } from '../../utils/scheduler.js';
 import { GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -21,7 +21,15 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
   const [f, setF] = useState({ name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [], type: '', severity: 'high', date: '', description: '' });
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
 
-  return <div className="overlay" onClick={onClose}>
+  const isDirty = !!f.name; // only "dirty" once user has typed something
+  const safeClose = () => { if (isDirty && !confirm('Discard this new item?')) return; onClose(); };
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') safeClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [isDirty]);
+
+  return <div className="overlay" onClick={safeClose}>
     <div className="modal fade" onClick={e => e.stopPropagation()}>
       <h2>Add {isTopLevel ? 'focus item' : 'child item'}</h2>
       <div className="frow">
@@ -81,7 +89,7 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
       </>}
       <div className="field"><label>Notes</label><textarea value={f.note} onChange={e => s('note', e.target.value)} rows={2} /></div>
       <div className="modal-footer">
-        <button className="btn btn-sec" onClick={onClose}>Cancel</button>
+        <button className="btn btn-sec" onClick={safeClose}>Cancel</button>
         <button className="btn btn-pri" disabled={!f.name}
           onClick={() => { if (!f.name) return; const item = { ...f, id: autoId, lvl: autoLvl }; if (!isTopLevel) { delete item.type; delete item.severity; delete item.date; delete item.description; } onAdd(item); onClose(); }}>Add {isTopLevel ? 'focus item' : 'child item'}</button>
       </div>

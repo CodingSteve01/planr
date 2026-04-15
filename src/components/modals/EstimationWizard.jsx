@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 
@@ -56,9 +56,24 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
     setPessimistic(Math.round(d * 1.8));
   }
 
-  return <div className="overlay" onClick={onClose}>
+  // Dirty detection: any user input that differs from the original node state
+  const origScope = node?.note || '';
+  const origDeps = (node?.deps || []).join(',');
+  const isDirty = scope !== origScope || size !== -1 && SIZES[size]?.days !== node?.best || risks.size > 0 || selDeps.join(',') !== origDeps;
+  const safeClose = () => { if (isDirty && !confirm('Discard your estimate inputs? Everything you entered will be lost.')) return; onClose(); };
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') safeClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [isDirty]);
+
+  return <div className="overlay" onClick={safeClose}>
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
-      <h2>Estimation Wizard — {node?.id}</h2>
+      <h2 style={{ flexWrap: 'wrap', gap: 8 }}>
+        <span>Estimation Wizard</span>
+        <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 12, fontWeight: 400 }}>{node?.id}</span>
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{node?.name}</span>
+      </h2>
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 2, marginBottom: 20 }}>
@@ -170,7 +185,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
       <div className="modal-footer">
         {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>Back</button>}
         <div style={{ flex: 1 }} />
-        <button className="btn btn-sec" onClick={onClose}>Cancel</button>
+        <button className="btn btn-sec" onClick={safeClose}>Cancel</button>
         {step < 5 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>Next</button>
           : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '' }); onClose(); }}>Apply estimate</button>}
       </div>

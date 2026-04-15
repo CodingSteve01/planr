@@ -225,32 +225,52 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', h);
   }, [saved]);
 
-  // Save to file (File System Access API)
+  // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
+  // Used as fallback when the existing handle's permission/write fails after a reload.
+  async function pickSaveHandle(suggestedFromName) {
+    if (!window.showSaveFilePicker) { exportJSON(); return null; }
+    const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
+    const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
+    const isMd = suggested.endsWith('.md');
+    return await window.showSaveFilePicker({
+      suggestedName: suggested,
+      types: isMd
+        ? [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }, { description: 'Planr JSON', accept: { 'application/json': ['.json'] } }]
+        : [{ description: 'Planr JSON', accept: { 'application/json': ['.json'] } }, { description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+    });
+  }
+
+  // Write content to a handle (caller already has write permission)
+  async function writeToHandle(handle, content) {
+    const wr = await handle.createWritable();
+    await wr.write(content);
+    await wr.close();
+  }
+
+  // Save to file (File System Access API). On failure, fall back to Save-As with previous filename.
   async function saveToFile(saveAs) {
     if (!data) return;
     let handle = saveAs ? null : fileHandleRef.current;
+    const previousFileName = fileName; // remember for fallback suggestion
     try {
+      // Path A: no handle yet → open Save-As picker right away
       if (!handle) {
-        if (!window.showSaveFilePicker) { exportJSON(); return; }
-        const slug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
-        handle = await window.showSaveFilePicker({
-          suggestedName: `${slug}.planr.json`,
-          types: [
-            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
-            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
-          ],
-        });
-      }
-      const canWrite = await ensureHandlePermission(handle, true);
-      if (!canWrite) {
-        setFileWriteOk(false);
-        alert('File access was not granted. Click the disk icon again and allow access in the browser prompt to save.');
-        return;
+        handle = await pickSaveHandle(previousFileName);
+        if (!handle) return; // exportJSON path or aborted
+      } else {
+        // Path B: have a handle → request permission interactively
+        const canWrite = await ensureHandlePermission(handle, true);
+        if (!canWrite) {
+          // Permission denied/failed → offer Save-As fallback so the user can re-mount
+          // (this is critical after page reload when permissions reset)
+          const ok = confirm('File access was not granted by the browser. Click OK to choose where to save (suggesting the original location), or Cancel to skip.');
+          if (!ok) { setFileWriteOk(false); return; }
+          handle = await pickSaveHandle(previousFileName);
+          if (!handle) { setFileWriteOk(false); return; }
+        }
       }
       const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
-      const wr = await handle.createWritable();
-      await wr.write(content);
-      await wr.close();
+      await writeToHandle(handle, content);
       lastOwnWriteRef.current = Date.now();
       await rememberHandle(handle);
       setAutoSave(true);
@@ -260,9 +280,28 @@ export default function App() {
     } catch (e) {
       if (e.name === 'AbortError') return; // user cancelled file picker
       console.error('Save failed:', e);
-      // Don't forget the handle on transient errors — only on definitive "handle is invalid"
-      const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError';
-      if (isInvalidHandle && saveAs) { await forgetHandle(); }
+      // If write fails (handle invalid, file moved/deleted), offer Save-As fallback
+      const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError' || e.name === 'InvalidStateError';
+      if (isInvalidHandle) {
+        const retry = confirm(`Save failed: ${e.message || e.name}\n\nThe file may have been moved or access was revoked. Click OK to choose where to save (suggesting the original location), or Cancel to skip.`);
+        if (retry) {
+          try {
+            const handle2 = await pickSaveHandle(previousFileName);
+            if (!handle2) return;
+            const content = handle2.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
+            await writeToHandle(handle2, content);
+            await rememberHandle(handle2);
+            setAutoSave(true);
+            setFileWriteOk(true);
+            setSaved(true);
+            setLastSavedAt(new Date());
+            return;
+          } catch (e2) {
+            if (e2.name !== 'AbortError') alert('Save still failed: ' + (e2.message || e2.name));
+            return;
+          }
+        }
+      }
       setFileWriteOk(false);
       alert('Could not save: ' + (e.message || e.name || 'unknown error'));
     }

@@ -64,7 +64,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .modal{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:22px;width:min(560px,100%);max-height:88vh;overflow-y:auto;overflow-x:hidden;box-shadow:var(--sh);}
 .modal-lg{width:min(720px,100%);}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--b);}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding:12px 22px;border-top:1px solid var(--b);position:sticky;bottom:-22px;background:var(--bg2);margin-left:-22px;margin-right:-22px;margin-bottom:-22px;z-index:5;}
 .tag{display:inline-flex;align-items:center;gap:3px;background:var(--bg3);border:1px solid var(--b2);border-radius:4px;padding:2px 6px;font-size:10px;font-family:var(--mono);color:var(--tx3);margin:2px;max-width:100%;overflow:hidden;word-break:break-word;white-space:normal;}
 .dep-row{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--b2);border-radius:4px;padding:4px 8px;min-width:0;}
 .tag-x{cursor:pointer;opacity:.6;}.tag-x:hover{opacity:1;color:var(--re);}
