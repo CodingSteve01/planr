@@ -143,6 +143,24 @@ export default function App() {
     return () => clearTimeout(t);
   }, [data, autoSave]);
 
+  // Detect external file changes (poll every 5s)
+  const lastModRef = useRef(null);
+  useEffect(() => {
+    if (!fileHandleRef.current) return;
+    const poll = setInterval(async () => {
+      try {
+        const file = await fileHandleRef.current.getFile();
+        const mod = file.lastModified;
+        if (lastModRef.current && mod > lastModRef.current && saved) {
+          const d = JSON.parse(await file.text());
+          if (d.tree && Array.isArray(d.tree)) { setData(d); setLastSavedAt(new Date(mod)); }
+        }
+        lastModRef.current = mod;
+      } catch {}
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [fileName, saved]);
+
   // Guard: warn on browser close/reload with unsaved changes
   useEffect(() => {
     const h = (e) => { if (!saved) { e.preventDefault(); e.returnValue = ''; } };
@@ -179,20 +197,27 @@ export default function App() {
       if (window.showOpenFilePicker) {
         const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Planr Project', accept: { 'application/json': ['.json'] } }] });
         const file = await handle.getFile();
-        const d = JSON.parse(await file.text());
-        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid');
-        await rememberHandle(handle);
-        // Write back immediately to establish write permission (still in user gesture)
+        const text = await file.text();
+        const d = JSON.parse(text);
+        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid project file');
+        // Establish write permission immediately (still in user gesture)
+        let canWrite = false;
         try {
           const wr = await handle.createWritable();
-          await wr.write(JSON.stringify(d, null, 2));
+          await wr.write(text); // write original content back
           await wr.close();
-          setFileWriteOk(true);
-        } catch { setFileWriteOk(false); }
+          canWrite = true;
+        } catch { /* read-only is fine */ }
+        // Now apply the loaded data
+        await rememberHandle(handle);
+        setFileWriteOk(canWrite);
         setAutoSave(true);
-        setData(d); setTab('summary'); setSel(null);
+        setSaved(true);
+        setLastSavedAt(new Date());
+        setSel(null);
+        setData(d); // this triggers re-render with new data
       } else { fRef.current?.click(); }
-    } catch (e) { if (e.name !== 'AbortError') alert('Could not load file.'); }
+    } catch (e) { if (e.name !== 'AbortError') alert('Could not load file: ' + e.message); }
   }
 
   // Ctrl+S → save to file
@@ -239,7 +264,7 @@ export default function App() {
     setD('tree', nt);
   }
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
-  function addMember() { const id = 'person' + (members.length + 1); setD('members', [...members, { id, name: id, team: '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
+  function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   function onSeqUpdate(taskId, newSeq) { setD('tree', tree.map(r => r.id === taskId ? { ...r, seq: newSeq } : r)); }
 
@@ -300,18 +325,49 @@ export default function App() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.csv`; a.click();
   }
+  function exportMarkdown() {
+    const teamName = id => teams.find(t => t.id === id)?.name || id;
+    const memberName = id => members.find(m => m.id === id)?.name || id;
+    const SZ = { 1: 'XS', 3: 'S', 7: 'M', 15: 'L', 30: 'XL', 45: 'XXL' };
+    const sz = b => { const k = Object.keys(SZ).map(Number).sort((a, c) => Math.abs(a - b) - Math.abs(c - b)); return SZ[k[0]] || ''; };
+    let md = `# ${meta.name || 'Project'}\n\n`;
+    // Members
+    if (members.length) { md += `## Resources\n`; members.forEach(m => { md += `- **${m.name}** — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : ''}${m.start ? ', ab ' + m.start : ''}\n`; }); md += '\n'; }
+    // Tree
+    md += `## Work Tree\n`;
+    tree.forEach(r => {
+      const d = r.id.split('.').length;
+      const indent = '  '.repeat(d - 1);
+      const done = r.status === 'done' ? '✅ ' : r.status === 'wip' ? '🟡 ' : '';
+      const est = r.best > 0 ? ` (${sz(r.best)} ${r.best}T)` : '';
+      const prog = r.progress > 0 && r.progress < 100 ? ` ${r.progress}%` : '';
+      const team = r.team ? ` — ${teamName(r.team)}` : '';
+      const assign = (r.assign || []).length ? ` [${r.assign.map(memberName).join(', ')}]` : '';
+      const deps = (r.deps || []).length ? `\n${indent}  *Benötigt: ${r.deps.join(', ')}*` : '';
+      const note = r.note ? `\n${indent}  *${r.note}*` : '';
+      const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
+      const date = r.date ? ` (${r.date})` : '';
+      const desc = r.description ? `\n${indent}  ${r.description}` : '';
+      md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${deps}${note}${desc}\n`;
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-${iso(new Date())}.md`; a.click();
+  }
   function loadFile(e) {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = async ev => {
       try {
         const d = JSON.parse(ev.target.result);
-        if (!d.tree || !Array.isArray(d.tree)) throw 0;
+        if (!d.tree || !Array.isArray(d.tree)) throw new Error('Invalid');
         await forgetHandle();
+        setFileWriteOk(false);
         setAutoSave(false);
-        setData(d);
-        setTab('summary');
+        setSaved(true);
         setSel(null);
+        setData(d);
+        setFileName(f.name);
       } catch {
         alert('Invalid project file.');
       }
@@ -319,7 +375,7 @@ export default function App() {
     r.readAsText(f); e.target.value = '';
   }
   function onBarClick(s) { const node = tree.find(r => r.id === s.id); if (node) { setMN({ ...node, ...s }); setModal('node'); } }
-  function newProject() { setData(null); setSel(null); setModal(null); setTab('summary'); }
+  async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); setSel(null); setModal(null); setTab('summary'); }
 
   if (!bootstrapped) return <div className="onboard">
     <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
@@ -380,15 +436,15 @@ export default function App() {
       <button className="btn btn-pri btn-sm" onClick={() => saveToFile()} title="Save to file (Ctrl+S)">Save</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as new file">Save as</button>
       <div className="vsep" />
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'json') exportJSON(); if (v === 'csv') exportCSV(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); if (v === 'new') { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); } }}>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'json') exportJSON(); if (v === 'csv') exportCSV(); if (v === 'md') exportMarkdown(); if (v === 'svg') exportSVG(); if (v === 'print') exportPDF(); }}>
         <option value="">Export ▾</option>
         <option value="json">JSON</option>
         <option value="csv">CSV</option>
+        <option value="md">Markdown</option>
         {tab === 'net' && <option value="svg">SVG</option>}
         <option value="print">Print</option>
-        <option disabled>───</option>
-        <option value="new">New project</option>
       </select>
+      <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">

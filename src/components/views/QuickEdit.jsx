@@ -92,7 +92,7 @@ export function QuickEdit({node,tree,members,teams,cpSet,stats,onUpdate,onDelete
           {(f.assign||[]).map(a=>{const m=members.find(x=>x.id===a);return<span key={a} className="tag">{m?.name||a}<span className="tag-x" onClick={()=>s('assign',(f.assign||[]).filter(x=>x!==a))}>×</span></span>;})}
         </div>
         <select onChange={e=>{if(!e.target.value)return;s('assign',[...new Set([...(f.assign||[]),e.target.value])]);e.target.value=''}}>
-          <option value="">+ Person</option>{members.map(m=><option key={m.id}>{m.id}</option>)}
+          <option value="">+ Person</option>{members.map(m=><option key={m.id} value={m.id}>{m.name||m.id}</option>)}
         </select>
       </div>
       <div className="field"><label>Dependencies</label>
