@@ -1,7 +1,19 @@
 import { TBadge } from '../shared/Badges.jsx';
 
-export function ResView({members,teams,vacations,onUpd,onAdd,onDel,onVac}){
+export function ResView({members,teams,vacations,onUpd,onAdd,onDel,onVac,onTeamUpd,onTeamAdd,onTeamDel}){
   return<div>
+    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+      <div className="section-h" style={{margin:0}}>Teams</div>
+      <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>+ Add team</button>
+    </div>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:18}}>
+      {teams.map((t,i)=><div key={t.id} style={{display:'flex',alignItems:'center',gap:6,background:'var(--bg3)',border:'1px solid var(--b2)',borderRadius:'var(--r)',padding:'6px 10px',borderLeft:`3px solid ${t.color}`}}>
+        <input value={t.name} onChange={e=>onTeamUpd(i,'name',e.target.value)} style={{background:'transparent',border:'none',color:'var(--tx)',fontSize:12,fontWeight:600,outline:'none',width:100}}/>
+        <input type="color" value={t.color||'#3b82f6'} onChange={e=>onTeamUpd(i,'color',e.target.value)} style={{width:24,height:24,padding:0,border:'none',cursor:'pointer',background:'transparent'}}/>
+        <button className="btn btn-danger btn-xs" onClick={()=>onTeamDel(i)}>×</button>
+      </div>)}
+    </div>
+    <hr className="divider"/>
     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
       <div className="section-h" style={{margin:0}}>Team Members</div>
       <button className="btn btn-sec btn-sm" onClick={onAdd}>+ Add person</button>

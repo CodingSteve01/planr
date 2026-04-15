@@ -76,16 +76,37 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     let dE = -1; allD.forEach(d => { const fw = tEW[d]; if (fw != null && fw > dE) dE = fw; });
     const early = dE >= 0 ? dE + 2 : 0;
     const asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
-    // Only use explicitly assigned people — no auto-assignment
-    const cands = asgn.length > 0 ? members.filter(m => asgn.includes(m.id)) : [];
-    let bp = null, bs = 9999;
-    if (cands.length) {
-      cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
-    } else if (tM.length > 0) {
-      // Unassigned but has team: schedule against team members only
-      tM.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
+    // ONLY explicitly assigned people — never auto-assign from team pool
+    if (!asgn.length) {
+      // No assignee: schedule by effort/calendar only (no person binding)
+      // Use average team capacity for duration estimate, or 1 PT/day if no team
+      const avgCap = tM.length > 0
+        ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length
+        : 1;
+      const avgVac = tM.length > 0
+        ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length
+        : 0.9;
+      let rem = eff, wi = early;
+      while (rem > 0 && wi < wks.length) {
+        const w = wks[wi];
+        const wdCount = w.wds.length;
+        rem -= wdCount * avgCap * avgVac;
+        wi++;
+      }
+      const eW = Math.min(Math.max(wi - 1, early), wks.length - 1);
+      tEW[id] = eW;
+      const calDays = Math.round((addD(wks[eW].mon, 4) - wks[early < wks.length ? early : 0].mon) / 864e5);
+      res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
+        best: r.best, effort: eff, startWi: early, endWi: eW,
+        startD: wks[early < wks.length ? early : 0].mon, endD: addD(wks[eW].mon, 4), calDays,
+        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - early + 1,
+        deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
+      return;
     }
-    // No assignee AND no matching team → task stays unscheduled
+    // Explicitly assigned: find earliest available
+    const cands = members.filter(m => asgn.includes(m.id));
+    let bp = null, bs = 9999;
+    cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
     if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
     let rem = eff, wi = bs;
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
