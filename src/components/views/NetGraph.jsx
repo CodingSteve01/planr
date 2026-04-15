@@ -333,7 +333,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -343,6 +343,13 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   const [selId, setSelId] = useState(null);
   const [hoverId, setHoverId] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
+  // Refs mirror the latest pan / zoom synchronously so rapid wheel events read
+  // the freshest values inside the handler — without them, fast scrolls compute
+  // off a stale closure-captured zoom and the viewport jumps.
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  zoomRef.current = zoom;
+  panRef.current = pan;
 
   const items = tree;
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
@@ -390,13 +397,19 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
   const graphW = allPos.length ? Math.max(...allPos.map(([, p]) => p.x + NODE_W)) + 20 : 400;
   const graphH = allPos.length ? Math.max(...allPos.map(([, p]) => p.y + NODE_H)) + 20 : 300;
 
-  function fitToScreen() {
+  // Search matches: items whose name or ID contains the query (case-insensitive).
+  // Driven by App's global `search` state via the prop, so the same query highlights
+  // matches across views.
+  const searchMatches = useMemo(() => {
+    const q = (search || '').trim().toLowerCase();
+    if (!q) return null;
+    return new Set(items.filter(r => (r.name || '').toLowerCase().includes(q) || r.id.toLowerCase().includes(q)).map(r => r.id));
+  }, [search, items]);
+
+  function fitToNodes(nodeIds) {
     if (!svgRef.current) return;
     const r = svgRef.current.getBoundingClientRect();
-    // If a selection is active, fit to the highlighted nodes only
-    const fitNodes = connectedSet && connectedSet.size > 1
-      ? allPos.filter(([id]) => connectedSet.has(id))
-      : allPos;
+    const fitNodes = allPos.filter(([id]) => nodeIds.has(id));
     if (!fitNodes.length) return;
     const minX = Math.min(...fitNodes.map(([, p]) => p.x));
     const minY = Math.min(...fitNodes.map(([, p]) => p.y));
@@ -404,9 +417,22 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
     const maxY = Math.max(...fitNodes.map(([, p]) => p.y + NODE_H));
     const fw = maxX - minX + 40, fh = maxY - minY + 40;
     const z = Math.max(.05, Math.min((r.width - 16) / fw, (r.height - 50) / fh, 2));
-    setPan({ x: (r.width - fw * z) / 2 - minX * z + 20 * z, y: (r.height - fh * z) / 2 - minY * z + 20 * z }); setZoom(z);
+    const newPan = { x: (r.width - fw * z) / 2 - minX * z + 20 * z, y: (r.height - fh * z) / 2 - minY * z + 20 * z };
+    panRef.current = newPan;
+    zoomRef.current = z;
+    setPan(newPan); setZoom(z);
+  }
+
+  function fitToScreen() {
+    // If a search is active, fit to its matches; else if a selection is active, fit to it; else fit all.
+    const target = searchMatches?.size
+      ? searchMatches
+      : (connectedSet && connectedSet.size > 1 ? connectedSet : new Set(allPos.map(([id]) => id)));
+    fitToNodes(target);
   }
   useEffect(() => { if (layout) setTimeout(fitToScreen, 50); }, [layout]);
+  // When the search query changes and matches something, jump to the matches.
+  useEffect(() => { if (searchMatches?.size) fitToNodes(searchMatches); }, [search]);
 
   // Escape key deselects
   useEffect(() => {
@@ -423,14 +449,28 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
-        const mx = e.clientX - r.left, my = e.clientY - r.top, f = e.deltaY > 0 ? .92 : 1.08;
-        const nz = Math.min(3, Math.max(.05, zoom * f));
-        setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz);
-      } else { setPan(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY })); }
+        const mx = e.clientX - r.left, my = e.clientY - r.top;
+        const f = e.deltaY > 0 ? .92 : 1.08;
+        // Read latest zoom/pan from refs — closure values are stale during rapid scrolls.
+        const cz = zoomRef.current, cp = panRef.current;
+        const nz = Math.min(3, Math.max(.05, cz * f));
+        const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
+        // Update refs synchronously so the next wheel event uses the new values
+        // even before React commits the state update.
+        zoomRef.current = nz;
+        panRef.current = np;
+        setZoom(nz);
+        setPan(np);
+      } else {
+        const cp = panRef.current;
+        const np = { x: cp.x - e.deltaX, y: cp.y - e.deltaY };
+        panRef.current = np;
+        setPan(np);
+      }
     };
     el.addEventListener('wheel', h, { passive: false });
     return () => el.removeEventListener('wheel', h);
-  });
+  }, []);
 
   function onMD(e) { if (e.button === 0) { setPanning(true); setPanSt({ x: e.clientX - pan.x, y: e.clientY - pan.y }); } }
   function onMM(e) { if (panning && panSt) setPan({ x: e.clientX - panSt.x, y: e.clientY - panSt.y }); }
@@ -450,10 +490,27 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
 
   return <div className="netgraph-wrap" style={{ cursor: panning ? 'grabbing' : 'default' }}>
     <div className="ng-toolbar">
-      <button className="btn btn-pri btn-sm" onClick={fitToScreen}>Fit</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { setZoom(1.5); setPan({ x: 12, y: 12 }); }}>{Math.round(zoom / 1.5 * 100)}%</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.min(3, zoom * 1.25); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>+</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { const r = svgRef.current?.getBoundingClientRect(); if (!r) return; const mx = r.width / 2, my = r.height / 2; const nz = Math.max(.05, zoom * .8); setPan(p => ({ x: mx - (mx - p.x) * (nz / zoom), y: my - (my - p.y) * (nz / zoom) })); setZoom(nz); }}>-</button>
+      <button className="btn btn-pri btn-sm" onClick={fitToScreen} title={searchMatches?.size ? 'Fit to search matches' : 'Fit to selection or whole graph'}>Fit</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { const newPan = { x: 12, y: 12 }; panRef.current = newPan; zoomRef.current = 1.5; setZoom(1.5); setPan(newPan); }} title="Reset to 100%">{Math.round(zoom / 1.5 * 100)}%</button>
+      <button className="btn btn-sec btn-sm" onClick={() => {
+        const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
+        const mx = r.width / 2, my = r.height / 2;
+        const cz = zoomRef.current, cp = panRef.current;
+        const nz = Math.min(3, cz * 1.25);
+        const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
+        zoomRef.current = nz; panRef.current = np; setZoom(nz); setPan(np);
+      }}>+</button>
+      <button className="btn btn-sec btn-sm" onClick={() => {
+        const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
+        const mx = r.width / 2, my = r.height / 2;
+        const cz = zoomRef.current, cp = panRef.current;
+        const nz = Math.max(.05, cz * .8);
+        const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
+        zoomRef.current = nz; panRef.current = np; setZoom(nz); setPan(np);
+      }}>−</button>
+      {searchMatches && <span style={{ fontSize: 11, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)', marginLeft: 6 }}>
+        🔍 {searchMatches.size} match{searchMatches.size === 1 ? '' : 'es'}
+      </span>}
     </div>
 
     <svg ref={svgRef} style={{ width: '100%', height: '100%' }} onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU}
@@ -504,10 +561,14 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, onNodeClick, on
           const pR = 5, pCx = NODE_W - 8, pCy = 8;
           const pCirc = 2 * Math.PI * pR;
           const pOff = pCirc * (1 - prog / 100);
-          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={subtreeDimmed ? .2 : 1}>
+          // Search highlight: matches stay full opacity + amber outline; non-matches dim.
+          const isMatch = searchMatches?.has(r.id);
+          const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
+          const finalOpacity = subtreeDimmed ? .2 : searchDimmed ? .25 : 1;
+          return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
-              stroke={isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
-              strokeWidth={isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
+              stroke={isMatch ? 'var(--am)' : isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
+              strokeWidth={isMatch ? 2.5 : isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}
               onDoubleClick={e => { e.stopPropagation(); onNodeClick(r); }}
