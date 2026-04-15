@@ -16,7 +16,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   return <div className="overlay" onClick={onClose}>
-    <div className="modal fade" onClick={e => e.stopPropagation()}>
+    <div className={`modal${isLeaf ? ' modal-lg' : ''} fade`} onClick={e => e.stopPropagation()}>
       <h2>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 13 }}>{node.id}</span>
         {isLeaf && <SBadge s={node.status} />}
@@ -70,40 +70,38 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
             <span style={{ color: 'var(--tx3)' }}>Best</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Realistic</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>Worst</span><span>{st?._w?.toFixed(0) || 0}d</span>
-            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
+            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')} ({Math.round((st._endD - st._startD) / 864e5)} cal days)</span></>}
           </div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Status, estimates, and dates are derived from child items.</div>
         </div>;
       })()}
       {isLeaf && <>
-        {onEstimate && <button className="btn btn-sec" style={{ width: '100%', marginBottom: 12 }} onClick={() => { onClose(); onEstimate(node); }}>Open Estimation Wizard...</button>}
-        <div className="field"><label>Quick estimate (T-shirt size)</label>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
-              <button key={sz} className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
-                onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 3 }}>{d}d</span></button>)}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+          <div>
+            <div className="field"><label>Quick estimate</label>
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
+                  <button key={sz} className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
+                    onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>)}
+              </div>
+            </div>
+            <div className="frow">
+              <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} /></div>
+              <div className="field"><label>Factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
+            </div>
+            <div className="frow">
+              <div className="field"><label>Priority</label>
+                <select value={f.prio || 1} onChange={e => s('prio', +e.target.value)}>
+                  <option value={1}>1 Critical</option><option value={2}>2 High</option>
+                  <option value={3}>3 Medium</option><option value={4}>4 Low</option>
+                </select>
+              </div>
+              <div className="field"><label>Seq</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} /></div>
+            </div>
+            {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 12 }} onClick={() => { onClose(); onEstimate(node); }}>Estimation Wizard...</button>}
           </div>
-        </div>
-        <div className="frow">
-          <div className="field"><label>Best case (days)</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} /></div>
-          <div className="field"><label>Uncertainty factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
-        </div>
-        <div className="frow">
-          <div className="field"><label>Priority</label>
-            <select value={f.prio || 1} onChange={e => s('prio', +e.target.value)}>
-              <option value={1}>1 — Critical</option><option value={2}>2 — High</option>
-              <option value={3}>3 — Medium</option><option value={4}>4 — Low</option>
-            </select>
-          </div>
-          <div className="field"><label>Sequence</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} /></div>
-        </div>
-        <div className="calc">
-          <span>Realistic:</span><b>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
-          <span>Worst:</span><b>{((f.best || 0) * (f.factor || 1.5)).toFixed(0)}d</b>
-          {sc && <><span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b></>}
-          {isCp && <span className="cp">On critical path</span>}
-        </div>
-        <div className="field"><label>Assignee</label>
+          <div>
+            <div className="field"><label>Assignee</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
             {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
           </div>
@@ -125,8 +123,20 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
             onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
             placeholder="Search and add dependency..."
           />
-          <p className="helper">Blocked until all deps finish. Optional: add a label to describe the relation.</p>
+          <p className="helper">Blocked until all deps finish.</p>
         </div>
+          </div>
+        </div>
+        <div className="calc">
+          <span>Realistic:</span><b>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
+          <span>Worst:</span><b>{((f.best || 0) * (f.factor || 1.5)).toFixed(0)}d</b>
+          {isCp && <span className="cp">On critical path</span>}
+        </div>
+        {sc && <div className="calc" style={{ fontSize: 10 }}>
+          <span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b>
+          <span>Duration:</span><b>{sc.weeks}w ({sc.calDays} cal days)</b>
+          <span>Person:</span><b>{sc.person} ({sc.capPct}% cap, {sc.vacDed}% vac)</b>
+        </div>}
       </>}
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
       <div className="modal-footer">

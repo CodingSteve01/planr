@@ -81,21 +81,23 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     let bp = null, bs = 9999;
     if (cands.length) {
       cands.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
-    } else {
-      // Unassigned: schedule based on team capacity (earliest available slot)
-      const poolM = tM.length > 0 ? tM : members;
-      if (poolM.length) {
-        poolM.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
-      }
+    } else if (tM.length > 0) {
+      // Unassigned but has team: schedule against team members only
+      tM.forEach(m => { const ji = wks.findIndex(w => w.mon >= new Date(m.start || ps)); const fw = Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0); if (fw < bs) { bs = fw; bp = m; } });
     }
+    // No assignee AND no matching team → task stays unscheduled
     if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
     let rem = eff, wi = bs;
     while (rem > 0 && wi < wks.length) { rem -= Math.max(pC(bp, wks[wi].mon), 0.01); wi++; }
     const eW = Math.min(wi - 1, wks.length - 1);
     tEW[id] = eW; pF[bp.id] = eW + 1;
+    const calDays = Math.round((addD(wks[eW].mon, 4) - wks[bs].mon) / 864e5);
+    const capPct = Math.round((bp.cap || 1) * 100);
+    const vacDed = Math.round((1 - vacInfo[bp.id]) * 100);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
-      startD: wks[bs].mon, endD: addD(wks[eW].mon, 4),
+      startD: wks[bs].mon, endD: addD(wks[eW].mon, 4), calDays,
+      capPct, vacDed, weeks: eW - bs + 1,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
   });
   return { results: res, weeks: wks };

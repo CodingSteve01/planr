@@ -102,7 +102,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
         const d = depth(r.id);
         const isMulti = multiSel?.has(r.id);
         return <tr key={r.id} ref={selected?.id === r.id ? selRef : null} className={`tr${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
-          onClick={e => onSelect(r, e)}>
+          onClick={e => onSelect(r, e, filt.map(x => x.id))}>
           <td><span className="tid">{r.id}</span></td>
           <td style={{ whiteSpace: 'normal' }}>
             <span style={{ display: 'inline-block', width: (d - 1) * 16 }} />

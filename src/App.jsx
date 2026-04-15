@@ -534,8 +534,15 @@ export default function App() {
           <div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={(node, e) => {
-                if (e?.ctrlKey || e?.metaKey) {
+            : <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={(node, e, visibleIds) => {
+                if (e?.shiftKey && selected && visibleIds) {
+                  // Shift-click: range select from last selected to this
+                  const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+                  if (ai >= 0 && bi >= 0) {
+                    const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
+                    setMultiSel(new Set(range));
+                  }
+                } else if (e?.ctrlKey || e?.metaKey) {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
