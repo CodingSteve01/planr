@@ -36,6 +36,33 @@ function isValidProjectData(value) {
   return value && Array.isArray(value.tree);
 }
 
+// Build unique short-name map for members (initials, with collision suffixes on ALL collisions)
+export function buildMemberShortMap(members) {
+  const map = {};
+  if (!members?.length) return map;
+  // Pass 1: compute base initials per member
+  const bases = members.map(m => {
+    const words = (m.name || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : words.map(w => w[0]).join('').toUpperCase();
+  });
+  // Pass 2: count occurrences
+  const counts = {};
+  bases.forEach(b => { counts[b] = (counts[b] || 0) + 1; });
+  // Pass 3: assign — append index suffix when there's any collision
+  const seen = {};
+  members.forEach((m, i) => {
+    const base = bases[i];
+    if (counts[base] === 1) {
+      map[m.id] = base;
+    } else {
+      seen[base] = (seen[base] || 0) + 1;
+      map[m.id] = base + seen[base];
+    }
+  });
+  return map;
+}
+
 export default function App() {
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
@@ -296,9 +323,11 @@ export default function App() {
 
       // Resources section: bulleted list
       if (section === 'resources') {
-        const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*\s*—?\s*(.*)/);
+        // Format: - **Full Name** `SHORT` — Team, Role (cap%), 25d/y, ab YYYY-MM-DD
+        const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*(?:\s+`([^`]+)`)?\s*—?\s*(.*)/);
         if (rm) {
-          const meta = rm[2] || '';
+          const shortName = rm[2] || '';
+          const meta = rm[3] || '';
           const parts = meta.split(',').map(s => s.trim());
           const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
           const roleParts = parts.slice(1)
@@ -309,7 +338,9 @@ export default function App() {
           const vacM = meta.match(/(\d+)d\/y/);
           const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
           if (teamPart) teamSet.add(teamPart);
-          mems.push({ id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '' });
+          const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '' };
+          if (shortName) m._parsedShort = shortName;
+          mems.push(m);
         }
         return;
       }
@@ -426,10 +457,25 @@ export default function App() {
     const teamLookup = Object.fromEntries(teamsArr.map(t => [t.name, t.id]));
     tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; });
     mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
-    // Resolve assignee names to IDs
-    tree.forEach(r => { if (r.assign?.length) r.assign = r.assign.map(name => { const m = mems.find(m => m.name === name); return m ? m.id : name; }); });
-    // Resolve vacation person names to IDs
-    vacationsArr.forEach(v => { const m = mems.find(m => m.name === v.person); if (m) v.person = m.id; });
+    // Resolve assignee references — try short name from MD first, then full name match,
+    // finally computed initials match (for back-compat with files written by older builds)
+    const computedShorts = buildMemberShortMap(mems);
+    const resolveMember = (token) => {
+      // 1. Match by short name parsed from MD (`SL`)
+      const byParsedShort = mems.find(m => m._parsedShort === token);
+      if (byParsedShort) return byParsedShort.id;
+      // 2. Match by full name (back-compat with old MDs)
+      const byName = mems.find(m => m.name === token);
+      if (byName) return byName.id;
+      // 3. Match by computed initials (back-compat without explicit short)
+      const byComputed = mems.find(m => computedShorts[m.id] === token);
+      if (byComputed) return byComputed.id;
+      return token; // unresolved — keep as-is
+    };
+    tree.forEach(r => { if (r.assign?.length) r.assign = r.assign.map(resolveMember); });
+    vacationsArr.forEach(v => { v.person = resolveMember(v.person); });
+    // Strip transient _parsedShort field from members
+    mems.forEach(m => { delete m._parsedShort; });
 
     const metaObj = { name: projName || 'Imported Project', version: '2' };
     if (planStart) metaObj.planStart = planStart;
@@ -489,6 +535,7 @@ export default function App() {
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
+  const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
 
   // Auto-derive parent statuses from children
   useEffect(() => {
@@ -574,6 +621,10 @@ export default function App() {
   function buildMarkdownText() {
     const teamName = id => teams.find(t => t.id === id)?.name || id;
     const memberName = id => members.find(m => m.id === id)?.name || id;
+    // Build short-name (initials) map for members. Unique by construction:
+    // if a base collides, ALL occurrences get a numeric suffix (so no one gets the bare base).
+    const shortMap = buildMemberShortMap(members);
+    const memberShort = id => shortMap[id] || memberName(id);
     const SZ = { 1: 'XS', 3: 'S', 7: 'M', 15: 'L', 30: 'XL', 45: 'XXL' };
     const sz = b => { const k = Object.keys(SZ).map(Number).sort((a, c) => Math.abs(a - b) - Math.abs(c - b)); return SZ[k[0]] || ''; };
     const esc = s => (s || '').toString().replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -600,7 +651,7 @@ export default function App() {
       members.forEach(m => {
         const cap = m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : '';
         const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
-        md += `- **${m.name}** — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}\n`;
+        md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}\n`;
       });
       md += '\n';
     }
@@ -630,7 +681,7 @@ export default function App() {
       const est = r.best > 0 ? ` (${sz(r.best)} ${r.best}T${factorPart})` : '';
       const prog = r.progress > 0 && r.progress < 100 ? ` ${r.progress}%` : '';
       const team = r.team ? ` — ${teamName(r.team)}` : '';
-      const assign = (r.assign || []).length ? ` [${r.assign.map(memberName).join(', ')}]` : '';
+      const assign = (r.assign || []).length ? ` [${r.assign.map(memberShort).join(', ')}]` : '';
       // Tags: prio (only if not 2), seq (only if non-zero), severity (root only)
       const tags = [];
       if (r.prio && r.prio !== 2) tags.push(`prio:${r.prio}`);
@@ -814,7 +865,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} cpSet={cpSet}
+              }} search={search} teamFilter={teamFilter} stats={stats} teams={teams} members={members} cpSet={cpSet}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} />
           }

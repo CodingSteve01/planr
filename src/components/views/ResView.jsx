@@ -1,8 +1,10 @@
 import { TBadge } from '../shared/Badges.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { LazyInput } from '../shared/LazyInput.jsx';
+import { buildMemberShortMap } from '../../App.jsx';
 
 export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+  const shortMap = buildMemberShortMap(members);
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
       <div className="section-h" style={{ margin: 0 }}>Teams</div>
@@ -23,7 +25,8 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
     {!members.length && <div className="empty"><div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>No team members yet.<p>Add people to assign tasks and plan capacity.</p></div>}
     <div className="res-grid">
       {members.map(m => <div key={m.id} className="res-card">
-        <div className="res-ch"><span className="res-name">{m.name || m.id}</span>
+        <div className="res-ch">
+          <span className="res-name">{m.name || m.id}<span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: 400 }} title="Auto-generated short name (used in Markdown)">{shortMap[m.id]}</span></span>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><TBadge t={m.team} teams={teams} />{onClone && <button className="btn btn-sec btn-xs" onClick={() => onClone(m)} title="Clone for another team">⧉ Clone</button>}<button className="btn btn-danger btn-xs" onClick={() => onDel(m.id)}>Remove</button></div>
         </div>
         {[
