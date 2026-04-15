@@ -173,17 +173,21 @@ export default function App() {
   // Mark file-out-of-sync whenever data changes
   useEffect(() => { if (data) setFileSynced(false); }, [data]);
 
-  // File save: queued every 60s if there are unsaved changes (and auto-save is on)
-  // Manual force-save via disk icon (saveToFile) bypasses this and saves immediately
-  const FILE_SAVE_INTERVAL_MS = 60000;
+  // Auto-save: debounced N seconds after the last change. Each new change
+  // resets the timer, so rapid edits coalesce into a single write.
+  // Manual force-save via the disk icon (saveToFile) bypasses this.
+  const SAVE_DEBOUNCE_MS = 5000;
+  const lastChangeTimeRef = useRef(Date.now());
+  useEffect(() => { if (data) lastChangeTimeRef.current = Date.now(); }, [data]);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (!data || !autoSave || !fileHandleRef.current) return;
-    const interval = setInterval(async () => {
-      if (fileSynced) return; // file already up-to-date
+    if (!data || !autoSave || !fileHandleRef.current || fileSynced) return;
+    const t = setTimeout(async () => {
       const handle = fileHandleRef.current;
       if (!handle) return;
       const canWrite = await ensureHandlePermission(handle, false);
       if (!canWrite) { setFileWriteOk(false); return; }
+      setSaving(true);
       try {
         const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
         const wr = await handle.createWritable();
@@ -193,10 +197,22 @@ export default function App() {
         setFileSynced(true);
         lastOwnWriteRef.current = Date.now();
         setLastSavedAt(new Date());
-      } catch (e) { console.error('Queued auto-save failed:', e); setFileWriteOk(false); }
-    }, FILE_SAVE_INTERVAL_MS);
-    return () => clearInterval(interval);
+      } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
+      finally { setSaving(false); }
+    }, SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [data, autoSave, fileSynced]);
+
+  // 1-second tick to drive the live countdown. Only ticks while there's something to wait for.
+  const [, setSaveTick] = useState(0);
+  useEffect(() => {
+    if (fileSynced || !autoSave || !fileHandleRef.current) return;
+    const i = setInterval(() => setSaveTick(t => t + 1), 1000);
+    return () => clearInterval(i);
+  }, [fileSynced, autoSave]);
+  const saveCountdown = (!fileSynced && autoSave && fileHandleRef.current)
+    ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
+    : 0;
 
   // Detect external file changes (poll every 5s)
   const lastModRef = useRef(null);
@@ -1413,27 +1429,43 @@ export default function App() {
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
-        {(!saved || !fileWriteOk) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title="Save now (Ctrl+S) — auto-save runs every 60s, click to force-save immediately" style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title={`Save now (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+S) — bypass the ${SAVE_DEBOUNCE_MS / 1000}s auto-save debounce`} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
-      <label title={autoSave ? 'Auto-save is on — saves to file every 60s when there are changes. Click 💾 to force-save now.' : 'Auto-save is off — click 💾 to save manually.'} className="toggle">
+      <label title={autoSave ? `Auto-save is ON — writes to disk ${SAVE_DEBOUNCE_MS / 1000}s after the last change. Click 💾 to save now.` : 'Auto-save is OFF — your changes only land in localStorage. Click 💾 (or Ctrl+S) to write to the file.'} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
         <span className="slider" />
       </label>
-      <span style={{ fontSize: 9, color: !fileName ? 'var(--tx3)' : autoSave ? (fileWriteOk ? 'var(--ac)' : 'var(--am)') : 'var(--tx3)', cursor: fileName && !fileWriteOk ? 'pointer' : 'default', userSelect: 'none' }}
-        title={fileName && !fileWriteOk ? 'File permission was lost (typically after a page reload). Click to re-pick the file with a Save-As dialog — it will suggest the original filename.' : ''}
-        onClick={() => {
-          // Browsers reject permission prompts that arrive after async hops because the
-          // user-gesture context is lost. Going straight to Save-As is the reliable
-          // path: the picker re-creates the handle with a fresh permission grant.
-          if (fileName && !fileWriteOk) saveToFile(true);
-        }}>
-        {!fileName ? (autoSave ? 'auto (no file)' : 'off') : autoSave ? (fileWriteOk ? 'auto' : '⚠ click to re-mount') : 'auto off'}
-      </span>
-      {lastSavedAt && <span style={{ fontSize: 9, color: fileName && !fileSynced ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }} title={fileName && !fileSynced ? 'Changes are saved locally but the file on disk is not yet updated. Auto-save retries every 60s, or click 💾 to force-save now.' : ''}>
-        {!fileName ? `local ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-          : fileSynced ? `saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-          : `local · file pending`}
-      </span>}
+      {(() => {
+        // One status pill that summarises everything: file mounted? auto on? changes pending? countdown?
+        let text, color, tip, clickable = false;
+        if (!fileName) {
+          text = 'no file mounted'; color = 'var(--tx3)';
+          tip = 'Changes are kept in localStorage only. Use "Save as" to mount a file.';
+        } else if (!fileWriteOk) {
+          text = '⚠ click to re-mount'; color = 'var(--am)'; clickable = true;
+          tip = 'File permission was lost (typically after a page reload). Click to re-pick the file with a Save-As dialog — it will suggest the original filename.';
+        } else if (!autoSave) {
+          text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
+          color = 'var(--tx3)';
+          tip = 'Auto-save is off. Use 💾 or Ctrl/Cmd+S to write to the file.';
+        } else if (saving) {
+          text = 'saving…'; color = 'var(--ac)';
+          tip = 'Writing changes to the file now.';
+        } else if (fileSynced) {
+          text = lastSavedAt ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'all saved';
+          color = 'var(--gr)';
+          tip = 'No unsaved changes. The file on disk matches what you see.';
+        } else {
+          text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
+          color = 'var(--am)';
+          tip = `Changes are safe in localStorage and will be written to the file ${SAVE_DEBOUNCE_MS / 1000}s after your last edit. Press Ctrl/Cmd+S or click 💾 to save now.`;
+        }
+        return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
+          title={tip}
+          onClick={() => { if (clickable) saveToFile(true); }}>
+          {text}
+        </span>;
+      })()}
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
