@@ -8,7 +8,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep }) {
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep }) {
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -225,6 +225,14 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
 
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
+  // Search match set: case-insensitive substring across name and ID. Driven by App's
+  // global `search` state via the prop, so the same query highlights matches across views.
+  const searchMatches = useMemo(() => {
+    const q = (search || '').trim().toLowerCase();
+    if (!q) return null;
+    return new Set(allItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
+  }, [search, allItems]);
+
   function onBMD(e, s) { e.stopPropagation(); setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, seq: s.seq, team: s.team, prio: s.prio }); setDDelta(0); }
   function onMM(e) {
     if (drag) { const dx = e.clientX - drag.ox; setDDelta(Math.round(dx / WPX)); }
@@ -272,15 +280,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag) { setDrag(null); setDDelta(0); } }}>
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Group</span>
           {[['project', 'Project'], ['projteam', 'Project › Team'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
-          <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 6px' }} />
-          <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Zoom</span>
-          <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
-          <button className="btn btn-sec btn-xs" onClick={() => setZ(DEFAULT_WPX)} title={`Reset zoom (${DEFAULT_WPX} px/wk)`} style={{ padding: '2px 7px', fontSize: 10 }}>{Math.round(WPX)}</button>
-          <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in (toward day-level at ~70 px/wk)" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
@@ -328,7 +331,9 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
           const indent = row.level === 2 ? 12 : 0;
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
-          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          const isMatchL = searchMatches?.has(s.id);
+          const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
+          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={() => setHoverDepId(s.id)}
             onMouseLeave={() => setHoverDepId(null)}>
@@ -343,12 +348,23 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
         <div style={{ width: tw, position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
-            {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
-            {/* Day-level grid: faint vertical lines between days, only at zoom levels where days are wide enough to read. */}
-            {showDays && weeks.map((w, i) => [1, 2, 3, 4].map(d => <div key={`d-${i}-${d}`} style={{
-              position: 'absolute', left: i * WPX + d * (WPX / 5), top: 0, width: 1, height: '100%',
-              background: 'var(--b2)', opacity: .35,
-            }} />))}
+            {/* Week columns. When the day grid is visible we don't tint the whole week red —
+                individual holiday days get tinted below instead. */}
+            {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: !showDays && w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
+            {/* Day-level overlays: faint vertical separator lines + per-day holiday tint. */}
+            {showDays && weeks.map((w, i) => {
+              const dayPx = WPX / 5;
+              const wdsByTime = new Set(w.wds.map(d => d.getTime()));
+              return [0, 1, 2, 3, 4].map(d => {
+                const date = addD(w.mon, d);
+                // A weekday in plan range that's NOT in wds is a holiday.
+                const isHoliday = !wdsByTime.has(date.getTime());
+                return <React.Fragment key={`d-${i}-${d}`}>
+                  {isHoliday && <div style={{ position: 'absolute', left: i * WPX + d * dayPx, top: 0, width: dayPx, height: '100%', background: 'rgba(244,63,94,.14)' }} />}
+                  {d > 0 && <div style={{ position: 'absolute', left: i * WPX + d * dayPx, top: 0, width: 1, height: '100%', background: 'var(--b2)', opacity: .35 }} />}
+                </React.Fragment>;
+              });
+            })}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
             {/* Today: vertical green line is enough — no badge cluttering the header area */}
             {dlL.map(dl => {
@@ -387,11 +403,13 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
             const dim = cpOnly && !isCp;
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
+            const isMatch = searchMatches?.has(s.id);
+            const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
             const node = iMap[s.id];
             const decideBy = node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
             const isDecideOverdue = decideBy && new Date(decideBy) < now;
-            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
@@ -400,11 +418,12 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                   background: tc, color: '#fff',
                   textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
                   cursor: linkMode || linkDrag ? 'crosshair' : drag ? 'grabbing' : 'grab',
-                  // Link-mode outline takes priority over CP outline (it signals the
-                  // active user intent). CP marker otherwise via the .cp-bar CSS class.
-                  boxShadow: linkMode?.fromId === s.id || linkDrag?.fromId === s.id
-                    ? '0 0 0 2px var(--ac)'
-                    : undefined,
+                  // Search match outline > link-mode outline > CP outline (.cp-bar CSS).
+                  boxShadow: isMatch
+                    ? '0 0 0 2.5px var(--am)'
+                    : linkMode?.fromId === s.id || linkDrag?.fromId === s.id
+                      ? '0 0 0 2px var(--ac)'
+                      : undefined,
                 }}
                 onMouseDown={e => { if (linkMode || linkDrag) return; onBMD(e, s); }}
                 onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
@@ -443,7 +462,11 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
               // in the backward case the control points' horizontal pull creates a natural S-loop
               // without any orthogonal step pattern.
               const buildPath = (l) => {
-                const stub = 5;
+                // Longer stubs give the line a "runway" of straight pixels before bending into
+                // the bezier and after exiting it. Important when source and target sit on very
+                // different rows: a too-short stub makes the curve look like it abruptly hooks
+                // into the arrowhead. 10 px reads cleanly without dominating dense layouts.
+                const stub = 10;
                 const sx = l.x1 + stub;
                 const tx = l.x2 - stub;
                 // Control-point horizontal offset: at least 30px so backward links get a visible loop
@@ -506,6 +529,17 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
       </div>
     </div>
     <div className="gantt-footer">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
+        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>Zoom</span>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out (broader timeline)" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(DEFAULT_WPX)} title={`Reset to ${DEFAULT_WPX} px/wk`} style={{ padding: '2px 7px', fontSize: 10, minWidth: 28 }}>{Math.round(WPX)}</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in (toward day-level at ≥ 70 px/wk)" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
+        {showDays && <span className="badge" style={{ fontSize: 9, padding: '1px 5px', background: 'var(--ac2)', color: '#fff' }}>day grid</span>}
+      </div>
+      {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
+        🔍 {searchMatches.size} match{searchMatches.size === 1 ? '' : 'es'}
+      </span>}
+      <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
         {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ' AT RISK' : dl.maxEnd ? ' on track' : ''}
       </span>)}
@@ -527,7 +561,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         const x1 = rect ? rect.right : linkDrag.mouseX;
         const y1 = rect ? rect.top + rect.height / 2 : linkDrag.mouseY;
         const x2 = linkDrag.mouseX, y2 = linkDrag.mouseY;
-        const stub = 5;
+        const stub = 10;
         const sx = x1 + stub;
         const tx = x2 - stub;
         const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
