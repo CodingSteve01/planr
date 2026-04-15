@@ -138,6 +138,27 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
   const fmtDate = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
 
   const hasSelection = multiSel && multiSel.size > 0;
+  // Compute position of `selected` within its sibling group — drives first/last button disabled state.
+  const selPos = useMemo(() => {
+    if (!selected?.id) return null;
+    const parts = selected.id.split('.');
+    const isRoot = parts.length === 1;
+    const myPrefix = isRoot ? (selected.id.match(/^[A-Za-z]+/)?.[0] || '') : '';
+    const siblings = tree.filter(x => {
+      if (isRoot) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
+      return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
+    }).sort((a, b) => {
+      const an = parseInt(a.id.split('.').pop().replace(/\D/g, '')) || 0;
+      const bn = parseInt(b.id.split('.').pop().replace(/\D/g, '')) || 0;
+      return an - bn;
+    });
+    const idx = siblings.findIndex(x => x.id === selected.id);
+    return { idx, count: siblings.length };
+  }, [selected?.id, tree]);
+  const toolBtn = (label, title, onClick, disabled) => <button
+    className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} title={title}
+    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer' }}>{label}</button>;
+
   return <div>
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
       <button className="btn btn-sec btn-xs" onClick={collapseAll} title={hasSelection ? `Collapse ${multiSel.size} selected items + their children` : 'Collapse all items'}>{hasSelection ? `Collapse selection (${multiSel.size})` : 'Collapse all'}</button>
@@ -155,6 +176,24 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
       </span>
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} items</span>
     </div>
+    {/* Contextual action row — only when a single item is selected. Acts on that item. */}
+    {selected?.id && selPos && (
+      <div style={{ display: 'flex', gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 33, zIndex: 10 }}>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Selected</span>
+        <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+        {onReorder && selPos.count > 1 && <>
+          {toolBtn('⤒ First', `Move ${selected.id} to first position among its siblings`, () => onReorder(selected.id, 'first'), selPos.idx === 0)}
+          {toolBtn('▲ Up', `Move ${selected.id} up one position`, () => onReorder(selected.id, 'up'), selPos.idx === 0)}
+          {toolBtn('▼ Down', `Move ${selected.id} down one position`, () => onReorder(selected.id, 'down'), selPos.idx === selPos.count - 1)}
+          {toolBtn('⤓ Last', `Move ${selected.id} to last position among its siblings`, () => onReorder(selected.id, 'last'), selPos.idx === selPos.count - 1)}
+        </>}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-sec btn-xs" onClick={() => { if (confirm(`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}?`)) onDelete(selected.id); }}
+          title={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}`}
+          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>× Delete</button>
+      </div>
+    )}
     <table className="tree-tbl">
       <thead><tr>
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>ID</th>
@@ -245,49 +284,13 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {s._startD && s._endD && <>{fmtDate(s._startD)} → {fmtDate(s._endD)}</>}
             </td>
 
-            {/* Actions — icon-only, minimal */}
+            {/* Actions — only quick-add stays as a per-row affordance. Reorder and delete
+                live in the contextual toolbar above and act on the currently selected item. */}
             <td style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
-              {onReorder && (() => {
-                // Determine if this item is the first/last among its siblings
-                // (children share same parent; roots share same alphabetic prefix).
-                const parts = r.id.split('.');
-                const isRootItem = parts.length === 1;
-                const myPrefix = isRootItem ? (r.id.match(/^[A-Za-z]+/)?.[0] || '') : '';
-                const siblings = tree.filter(x => {
-                  if (isRootItem) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
-                  return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
-                }).sort((a, b) => {
-                  const an = parseInt(a.id.split('.').pop().replace(/\D/g, '')) || 0;
-                  const bn = parseInt(b.id.split('.').pop().replace(/\D/g, '')) || 0;
-                  return an - bn;
-                });
-                const myIdx = siblings.findIndex(x => x.id === r.id);
-                const isFirst = myIdx === 0;
-                const isLast = myIdx === siblings.length - 1;
-                const onlyChild = siblings.length === 1;
-                if (onlyChild) return null;
-                const reorderBtn = (label, dir, title, disabled) => <button
-                  title={title}
-                  disabled={disabled}
-                  onClick={e => { e.stopPropagation(); if (!disabled) onReorder(r.id, dir); }}
-                  style={{ width: 18, height: 20, padding: 0, background: 'transparent', border: 'none', color: 'var(--tx3)', cursor: disabled ? 'default' : 'pointer', fontSize: 11, lineHeight: 1, borderRadius: 3, opacity: disabled ? .25 : 1 }}
-                  onMouseEnter={e => { if (!disabled) { e.currentTarget.style.background = 'var(--bg4)'; e.currentTarget.style.color = 'var(--ac)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tx3)'; }}>{label}</button>;
-                return <>
-                  {reorderBtn('⤒', 'first', `Move ${r.id} to first position`, isFirst)}
-                  {reorderBtn('▲', 'up', `Move ${r.id} up`, isFirst)}
-                  {reorderBtn('▼', 'down', `Move ${r.id} down`, isLast)}
-                  {reorderBtn('⤓', 'last', `Move ${r.id} to last position`, isLast)}
-                </>;
-              })()}
               <button title={`Add child under ${r.id}`} onClick={e => { e.stopPropagation(); onQuickAdd(r); }}
-                style={{ width: 20, height: 20, padding: 0, background: 'transparent', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 3, marginLeft: 4 }}
+                style={{ width: 20, height: 20, padding: 0, background: 'transparent', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 3 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg4)'; e.currentTarget.style.color = 'var(--ac)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tx3)'; }}>+</button>
-              <button title={`Delete ${r.id}`} onClick={e => { e.stopPropagation(); if (confirm(`Delete ${r.id}${childNodes ? ' and all children' : ''}?`)) onDelete(r.id); }}
-                style={{ width: 20, height: 20, padding: 0, background: 'transparent', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 3, marginLeft: 2 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg4)'; e.currentTarget.style.color = 'var(--re)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tx3)'; }}>×</button>
             </td>
           </tr>;
         })}
