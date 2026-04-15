@@ -157,16 +157,20 @@ export default function App() {
 
   // Save to localStorage on every change (fast, in-memory) — separate from file save
   const [fileWriteOk, setFileWriteOk] = useState(true);
+  const [fileSynced, setFileSynced] = useState(true); // whether the file on disk matches current data
   const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
   useEffect(() => {
     if (!data) return;
     const t = setTimeout(() => {
       localStorage.setItem(SK, JSON.stringify(data));
-      // If no file is mounted, localStorage IS the save → mark as saved
-      if (!fileHandleRef.current) { setSaved(true); setLastSavedAt(new Date()); }
+      // localStorage save is always successful → data is "saved" (just maybe not to file yet)
+      setSaved(true);
+      setLastSavedAt(new Date());
     }, 300);
     return () => clearTimeout(t);
   }, [data]);
+  // Mark file-out-of-sync whenever data changes
+  useEffect(() => { if (data) setFileSynced(false); }, [data]);
 
   // File save: queued every 60s if there are unsaved changes (and auto-save is on)
   // Manual force-save via disk icon (saveToFile) bypasses this and saves immediately
@@ -174,7 +178,7 @@ export default function App() {
   useEffect(() => {
     if (!data || !autoSave || !fileHandleRef.current) return;
     const interval = setInterval(async () => {
-      if (saved) return; // nothing to save
+      if (fileSynced) return; // file already up-to-date
       const handle = fileHandleRef.current;
       if (!handle) return;
       const canWrite = await ensureHandlePermission(handle, false);
@@ -185,13 +189,13 @@ export default function App() {
         await wr.write(content);
         await wr.close();
         setFileWriteOk(true);
+        setFileSynced(true);
         lastOwnWriteRef.current = Date.now();
-        setSaved(true);
         setLastSavedAt(new Date());
       } catch (e) { console.error('Queued auto-save failed:', e); setFileWriteOk(false); }
     }, FILE_SAVE_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [data, autoSave, saved]);
+  }, [data, autoSave, fileSynced]);
 
   // Detect external file changes (poll every 5s)
   const lastModRef = useRef(null);
@@ -275,6 +279,7 @@ export default function App() {
       await rememberHandle(handle);
       setAutoSave(true);
       setFileWriteOk(true);
+      setFileSynced(true);
       setSaved(true);
       setLastSavedAt(new Date());
     } catch (e) {
@@ -293,6 +298,7 @@ export default function App() {
             await rememberHandle(handle2);
             setAutoSave(true);
             setFileWriteOk(true);
+            setFileSynced(true);
             setSaved(true);
             setLastSavedAt(new Date());
             return;
@@ -1276,7 +1282,7 @@ export default function App() {
       <div className="vsep" />
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
-        <span className={`save-dot ${saved ? 'clean' : 'dirty'}`} title={saved ? 'All changes saved' : 'Unsaved changes'} />
+        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} title={!saved ? 'Unsaved changes' : (fileName && !fileSynced ? 'Saved locally — file on disk pending auto-save' : 'All changes saved')} />
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
@@ -1290,8 +1296,10 @@ export default function App() {
         onClick={() => { if (fileName && !fileWriteOk) saveToFile(); }}>
         {!fileName ? (autoSave ? 'auto (no file)' : 'off') : autoSave ? (fileWriteOk ? 'auto' : '⚠ click to grant') : 'auto off'}
       </span>
-      {lastSavedAt && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
-        {saved ? `${fileName ? 'saved' : 'local'} ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'saving...'}
+      {lastSavedAt && <span style={{ fontSize: 9, color: fileName && !fileSynced ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }} title={fileName && !fileSynced ? 'Changes are saved locally but the file on disk is not yet updated. Auto-save retries every 60s, or click 💾 to force-save now.' : ''}>
+        {!fileName ? `local ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+          : fileSynced ? `saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+          : `local · file pending`}
       </span>}
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>

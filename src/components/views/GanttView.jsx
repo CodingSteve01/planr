@@ -49,7 +49,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
-  const iMap = Object.fromEntries((tree || []).map(r => [r.id, r]));
+  const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
 
   // Build groups based on groupBy. Groups can have subGroups for nested modes.
   const groups = useMemo(() => {
@@ -108,20 +108,23 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   }, [allItems, groupBy, teams, tree]);
 
   // Flatten groups + subGroups into row stream, respecting collapsed state at each level
-  const rows = [];
-  groups.forEach(g => {
-    rows.push({ type: 'group', group: g, level: 0 });
-    if (collapsed.has(g.key)) return;
-    if (g.subGroups) {
-      g.subGroups.forEach(sg => {
-        rows.push({ type: 'group', group: sg, level: 1 });
-        if (collapsed.has(sg.key)) return;
-        sg.items.forEach(s => rows.push({ type: 'task', s, group: sg, level: 2 }));
-      });
-    } else {
-      g.items.forEach(s => rows.push({ type: 'task', s, group: g, level: 1 }));
-    }
-  });
+  const rows = useMemo(() => {
+    const out = [];
+    groups.forEach(g => {
+      out.push({ type: 'group', group: g, level: 0 });
+      if (collapsed.has(g.key)) return;
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => {
+          out.push({ type: 'group', group: sg, level: 1 });
+          if (collapsed.has(sg.key)) return;
+          sg.items.forEach(s => out.push({ type: 'task', s, group: sg, level: 2 }));
+        });
+      } else {
+        g.items.forEach(s => out.push({ type: 'task', s, group: g, level: 1 }));
+      }
+    });
+    return out;
+  }, [groups, collapsed]);
 
   const RH = 28, HH = 28;
   const dlL = (goals || []).filter(d => d.date).map(dl => {
@@ -138,8 +141,8 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
   const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teams.find(x => x.id === t)?.color || '#3b82f6');
 
   // CP dependency lines (only between visible scheduled items)
-  const rowIdx = {}; rows.forEach((r, i) => { if (r.type === 'task' && !r.s._unestimated) rowIdx[r.s.id] = i; });
-  const sMap = Object.fromEntries(scheduled.map(s => [s.id, s]));
+  const rowIdx = useMemo(() => { const m = {}; rows.forEach((r, i) => { if (r.type === 'task' && !r.s._unestimated) m[r.s.id] = i; }); return m; }, [rows]);
+  const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
     if (!cpSet?.size || !tree) return [];
@@ -399,28 +402,28 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                 style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
             </div>;
           })}
-          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, zIndex: 3 }}>
+          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
             <defs>
               <marker id="gar" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--re)" /></marker>
               <marker id="garH" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker>
               <marker id="garN" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--tx3)" /></marker>
             </defs>
             {(() => {
-              // Path layout per user spec: straight stub out of source, bezier in middle, straight stub into target.
-              // Stubs guarantee the arrow head enters horizontally for clean visual termination.
+              // Pure orthogonal step routing (classic Gantt style). All segments are horizontal
+              // or vertical; corners are rounded via strokeLinejoin="round" on the path itself.
+              //   Bar A ]──┐
+              //            │
+              //            └──> [ Bar B
               const buildPath = (l) => {
                 const stub = 10;
-                const sx = l.x1 + stub;        // end of source stub
-                const tx = l.x2 - stub;        // start of target stub
+                const sx = l.x1 + stub;
+                const tx = l.x2 - stub;
                 if (tx > sx) {
-                  // FORWARD link: single bezier with control points pulling horizontally outward
-                  // from each stub end. This guarantees the curve leaves source horizontally and
-                  // enters target horizontally — the arrow head sits on a straight horizontal line.
-                  const ctrlOffset = Math.min((tx - sx) / 2, 60);
-                  return `M${l.x1},${l.y1} L${sx},${l.y1} C${sx + ctrlOffset},${l.y1} ${tx - ctrlOffset},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
+                  // FORWARD: stub right, vertical at midpoint, horizontal into target stub
+                  const mx = Math.round((sx + tx) / 2);
+                  return `M${l.x1},${l.y1} L${mx},${l.y1} L${mx},${l.y2} L${l.x2 - 1},${l.y2}`;
                 }
-                // BACKWARD link: orthogonal route below both rows to avoid crossing bars.
-                // strokeLinejoin=round on the path softens the corners visually.
+                // BACKWARD: stub right past source, down/up to a lane, left under target column, into target
                 const lane = Math.max(l.y1, l.y2) + RH * 0.6;
                 return `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${lane} L${tx},${lane} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
               };
@@ -439,9 +442,17 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
                 const my = tx > sx ? (l.y1 + l.y2) / 2 : Math.max(l.y1, l.y2) + RH * 0.6;
                 const removeDep = () => {
                   const fromNode = iMap[l.removeFromId]; if (!fromNode) return;
-                  if (confirm(`Remove dependency: ${l.removeFromId} no longer depends on ${l.removeDepId}?`)) {
-                    onTaskUpdate?.({ ...fromNode, deps: (fromNode.deps || []).filter(d => d !== l.removeDepId) });
-                  }
+                  // Clear hover state BEFORE confirm: otherwise the dialog blocks while React still
+                  // holds a reference to a line key that's about to vanish from allDepLines, which
+                  // can cause render thrash on re-mount.
+                  setHoverLineKey(null);
+                  setHoverDepId(null);
+                  // Defer the actual mutation so React commits the cleared hover state first
+                  setTimeout(() => {
+                    if (confirm(`Remove dependency: ${l.removeFromId} no longer depends on ${l.removeDepId}?`)) {
+                      onTaskUpdate?.({ ...fromNode, deps: (fromNode.deps || []).filter(d => d !== l.removeDepId) });
+                    }
+                  }, 0);
                 };
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} style={{ pointerEvents: 'none' }} />
@@ -496,11 +507,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, onBarCl
         const tx = x2 - stub;
         let d;
         if (tx > sx) {
-          // Same straight-stub + bezier + straight-stub structure as the rendered links
-          const ctrl = Math.min((tx - sx) / 2, 60);
-          d = `M${x1},${y1} L${sx},${y1} C${sx + ctrl},${y1} ${tx - ctrl},${y2} ${tx},${y2} L${x2 - 1},${y2}`;
+          // Step routing: stub right, vertical at midpoint, horizontal into target
+          const mx = Math.round((sx + tx) / 2);
+          d = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2 - 1},${y2}`;
         } else {
-          // Backward: orthogonal route below source row
           const lane = Math.max(y1, y2) + 22;
           d = `M${x1},${y1} L${sx},${y1} L${sx},${lane} L${tx},${lane} L${tx},${y2} L${x2 - 1},${y2}`;
         }
