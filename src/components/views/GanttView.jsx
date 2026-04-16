@@ -158,6 +158,13 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
   const todayX = todayWi >= 0 ? todayWi * WPX : -1;
   const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teams.find(x => x.id === t)?.color || '#3b82f6');
 
+  // Day-accurate mount-point helpers for dependency lines. Source mounts at
+  // the RIGHT edge of the bar (end of endD's day column); target mounts at
+  // the LEFT edge (start of startD's day column). Falls back to week-aligned
+  // positions when dates aren't available.
+  function depX1(s) { return showDays && s.endD ? dateToX(s.endD) + WPX / 5 : (s.endWi + 1) * WPX; }
+  function depX2(s) { return showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX; }
+
   // CP dependency lines (only between visible scheduled items)
   const rowIdx = useMemo(() => { const m = {}; rows.forEach((r, i) => { if (r.type === 'task' && !r.s._unestimated) m[r.s.id] = i; }); return m; }, [rows]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
@@ -173,7 +180,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
         const dep = sMap[depId]; if (!dep) return;
         const srcRow = rowIdx[depId], tgtRow = rowIdx[s.id];
         if (srcRow == null || tgtRow == null) return;
-        lines.push({ x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2 });
+        lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2 });
       });
     });
     return lines;
@@ -192,8 +199,8 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
           if (srcRow == null || tgtRow == null) return;
           lines.push({
             key: `${depId}->${s.id}->${rawDep}`,
-            x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2,
-            x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2,
+            x1: depX1(dep), y1: srcRow * RH + RH / 2,
+            x2: depX2(s), y2: tgtRow * RH + RH / 2,
             removeFromId: s.id, removeDepId: rawDep,
             srcId: depId, tgtId: s.id,
             isCp: cpSet?.has(depId) && cpSet?.has(s.id),
@@ -221,7 +228,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
           const srcRow = rowIdx[depId], tgtRow = rowIdx[hoverDepId];
           if (srcRow == null || tgtRow == null) return;
           rowIds.add(depId);
-          lines.push({ x1: (dep.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: target.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+          lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
         });
       });
     }
@@ -235,7 +242,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
         const srcRow = rowIdx[hoverDepId], tgtRow = rowIdx[s.id];
         if (srcRow == null || tgtRow == null) return;
         rowIds.add(s.id);
-        lines.push({ x1: (target.endWi + 1) * WPX, y1: srcRow * RH + RH / 2, x2: s.startWi * WPX, y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
+        lines.push({ x1: depX1(target), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
       });
     });
     return { lines, rowIds };
