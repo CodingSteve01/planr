@@ -509,7 +509,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                   left: barLeft, width: Math.max(bW, 6),
                   // Vertical reorder feedback: bar visually follows the mouse vertically,
                   // with a strong glow so the user sees they're in reorder mode.
-                  transform: (isDrag && drag?.isReorder) ? `translateY(${drag.lastDy}px)` : undefined,
+                  transform: (isDrag && drag?.isReorder) ? `translateY(${Math.round(drag.lastDy / RH) * RH}px)` : undefined,
                   zIndex: (isDrag && drag?.isReorder) ? 20 : undefined,
                   boxShadow: (isDrag && drag?.isReorder)
                     ? '0 4px 20px rgba(0,0,0,.5), 0 0 0 2px var(--ac)'
