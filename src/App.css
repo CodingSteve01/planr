@@ -111,7 +111,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .grow-l:hover{background:rgba(127,127,127,.06);}
 .grow-l.cp-row{}
 .grow-r{height:28px;position:relative;border-bottom:1px solid var(--b);}
-.gbar{position:absolute;top:4px;height:20px;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:600;overflow:hidden;white-space:nowrap;z-index:2;transition:filter .1s;user-select:none;}
+.gbar{position:absolute;top:4px;height:20px;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:600;overflow:clip;white-space:nowrap;z-index:2;transition:filter .1s;user-select:none;}
 .gbar:hover{filter:brightness(1.2);}
 .gbar.dragging{opacity:.85;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:10;cursor:grabbing;}
 /* CP marker. No !important so an inline boxShadow (link-mode outline) can win. */

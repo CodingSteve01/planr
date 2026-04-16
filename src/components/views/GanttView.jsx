@@ -610,11 +610,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                 {/* Progress overlay: lighter strip on the left proportional to progress % */}
                 {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
                   return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
-                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
-                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer' }}
+                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
+                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                   title={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
-                {bW > 35 && s.name}
+                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>}
+                </span>
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}
                 <div title="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
                   style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
