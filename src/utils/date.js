@@ -7,17 +7,18 @@ export const iso = d => {
   return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}-${String(r.getDate()).padStart(2, '0')}`;
 };
 export const addD = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-// Step `n` working days (Mon–Fri) forward (positive) or backward (negative).
-// Skips Saturday/Sunday entirely so that "+5 working days from Monday" lands
-// on the next Monday, not on Saturday.
-export const addWorkDays = (d, n) => {
+// Step `n` working days forward (positive) or backward (negative).
+// Skips non-working days. `workDays` is an optional Set of day-of-week numbers
+// (0=Sun…6=Sat); defaults to Mon–Fri if omitted.
+const DEFAULT_WD_SET = new Set([1, 2, 3, 4, 5]);
+export const addWorkDays = (d, n, workDays) => {
+  const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;
   const r = new Date(d);
   const step = n >= 0 ? 1 : -1;
   let added = 0;
   while (added < Math.abs(n)) {
     r.setDate(r.getDate() + step);
-    const dow = r.getDay();
-    if (dow > 0 && dow < 6) added++;
+    if (wd.has(r.getDay())) added++;
   }
   return r;
 };

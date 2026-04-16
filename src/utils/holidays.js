@@ -26,14 +26,27 @@ export function computeNRW(years) {
 
 export const buildHMap = arr => Object.fromEntries((arr || []).map(h => [h.date, h.name]));
 
-export function isWD(d, hm) { return d.getDay() > 0 && d.getDay() < 6 && !hm[iso(d)]; }
+// Default working days: Mon(1)–Fri(5). Configurable via meta.workDays.
+const DEFAULT_WORK_DAYS = new Set([1, 2, 3, 4, 5]);
 
-export function buildWeeks(start, end, hm) {
+export function isWD(d, hm, workDays) {
+  const wd = workDays || DEFAULT_WORK_DAYS;
+  return wd.has(d.getDay()) && !hm[iso(d)];
+}
+
+export function buildWeeks(start, end, hm, workDaysArr) {
+  const wd = workDaysArr ? new Set(workDaysArr) : DEFAULT_WORK_DAYS;
   const wks = [], ps = new Date(start), pe = new Date(end); let d = monOf(ps);
   while (d <= pe) {
-    const wds = []; for (let i = 0; i < 5; i++) { const x = addD(d, i); if (x >= ps && x <= pe && isWD(x, hm)) wds.push(new Date(x)); }
-    const hasH = Object.keys(hm).some(k => { const hd = new Date(k); return hd >= d && hd < addD(d, 7) && hd.getDay() > 0 && hd.getDay() < 6; });
-    if (wds.length > 0) wks.push({ mon: new Date(d), wds, hasH, kw: isoWeek(d) });
+    // Scan all 7 days of the week, collecting those that are configured as working days.
+    const wds = [];
+    for (let i = 0; i < 7; i++) {
+      const x = addD(d, i);
+      if (x >= ps && x <= pe && isWD(x, hm, wd)) wds.push(new Date(x));
+    }
+    const hasH = Object.keys(hm).some(k => { const hd = new Date(k); return hd >= d && hd < addD(d, 7) && wd.has(hd.getDay()); });
+    // Keep weeks that have at least one working day (or sit inside the plan window for display).
+    if (wds.length > 0 || (d >= ps && d <= pe)) wks.push({ mon: new Date(d), wds, hasH, kw: isoWeek(d) });
     d = addD(d, 7);
   }
   return wks;

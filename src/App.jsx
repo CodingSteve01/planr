@@ -349,7 +349,7 @@ export default function App() {
     const explicitTeams = []; // teams from "## Teams" table (with color)
     const vacationsArr = [], holidaysArr = [];
     let projName = null;
-    let planStart = '', planEnd = '';
+    let planStart = '', planEnd = '', workDays = '';
     const idStack = [];
     let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | null
     let lastItem = null;
@@ -381,6 +381,7 @@ export default function App() {
         if (m && !/^Field$/i.test(m[1])) {
           if (/^start/i.test(m[1])) planStart = m[2].trim();
           else if (/^end/i.test(m[1])) planEnd = m[2].trim();
+          else if (/^work\s*days/i.test(m[1])) workDays = m[2].trim();
         }
         return;
       }
@@ -598,6 +599,7 @@ export default function App() {
     const metaObj = { name: projName || 'Imported Project', version: '2' };
     if (planStart) metaObj.planStart = planStart;
     if (planEnd) metaObj.planEnd = planEnd;
+    if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
     return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr };
   }
 
@@ -662,7 +664,8 @@ export default function App() {
   const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
   const planStart = meta.planStart || iso(new Date());
   const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
-  const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm]);
+  const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
+  const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, planStart, planEnd, hm, workDays) : { results: [], weeks: [] }, [tree, members, vacations, planStart, planEnd, hm, workDays]);
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
@@ -1357,6 +1360,7 @@ export default function App() {
       md += `## Plan\n\n| Field | Value |\n|---|---|\n`;
       if (meta.planStart) md += `| Start | ${meta.planStart} |\n`;
       if (meta.planEnd) md += `| End | ${meta.planEnd} |\n`;
+      if (meta.workDays && JSON.stringify(meta.workDays) !== '[1,2,3,4,5]') md += `| Work Days | ${meta.workDays.join(',')} |\n`;
       md += '\n';
     }
 
@@ -1702,7 +1706,7 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendPlanStart={extendPlanStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} workDays={workDays} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendPlanStart={extendPlanStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}

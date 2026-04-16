@@ -8,7 +8,8 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+  const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -34,9 +35,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
 
   const tw = weeks.length * WPX;
   // Map a Date to its pixel X position on the Gantt body.
-  // Each week = WPX px covering Mo–Fr (5 working-day columns of WPX/5 each).
-  // Weekend dates clamp to Friday of their containing week (they never appear in
-  // scheduler output but we stay defensive).
+  // Each week = WPX px covering all 7 days (Mon–Sun) so weekends are visible
+  // as grayed-out columns in day-mode. The DPX constant = pixels per day.
+  const DPX = WPX / 7;
   function dateToX(date) {
     if (!date) return 0;
     const d = date instanceof Date ? date : new Date(date);
@@ -48,8 +49,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     }
     if (wi < 0) return weeks.length * WPX;
     const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const dayInWeek = dow === 0 ? 4 : Math.min(dow - 1, 4);
-    return wi * WPX + dayInWeek * (WPX / 5);
+    const dayInWeek = dow === 0 ? 6 : dow - 1; // Mon=0 ... Sun=6
+    return wi * WPX + dayInWeek * DPX;
   }
   const months = []; let cm = null, cc = 0, cs = 0;
   weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) months.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
@@ -164,7 +165,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   // the RIGHT edge of the bar (end of endD's day column); target mounts at
   // the LEFT edge (start of startD's day column). Falls back to week-aligned
   // positions when dates aren't available.
-  function depX1(s) { return showDays && s.endD ? dateToX(s.endD) + WPX / 5 : (s.endWi + 1) * WPX; }
+  function depX1(s) { return showDays && s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX; }
   function depX2(s) { return showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX; }
 
   // CP dependency lines (only between visible scheduled items)
@@ -304,7 +305,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         d.isReorder = true; d.lastDy = dy;
         setDrag({ ...d }); // re-render for cursor + visual feedback
       } else {
-        const stepPx = showDays ? WPX / 5 : WPX;
+        const stepPx = showDays ? DPX : WPX;
         setDDelta(Math.round(dx / stepPx));
       }
     }
@@ -319,7 +320,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         onReorderInQueue?.(d.id, dir, rowShift);
       } else if (dDelta !== 0) {
         const startMon = new Date(weeks[d.startWi].mon);
-        const targetDate = showDays ? addWorkDays(startMon, dDelta) : addD(startMon, dDelta * 7);
+        const targetDate = showDays ? addWorkDays(startMon, dDelta, wdSet) : addD(startMon, dDelta * 7);
         const planStartDate = weeks[0]?.mon;
         if (planStartDate && targetDate < planStartDate) {
           onExtendPlanStart?.(iso(targetDate));
@@ -390,13 +391,15 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               {w.kw}
             </div>; })}
         </div>
-        {/* Day-level header row, only when zoomed in enough that day numbers fit. */}
+        {/* Day-level header row: all 7 days (Mon–Sun). Weekends grayed. */}
         {showDays && <div style={{ display: 'flex', height: 14, borderTop: '1px solid var(--b2)' }}>
           {weeks.map((w, i) => <div key={i} style={{ width: WPX, flexShrink: 0, display: 'flex' }}>
-            {[0, 1, 2, 3, 4].map(d => {
+            {[0, 1, 2, 3, 4, 5, 6].map(d => {
               const date = addD(w.mon, d);
+              const dow = date.getDay();
+              const isWeekend = !wdSet.has(dow);
               const isToday = date.toDateString() === now.toDateString();
-              return <div key={d} style={{ flex: 1, fontSize: 8, textAlign: 'center', color: isToday ? 'var(--gr)' : 'var(--tx3)', fontWeight: isToday ? 700 : 400, fontFamily: 'var(--mono)', borderRight: d < 4 ? '1px solid var(--b2)' : 'none', lineHeight: '14px' }}>{date.getDate()}</div>;
+              return <div key={d} style={{ flex: 1, fontSize: 7, textAlign: 'center', color: isToday ? 'var(--gr)' : isWeekend ? 'var(--tx3)' : 'var(--tx2)', fontWeight: isToday ? 700 : 400, fontFamily: 'var(--mono)', borderRight: d < 6 ? '1px solid var(--b2)' : 'none', lineHeight: '14px', opacity: isWeekend ? .4 : 1, background: isWeekend ? 'rgba(127,127,127,.06)' : '' }}>{date.getDate()}</div>;
             })}
           </div>)}
         </div>}
@@ -441,17 +444,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
                 individual holiday days get tinted below instead. */}
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: !showDays && w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
-            {/* Day-level overlays: faint vertical separator lines + per-day holiday tint. */}
+            {/* Day-level overlays: all 7 days. Weekends grayed, holidays red-tinted, separators. */}
             {showDays && weeks.map((w, i) => {
-              const dayPx = WPX / 5;
               const wdsByTime = new Set(w.wds.map(d => d.getTime()));
-              return [0, 1, 2, 3, 4].map(d => {
+              return [0, 1, 2, 3, 4, 5, 6].map(d => {
                 const date = addD(w.mon, d);
-                // A weekday in plan range that's NOT in wds is a holiday.
-                const isHoliday = !wdsByTime.has(date.getTime());
+                const dow = date.getDay();
+                const isWeekend = !wdSet.has(dow);
+                const isHoliday = !isWeekend && !wdsByTime.has(date.getTime());
                 return <React.Fragment key={`d-${i}-${d}`}>
-                  {isHoliday && <div style={{ position: 'absolute', left: i * WPX + d * dayPx, top: 0, width: dayPx, height: '100%', background: 'rgba(244,63,94,.14)' }} />}
-                  {d > 0 && <div style={{ position: 'absolute', left: i * WPX + d * dayPx, top: 0, width: 1, height: '100%', background: 'var(--b2)', opacity: .35 }} />}
+                  {isWeekend && <div style={{ position: 'absolute', left: i * WPX + d * DPX, top: 0, width: DPX, height: '100%', background: 'rgba(127,127,127,.10)' }} />}
+                  {isHoliday && <div style={{ position: 'absolute', left: i * WPX + d * DPX, top: 0, width: DPX, height: '100%', background: 'rgba(244,63,94,.14)' }} />}
+                  {d > 0 && <div style={{ position: 'absolute', left: i * WPX + d * DPX, top: 0, width: 1, height: '100%', background: isWeekend ? 'var(--b2)' : 'var(--b2)', opacity: isWeekend ? .2 : .35 }} />}
                 </React.Fragment>;
               });
             })}
@@ -494,13 +498,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             let baseLeft, baseWidth;
             if (showDays && s.startD && s.endD) {
               baseLeft = dateToX(s.startD) + 2;
-              baseWidth = dateToX(s.endD) + (WPX / 5) - dateToX(s.startD) - 4;
+              baseWidth = dateToX(s.endD) + (DPX) - dateToX(s.startD) - 4;
             } else {
               baseLeft = s.startWi * WPX + 2;
               baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
             }
             // Drag offset: dDelta is in days when showDays, weeks otherwise.
-            const dragPxOffset = isDrag ? dDelta * (showDays ? WPX / 5 : WPX) : 0;
+            const dragPxOffset = isDrag ? dDelta * (showDays ? DPX : WPX) : 0;
             const barLeft = Math.max(0, baseLeft + dragPxOffset);
             const bW = baseWidth;
             const dim = cpOnly && !isCp;
@@ -650,7 +654,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>Zoom</span>
         <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} title="Week view (compact)" style={{ padding: '2px 7px', fontSize: 10 }}>Week</button>
-        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(80)} title="Day view (day grid + day numbers)" style={{ padding: '2px 7px', fontSize: 10 }}>Day</button>
+        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} title="Day view (7-day calendar, weekends grayed)" style={{ padding: '2px 7px', fontSize: 10 }}>Day</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
       </div>

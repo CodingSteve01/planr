@@ -30,8 +30,9 @@ export function resolveToLeafIds(tree, id) {
   return leafNodes(tree).filter(l => l.id.startsWith(item.id + '.')).map(l => l.id);
 }
 
-export function schedule(tree, members, vacations, ps, pe, hm) {
-  const wks = buildWeeks(ps, pe, hm);
+export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
+  const wks = buildWeeks(ps, pe, hm, workDaysArr);
+  const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const lvs = leafNodes(tree);
@@ -147,7 +148,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
         if (rem <= 0) break; wi++;
       }
       const eW = Math.min(Math.max(wi, slotWi), wks.length - 1);
-      const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1) : null;
+      const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
       tEW[id] = { wi: eW, nextDate: nd };
       slots[si] = { wi: eW, nextDate: nd };
       const actualStartD = firstWorkDay || wks[slotWi]?.mon || wks[0].mon;
@@ -200,7 +201,7 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
       if (rem <= 0) break; wi++;
     }
     const eW = Math.min(wi, wks.length - 1);
-    const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1) : null;
+    const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
     tEW[id] = { wi: eW, nextDate: nd };
     if (!r.parallel) pF[bp.id] = { wi: eW, nextDate: nd };
     const actualStartD = firstWorkDay || wks[bs].mon;
