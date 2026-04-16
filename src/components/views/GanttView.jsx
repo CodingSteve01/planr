@@ -8,7 +8,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -304,13 +304,15 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
         onReorderInQueue?.(drag.id, dir, rowShift);
       } else if (dDelta !== 0) {
         const startMon = new Date(weeks[drag.startWi].mon);
-        // Day mode: dDelta is "day-column" steps which only count working days
-        // (the day grid skips Sat/Sun). Use addWorkDays so +5 day-columns from Mon
-        // lands on next Mon, not on Sat. Week mode: still ±7 cal days per step.
         const targetDate = showDays ? addWorkDays(startMon, dDelta) : addD(startMon, dDelta * 7);
         const planStartDate = weeks[0]?.mon;
-        const finalDate = planStartDate && targetDate < planStartDate ? planStartDate : targetDate;
-        onSeqUpdate(drag.id, { pinnedStart: iso(finalDate) });
+        // If the user drags before the current plan horizon, extend it backward so
+        // already-started tasks fit naturally. The scheduler recomputes with the wider
+        // window and all prior tasks keep their positions.
+        if (planStartDate && targetDate < planStartDate) {
+          onExtendPlanStart?.(iso(targetDate));
+        }
+        onSeqUpdate(drag.id, { pinnedStart: iso(targetDate) });
       }
       setDrag(null); setDDelta(0);
     }

@@ -964,6 +964,14 @@ export default function App() {
     const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
     setD('tree', tree.map(r => r.id === taskId ? { ...r, ...update } : r));
   }
+  // Extend the plan start date backward so partially-done tasks that began before the
+  // current horizon fit naturally. Scheduler re-computes with the wider window; existing
+  // positions shift right by the added weeks.
+  function extendPlanStart(newStart) {
+    if (!newStart || newStart >= (meta.planStart || '9999')) return;
+    setData(d => ({ ...d, meta: { ...d.meta, planStart: newStart } }));
+    setSaved(false);
+  }
 
   function exportJSON() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1664,7 +1672,7 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendPlanStart={extendPlanStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
