@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { TreeView } from './components/views/TreeView.jsx';
@@ -13,6 +13,7 @@ import { ResView } from './components/views/ResView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { DLView } from './components/views/DLView.jsx';
 import { SumView } from './components/views/SumView.jsx';
+import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
 import { AddModal } from './components/modals/AddModal.jsx';
@@ -67,8 +68,17 @@ export default function App() {
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
-  const [selected, setSel] = useState(null);
+  // Store only the selected node's ID; derive the actual node from the tree.
+  // This ensures `selected` always reflects the latest tree state — fixes a bug
+  // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
+  // because the old code held a stale node object in state.
+  const [selId, _setSelId] = useState(null);
+  const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
+  // Bumped after external edits (e.g. NodeModal save) to force QuickEdit remount,
+  // which re-initializes its local form state from the fresh tree. This is the
+  // simplest way to fix the stale-assign bug without fragile useEffect chains.
+  const [qeKey, setQeKey] = useState(0);
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [search, setSearch] = useState('');
@@ -473,14 +483,15 @@ export default function App() {
       let id = '';
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
-      // Extract metadata tag block: {prio:N, seq:N, severity}
-      let prio = 2, seq = 0, severity = 'high';
+      // Extract metadata tag block: {prio:N, seq:N, severity, conf:X}
+      let prio = 2, seq = 0, severity = 'high', confidence = '';
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
         const tags = tagM[1].split(',').map(t => t.trim());
         tags.forEach(t => {
           const pm = t.match(/^prio:(\d+)$/i); if (pm) { prio = +pm[1]; return; }
           const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
+          const cm = t.match(/^conf:(committed|estimated|exploratory)$/i); if (cm) { confidence = cm[1].toLowerCase(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
         raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
@@ -535,6 +546,7 @@ export default function App() {
       if (decideBy) item.decideBy = decideBy;
       if (pinnedStart) item.pinnedStart = pinnedStart;
       if (parallel) item.parallel = true;
+      if (confidence) item.confidence = confidence;
       tree.push(item);
       lastItem = item;
     });
@@ -657,6 +669,8 @@ export default function App() {
   });
 
   const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
+  // Derive selected node from tree — always fresh after any tree mutation.
+  const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
   // Backward compat: migrate old deadlines[] into tree roots
   useEffect(() => {
     if (!data?.deadlines?.length) return;
@@ -682,6 +696,7 @@ export default function App() {
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
+  const confidence = useMemo(() => computeConfidence(tree, members), [tree, members]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
 
   // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
@@ -705,28 +720,38 @@ export default function App() {
     if (changed) setData(d => ({ ...d, holidays: migrated }));
   }, [data?.holidays?.length, meta.planStart, meta.planEnd]);
 
-  // Auto-derive parent statuses from children
+  // Auto-fix tree: derive parent statuses + reconcile team with assigned person.
+  // IMPORTANT: these two mutations are combined into ONE setData call so they
+  // cannot overwrite each other. The old two-effect pattern caused Effect B to
+  // overwrite Effect A's tree, triggering A again → potential render storm.
   useEffect(() => {
     if (!data || !tree.length) return;
-    const updated = deriveParentStatuses(tree, stats);
-    if (updated.some((r, i) => r.status !== tree[i].status)) { setData(d => ({ ...d, tree: updated })); }
-  }, [stats]);
-
-  // Auto-reconcile team with assigned person — person's team always wins.
-  // Catches: stale data after team rename, MD imports with mismatching team,
-  // member changing team after assignment.
-  useEffect(() => {
-    if (!data || !tree.length || !members.length) return;
-    let changed = false;
-    const updated = tree.map(r => {
-      if (!r.assign?.length) return r;
-      const firstAssignee = members.find(m => m.id === r.assign[0]);
-      if (!firstAssignee?.team) return r;
-      if (r.team !== firstAssignee.team) { changed = true; return { ...r, team: firstAssignee.team }; }
-      return r;
+    // Use a functional updater so we always operate on the LATEST tree from
+    // state, not the closure-captured snapshot (which may be stale if another
+    // effect already queued an update).
+    setData(d => {
+      let t = d.tree || [];
+      let changed = false;
+      // 1. Reconcile teams: person's team always wins
+      if (members.length) {
+        t = t.map(r => {
+          if (!r.assign?.length) return r;
+          const firstAssignee = members.find(m => m.id === r.assign[0]);
+          if (!firstAssignee?.team) return r;
+          if (r.team !== firstAssignee.team) { changed = true; return { ...r, team: firstAssignee.team }; }
+          return r;
+        });
+      }
+      // 2. Derive parent statuses — must run on the (possibly team-fixed) tree
+      // Only treeStats is needed here (for _autoStatus); enrichParentSchedules
+      // is display-only and already runs in the useMemo above.
+      const st = treeStats(t);
+      const t2 = deriveParentStatuses(t, st);
+      if (t2.some((r, i) => r.status !== t[i].status)) { changed = true; t = t2; }
+      if (!changed) return d; // no-op: same reference = React skips re-render
+      return { ...d, tree: t };
     });
-    if (changed) setData(d => ({ ...d, tree: updated }));
-  }, [tree, members]);
+  }, [stats, members]);
 
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
   // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
@@ -949,7 +974,7 @@ export default function App() {
     });
     setD('tree', renamed);
     // Keep the moved node selected under its new ID
-    if (selected?.id === nodeId && idMap[nodeId]) setSel(renamed.find(r => r.id === idMap[nodeId]));
+    if (selId === nodeId && idMap[nodeId]) setSel(idMap[nodeId]);
   }
 
   // Reorder a task within its "queue" — the set of tasks that share the same
@@ -1440,11 +1465,12 @@ export default function App() {
       const prog = r.progress > 0 && r.progress < 100 ? ` ${r.progress}%` : '';
       const team = r.team ? ` — ${teamName(r.team)}` : '';
       const assign = (r.assign || []).length ? ` [${r.assign.map(memberShort).join(', ')}]` : '';
-      // Tags: prio (only if not 2), seq (only if non-zero), severity (root only)
+      // Tags: prio (only if not 2), seq (only if non-zero), severity (root only), confidence (only if manual override)
       const tags = [];
       if (r.prio && r.prio !== 2) tags.push(`prio:${r.prio}`);
       if (r.seq) tags.push(`seq:${r.seq}`);
       if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
+      if (r.confidence) tags.push(`conf:${r.confidence}`);
       const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
       // Deps: include labels when present
       const depItems = (r.deps || []).map(d => {
@@ -1554,7 +1580,7 @@ export default function App() {
   // removed: topDownReady guide bubble (was blocking tree view)
 
   const TABS = [
-    { id: 'summary', label: 'Overview' }, { id: 'tree', label: 'Work Tree' }, { id: 'gantt', label: 'Schedule' },
+    { id: 'summary', label: 'Overview' }, { id: 'plan', label: 'Planning' }, { id: 'tree', label: 'Work Tree' }, { id: 'gantt', label: 'Schedule' },
     { id: 'net', label: 'Network' }, { id: 'resources', label: 'Resources' }, { id: 'holidays', label: 'Holidays' },
   ];
 
@@ -1657,8 +1683,11 @@ export default function App() {
       </>}
     </div>}
     <div className="main">
-      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats}
+      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
+      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} cpSet={cpSet} stats={stats}
+        onNavigate={(id, target) => { setSel(id); setTab(target || 'tree'); }}
+        onUpdate={updateNode} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full">
           <div style={{ flex: 1, overflow: 'auto' }}>
@@ -1741,13 +1770,13 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
@@ -1760,7 +1789,7 @@ export default function App() {
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats}
-      onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue} />}

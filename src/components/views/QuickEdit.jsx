@@ -7,6 +7,9 @@ import { iso } from '../../utils/date.js';
 
 export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue }) {
   const [f, setF] = useState({ ...node });
+  // Only re-sync when a DIFFERENT node is selected (id change).
+  // External content changes (e.g. NodeModal saving an assign) are handled by
+  // App remounting this component via a key prop — no effect chain needed.
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);

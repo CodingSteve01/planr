@@ -258,6 +258,46 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   return { results: res, weeks: wks };
 }
 
+// ── Planning confidence ───────────────────────────────────────────────────────
+// Categorises every item into one of three confidence levels that drive
+// visual differentiation in the Gantt and the Planning Review panel.
+//   committed   — person assigned, estimate exists, risk factor reasonable
+//   estimated   — team/estimate exists but no person or high risk
+//   exploratory — scope unclear: no estimate or very high risk factor
+export function computeConfidence(tree, members) {
+  const result = {};
+  const lvs = leafNodes(tree); // compute once, reuse below
+  lvs.forEach(r => {
+    // Manual override wins
+    if (r.confidence) { result[r.id] = r.confidence; return; }
+    if (r.status === 'done') { result[r.id] = 'committed'; return; }
+    const hasAssign = (r.assign || []).length > 0;
+    const hasEstimate = r.best > 0;
+    const highRisk = (r.factor || 1.5) >= 2.0;
+    if (hasAssign && hasEstimate && !highRisk) {
+      result[r.id] = 'committed';
+    } else if (hasEstimate && !highRisk) {
+      result[r.id] = 'estimated';
+    } else {
+      result[r.id] = 'exploratory';
+    }
+  });
+  // Parents inherit the WORST confidence of their leaf descendants
+  const order = ['exploratory', 'estimated', 'committed'];
+  tree.forEach(parent => {
+    if (isLeafNode(tree, parent.id)) return;
+    if (parent.confidence) { result[parent.id] = parent.confidence; return; }
+    const childLeaves = lvs.filter(l => l.id.startsWith(parent.id + '.'));
+    if (!childLeaves.length) return;
+    const worst = childLeaves.reduce((w, c) => {
+      const ci = order.indexOf(result[c.id] || 'exploratory');
+      return ci < w ? ci : w;
+    }, 2);
+    result[parent.id] = order[worst];
+  });
+  return result;
+}
+
 // Derive leaf progress: explicit field > status-based default
 export function leafProgress(r) {
   if (r.progress != null && r.progress >= 0) return r.progress;

@@ -8,6 +8,9 @@ import { iso } from '../../utils/date.js';
 export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const [f, setF] = useState({ ...node });
   const [advanced, setAdvanced] = useState(false);
+  // Re-sync when a different node is opened. NodeModal buffers changes locally
+  // and saves on button click — so we only reset on ID change, not on every
+  // tree mutation (which would lose unsaved edits during successor releases).
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
@@ -242,6 +245,13 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
             <div className="field"><label title="Risk factor multiplier (default 1.5)">Factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
             <div className="field"><label title="Manual sort order within team (rare; usually leave at 0)">Seq</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} /></div>
           </div>}
+          <div className="field"><label title="Override the auto-derived planning confidence. Leave on Auto to let planr decide based on assignee/estimate/risk.">Confidence override</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['', 'Auto'], ['committed', '● Committed'], ['estimated', '◐ Estimated'], ['exploratory', '○ Exploratory']].map(([v, l]) =>
+                <button key={v} className={`btn ${(f.confidence || '') === v ? 'btn-pri' : 'btn-sec'} btn-xs`} style={{ flex: 1, fontSize: 10 }}
+                  onClick={() => s('confidence', v)}>{l}</button>)}
+            </div>
+          </div>
         </div>}
       </div>
 

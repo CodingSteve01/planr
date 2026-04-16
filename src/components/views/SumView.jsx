@@ -7,7 +7,7 @@ import { GT, GL } from '../../constants.js';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, onNavigate }) {
+export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate }) {
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -51,7 +51,36 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{done} done · {wip} in progress · {open} open of {lvs.length} leaf items</span>
       {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }}>Projected end: {iso(latE)}</span>}
     </div>
-    <div className="prog-wrap" style={{ height: 6, marginBottom: 24 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
+    <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
+
+    {/* Planning confidence */}
+    {(() => {
+      const cc = { committed: 0, estimated: 0, exploratory: 0 };
+      const ccPt = { committed: 0, estimated: 0, exploratory: 0 };
+      lvs.filter(r => r.status !== 'done').forEach(r => {
+        const c = confidence[r.id] || 'committed';
+        cc[c]++;
+        ccPt[c] += re(r.best || 0, r.factor || 1.5);
+      });
+      const total = cc.committed + cc.estimated + cc.exploratory;
+      if (!total) return null;
+      return <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>Planning confidence</span>
+          <span style={{ fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>Open Planning Review →</span>
+        </div>
+        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10, background: 'var(--bg4)' }}>
+          {cc.committed > 0 && <div style={{ width: `${cc.committed / total * 100}%`, background: 'var(--gr)', transition: 'width .3s' }} />}
+          {cc.estimated > 0 && <div style={{ width: `${cc.estimated / total * 100}%`, background: 'var(--am)', transition: 'width .3s' }} />}
+          {cc.exploratory > 0 && <div style={{ width: `${cc.exploratory / total * 100}%`, background: 'var(--tx3)', transition: 'width .3s' }} />}
+        </div>
+        <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
+          <span style={{ color: 'var(--gr)' }}>● {cc.committed} committed <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.committed.toFixed(0)} PT)</span></span>
+          <span style={{ color: 'var(--am)' }}>◐ {cc.estimated} estimated <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.estimated.toFixed(0)} PT)</span></span>
+          <span style={{ color: 'var(--tx3)' }}>○ {cc.exploratory} exploratory <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) + ' PT' : '? PT'})</span></span>
+        </div>
+      </div>;
+    })()}
 
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>Focus</div>

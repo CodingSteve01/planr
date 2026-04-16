@@ -9,7 +9,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -25,6 +25,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   const [ctxMenu, setCtxMenu] = useState(null); // {x, y, taskId}
   const [linkMode, setLinkMode] = useState(null); // {fromId, mode: 'pred'|'succ'} — click a second bar to add dep
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
+  // Horizon lines: weeks from today that separate committed / estimated / exploratory zones
+  const [h1Weeks] = useState(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } });
+  const [h2Weeks] = useState(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } });
   // Zoom: WPX = pixels per week. 20 = default, lower zooms out (months), higher zooms in (toward day-level)
   const [zoom, setZoom] = useState(() => { try { return +localStorage.getItem('planr_gantt_zoom') || DEFAULT_WPX; } catch { return DEFAULT_WPX; } });
   const setZ = v => { const c = Math.max(8, Math.min(140, v)); setZoom(c); try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {} };
@@ -481,11 +484,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
           const isMatchL = searchMatches?.has(s.id);
           const isActiveMatchL = s.id === activeMatchId;
           const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
+          const confL = confidence[s.id];
+          const confDot = confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null;
           return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={() => setHoverDepId(s.id)}
             onMouseLeave={() => setHoverDepId(null)}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
+            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1 }} title={confL}>{confDot}</span>}
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>no estimate</span>
               : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} title={s.person}>{sn(s.personId, s.person)}</span>}
@@ -522,6 +528,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.06)', pointerEvents: 'none', zIndex: 1 }} />}
             {/* Today marker — always day-accurate */}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
+            {/* Horizon lines: H1 (committed boundary) and H2 (estimated boundary) */}
+            {(() => {
+              const h1Date = new Date(now); h1Date.setDate(h1Date.getDate() + h1Weeks * 7);
+              const h2Date = new Date(now); h2Date.setDate(h2Date.getDate() + h2Weeks * 7);
+              const h1X = dateToX(h1Date);
+              const h2X = dateToX(h2Date);
+              return <>
+                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} title={`Horizon 1 (${h1Weeks}w) — items here should be committed`} />}
+                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X + 4, top: 2, fontSize: 8, color: 'var(--ac)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H1 · {h1Weeks}w</div>}
+                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} title={`Horizon 2 (${h2Weeks}w) — items here should be at least estimated`} />}
+                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X + 4, top: 2, fontSize: 8, color: 'var(--am)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H2 · {h2Weeks}w</div>}
+              </>;
+            })()}
             {dlL.map(dl => {
               const x = dl.wi * WPX;
               const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
@@ -572,9 +591,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             const isMatch = searchMatches?.has(s.id);
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
             const node = iMap[s.id];
+            const conf = confidence[s.id] || 'committed';
             const decideBy = node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
             const isDecideOverdue = decideBy && new Date(decideBy) < now;
+            // Confidence-based bar styling
+            const confStyle = conf === 'exploratory'
+              ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
+              : conf === 'estimated'
+              ? { background: `repeating-linear-gradient(135deg, ${tc}, ${tc} 3px, transparent 3px, transparent 6px)`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)', opacity: 0.85 }
+              : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
             return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
@@ -590,8 +616,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                     : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
                     : isMatch ? '0 0 0 2px var(--am)'
                     : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
-                  background: tc, color: '#fff',
-                  textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
+                  ...confStyle,
                   cursor: linkMode || linkDrag ? 'crosshair'
                     : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
@@ -737,6 +762,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
       {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} no estimate</span>}
+      {/* Confidence legend */}
+      {(() => {
+        const counts = { committed: 0, estimated: 0, exploratory: 0 };
+        allItems.forEach(s => { if (s.status !== 'done') counts[confidence[s.id] || 'committed']++; });
+        return (counts.estimated > 0 || counts.exploratory > 0) ? <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+          <span title="Committed: person assigned, estimate solid">● {counts.committed}</span>
+          <span style={{ color: 'var(--am)' }} title="Estimated: team/estimate exists but no person or high risk">◐ {counts.estimated}</span>
+          <span title="Exploratory: scope unclear, needs concept work">○ {counts.exploratory}</span>
+        </span> : null;
+      })()}
       {linkMode && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>
         🔗 Click another bar to {linkMode.mode === 'pred' ? 'make it depend on' : 'add it as predecessor of'} <b>{linkMode.fromId}</b>
         <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
