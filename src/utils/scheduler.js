@@ -37,7 +37,17 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   const lvs = leafNodes(tree);
   function resD(id) { return resolveToLeafIds(tree, id); }
   const vis = new Set(), ord = [];
-  const sv = [...lvs].sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
+  // Sort leaves for scheduling. Future-pinned tasks go LAST so they don't block
+  // earlier capacity: if task X is pinned to June and task Y has no pin, Y should
+  // run April–May freely — X's June pin shouldn't advance pF past the current
+  // timeline just because X appears first in (prio, seq, id) order.
+  const planStartDate = new Date(ps);
+  const sv = [...lvs].sort((a, b) => {
+    const aFuture = a.pinnedStart && new Date(a.pinnedStart) > planStartDate ? 1 : 0;
+    const bFuture = b.pinnedStart && new Date(b.pinnedStart) > planStartDate ? 1 : 0;
+    if (aFuture !== bFuture) return aFuture - bFuture;
+    return (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+  });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
     const r = iMap[id]; if (!r) return [];
