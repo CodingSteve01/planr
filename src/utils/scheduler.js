@@ -1,4 +1,4 @@
-import { addD, iso, addWorkDays } from './date.js';
+import { addD, iso, addWorkDays, localDate } from './date.js';
 import { buildWeeks } from './holidays.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
@@ -41,7 +41,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   function resD(id) { return resolveToLeafIds(tree, id); }
   // planStartWi = week index where actual scheduling begins (non-pinned tasks start here).
   // Weeks before this exist for rendering only.
-  const planStartDate = new Date(planStartStr || ps);
+  const planStartDate = localDate(planStartStr || ps);
   const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > planStartDate));
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => {
@@ -66,6 +66,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
   const tSlots = {}; // per-team slot array of {wi, nextDate}
   const tEW = {};
+  const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
   // Vacation: explicit weeks per person
   const vs = {}; (vacations || []).forEach(v => { if (!vs[v.person]) vs[v.person] = {}; vs[v.person][v.week] = true; });
@@ -83,7 +84,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   });
   function pC(m, wmon) {
     if (vs[m.id]?.[iso(wmon)]) return 0; // explicit vacation week
-    const st = new Date(m.start || ps); if (st > addD(wmon, 6)) return 0;
+    const st = localDate(m.start || ps); if (st > addD(wmon, 6)) return 0;
     const w = wks.find(x => x.mon.getTime() === wmon.getTime());
     if (!w) return 0;
     return w.wds.filter(d => d >= st).length * (m.cap || 1) * vacInfo[m.id];
@@ -111,13 +112,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         depWi = fw.wi; depNextDate = fw.nextDate;
       }
     });
-    // Default to planStartWi (not 0) so non-pinned tasks start at the scheduling
-    // horizon, not at the viewStart rendering boundary.
-    let early = depWi >= 0 ? depWi : planStartWi;
-    let earlyDate = depNextDate; // null = "any day in the early week is fine"
+    // Non-pinned tasks default to planStartWi. Pinned tasks can start earlier
+    // (from week 0 = viewStart) — the planning horizon only constrains auto-scheduled work.
+    let early = depWi >= 0 ? depWi : (r.pinnedStart ? 0 : planStartWi);
+    let earlyDate = depNextDate;
+    // If no dep constrains the date and the task isn't pinned, don't start before planStartDate
+    // (fixes off-by-one where tasks started on the Monday before the Tuesday planning horizon).
+    if (!earlyDate && depWi < 0 && !r.pinnedStart) earlyDate = planStartDate;
     // Pinned start: user manually pinned this task to a specific date.
     if (r.pinnedStart) {
-      const pinDate = new Date(r.pinnedStart);
+      const pinDate = localDate(r.pinnedStart);
       const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
       if (pinWi >= 0 && (pinWi > early || (pinWi === early && pinDate > (earlyDate || new Date(0))))) {
         early = pinWi; earlyDate = pinDate;
@@ -168,35 +172,46 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const cands = members.filter(m => asgn.includes(m.id));
     let bp = null, bs = 9999;
     cands.forEach(m => {
-      const mStart = new Date(m.start || ps);
+      const mStart = localDate(m.start || ps);
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
       const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
-      const fw = r.parallel
+      const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
+      // Pinned tasks bypass person-capacity (hard start override) — only constrained by
+      // deps and the member's availability start date, just like parallel tasks.
+      const fw = (r.parallel || r.pinnedStart)
         ? Math.max(early, ji >= 0 ? ji : 0)
-        : Math.max(personFree.wi, early, ji >= 0 ? ji : 0);
+        : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
       if (fw < bs) { bs = fw; bp = m; }
     });
     if (!bp || bs >= wks.length) { tEW[id] = { wi: Math.min(early, wks.length - 1), nextDate: null }; return; }
     let pinOverridden = false;
     if (r.pinnedStart && !r.parallel) {
-      const pinDate = new Date(r.pinnedStart);
+      const pinDate = localDate(r.pinnedStart);
       const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
-      if (pinWi >= 0 && bs > pinWi) pinOverridden = true;
+      // Only flag override if the member's onboarding date pushes later (not capacity)
+      const mStartDate = localDate(bp.start || ps);
+      const mStartWi = wks.findIndex(w => w.wds.some(d => d >= mStartDate));
+      if (pinWi >= 0 && mStartWi >= 0 && mStartWi > pinWi) pinOverridden = true;
     }
     // Compute the earliest date this person can actually start working — the latest of
     // dep constraint, person free-date, member availability, and pin.
-    const mStart = new Date(bp.start || ps);
-    const personFree = r.parallel ? null : pF[bp.id]?.nextDate;
+    const mStart = localDate(bp.start || ps);
+    const personFree = (r.parallel || r.pinnedStart) ? null : pF[bp.id]?.nextDate;
+    const parallelEndDate = (r.parallel || r.pinnedStart) ? null : pPE[bp.id]?.nextDate;
     let skipBefore = mStart;
     if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
     if (personFree && personFree > skipBefore) skipBefore = personFree;
+    if (parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
+    const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
     while (rem > 0 && wi < wks.length) {
       const w = wks[wi];
       if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
+      if (endDate && w.mon > endDate) break; // person offboarded
       for (const d of w.wds) {
         if (d < skipBefore) continue;
+        if (endDate && d > endDate) break; // past offboarding date
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d;
         if (rem <= 0) break;
@@ -206,7 +221,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const eW = Math.min(wi, wks.length - 1);
     const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
     tEW[id] = { wi: eW, nextDate: nd };
-    if (!r.parallel) pF[bp.id] = { wi: eW, nextDate: nd };
+    if (!r.parallel) {
+      pF[bp.id] = { wi: eW, nextDate: nd };
+    } else {
+      // Track parallel high-water mark: next sequential task must wait for all parallel work to finish.
+      const prev = pPE[bp.id];
+      if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
+        pPE[bp.id] = { wi: eW, nextDate: nd };
+      }
+    }
     const actualStartD = firstWorkDay || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,

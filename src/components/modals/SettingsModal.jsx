@@ -29,7 +29,7 @@ export function SettingsModal({ meta, onSave, onClose }) {
             <button key={day}
               className={`btn btn-xs ${wd.includes(day) ? 'btn-pri' : 'btn-sec'}`}
               onClick={() => toggleDay(day)}
-              style={{ flex: 1, padding: '6px 0', fontSize: 11 }}
+              style={{ flex: 1, padding: '6px 0', fontSize: 11, textAlign: 'center' }}
               title={wd.includes(day) ? `${DAY_LABELS[i]} is a working day — click to disable` : `${DAY_LABELS[i]} is off — click to enable`}>
               {DAY_LABELS[i]}
             </button>

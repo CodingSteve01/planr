@@ -333,7 +333,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', searchIdx = 0, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -397,14 +397,16 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', on
   const graphW = allPos.length ? Math.max(...allPos.map(([, p]) => p.x + NODE_W)) + 20 : 400;
   const graphH = allPos.length ? Math.max(...allPos.map(([, p]) => p.y + NODE_H)) + 20 : 300;
 
-  // Search matches: items whose name or ID contains the query (case-insensitive).
-  // Driven by App's global `search` state via the prop, so the same query highlights
-  // matches across views.
-  const searchMatches = useMemo(() => {
+  // Search: ordered match list + Set (same pattern as GanttView).
+  const searchMatchList = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
-    if (!q) return null;
-    return new Set(items.filter(r => (r.name || '').toLowerCase().includes(q) || r.id.toLowerCase().includes(q)).map(r => r.id));
+    if (!q) return [];
+    return items.filter(r => (r.name || '').toLowerCase().includes(q) || r.id.toLowerCase().includes(q)).map(r => r.id);
   }, [search, items]);
+  const searchMatches = useMemo(() => searchMatchList.length ? new Set(searchMatchList) : null, [searchMatchList]);
+  const activeMatchId = searchMatchList.length
+    ? searchMatchList[((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length]
+    : null;
 
   function fitToNodes(nodeIds) {
     if (!svgRef.current) return;
@@ -431,8 +433,15 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', on
     fitToNodes(target);
   }
   useEffect(() => { if (layout) setTimeout(fitToScreen, 50); }, [layout]);
-  // When the search query changes and matches something, jump to the matches.
-  useEffect(() => { if (searchMatches?.size) fitToNodes(searchMatches); }, [search]);
+  // When search or searchIdx changes, jump to the active match (or all matches on first query).
+  useEffect(() => {
+    if (!searchMatchList.length) return;
+    if (activeMatchId && pos[activeMatchId]) {
+      fitToNodes(new Set([activeMatchId]));
+    } else {
+      fitToNodes(searchMatches);
+    }
+  }, [search, searchIdx]);
 
   // Escape key deselects
   useEffect(() => {
@@ -509,7 +518,9 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', on
         zoomRef.current = nz; panRef.current = np; setZoom(nz); setPan(np);
       }}>−</button>
       {searchMatches && <span style={{ fontSize: 11, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)', marginLeft: 6 }}>
-        🔍 {searchMatches.size} match{searchMatches.size === 1 ? '' : 'es'}
+        {searchMatchList.length
+          ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
+          : '0 matches'}
       </span>}
     </div>
 
@@ -563,11 +574,12 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', on
           const pOff = pCirc * (1 - prog / 100);
           // Search highlight: matches stay full opacity + amber outline; non-matches dim.
           const isMatch = searchMatches?.has(r.id);
+          const isActiveMatch = r.id === activeMatchId;
           const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
           const finalOpacity = subtreeDimmed ? .2 : searchDimmed ? .25 : 1;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
-              stroke={isMatch ? 'var(--am)' : isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
+              stroke={isActiveMatch ? 'var(--ac)' : isMatch ? 'var(--am)' : isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
               strokeWidth={isMatch ? 2.5 : isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}
               style={{ cursor: 'pointer' }}
               onClick={e => { e.stopPropagation(); setSelId(isSel ? null : r.id); }}

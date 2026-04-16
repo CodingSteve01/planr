@@ -1,3 +1,13 @@
+// Parse a YYYY-MM-DD string as local midnight (not UTC midnight).
+// new Date('2026-04-14') returns UTC midnight, which in CET is April 14 01:00 —
+// one hour AHEAD of local midnight, causing off-by-one comparisons against local dates.
+export const localDate = s => {
+  if (!s) return new Date();
+  if (s instanceof Date) return new Date(s);
+  const [y, m, d] = String(s).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
 // Format a Date as YYYY-MM-DD using LOCAL date parts — not UTC.
 // toISOString() returns the UTC date; in any non-UTC timezone that shifts the
 // output by up to a day (e.g. midnight Europe/Berlin = 22:00 or 23:00 UTC the

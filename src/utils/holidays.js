@@ -1,4 +1,4 @@
-import { iso, addD, monOf, isoWeek } from './date.js';
+import { iso, addD, monOf, isoWeek, localDate } from './date.js';
 
 export function calcEaster(y) {
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
@@ -36,7 +36,7 @@ export function isWD(d, hm, workDays) {
 
 export function buildWeeks(start, end, hm, workDaysArr) {
   const wd = workDaysArr ? new Set(workDaysArr) : DEFAULT_WORK_DAYS;
-  const wks = [], ps = new Date(start), pe = new Date(end); let d = monOf(ps);
+  const wks = [], ps = localDate(start), pe = localDate(end); let d = monOf(ps);
   while (d <= pe) {
     // Scan all 7 days of the week, collecting those that are configured as working days.
     const wds = [];

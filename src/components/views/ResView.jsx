@@ -36,6 +36,7 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
           ['Capacity %', <LazyInput type="number" min="0" max="100" step="5" value={Math.round((m.cap || 1) * 100)} onCommit={v => onUpd({ ...m, cap: v / 100 })} />],
           ['Vacation days/yr', <LazyInput type="number" min="0" max="40" value={m.vac || 25} onCommit={v => onUpd({ ...m, vac: v })} />],
           ['Start date', <LazyInput type="date" value={m.start || ''} onCommit={v => onUpd({ ...m, start: v })} />],
+          ['End date', <LazyInput type="date" value={m.end || ''} onCommit={v => onUpd({ ...m, end: v })} />],
         ].map(([l, c]) => <div key={l} className="rf"><label>{l}</label>{c}</div>)}
       </div>)}
     </div>

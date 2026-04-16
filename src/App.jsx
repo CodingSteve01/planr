@@ -72,6 +72,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [search, setSearch] = useState('');
+  const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
   const [teamFilter, setTeamFilter] = useState('');
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
@@ -409,14 +410,15 @@ export default function App() {
           const parts = meta.split(',').map(s => s.trim());
           const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
           const roleParts = parts.slice(1)
-            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^\d+d\/y$/.test(p))
+            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+d\/y$/.test(p))
             .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
             .filter(Boolean);
           const capM = meta.match(/\((\d+)%\)/);
           const vacM = meta.match(/(\d+)d\/y/);
           const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
+          const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
           if (teamPart) teamSet.add(teamPart);
-          const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '' };
+          const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '', end: endM?.[1] || '' };
           if (shortName) m._parsedShort = shortName;
           mems.push(m);
         }
@@ -726,6 +728,23 @@ export default function App() {
   // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
   // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
   function updateNode(u) {
+    // Auto-extend viewStart if the user pins a task before the current visual horizon.
+    if (u.pinnedStart) {
+      const vs = meta.viewStart || meta.planStart;
+      if (vs && u.pinnedStart < vs) {
+        // Extend viewStart 2 weeks before the pin so the bar isn't flush at the left edge.
+        const pinD = new Date(u.pinnedStart);
+        const extended = new Date(pinD); extended.setDate(extended.getDate() - 14);
+        const extStr = extended.toISOString().slice(0, 10);
+        setData(d => ({
+          ...d,
+          meta: { ...d.meta, viewStart: extStr },
+          tree: (d.tree || []).map(r => r.id === u.id ? u : r),
+        }));
+        setSaved(false);
+        return;
+      }
+    }
     setData(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
     setSaved(false);
   }
@@ -1385,7 +1404,7 @@ export default function App() {
       members.forEach(m => {
         const cap = m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : '';
         const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
-        md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}\n`;
+        md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
       });
       md += '\n';
     }
@@ -1619,9 +1638,16 @@ export default function App() {
       <div style={{ flex: 1 }} />
       <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
         placeholder={`Search… (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+F)`}
-        value={search} onChange={e => setSearch(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); e.target.blur(); } }} />
-      {search && <button className="btn btn-ghost btn-xs" onClick={() => setSearch('')} title="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>}
+        value={search} onChange={e => { setSearch(e.target.value); setSearchIdx(0); }}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { setSearch(''); e.target.blur(); return; }
+          if (e.key === 'Enter') { e.preventDefault(); setSearchIdx(i => e.shiftKey ? i - 1 : i + 1); }
+        }} />
+      {search && <>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} title="Previous match (Shift+Enter)" style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} title="Next match (Enter)" style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} title="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+      </>}
     </div>}
     <div className="main">
       {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats}
@@ -1714,8 +1740,8 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} workDays={workDays} planStart={planStart} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}

@@ -9,7 +9,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, planStart, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -56,19 +56,25 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     const dayInWeek = dow === 0 ? 6 : dow - 1; // Mon=0 ... Sun=6
     return wi * WPX + dayInWeek * DPX;
   }
-  const months = []; let cm = null, cc = 0, cs = 0;
-  weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) months.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
-  if (cm) months.push({ ym: cm, count: cc, start: cs });
+  const months = useMemo(() => {
+    const ms = []; let cm = null, cc = 0, cs = 0;
+    weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) ms.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
+    if (cm) ms.push({ ym: cm, count: cc, start: cs });
+    return ms;
+  }, [weeks]);
 
-  // Build all-items list: scheduled items + un-estimated leaves (so nothing hides)
-  const sIdSet = new Set(scheduled.map(s => s.id));
-  const unscheduledLeaves = (tree || []).filter(r => isLeafNode(tree || [], r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
-    id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, prio: r.prio, seq: r.seq,
-    best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
-    startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
-    _unestimated: true,
-  }));
-  const allItems = [...scheduled, ...unscheduledLeaves];
+  // Build all-items list: scheduled items + un-estimated leaves (so nothing hides).
+  // Memoized to avoid recalculating on every render (perf: search typing was laggy).
+  const allItems = useMemo(() => {
+    const sIdSet = new Set(scheduled.map(s => s.id));
+    const unscheduledLeaves = (tree || []).filter(r => isLeafNode(tree || [], r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
+      id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, prio: r.prio, seq: r.seq,
+      best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
+      startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
+      _unestimated: true,
+    }));
+    return [...scheduled, ...unscheduledLeaves];
+  }, [scheduled, tree]);
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
@@ -257,32 +263,55 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
 
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
-  // Search match set: case-insensitive substring across name and ID. Driven by App's
-  // global `search` state via the prop, so the same query highlights matches across views.
+  // Search: Set for dimming (all matches across allItems), ordered list for cycling (visible rows only).
   const searchMatches = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
     if (!q) return null;
     return new Set(allItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
   }, [search, allItems]);
+  // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
+  const searchMatchList = useMemo(() => {
+    if (!searchMatches?.size) return [];
+    return rows.filter(r => r.type === 'task' && searchMatches.has(r.s.id)).map(r => r.s.id);
+  }, [searchMatches, rows]);
+  const activeMatchId = searchMatchList.length
+    ? searchMatchList[((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length]
+    : null;
 
-  // On search change, scroll the body to the first matching task — vertically to its row
-  // and horizontally so its bar is comfortably in view.
+  // Scroll to the active match (driven by search text + searchIdx for prev/next cycling).
   useEffect(() => {
-    if (!searchMatches?.size || !bR.current) return;
+    if (!searchMatchList.length || !bR.current) return;
     const id = setTimeout(() => {
-      const firstIdx = rows.findIndex(r => r.type === 'task' && searchMatches.has(r.s.id));
-      if (firstIdx < 0 || !bR.current) return;
-      const targetY = firstIdx * RH;
-      const s = rows[firstIdx].s;
-      // Day-accurate scroll: use dateToX for the bar's start position.
+      const idx = ((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length;
+      const targetId = searchMatchList[idx];
+      const rowIndex = rows.findIndex(r => r.type === 'task' && r.s.id === targetId);
+      if (rowIndex < 0 || !bR.current) return;
+      const targetY = rowIndex * RH;
+      const s = rows[rowIndex].s;
       const targetX = Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
       const scrollTop = Math.max(0, targetY - bR.current.clientHeight / 2 + RH);
       bR.current.scrollTo({ top: scrollTop, left: targetX, behavior: 'smooth' });
-      // Sync left panel vertically so labels and bars stay aligned.
       if (lR.current) lR.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
     }, 50);
     return () => clearTimeout(id);
-  }, [search]);
+  }, [search, searchIdx]);
+
+  // Scroll to today on first render so the user lands on the current time window.
+  const didScrollToToday = useRef(false);
+  useEffect(() => {
+    if (didScrollToToday.current || todayX < 0 || !bR.current) return;
+    didScrollToToday.current = true;
+    // Delay so the DOM has its final layout before we measure clientWidth.
+    const id = setTimeout(() => {
+      if (!bR.current) return;
+      bR.current.scrollTo({ left: Math.max(0, todayX - 40), behavior: 'auto' });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [todayX]);
+
+  function scrollToToday() {
+    if (todayX >= 0 && bR.current) bR.current.scrollTo({ left: Math.max(0, todayX - 40), behavior: 'smooth' });
+  }
 
   // dragRef mirrors the latest drag state synchronously so onMU can read it
   // without waiting for React's batched state commit — same pattern as NetGraph's
@@ -372,7 +401,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     </div>
   </div>;
 
-  const unestimatedCount = unscheduledLeaves.length;
+  const unestimatedCount = useMemo(() => allItems.filter(s => s._unestimated).length, [allItems]);
 
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); } }}>
     <div className="gantt-hdr">
@@ -387,7 +416,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: HH / 2 }}>
           {months.map((m, i) => { const [y, mo] = m.ym.split('-'); const isYS = mo === '0';
             return <div key={i} style={{ width: WPX * m.count, flexShrink: 0, borderRight: '1px solid var(--b2)', padding: '2px 5px', fontSize: 11, color: isYS ? 'var(--ac)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: isYS ? 600 : 500, overflow: 'hidden', background: isYS ? 'var(--bg3)' : '', display: 'flex', alignItems: 'center' }}>
-              {isYS && `${y} `}{MDE[+mo]}
+              {MDE[+mo]}{` '${y.slice(2)}`}
             </div>; })}
         </div>
         <div style={{ display: 'flex', height: HH / 2 }}>
@@ -431,8 +460,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
           const isMatchL = searchMatches?.has(s.id);
+          const isActiveMatchL = s.id === activeMatchId;
           const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
-          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={() => setHoverDepId(s.id)}
             onMouseLeave={() => setHoverDepId(null)}>
@@ -538,7 +568,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                   zIndex: (isDrag && drag?.isReorder) ? 20 : undefined,
                   boxShadow: (isDrag && drag?.isReorder)
                     ? '0 4px 20px rgba(0,0,0,.5), 0 0 0 2px var(--ac)'
-                    : isMatch ? '0 0 0 2.5px var(--am)'
+                    : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
+                    : isMatch ? '0 0 0 2px var(--am)'
                     : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
                   background: tc, color: '#fff',
                   textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
@@ -667,9 +698,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} title="Day view (7-day calendar, weekends grayed)" style={{ padding: '2px 7px', fontSize: 10 }}>Day</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
+        <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
+        <button className="btn btn-sec btn-xs" onClick={scrollToToday} title="Scroll to today" style={{ padding: '2px 7px', fontSize: 10 }}>Today</button>
       </div>
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
-        🔍 {searchMatches.size} match{searchMatches.size === 1 ? '' : 'es'}
+        {searchMatchList.length
+          ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
+          : '0 matches'}
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
