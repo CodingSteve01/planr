@@ -67,7 +67,7 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
         {isLeaf && <SBadge s={node.status} />}
         {isCp && <span className="badge b-cp" title="On the critical path — any delay here delays the project end">⚡ CP</span>}
         {f.parallel && <span className="badge bo" title="Parallel: bypasses person capacity (legacy field)">≡ parallel</span>}
-        {f.pinnedStart && <span className="badge bo" title={`Pinned to ${f.pinnedStart}`}>📌 {f.pinnedStart}</span>}
+        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} title={`Pinned to ${f.pinnedStart} — click to unpin`} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
       </div>
       <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
 
