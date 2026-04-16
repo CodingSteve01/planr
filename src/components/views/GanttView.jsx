@@ -2,16 +2,18 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
 import { iso, addD, addWorkDays } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
+import { buildMemberShortMap } from '../../App.jsx';
 
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], shortNames = {}, cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
-  // Short name resolver: uses the pre-built initials map, falls back to first name.
-  const sn = (personId, fullName) => shortNames[personId] || (fullName || '').split(' ')[0] || personId || '';
+  // Build short-name map directly from members (avoids stale-prop issues).
+  const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
+  const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
