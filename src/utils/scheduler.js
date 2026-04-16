@@ -30,19 +30,20 @@ export function resolveToLeafIds(tree, id) {
   return leafNodes(tree).filter(l => l.id.startsWith(item.id + '.')).map(l => l.id);
 }
 
-export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
+// ps = viewStart (rendering start, may be before planStart for pre-started tasks)
+// planStartStr = scheduling start (new/unstarted tasks begin here)
+export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, planStartStr) {
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const lvs = leafNodes(tree);
   function resD(id) { return resolveToLeafIds(tree, id); }
+  // planStartWi = week index where actual scheduling begins (non-pinned tasks start here).
+  // Weeks before this exist for rendering only.
+  const planStartDate = new Date(planStartStr || ps);
+  const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > planStartDate));
   const vis = new Set(), ord = [];
-  // Sort leaves for scheduling. Future-pinned tasks go LAST so they don't block
-  // earlier capacity: if task X is pinned to June and task Y has no pin, Y should
-  // run April–May freely — X's June pin shouldn't advance pF past the current
-  // timeline just because X appears first in (prio, seq, id) order.
-  const planStartDate = new Date(ps);
   const sv = [...lvs].sort((a, b) => {
     const aFuture = a.pinnedStart && new Date(a.pinnedStart) > planStartDate ? 1 : 0;
     const bFuture = b.pinnedStart && new Date(b.pinnedStart) > planStartDate ? 1 : 0;
@@ -62,7 +63,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
   // task ends in, nextDate is the FIRST WORKING DAY the resource/successor is
   // free. This eliminates the week-boundary gap: if task A ends Wednesday, the
   // next task starts Thursday (same week), not next Monday.
-  const pF = Object.fromEntries(members.map(m => [m.id, { wi: 0, nextDate: null }]));
+  const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
   const tSlots = {}; // per-team slot array of {wi, nextDate}
   const tEW = {};
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
@@ -110,7 +111,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
         depWi = fw.wi; depNextDate = fw.nextDate;
       }
     });
-    let early = depWi >= 0 ? depWi : 0;
+    // Default to planStartWi (not 0) so non-pinned tasks start at the scheduling
+    // horizon, not at the viewStart rendering boundary.
+    let early = depWi >= 0 ? depWi : planStartWi;
     let earlyDate = depNextDate; // null = "any day in the early week is fine"
     // Pinned start: user manually pinned this task to a specific date.
     if (r.pinnedStart) {
@@ -126,7 +129,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
     // ── Team-slot path (multi-member, unassigned) ──────────────────────────────
     if (!asgn.length) {
       const tk = team || '__none';
-      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(null).map(() => ({ wi: 0, nextDate: null })) : [{ wi: 0, nextDate: null }];
+      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(null).map(() => ({ wi: planStartWi, nextDate: null })) : [{ wi: planStartWi, nextDate: null }];
       const slots = tSlots[tk];
       const si = slots.reduce((best, s, i) => s.wi < slots[best].wi ? i : best, 0);
       const slotFree = slots[si];
@@ -167,7 +170,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr) {
     cands.forEach(m => {
       const mStart = new Date(m.start || ps);
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
-      const personFree = pF[m.id] || { wi: 0, nextDate: null };
+      const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
       const fw = r.parallel
         ? Math.max(early, ji >= 0 ? ji : 0)
         : Math.max(personFree.wi, early, ji >= 0 ? ji : 0);

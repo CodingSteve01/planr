@@ -9,7 +9,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, planStart, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -276,7 +276,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       const s = rows[firstIdx].s;
       // Day-accurate scroll: use dateToX for the bar's start position.
       const targetX = Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
-      bR.current.scrollTo({ top: Math.max(0, targetY - bR.current.clientHeight / 2 + RH), left: targetX, behavior: 'smooth' });
+      const scrollTop = Math.max(0, targetY - bR.current.clientHeight / 2 + RH);
+      bR.current.scrollTo({ top: scrollTop, left: targetX, behavior: 'smooth' });
+      // Sync left panel vertically so labels and bars stay aligned.
+      if (lR.current) lR.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
     }, 50);
     return () => clearTimeout(id);
   }, [search]);
@@ -326,7 +329,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         const targetDate = showDays ? addWorkDays(startMon, dDelta, wdSet) : addD(startMon, dDelta * 7);
         const planStartDate = weeks[0]?.mon;
         if (planStartDate && targetDate < planStartDate) {
-          onExtendPlanStart?.(iso(targetDate));
+          onExtendViewStart?.(iso(targetDate));
         }
         onSeqUpdate(d.id, { pinnedStart: iso(targetDate) });
       }
@@ -462,8 +465,12 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                 </React.Fragment>;
               });
             })}
+            {/* Pre-planStart zone: striped overlay for the rendering area before the scheduling horizon */}
+            {(() => { const psX = planStart ? dateToX(new Date(planStart)) : 0;
+              return psX > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: psX, height: '100%', background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)', pointerEvents: 'none', zIndex: 1 }} title="Before scheduling horizon — only pinned tasks appear here" /> : null;
+            })()}
             {/* Past zone: subtle dim overlay for everything before today */}
-            {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.08)', pointerEvents: 'none', zIndex: 1 }} />}
+            {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.06)', pointerEvents: 'none', zIndex: 1 }} />}
             {/* Today marker — always day-accurate */}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
             {dlL.map(dl => {
