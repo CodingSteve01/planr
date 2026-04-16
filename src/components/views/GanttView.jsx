@@ -268,27 +268,32 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     return () => clearTimeout(id);
   }, [search]);
 
-  // Ref consulted by the bar's onClick to suppress the click-after-drag that would
-  // otherwise reopen the QuickEdit sidebar right after a pin-drag or reorder-drag.
+  // dragRef mirrors the latest drag state synchronously so onMU can read it
+  // without waiting for React's batched state commit — same pattern as NetGraph's
+  // zoomRef/panRef that fixed the stale-closure zoom-jump bug.
+  const dragRef = useRef(null);
   const justDraggedRef = useRef(false);
+
   function onBMD(e, s) {
     e.stopPropagation();
     justDraggedRef.current = false;
-    setDrag({ id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false });
+    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false };
+    dragRef.current = d;
+    setDrag(d);
     setDDelta(0);
   }
   function onMM(e) {
-    if (drag) {
-      const dx = e.clientX - drag.ox;
-      const dy = e.clientY - drag.oy;
-      // Any meaningful motion suppresses the subsequent onClick.
+    const d = dragRef.current;
+    if (d) {
+      const dx = e.clientX - d.ox;
+      const dy = e.clientY - d.oy;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) justDraggedRef.current = true;
-      // Primarily vertical → treat as queue-reorder drag (needs a drop to commit in onMU).
       const isReorder = Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2;
       if (isReorder) {
-        if (!drag.isReorder || drag.lastDy !== dy) setDrag(d => d ? { ...d, isReorder: true, lastDy: dy } : null);
+        d.isReorder = true; d.lastDy = dy;
+        setDrag({ ...d }); // trigger re-render for cursor change
       } else {
-        if (drag.isReorder) setDrag(d => d ? { ...d, isReorder: false, lastDy: 0 } : null);
+        d.isReorder = false; d.lastDy = 0;
         const stepPx = showDays ? WPX / 5 : WPX;
         setDDelta(Math.round(dx / stepPx));
       }
@@ -296,29 +301,38 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     if (linkDrag) { setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null); }
   }
   function onMU() {
-    if (drag) {
-      if (drag.isReorder && drag.lastDy) {
-        // Vertical drag → queue reorder. One row-crossing = one queue step.
-        const rowShift = Math.max(1, Math.abs(Math.round(drag.lastDy / RH)));
-        const dir = drag.lastDy > 0 ? 'later' : 'earlier';
-        onReorderInQueue?.(drag.id, dir, rowShift);
+    const d = dragRef.current;
+    if (d) {
+      if (d.isReorder && d.lastDy) {
+        const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
+        const dir = d.lastDy > 0 ? 'later' : 'earlier';
+        onReorderInQueue?.(d.id, dir, rowShift);
       } else if (dDelta !== 0) {
-        const startMon = new Date(weeks[drag.startWi].mon);
+        const startMon = new Date(weeks[d.startWi].mon);
         const targetDate = showDays ? addWorkDays(startMon, dDelta) : addD(startMon, dDelta * 7);
         const planStartDate = weeks[0]?.mon;
-        // If the user drags before the current plan horizon, extend it backward so
-        // already-started tasks fit naturally. The scheduler recomputes with the wider
-        // window and all prior tasks keep their positions.
         if (planStartDate && targetDate < planStartDate) {
           onExtendPlanStart?.(iso(targetDate));
         }
-        onSeqUpdate(drag.id, { pinnedStart: iso(targetDate) });
+        onSeqUpdate(d.id, { pinnedStart: iso(targetDate) });
       }
+      dragRef.current = null;
       setDrag(null); setDDelta(0);
     }
-    // Link-drag is finalized via the drop-target's onMouseUp; clear here as fallback
     if (linkDrag) setLinkDrag(null);
   }
+  // Escape key cancels any in-progress drag or link operation.
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === 'Escape') {
+        if (dragRef.current || drag) { dragRef.current = null; setDrag(null); setDDelta(0); justDraggedRef.current = false; }
+        if (linkDrag) setLinkDrag(null);
+        if (linkMode) setLinkMode(null);
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
   // Start a link-drag from a bar's right-edge handle
   function onLinkStart(e, fromId) {
     e.stopPropagation();
