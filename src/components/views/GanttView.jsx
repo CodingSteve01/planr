@@ -688,13 +688,18 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 Open / edit…</div>
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }} title="This task must finish before the next clicked task starts">⬇ Add a successor… (this → other)</div>
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }} title="The next clicked task must finish before this one starts">⬆ Add a predecessor… (other → this)</div>
-          {onReorderInQueue && <>
+          <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }}
+            onClick={() => { onTaskUpdate?.({ ...node, parallel: !node.parallel }); close(); }}>
+            {node.parallel ? '≡ Sequential (disable parallel)' : '≡ Run in parallel'}
+          </div>
+          {onReorderInQueue && !node.parallel && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Queue order</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }} title="Move to the front of this person's / team's queue">⤒ Run first</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }}>⤒ Run first</div>
             <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'earlier'); close(); }}>▲ Run earlier</div>
             <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'later'); close(); }}>▼ Run later</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }} title="Move to the end of this person's / team's queue">⤓ Run last</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }}>⤓ Run last</div>
           </>}
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           {node.pinnedStart
