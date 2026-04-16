@@ -32,9 +32,12 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
   const setGB = v => { setGroupBy(v); try { localStorage.setItem('planr_gantt_group', v); } catch {} };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
+  // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
+  // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
+  const scrollLock = useRef(false);
 
-  function syncS(e) { if (hR.current) hR.current.scrollLeft = e.target.scrollLeft; if (lR.current) lR.current.scrollTop = e.target.scrollTop; }
-  function syncL(e) { if (bR.current) bR.current.scrollTop = e.target.scrollTop; }
+  function syncS(e) { if (hR.current) hR.current.scrollLeft = e.target.scrollLeft; if (lR.current) { scrollLock.current = true; lR.current.scrollTop = e.target.scrollTop; } }
+  function syncL(e) { if (scrollLock.current) { scrollLock.current = false; return; } if (bR.current) bR.current.scrollTop = e.target.scrollTop; }
   function onLWheel(e) { if (bR.current) { bR.current.scrollTop += e.deltaY; bR.current.scrollLeft += e.deltaX; } }
 
   const tw = weeks.length * WPX;
@@ -68,7 +71,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   const allItems = useMemo(() => {
     const sIdSet = new Set(scheduled.map(s => s.id));
     const unscheduledLeaves = (tree || []).filter(r => isLeafNode(tree || [], r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
-      id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, prio: r.prio, seq: r.seq,
+      id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
       startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
       _unestimated: true,
@@ -103,14 +106,26 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     if (groupBy === 'team') {
       teamGroupOf(allItems).forEach(g => result.push(g));
     } else if (groupBy === 'person') {
-      const personKey = s => s.personId || s.person || NO_PERSON;
-      const personLabel = s => s.person || NO_PERSON;
-      const used = [...new Set(allItems.map(personKey))];
-      used.sort((a, b) => a === NO_PERSON ? 1 : b === NO_PERSON ? -1 : a.localeCompare(b));
+      const mMap = Object.fromEntries(members.map(m => [m.id, m]));
+      // Collect all person IDs a task belongs to: primary personId + all secondary assignees.
+      const personIdsOf = s => {
+        const ids = new Set();
+        if (s.personId) ids.add(s.personId);
+        (s.assign || []).forEach(a => ids.add(a));
+        return [...ids];
+      };
+      const personLabel = pid => { const m = mMap[pid]; return m ? (m.name || m.id) : pid; };
+      // Gather all person IDs across all items
+      const used = [...new Set(allItems.flatMap(personIdsOf))];
+      // Add NO_PERSON bucket for truly unassigned items
+      if (allItems.some(s => !personIdsOf(s).length)) used.push(NO_PERSON);
+      used.sort((a, b) => a === NO_PERSON ? 1 : b === NO_PERSON ? -1 : personLabel(a).localeCompare(personLabel(b)));
       used.forEach(pk => {
-        const items = sortItems(allItems.filter(s => personKey(s) === pk));
+        const items = sortItems(pk === NO_PERSON
+          ? allItems.filter(s => !personIdsOf(s).length)
+          : allItems.filter(s => personIdsOf(s).includes(pk)));
         if (!items.length) return;
-        const lbl = personLabel(items[0]);
+        const lbl = pk === NO_PERSON ? NO_PERSON : personLabel(pk);
         result.push({ key: 'person:' + pk, label: lbl, color: pk === NO_PERSON ? NO_TEAM_COLOR : 'var(--ac)', items });
       });
     } else if (groupBy === 'project' || groupBy === 'projteam') {
@@ -134,7 +149,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     }
     return result;
-  }, [allItems, groupBy, teams, tree]);
+  }, [allItems, groupBy, teams, tree, members]);
 
   // Flatten groups + subGroups into row stream, respecting collapsed state at each level
   const rows = useMemo(() => {
@@ -197,7 +212,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     });
     return lines;
-  }, [scheduled, cpSet, tree, rows]);
+  }, [scheduled, cpSet, tree, rows, WPX, showDays]);
 
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   const allDepLines = useMemo(() => {
@@ -222,7 +237,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     });
     return lines;
-  }, [scheduled, tree, rows, cpSet]);
+  }, [scheduled, tree, rows, cpSet, WPX, showDays]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
@@ -259,7 +274,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     });
     return { lines, rowIds };
-  }, [hoverDepId, tree, scheduled, rows]);
+  }, [hoverDepId, tree, scheduled, rows, WPX, showDays]);
 
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
@@ -279,22 +294,20 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     : null;
 
   // Scroll to the active match (driven by search text + searchIdx for prev/next cycling).
+  // Only programmatically scrolls bR — syncS keeps lR + hR in sync automatically.
   useEffect(() => {
-    if (!searchMatchList.length || !bR.current) return;
+    if (!activeMatchId || !bR.current) return;
     const id = setTimeout(() => {
-      const idx = ((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length;
-      const targetId = searchMatchList[idx];
-      const rowIndex = rows.findIndex(r => r.type === 'task' && r.s.id === targetId);
+      const rowIndex = rows.findIndex(r => r.type === 'task' && r.s?.id === activeMatchId);
       if (rowIndex < 0 || !bR.current) return;
       const targetY = rowIndex * RH;
       const s = rows[rowIndex].s;
-      const targetX = Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
+      const targetX = s._unestimated ? undefined : Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
       const scrollTop = Math.max(0, targetY - bR.current.clientHeight / 2 + RH);
-      bR.current.scrollTo({ top: scrollTop, left: targetX, behavior: 'smooth' });
-      if (lR.current) lR.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
+      bR.current.scrollTo({ top: scrollTop, left: targetX ?? bR.current.scrollLeft, behavior: 'smooth' });
     }, 50);
     return () => clearTimeout(id);
-  }, [search, searchIdx]);
+  }, [activeMatchId]);
 
   // Scroll to today on first render so the user lands on the current time window.
   const didScrollToToday = useRef(false);

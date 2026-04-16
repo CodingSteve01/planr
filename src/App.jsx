@@ -646,6 +646,11 @@ export default function App() {
           searchRef.current?.select();
         }
       }
+      // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
+      if ((e.ctrlKey || e.metaKey) && search && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
+      }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
@@ -1642,10 +1647,12 @@ export default function App() {
         onKeyDown={e => {
           if (e.key === 'Escape') { setSearch(''); e.target.blur(); return; }
           if (e.key === 'Enter') { e.preventDefault(); setSearchIdx(i => e.shiftKey ? i - 1 : i + 1); }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => i + 1); }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => i - 1); }
         }} />
       {search && <>
-        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} title="Previous match (Shift+Enter)" style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
-        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} title="Next match (Enter)" style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} title={`Previous match (Shift+Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↑)`} style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} title={`Next match (Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↓)`} style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
         <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} title="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
       </>}
     </div>}

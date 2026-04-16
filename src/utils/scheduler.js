@@ -232,7 +232,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
     const actualStartD = firstWorkDay || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
