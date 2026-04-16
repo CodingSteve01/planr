@@ -269,14 +269,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   // and horizontally so its bar is comfortably in view.
   useEffect(() => {
     if (!searchMatches?.size || !bR.current) return;
-    // Defer one frame so rows have committed to the DOM before measuring/scrolling.
     const id = setTimeout(() => {
       const firstIdx = rows.findIndex(r => r.type === 'task' && searchMatches.has(r.s.id));
       if (firstIdx < 0 || !bR.current) return;
       const targetY = firstIdx * RH;
-      const row = rows[firstIdx];
-      const startWi = row.s?.startWi ?? 0;
-      const targetX = Math.max(0, startWi * WPX - 80);
+      const s = rows[firstIdx].s;
+      // Day-accurate scroll: use dateToX for the bar's start position.
+      const targetX = Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
       bR.current.scrollTo({ top: Math.max(0, targetY - bR.current.clientHeight / 2 + RH), left: targetX, behavior: 'smooth' });
     }, 50);
     return () => clearTimeout(id);

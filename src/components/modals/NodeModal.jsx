@@ -195,11 +195,10 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
       {/* Scheduling controls — always visible, not hidden behind a toggle. */}
       {isLeaf && <>
         <div className="field">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} style={{ accentColor: 'var(--ac)' }} />
-            Run in parallel
-            {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡ capacity bypass</span>}
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 12, color: 'var(--tx2)' }}>Run in parallel {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 4 }}>≡ capacity bypass</span>}</label>
+            <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+          </div>
         </div>
         {onReorderInQueue && !f.parallel && <div className="field">
           <label>Queue position</label>

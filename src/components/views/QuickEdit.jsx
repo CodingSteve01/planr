@@ -93,12 +93,10 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
         <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
       </div>
       <div className="field">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} style={{ accentColor: 'var(--ac)' }} />
-          Run in parallel
-          {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡ capacity bypass</span>}
-        </label>
-        <p className="helper">When checked, this task runs alongside the person's other work — it does not wait in queue and does not block the next task. Use for background work (e.g. supervision, reviews) that doesn't consume full-time capacity.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <label style={{ fontSize: 12, color: 'var(--tx2)' }}>Run in parallel {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 4 }}>≡ capacity bypass</span>}</label>
+          <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+        </div>
       </div>
       {onReorderInQueue && !f.parallel && (
         <div className="field">
