@@ -941,15 +941,19 @@ export default function App() {
     const task = tree.find(r => r.id === taskId);
     if (!task || !isLeafNode(tree, task.id)) return;
     const myKey = queueKeyOf(task);
+    const psDate = new Date(meta.planStart || Date.now());
+    // Sort must match the scheduler's actual processing order (future-pinned last,
+    // then prio → seq → id) so that "move later" in the UI = "runs later" in the plan.
     const queueTasks = tree.filter(r => {
       if (!isLeafNode(tree, r.id)) return false;
       if (!r.best) return false;
       return queueKeyOf(r) === myKey;
-    }).sort((a, b) =>
-      (a.prio || 4) - (b.prio || 4)
-      || (a.seq || 0) - (b.seq || 0)
-      || a.id.localeCompare(b.id)
-    );
+    }).sort((a, b) => {
+      const aF = a.pinnedStart && new Date(a.pinnedStart) > psDate ? 1 : 0;
+      const bF = b.pinnedStart && new Date(b.pinnedStart) > psDate ? 1 : 0;
+      if (aF !== bF) return aF - bF;
+      return (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    });
     if (queueTasks.length < 2) return;
     const idx = queueTasks.findIndex(t => t.id === taskId);
     if (idx < 0) return;
@@ -965,11 +969,27 @@ export default function App() {
     const reordered = [...queueTasks];
     const [moved] = reordered.splice(idx, 1);
     reordered.splice(newIdx, 0, moved);
-    // Renumber seq with gaps (10, 20, 30…) so future single inserts can land between.
-    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
+    // Renumber seq with gaps (10, 20, 30…).
+    const updates = new Map(reordered.map((t, i) => [t.id, { seq: (i + 1) * 10 }]));
+    // Cross-pin-boundary intelligence: if the task immediately BEFORE the moved task
+    // has a future pinnedStart, pin the moved task to the same date so the scheduler's
+    // pF counter sequences them naturally. If moving before all pinned tasks, clear pin.
+    if (newIdx > 0) {
+      const predecessor = reordered[newIdx - 1];
+      if (predecessor.pinnedStart && new Date(predecessor.pinnedStart) > psDate) {
+        updates.get(moved.id).pinnedStart = predecessor.pinnedStart;
+      }
+    }
+    if (newIdx === 0 && moved.pinnedStart) {
+      // Moving to front — clear any inherited pin
+      updates.get(moved.id).pinnedStart = '';
+    }
     setData(d => ({
       ...d,
-      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r)
+      tree: (d.tree || []).map(r => {
+        const upd = updates.get(r.id);
+        return upd ? { ...r, ...upd } : r;
+      })
     }));
     setSaved(false);
   }
@@ -1711,7 +1731,8 @@ export default function App() {
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={n => { updateNode(n); setSel(n); }} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
-      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }} />}
+      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
+      onReorderInQueue={reorderInQueue} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} onSave={m => setD('meta', m)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}

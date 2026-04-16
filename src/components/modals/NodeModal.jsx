@@ -5,7 +5,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
-export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove }) {
+export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const [f, setF] = useState({ ...node });
   const [advanced, setAdvanced] = useState(false);
   useEffect(() => setF({ ...node }), [node?.id]);
@@ -192,7 +192,39 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
 
       <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
 
-      {/* Advanced section: parent move, decide-by, pinned start, seq, factor */}
+      {/* Scheduling controls — always visible, not hidden behind a toggle. */}
+      {isLeaf && <>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} style={{ accentColor: 'var(--ac)' }} />
+            Run in parallel
+            {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡ capacity bypass</span>}
+          </label>
+        </div>
+        {onReorderInQueue && !f.parallel && <div className="field">
+          <label>Queue position</label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ flex: 1 }}>⤒ First</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ flex: 1 }}>▲ Earlier</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ flex: 1 }}>▼ Later</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ flex: 1 }}>⤓ Last</button>
+          </div>
+        </div>}
+        <div className="frow">
+          <div className="field"><label>Decide by</label>
+            <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
+          </div>
+          <div className="field"><label>Pinned start {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <input type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
+              <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))} title="Pin to today">Today</button>
+              {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')} title="Unpin">×</button>}
+            </div>
+          </div>
+        </div>
+      </>}
+
+      {/* Advanced section: parent move, seq, factor */}
       <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--b)' }}>
         <button className="btn btn-ghost btn-xs" onClick={() => setAdvanced(v => !v)} style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>
           {advanced ? '▼' : '▶'} Advanced
@@ -206,17 +238,6 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
               if (!confirm(`Move "${node.name}" + ${sub - 1} descendant${sub === 1 ? '' : 's'} under "${newPid || 'top level'}"? IDs and dep references will be updated.`)) return;
               onMove(node.id, newPid);
             }} placeholder="— Top level —" showIds />
-          </div>}
-          {isLeaf && <div className="frow">
-            <div className="field"><label title="Latest date this task must be started — shown as marker in Gantt and Tree">Decide by</label>
-              <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
-            </div>
-            <div className="field"><label title="Pin task start to a specific date (cannot bypass person capacity)">Pinned start</label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <input type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
-                {f.pinnedStart && <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', '')} title="Unpin">📌</button>}
-              </div>
-            </div>
           </div>}
           {isLeaf && <div className="frow">
             <div className="field"><label title="Risk factor multiplier (default 1.5)">Factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} /></div>
