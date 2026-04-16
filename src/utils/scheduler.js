@@ -160,6 +160,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       slots[si] = { wi: eW, nextDate: nd };
       const actualStartD = firstWorkDay || wks[slotWi]?.mon || wks[0].mon;
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+      allD.forEach(depId => {
+        const dEnd = tEW[depId];
+        if (!dEnd || dEnd.wi < 0) return;
+        if (dEnd.nextDate && actualStartD < dEnd.nextDate) {
+          console.warn(`[scheduler] Dep violation: ${r.id} starts ${iso(actualStartD)} but dep ${depId} not free until ${iso(dEnd.nextDate)}`);
+        }
+      });
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
         best: r.best, effort: eff, startWi: slotWi, endWi: eW,
         startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
@@ -232,6 +239,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
     const actualStartD = firstWorkDay || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+    // Dep violation diagnostic: warn if this task starts before any of its deps finish.
+    allD.forEach(depId => {
+      const dEnd = tEW[depId];
+      if (!dEnd || dEnd.wi < 0) return;
+      const depEndD = dEnd.nextDate; // first free day after dep
+      if (depEndD && actualStartD < depEndD) {
+        console.warn(`[scheduler] Dep violation: ${r.id} starts ${iso(actualStartD)} but dep ${depId} not free until ${iso(depEndD)}`);
+      }
+    });
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,

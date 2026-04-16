@@ -335,7 +335,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   function onBMD(e, s) {
     e.stopPropagation();
     justDraggedRef.current = false;
-    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false };
+    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, startD: s.startD, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false };
     dragRef.current = d;
     setDrag(d);
     setDDelta(0);
@@ -367,8 +367,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         const dir = d.lastDy > 0 ? 'later' : 'earlier';
         onReorderInQueue?.(d.id, dir, rowShift);
       } else if (dDelta !== 0) {
-        const startMon = new Date(weeks[d.startWi].mon);
-        const targetDate = showDays ? addWorkDays(startMon, dDelta, wdSet) : addD(startMon, dDelta * 7);
+        // Day mode: offset from the bar's actual start date (not the week's Monday).
+        // Week mode: offset from the start week's Monday (bar is week-aligned).
+        const baseDate = showDays && d.startD ? new Date(d.startD) : new Date(weeks[d.startWi].mon);
+        let targetDate = showDays ? addD(baseDate, dDelta) : addD(baseDate, dDelta * 7);
+        // Snap to nearest work day (forward for rightward drag, backward for leftward)
+        if (showDays) {
+          while (!wdSet.has(targetDate.getDay())) targetDate = addD(targetDate, dDelta > 0 ? 1 : -1);
+        }
         const planStartDate = weeks[0]?.mon;
         if (planStartDate && targetDate < planStartDate) {
           onExtendViewStart?.(iso(targetDate));
@@ -640,15 +646,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               // in the backward case the control points' horizontal pull creates a natural S-loop
               // without any orthogonal step pattern.
               const buildPath = (l) => {
-                // Longer stubs give the line a "runway" of straight pixels before bending into
-                // the bezier and after exiting it. Important when source and target sit on very
-                // different rows: a too-short stub makes the curve look like it abruptly hooks
-                // into the arrowhead. 10 px reads cleanly without dominating dense layouts.
+                const isForward = l.x2 > l.x1;
                 const stub = 10;
                 const sx = l.x1 + stub;
                 const tx = l.x2 - stub;
-                // Control-point horizontal offset: at least 30px so backward links get a visible loop
-                const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
+                // Short forward arrows (stubs overlap): simple arc, no S-loop.
+                if (isForward && tx <= sx) {
+                  const cpOff = Math.max(Math.abs(l.y2 - l.y1) * 0.4, 20);
+                  return `M${l.x1},${l.y1} C${l.x1 + cpOff},${l.y1} ${l.x2 - cpOff},${l.y2} ${l.x2 - 1},${l.y2}`;
+                }
+                // Normal forward: smooth bezier. Backward: S-loop to visualize the violation.
+                const dx = isForward
+                  ? Math.max((tx - sx) * 0.4, 20)
+                  : Math.max(Math.abs(tx - sx) * 0.5, 30);
                 const c1x = sx + dx;
                 const c2x = tx - dx;
                 return `M${l.x1},${l.y1} L${sx},${l.y1} C${c1x},${l.y1} ${c2x},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
