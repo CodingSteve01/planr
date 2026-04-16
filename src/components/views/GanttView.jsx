@@ -8,8 +8,10 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], shortNames = {}, cpSet, tree, search = '', workDays, onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
+  // Short name resolver: uses the pre-built initials map, falls back to first name.
+  const sn = (personId, fullName) => shortNames[personId] || (fullName || '').split(' ')[0] || personId || '';
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -433,7 +435,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>no estimate</span>
-              : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--mono)' }}>{s.person}</span>}
+              : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} title={s.person}>{sn(s.personId, s.person)}</span>}
             <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
           </div>;
         })}
