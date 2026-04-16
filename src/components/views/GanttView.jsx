@@ -288,12 +288,13 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
       const dx = e.clientX - d.ox;
       const dy = e.clientY - d.oy;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) justDraggedRef.current = true;
-      const isReorder = Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2;
-      if (isReorder) {
+      // Once in reorder mode, STAY there (sticky) — prevents mode-flipping when the
+      // mouse wobbles horizontally during a vertical drag.
+      const enterReorder = !d.isReorder && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx);
+      if (d.isReorder || enterReorder) {
         d.isReorder = true; d.lastDy = dy;
-        setDrag({ ...d }); // trigger re-render for cursor change
+        setDrag({ ...d }); // re-render for cursor + visual feedback
       } else {
-        d.isReorder = false; d.lastDy = 0;
         const stepPx = showDays ? WPX / 5 : WPX;
         setDDelta(Math.round(dx / stepPx));
       }
@@ -357,7 +358,7 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
 
   const unestimatedCount = unscheduledLeaves.length;
 
-  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag) { setDrag(null); setDDelta(0); } }}>
+  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); } }}>
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -506,17 +507,19 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6),
+                  // Vertical reorder feedback: bar visually follows the mouse vertically,
+                  // with a strong glow so the user sees they're in reorder mode.
+                  transform: (isDrag && drag?.isReorder) ? `translateY(${drag.lastDy}px)` : undefined,
+                  zIndex: (isDrag && drag?.isReorder) ? 20 : undefined,
+                  boxShadow: (isDrag && drag?.isReorder)
+                    ? '0 4px 20px rgba(0,0,0,.5), 0 0 0 2px var(--ac)'
+                    : isMatch ? '0 0 0 2.5px var(--am)'
+                    : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
                   background: tc, color: '#fff',
                   textShadow: '0 1px 1.5px rgba(0,0,0,.3)',
                   cursor: linkMode || linkDrag ? 'crosshair'
-                    : (drag?.id === s.id && drag.isReorder) ? 'ns-resize'
+                    : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
-                  // Search match outline > link-mode outline > CP outline (.cp-bar CSS).
-                  boxShadow: isMatch
-                    ? '0 0 0 2.5px var(--am)'
-                    : linkMode?.fromId === s.id || linkDrag?.fromId === s.id
-                      ? '0 0 0 2px var(--ac)'
-                      : undefined,
                 }}
                 onMouseDown={e => { if (linkMode || linkDrag) return; onBMD(e, s); }}
                 onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
@@ -539,7 +542,9 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                 {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
                   return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
-                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10 }} title={s.pinOverridden ? `Pin to ${node.pinnedStart} was overridden by capacity — task starts later because the assignee is busy until then` : `Pinned to ${node.pinnedStart}`}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
+                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer' }}
+                  title={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
+                  onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                 {bW > 35 && s.name}
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}
                 <div title="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
