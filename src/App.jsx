@@ -1702,7 +1702,7 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendPlanStart={extendPlanStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendPlanStart={extendPlanStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}

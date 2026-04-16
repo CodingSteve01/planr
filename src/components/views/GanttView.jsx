@@ -8,7 +8,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search = '', onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', onBarClick, onSeqUpdate, onExtendPlanStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -155,7 +155,9 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
   });
   const now = new Date();
   const todayWi = weeks.findIndex((w, i) => { const next = weeks[i + 1]; return w.mon <= now && (!next || next.mon > now); });
-  const todayX = todayWi >= 0 ? todayWi * WPX : -1;
+  // Always day-accurate — even in week mode the line sits on the correct day
+  // column within the week, not at the week's left edge.
+  const todayX = todayWi >= 0 ? dateToX(now) : -1;
   const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teams.find(x => x.id === t)?.color || '#3b82f6');
 
   // Day-accurate mount-point helpers for dependency lines. Source mounts at
@@ -453,8 +455,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                 </React.Fragment>;
               });
             })}
+            {/* Past zone: subtle dim overlay for everything before today */}
+            {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.08)', pointerEvents: 'none', zIndex: 1 }} />}
+            {/* Today marker — always day-accurate */}
             {todayX >= 0 && <div style={{ position: 'absolute', left: todayX, top: 0, width: 2, height: '100%', background: 'var(--gr)', opacity: .7, zIndex: 5 }} />}
-            {/* Today: vertical green line is enough — no badge cluttering the header area */}
             {dlL.map(dl => {
               const x = dl.wi * WPX;
               const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
@@ -645,10 +649,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
     <div className="gantt-footer">
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>Zoom</span>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out (broader timeline)" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(DEFAULT_WPX)} title={`Reset to ${DEFAULT_WPX} px/wk`} style={{ padding: '2px 7px', fontSize: 10, minWidth: 28 }}>{Math.round(WPX)}</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in (toward day-level at ≥ 70 px/wk)" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
-        {showDays && <span className="badge" style={{ fontSize: 9, padding: '1px 5px', background: 'var(--ac2)', color: '#fff' }}>day grid</span>}
+        <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} title="Week view (compact)" style={{ padding: '2px 7px', fontSize: 10 }}>Week</button>
+        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(80)} title="Day view (day grid + day numbers)" style={{ padding: '2px 7px', fontSize: 10 }}>Day</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
       </div>
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         🔍 {searchMatches.size} match{searchMatches.size === 1 ? '' : 'es'}
