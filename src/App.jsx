@@ -214,30 +214,44 @@ export default function App() {
     ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
     : 0;
 
-  // Detect external file changes (poll every 5s)
+  // Detect external file changes (poll every 5s). NEVER auto-load — only notify.
+  // Writing is one-way (app → file). When the file changes externally, show a prompt
+  // so the user decides whether to reload. Auto-loading was destructive: external edits
+  // (or file-system sync hiccups) silently overwrote in-memory state.
   const lastModRef = useRef(null);
+  const [externalChangeAvailable, setExternalChangeAvailable] = useState(false);
   useEffect(() => {
     if (!fileHandleRef.current) return;
     const poll = setInterval(async () => {
       try {
         const file = await fileHandleRef.current.getFile();
         const mod = file.lastModified;
-        // Skip if this is our own write (within 3s window) or if user has unsaved edits
+        // Skip if this is our own write (within 3s window)
         const isOwnWrite = (Date.now() - lastOwnWriteRef.current) < 3000;
-        if (lastModRef.current && mod > lastModRef.current && saved && !isOwnWrite) {
-          const text = await file.text();
-          const isMd = file.name.endsWith('.md');
-          const d = isMd ? parseMdToProject(text) : JSON.parse(text);
-          if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
-            setData(d);
-            setLastSavedAt(new Date(mod));
-          }
+        if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
+          setExternalChangeAvailable(true);
         }
         lastModRef.current = mod;
       } catch {}
     }, 5000);
     return () => clearInterval(poll);
-  }, [fileName, saved]);
+  }, [fileName]);
+  async function reloadFromFile() {
+    try {
+      const file = await fileHandleRef.current.getFile();
+      const text = await file.text();
+      const isMd = file.name.endsWith('.md');
+      const d = isMd ? parseMdToProject(text) : JSON.parse(text);
+      if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
+        setData(d);
+        setLastSavedAt(new Date(file.lastModified));
+        lastModRef.current = file.lastModified;
+        setSaved(true);
+        setFileSynced(true);
+      }
+    } catch (e) { console.error('Reload failed:', e); }
+    setExternalChangeAvailable(false);
+  }
 
   // Guard: warn on browser close/reload with unsaved changes
   useEffect(() => {
@@ -1498,6 +1512,11 @@ export default function App() {
   ];
 
   return <div className="app">
+    {externalChangeAvailable && <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px', background: 'var(--am)', color: '#000', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+      The file on disk has been modified externally.
+      <button className="btn btn-sm" style={{ background: '#fff', color: '#000', border: 'none' }} onClick={reloadFromFile}>Reload from file</button>
+      <button className="btn btn-ghost btn-sm" style={{ color: '#000' }} onClick={() => setExternalChangeAvailable(false)}>Dismiss</button>
+    </div>}
     <div className="topbar">
       <span className="logo" title="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
