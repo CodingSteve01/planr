@@ -521,7 +521,10 @@ export function GanttView({ scheduled, weeks, goals, teams, cpSet, tree, search 
                   onBarClick(s);
                 }}
                 onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id }); }}>
-                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass; legacy field)">≡</span>}
+                {/* Progress overlay: lighter strip on the left proportional to progress % */}
+                {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
+                  return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
+                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10 }} title={s.pinOverridden ? `Pin to ${node.pinnedStart} was overridden by capacity — task starts later because the assignee is busy until then` : `Pinned to ${node.pinnedStart}`}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                 {bW > 35 && s.name}
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}

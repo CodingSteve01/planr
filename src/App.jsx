@@ -1517,11 +1517,6 @@ export default function App() {
   ];
 
   return <div className="app">
-    {externalChangeAvailable && <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px', background: 'var(--am)', color: '#000', fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
-      The file on disk has been modified externally.
-      <button className="btn btn-sm" style={{ background: '#fff', color: '#000', border: 'none' }} onClick={reloadFromFile}>Reload from file</button>
-      <button className="btn btn-ghost btn-sm" style={{ color: '#000' }} onClick={() => setExternalChangeAvailable(false)}>Dismiss</button>
-    </div>}
     <div className="topbar">
       <span className="logo" title="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
@@ -1562,10 +1557,15 @@ export default function App() {
           color = 'var(--am)';
           tip = `Changes are safe in localStorage and will be written to the file ${SAVE_DEBOUNCE_MS / 1000}s after your last edit. Press Ctrl/Cmd+S or click 💾 to save now.`;
         }
-        return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
+        return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           title={tip}
           onClick={() => { if (clickable) saveToFile(true); }}>
           {text}
+          {externalChangeAvailable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+            <span style={{ color: 'var(--am)' }}>· file changed</span>
+            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} title="Reload project from the file on disk (overwrites current in-memory state)">reload</button>
+            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} title="Dismiss — ignore this external change">×</span>
+          </span>}
         </span>;
       })()}
       <div className="vsep" />
