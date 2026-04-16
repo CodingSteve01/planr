@@ -969,27 +969,13 @@ export default function App() {
     const reordered = [...queueTasks];
     const [moved] = reordered.splice(idx, 1);
     reordered.splice(newIdx, 0, moved);
-    // Renumber seq with gaps (10, 20, 30…).
-    const updates = new Map(reordered.map((t, i) => [t.id, { seq: (i + 1) * 10 }]));
-    // Cross-pin-boundary intelligence: if the task immediately BEFORE the moved task
-    // has a future pinnedStart, pin the moved task to the same date so the scheduler's
-    // pF counter sequences them naturally. If moving before all pinned tasks, clear pin.
-    if (newIdx > 0) {
-      const predecessor = reordered[newIdx - 1];
-      if (predecessor.pinnedStart && new Date(predecessor.pinnedStart) > psDate) {
-        updates.get(moved.id).pinnedStart = predecessor.pinnedStart;
-      }
-    }
-    if (newIdx === 0 && moved.pinnedStart) {
-      // Moving to front — clear any inherited pin
-      updates.get(moved.id).pinnedStart = '';
-    }
+    // Renumber seq with gaps (10, 20, 30…). Seq is a SOFT tiebreaker — it adjusts
+    // the scheduler's processing order within the same priority level. For HARD ordering
+    // (e.g. "A must run after B"), the user should create a dependency link instead.
+    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
     setData(d => ({
       ...d,
-      tree: (d.tree || []).map(r => {
-        const upd = updates.get(r.id);
-        return upd ? { ...r, ...upd } : r;
-      })
+      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r)
     }));
     setSaved(false);
   }
