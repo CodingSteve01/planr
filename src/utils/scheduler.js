@@ -1,4 +1,4 @@
-import { addD, iso } from './date.js';
+import { addD, iso, addWorkDays } from './date.js';
 import { buildWeeks } from './holidays.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
@@ -47,10 +47,14 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   };
   const visit = id => { if (vis.has(id)) return; vis.add(id); effectiveDeps(id).flatMap(resD).filter(d => d !== id).forEach(visit); ord.push(id); };
   sv.forEach(r => visit(r.id));
-  const pF = Object.fromEntries(members.map(m => [m.id, 0]));
-  const tSlots = {}; // per-team slot array for unassigned task sequencing
+  // pF, tEW, and tSlots now track {wi, nextDate} pairs: wi is the week the
+  // task ends in, nextDate is the FIRST WORKING DAY the resource/successor is
+  // free. This eliminates the week-boundary gap: if task A ends Wednesday, the
+  // next task starts Thursday (same week), not next Monday.
+  const pF = Object.fromEntries(members.map(m => [m.id, { wi: 0, nextDate: null }]));
+  const tSlots = {}; // per-team slot array of {wi, nextDate}
   const tEW = {};
-  lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = -1; });
+  lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
   // Vacation: explicit weeks per person
   const vs = {}; (vacations || []).forEach(v => { if (!vs[v.person]) vs[v.person] = {}; vs[v.person][v.week] = true; });
   // Total working days in plan period (for blanket vacation deduction)
@@ -74,9 +78,9 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
   }
   const res = [];
   ord.forEach(id => {
-    if (tEW[id] != null && tEW[id] === -1) return;
+    if (tEW[id]?.wi === -1) return;
     const r = iMap[id];
-    if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = -1; return; }
+    if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = { wi: -1, nextDate: null }; return; }
     const eff = re(r.best, r.factor);
     const team = pt(r.team);
     const tM = members.filter(m => pt(m.team) === team);
@@ -85,129 +89,117 @@ export function schedule(tree, members, vacations, ps, pe, hm) {
     const inheritedDeps = ancestorIds.flatMap(a => iMap[a]?.deps || []);
     const allDepsRaw = [...new Set([...(r.deps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
-    let dE = -1; allD.forEach(d => { const fw = tEW[d]; if (fw != null && fw > dE) dE = fw; });
-    // Successor starts the week AFTER the predecessor finishes (no buffer week).
-    let early = dE >= 0 ? dE + 1 : 0;
+    // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
+    // accurate nextDate are tracked so the successor can start the very next working day
+    // (not the next full week — that was the source of the phantom gaps).
+    let depWi = -1, depNextDate = null;
+    allD.forEach(d => {
+      const fw = tEW[d]; if (!fw || fw.wi < 0) return;
+      if (fw.wi > depWi || (fw.wi === depWi && fw.nextDate && (!depNextDate || fw.nextDate > depNextDate))) {
+        depWi = fw.wi; depNextDate = fw.nextDate;
+      }
+    });
+    let early = depWi >= 0 ? depWi : 0;
+    let earlyDate = depNextDate; // null = "any day in the early week is fine"
     // Pinned start: user manually pinned this task to a specific date.
-    // We honor it as a HARD floor (start no earlier), but deps can still push it later.
     if (r.pinnedStart) {
       const pinDate = new Date(r.pinnedStart);
-      const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
-      if (pinWi >= 0) early = Math.max(early, pinWi);
+      const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
+      if (pinWi >= 0 && (pinWi > early || (pinWi === early && pinDate > (earlyDate || new Date(0))))) {
+        early = pinWi; earlyDate = pinDate;
+      }
     }
     let asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
-    // Single-member teams: treat "team only" identically to "that person assigned" —
-    // picking the team shouldn't produce a coarser schedule than picking its only member.
-    // The precise assigned-path (per-person pF counter + explicit vacation weeks) kicks in.
-    if (!asgn.length && tM.length === 1) {
-      asgn = [tM[0].id];
-    }
-    // Still no assignee → fall through to team-slot scheduling (multi-member team pool).
+    if (!asgn.length && tM.length === 1) asgn = [tM[0].id];
+
+    // ── Team-slot path (multi-member, unassigned) ──────────────────────────────
     if (!asgn.length) {
-      // No assignee: schedule using team slot array to prevent over-parallelism
-      // Each team gets one slot per member; unassigned tasks queue across slots
       const tk = team || '__none';
-      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(0) : [0];
+      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(null).map(() => ({ wi: 0, nextDate: null })) : [{ wi: 0, nextDate: null }];
       const slots = tSlots[tk];
-      // Find the earliest available slot
-      const si = slots.reduce((best, fw, i) => fw < slots[best] ? i : best, 0);
-      const slotEarly = Math.max(early, slots[si]);
-      const avgCap = tM.length > 0
-        ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length
-        : 1;
-      const avgVac = tM.length > 0
-        ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length
-        : 0.9;
-      // Day-granular effort consumption (team-slot path). Same shape as the per-person
-      // path below, using team-average daily capacity.
+      const si = slots.reduce((best, s, i) => s.wi < slots[best].wi ? i : best, 0);
+      const slotFree = slots[si];
+      const slotWi = Math.max(early, slotFree.wi);
+      // Compute skipBefore: the latest of dep/pin/slot "next available date"
+      let skipBefore = earlyDate;
+      if (slotFree.nextDate && (!skipBefore || slotFree.nextDate > skipBefore)) skipBefore = slotFree.nextDate;
+      const avgCap = tM.length > 0 ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length : 1;
+      const avgVac = tM.length > 0 ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length : 0.9;
       const dailyAvgCap = avgCap * avgVac;
-      let rem = eff, wi = slotEarly;
-      let firstWorkDay = null, lastWorkDay = null;
+      let rem = eff, wi = slotWi, firstWorkDay = null, lastWorkDay = null;
       while (rem > 0 && wi < wks.length) {
-        const w = wks[wi];
-        for (const d of w.wds) {
+        for (const d of wks[wi].wds) {
+          if (skipBefore && d < skipBefore) continue;
           if (!firstWorkDay) firstWorkDay = d;
-          rem -= dailyAvgCap;
-          lastWorkDay = d;
+          rem -= dailyAvgCap; lastWorkDay = d;
           if (rem <= 0) break;
         }
-        if (rem <= 0) break;
-        wi++;
+        if (rem <= 0) break; wi++;
       }
-      const eW = Math.min(Math.max(wi, slotEarly), wks.length - 1);
-      tEW[id] = eW;
-      slots[si] = eW + 1; // occupy the slot until this task finishes
-      const startWi = slotEarly < wks.length ? slotEarly : 0;
-      const actualStartD = firstWorkDay || wks[startWi].mon;
+      const eW = Math.min(Math.max(wi, slotWi), wks.length - 1);
+      const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1) : null;
+      tEW[id] = { wi: eW, nextDate: nd };
+      slots[si] = { wi: eW, nextDate: nd };
+      const actualStartD = firstWorkDay || wks[slotWi]?.mon || wks[0].mon;
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-      const calDays = Math.round((actualEndD - actualStartD) / 864e5) + 1;
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
-        best: r.best, effort: eff, startWi: slotEarly, endWi: eW,
-        startD: actualStartD, endD: actualEndD, calDays,
-        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - slotEarly + 1,
+        best: r.best, effort: eff, startWi: slotWi, endWi: eW,
+        startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - slotWi + 1,
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
     }
-    // Explicitly assigned: find earliest available person.
-    // CAPACITY-FIRST RULE: a task can never start before its assignee is free, regardless of pinning.
-    // Pinning can only DELAY a task (push later); it cannot force overlap with the person's other work.
-    // The legacy `parallel` flag still bypasses person-capacity (kept for back-compat with markdown
-    // round-tripping), but it is intentionally NOT exposed in the UI to prevent accidental misuse.
+
+    // ── Per-person assigned path ───────────────────────────────────────────────
     const cands = members.filter(m => asgn.includes(m.id));
     let bp = null, bs = 9999;
     cands.forEach(m => {
-      // Earliest week where this person has at least one working day ≥ their availability start.
-      // Previously this compared w.mon >= m.start, which skipped the whole week if m.start fell
-      // mid-week (e.g. Tue start → Monday-of-the-week is less, so the whole week was lost even
-      // though Tue–Fri are perfectly usable). pC() already handles the partial-week capacity.
       const mStart = new Date(m.start || ps);
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
-      const fw = r.parallel ? Math.max(early, ji >= 0 ? ji : 0) : Math.max(pF[m.id] || 0, early, ji >= 0 ? ji : 0);
+      const personFree = pF[m.id] || { wi: 0, nextDate: null };
+      const fw = r.parallel
+        ? Math.max(early, ji >= 0 ? ji : 0)
+        : Math.max(personFree.wi, early, ji >= 0 ? ji : 0);
       if (fw < bs) { bs = fw; bp = m; }
     });
-    if (!bp || bs >= wks.length) { tEW[id] = Math.min(early, wks.length - 1); return; }
-    // Detect when a manual pin was overridden by capacity (so the UI can flag it)
+    if (!bp || bs >= wks.length) { tEW[id] = { wi: Math.min(early, wks.length - 1), nextDate: null }; return; }
     let pinOverridden = false;
     if (r.pinnedStart && !r.parallel) {
       const pinDate = new Date(r.pinnedStart);
-      const pinWi = wks.findIndex(w => { const next = wks[wks.indexOf(w) + 1]; return w.mon <= pinDate && (!next || next.mon > pinDate); });
+      const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
       if (pinWi >= 0 && bs > pinWi) pinOverridden = true;
     }
-    // Day-granular effort consumption. Walk working days one-by-one so a short task
-    // (e.g. 1 day of work for a 25 %-cap person = 4 calendar work-days) produces an
-    // accurate startD/endD pair instead of being rounded up to a full week.
+    // Compute the earliest date this person can actually start working — the latest of
+    // dep constraint, person free-date, member availability, and pin.
     const mStart = new Date(bp.start || ps);
+    const personFree = r.parallel ? null : pF[bp.id]?.nextDate;
+    let skipBefore = mStart;
+    if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
+    if (personFree && personFree > skipBefore) skipBefore = personFree;
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
-    let rem = eff, wi = bs;
-    let firstWorkDay = null, lastWorkDay = null;
+    let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
     while (rem > 0 && wi < wks.length) {
       const w = wks[wi];
-      // Explicit vacation week for this person: skip entirely.
       if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
       for (const d of w.wds) {
-        if (d < mStart) continue;
+        if (d < skipBefore) continue;
         if (!firstWorkDay) firstWorkDay = d;
-        rem -= dailyBaseCap;
-        lastWorkDay = d;
+        rem -= dailyBaseCap; lastWorkDay = d;
         if (rem <= 0) break;
       }
-      if (rem <= 0) break;
-      wi++;
+      if (rem <= 0) break; wi++;
     }
     const eW = Math.min(wi, wks.length - 1);
-    tEW[id] = eW;
-    // pF tracker stays week-based: next task for this person starts the week after
-    // this one finishes. Intra-week stacking isn't supported yet.
-    if (!r.parallel) pF[bp.id] = eW + 1;
+    const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1) : null;
+    tEW[id] = { wi: eW, nextDate: nd };
+    if (!r.parallel) pF[bp.id] = { wi: eW, nextDate: nd };
     const actualStartD = firstWorkDay || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-    const calDays = Math.round((actualEndD - actualStartD) / 864e5) + 1;
-    const capPct = Math.round((bp.cap || 1) * 100);
-    const vacDed = Math.round((1 - vacInfo[bp.id]) * 100);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
-      startD: actualStartD, endD: actualEndD, calDays,
-      capPct, vacDed, weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
+      startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+      capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
+      weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
   });
   return { results: res, weeks: wks };

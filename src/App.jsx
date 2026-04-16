@@ -927,19 +927,24 @@ export default function App() {
   //   'first' | 'last' | 'earlier' | 'later'   — relative moves
   //   number                                   — absolute queue index
   //   { direction, steps }                     — relative with step count
+  // Build the "queue key" for a task: tasks with the same key run through the same
+  // scheduler pF counter. For single-member teams, team-only and direct-assign must
+  // produce the SAME key so reordering works identically for both.
+  function queueKeyOf(r) {
+    if ((r.assign || []).length) return [...r.assign].sort().join(',');
+    const tm = pt(r.team);
+    const tM = members.filter(m => pt(m.team) === tm);
+    if (tM.length === 1) return tM[0].id; // same queue as directly-assigned
+    return `team:${r.team || ''}`;
+  }
   function reorderInQueue(taskId, target, stepsArg) {
     const task = tree.find(r => r.id === taskId);
     if (!task || !isLeafNode(tree, task.id)) return;
-    const queueKey = (task.assign || []).length
-      ? [...(task.assign || [])].sort().join(',')
-      : `team:${task.team || ''}`;
+    const myKey = queueKeyOf(task);
     const queueTasks = tree.filter(r => {
       if (!isLeafNode(tree, r.id)) return false;
       if (!r.best) return false;
-      const k = (r.assign || []).length
-        ? [...(r.assign || [])].sort().join(',')
-        : `team:${r.team || ''}`;
-      return k === queueKey;
+      return queueKeyOf(r) === myKey;
     }).sort((a, b) =>
       (a.prio || 4) - (b.prio || 4)
       || (a.seq || 0) - (b.seq || 0)
