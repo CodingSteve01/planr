@@ -42,7 +42,30 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `[assignees]`: short names, comma-separated
 - `{tags}`: `prio:N`, `seq:N`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
-- Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*…*` for notes
+- Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*Phasen: ...*` for phases, `*…*` for notes
+
+**Phases line format:**
+
+```
+*Phasen: ✅RE, 🟡Development(Frontend), ○Test(QA)*
+```
+
+- `✅` = done, `🟡` = wip, `○` = open
+- Team in parentheses after the name (only if set, resolved by name)
+
+**Task Templates section** (optional, after Work Tree):
+
+```markdown
+## Task Templates
+
+### Full-Stack Programming
+1. RE
+2. Detail Planning
+3. Development — Frontend
+4. Test — QA
+```
+
+Each `###` heading starts a template, numbered lines are phases. Team after ` — `.
 
 **When to prefer Markdown:**
 - You want to review/edit the plan in a text editor or on GitHub
@@ -53,7 +76,8 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 
 | Field group | JSON ↔ JSON | MD ↔ MD | JSON → MD → JSON |
 |---|---|---|---|
-| All tree item fields (name, status, team, best, factor, prio, seq, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, dep-labels, assign, note, description) | ✓ | ✓ | ✓ (via name-lookup) |
+| All tree item fields (name, status, team, best, factor, prio, seq, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, dep-labels, assign, note, description, phases, templateId) | ✓ | ✓ | ✓ (via name-lookup) |
+| Task templates | ✓ | ✓ | ✓ |
 | Member fields (name, team, role, cap, vac, start) | ✓ | ✓ | ✓ |
 | Team fields (name, color) | ✓ | ✓ | ✓ |
 | Vacations | ✓ | ✓ | ✓ |

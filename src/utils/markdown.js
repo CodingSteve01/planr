@@ -65,6 +65,11 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
     const depItems = (r.deps || []).map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
     const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';
+    const phases = (r.phases || []).length ? `\n${indent}  *Phasen: ${r.phases.map(p => {
+      const pStatus = p.status === 'done' ? '✅' : p.status === 'wip' ? '🟡' : '○';
+      const pTeam = p.team ? `(${teamName(p.team)})` : '';
+      return `${pStatus}${p.name}${pTeam}`;
+    }).join(', ')}*` : '';
     const note = r.note ? `\n${indent}  *${r.note}*` : '';
     const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
     const date = r.date ? ` (${r.date})` : '';
@@ -72,7 +77,21 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const pinned = r.pinnedStart ? ` 📌${r.pinnedStart}` : '';
     const parallel = r.parallel ? ` ≡` : '';
     const desc = r.description ? `\n${indent}  ${r.description}` : '';
-    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${note}${desc}\n`;
+    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${phases}${note}${desc}\n`;
   });
+
+  // Task Templates section
+  if ((data?.taskTemplates || []).length) {
+    md += `\n## Task Templates\n\n`;
+    data.taskTemplates.forEach(tpl => {
+      md += `### ${tpl.name}\n`;
+      tpl.phases.forEach((p, i) => {
+        const pTeam = p.team ? ` — ${teamName(p.team)}` : '';
+        md += `${i + 1}. ${p.name}${pTeam}\n`;
+      });
+      md += '\n';
+    });
+  }
+
   return md;
 }

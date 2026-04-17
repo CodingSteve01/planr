@@ -3,7 +3,7 @@ import { nextChildId } from '../../utils/scheduler.js';
 import { GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 
-export function AddModal({ tree, teams, selected, onAdd, onClose }) {
+export function AddModal({ tree, teams, taskTemplates, selected, onAdd, onClose }) {
   const defParent = useMemo(() => selected?.id || '', [selected]);
 
   const parents = useMemo(() => {
@@ -71,6 +71,16 @@ export function AddModal({ tree, teams, selected, onAdd, onClose }) {
             <SearchSelect value={f.status} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />
           </div>
         </div>
+        {(taskTemplates || []).length > 0 && <div className="field"><label>Workflow template</label>
+          <SearchSelect value={f.templateId || ''} options={[{ id: '', label: '— None —' }, ...(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))]}
+            onSelect={tplId => {
+              if (!tplId) { setF(x => ({ ...x, phases: undefined, templateId: undefined })); return; }
+              const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
+              if (!tpl) return;
+              const phases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
+              setF(x => ({ ...x, phases, templateId: tplId }));
+            }} allowEmpty />
+        </div>}
         <div className="field"><label>Quick estimate (optional)</label>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>

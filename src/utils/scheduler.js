@@ -6,6 +6,17 @@ export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g)
 export const re = (best, factor) => best && best > 0 ? best * (factor || 1.5) : 0;
 export const parentId = id => id.split('.').slice(0, -1).join('.');
 
+// Derive task status + progress from its phases array.
+// Returns null if no phases exist (caller keeps manual status).
+export function derivePhaseStatus(phases) {
+  if (!phases?.length) return null;
+  const done = phases.filter(p => p.status === 'done').length;
+  const wip = phases.filter(p => p.status === 'wip').length;
+  if (done === phases.length) return { status: 'done', progress: 100 };
+  if (done > 0 || wip > 0) return { status: 'wip', progress: Math.round(done / phases.length * 100) };
+  return { status: 'open', progress: 0 };
+}
+
 export function directChildren(tree, id) {
   return tree.filter(r => parentId(r.id) === id);
 }

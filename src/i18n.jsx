@@ -154,6 +154,18 @@ const en = {
   'set.langAuto': 'Auto', 'set.langEn': 'English', 'set.langDe': 'Deutsch',
   'set.dayNames': 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
 
+  // ── Phases & Templates ──
+  'ph.phases': 'Phases', 'ph.noPhases': 'No phases defined.',
+  'ph.applyTemplate': 'Apply template…', 'ph.addPhase': '+ Phase',
+  'ph.clearPhases': 'Remove all phases', 'ph.currentPhase': 'current',
+  'ph.templates': 'Task Templates', 'ph.newTemplate': '+ New template',
+  'ph.editTemplate': 'Edit', 'ph.templateName': 'Template name',
+  'ph.phaseName': 'Phase name', 'ph.phaseTeam': 'Team',
+  'ph.confirmClear': 'Remove all phases from this task?',
+  'ph.confirmDeleteTpl': 'Delete template "{0}"?',
+  'ph.applied': 'Template: {0}', 'ph.freePhase': 'New phase',
+  'ph.moveUp': 'Move up', 'ph.moveDown': 'Move down',
+
   // ── TreeView ──
   'tv.collapseAll': 'Collapse all', 'tv.expandAll': 'Expand all',
   'tv.items': 'items', 'tv.leafs': 'leafs',
@@ -310,6 +322,18 @@ const de = {
   'set.themeAuto': 'Auto (System)', 'set.themeDark': 'Dunkel', 'set.themeLight': 'Hell',
   'set.langAuto': 'Auto', 'set.langEn': 'English', 'set.langDe': 'Deutsch',
   'set.dayNames': 'Mo,Di,Mi,Do,Fr,Sa,So',
+
+  // ── Phasen & Vorlagen ──
+  'ph.phases': 'Phasen', 'ph.noPhases': 'Keine Phasen definiert.',
+  'ph.applyTemplate': 'Vorlage anwenden…', 'ph.addPhase': '+ Phase',
+  'ph.clearPhases': 'Alle Phasen entfernen', 'ph.currentPhase': 'aktuell',
+  'ph.templates': 'Aufgabenvorlagen', 'ph.newTemplate': '+ Neue Vorlage',
+  'ph.editTemplate': 'Bearbeiten', 'ph.templateName': 'Vorlagenname',
+  'ph.phaseName': 'Phasenname', 'ph.phaseTeam': 'Team',
+  'ph.confirmClear': 'Alle Phasen von dieser Aufgabe entfernen?',
+  'ph.confirmDeleteTpl': 'Vorlage „{0}" löschen?',
+  'ph.applied': 'Vorlage: {0}', 'ph.freePhase': 'Neue Phase',
+  'ph.moveUp': 'Nach oben', 'ph.moveDown': 'Nach unten',
 
   // ── TreeView ──
   'tv.collapseAll': 'Alle zuklappen', 'tv.expandAll': 'Alle aufklappen',

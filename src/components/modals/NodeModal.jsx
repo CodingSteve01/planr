@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 
-export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
   const [showStructure, setShowStructure] = useState(false);
@@ -224,6 +224,84 @@ export function NodeModal({ node, tree, members, teams, scheduled, cpSet, stats,
           <SearchSelect options={allIds.filter(i => !successorIds.has(i) && i !== node.id && !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => { const tgt = findById(id); if (tgt) onUpdate({ ...tgt, deps: [...new Set([...(tgt.deps || []), node.id])] }); }} placeholder={`+ ${t('qe.successors')}`} showIds />
         </div>
       </div>
+
+      {/* ── 8. PHASES (non-root) ──────────────────────────────────────── */}
+      {!isRoot && (() => {
+        const phases = f.phases || [];
+        const teamName = id => teams.find(tm => tm.id === id)?.name || id;
+
+        const applyTemplate = (tplId) => {
+          const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
+          if (!tpl) return;
+          const newPhases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
+          setF(x => ({ ...x, phases: newPhases, templateId: tplId }));
+        };
+        const setPhase = (idx, patch) => setF(x => ({ ...x, phases: (x.phases || []).map((p, i) => i === idx ? { ...p, ...patch } : p) }));
+        const addPhase = () => setF(x => ({ ...x, phases: [...(x.phases || []), { id: 'ph' + Date.now(), name: '', team: '', status: 'open' }] }));
+        const removePhase = (idx) => setF(x => {
+          const np = (x.phases || []).filter((_, i) => i !== idx);
+          return { ...x, phases: np.length ? np : undefined, templateId: np.length ? x.templateId : undefined };
+        });
+        const movePhase = (idx, dir) => setF(x => {
+          const np = [...(x.phases || [])];
+          const [item] = np.splice(idx, 1);
+          np.splice(idx + dir, 0, item);
+          return { ...x, phases: np };
+        });
+        const advancePhase = (idx) => setF(x => {
+          const np = (x.phases || []).map((p, i) => {
+            if (i !== idx) return p;
+            const next = p.status === 'open' ? 'wip' : p.status === 'wip' ? 'done' : 'open';
+            return { ...p, status: next };
+          });
+          const d = derivePhaseStatus(np);
+          const out = { ...x, phases: np };
+          if (d) { out.status = d.status; out.progress = d.progress; }
+          return out;
+        });
+        const clearAll = () => { if (confirm(t('ph.confirmClear'))) setF(x => ({ ...x, phases: undefined, templateId: undefined })); };
+
+        return <div style={{ marginTop: 12, marginBottom: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)', marginBottom: 8, display: 'block' }}>{t('ph.phases')}</label>
+
+          {phases.length > 0 && <>
+            {phases.map((ph, i) => {
+              const dot = ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○';
+              const dotColor = ph.status === 'done' ? 'var(--gn)' : ph.status === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+              return <div key={ph.id || i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                  onClick={() => advancePhase(i)}>{dot}</span>
+                <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                  <input value={ph.name} placeholder={t('ph.phaseName')}
+                    onChange={e => setPhase(i, { name: e.target.value })} />
+                </div>
+                <div className="field" style={{ width: 130, flexShrink: 0, marginBottom: 0 }}>
+                  <SearchSelect value={ph.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
+                    onSelect={v => setPhase(i, { team: v })} allowEmpty placeholder={t('ph.phaseTeam')} />
+                </div>
+                <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === 0} onClick={() => movePhase(i, -1)} title={t('ph.moveUp')}>▲</button>
+                <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === phases.length - 1} onClick={() => movePhase(i, 1)} title={t('ph.moveDown')}>▼</button>
+                <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removePhase(i)}>×</button>
+              </div>;
+            })}
+            <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+              <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
+              {(taskTemplates || []).length > 0 && <SearchSelect
+                options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+                onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={clearAll}>{t('ph.clearPhases')}</button>
+            </div>
+          </>}
+
+          {phases.length === 0 && <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {(taskTemplates || []).length > 0 && <SearchSelect
+              options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+              onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
+            <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
+          </div>}
+        </div>;
+      })()}
 
       {/* ── 9. STRUCTURE (rare) ─────────────────────────────────────────── */}
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--b)' }}>

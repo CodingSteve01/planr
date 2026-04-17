@@ -359,10 +359,12 @@ export default function App() {
     const tree = [], mems = [], teamSet = new Set();
     const explicitTeams = []; // teams from "## Teams" table (with color)
     const vacationsArr = [], holidaysArr = [];
+    const taskTemplates = [];
+    let currentTpl = null; // template being parsed
     let projName = null;
     let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
     const idStack = [];
-    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | null
+    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | null
     let lastItem = null;
 
     lines.forEach(line => {
@@ -378,6 +380,13 @@ export default function App() {
         else if (lower.startsWith('vacation')) section = 'vacations';
         else if (lower === 'holidays') section = 'holidays';
         else if (lower === 'work tree') section = 'tree';
+        else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
+        else if (section === 'templates' && hm[0].startsWith('###')) {
+          // ### Template Name — start a new template
+          currentTpl = { id: 'tpl_' + Date.now() + taskTemplates.length, name: h, phases: [] };
+          taskTemplates.push(currentTpl);
+          return;
+        }
         else section = null;
         lastItem = null;
         return;
@@ -453,6 +462,18 @@ export default function App() {
         return;
       }
 
+      // Task Templates section: numbered phase lines "1. PhaseName — TeamName"
+      if (section === 'templates') {
+        if (currentTpl) {
+          const pm = line.match(/^\s*\d+\.\s+(.+)/);
+          if (pm) {
+            const parts = pm[1].split('—').map(s => s.trim());
+            currentTpl.phases.push({ name: parts[0], team: parts[1] || '' });
+          }
+        }
+        return;
+      }
+
       // Tree section (or default if no Work Tree heading was seen): bullet items
       const bullet = line.match(/^(\s*)[-*]\s+(.*)/);
       if (!bullet) {
@@ -467,6 +488,22 @@ export default function App() {
             const labels = {};
             items.forEach(it => { const lm = it.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/); if (lm) labels[lm[1]] = lm[2]; });
             if (Object.keys(labels).length) lastItem._depLabels = labels;
+            return;
+          }
+          // Parse phases line: *Phasen: ✅RE, 🟡Development(Frontend), ○Test(QA)*
+          const phaseM = trimmed.match(/^\*Phasen?:\s*(.+?)\*$/);
+          if (phaseM) {
+            const phaseItems = phaseM[1].split(',').map(s => s.trim());
+            lastItem.phases = phaseItems.map((pi, idx) => {
+              let status = 'open';
+              if (pi.startsWith('✅')) { status = 'done'; pi = pi.slice(1).trim(); }
+              else if (pi.startsWith('🟡')) { status = 'wip'; pi = pi.slice(2).trim(); }
+              else if (pi.startsWith('○')) { status = 'open'; pi = pi.slice(1).trim(); }
+              const teamM2 = pi.match(/^(.+?)\((.+?)\)$/);
+              const name = teamM2 ? teamM2[1].trim() : pi.trim();
+              const team = teamM2 ? teamM2[2].trim() : '';
+              return { id: 'ph' + (Date.now() + idx), name, team, status };
+            });
             return;
           }
           if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
@@ -578,8 +615,9 @@ export default function App() {
     });
     // Re-collect team names after sanitization (so cleaned names are added to the team set)
     teamSet.clear();
-    tree.forEach(r => { if (r.team) teamSet.add(r.team); });
+    tree.forEach(r => { if (r.team) teamSet.add(r.team); if (r.phases) r.phases.forEach(p => { if (p.team) teamSet.add(p.team); }); });
     mems.forEach(m => { if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); } });
+    taskTemplates.forEach(tpl => tpl.phases.forEach(p => { if (p.team) teamSet.add(p.team); }));
 
     // Build teams: prefer explicit team table, fall back to inferred
     const usedTeamNames = [...teamSet];
@@ -589,8 +627,9 @@ export default function App() {
       return { id: `T${i + 1}`, name, color: exp?.color || palette[i % palette.length] };
     });
     const teamLookup = Object.fromEntries(teamsArr.map(t => [t.name, t.id]));
-    tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; });
+    tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; if (r.phases) r.phases.forEach(p => { if (p.team) p.team = teamLookup[p.team] || p.team; }); });
     mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
+    taskTemplates.forEach(tpl => tpl.phases.forEach(p => { if (p.team) p.team = teamLookup[p.team] || p.team; }));
     // Resolve assignee references — try short name from MD first, then full name match,
     // finally computed initials match (for back-compat with files written by older builds)
     const computedShorts = buildMemberShortMap(mems);
@@ -616,7 +655,7 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
-    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr };
+    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}) };
   }
 
   async function loadFromFile() {
@@ -837,6 +876,7 @@ export default function App() {
       }
       // Reset progress/status for fresh copy (user decides)
       delete copy.pinnedStart;
+      if (copy.phases) copy.phases = copy.phases.map(p => ({ ...p, id: 'ph' + Date.now() + Math.random().toString(36).slice(2, 6), status: 'open' }));
       return copy;
     });
     setD('tree', [...tree, ...copies]);
@@ -1344,7 +1384,7 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
@@ -1362,13 +1402,13 @@ export default function App() {
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} scheduled={scheduled} cpSet={cpSet} stats={stats}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue} />}
-    {modal === 'add' && <AddModal tree={tree} teams={teams} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
-    {modal === 'settings' && <SettingsModal meta={meta} onSave={m => setD('meta', m)} onClose={() => setModal(null)} />}
+    {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

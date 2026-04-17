@@ -219,8 +219,12 @@ export function exportMermaid({ tree, meta }) {
 
 // ── CSV ──────────────────────────────────────────────────────────────────────
 export function exportCSV({ tree, meta }) {
-  const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Notes'];
-  const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${(r.note || '').replace(/"/g, '""')}"`]);
+  const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Phases', 'Notes'];
+  const fmtPhases = phases => {
+    if (!phases?.length) return '';
+    return phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '●' : '○'}${p.name}`).join(', ');
+  };
+  const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${fmtPhases(r.phases)}"`, `"${(r.note || '').replace(/"/g, '""')}"`]);
   download(new Blob(['\uFEFF' + [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-${iso(new Date())}.csv`);
 }
 

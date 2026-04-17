@@ -259,11 +259,13 @@ tr:nth-child(even) td{background:#fafbfd}
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
     h += `<h3 style="color:${tm?.color||'#4a5268'}">${tm?.name||t('No team','Kein Team')} (${items.length})</h3>`;
-    h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th><th>Conf.</th></tr>`;
+    h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th><th>Conf.</th><th>${t('Phases','Phasen')}</th></tr>`;
     items.sort((a, b) => (a.startD||0) - (b.startD||0)).forEach(s => {
+      const node = tree.find(r => r.id === s.id);
       const conf = confidence[s.id] || 'committed';
       const ct = conf === 'exploratory' ? '<span class="tag t-exp">○</span>' : conf === 'estimated' ? '<span class="tag t-est">◐</span>' : '<span class="tag t-com">●</span>';
-      h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td><td>${ct}</td></tr>`;
+      const ph = (node?.phases || []).map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ');
+      h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td><td>${ct}</td><td style="font-size:8.5px">${ph}</td></tr>`;
     });
     h += `</table>`;
   });

@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 
-export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
   useEffect(() => setF({ ...node }), [node?.id]);
@@ -57,7 +57,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
     </>}
 
     {/* ── 3. STATUS + PROGRESS (compact) ───────────────────────────────── */}
-    {isLeaf && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+    {isLeaf && !(f.phases?.length) && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
       <div style={{ flex: '0 0 100px' }}>
         <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
       </div>
@@ -77,6 +77,129 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
           <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
           {st?._startD && <><span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
         </div>
+      </div>;
+    })()}
+
+    {/* ── 3b. PHASES (non-root nodes) ──────────────────────────────────── */}
+    {!isRoot && (() => {
+      const phases = f.phases || [];
+      const hasPhases = phases.length > 0;
+      const phDerived = derivePhaseStatus(phases);
+      const teamName = id => teams.find(tm => tm.id === id)?.name || id;
+      const currentIdx = phases.findIndex(p => p.status !== 'done');
+
+      const applyTemplate = (tplId) => {
+        const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
+        if (!tpl) return;
+        const newPhases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
+        const n = { ...f, phases: newPhases, templateId: tplId };
+        const d = derivePhaseStatus(newPhases);
+        if (d) { n.status = d.status; n.progress = d.progress; }
+        setF(n); onUpdate(n);
+      };
+
+      const advancePhase = (phId) => {
+        const newPhases = phases.map(p => {
+          if (p.id !== phId) return p;
+          const next = p.status === 'open' ? 'wip' : p.status === 'wip' ? 'done' : 'open';
+          return { ...p, status: next };
+        });
+        const n = { ...f, phases: newPhases };
+        const d = derivePhaseStatus(newPhases);
+        if (d) { n.status = d.status; n.progress = d.progress; }
+        setF(n); onUpdate(n);
+      };
+
+      const addFreePhase = () => {
+        const newPhases = [...phases, { id: 'ph' + Date.now(), name: t('ph.freePhase'), team: '', status: 'open' }];
+        const n = { ...f, phases: newPhases };
+        setF(n); onUpdate(n);
+      };
+
+      const removePhase = (phId) => {
+        const newPhases = phases.filter(p => p.id !== phId);
+        const n = { ...f, phases: newPhases.length ? newPhases : undefined, templateId: newPhases.length ? f.templateId : undefined };
+        const d = derivePhaseStatus(newPhases);
+        if (d) { n.status = d.status; n.progress = d.progress; }
+        setF(n); onUpdate(n);
+      };
+
+      const movePhase = (idx, dir) => {
+        const newPhases = [...phases];
+        const [item] = newPhases.splice(idx, 1);
+        newPhases.splice(idx + dir, 0, item);
+        const n = { ...f, phases: newPhases };
+        setF(n); onUpdate(n);
+      };
+
+      const setPhaseTeam = (phId, teamId) => {
+        const newPhases = phases.map(p => p.id === phId ? { ...p, team: teamId } : p);
+        const n = { ...f, phases: newPhases };
+        setF(n); onUpdate(n);
+      };
+
+      const renamePhase = (phId, name) => {
+        const newPhases = phases.map(p => p.id === phId ? { ...p, name } : p);
+        setF({ ...f, phases: newPhases });
+      };
+
+      const flushPhases = () => onUpdate(f);
+
+      const clearAll = () => {
+        if (!confirm(t('ph.confirmClear'))) return;
+        const n = { ...f, phases: undefined, templateId: undefined };
+        setF(n); onUpdate(n);
+      };
+
+      return <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)', marginBottom: 6, display: 'block' }}>{t('ph.phases')}</label>
+
+        {hasPhases && <>
+          {f.templateId && (() => { const tpl = (taskTemplates || []).find(tp => tp.id === f.templateId); return tpl ? <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>{t('ph.applied', tpl.name)}</div> : null; })()}
+          {phDerived && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span className={`badge b${phDerived.status[0]}`} style={{ fontSize: 10 }}>{phDerived.status === 'done' ? t('done') : phDerived.status === 'wip' ? t('wip') : t('open')}</span>
+            <div style={{ flex: 1, height: 4, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: phDerived.progress + '%', height: '100%', background: 'var(--ac)', borderRadius: 2, transition: 'width .2s' }} />
+            </div>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', width: 28, textAlign: 'right' }}>{phDerived.progress}%</span>
+          </div>}
+
+          {phases.map((ph, i) => {
+            const isCurrent = i === currentIdx;
+            const dot = ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○';
+            const dotColor = ph.status === 'done' ? 'var(--gn)' : ph.status === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+            return <div key={ph.id} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0',
+              background: isCurrent ? 'var(--bg3)' : 'transparent', borderRadius: 4, marginBottom: 2,
+            }}>
+              <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                onClick={() => advancePhase(ph.id)} title={`${ph.status} → click to advance`}>{dot}</span>
+              <input value={ph.name} onChange={e => renamePhase(ph.id, e.target.value)} onBlur={flushPhases}
+                style={{ flex: 1, fontSize: 11, background: 'transparent', border: 'none', color: ph.status === 'done' ? 'var(--tx3)' : 'var(--tx)', padding: '1px 2px', outline: 'none', textDecoration: ph.status === 'done' ? 'line-through' : 'none', minWidth: 0 }} />
+              {ph.team && <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{teamName(ph.team)}</span>}
+              <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                <button className="btn btn-sec btn-xs" style={{ padding: '1px 3px', fontSize: 9 }} disabled={i === 0} onClick={() => movePhase(i, -1)}>▲</button>
+                <button className="btn btn-sec btn-xs" style={{ padding: '1px 3px', fontSize: 9 }} disabled={i === phases.length - 1} onClick={() => movePhase(i, 1)}>▼</button>
+                <span style={{ cursor: 'pointer', fontSize: 10, color: 'var(--tx3)', opacity: .6, padding: '0 2px' }} onClick={() => removePhase(ph.id)}>×</span>
+              </div>
+            </div>;
+          })}
+
+          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            <button className="btn btn-sec btn-xs" onClick={addFreePhase}>{t('ph.addPhase')}</button>
+            <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={clearAll}>{t('ph.clearPhases')}</button>
+          </div>
+        </>}
+
+        {!hasPhases && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>
+          {t('ph.noPhases')}
+          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            {(taskTemplates || []).length > 0 && <SearchSelect
+              options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+              onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
+            <button className="btn btn-sec btn-xs" onClick={addFreePhase}>{t('ph.addPhase')}</button>
+          </div>
+        </div>}
       </div>;
     })()}
 

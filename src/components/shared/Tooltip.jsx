@@ -29,6 +29,12 @@ export function Tip({ item, x, y, teams, tree }) {
     </div></>}
     {item.isCp && <div className="tt-row"><span>{t('tt.cp')}</span><b style={{ color: 'var(--re)' }}>{t('tt.cpYes')}</b></div>}
     {item.note && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{item.note}</div></>}
+    {item.phases?.length > 0 && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>
+      <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('ph.phases')}</div>
+      {item.phases.map(ph => <div key={ph.id} style={{ marginLeft: 4 }}>
+        {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}{ph.team && teams ? ` — ${teams.find(tm => tm.id === ph.team)?.name || ph.team}` : ''}
+      </div>)}
+    </div></>}
     <hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('tt.dblClick')}</div>
   </div>;
 }

@@ -644,6 +644,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                 {/* Progress overlay: lighter strip on the left proportional to progress % */}
                 {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
                   return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
+                {/* Phase segments overlay */}
+                {node?.phases?.length > 1 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, display: 'flex', pointerEvents: 'none', borderRadius: 4, overflow: 'hidden' }}>
+                  {node.phases.map((ph, pi) => <div key={ph.id || pi} style={{
+                    flex: 1,
+                    borderRight: pi < node.phases.length - 1 ? '1px solid rgba(0,0,0,.2)' : 'none',
+                    background: ph.status === 'done' ? 'rgba(255,255,255,.15)' : ph.status === 'wip' ? 'transparent' : 'rgba(0,0,0,.12)',
+                  }} title={`${ph.name}: ${ph.status}`} />)}
+                </div>}
                 <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}

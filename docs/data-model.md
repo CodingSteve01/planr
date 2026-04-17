@@ -11,7 +11,8 @@ All types. No TypeScript — the code is plain JS — so these are documentation
   members: [Member],
   tree: [TreeItem],
   vacations: [Vacation],
-  holidays: [Holiday]
+  holidays: [Holiday],
+  taskTemplates: [TaskTemplate]  // optional
 }
 ```
 
@@ -49,7 +50,11 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
 
   // Scheduling overrides (on any item):
   decideBy,      // YYYY-MM-DD — decision gate date (amber/red diamond in Gantt)
-  pinnedStart    // YYYY-MM-DD — hard floor for the scheduler
+  pinnedStart,   // YYYY-MM-DD — hard floor for the scheduler
+
+  // Phases (non-root items only):
+  phases,        // [{id, name, team, status}] — workflow phases, undefined if none
+  templateId     // string — informational: which TaskTemplate was used (snapshot, not live ref)
 }
 ```
 
@@ -127,6 +132,38 @@ Vacation weeks zero a person's capacity for that week. Use this for booked, plan
 
 Holidays reduce the working-day count for affected weeks.
 
+## TaskTemplate
+
+```js
+{
+  id,       // stable ID, e.g. 'tpl_' + Date.now()
+  name,     // display name, e.g. "Full-Stack Programming"
+  phases    // [{ name, team }] — ordered list of phase blueprints
+}
+```
+
+Templates define reusable workflow blueprints. When applied to a task, the template's phases are **copied** (snapshot) — editing a template later does not retroactively change existing tasks.
+
+Stored at project level in `data.taskTemplates`, exported/imported with JSON and Markdown.
+
+## Phase (on TreeItem)
+
+```js
+{
+  id,       // unique within the task, e.g. 'ph' + Date.now()
+  name,     // phase name, e.g. "Requirements Engineering"
+  team,     // team ID responsible for this phase (can differ from task's team)
+  status    // "open" | "wip" | "done"
+}
+```
+
+- Phases are an ordered array — order = workflow sequence
+- Available on non-root nodes (leaves and parent nodes, but not top-level root items)
+- Phases do **not** affect the scheduler — the task's `best × factor` estimate covers all phases
+- When phases exist, task `status` and `progress` are auto-derived via `derivePhaseStatus()`:
+  - All done → done/100%, any wip or some done → wip/proportional, all open → open/0%
+- The manual progress slider is hidden when phases are present
+
 ## meta
 
 ```js
@@ -150,6 +187,8 @@ When a field is missing from an import:
 - `tree[].assign` → `[]`
 - `tree[].severity` → `"high"` (only on roots with a type)
 - `tree[].confidence` → `undefined` (auto-derived by `computeConfidence()`)
+- `tree[].phases` → `undefined` (no phases)
+- `tree[].templateId` → `undefined`
 - `members[].cap` → `1.0`
 - `members[].vac` → `25`
 - `meta.planStart` → today
