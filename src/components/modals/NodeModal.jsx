@@ -45,8 +45,18 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
   }
   const currentParentId = node.id.split('.').slice(0, -1).join('.');
   const parentOptions = [{ id: '', label: t('nm.topLevel') }, ...tree.filter(r => r.id !== node.id && !r.id.startsWith(node.id + '.')).map(r => ({ id: r.id, label: r.name }))];
-  const successors = tree.filter(r => (r.deps || []).includes(node.id));
-  const successorIds = new Set(successors.map(r => r.id));
+  // Inherited deps: deps from ancestors (parent dep blocks all leaves beneath it)
+  const inheritedDeps = (() => {
+    const own = new Set(node?.deps || []);
+    const inherited = [];
+    let aid = node?.id ? node.id.split('.').slice(0, -1).join('.') : '';
+    while (aid) {
+      const ancestor = tree.find(r => r.id === aid);
+      if (ancestor?.deps) ancestor.deps.forEach(d => { if (!own.has(d)) inherited.push({ dep: d, from: aid }); });
+      aid = aid.split('.').slice(0, -1).join('.');
+    }
+    return inherited;
+  })();
   const stat = !isLeaf ? stats?.[node.id] : null;
   const leafCountUnder = !isLeaf ? leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length : 0;
   const doneUnder = !isLeaf ? leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length : 0;
@@ -273,34 +283,26 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         </div>
       </>}
 
-      {/* ── 7. DEPENDENCIES ────────────────────────────────────────────── */}
-      <div className="frow" style={{ alignItems: 'flex-start' }}>
-        <div className="field" style={{ flex: 1 }}>
-          <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-            {(f.deps || []).map(d => { const dn = findById(d); return <div key={d} className="dep-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
-              </div>
-              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
-            </div>; })}
-          </div>
-          <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+      {/* ── 7. PREDECESSORS ────────────────────────────────────────────── */}
+      <div className="field">
+        <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+          {(f.deps || []).map(d => { const dn = findById(d); return <div key={d} className="dep-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+            </div>
+            <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
+          </div>; })}
+          {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
+              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+            </div>
+            <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+          </div>; })}
         </div>
-        <div className="field" style={{ flex: 1 }}>
-          <label>{t('qe.successors')}</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-            {successors.map(succ => <div key={succ.id} className="dep-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 600 }}>{succ.id}</span>
-                <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{succ.name}</span>
-              </div>
-              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) })}>×</span>
-            </div>)}
-          </div>
-          <SearchSelect options={allIds.filter(i => !successorIds.has(i) && i !== node.id && !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => { const tgt = findById(id); if (tgt) onUpdate({ ...tgt, deps: [...new Set([...(tgt.deps || []), node.id])] }); }} placeholder={`+ ${t('qe.successors')}`} showIds />
-        </div>
+        <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
       </div>
 
       {/* ── 9. STRUCTURE (rare) ─────────────────────────────────────────── */}

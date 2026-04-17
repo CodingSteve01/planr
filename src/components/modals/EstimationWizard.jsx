@@ -23,8 +23,9 @@ const RISK_DATA = [
   { id: 'unclear', key: 'ew.risk.unclear', weight: 0.2 },
 ];
 
-export function EstimationWizard({ node, tree, onSave, onClose }) {
+export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onClose }) {
   const { t } = useT();
+  const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
 
   const SIZES = useMemo(() => SIZE_DATA.map(s => ({ ...s, desc: t(s.key) })), [t]);
   const RISKS = useMemo(() => RISK_DATA.map(r => ({ ...r, label: t(r.key) })), [t]);
@@ -38,6 +39,8 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
   const [pessimistic, setPessimistic] = useState(Math.round((node?.best || 0) * 2));
   const [selDeps, setSelDeps] = useState(node?.deps || []);
   const [confidence, setConfidence] = useState(node?.confidence || '');
+  const [selTemplate, setSelTemplate] = useState(node?.templateId || '');
+  const [phases, setPhases] = useState(node?.phases || null);
 
   // PERT estimate: (O + 4R + P) / 6
   const pert = useMemo(() => (optimistic + 4 * realistic + pessimistic) / 6, [optimistic, realistic, pessimistic]);
@@ -187,7 +190,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
           {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}>×</span></span>; })}
         </div>
-        <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder="+ Add dependency" showIds />
+        <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
         {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>
           {t('ew.depsBlocked', selDeps.length)}
         </div>}
@@ -226,20 +229,50 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         {risks.size > 0 && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
           <strong>{t('ew.risksIdentified')}:</strong> {[...risks].map(id => RISKS.find(r => r.id === id)?.label).join(', ')}
         </div>}
-        {scope && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>Scope: {scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
+        {scope && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>{scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
         {confidence && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
           <strong>{t('qe.confidence')}:</strong> {confidence === 'committed' ? t('conf.committed.dot') + ' ' + t('conf.committed') : confidence === 'estimated' ? t('conf.estimated.dot') + ' ' + t('conf.estimated') : t('conf.exploratory.dot') + ' ' + t('conf.exploratory')}
         </div>}
-        {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('qe.predecessors')}: {selDeps.join(', ')}</div>}
+        {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{t('qe.predecessors')}: {selDeps.join(', ')}</div>}
+
+        {/* Template / Phases */}
+        {node?.id?.includes('.') ? <>
+          <div style={{ borderTop: '1px solid var(--b)', paddingTop: 10, marginTop: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)', marginBottom: 6 }}>{t('ph.phases')}</div>
+            {!phases?.length && tTemplates.length > 0 && <div className="field" style={{ marginBottom: 0 }}>
+              <SearchSelect options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
+                onSelect={tplId => {
+                  const tpl = tTemplates.find(tp => tp.id === tplId);
+                  if (!tpl) return;
+                  setSelTemplate(tplId);
+                  setPhases(tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' })));
+                }} placeholder={t('ph.applyTemplate')} />
+            </div>}
+            {phases?.length > 0 && <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
+                {phases.map(ph => {
+                  const tn = ph.team && (teams || []).find(tm => tm.id === ph.team)?.name;
+                  return <div key={ph.id} style={{ fontSize: 11, color: 'var(--tx2)', display: 'flex', gap: 6 }}>
+                    <span>○ {ph.name}</span>
+                    {tn && <span style={{ color: 'var(--tx3)' }}>— {tn}</span>}
+                  </div>;
+                })}
+              </div>
+              <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }}
+                onClick={() => { setPhases(null); setSelTemplate(''); }}>{t('ph.clearPhases')}</button>
+            </>}
+            {!phases?.length && !tTemplates.length && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('ph.noPhases')}</div>}
+          </div>
+        </> : null}
       </div>}
 
       {/* Navigation */}
       <div className="modal-footer">
-        {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>{t('back')}</button>}
-        <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
+        <div style={{ flex: 1 }} />
+        {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>{t('back')}</button>}
         {step < 6 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>{t('next')}</button>
-          : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '', confidence }); onClose(); }}>{t('ew.apply')}</button>}
+          : <button className="btn btn-pri" onClick={() => { const est = { best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '', confidence }; if (phases?.length) { est.phases = phases; est.templateId = selTemplate; } onSave(est); onClose(); }}>{t('ew.apply')}</button>}
       </div>
     </div>
   </div>;

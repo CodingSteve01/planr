@@ -165,6 +165,7 @@ const en = {
   'ph.confirmDeleteTpl': 'Delete template "{0}"?',
   'ph.applied': 'Template: {0}', 'ph.freePhase': 'New phase',
   'ph.moveUp': 'Move up', 'ph.moveDown': 'Move down',
+  'ph.via': 'via {0}',
 
   // ── TreeView ──
   'tv.collapseAll': 'Collapse all', 'tv.expandAll': 'Expand all',
@@ -334,6 +335,7 @@ const de = {
   'ph.confirmDeleteTpl': 'Vorlage „{0}" löschen?',
   'ph.applied': 'Vorlage: {0}', 'ph.freePhase': 'Neue Phase',
   'ph.moveUp': 'Nach oben', 'ph.moveDown': 'Nach unten',
+  'ph.via': 'via {0}',
 
   // ── TreeView ──
   'tv.collapseAll': 'Alle zuklappen', 'tv.expandAll': 'Alle aufklappen',

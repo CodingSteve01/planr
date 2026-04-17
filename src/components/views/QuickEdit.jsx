@@ -289,7 +289,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
       </div>
     </>}
 
-    {/* ── 7. DEPENDENCIES ──────────────────────────────────────────────── */}
+    {/* ── 7. PREDECESSORS ──────────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.predecessors')}{!isLeaf ? ` (${t('qe.allLeaves')})` : ''}</label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
         {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
@@ -302,25 +302,27 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
             <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => { const newDeps = (f.deps || []).filter(x => x !== d); const newLabels = { ...(f._depLabels || {}) }; delete newLabels[d]; const n = { ...f, deps: newDeps, _depLabels: newLabels }; setF(n); onUpdate(n); }}>×</span>
           </div>
         </div>; })}
+        {/* Inherited deps from ancestors */}
+        {(() => {
+          const ownSet = new Set(f.deps || []);
+          const inherited = [];
+          let aid = node.id.split('.').slice(0, -1).join('.');
+          while (aid) {
+            const ancestor = tree.find(r => r.id === aid);
+            if (ancestor?.deps) ancestor.deps.forEach(d => { if (!ownSet.has(d)) { inherited.push({ dep: d, from: aid }); ownSet.add(d); } });
+            aid = aid.split('.').slice(0, -1).join('.');
+          }
+          return inherited.map(({ dep, from }) => { const dn = tree.find(r => r.id === dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{dep}</span>
+              {dn?.name && <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+            </div>
+            <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+          </div>; });
+        })()}
       </div>
       <SearchSelect options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
     </div>
-    {(() => {
-      const successors = tree.filter(r => (r.deps || []).includes(node.id));
-      if (!successors.length) return null;
-      return <div className="field"><label>{t('qe.successors')}</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {successors.map(succ => <div key={succ.id} className="dep-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 600 }}>{succ.id}</span>
-              <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{succ.name}</span>
-            </div>
-            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }}
-              onClick={() => { if (confirm(t('qe.confirmRelease', succ.name))) onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) }); }}>×</span>
-          </div>)}
-        </div>
-      </div>;
-    })()}
 
     {/* ── ACTIONS ────────────────────────────────────────────────────────── */}
     <hr className="divider" />
