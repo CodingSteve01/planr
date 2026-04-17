@@ -234,6 +234,37 @@ export function exportCSV({ tree, meta }) {
   download(new Blob(['\uFEFF' + [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-${iso(new Date())}.csv`);
 }
 
+// ── Jira CSV (importable via Jira's built-in CSV importer) ───────────────────
+export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedIds }) {
+  const PRIO = { 1: 'Highest', 2: 'High', 3: 'Medium', 4: 'Low' };
+  const sMap = Object.fromEntries((scheduled || []).map(s => [s.id, s]));
+  const mMap = Object.fromEntries((members || []).map(m => [m.id, m]));
+  const tMap = Object.fromEntries((teams || []).map(t => [t.id, t]));
+
+  // Pick tasks: selected or all non-done leaves
+  let items = tree.filter(r => {
+    if (selectedIds?.size) return selectedIds.has(r.id);
+    const isLeaf = !tree.some(c => c.id !== r.id && c.id.startsWith(r.id + '.'));
+    return isLeaf && r.status !== 'done' && r.best > 0;
+  });
+
+  const esc = v => `"${String(v || '').replace(/"/g, '""')}"`;
+  const hdr = ['Summary', 'Description', 'Issue Type', 'Priority', 'Labels', 'Component', 'Original Estimate', 'Assignee', 'Epic Name', 'Parent ID'];
+  const rows = items.map(r => {
+    const sc = sMap[r.id];
+    const assignee = (r.assign || [])[0] ? (mMap[(r.assign || [])[0]]?.name || '') : (sc?.autoAssigned && sc.personId ? mMap[sc.personId]?.name || '' : '');
+    const teamName = tMap[r.team]?.name || r.team || '';
+    const rootId = r.id.split('.')[0];
+    const root = tree.find(x => x.id === rootId);
+    const estimate = r.best ? `${Math.round(r.best * (r.factor || 1.5))}d` : '';
+    const phases = r.phases?.length ? r.phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ') : '';
+    const desc = [r.note, phases ? `Phasen: ${phases}` : ''].filter(Boolean).join('\n');
+    return [esc(r.name), esc(desc), 'Task', PRIO[r.prio] || 'Medium', esc(teamName), esc(teamName), estimate, esc(assignee), esc(root?.name || rootId), r.id].join(',');
+  });
+
+  download(new Blob(['\uFEFF' + [hdr.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-jira-${iso(new Date())}.csv`);
+}
+
 // ── Report (HTML → new tab → print as PDF) ───────────────────────────────────
 export function exportReport(ctx) {
   const html = generateReport(ctx);
