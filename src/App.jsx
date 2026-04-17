@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
+import { useT } from './i18n.jsx';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
@@ -65,6 +66,7 @@ export function buildMemberShortMap(members) {
 }
 
 export default function App() {
+  const { t: _t } = useT();
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
@@ -1576,8 +1578,8 @@ export default function App() {
   // removed: topDownReady guide bubble (was blocking tree view)
 
   const TABS = [
-    { id: 'summary', label: 'Overview' }, { id: 'plan', label: 'Planning' }, { id: 'tree', label: 'Work Tree' }, { id: 'gantt', label: 'Schedule' },
-    { id: 'net', label: 'Network' }, { id: 'resources', label: 'Resources' }, { id: 'holidays', label: 'Holidays' },
+    { id: 'summary', label: _t('tab.summary') }, { id: 'plan', label: _t('tab.plan') }, { id: 'tree', label: _t('tab.tree') }, { id: 'gantt', label: _t('tab.gantt') },
+    { id: 'net', label: _t('tab.net') }, { id: 'resources', label: _t('tab.resources') }, { id: 'holidays', label: _t('tab.holidays') },
   ];
 
   return <div className="app">

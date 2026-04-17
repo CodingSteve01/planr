@@ -3,11 +3,13 @@ import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
+import { useT } from '../../i18n.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
 export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate }) {
+  const { t } = useT();
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -42,14 +44,14 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
   }, [upcoming, teams]);
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
 
-  const grouped = ORDER.map(t => ({ type: t, items: goals.filter(g => g.type === t) })).filter(g => g.items.length);
+  const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
   return <div style={{ maxWidth: 900 }}>
     {/* Progress header */}
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>
-      <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{done} done · {wip} in progress · {open} open of {lvs.length} leaf items</span>
-      {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }}>Projected end: {iso(latE)}</span>}
+      <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
+      {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }}>{t('s.projected')}: {iso(latE)}</span>}
     </div>
     <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
 
@@ -66,8 +68,8 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       if (!total) return null;
       return <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>Planning confidence</span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>Open Planning Review →</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('s.planConfidence')}</span>
+          <span style={{ fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10, background: 'var(--bg4)' }}>
           {cc.committed > 0 && <div style={{ width: `${cc.committed / total * 100}%`, background: 'var(--gr)', transition: 'width .3s' }} />}
@@ -75,17 +77,17 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
           {cc.exploratory > 0 && <div style={{ width: `${cc.exploratory / total * 100}%`, background: 'var(--tx3)', transition: 'width .3s' }} />}
         </div>
         <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
-          <span style={{ color: 'var(--gr)' }}>● {cc.committed} committed <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.committed.toFixed(0)} PT)</span></span>
-          <span style={{ color: 'var(--am)' }}>◐ {cc.estimated} estimated <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.estimated.toFixed(0)} PT)</span></span>
-          <span style={{ color: 'var(--tx3)' }}>○ {cc.exploratory} exploratory <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) + ' PT' : '? PT'})</span></span>
+          <span style={{ color: 'var(--gr)' }}>● {cc.committed} {t('conf.committed').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.committed.toFixed(0)} PT)</span></span>
+          <span style={{ color: 'var(--am)' }}>◐ {cc.estimated} {t('conf.estimated').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.estimated.toFixed(0)} PT)</span></span>
+          <span style={{ color: 'var(--tx3)' }}>○ {cc.exploratory} {t('conf.exploratory').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) + ' PT' : '? PT'})</span></span>
         </div>
       </div>;
     })()}
 
     {/* Focus */}
-    <div className="section-h" style={{ marginTop: 0 }}>Focus</div>
+    <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px' }}>{GT[g.type]} {GL[g.type]}s</div>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px' }}>{GT[g.type]} {t(g.type)}s</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
@@ -105,14 +107,14 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{daysLeft}d left</span>}
             <span style={{ marginLeft: 'auto' }}>
-              {dl.type === 'deadline' && isLate ? <span className="badge bc">AT RISK</span> : dl.type === 'deadline' && maxEnd ? <span className="badge bd">On track</span> : null}
-              {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} linked</span>}
+              {dl.type === 'deadline' && isLate ? <span className="badge bc">{t('s.atRisk')}</span> : dl.type === 'deadline' && maxEnd ? <span className="badge bd">{t('s.onTrack')}</span> : null}
+              {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
             </span>
           </div>
           {dl.description && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
           {gp && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
-              <span>{gpDone}/{gp.needed.length} tasks done · {gp.critical.size} on critical path</span>
+              <span>{t('s.tasksDone', gpDone + '/' + gp.needed.length, gp.critical.size)}</span>
               <span>{gpProg}%</span>
             </div>
             <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
@@ -128,10 +130,10 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     {/* Sprint planning — Up next per person/team */}
     {sprintGroups.length > 0 && <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 0 8px' }}>
-        <div className="section-h" style={{ margin: 0 }}>Up next</div>
-        <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(scheduled to start within)</span>
+        <div className="section-h" style={{ margin: 0 }}>{t('s.upNext')}</div>
+        <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('s.scheduledWithin')}</span>
         {[14, 30, 60, 90].map(d => <button key={d} className={`btn btn-xs ${horizonDays === d ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => setHd(d)}>{d}d</button>)}
-        <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{upcoming.length} tasks · {sprintGroups.length} {sprintGroups.length === 1 ? 'lane' : 'lanes'}</span>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{upcoming.length} {t('s.tasks')} · {sprintGroups.length} {sprintGroups.length === 1 ? t('s.lane') : t('s.lanes')}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10, marginBottom: 18 }}>
         {sprintGroups.map(g => <div key={g.key} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
@@ -167,23 +169,23 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     </>}
 
     {/* Team effort - compact */}
-    <div className="section-h">Resources</div>
+    <div className="section-h">{t('s.resources')}</div>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v">{members.length}</div><div className="sum-l">People</div></div>
-      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">Total PT</div></div>
-      {Object.entries(byT).sort().map(([t, d]) => { const team = teams.find(x => x.id === t);
-        return <div key={t} className="sum-card" style={{ minWidth: 100 }}>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || t}</div>
+      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v">{members.length}</div><div className="sum-l">{t('s.people')}</div></div>
+      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
+      {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
+        return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 600, color: team?.color || 'var(--tx)' }}>{d.pt.toFixed(0)} PT</div>
-          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{d.t} tasks</div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
         </div>; })}
     </div>
 
     {/* Project breakdown */}
     {tree.filter(r => r.lvl === 1).length > 0 && <>
-      <div className="section-h">Top Items</div>
+      <div className="section-h">{t('s.topItems')}</div>
       <table className="tree-tbl">
-        <thead><tr><th>Item</th><th className="r">Effort</th><th className="r">Progress</th><th>Projected end</th></tr></thead>
+        <thead><tr><th>Item</th><th className="r">{t('s.effort')}</th><th className="r">{t('s.progress')}</th><th>{t('s.projected')}</th></tr></thead>
         <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
           const leaves = lvs.filter(c => c.id === r.id || c.id.startsWith(r.id + '.'));
           const done = leaves.filter(l => l.status === 'done').length;

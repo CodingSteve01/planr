@@ -1,31 +1,37 @@
 import { useState, useMemo, useEffect } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { useT } from '../../i18n.jsx';
 
-const SIZES = [
-  { label: 'XS', days: 1, desc: 'Trivial change, config, typo fix' },
-  { label: 'S', days: 3, desc: 'Small feature, simple bugfix' },
-  { label: 'M', days: 7, desc: 'Standard feature, moderate complexity' },
-  { label: 'L', days: 15, desc: 'Large feature, multiple components' },
-  { label: 'XL', days: 30, desc: 'Major feature, cross-cutting concerns' },
-  { label: 'XXL', days: 45, desc: 'Epic, full module/system build' },
+const SIZE_DATA = [
+  { label: 'XS', days: 1, key: 'ew.xs' },
+  { label: 'S', days: 3, key: 'ew.s' },
+  { label: 'M', days: 7, key: 'ew.m' },
+  { label: 'L', days: 15, key: 'ew.l' },
+  { label: 'XL', days: 30, key: 'ew.xl' },
+  { label: 'XXL', days: 45, key: 'ew.xxl' },
 ];
 
-const RISKS = [
-  { id: 'new_tech', label: 'New technology / unknown territory', weight: 0.15 },
-  { id: 'external', label: 'External dependencies (APIs, partners)', weight: 0.1 },
-  { id: 'migration', label: 'Data migration involved', weight: 0.15 },
-  { id: 'ux', label: 'Significant UI/UX design needed', weight: 0.1 },
-  { id: 'stakeholder', label: 'Requires stakeholder alignment', weight: 0.1 },
-  { id: 'integration', label: 'Complex system integration', weight: 0.15 },
-  { id: 'legacy', label: 'Working with legacy code', weight: 0.1 },
-  { id: 'unclear', label: 'Requirements not fully clear', weight: 0.2 },
+const RISK_DATA = [
+  { id: 'new_tech', key: 'ew.risk.newTech', weight: 0.15 },
+  { id: 'external', key: 'ew.risk.external', weight: 0.1 },
+  { id: 'migration', key: 'ew.risk.migration', weight: 0.15 },
+  { id: 'ux', key: 'ew.risk.ux', weight: 0.1 },
+  { id: 'stakeholder', key: 'ew.risk.stakeholder', weight: 0.1 },
+  { id: 'integration', key: 'ew.risk.integration', weight: 0.15 },
+  { id: 'legacy', key: 'ew.risk.legacy', weight: 0.1 },
+  { id: 'unclear', key: 'ew.risk.unclear', weight: 0.2 },
 ];
 
 export function EstimationWizard({ node, tree, onSave, onClose }) {
+  const { t } = useT();
+
+  const SIZES = useMemo(() => SIZE_DATA.map(s => ({ ...s, desc: t(s.key) })), [t]);
+  const RISKS = useMemo(() => RISK_DATA.map(r => ({ ...r, label: t(r.key) })), [t]);
+
   const [step, setStep] = useState(0);
   const [scope, setScope] = useState(node?.note || '');
-  const [size, setSize] = useState(SIZES.findIndex(s => s.days === (node?.best || 0)) >= 0 ? SIZES.findIndex(s => s.days === (node?.best || 0)) : -1);
+  const [size, setSize] = useState(SIZE_DATA.findIndex(s => s.days === (node?.best || 0)) >= 0 ? SIZE_DATA.findIndex(s => s.days === (node?.best || 0)) : -1);
   const [risks, setRisks] = useState(new Set());
   const [optimistic, setOptimistic] = useState(node?.best || 0);
   const [realistic, setRealistic] = useState(Math.round((node?.best || 0) * 1.3));
@@ -35,7 +41,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
 
   // PERT estimate: (O + 4R + P) / 6
   const pert = useMemo(() => (optimistic + 4 * realistic + pessimistic) / 6, [optimistic, realistic, pessimistic]);
-  const riskFactor = useMemo(() => 1 + [...risks].reduce((s, id) => s + (RISKS.find(r => r.id === id)?.weight || 0), 0), [risks]);
+  const riskFactor = useMemo(() => 1 + [...risks].reduce((s, id) => s + (RISK_DATA.find(r => r.id === id)?.weight || 0), 0), [risks]);
   const finalBest = useMemo(() => Math.round(pert), [pert]);
   const finalFactor = useMemo(() => Math.round(riskFactor * 10) / 10, [riskFactor]);
   const finalRealistic = useMemo(() => finalBest * Math.min(finalFactor, 1.3) * 1.15, [finalBest, finalFactor]);
@@ -60,11 +66,11 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
     return out;
   }, [node, tree]);
 
-  const steps = ['Scope', 'Size', 'Risks', 'Three-Point', 'Dependencies', 'Confidence', 'Summary'];
+  const steps = t('ew.steps').split(',');
 
   function onSizeSelect(idx) {
     setSize(idx);
-    const d = SIZES[idx].days;
+    const d = SIZE_DATA[idx].days;
     setOptimistic(Math.round(d * 0.6));
     setRealistic(d);
     setPessimistic(Math.round(d * 1.8));
@@ -73,8 +79,8 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
   // Dirty detection: any user input that differs from the original node state
   const origScope = node?.note || '';
   const origDeps = (node?.deps || []).join(',');
-  const isDirty = scope !== origScope || size !== -1 && SIZES[size]?.days !== node?.best || risks.size > 0 || selDeps.join(',') !== origDeps;
-  const safeClose = () => { if (isDirty && !confirm('Discard your estimate inputs? Everything you entered will be lost.')) return; onClose(); };
+  const isDirty = scope !== origScope || size !== -1 && SIZE_DATA[size]?.days !== node?.best || risks.size > 0 || selDeps.join(',') !== origDeps;
+  const safeClose = () => { if (isDirty && !confirm(t('ew.discardConfirm'))) return; onClose(); };
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') safeClose(); };
     window.addEventListener('keydown', h);
@@ -91,7 +97,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         </span>)}
       </div>}
       <h2 style={{ flexWrap: 'wrap', gap: 8 }}>
-        <span>Estimation Wizard</span>
+        <span>{t('ew.title')}</span>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 12, fontWeight: 400 }}>{node?.id}</span>
         <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{node?.name}</span>
       </h2>
@@ -107,12 +113,12 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
 
       {/* Step 0: Scope */}
       {step === 0 && <div className="fade">
-        <div className="field"><label>What exactly needs to be done?</label>
+        <div className="field"><label>{t('ew.scopeQ')}</label>
           <textarea value={scope} onChange={e => setScope(e.target.value)} rows={4} placeholder="Describe the scope: what's included, what's not, acceptance criteria..." />
-          <p className="helper">Be specific. Vague scope = inaccurate estimates.</p>
+          <p className="helper">{t('ew.scopeHelp')}</p>
         </div>
         {relatedItems.length > 0 && <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>Similar tasks in this group (for reference)</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ew.scopeRelated')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {relatedItems.map(r => <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--tx2)', padding: '3px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
               <span>{r.id} — {r.name}</span>
@@ -124,20 +130,20 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
 
       {/* Step 1: T-Shirt Size */}
       {step === 1 && <div className="fade">
-        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>What's your gut feeling for the size of this task?</div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.sizeQ')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {SIZES.map((s, i) => <div key={s.label}
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: size === i ? 'var(--ac2)' + '22' : 'var(--bg3)', border: `1px solid ${size === i ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
             onClick={() => onSizeSelect(i)}>
             <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 16, width: 40, color: size === i ? 'var(--ac)' : 'var(--tx2)' }}>{s.label}</span>
-            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} days</div><div style={{ fontSize: 11, color: 'var(--tx3)' }}>{s.desc}</div></div>
+            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} {t('days')}</div><div style={{ fontSize: 11, color: 'var(--tx3)' }}>{s.desc}</div></div>
           </div>)}
         </div>
       </div>}
 
       {/* Step 2: Risks */}
       {step === 2 && <div className="fade">
-        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>Which risks apply to this task? Each adds to the uncertainty factor.</div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.risksQ')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {RISKS.map(r => <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: risks.has(r.id) ? 'var(--am)' + '15' : 'var(--bg3)', border: `1px solid ${risks.has(r.id) ? 'var(--am)' + '44' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}>
             <input type="checkbox" checked={risks.has(r.id)} onChange={() => setRisks(s => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })} />
@@ -146,56 +152,56 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
           </label>)}
         </div>
         <div className="calc" style={{ marginTop: 12 }}>
-          <span>Risk factor:</span><b style={{ color: riskFactor > 1.3 ? 'var(--re)' : 'var(--am)' }}>x{riskFactor.toFixed(2)}</b>
-          <span>{risks.size} risks selected</span>
+          <span>{t('ew.riskFactor')}:</span><b style={{ color: riskFactor > 1.3 ? 'var(--re)' : 'var(--am)' }}>x{riskFactor.toFixed(2)}</b>
+          <span>{t('ew.risksSelected', risks.size)}</span>
         </div>
       </div>}
 
       {/* Step 3: Three-point estimate */}
       {step === 3 && <div className="fade">
-        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>Refine with a three-point estimate (PERT method). The weighted average = (O + 4R + P) / 6</div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.threePointQ')}</div>
         <div className="frow">
-          <div className="field"><label>Optimistic (best case)</label>
+          <div className="field"><label>{t('ew.optimistic')}</label>
             <input type="number" min="0" value={optimistic} onChange={e => setOptimistic(+e.target.value)} />
-            <p className="helper">Everything goes perfectly</p>
+            <p className="helper">{t('ew.optHelp')}</p>
           </div>
-          <div className="field"><label>Realistic (most likely)</label>
+          <div className="field"><label>{t('ew.realisticLabel')}</label>
             <input type="number" min="0" value={realistic} onChange={e => setRealistic(+e.target.value)} />
-            <p className="helper">Normal conditions</p>
+            <p className="helper">{t('ew.realHelp')}</p>
           </div>
-          <div className="field"><label>Pessimistic (worst case)</label>
+          <div className="field"><label>{t('ew.pessimistic')}</label>
             <input type="number" min="0" value={pessimistic} onChange={e => setPessimistic(+e.target.value)} />
-            <p className="helper">Murphy's law applies</p>
+            <p className="helper">{t('ew.pessHelp')}</p>
           </div>
         </div>
         <div className="calc">
-          <span>PERT:</span><b>{pert.toFixed(1)} days</b>
-          <span>Std dev:</span><b>{((pessimistic - optimistic) / 6).toFixed(1)}d</b>
-          <span>Confidence range:</span><b>{Math.round(pert - (pessimistic - optimistic) / 6)}–{Math.round(pert + (pessimistic - optimistic) / 6)}d</b>
+          <span>{t('ew.pert')}:</span><b>{pert.toFixed(1)} {t('days')}</b>
+          <span>{t('ew.stdDev')}:</span><b>{((pessimistic - optimistic) / 6).toFixed(1)}d</b>
+          <span>{t('ew.confRange')}:</span><b>{Math.round(pert - (pessimistic - optimistic) / 6)}–{Math.round(pert + (pessimistic - optimistic) / 6)}d</b>
         </div>
       </div>}
 
       {/* Step 4: Dependencies */}
       {step === 4 && <div className="fade">
-        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>What must be finished before this task can start?</div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.depsQ')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
           {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}>×</span></span>; })}
         </div>
         <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder="+ Add dependency" showIds />
         {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>
-          This task is blocked by {selDeps.length} item{selDeps.length > 1 ? 's' : ''}. The scheduler will only start it after all dependencies are done.
+          {t('ew.depsBlocked', selDeps.length)}
         </div>}
       </div>}
 
       {/* Step 5: Confidence */}
       {step === 5 && <div className="fade">
-        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>Wie sicher bist du dir bei Scope und Aufwand?</div>
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.confQ')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            ['', 'Auto (Planr entscheidet)', 'Basierend auf Person/Aufwand/Risiko wird automatisch eine Confidence abgeleitet.'],
-            ['committed', '● Committed — klar definiert', 'Scope ist klar, Aufwand belastbar geschätzt, Person bekannt oder bestimmbar.'],
-            ['estimated', '◐ Estimated — grob geschätzt', 'Aufwand ist eine grobe Einschätzung, Scope grundsätzlich bekannt, Details noch offen.'],
-            ['exploratory', '○ Exploratory — Scope unklar', 'Wir wissen noch nicht genau was zu tun ist. Erst Konzeption nötig, dann neue Schätzung.'],
+            ['', t('ew.confAuto'), t('ew.confAutoDesc')],
+            ['committed', t('ew.confCommitted'), t('ew.confCommittedDesc')],
+            ['estimated', t('ew.confEstimated'), t('ew.confEstimatedDesc')],
+            ['exploratory', t('ew.confExploratory'), t('ew.confExploratoryDesc')],
           ].map(([v, label, desc]) => <div key={v}
             style={{ padding: '10px 14px', background: confidence === v ? (v === 'exploratory' ? 'rgba(127,127,127,.12)' : v === 'estimated' ? 'rgba(245,158,11,.10)' : v === 'committed' ? 'rgba(22,163,74,.10)' : 'var(--bg3)') : 'var(--bg3)', border: `1px solid ${confidence === v ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
             onClick={() => setConfidence(v)}>
@@ -204,36 +210,36 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
           </div>)}
         </div>
         {riskFactor > 1.3 && !confidence && <div style={{ marginTop: 10, fontSize: 11, color: 'var(--am)', background: 'rgba(245,158,11,.08)', padding: '8px 12px', borderRadius: 'var(--r)' }}>
-          Du hast {risks.size} Risiken markiert (Factor ×{riskFactor.toFixed(1)}). Bei so viel Unsicherheit solltest du "Estimated" oder "Exploratory" in Betracht ziehen.
+          {t('ew.confRiskHint', risks.size, riskFactor.toFixed(1))}
         </div>}
       </div>}
 
       {/* Step 6: Summary */}
       {step === 6 && <div className="fade">
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Estimation Summary</div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>{t('ew.summary')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-          <div className="sum-card"><div className="sum-v">{finalBest}</div><div className="sum-l">Best case (days)</div></div>
-          <div className="sum-card"><div className="sum-v" style={{ color: 'var(--am)' }}>x{finalFactor}</div><div className="sum-l">Uncertainty factor</div></div>
-          <div className="sum-card"><div className="sum-v" style={{ color: 'var(--gr)' }}>{finalRealistic.toFixed(0)}</div><div className="sum-l">Realistic (days)</div></div>
-          <div className="sum-card"><div className="sum-v">{Math.round(finalBest * finalFactor)}</div><div className="sum-l">Worst case (days)</div></div>
+          <div className="sum-card"><div className="sum-v">{finalBest}</div><div className="sum-l">{t('ew.bestCase')}</div></div>
+          <div className="sum-card"><div className="sum-v" style={{ color: 'var(--am)' }}>x{finalFactor}</div><div className="sum-l">{t('ew.uncertaintyFactor')}</div></div>
+          <div className="sum-card"><div className="sum-v" style={{ color: 'var(--gr)' }}>{finalRealistic.toFixed(0)}</div><div className="sum-l">{t('ew.realisticDays')}</div></div>
+          <div className="sum-card"><div className="sum-v">{Math.round(finalBest * finalFactor)}</div><div className="sum-l">{t('ew.worstCase')}</div></div>
         </div>
         {risks.size > 0 && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
-          <strong>Risks identified:</strong> {[...risks].map(id => RISKS.find(r => r.id === id)?.label).join(', ')}
+          <strong>{t('ew.risksIdentified')}:</strong> {[...risks].map(id => RISKS.find(r => r.id === id)?.label).join(', ')}
         </div>}
         {scope && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>Scope: {scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
         {confidence && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
-          <strong>Confidence:</strong> {confidence === 'committed' ? '● Committed' : confidence === 'estimated' ? '◐ Estimated' : '○ Exploratory'}
+          <strong>{t('qe.confidence')}:</strong> {confidence === 'committed' ? t('conf.committed.dot') + ' ' + t('conf.committed') : confidence === 'estimated' ? t('conf.estimated.dot') + ' ' + t('conf.estimated') : t('conf.exploratory.dot') + ' ' + t('conf.exploratory')}
         </div>}
-        {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Dependencies: {selDeps.join(', ')}</div>}
+        {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('qe.predecessors')}: {selDeps.join(', ')}</div>}
       </div>}
 
       {/* Navigation */}
       <div className="modal-footer">
-        {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>Back</button>}
+        {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>{t('back')}</button>}
         <div style={{ flex: 1 }} />
-        <button className="btn btn-sec" onClick={safeClose}>Cancel</button>
-        {step < 6 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>Next</button>
-          : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '', confidence }); onClose(); }}>Apply estimate</button>}
+        <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
+        {step < 6 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>{t('next')}</button>
+          : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '', confidence }); onClose(); }}>{t('ew.apply')}</button>}
       </div>
     </div>
   </div>;

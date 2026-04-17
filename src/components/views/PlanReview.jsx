@@ -2,17 +2,19 @@ import { useMemo, useState } from 'react';
 import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds } from '../../utils/scheduler.js';
 import { diffDays } from '../../utils/date.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { useT } from '../../i18n.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
 export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet, stats, onOpenItem, onUpdate }) {
+  const { t } = useT();
   const [section, setSection] = useState('decide'); // decide | capacity | blocked
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const lvs = useMemo(() => leafNodes(tree), [tree]);
   const doneSet = useMemo(() => new Set(lvs.filter(r => r.status === 'done').map(r => r.id)), [lvs]);
-  const teamName = id => teams.find(t => t.id === id)?.name || id || '';
+  const teamName = id => teams.find(tm => tm.id === id)?.name || id || '';
   const memberName = id => members.find(m => m.id === id)?.name || id;
 
   // Build ancestor breadcrumb for an item: "P1 › P1.1 › P1.1.1"
@@ -80,7 +82,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
   // ── Section: CAPACITY (per team) ───────────────────────────────────────────
   const teamCapacity = useMemo(() => {
     const cap = {};
-    teams.forEach(t => { cap[t.id] = { name: t.name, color: t.color, members: [], committedPt: 0, unassignedPt: 0, unassignedCount: 0 }; });
+    teams.forEach(tm => { cap[tm.id] = { name: tm.name, color: tm.color, members: [], committedPt: 0, unassignedPt: 0, unassignedCount: 0 }; });
     members.forEach(m => {
       if (cap[m.team]) cap[m.team].members.push(m);
     });
@@ -91,13 +93,13 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
       if ((r.assign || []).length > 0) cap[tk].committedPt += pt;
       else if (r.best > 0) { cap[tk].unassignedPt += pt; cap[tk].unassignedCount++; }
     });
-    return Object.values(cap).filter(t => t.committedPt > 0 || t.unassignedPt > 0 || t.members.length > 0);
+    return Object.values(cap).filter(tm => tm.committedPt > 0 || tm.unassignedPt > 0 || tm.members.length > 0);
   }, [teams, members, lvs]);
 
   // ── Item card (shared between sections) ────────────────────────────────────
   function ItemCard({ item, showBlockedBy }) {
     const node = iMap[item.id]; if (!node) return null;
-    const team = teams.find(t => t.id === item.team);
+    const team = teams.find(tm => tm.id === item.team);
     const crumbs = breadcrumb(item.id);
     const conf = item.conf || confidence[item.id] || 'committed';
     const isCp = item.isCp ?? cpSet?.has(item.id);
@@ -137,7 +139,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
       </div>
       {/* Blocked-by info */}
       {blockedBy.length > 0 && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>
-        Wartet auf: {blockedBy.map((b, i) => <span key={b.id}>
+        {t('p.waitingFor')}: {blockedBy.map((b, i) => <span key={b.id}>
           {i > 0 && ', '}
           <span style={{ fontFamily: 'var(--mono)', color: 'var(--am)', cursor: 'pointer' }} onClick={() => onOpenItem?.(b.id)}>{b.id}</span>
           {' '}{b.name?.slice(0, 30)}
@@ -162,7 +164,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
             const m = members.find(x => x.id === id);
             onUpdate?.({ ...node, assign: [...new Set([...(node.assign || []), id])], team: m?.team || node.team });
           }}
-          placeholder="Person zuweisen..."
+          placeholder={t('p.assignPerson')}
         />
       </div>}
     </div>;
@@ -179,10 +181,10 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
           <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 12, color: col }}>{CL[c]}</span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700, color: col }}>{confCounts[c]}</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{c === 'committed' ? 'klar' : c === 'estimated' ? 'braucht Person' : 'unklar'}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{c === 'committed' ? t('p.clear') : c === 'estimated' ? t('p.needsPerson') : t('p.unclear')}</span>
           </span>)}
       </div>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{confCounts.done} erledigt</span>
+      <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{confCounts.done} {t('p.finished')}</span>
     </div>
     {total > 0 && <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 20, background: 'var(--bg4)' }}>
       <div style={{ width: `${confCounts.committed / total * 100}%`, background: 'var(--gr)' }} />
@@ -193,9 +195,9 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
     {/* Section tabs */}
     <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
       {[
-        ['decide', `Entscheidungen (${readyItems.length})`],
-        ['capacity', 'Teamauslastung'],
-        ['blocked', `Geblockt (${blockedItems.length})`],
+        ['decide', `${t('p.decisions')} (${readyItems.length})`],
+        ['capacity', t('p.teamCapacity')],
+        ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
       ].map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
@@ -204,11 +206,11 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
     {/* ── DECIDE section ────────────────────────────────────────────────── */}
     {section === 'decide' && <>
       {readyItems.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)' }}>
-        <div style={{ fontSize: 20, marginBottom: 8 }}>Alles vergeben</div>
-        <div style={{ fontSize: 12 }}>Jedes startbereite Item hat eine Person.</div>
+        <div style={{ fontSize: 20, marginBottom: 8 }}>{t('p.allAssigned')}</div>
+        <div style={{ fontSize: 12 }}>{t('p.allAssignedDesc')}</div>
       </div>}
       {readyItems.length > 0 && <p style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
-        Diese {readyItems.length} Items sind <b>startbereit</b> (keine blockierenden Abhängigkeiten), aber noch ohne Person. Wer soll sie machen?
+        {t('p.readyItems', readyItems.length)}
       </p>}
       {/* Group by team for clarity */}
       {(() => {
@@ -219,12 +221,12 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
           byTeam[tk].push(r);
         });
         return Object.entries(byTeam).map(([tk, items]) => {
-          const team = teams.find(t => t.id === tk);
+          const team = teams.find(tm => tm.id === tk);
           const teamMembers = members.filter(m => m.team === tk);
           return <div key={tk} style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${team?.color || 'var(--b)'}` }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: team?.color || 'var(--tx2)' }}>{team?.name || 'Kein Team'}</span>
-              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{items.length} Items · {items.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0).toFixed(0)} PT</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: team?.color || 'var(--tx2)' }}>{team?.name || t('noTeam')}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{items.length} {t('p.items')} · {items.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0).toFixed(0)} {t('pt')}</span>
               {teamMembers.length > 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>
                 Team: {teamMembers.map(m => `${m.name.split(' ')[0]}${m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : ''}`).join(', ')}
               </span>}
@@ -251,7 +253,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
               return <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 3 }}>
                 <span style={{ flex: 1 }}>{m.name}</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{m.cap < 1 ? `${Math.round(m.cap * 100)}%` : '100%'}</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: personPt > 0 ? 'var(--gr)' : 'var(--tx3)' }}>{personPt.toFixed(0)} PT</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: personPt > 0 ? 'var(--gr)' : 'var(--tx3)' }}>{personPt.toFixed(0)} {t('pt')}</span>
               </div>;
             })}
           </div>
@@ -261,8 +263,8 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
             <div style={{ width: `${100 - commitPct}%`, background: tc.unassignedPt > 0 ? 'var(--am)' : 'transparent' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
-            <span style={{ color: 'var(--gr)' }}>{tc.committedPt.toFixed(0)} PT zugewiesen</span>
-            {tc.unassignedPt > 0 && <span style={{ color: 'var(--am)' }}>{tc.unassignedPt.toFixed(0)} PT offen ({tc.unassignedCount})</span>}
+            <span style={{ color: 'var(--gr)' }}>{tc.committedPt.toFixed(0)} {t('pt')} {t('p.assigned')}</span>
+            {tc.unassignedPt > 0 && <span style={{ color: 'var(--am)' }}>{tc.unassignedPt.toFixed(0)} {t('pt')} {t('p.open')} ({tc.unassignedCount})</span>}
           </div>
         </div>;
       })}
@@ -271,10 +273,10 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
     {/* ── BLOCKED section ───────────────────────────────────────────────── */}
     {section === 'blocked' && <>
       {blockedItems.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)' }}>
-        <div style={{ fontSize: 12 }}>Keine geblockten Items ohne Person.</div>
+        <div style={{ fontSize: 12 }}>{t('p.noBlocked')}</div>
       </div>}
       {blockedItems.length > 0 && <p style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
-        Diese Items brauchen eine Person, können aber erst starten wenn ihre Abhängigkeiten erledigt sind.
+        {t('p.blockedDesc')}
       </p>}
       {blockedItems.map(r => <ItemCard key={r.id} item={r} showBlockedBy />)}
     </>}

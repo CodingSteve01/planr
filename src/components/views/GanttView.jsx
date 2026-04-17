@@ -4,13 +4,15 @@ import { iso, addD, addWorkDays } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
+import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
-const NO_PERSON = '(unassigned)';
 const NO_PROJECT = '__none__';
 
 export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+  const { t } = useT();
+  const NO_PERSON = t('unassigned');
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -100,7 +102,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         const t = teams.find(x => x.id === tid);
         return {
           key: parentKey + 'team:' + tid,
-          label: tid === NO_TEAM ? 'No team' : (t?.name || tid),
+          label: tid === NO_TEAM ? t('noTeam') : (t?.name || tid),
           color: tid === NO_TEAM ? NO_TEAM_COLOR : (t?.color || '#3b82f6'),
           items: subItems,
         };
@@ -419,8 +421,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
 
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
-      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div>
-      <div style={{ fontSize: 12 }}>Add tasks to see the Gantt chart.</div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('g.noItems')}</div>
+      <div style={{ fontSize: 12 }}>{t('g.addTasks')}</div>
     </div>
   </div>;
 
@@ -430,8 +432,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Group</span>
-          {[['project', 'Project'], ['projteam', 'Project › Team'], ['team', 'Team'], ['person', 'Person']].map(([k, l]) =>
+          <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('g.group')}</span>
+          {[['project', t('g.project')], ['projteam', t('g.projTeam')], ['team', t('g.team')], ['person', t('g.person')]].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
         </div>
       </div>
@@ -494,7 +496,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1 }} title={confL}>{confDot}</span>}
             {s._unestimated
-              ? <span className="badge bw" style={{ fontSize: 9 }}>no estimate</span>
+              ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
               : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} title={s.person}>{sn(s.personId, s.person)}</span>}
             <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
           </div>;
@@ -744,13 +746,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     </div>
     <div className="gantt-footer">
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
-        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>Zoom</span>
-        <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} title="Week view (compact)" style={{ padding: '2px 7px', fontSize: 10 }}>Week</button>
-        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} title="Day view (7-day calendar, weekends grayed)" style={{ padding: '2px 7px', fontSize: 10 }}>Day</button>
+        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
+        <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
+        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-        <button className="btn btn-sec btn-xs" onClick={scrollToToday} title="Scroll to today" style={{ padding: '2px 7px', fontSize: 10 }}>Today</button>
+        <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
       </div>
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         {searchMatchList.length
@@ -762,7 +764,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ' AT RISK' : dl.maxEnd ? ' on track' : ''}
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
-      {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} no estimate</span>}
+      {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
@@ -778,7 +780,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
       </span>}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 Drop on a bar to link as dependency</span>}
-      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>Bar drag ← → = pin · ↑ ↓ = reorder queue · edge handle = link · Right-click = more</span>}
+      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('g.barHelp')}</span>}
     </div>
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
@@ -807,29 +809,29 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         <div onClick={close} onContextMenu={e => { e.preventDefault(); close(); }} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
         <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 200 }}>
           <div style={{ padding: '5px 10px', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', borderBottom: '1px solid var(--b)', marginBottom: 4 }}>{ctxMenu.taskId} — {node.name?.slice(0, 30)}</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 Open / edit…</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }} title="This task must finish before the next clicked task starts">⬇ Add a successor… (this → other)</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }} title="The next clicked task must finish before this one starts">⬆ Add a predecessor… (other → this)</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 {t('g.ctxEdit')}</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }}>⬇ {t('g.ctxSucc')}</div>
+          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }}>⬆ {t('g.ctxPred')}</div>
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }}
             onClick={() => { onTaskUpdate?.({ ...node, parallel: !node.parallel }); close(); }}>
-            {node.parallel ? '≡ Sequential (disable parallel)' : '≡ Run in parallel'}
+            {node.parallel ? `≡ ${t('g.ctxSequential')}` : `≡ ${t('g.ctxParallel')}`}
           </div>
           {onReorderInQueue && !node.parallel && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Queue order</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }}>⤒ Run first</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'earlier'); close(); }}>▲ Run earlier</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'later'); close(); }}>▼ Run later</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }}>⤓ Run last</div>
+            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxQueueOrder')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'earlier'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'later'); close(); }}>▼ {t('g.ctxRunLater')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
           </>}
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           {node.pinnedStart
-            ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 Unpin (currently {node.pinnedStart})</div>
-            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: iso(sched.startD) }); } close(); }}>📌 Pin to current start</div>}
+            ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 {t('g.ctxUnpin')} ({node.pinnedStart})</div>
+            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: iso(sched.startD) }); } close(); }}>📌 {t('g.ctxPinCurrent')}</div>}
           {node.deps?.length > 0 && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Remove dependency</div>
+            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxRemoveDep')}</div>
             {node.deps.map(d => <div key={d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× {d}</div>)}
           </>}
         </div>
