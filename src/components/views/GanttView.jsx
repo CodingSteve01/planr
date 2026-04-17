@@ -809,7 +809,6 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
       {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
-      <span className="badge bo" title={t('g.horizonLegendTip')}>{t('g.horizonLegend')}</span>
       {/* Confidence legend */}
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
@@ -825,7 +824,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
       </span>}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 Drop on a bar to link as dependency</span>}
-      {!linkMode && !linkDrag && <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('g.barHelp')}</span>}
+      {/* Bar-help text removed — discoverable via right-click context menu */}
     </div>
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
