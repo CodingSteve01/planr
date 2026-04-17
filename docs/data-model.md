@@ -42,6 +42,11 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   date,          // target date (YYYY-MM-DD) for deadlines
   description,   // long-form description, richer than `note`
 
+  // Confidence (on any item):
+  confidence,    // "committed" | "estimated" | "exploratory" | undefined
+                 // If set, overrides the auto-derived value from computeConfidence().
+                 // Parents inherit the worst confidence from their children.
+
   // Scheduling overrides (on any item):
   decideBy,      // YYYY-MM-DD — decision gate date (amber/red diamond in Gantt)
   pinnedStart    // YYYY-MM-DD — hard floor for the scheduler
@@ -63,6 +68,14 @@ A node is a leaf iff no other node has it as a prefix-parent. `isLeafNode(tree, 
 
 - **Leaves**: explicit `progress` 0-100, or derived from status (`done` = 100, `wip` = 50, else 0)
 - **Parents**: weighted average of leaf progress, weights = realistic effort (`best × factor`). Cascades up through all ancestors via `treeStats(tree)`.
+
+### Confidence inheritance
+
+- **Leaves**: auto-derived by `computeConfidence()` from assignment, estimate, and risk factors. Can be overridden by setting the `confidence` field explicitly.
+- **Parents**: inherit the worst (least confident) level from their children:
+  - `exploratory` > `estimated` > `committed` (worst wins)
+  - A parent with one `committed` child and one `exploratory` child is `exploratory`.
+- The auto-derivation logic: committed = has person + estimate + low risk; estimated = has estimate but no person; exploratory = scope unclear (no estimate or high risk).
 
 ## Member
 
@@ -136,6 +149,7 @@ When a field is missing from an import:
 - `tree[].deps` → `[]`
 - `tree[].assign` → `[]`
 - `tree[].severity` → `"high"` (only on roots with a type)
+- `tree[].confidence` → `undefined` (auto-derived by `computeConfidence()`)
 - `members[].cap` → `1.0`
 - `members[].vac` → `25`
 - `meta.planStart` → today

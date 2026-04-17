@@ -56,6 +56,14 @@ Two paths:
 
 T-shirt sizes are purely visual (XS/S/M/L/XL/XXL) and are derived from `best`.
 
+**Confidence** is auto-derived per leaf based on assignment, estimate, and risk factors. You can override it manually or via the Estimation Wizard (which now includes a dedicated Confidence step suggesting a level based on the risks you entered). Three levels:
+
+- **Committed** — person assigned, estimate in place, low risk
+- **Estimated** — estimate exists but no person assigned yet
+- **Exploratory** — scope unclear, no estimate, or high risk
+
+Parents inherit the worst confidence from their children. Confidence drives bar styling in the Gantt (solid/striped/dashed) and feeds into the Planning Review tab.
+
 ## 5. Assign people
 
 On each leaf:
@@ -98,12 +106,17 @@ See [scheduler.md](scheduler.md) for the algorithm.
 
 ## 8. Review the result
 
-Four views, each with a different lens:
+Five views, each with a different lens:
 
 - **Tree** — structure and progress
-- **Gantt** — timeline, conflicts, critical path — see [gantt.md](gantt.md)
+- **Gantt** — timeline, conflicts, critical path, confidence bar styling — see [gantt.md](gantt.md)
 - **Network** — dependency topology and critical path — see [network-graph.md](network-graph.md)
 - **Summary** — per-goal progress, deadline risk, team load
+- **Planning** — the Planning Review tab with three sections:
+  - **Decisions** — items that are ready (no blocking deps) but need a person assigned. Quick-assign inline.
+  - **Team Capacity** — per-team member load overview
+  - **Blocked** — items waiting on unfinished dependencies
+  - Shows breadcrumbs for easy navigation to any item.
 
 Toggle **Critical Path Only** in the Gantt to dim everything non-critical.
 
@@ -143,6 +156,13 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle multi-selection |
 | `Shift+Click` | Range-select in tree |
+
+## Language and theme settings
+
+Open **Settings** (gear icon in the topbar) to configure:
+
+- **Language** — Auto / English / Deutsch. "Auto" follows `navigator.language`. The app uses ~350 translated keys; all UI labels, tooltips, and the HTML report are bilingual.
+- **Theme** — Dark / Light / Auto. "Auto" follows your OS preference (`prefers-color-scheme`). The choice is persisted in `localStorage`.
 
 ## Interaction conventions (important)
 

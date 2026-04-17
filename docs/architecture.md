@@ -8,7 +8,8 @@ Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript, no t
 |---|---|
 | Framework | Vite 6 + React 18 |
 | Language | JavaScript (ES modules) — no TypeScript, no PropTypes |
-| Styling | CSS with theme variables (`--bg`, `--tx`, `--ac`, etc.); dark + light palettes |
+| Styling | CSS with theme variables (`--bg`, `--tx`, `--ac`, etc.); dark + light palettes; switched via `data-theme` on `<html>` |
+| i18n | Lightweight, ~350 keys in `src/i18n.jsx`; React context + `useT()` hook; Auto/EN/DE |
 | Persistence | `localStorage` + File System Access API |
 | Deployment | GitHub Pages via `gh-pages` branch (`peaceiris/actions-gh-pages` workflow) |
 | Routing | None — everything is one page with tabs |
@@ -34,6 +35,7 @@ src/
       DLView.jsx           — deadlines / goals summary
       SumView.jsx          — per-goal progress summary
       QuickEdit.jsx        — sidebar editor (primary interaction)
+      PlanReview.jsx       — Planning Review tab (Decisions, Team Capacity, Blocked)
       Onboard.jsx          — first-launch onboarding
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
@@ -48,11 +50,15 @@ src/
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
   utils/
-    scheduler.js           — auto-scheduling engine — see docs/scheduler.md
+    scheduler.js           — auto-scheduling engine + computeConfidence() — see docs/scheduler.md
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
     holidays.js            — NRW holiday algorithm + week grid builder
     fileHandleStore.js     — File System Access API persistence layer
+    exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
+    markdown.js            — Markdown serialization (parseMdToProject, buildMarkdownText)
+    report.js              — HTML report generation (bilingual, auto-print)
+  i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
 docs/                      — this directory
 data/                      — gitignored private project data
 ```
@@ -81,6 +87,7 @@ Derived values via `useMemo`:
 - `leaves` — `leafNodes(tree)`
 - `shortNamesMap` — member short-name lookup
 - `weeks` — week grid from the scheduler
+- `confidenceMap` — per-item confidence (auto-derived via `computeConfidence()`, with manual overrides)
 
 Every mutation goes through `setData(d => ...)` with a functional updater. Functions like `updateNode`, `removeDep`, `addDep` always read the latest tree state from the functional updater argument — no stale-closure overwrites.
 
@@ -112,6 +119,26 @@ every 5s:
 - **Per-goal** — for each tree root, CPM restricted to leaves under that root. Result: `goalPaths` — `{ rootId: Set<id> }`.
 
 Both use earliest-start / latest-finish forward/backward passes. Slack is zero on the critical path, positive everywhere else.
+
+## Confidence model
+
+Three levels: **committed**, **estimated**, **exploratory**. Computed automatically by `computeConfidence()` in `scheduler.js` based on whether a task has an assignee, an estimate, and low risk indicators. Can be overridden manually via the `confidence` field on any item. Parents inherit the worst confidence from their children (exploratory > estimated > committed). The confidence map feeds into the Gantt (bar styling, horizon lines, legend) and the Planning Review tab.
+
+## Internationalization (i18n)
+
+`src/i18n.jsx` provides a lightweight translation system with ~350 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys.
+
+## Theme system
+
+Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.).
+
+## Code split (exports)
+
+Export-related logic has been extracted from `App.jsx` into dedicated modules:
+
+- `src/utils/exports.js` — CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions
+- `src/utils/markdown.js` — Markdown parsing (`parseMdToProject`) and writing (`buildMarkdownText`)
+- `src/utils/report.js` — HTML report generation (bilingual, opens in new tab, auto-triggers print)
 
 ## Design decisions (non-obvious)
 

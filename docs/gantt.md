@@ -39,6 +39,10 @@ When zoom reaches 70 px / week or more:
 
 - **Colored by team** — solid team color as the bar fill (100 % opacity), matched to the network graph's root-node style
 - **White bold text** with a subtle `0 1px 1.5px rgba(0,0,0,.3)` shadow for legibility on the lighter team palette entries
+- **Confidence-based styling** — bar appearance reflects the item's confidence level:
+  - **Committed** — solid fill (the default team-colored bar)
+  - **Estimated** — striped/hatched pattern over the team color
+  - **Exploratory** — dashed outline instead of a solid bar
 - **Critical-path bars** get a 1.5 px red inset ring (via `.cp-bar`). A link-mode blue outline takes precedence when the user is actively creating a dependency.
 - **Row hover** is a neutral rgba tint (`rgba(127,127,127,.10)` for direct, `.05` for connected rows) so the bar color stays untouched
 - **Dragging cursor** appears on hover; link-mode switches to a crosshair
@@ -111,6 +115,19 @@ The search field in the sub-toolbar (top right, shared across Tree / Gantt / Net
 
 `Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
+## Hover tooltips (left panel)
+
+Hovering a row label in the left panel shows a tooltip with task details (same style as the Network Graph tooltips). Includes name, team, assignee, estimate, confidence, dates, and status.
+
+## Horizon lines
+
+Two vertical reference lines help visualize planning confidence boundaries:
+
+- **H1 (committed boundary)** — approximately 8 weeks out. Items before this line should ideally be at "committed" confidence.
+- **H2 (estimated boundary)** — approximately 18 weeks out. Items before this line should be at least "estimated".
+
+These are visual guides, not hard constraints. They help reviewers quickly spot items that are too far in the future to still lack assignment or estimates.
+
 ## Today marker
 
 A solid green vertical line at the current week. No badge in the header — the line is enough.
@@ -130,6 +147,7 @@ Below the bar area:
 - **Critical path: N** — click to toggle dim-non-critical mode
 - **N no estimate** — count of unestimated leaves (they're listed but uncheduled)
 - **Link-mode hint** — shown while a link-mode or link-drag is active
+- **Confidence legend** — visual key explaining bar styling for each confidence level (solid = committed, striped = estimated, dashed = exploratory)
 
 ## Keyboard-less conventions
 

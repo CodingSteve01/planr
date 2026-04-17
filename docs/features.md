@@ -9,7 +9,7 @@ Full catalog of what Planr does. Grouped by area. Links point to detail docs whe
 - **Hierarchical sort** — children always follow parents; collapse/expand all
 - **Sibling reorder** — move a selected item up / down / to first / to last within its sibling group; all IDs (including descendants) and dep references auto-renumber
 - **Contextual action toolbar** — a sticky row above the tree surfaces reorder + delete for the currently selected item; per-row actions collapse to just `+` (add child)
-- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click selects a range; bulk edit team, priority, status, assignee
+- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click selects a range; bulk edit team, priority, status, assignee, confidence
 - **Status derivation** — parent status is computed from children (done / wip / open)
 - **Progress tracking** — 0–100 % slider on leaves; weighted (by realistic effort) cascade to parents; circular indicator in the network graph
 
@@ -27,6 +27,13 @@ See [scheduler.md](scheduler.md) for semantics.
 - **NRW public holidays** — built-in via Easter algorithm; custom holidays supported
 - **Explicit vacation weeks** — per person, zero-capacity weeks
 - **Blanket vacation deduction** — remaining unplanned vacation days reduce weekly capacity proportionally
+
+## Planning Confidence Model
+
+- **Three levels** — committed (person + estimate + low risk), estimated (estimate but no person), exploratory (scope unclear)
+- **Auto-derived** — `computeConfidence()` in `scheduler.js` determines confidence from task state (assignment, estimate, risk factors)
+- **Manual override** — set `confidence` field on any item to override the auto-derived value
+- **Parent inheritance** — parents inherit the worst confidence from their children (exploratory > estimated > committed)
 
 ## Critical path
 
@@ -49,6 +56,10 @@ See [gantt.md](gantt.md).
 - **Click an arrow to remove it** — "×" badge at the arrow origin
 - **Right-click context menu** — open editor, add predecessor/successor, pin/unpin, remove dep
 - **Solid team-colored bars** — white bold text with subtle shadow for legibility across the team palette
+- **Confidence-based bar styling** — committed = solid fill, estimated = striped, exploratory = dashed outline
+- **Horizon lines** — H1 (committed boundary, ~8 weeks) and H2 (estimated boundary, ~18 weeks) vertical markers in the Gantt body
+- **Confidence legend** — footer section explaining bar styling for each confidence level
+- **Hover tooltips on left panel** — same tooltip style as the Network Graph, shown on row hover
 - **CP marker** — 1.5 px red inset ring on the bar (doesn't fight the link-mode outline)
 - **Deadline flags with backfill** — flag-shaped pennant at the deadline week plus a gradient backfill stretching up to 8 weeks left; at-risk flags show an `!`
 - **Today marker** — green vertical line
@@ -72,10 +83,23 @@ See [network-graph.md](network-graph.md).
 - **Gantt view** — timeline with grouping
 - **Network view** — subway-style graph
 - **Summary view** — per-goal progress, deadlines, risks
+- **Planning Review tab** — three sections: Decisions (ready items needing a person), Team Capacity (per-team member load), Blocked (items waiting on deps). Quick-assign inline. Shows breadcrumbs.
 - **Resources view** — teams + members (teams live here, not in Settings)
 - **Holidays view** — edit holidays directly
 
-## QuickEdit sidebar
+## QuickEdit sidebar + NodeModal
+
+QuickEdit and NodeModal share a unified logical structure with the same sections:
+
+- **Identity + Notes** — name, description, notes
+- **Status + Progress** — status, progress slider
+- **Assignment** — team, person (searchable dropdowns)
+- **Estimation** — quick buttons + best/factor/priority + confidence + scheduled info + Estimation Wizard
+- **Scheduling** — decide by, pinned start, parallel, queue
+- **Dependencies** — predecessors and successors
+- **Structure** — advanced options (available in NodeModal)
+
+QuickEdit-specific:
 
 - **Primary interaction** — single click on a node opens the sidebar
 - **Searchable dropdowns** (`SearchSelect`) for any list with more than 5 items; popup renders via React Portal so it escapes modal overflow clipping and auto-flips upward when there's no room below
@@ -95,7 +119,7 @@ See [network-graph.md](network-graph.md).
 ## Estimation
 
 - **Inline** — `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly on leaves
-- **Estimation Wizard** — PERT 3-point (optimistic, likely, pessimistic) → expected days + factor
+- **Estimation Wizard** — 7-step PERT wizard: optimistic, likely, pessimistic inputs plus a Confidence step that suggests confidence based on risk factors. Options: Auto / Committed / Estimated / Exploratory, each with explanations.
 
 ## Persistence
 
@@ -113,20 +137,33 @@ See [import-export.md](import-export.md).
 ## Import / Export
 
 - **JSON** — full-fidelity round-trip
-- **Markdown** — functional round-trip (all semantic fields; team/member IDs are regenerated)
+- **Markdown** — functional round-trip (all semantic fields; team/member IDs are regenerated). Supports confidence tags: `{conf:committed}`, `{conf:estimated}`, `{conf:exploratory}`.
 - **CSV** — tabular export
 - **Sprint Markdown** — horizon-filtered task list grouped by person
 - **Mermaid** — dependency graph
 - **SVG** — network graph and Gantt chart
 - **PNG** — rasterized SVG (both)
+- **HTML Report** — comprehensive bilingual HTML report via Export menu. Opens in a new tab and auto-triggers print. Sections: KPIs, Risks, Confidence, Roadmap, Goals/Deadlines, Team Capacity, Critical Path, Detailed Schedule.
 - **Print / PDF** — browser-native
+
+## Internationalization (i18n)
+
+- **Lightweight system** — `src/i18n.jsx`, ~350 keys, React context + `useT()` hook
+- **Language selector** — Settings modal: Auto / English / Deutsch
+- **No external library** — all translations inline
+
+## Theme switching
+
+- **Manual toggle** — Dark / Light / Auto in Settings
+- **CSS via `data-theme`** — `data-theme="light"` or `data-theme="dark"` on `<html>`
+- **Persisted** in `localStorage`
 
 ## Interaction rules
 
 - **No double-click** anywhere — sidebar is primary, ⊞ button opens the full modal
 - **Save button is a disk icon** next to the filename (not a big topbar button)
 - **Names everywhere** — internal IDs are never shown to the user
-- **Dark / Light mode** — system preference by default
+- **Dark / Light / Auto mode** — manual toggle in Settings; defaults to system preference
 
 ## Keyboard shortcuts
 

@@ -114,6 +114,28 @@ If capacity runs out before the effort is consumed, the task's `endWi` is capped
 
 If an assignee is impossible (e.g. no team capacity at all), `tEW[id]` is pinned at the earliest-possible index and the task is dropped from the results.
 
+## `computeConfidence()`
+
+Also in `scheduler.js`, `computeConfidence()` auto-derives a confidence level for each item in the tree. It runs alongside the scheduler and produces a confidence map consumed by the Gantt, Planning Review tab, and export functions.
+
+### Logic
+
+For each **leaf**:
+
+- **Committed** — the item has an assignee (`assign` is non-empty), an estimate (`best > 0`), and no high-risk indicators
+- **Estimated** — the item has an estimate but no assignee
+- **Exploratory** — the item has no estimate, or has high-risk indicators (scope unclear)
+
+A manual `confidence` field on the item overrides the auto-derived value.
+
+For each **parent**:
+
+- Inherits the **worst** confidence from its children. The ordering is: exploratory (worst) > estimated > committed (best). If any child is exploratory, the parent is exploratory.
+
+### Output
+
+Returns a map: `{ [itemId]: "committed" | "estimated" | "exploratory" }`. This is memoized in `App.jsx` alongside the other derived values.
+
 ## Known limitations
 
 - **No cycle detection** — a cyclic dep graph will behave unpredictably

@@ -76,6 +76,16 @@ Read [architecture.md](architecture.md). Key constraints:
 - **Network graph changes** → read [network-graph.md](network-graph.md). The layout was iterated on many times; don't undo optimization without a reason.
 - **Import/export changes** → read [import-export.md](import-export.md). Round-trip fidelity is a real constraint.
 
+## Internationalization (i18n) workflow
+
+All user-facing strings go through the `useT()` hook from `src/i18n.jsx`. When adding or modifying any visible text:
+
+1. Add a key to the translations object in `src/i18n.jsx`
+2. Provide **both** an English and a German value
+3. Use `t('your.key')` in the component instead of a raw string
+
+There are ~350 keys currently. The convention is dot-separated namespaces (e.g. `gantt.zoom`, `settings.language`, `review.decisions`). "Auto" language follows `navigator.language`.
+
 ## Licensing
 
 MIT. Contributions are accepted under the same license.

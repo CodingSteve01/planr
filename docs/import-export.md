@@ -15,7 +15,7 @@ The `.json` format is the internal data shape serialized directly via `JSON.stri
 
 ### Markdown — human-readable
 
-The `.md` format is human-editable and renders nicely in any Markdown viewer (GitHub, Obsidian, etc.). The parser is [`parseMdToProject`](../src/App.jsx#L315) and the writer is [`buildMarkdownText`](../src/App.jsx#L1125), both in `App.jsx`.
+The `.md` format is human-editable and renders nicely in any Markdown viewer (GitHub, Obsidian, etc.). The parser is `parseMdToProject` and the writer is `buildMarkdownText`, both in `src/utils/markdown.js`.
 
 **Sections:**
 
@@ -40,7 +40,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `×factor`: only if factor != 1.5
 - `NN%`: progress (only if 1–99)
 - `[assignees]`: short names, comma-separated
-- `{tags}`: `prio:N`, `seq:N`, severity (only when non-default)
+- `{tags}`: `prio:N`, `seq:N`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
 - Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*…*` for notes
 
@@ -53,7 +53,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 
 | Field group | JSON ↔ JSON | MD ↔ MD | JSON → MD → JSON |
 |---|---|---|---|
-| All tree item fields (name, status, team, best, factor, prio, seq, severity, progress, type, date, decideBy, pinnedStart, parallel, deps, dep-labels, assign, note, description) | ✓ | ✓ | ✓ (via name-lookup) |
+| All tree item fields (name, status, team, best, factor, prio, seq, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, dep-labels, assign, note, description) | ✓ | ✓ | ✓ (via name-lookup) |
 | Member fields (name, team, role, cap, vac, start) | ✓ | ✓ | ✓ |
 | Team fields (name, color) | ✓ | ✓ | ✓ |
 | Vacations | ✓ | ✓ | ✓ |
@@ -126,6 +126,23 @@ Both use `XMLSerializer` to dump the live SVG DOM.
 ### PNG
 
 - `exportNetworkPNG()` and `exportGanttPNG()` — rasterize the SVG via a canvas and download as PNG
+
+### HTML Report
+
+`generateReport()` in `src/utils/report.js` — comprehensive bilingual HTML report accessible via the Export menu. Opens in a new browser tab and auto-triggers the print dialog.
+
+**Sections:**
+
+- KPIs — key project indicators
+- Risks — flagged risk items
+- Confidence — breakdown by confidence level (committed/estimated/exploratory)
+- Roadmap — high-level timeline
+- Goals / Deadlines — status per root item
+- Team Capacity — per-team member load
+- Critical Path — the critical chain with slack values
+- Detailed Schedule — full task-level schedule
+
+The report respects the current language setting (EN or DE).
 
 ### Print / PDF
 
