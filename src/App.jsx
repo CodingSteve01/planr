@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { exportJSON, exportPDF, exportNetworkSVG, exportNetworkPNG, exportGanttSVG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportCSV, exportJiraCSV, exportReport } from './utils/exports.js';
+import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReport } from './utils/exports.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
@@ -15,16 +15,15 @@ import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView } from './components/views/ResView.jsx';
 import { HolView } from './components/views/HolView.jsx';
-import { DLView } from './components/views/DLView.jsx';
 import { SumView } from './components/views/SumView.jsx';
 import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
 import { AddModal } from './components/modals/AddModal.jsx';
 import { SettingsModal } from './components/modals/SettingsModal.jsx';
-import { DLModal } from './components/modals/DLModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
+import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 
@@ -1299,18 +1298,15 @@ export default function App() {
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; const ctx = { ..._exportCtx(), selectedIds: multiSel.size > 0 ? multiSel : null }; if (v === 'report') exportReport(ctx); else if (v === 'csv') exportCSV(ctx); else if (v === 'jira') exportJiraCSV(ctx); else if (v === 'sprint') exportSprintMarkdown(ctx); else if (v === 'svg-net') exportNetworkSVG(ctx); else if (v === 'png-net') exportNetworkPNG(ctx); else if (v === 'svg-gantt') exportGanttSVG(ctx); else if (v === 'png-gantt') exportGanttPNG(ctx); else if (v === 'mermaid') exportMermaid(ctx); else if (v === 'print') exportPDF(); else if (v === 'json') exportJSON(ctx); }}>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; const ctx = { ..._exportCtx(), selectedIds: multiSel.size > 0 ? multiSel : null }; if (v === 'jira') { setModal('jira'); } else if (v === 'report') exportReport(ctx); else if (v === 'sprint') exportSprintMarkdown(ctx); else if (v === 'png-net') exportNetworkPNG(ctx); else if (v === 'png-gantt') exportGanttPNG(ctx); else if (v === 'mermaid') exportMermaid(ctx); else if (v === 'json') exportJSON(ctx); }}>
         <option value="">Export ▾</option>
-        <option value="report">📄 {_t('tab.plan')} Report (PDF)</option>
-        <option value="jira">Jira (CSV Import){multiSel.size > 0 ? ` · ${multiSel.size} selected` : ''}</option>
-        <option value="sprint">TODO lists / Sprint plan (Markdown)</option>
-        <option value="csv">Tasks (CSV)</option>
-        {tab === 'net' && <option value="svg-net">Network (SVG)</option>}
-        {tab === 'net' && <option value="png-net">Network (PNG)</option>}
-        {tab === 'gantt' && <option value="svg-gantt">Gantt (SVG)</option>}
+        <option value="jira">Jira…</option>
+        <option value="report">Summary (PDF)</option>
+        <option value="sprint">Sprint TODO (Markdown)</option>
+        {tab === 'net' && <option value="png-net">Netzwerk (PNG)</option>}
         {tab === 'gantt' && <option value="png-gantt">Gantt (PNG)</option>}
         <option value="mermaid">Mermaid (Confluence)</option>
-        <option value="print">Print</option>
+        <option value="json">Backup (JSON)</option>
       </select>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
@@ -1535,5 +1531,6 @@ export default function App() {
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
+    {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
   </div>;
 }

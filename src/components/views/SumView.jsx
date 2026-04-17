@@ -4,6 +4,7 @@ import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/schedule
 import { iso, diffDays } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
+import { Roadmap } from '../shared/Roadmap.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
@@ -58,6 +59,9 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }}>{t('s.projected')}: {iso(latE)}</span>}
     </div>
     <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
+
+    {/* Roadmap bus-line */}
+    <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} />
 
     {/* Planning confidence */}
     {(() => {
