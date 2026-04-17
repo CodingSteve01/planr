@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
 import { iso, addD, addWorkDays } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
+import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { useT } from '../../i18n.jsx';
@@ -645,13 +646,17 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                 {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
                   return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
                 {/* Phase segments overlay */}
-                {node?.phases?.length > 1 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, display: 'flex', pointerEvents: 'none', borderRadius: 4, overflow: 'hidden' }}>
-                  {node.phases.map((ph, pi) => <div key={ph.id || pi} style={{
-                    flex: 1,
-                    borderRight: pi < node.phases.length - 1 ? '1px solid rgba(0,0,0,.2)' : 'none',
-                    background: ph.status === 'done' ? 'rgba(255,255,255,.15)' : ph.status === 'wip' ? 'transparent' : 'rgba(0,0,0,.12)',
-                  }} title={`${ph.name}: ${ph.status}`} />)}
-                </div>}
+                {node?.phases?.length > 1 && (() => {
+                  const phases = normalizePhases(node.phases);
+                  const shares = phaseWeightShares(phases);
+                  return <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, display: 'flex', pointerEvents: 'none', borderRadius: 4, overflow: 'hidden' }}>
+                    {phases.map((ph, pi) => <div key={ph.id || pi} style={{
+                      flex: `${shares[pi] || 1} 0 0`,
+                      borderRight: pi < phases.length - 1 ? '1px solid rgba(0,0,0,.2)' : 'none',
+                      background: ph.status === 'done' ? 'rgba(255,255,255,.15)' : ph.status === 'wip' ? 'transparent' : 'rgba(0,0,0,.12)',
+                    }} title={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
+                  </div>;
+                })()}
                 <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
@@ -773,6 +778,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
       {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
+      <span className="badge bo" title={t('g.horizonLegendTip')}>{t('g.horizonLegend')}</span>
       {/* Confidence legend */}
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
@@ -809,7 +815,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       })()}
     </svg>}
     {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
-    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} tree={tree} />}
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} />}
     {ctxMenu && (() => {
       const node = iMap[ctxMenu.taskId]; if (!node) return null;
       const close = () => setCtxMenu(null);

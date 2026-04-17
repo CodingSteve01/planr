@@ -3,6 +3,7 @@
 // buildMarkdownText: project data → .md text (for saving)
 import { iso } from './date.js';
 import { buildMemberShortMap } from '../App.jsx';
+import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
 
 // ── Export: data → Markdown ──────────────────────────────────────────────────
 export function buildMarkdownText({ tree, members, teams, vacations, data, meta }) {
@@ -65,11 +66,10 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
     const depItems = (r.deps || []).map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
     const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';
-    const phases = (r.phases || []).length ? `\n${indent}  *Phasen: ${r.phases.map(p => {
-      const pStatus = p.status === 'done' ? '✅' : p.status === 'wip' ? '🟡' : '○';
-      const pTeam = p.team ? `(${teamName(p.team)})` : '';
-      return `${pStatus}${p.name}${pTeam}`;
-    }).join(', ')}*` : '';
+    const phases = (r.phases || []).length ? `\n${indent}  *Phasen: ${r.phases.map(p => formatPhaseToken(p, {
+      teamName,
+      memberLabel: memberShort,
+    })).join(', ')}*` : '';
     const note = r.note ? `\n${indent}  *${r.note}*` : '';
     const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
     const date = r.date ? ` (${r.date})` : '';
@@ -84,13 +84,12 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   if ((data?.taskTemplates || []).length) {
     md += `\n## Task Templates\n\n`;
     data.taskTemplates.forEach(tpl => {
-      md += `### ${tpl.name}\n`;
-      tpl.phases.forEach((p, i) => {
-        const pTeam = p.team ? ` — ${teamName(p.team)}` : '';
-        md += `${i + 1}. ${p.name}${pTeam}\n`;
-      });
-      md += '\n';
+    md += `### ${tpl.name}\n`;
+    tpl.phases.forEach((p, i) => {
+      md += `${i + 1}. ${formatTemplatePhaseLine(p, teamName)}\n`;
     });
+    md += '\n';
+  });
   }
 
   return md;

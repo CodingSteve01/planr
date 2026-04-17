@@ -1,7 +1,8 @@
 import { iso } from '../../utils/date.js';
+import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 
-export function Tip({ item, x, y, teams, tree }) {
+export function Tip({ item, x, y, teams, members, tree }) {
   const { t } = useT();
   if (!item) return null;
   const sx = Math.min(x + 14, window.innerWidth - 300), sy = Math.max(y - 60, 8);
@@ -32,7 +33,10 @@ export function Tip({ item, x, y, teams, tree }) {
     {item.phases?.length > 0 && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>
       <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('ph.phases')}</div>
       {item.phases.map(ph => <div key={ph.id} style={{ marginLeft: 4 }}>
-        {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}{ph.team && teams ? ` — ${teams.find(tm => tm.id === ph.team)?.name || ph.team}` : ''}
+        {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
+        {ph.effortPct ? ` · ${ph.effortPct}%` : ''}
+        {phaseTeamLabel(ph, teams) ? ` — ${phaseTeamLabel(ph, teams)}` : ''}
+        {phaseAssigneeLabel(ph, members) ? ` · ${phaseAssigneeLabel(ph, members)}` : ''}
       </div>)}
     </div></>}
     <hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('tt.dblClick')}</div>

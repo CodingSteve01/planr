@@ -53,7 +53,7 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   pinnedStart,   // YYYY-MM-DD — hard floor for the scheduler
 
   // Phases (non-root items only):
-  phases,        // [{id, name, team, status}] — workflow phases, undefined if none
+  phases,        // [{id, name, team, teams, assign, effortPct, status}] — workflow phases, undefined if none
   templateId     // string — informational: which TaskTemplate was used (snapshot, not live ref)
 }
 ```
@@ -138,7 +138,7 @@ Holidays reduce the working-day count for affected weeks.
 {
   id,       // stable ID, e.g. 'tpl_' + Date.now()
   name,     // display name, e.g. "Full-Stack Programming"
-  phases    // [{ name, team }] — ordered list of phase blueprints
+  phases    // [{ name, team, teams, effortPct }] — ordered list of phase blueprints
 }
 ```
 
@@ -152,7 +152,10 @@ Stored at project level in `data.taskTemplates`, exported/imported with JSON and
 {
   id,       // unique within the task, e.g. 'ph' + Date.now()
   name,     // phase name, e.g. "Requirements Engineering"
-  team,     // team ID responsible for this phase (can differ from task's team)
+  team,     // first team ID (legacy convenience field)
+  teams,    // [teamId] — one or more responsible teams
+  assign,   // [memberId] — one or more responsible people
+  effortPct,// optional effort share in percent
   status    // "open" | "wip" | "done"
 }
 ```
@@ -162,6 +165,7 @@ Stored at project level in `data.taskTemplates`, exported/imported with JSON and
 - Phases do **not** affect the scheduler — the task's `best × factor` estimate covers all phases
 - When phases exist, task `status` and `progress` are auto-derived via `derivePhaseStatus()`:
   - All done → done/100%, any wip or some done → wip/proportional, all open → open/0%
+  - If `effortPct` is set, progress is weighted by effort share instead of treating every phase equally
 - The manual progress slider is hidden when phases are present
 
 ## meta

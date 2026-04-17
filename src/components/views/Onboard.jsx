@@ -6,6 +6,7 @@ export function Onboard({onCreate,onLoad,fRef}){
       <div className="feat-grid">
         {[['🌳','Work Tree','Hierarchical WBS with deps & multiple assignments'],
           ['📅','Auto-schedule','Person-level parallel scheduling + capacity planning'],
+          ['🧭','3 Horizons','Committed, estimated, exploratory planning windows'],
           ['⚡','Critical Path','CPM analysis — see what drives your end date'],
           ['🕸','Network Graph','Visual dependency map, zoom/pan, click to edit'],
           ['🎯','Focus Areas','Goals, painpoints, deadlines, and top-down planning'],

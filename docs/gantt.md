@@ -43,6 +43,7 @@ When zoom reaches 70 px / week or more:
   - **Committed** — solid fill (the default team-colored bar)
   - **Estimated** — striped/hatched pattern over the team color
   - **Exploratory** — dashed outline instead of a solid bar
+- **Weighted phase overlay** — if a task has phases, the subtle phase segmentation inside the bar uses phase effort percentages instead of equal-width slices
 - **Critical-path bars** get a 1.5 px red inset ring (via `.cp-bar`). A link-mode blue outline takes precedence when the user is actively creating a dependency.
 - **Row hover** is a neutral rgba tint (`rgba(127,127,127,.10)` for direct, `.05` for connected rows) so the bar color stays untouched
 - **Dragging cursor** appears on hover; link-mode switches to a crosshair
@@ -125,6 +126,7 @@ Two vertical reference lines help visualize planning confidence boundaries:
 
 - **H1 (committed boundary)** — approximately 8 weeks out. Items before this line should ideally be at "committed" confidence.
 - **H2 (estimated boundary)** — approximately 18 weeks out. Items before this line should be at least "estimated".
+- **H3 (exploratory zone)** — everything after H2. Work this far out may still be exploratory, but the app now calls that out explicitly in the footer and Summary view.
 
 These are visual guides, not hard constraints. They help reviewers quickly spot items that are too far in the future to still lack assignment or estimates.
 
@@ -146,6 +148,7 @@ Below the bar area:
 - **Deadline badges** per goal — green "on track", red "at risk", or yellow plain
 - **Critical path: N** — click to toggle dim-non-critical mode
 - **N no estimate** — count of unestimated leaves (they're listed but uncheduled)
+- **Planning horizon legend** — explicit H1 / H2 / H3 reminder so the confidence model is visible without prior training
 - **Link-mode hint** — shown while a link-mode or link-drag is active
 - **Confidence legend** — visual key explaining bar styling for each confidence level (solid = committed, striped = estimated, dashed = exploratory)
 

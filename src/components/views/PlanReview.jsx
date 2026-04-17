@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds } from '../../utils/scheduler.js';
+import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus } from '../../utils/scheduler.js';
 import { diffDays } from '../../utils/date.js';
+import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { useT } from '../../i18n.jsx';
 
@@ -9,7 +10,7 @@ const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(-
 
 export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet, stats, onOpenItem, onUpdate }) {
   const { t } = useT();
-  const [section, setSection] = useState('decide'); // decide | capacity | blocked
+  const [section, setSection] = useState('decide'); // decide | phases | capacity | blocked
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const lvs = useMemo(() => leafNodes(tree), [tree]);
@@ -78,6 +79,42 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
 
   const readyItems = decideItems.filter(r => r.ready);
   const blockedItems = decideItems.filter(r => !r.ready);
+
+  const phaseTodos = useMemo(() => {
+    return lvs
+      .filter(r => r.status !== 'done' && Array.isArray(r.phases) && r.phases.length > 0)
+      .flatMap(r => {
+        const phases = normalizePhases(r.phases);
+        const currentIdx = phases.findIndex(phase => phase.status !== 'done');
+        return phases.flatMap((phase, index) => {
+          if (phase.status === 'done') return [];
+          return [{
+            task: r,
+            phase,
+            phaseIndex: index,
+            current: index === currentIdx,
+            ready: isReady(r.id),
+            owners: phaseAssigneeIds(phase),
+            teams: phaseTeamIds(phase),
+          }];
+        });
+      })
+      .sort((a, b) => {
+        if (a.current !== b.current) return a.current ? -1 : 1;
+        if (a.ready !== b.ready) return a.ready ? -1 : 1;
+        return a.task.id.localeCompare(b.task.id) || a.phaseIndex - b.phaseIndex;
+      });
+  }, [lvs, doneSet]);
+
+  function updatePhase(node, phaseId, patch) {
+    const nextPhases = normalizePhases(node.phases).map(phase => phase.id === phaseId ? createPhaseDraft({ ...phase, ...patch }) : createPhaseDraft(phase));
+    const derived = derivePhaseStatus(nextPhases);
+    onUpdate?.({
+      ...node,
+      phases: nextPhases,
+      ...(derived ? { status: derived.status, progress: derived.progress } : {}),
+    });
+  }
 
   // ── Section: CAPACITY (per team) ───────────────────────────────────────────
   const teamCapacity = useMemo(() => {
@@ -196,6 +233,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
     <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
       {[
         ['decide', `${t('p.decisions')} (${readyItems.length})`],
+        ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
         ['capacity', t('p.teamCapacity')],
         ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
       ].map(([k, l]) =>
@@ -234,6 +272,77 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
             {items.map(r => <ItemCard key={r.id} item={r} />)}
           </div>;
         });
+      })()}
+    </>}
+
+    {/* ── PHASES section ───────────────────────────────────────────────── */}
+    {section === 'phases' && <>
+      {phaseTodos.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)' }}>
+        <div style={{ fontSize: 12 }}>{t('p.noPhaseTodos')}</div>
+      </div>}
+      {phaseTodos.length > 0 && <p style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
+        {t('p.phaseTodosDesc', phaseTodos.length)}
+      </p>}
+      {(() => {
+        const groups = new Map();
+        phaseTodos.forEach(entry => {
+          const ownerIds = entry.owners.length ? entry.owners : entry.teams.length ? entry.teams.map(teamId => `team:${teamId}`) : ['unassigned'];
+          ownerIds.forEach(ownerId => {
+            if (!groups.has(ownerId)) {
+              const isTeam = ownerId.startsWith('team:');
+              const teamId = isTeam ? ownerId.slice(5) : null;
+              groups.set(ownerId, {
+                key: ownerId,
+                label: ownerId === 'unassigned'
+                  ? t('unassigned')
+                  : isTeam
+                    ? `${teamName(teamId)} ${t('qe.team').toLowerCase()}`
+                    : memberName(ownerId),
+                items: [],
+                color: isTeam ? (teams.find(team => team.id === teamId)?.color || 'var(--b3)') : 'var(--ac)',
+              });
+            }
+            groups.get(ownerId).items.push(entry);
+          });
+        });
+        return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)).map(group => <div key={group.key} style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 4, borderBottom: `2px solid ${group.color}` }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{group.label}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{group.items.length} {t('p.items')}</span>
+          </div>
+          {group.items.map(({ task, phase, current, ready }) => <div key={`${task.id}_${phase.id}`} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderLeft: `3px solid ${current ? 'var(--ac)' : ready ? 'var(--gr)' : 'var(--am)'}`, borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: phase.status === 'wip' ? 'var(--ac)' : 'var(--tx3)' }}>{phase.status === 'wip' ? '◐' : '○'}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600 }}>{task.id}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, flex: 1, cursor: 'pointer' }} onClick={() => onOpenItem?.(task.id)}>{phase.name} · {task.name}</span>
+              {current && <span className="badge bo">{t('ph.currentPhase')}</span>}
+              {phase.effortPct && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{phase.effortPct}%</span>}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 8 }}>
+              {phaseTeamLabel(phase, teams) && <span>{phaseTeamLabel(phase, teams)}</span>}
+              {phaseTeamLabel(phase, teams) && phaseAssigneeLabel(phase, members) && <span> · </span>}
+              {phaseAssigneeLabel(phase, members) && <span>{phaseAssigneeLabel(phase, members)}</span>}
+              {!ready && <span> · {t('p.waitingFor')}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-sec btn-xs" onClick={() => updatePhase(task, phase.id, { status: phase.status === 'open' ? 'wip' : phase.status === 'wip' ? 'done' : 'open' })}>{t('p.advancePhase')}</button>
+              <div style={{ minWidth: 200, flex: 1 }}>
+                <SearchSelect
+                  options={members.filter(member => !phaseAssigneeIds(phase).includes(member.id)).map(member => ({ id: member.id, label: `${member.name} — ${teamName(member.team)}` }))}
+                  onSelect={memberId => {
+                    const member = members.find(entry => entry.id === memberId);
+                    updatePhase(task, phase.id, {
+                      assign: [...new Set([...phaseAssigneeIds(phase), memberId])],
+                      teams: [...new Set([...phaseTeamIds(phase), ...(member?.team ? [member.team] : [])])],
+                    });
+                  }}
+                  allowEmpty
+                  placeholder={t('p.assignPhasePerson')}
+                />
+              </div>
+            </div>
+          </div>)}
+        </div>);
       })()}
     </>}
 

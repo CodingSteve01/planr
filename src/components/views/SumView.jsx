@@ -8,7 +8,7 @@ import { useT } from '../../i18n.jsx';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate }) {
+export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onExportTodo }) {
   const { t } = useT();
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
@@ -24,6 +24,10 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
   const setHd = v => { setHorizonDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
   const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + horizonDays); return d; }, [horizonDays]);
   const now = new Date();
+  const h1Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } }, []);
+  const h2Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } }, []);
+  const h1Date = useMemo(() => { const date = new Date(); date.setDate(date.getDate() + h1Weeks * 7); return date; }, [h1Weeks]);
+  const h2Date = useMemo(() => { const date = new Date(); date.setDate(date.getDate() + h2Weeks * 7); return date; }, [h2Weeks]);
   // Collect: scheduled tasks that are not done and start within the horizon (or are already in progress)
   const upcoming = useMemo(() => scheduled
     .filter(s => s.status !== 'done' && s.startD && s.startD <= sprintEnd)
@@ -84,6 +88,38 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       </div>;
     })()}
 
+    <div className="guide-card horizon-guide" style={{ marginBottom: 20 }}>
+      <div className="guide-kicker">{t('s.horizonKicker')}</div>
+      <div className="guide-title" style={{ marginBottom: 4 }}>{t('s.horizonTitle')}</div>
+      <div className="horizon-lead">{t('s.horizonLead')}</div>
+      <div className="horizon-grid">
+        <div className="horizon-card horizon-h1">
+          <div className="horizon-meta">
+            <span className="horizon-pill">H1</span>
+            <span className="horizon-date">{iso(h1Date)}</span>
+          </div>
+          <div className="horizon-name">{t('s.horizonCommitted')}</div>
+          <div className="horizon-copy">{t('s.horizonCommittedBody')}</div>
+        </div>
+        <div className="horizon-card horizon-h2">
+          <div className="horizon-meta">
+            <span className="horizon-pill">H2</span>
+            <span className="horizon-date">{iso(h2Date)}</span>
+          </div>
+          <div className="horizon-name">{t('s.horizonEstimated')}</div>
+          <div className="horizon-copy">{t('s.horizonEstimatedBody')}</div>
+        </div>
+        <div className="horizon-card horizon-h3">
+          <div className="horizon-meta">
+            <span className="horizon-pill">H3</span>
+          </div>
+          <div className="horizon-name">{t('s.horizonExploratory')}</div>
+          <div className="horizon-copy">{t('s.horizonExploratoryBody')}</div>
+        </div>
+      </div>
+      <div className="horizon-foot">{t('s.horizonFoot')}</div>
+    </div>
+
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
@@ -133,6 +169,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
         <div className="section-h" style={{ margin: 0 }}>{t('s.upNext')}</div>
         <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('s.scheduledWithin')}</span>
         {[14, 30, 60, 90].map(d => <button key={d} className={`btn btn-xs ${horizonDays === d ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => setHd(d)}>{d}d</button>)}
+        {onExportTodo && <button className="btn btn-sec btn-xs" style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => onExportTodo(horizonDays)}>{t('s.exportTodo')}</button>}
         <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{upcoming.length} {t('s.tasks')} · {sprintGroups.length} {sprintGroups.length === 1 ? t('s.lane') : t('s.lanes')}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10, marginBottom: 18 }}>

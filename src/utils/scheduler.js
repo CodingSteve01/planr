@@ -1,5 +1,6 @@
 import { addD, iso, addWorkDays, localDate } from './date.js';
 import { buildWeeks } from './holidays.js';
+import { phaseProgress } from './phases.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
@@ -13,7 +14,7 @@ export function derivePhaseStatus(phases) {
   const done = phases.filter(p => p.status === 'done').length;
   const wip = phases.filter(p => p.status === 'wip').length;
   if (done === phases.length) return { status: 'done', progress: 100 };
-  if (done > 0 || wip > 0) return { status: 'wip', progress: Math.round(done / phases.length * 100) };
+  if (done > 0 || wip > 0) return { status: 'wip', progress: phaseProgress(phases) };
   return { status: 'open', progress: 0 };
 }
 

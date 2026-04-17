@@ -6,6 +6,7 @@ import { exportJSON, exportPDF, exportNetworkSVG, exportNetworkPNG, exportGanttS
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
+import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { TreeView } from './components/views/TreeView.jsx';
@@ -76,6 +77,7 @@ export default function App() {
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
   // because the old code held a stale node object in state.
+  const [sideTab, setSideTab] = useState('overview');
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
@@ -84,6 +86,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
   const [teamFilter, setTeamFilter] = useState('');
+  const [netRootFilter, setNetRootFilter] = useState('');
+  const [netTeamFilter, setNetTeamFilter] = useState('');
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -467,8 +471,7 @@ export default function App() {
         if (currentTpl) {
           const pm = line.match(/^\s*\d+\.\s+(.+)/);
           if (pm) {
-            const parts = pm[1].split('—').map(s => s.trim());
-            currentTpl.phases.push({ name: parts[0], team: parts[1] || '' });
+            currentTpl.phases.push(parseTemplatePhaseLine(pm[1]));
           }
         }
         return;
@@ -494,16 +497,7 @@ export default function App() {
           const phaseM = trimmed.match(/^\*Phasen?:\s*(.+?)\*$/);
           if (phaseM) {
             const phaseItems = phaseM[1].split(',').map(s => s.trim());
-            lastItem.phases = phaseItems.map((pi, idx) => {
-              let status = 'open';
-              if (pi.startsWith('✅')) { status = 'done'; pi = pi.slice(1).trim(); }
-              else if (pi.startsWith('🟡')) { status = 'wip'; pi = pi.slice(2).trim(); }
-              else if (pi.startsWith('○')) { status = 'open'; pi = pi.slice(1).trim(); }
-              const teamM2 = pi.match(/^(.+?)\((.+?)\)$/);
-              const name = teamM2 ? teamM2[1].trim() : pi.trim();
-              const team = teamM2 ? teamM2[2].trim() : '';
-              return { id: 'ph' + (Date.now() + idx), name, team, status };
-            });
+            lastItem.phases = phaseItems.map(pi => parsePhaseToken(pi));
             return;
           }
           if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
@@ -615,9 +609,12 @@ export default function App() {
     });
     // Re-collect team names after sanitization (so cleaned names are added to the team set)
     teamSet.clear();
-    tree.forEach(r => { if (r.team) teamSet.add(r.team); if (r.phases) r.phases.forEach(p => { if (p.team) teamSet.add(p.team); }); });
+    tree.forEach(r => {
+      if (r.team) teamSet.add(r.team);
+      if (r.phases) r.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId)));
+    });
     mems.forEach(m => { if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); } });
-    taskTemplates.forEach(tpl => tpl.phases.forEach(p => { if (p.team) teamSet.add(p.team); }));
+    taskTemplates.forEach(tpl => tpl.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId))));
 
     // Build teams: prefer explicit team table, fall back to inferred
     const usedTeamNames = [...teamSet];
@@ -627,9 +624,22 @@ export default function App() {
       return { id: `T${i + 1}`, name, color: exp?.color || palette[i % palette.length] };
     });
     const teamLookup = Object.fromEntries(teamsArr.map(t => [t.name, t.id]));
-    tree.forEach(r => { if (r.team) r.team = teamLookup[r.team] || r.team; if (r.phases) r.phases.forEach(p => { if (p.team) p.team = teamLookup[p.team] || p.team; }); });
+    tree.forEach(r => {
+      if (r.team) r.team = teamLookup[r.team] || r.team;
+      if (r.phases) {
+        r.phases.forEach(p => {
+          const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
+          p.teams = teamsForPhase;
+          p.team = teamsForPhase[0] || '';
+        });
+      }
+    });
     mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
-    taskTemplates.forEach(tpl => tpl.phases.forEach(p => { if (p.team) p.team = teamLookup[p.team] || p.team; }));
+    taskTemplates.forEach(tpl => tpl.phases.forEach(p => {
+      const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
+      p.teams = teamsForPhase;
+      p.team = teamsForPhase[0] || '';
+    }));
     // Resolve assignee references — try short name from MD first, then full name match,
     // finally computed initials match (for back-compat with files written by older builds)
     const computedShorts = buildMemberShortMap(mems);
@@ -645,7 +655,14 @@ export default function App() {
       if (byComputed) return byComputed.id;
       return token; // unresolved — keep as-is
     };
-    tree.forEach(r => { if (r.assign?.length) r.assign = r.assign.map(resolveMember); });
+    tree.forEach(r => {
+      if (r.assign?.length) r.assign = r.assign.map(resolveMember);
+      if (r.phases?.length) {
+        r.phases.forEach(phase => {
+          if (phase.assign?.length) phase.assign = phase.assign.map(resolveMember);
+        });
+      }
+    });
     vacationsArr.forEach(v => { v.person = resolveMember(v.person); });
     // Strip transient _parsedShort field from members
     mems.forEach(m => { delete m._parsedShort; });
@@ -710,6 +727,33 @@ export default function App() {
   const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
+  const rootItems = useMemo(() => tree.filter(r => !r.id.includes('.')), [tree]);
+  const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
+  const netTree = useMemo(() => {
+    let items = tree;
+    if (netRootFilter) items = items.filter(r => r.id === netRootFilter || r.id.startsWith(netRootFilter + '.'));
+    if (netTeamFilter) {
+      const visibleIds = new Set();
+      items.forEach(r => {
+        if ((r.team || '').includes(netTeamFilter)) {
+          visibleIds.add(r.id);
+          const parts = r.id.split('.');
+          for (let i = 1; i < parts.length; i++) {
+            const ancestor = parts.slice(0, i).join('.');
+            visibleIds.add(ancestor);
+          }
+        }
+      });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    return items;
+  }, [tree, netRootFilter, netTeamFilter]);
+  useEffect(() => {
+    if (netRootFilter && !rootItems.some(r => r.id === netRootFilter)) setNetRootFilter('');
+  }, [rootItems, netRootFilter]);
+  useEffect(() => {
+    if (netTeamFilter && !teams.some(t => t.id === netTeamFilter)) setNetTeamFilter('');
+  }, [teams, netTeamFilter]);
   // Backward compat: migrate old deadlines[] into tree roots
   useEffect(() => {
     if (!data?.deadlines?.length) return;
@@ -876,7 +920,14 @@ export default function App() {
       }
       // Reset progress/status for fresh copy (user decides)
       delete copy.pinnedStart;
-      if (copy.phases) copy.phases = copy.phases.map(p => ({ ...p, id: 'ph' + Date.now() + Math.random().toString(36).slice(2, 6), status: 'open' }));
+      if (copy.phases) {
+        copy.phases = copy.phases.map(p => ({
+          ...p,
+          id: 'ph' + Date.now() + Math.random().toString(36).slice(2, 6),
+          status: 'open',
+          assign: [],
+        }));
+      }
       return copy;
     });
     setD('tree', [...tree, ...copies]);
@@ -1252,7 +1303,7 @@ export default function App() {
       <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; const ctx = _exportCtx(); if (v === 'report') exportReport(ctx); else if (v === 'csv') exportCSV(ctx); else if (v === 'sprint') exportSprintMarkdown(ctx); else if (v === 'svg-net') exportNetworkSVG(ctx); else if (v === 'png-net') exportNetworkPNG(ctx); else if (v === 'svg-gantt') exportGanttSVG(ctx); else if (v === 'png-gantt') exportGanttPNG(ctx); else if (v === 'mermaid') exportMermaid(ctx); else if (v === 'print') exportPDF(); else if (v === 'json') exportJSON(ctx); }}>
         <option value="">Export ▾</option>
         <option value="report">📄 {_t('tab.plan')} Report (PDF)</option>
-        <option value="sprint">Sprint plan (Markdown)</option>
+        <option value="sprint">TODO lists / Sprint plan (Markdown)</option>
         <option value="csv">Tasks (CSV)</option>
         {tab === 'net' && <option value="svg-net">Network (SVG)</option>}
         {tab === 'net' && <option value="png-net">Network (PNG)</option>}
@@ -1273,6 +1324,10 @@ export default function App() {
         <div style={{ width: 160 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => setTeamFilter(v)} placeholder="All teams" allowEmpty emptyLabel="All teams" /></div>
         <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>
       </>}
+      {tab === 'net' && <>
+        <div style={{ width: 220 }}><SearchSelect value={netRootFilter} options={netRootOptions} onSelect={v => { setNetRootFilter(v); setSearchIdx(0); }} placeholder="All roots" allowEmpty emptyLabel="All roots" showIds /></div>
+        <div style={{ width: 160 }}><SearchSelect value={netTeamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setNetTeamFilter(v); setSearchIdx(0); }} placeholder="All teams" allowEmpty emptyLabel="All teams" /></div>
+      </>}
       <div style={{ flex: 1 }} />
       <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
         placeholder={`Search… (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+F)`}
@@ -1291,7 +1346,8 @@ export default function App() {
     </div>}
     <div className="main">
       {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
-        onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
+        onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
+        onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
       {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} cpSet={cpSet} stats={stats}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}
@@ -1334,97 +1390,115 @@ export default function App() {
               const commonFactor = commonOf('factor');
               const commonNote = commonOf('note');
               const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
+              const anyNonRoot = selItems.some(r => r.id.includes('.'));
+              const batchTabs = [
+                { id: 'overview', label: _t('qe.tab.overview') },
+                ...(anyNonRoot ? [{ id: 'workflow', label: _t('qe.tab.workflow') }] : []),
+                ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
+              ];
+              const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
+
               return <div className="side-body">
                 <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Common values shown — changes apply to all selected.</p>
-                <div className="field"><label>Team{commonTeam == null ? ' (mixed)' : ''}</label>
-                  <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
-                </div>
-                <div className="field"><label>Assigned to (common across all selected)</label>
-                  {(() => {
-                    // Find members assigned to ALL selected items (intersection)
-                    const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
-                    return <>
-                      {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                        {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" title="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
-                      </div>}
-                      <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder="Add person to all..." />
-                    </>;
-                  })()}
-                </div>
-                {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
-                  <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
-                </div>}
-                {allLeaf && <div className="frow">
-                  <div className="field"><label>Best (days){commonBest == null ? ' (mixed)' : ''}</label>
-                    <LazyInput type="number" min="0" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
-                  </div>
-                  <div className="field"><label>Factor{commonFactor == null ? ' (mixed)' : ''}</label>
-                    <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
-                  </div>
-                </div>}
-                <div className="field"><label>Priority{commonPrio == null ? ' (mixed)' : ''}</label>
-                  <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
-                </div>
-                <div className="field"><label>Confidence</label>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    {[['', 'Auto'], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
-                      <button key={v} className="btn btn-sec btn-xs" style={{ flex: 1, fontSize: 10 }}
-                        onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
-                  </div>
-                </div>
-                <div className="field"><label>Note{commonNote == null ? ' (mixed — overwrites all!)' : ''}</label>
-                  <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
+
+                <div className="qe-tabs">
+                  {batchTabs.map(bt => <button key={bt.id} className={`qe-tab${bTab === bt.id ? ' active' : ''}`} onClick={() => setSideTab(bt.id)}>{bt.label}</button>)}
                 </div>
 
-                {/* ── Phases batch ── */}
-                {selItems.every(r => r.id.includes('.')) && <>
-                  {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
-                    <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
-                      onSelect={tplId => {
-                        const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
-                        if (!tpl) return;
-                        setD('tree', tree.map(r => {
-                          if (!multiSel.has(r.id)) return r;
-                          const phases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i + Math.random() * 1000 | 0), name: p.name, team: p.team || '', status: 'open' }));
-                          return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
-                        }));
-                      }} placeholder={_t('ph.applyTemplate')} />
+                {bTab === 'overview' && <>
+                  {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
+                    <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
                   </div>}
+                  <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ' (mixed)' : ''}</label>
+                    <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
+                  </div>
 
-                  {(() => {
-                    // Show common phase status cycling when all items share the same phase structure
-                    const withPhases = selItems.filter(r => r.phases?.length);
-                    if (!withPhases.length) return null;
-                    const refPhases = withPhases[0].phases;
-                    const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
-                    if (!allSameStructure) return null;
-                    // Compute common status per phase position
-                    return <div className="field"><label>{_t('ph.phases')}</label>
-                      {refPhases.map((ph, i) => {
-                        const statuses = withPhases.map(r => r.phases[i].status);
-                        const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                        const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
-                        const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
-                        return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                          <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
-                            onClick={() => {
-                              const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
-                              setD('tree', tree.map(r => {
-                                if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
-                                const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
-                                const done = newPhases.filter(p => p.status === 'done').length;
-                                const wip2 = newPhases.filter(p => p.status === 'wip').length;
-                                const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
-                                const prog = Math.round(done / newPhases.length * 100);
-                                return { ...r, phases: newPhases, status: st, progress: prog };
-                              }));
-                            }}>{dot}</span>
-                          <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
-                          {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(mixed)</span>}
-                        </div>;
-                      })}
-                    </div>;
-                  })()}
+                  {/* ── Phases batch (in overview because phases define status) ── */}
+                  {anyNonRoot && <>
+                    {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
+                      <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+                        onSelect={tplId => {
+                          const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
+                          if (!tpl) return;
+                          setD('tree', tree.map(r => {
+                            if (!multiSel.has(r.id)) return r;
+                            const phases = instantiateTemplatePhases(tpl.phases);
+                            return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
+                          }));
+                        }} placeholder={_t('ph.applyTemplate')} />
+                    </div>}
+
+                    {(() => {
+                      const withPhases = selItems.filter(r => r.phases?.length);
+                      if (!withPhases.length) return null;
+                      const refPhases = withPhases[0].phases;
+                      const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
+                      if (!allSameStructure) return null;
+                      return <div className="field"><label>{_t('ph.phases')}</label>
+                        {refPhases.map((ph, i) => {
+                          const statuses = withPhases.map(r => r.phases[i].status);
+                          const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
+                          const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                          const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+                          return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                              onClick={() => {
+                                const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
+                                setD('tree', tree.map(r => {
+                                  if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
+                                  const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
+                                  const done = newPhases.filter(p => p.status === 'done').length;
+                                  const wip2 = newPhases.filter(p => p.status === 'wip').length;
+                                  const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
+                                  const prog = Math.round(done / newPhases.length * 100);
+                                  return { ...r, phases: newPhases, status: st, progress: prog };
+                                }));
+                              }}>{dot}</span>
+                            <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
+                            {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(mixed)</span>}
+                          </div>;
+                        })}
+                      </div>;
+                    })()}
+                  </>}
+                </>}
+
+                {bTab === 'workflow' && <>
+                  <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ' (mixed)' : ''}</label>
+                    <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
+                  </div>
+                  <div className="field"><label>{_t('qe.assignee')}</label>
+                    {(() => {
+                      const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
+                      return <>
+                        {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                          {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" title="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
+                        </div>}
+                        <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
+                      </>;
+                    })()}
+                  </div>
+                </>}
+
+                {bTab === 'effort' && <>
+                  {allLeaf && <div className="frow">
+                    <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="number" min="0" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
+                    </div>
+                    <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
+                    </div>
+                  </div>}
+                  <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ' (mixed)' : ''}</label>
+                    <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
+                  </div>
+                  <div className="field"><label>{_t('qe.confidence')}</label>
+                    <div style={{ display: 'flex', gap: 3 }}>
+                      {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
+                        <button key={v} className="btn btn-sec btn-xs" style={{ flex: 1, fontSize: 10 }}
+                          onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
+                    </div>
+                  </div>
                 </>}
 
                 <hr className="divider" />
@@ -1436,14 +1510,14 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
         </div>}
       </>}
       {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={tree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx}
+      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!netRootFilter || !!netTeamFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}

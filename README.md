@@ -51,14 +51,14 @@ Everything lives in [docs/](docs/). This README is an index.
 - **Auto-scheduler** — capacity-aware, vacation-aware, holiday-aware (NRW preset built in)
 - **Critical path analysis** — global and per-goal, with slack calculation
 - **Planning confidence model** — three levels (committed / estimated / exploratory) with auto-derivation, manual override, and visual differentiation in the Gantt chart
-- **Planning review tab** — guided workflow for assigning people, spotting unplanned items, and checking team capacity
-- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling
+- **Planning review tab** — guided workflow for assigning people, spotting open phases, checking team capacity, and working per-person TODO lists
+- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling, weighted phase overlays
 - **Network graph** — bin-packed layout, obstacle-aware edge routing, fit-to-selection
-- **QuickEdit sidebar + NodeModal** — unified field structure (identity, assignment, estimation, scheduling, dependencies), searchable dropdowns
+- **QuickEdit sidebar + NodeModal** — tabbed quick edit, visible "Estimate now" CTA, searchable dropdowns
 - **Markdown + JSON** — fully functional round-trip for both formats
 - **Auto-save** — File System Access API, external change polling, mounts either format
 - **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range, batch confidence assignment
-- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic) with confidence step
+- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic) with workflow template selection directly in the wizard
 - **Bilingual (EN/DE)** — full i18n with language selector in settings, ~350 translated strings
 - **Dark / light mode** — manual toggle (Auto / Dark / Light) in settings
 - **Project report export** — comprehensive HTML report (PDF via print) with executive summary, roadmap, team capacity, critical path, and open decisions

@@ -30,7 +30,7 @@ const en = {
   'qe.focusType': 'Focus type', 'qe.severity': 'Severity', 'qe.date': 'Date',
   'qe.description': 'Description', 'qe.descPlaceholder': 'Why does this matter?',
   'qe.quickEstimate': 'Estimate', 'qe.bestDays': 'Best (days)', 'qe.factor': 'Factor',
-  'qe.priority': 'Priority', 'qe.estimationWizard': 'Estimation helper...',
+  'qe.priority': 'Priority', 'qe.estimationWizard': 'Estimation helper...', 'qe.estimateNow': 'Estimate now',
   'qe.decideBy': 'Decide by', 'qe.pinnedStart': 'Pinned start', 'qe.parallel': 'Parallel',
   'qe.queue': 'Queue', 'qe.predecessors': 'Predecessors', 'qe.successors': 'Successors',
   'qe.notes': 'Notes', 'qe.duplicate': 'Duplicate', 'qe.assignPerson': 'Assign person...',
@@ -38,6 +38,8 @@ const en = {
   'qe.period': 'Period', 'qe.duration': 'Duration', 'qe.person': 'Person',
   'qe.effort': 'Effort', 'qe.realisticSuffix': 'realistic', 'qe.notScheduled': 'not scheduled',
   'qe.leafItems': 'leaf items', 'qe.autoStatus': '(auto)',
+  'qe.tab.overview': 'Overview', 'qe.tab.workflow': 'Workflow', 'qe.tab.estimate': 'Estimate', 'qe.tab.schedule': 'Plan', 'qe.tab.deps': 'Dependencies', 'qe.tab.effort': 'Effort', 'qe.tab.timing': 'Timing',
+  'qe.horizonHint': 'H1 is for committed work, H2 for estimated work, and everything after that may stay exploratory until it is clarified.',
   'qe.allLeaves': 'all leaves',
   'qe.confirmRelease': '"{0}" will no longer wait for this item?',
   'qe.confirmDelete': 'Delete {0}?', 'qe.confirmDeleteChildren': 'Delete {0} and all children?',
@@ -73,6 +75,8 @@ const en = {
   'g.ctxUnpin': 'Unpin', 'g.ctxPinCurrent': 'Pin to current start',
   'g.ctxRemoveDep': 'Remove dependency',
   'g.confirmRemoveDep': 'Remove dependency: {0} no longer depends on {1}?',
+  'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
+  'g.horizonLegendTip': 'Before H1 work should be committed, before H2 at least estimated, and after H2 exploratory work is still acceptable.',
 
   // ── SumView ──
   's.projected': 'Projected end', 's.focus': 'Focus',
@@ -84,6 +88,17 @@ const en = {
   's.doneOf': '{0} done · {1} in progress · {2} open of {3} leaf items',
   's.onTrack': 'On track', 's.atRisk': 'AT RISK', 's.linked': 'linked',
   's.tasksDone': '{0} tasks done · {1} on critical path',
+  's.horizonKicker': 'Planning horizons',
+  's.horizonTitle': 'What needs to be clear next',
+  's.horizonLead': 'The closer work gets, the more explicit the plan should become.',
+  's.horizonCommitted': 'Committed',
+  's.horizonCommittedBody': 'Starts soon: owner, scope, estimate, and blockers should be reliable.',
+  's.horizonEstimated': 'Roughly planned',
+  's.horizonEstimatedBody': 'Comes after that: cut work roughly, assign a team, and surface risks.',
+  's.horizonExploratory': 'Still open',
+  's.horizonExploratoryBody': 'Farther out: keep it visible, but leave details intentionally open.',
+  's.horizonFoot': 'Rule of thumb: commit H1, rough-plan H2, and keep H3 lightweight.',
+  's.exportTodo': 'Export TODO list',
 
   // ── PlanReview ──
   'p.clear': 'clear', 'p.needsPerson': 'needs person', 'p.unclear': 'unclear',
@@ -97,6 +112,9 @@ const en = {
   'p.assigned': 'assigned', 'p.open': 'open',
   'p.noBlocked': 'No blocked items without a person.',
   'p.blockedDesc': 'These items need a person but cannot start until their dependencies are done.',
+  'p.phaseTodos': 'Phase todos', 'p.noPhaseTodos': 'No open phases right now.',
+  'p.phaseTodosDesc': 'These {0} open phases are grouped by person or fallback team so they work as practical TODO lists.',
+  'p.advancePhase': 'Advance phase', 'p.assignPhasePerson': 'Assign phase owner...',
 
   // ── EstimationWizard ──
   'ew.title': 'Estimation Wizard',
@@ -138,6 +156,9 @@ const en = {
   'ew.bestCase': 'Best case (days)', 'ew.uncertaintyFactor': 'Uncertainty factor',
   'ew.realisticDays': 'Realistic (days)', 'ew.worstCase': 'Worst case (days)',
   'ew.risksIdentified': 'Risks identified', 'ew.apply': 'Apply estimate',
+  'ew.flowKicker': 'Top-down flow', 'ew.flowTitle': 'Classify first, estimate right away, refine later.',
+  'ew.flowBody': 'Choose the workflow template in the wizard so a new project branch can be structured, classified, and estimated in one pass.',
+  'ew.templateLabel': 'Workflow template', 'ew.templateHelp': 'Templates are selectable directly in the wizard so classification and estimation stay in the same flow.',
   'ew.discardConfirm': 'Discard your estimate inputs? Everything you entered will be lost.',
 
   // ── Tooltip ──
@@ -161,6 +182,10 @@ const en = {
   'ph.templates': 'Task Templates', 'ph.newTemplate': '+ New template',
   'ph.editTemplate': 'Edit', 'ph.templateName': 'Template name',
   'ph.phaseName': 'Phase name', 'ph.phaseTeam': 'Team',
+  'ph.phaseTeams': 'Teams', 'ph.phaseAssignees': 'Owners',
+  'ph.phaseTeamAdd': 'Add team...', 'ph.phaseAssigneeAdd': 'Add owner...',
+  'ph.effortHelp': 'Phase effort is optional. If the total stays below 100%, the remaining share is distributed evenly across phases without an explicit value.',
+  'ph.templateHelp': 'Templates support multiple teams per phase and optional effort percentages.',
   'ph.confirmClear': 'Remove all phases from this task?',
   'ph.confirmDeleteTpl': 'Delete template "{0}"?',
   'ph.applied': 'Template: {0}', 'ph.freePhase': 'New phase',
@@ -200,7 +225,7 @@ const de = {
   'qe.focusType': 'Fokus-Typ', 'qe.severity': 'Schweregrad', 'qe.date': 'Datum',
   'qe.description': 'Beschreibung', 'qe.descPlaceholder': 'Warum ist das wichtig?',
   'qe.quickEstimate': 'Schätzung', 'qe.bestDays': 'Best (Tage)', 'qe.factor': 'Faktor',
-  'qe.priority': 'Priorität', 'qe.estimationWizard': 'Schätzungshilfe...',
+  'qe.priority': 'Priorität', 'qe.estimationWizard': 'Schätzungshilfe...', 'qe.estimateNow': 'Jetzt schätzen',
   'qe.decideBy': 'Entscheiden bis', 'qe.pinnedStart': 'Fixierter Start', 'qe.parallel': 'Parallel',
   'qe.queue': 'Reihenfolge', 'qe.predecessors': 'Vorgänger', 'qe.successors': 'Nachfolger',
   'qe.notes': 'Notizen', 'qe.duplicate': 'Duplizieren', 'qe.assignPerson': 'Person zuweisen...',
@@ -208,6 +233,8 @@ const de = {
   'qe.period': 'Zeitraum', 'qe.duration': 'Dauer', 'qe.person': 'Person',
   'qe.effort': 'Aufwand', 'qe.realisticSuffix': 'realistisch', 'qe.notScheduled': 'nicht eingeplant',
   'qe.leafItems': 'Leaf-Items', 'qe.autoStatus': '(auto)',
+  'qe.tab.overview': 'Überblick', 'qe.tab.workflow': 'Workflow', 'qe.tab.estimate': 'Schätzung', 'qe.tab.schedule': 'Planung', 'qe.tab.deps': 'Abhängigkeiten', 'qe.tab.effort': 'Aufwand', 'qe.tab.timing': 'Zeitplan',
+  'qe.horizonHint': 'H1 ist für committed Arbeit, H2 für grob geschätzte Arbeit, und alles danach darf explorativ bleiben, bis es präzisiert ist.',
   'qe.allLeaves': 'alle Leaves',
   'qe.confirmRelease': '„{0}" wartet nicht mehr auf dieses Item?',
   'qe.confirmDelete': '{0} löschen?', 'qe.confirmDeleteChildren': '{0} und alle Unterelemente löschen?',
@@ -243,6 +270,8 @@ const de = {
   'g.ctxUnpin': 'Lösen', 'g.ctxPinCurrent': 'Auf aktuellen Start fixieren',
   'g.ctxRemoveDep': 'Abhängigkeit entfernen',
   'g.confirmRemoveDep': 'Abhängigkeit entfernen: {0} hängt nicht mehr von {1} ab?',
+  'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
+  'g.horizonLegendTip': 'Vor H1 sollte Arbeit committed sein, vor H2 mindestens grob geschätzt, und nach H2 darf sie noch explorativ sein.',
 
   // ── SumView ──
   's.projected': 'Voraussichtliches Ende', 's.focus': 'Fokus',
@@ -254,6 +283,17 @@ const de = {
   's.doneOf': '{0} erledigt · {1} in Bearbeitung · {2} offen von {3} Leaf-Items',
   's.onTrack': 'Im Plan', 's.atRisk': 'GEFÄHRDET', 's.linked': 'verknüpft',
   's.tasksDone': '{0} Aufgaben erledigt · {1} auf kritischem Pfad',
+  's.horizonKicker': 'Planungshorizonte',
+  's.horizonTitle': 'Was als Nächstes klar sein muss',
+  's.horizonLead': 'Je näher Arbeit rückt, desto verbindlicher sollte der Plan werden.',
+  's.horizonCommitted': 'Verbindlich',
+  's.horizonCommittedBody': 'Startet bald: Zuständigkeit, Scope, Aufwand und Blocker sollten belastbar sein.',
+  's.horizonEstimated': 'Grob geplant',
+  's.horizonEstimatedBody': 'Kommt danach: grob schneiden, Team klären und Risiken sichtbar machen.',
+  's.horizonExploratory': 'Noch offen',
+  's.horizonExploratoryBody': 'Liegt weiter draußen: sichtbar halten, Details aber bewusst offen lassen.',
+  's.horizonFoot': 'Faustregel: H1 zusagen, H2 grob planen, H3 bewusst offen lassen.',
+  's.exportTodo': 'TODO-Liste exportieren',
 
   // ── PlanReview ──
   'p.clear': 'klar', 'p.needsPerson': 'braucht Person', 'p.unclear': 'unklar',
@@ -267,6 +307,9 @@ const de = {
   'p.assigned': 'zugewiesen', 'p.open': 'offen',
   'p.noBlocked': 'Keine geblockten Items ohne Person.',
   'p.blockedDesc': 'Diese Items brauchen eine Person, können aber erst starten wenn ihre Abhängigkeiten erledigt sind.',
+  'p.phaseTodos': 'Phasen-Todos', 'p.noPhaseTodos': 'Aktuell gibt es keine offenen Phasen.',
+  'p.phaseTodosDesc': 'Diese {0} offenen Phasen sind nach Person oder Fallback-Team gruppiert und funktionieren damit direkt als TODO-Listen.',
+  'p.advancePhase': 'Phase weiterziehen', 'p.assignPhasePerson': 'Phasen-Owner zuweisen...',
 
   // ── EstimationWizard ──
   'ew.title': 'Schätzungs-Wizard',
@@ -308,6 +351,9 @@ const de = {
   'ew.bestCase': 'Best Case (Tage)', 'ew.uncertaintyFactor': 'Unsicherheitsfaktor',
   'ew.realisticDays': 'Realistisch (Tage)', 'ew.worstCase': 'Worst Case (Tage)',
   'ew.risksIdentified': 'Identifizierte Risiken', 'ew.apply': 'Schätzung übernehmen',
+  'ew.flowKicker': 'Top-down-Flow', 'ew.flowTitle': 'Erst klassifizieren, sofort schätzen, später verfeinern.',
+  'ew.flowBody': 'Wähle die Workflow-Vorlage direkt im Wizard, damit ein neuer Projektzweig in einem Zug strukturiert, klassifiziert und grob geschätzt werden kann.',
+  'ew.templateLabel': 'Workflow-Vorlage', 'ew.templateHelp': 'Vorlagen sind direkt im Wizard auswählbar, damit Klassifikation und Schätzung nicht auseinanderfallen.',
   'ew.discardConfirm': 'Eingaben verwerfen? Alles was du eingegeben hast geht verloren.',
 
   // ── Tooltip ──
@@ -331,6 +377,10 @@ const de = {
   'ph.templates': 'Aufgabenvorlagen', 'ph.newTemplate': '+ Neue Vorlage',
   'ph.editTemplate': 'Bearbeiten', 'ph.templateName': 'Vorlagenname',
   'ph.phaseName': 'Phasenname', 'ph.phaseTeam': 'Team',
+  'ph.phaseTeams': 'Teams', 'ph.phaseAssignees': 'Owner',
+  'ph.phaseTeamAdd': 'Team hinzufügen...', 'ph.phaseAssigneeAdd': 'Owner hinzufügen...',
+  'ph.effortHelp': 'Phasenaufwand ist optional. Wenn die Summe unter 100% bleibt, verteilt Planr den Rest gleichmäßig auf Phasen ohne expliziten Wert.',
+  'ph.templateHelp': 'Vorlagen unterstützen jetzt mehrere Teams pro Phase und optionale Aufwand-Prozente.',
   'ph.confirmClear': 'Alle Phasen von dieser Aufgabe entfernen?',
   'ph.confirmDeleteTpl': 'Vorlage „{0}" löschen?',
   'ph.applied': 'Vorlage: {0}', 'ph.freePhase': 'Neue Phase',

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { nextChildId } from '../../utils/scheduler.js';
+import { instantiateTemplatePhases } from '../../utils/phases.js';
 import { GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 
@@ -77,7 +78,7 @@ export function AddModal({ tree, teams, taskTemplates, selected, onAdd, onClose 
               if (!tplId) { setF(x => ({ ...x, phases: undefined, templateId: undefined })); return; }
               const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
               if (!tpl) return;
-              const phases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
+              const phases = instantiateTemplatePhases(tpl.phases);
               setF(x => ({ ...x, phases, templateId: tplId }));
             }} allowEmpty />
         </div>}

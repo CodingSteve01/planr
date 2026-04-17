@@ -52,7 +52,7 @@ Two paths:
 
 **Inline** — set `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly. Realistic effort = `best × factor`.
 
-**Estimation Wizard** — PERT 3-point. Enter **optimistic**, **most likely**, and **pessimistic**. The wizard computes expected days and a reasonable factor.
+**Estimation Wizard** — PERT 3-point. Enter **optimistic**, **most likely**, and **pessimistic**. The wizard now also lets you pick the workflow template directly, so a fresh branch can be classified and estimated in one pass.
 
 T-shirt sizes are purely visual (XS/S/M/L/XL/XXL) and are derived from `best`.
 
@@ -63,6 +63,14 @@ T-shirt sizes are purely visual (XS/S/M/L/XL/XXL) and are derived from `best`.
 - **Exploratory** — scope unclear, no estimate, or high risk
 
 Parents inherit the worst confidence from their children. Confidence drives bar styling in the Gantt (solid/striped/dashed) and feeds into the Planning Review tab.
+
+If you use **phases**, you can now:
+
+- assign a phase to multiple teams
+- assign a phase to multiple people
+- add an optional effort percentage per phase
+
+Those percentages are used for weighted progress and weighted phase overlays in the Gantt.
 
 ## 5. Assign people
 
@@ -111,14 +119,26 @@ Five views, each with a different lens:
 - **Tree** — structure and progress
 - **Gantt** — timeline, conflicts, critical path, confidence bar styling — see [gantt.md](gantt.md)
 - **Network** — dependency topology and critical path — see [network-graph.md](network-graph.md)
+- In **Network**, you can now also narrow the graph via the sub-toolbar:
+  - **Root filter** — inspect just one top-level branch
+  - **Team filter** — inspect only one team's slice, while keeping ancestors visible for context
 - **Summary** — per-goal progress, deadline risk, team load
-- **Planning** — the Planning Review tab with three sections:
+- **Planning** — the Planning Review tab with four sections:
   - **Decisions** — items that are ready (no blocking deps) but need a person assigned. Quick-assign inline.
+  - **Phase todos** — open phases grouped by person or fallback team, including inline phase-owner assignment.
   - **Team Capacity** — per-team member load overview
   - **Blocked** — items waiting on unfinished dependencies
   - Shows breadcrumbs for easy navigation to any item.
 
 Toggle **Critical Path Only** in the Gantt to dim everything non-critical.
+
+The app also communicates the **three planning horizons** more explicitly now, but in user language instead of product wording:
+
+- **H1** — near-term work that should already be **verbindlich / committed**
+- **H2** — work coming after that, which should be **grob geplant / at least estimated**
+- **H3** — further-out work that may stay **offen / exploratory**
+
+You see this in the Gantt footer and in the Summary view, so the application teaches the rule while you plan instead of expecting you to remember it.
 
 ## 9. Adjust
 
@@ -131,6 +151,7 @@ Common moves:
 - **Split a task** — add children under it via the `+` row button or the Add modal. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
 - **Mark done** — set status to `done` or slide progress to 100 %. The bar disappears from the timeline.
 - **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). Matches highlight amber across Tree, Gantt, and Network tabs, and each view auto-scrolls/pans to the first match.
+- **Pull TODO lists per person** — use **Summary → Up next → Export TODO list** or the topbar export entry. You get Markdown grouped by person for the selected horizon.
 
 ## 10. Save
 

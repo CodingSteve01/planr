@@ -73,6 +73,7 @@ See [network-graph.md](network-graph.md).
 - **Bin-packing** — root trees packed with TD/BU flip for compactness
 - **Bounding-box compaction** — whitespace between trees minimized
 - **Obstacle-aware edge routing**
+- **Root + team filters** — isolate one top-level focus item or view the graph like the Tree filtered by team
 - **Fit-to-selection** — highlights zoom the viewport to the selected subset
 - **Pinch to zoom, scroll to pan** — trackpad-native (wheel is NOT zoom)
 - **Perceived 100 % = 150 % real** — zoom label divides by 1.5
@@ -83,28 +84,31 @@ See [network-graph.md](network-graph.md).
 - **Gantt view** — timeline with grouping
 - **Network view** — subway-style graph
 - **Summary view** — per-goal progress, deadlines, risks
-- **Planning Review tab** — three sections: Decisions (ready items needing a person), Team Capacity (per-team member load), Blocked (items waiting on deps). Quick-assign inline. Shows breadcrumbs.
+- **Horizon guidance in Summary** — H1 / H2 / H3 are explained as near-term planning states, not as internal product terminology
+- **Planning Review tab** — Decisions, open phase TODOs, Team Capacity, and Blocked work in one review surface. Quick-assign inline. Shows breadcrumbs.
 - **Resources view** — teams + members (teams live here, not in Settings)
 - **Holidays view** — edit holidays directly
 
 ## QuickEdit sidebar + NodeModal
 
-QuickEdit and NodeModal share a unified logical structure with the same sections:
+QuickEdit and NodeModal share the same data model; QuickEdit now exposes the most important actions in tabs so the sidebar stays easier to scan:
 
-- **Identity + Notes** — name, description, notes
-- **Status + Progress** — status, progress slider
-- **Assignment** — team, person (searchable dropdowns)
-- **Estimation** — quick buttons + best/factor/priority + confidence + scheduled info + Estimation Wizard
-- **Scheduling** — decide by, pinned start, parallel, queue
-- **Dependencies** — predecessors and successors
-- **Structure** — advanced options (available in NodeModal)
+- **Overview** (Überblick) — name, notes, status/progress + **phases** (when phases exist they define status and progress; manual editing is disabled). PhaseList component with progress bar, compact one-liner rows, and popout editor for details. Parent nodes show aggregate stats.
+- **Workflow** — team and assignees; only for non-root items
+- **Effort** (Aufwand) — quick estimate buttons (XS–XXL) + best/factor/priority + confidence + prominent "Estimate now" CTA with pulse animation when unestimated; only for leaf nodes
+- **Timing** (Zeitplan) — decide by, pinned start, parallel, queue + predecessors and inherited dependencies; available for all nodes (schedule controls only visible on leaves)
+
+Tabs persist when switching between nodes — the active tab stays selected as long as it exists for the new node type. The same tab state is shared with batch editing so switching between single/multi selection feels seamless.
+
+Shared phase components (`PhaseList`, `PhaseEditPopout` in `src/components/shared/Phases.jsx`) are reused identically across QuickEdit, NodeModal, batch editing, and Settings template editor — ensuring a single design language for phase management everywhere.
 
 QuickEdit-specific:
 
 - **Primary interaction** — single click on a node opens the sidebar
+- **Tabbed layout** — reduces cognitive load for long task forms without hiding the most common actions
 - **Searchable dropdowns** (`SearchSelect`) for any list with more than 5 items; popup renders via React Portal so it escapes modal overflow clipping and auto-flips upward when there's no room below
-- **Predecessors and successors** — add/remove both directions without leaving the sidebar
-- **Pinned start + "Start today"** — date picker and one-click shortcut to mark "this is my next task"; shows "📌 hard floor" when active, `×` to clear
+- **Predecessors and inherited deps** — add/remove dependencies in the Timing tab; inherited ancestor deps shown read-only
+- **Pinned start** — date picker in Timing tab; shows "📌" when active, `×` to clear
 - **Decide by** — date field for decision-gate items; overdue dates render red
 - **Escape or click-outside** deselects
 
@@ -119,7 +123,15 @@ QuickEdit-specific:
 ## Estimation
 
 - **Inline** — `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly on leaves
-- **Estimation Wizard** — 7-step PERT wizard: optimistic, likely, pessimistic inputs plus a Confidence step that suggests confidence based on risk factors. Options: Auto / Committed / Estimated / Exploratory, each with explanations.
+- **Estimation Wizard** — 7-step PERT wizard: workflow template selection, optimistic, likely, pessimistic inputs, dependencies, plus a Confidence step that suggests confidence based on risk factors
+
+## Phases and templates
+
+- **Phase effort percentages** — each phase can carry an optional effort share; if the sum is below 100%, the remaining share is distributed evenly across the unspecified phases
+- **Multi-team phases** — a phase can be assigned to more than one team
+- **Phase owners** — a phase can be assigned to more than one person
+- **Weighted phase overlays** — the Gantt bar overlay respects phase effort percentages instead of splitting phases into equal-width segments
+- **Template support** — task templates support multiple teams per phase and optional effort percentages
 
 ## Persistence
 
@@ -139,7 +151,7 @@ See [import-export.md](import-export.md).
 - **JSON** — full-fidelity round-trip
 - **Markdown** — functional round-trip (all semantic fields; team/member IDs are regenerated). Supports confidence tags: `{conf:committed}`, `{conf:estimated}`, `{conf:exploratory}`.
 - **CSV** — tabular export
-- **Sprint Markdown** — horizon-filtered task list grouped by person
+- **Sprint Markdown / TODO lists** — horizon-filtered task list grouped by person; exportable directly from the Summary view
 - **Mermaid** — dependency graph
 - **SVG** — network graph and Gantt chart
 - **PNG** — rasterized SVG (both)

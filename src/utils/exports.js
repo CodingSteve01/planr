@@ -2,6 +2,7 @@
 // Each function takes a context object with the data it needs.
 import { iso } from './date.js';
 import { generateReport } from './report.js';
+import { formatPhaseToken } from './phases.js';
 
 function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
@@ -173,11 +174,16 @@ export async function exportGanttPNG(ctx) {
 }
 
 // ── Sprint Markdown ──────────────────────────────────────────────────────────
-export function exportSprintMarkdown({ scheduled, tree, teams, meta }) {
+export function exportSprintMarkdown({ scheduled, tree, teams, meta, horizonDays }) {
   if (!scheduled.length) return alert('No scheduled tasks.');
-  const horizonStr = prompt('Sprint horizon in days from today?', '30');
-  if (horizonStr === null) return;
-  const horizon = Math.max(1, parseInt(horizonStr) || 30);
+  const horizon = horizonDays
+    ? Math.max(1, parseInt(horizonDays) || 30)
+    : (() => {
+        const horizonStr = prompt('Sprint horizon in days from today?', '30');
+        if (horizonStr === null) return null;
+        return Math.max(1, parseInt(horizonStr) || 30);
+      })();
+  if (!horizon) return;
   const now = new Date(); const end = new Date(); end.setDate(end.getDate() + horizon);
   const up = scheduled.filter(s => s.status !== 'done' && s.startD && s.startD <= end).sort((a, b) => (a.startD - b.startD) || (a.prio || 4) - (b.prio || 4));
   if (!up.length) return alert(`No tasks within ${horizon} days.`);
@@ -222,7 +228,7 @@ export function exportCSV({ tree, meta }) {
   const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Phases', 'Notes'];
   const fmtPhases = phases => {
     if (!phases?.length) return '';
-    return phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '●' : '○'}${p.name}`).join(', ');
+    return phases.map(p => formatPhaseToken(p)).join(', ');
   };
   const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${fmtPhases(r.phases)}"`, `"${(r.note || '').replace(/"/g, '""')}"`]);
   download(new Blob(['\uFEFF' + [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-${iso(new Date())}.csv`);

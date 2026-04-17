@@ -2,14 +2,18 @@ import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { PhaseList } from '../shared/Phases.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
+import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 
 export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
   const [showStructure, setShowStructure] = useState(false);
+  const [nmTab, setNmTab] = useState('overview');
+
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
@@ -28,7 +32,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
   const findById = id => tree.find(r => r.id === id);
   const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
   const SIZES = [['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]];
-  // Highlight nearest size bracket even for non-exact matches
   const nearestSize = f.best > 0 ? SIZES.reduce((best, sz) => Math.abs(sz[1] - f.best) < Math.abs(best[1] - f.best) ? sz : best, SIZES[0]) : null;
   const CONF_OPTS = useMemo(() => [
     { id: '', label: t('auto') },
@@ -37,7 +40,9 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
     { id: 'exploratory', label: `${t('conf.exploratory.dot')} ${t('conf.exploratory')}` },
   ], [t]);
 
-  // Ancestors with NAMES
+  const phases = normalizePhases(f.phases);
+
+  // Ancestors
   const ancestors = [];
   if (!isRoot) {
     const parts = node.id.split('.');
@@ -45,7 +50,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
   }
   const currentParentId = node.id.split('.').slice(0, -1).join('.');
   const parentOptions = [{ id: '', label: t('nm.topLevel') }, ...tree.filter(r => r.id !== node.id && !r.id.startsWith(node.id + '.')).map(r => ({ id: r.id, label: r.name }))];
-  // Inherited deps: deps from ancestors (parent dep blocks all leaves beneath it)
   const inheritedDeps = (() => {
     const own = new Set(node?.deps || []);
     const inherited = [];
@@ -62,10 +66,30 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
   const doneUnder = !isLeaf ? leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length : 0;
   const progPct = !isLeaf ? (leafCountUnder ? Math.round(doneUnder / leafCountUnder * 100) : 0) : (f.progress ?? leafProgress(f));
 
+  // Phases onChange: phases define status + progress
+  const handlePhaseChange = (nextPhases, extra = {}) => {
+    setF(x => {
+      const clean = nextPhases.length ? nextPhases : undefined;
+      const next = { ...x, ...extra, phases: clean, templateId: clean ? (extra.templateId ?? x.templateId) : undefined };
+      const derived = derivePhaseStatus(nextPhases);
+      if (derived) { next.status = derived.status; next.progress = derived.progress; }
+      return next;
+    });
+  };
+
+  // Tab definitions
+  const nmTabs = [
+    { id: 'overview', label: t('qe.tab.overview') },
+    ...(!isRoot ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
+    ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
+    { id: 'timing', label: t('qe.tab.timing') },
+  ];
+  const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'overview';
+
   return <div className="overlay">
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
 
-      {/* ── 1. HEADER — breadcrumb with NAMES ──────────────────────────── */}
+      {/* ── HEADER ── */}
       {ancestors.length > 0 && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {ancestors.map((a, i) => <span key={a.id}>{i > 0 && <span style={{ color: 'var(--b3)' }}> › </span>}<span style={{ fontFamily: 'var(--mono)', fontSize: 9 }}>{a.id}</span> {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}</span>)}
       </div>}
@@ -78,145 +102,88 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
       </div>
 
-      {/* ── 2. IDENTITY + NOTES ──────────────────────────────────────── */}
-      <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
-      <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
-      {isRoot && <>
-        <div className="frow">
-          <div className="field"><label>{t('nm.focusType')}</label>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {['', 'goal', 'painpoint', 'deadline'].map(ft =>
-                <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? `${GT[ft]} ${t(ft)}` : t('none')}</button>)}
-            </div>
-          </div>
-          {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>{t('nm.severity')}</label>
-            <SearchSelect value={f.severity || 'high'} options={[{ id: 'critical', label: t('critical') }, { id: 'high', label: t('high') }, { id: 'medium', label: t('medium') }]} onSelect={v => s('severity', v)} />
-          </div>}
-          {f.type === 'deadline' && <div className="field" style={{ flex: '0 0 140px' }}><label>{t('qe.date')}</label><input type="date" value={f.date || ''} onChange={e => s('date', e.target.value)} /></div>}
-        </div>
-        {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
-      </>}
-
-      {/* ── 3. STATUS + PROGRESS (one compact row for leaf) ─────────────── */}
-      {isLeaf && <div className="frow" style={{ alignItems: 'flex-end' }}>
-        <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
-          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
-        </div>
-        <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
-          <input type="range" min="0" max="100" step="5" value={progPct}
-            onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
-            style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
-        </div>
-      </div>}
-      {!isLeaf && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
-        <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{doneUnder}/{leafCountUnder} {t('qe.leafItems')} {t('done')} · {progPct}%</div>
-        <div className="prog-wrap" style={{ marginBottom: 6 }}><div className="prog-fill" style={{ width: `${progPct}%`, background: progPct >= 100 ? 'var(--gr)' : 'var(--am)' }} /></div>
-        <div style={{ color: 'var(--tx3)' }}>
-          {stat._r > 0 && <span style={{ color: 'var(--am)' }}>{stat._r.toFixed(0)}d {t('qe.realisticSuffix')} · </span>}
-          {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
-          {stat._startD && <span> · {stat._startD.toLocaleDateString('de-DE')} → {stat._endD.toLocaleDateString('de-DE')}</span>}
-        </div>
-      </div>}
-
-      {/* ── 3b. PHASES (non-root, right after status — matches QuickEdit) ── */}
-      {!isRoot && (() => { try {
-        const phases = Array.isArray(f.phases) ? f.phases : [];
-        const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
-
-        const applyTemplate = (tplId) => {
-          const tpl = tTemplates.find(tp => tp.id === tplId);
-          if (!tpl) return;
-          const newPhases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
-          setF(x => ({ ...x, phases: newPhases, templateId: tplId }));
-        };
-        const setPhase = (idx, patch) => setF(x => ({ ...x, phases: (x.phases || []).map((p, i) => i === idx ? { ...p, ...patch } : p) }));
-        const addPhase = () => setF(x => ({ ...x, phases: [...(x.phases || []), { id: 'ph' + Date.now(), name: '', team: '', status: 'open' }] }));
-        const removePhase = (idx) => setF(x => {
-          const np = (x.phases || []).filter((_, i) => i !== idx);
-          return { ...x, phases: np.length ? np : undefined, templateId: np.length ? x.templateId : undefined };
-        });
-        const movePhase = (idx, dir) => setF(x => {
-          const np = [...(x.phases || [])];
-          const [item] = np.splice(idx, 1);
-          np.splice(idx + dir, 0, item);
-          return { ...x, phases: np };
-        });
-        const advancePhase = (idx) => setF(x => {
-          const np = (x.phases || []).map((p, i) => {
-            if (i !== idx) return p;
-            const next = p.status === 'open' ? 'wip' : p.status === 'wip' ? 'done' : 'open';
-            return { ...p, status: next };
-          });
-          const d = derivePhaseStatus(np);
-          const out = { ...x, phases: np };
-          if (d) { out.status = d.status; out.progress = d.progress; }
-          return out;
-        });
-        const clearAll = () => { if (confirm(t('ph.confirmClear'))) setF(x => ({ ...x, phases: undefined, templateId: undefined })); };
-
-        return <div style={{ marginBottom: 8 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)', marginBottom: 8, display: 'block' }}>{t('ph.phases')}</label>
-
-          {phases.length > 0 && <>
-            {phases.map((ph, i) => {
-              const dot = ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○';
-              const dotColor = ph.status === 'done' ? 'var(--gn)' : ph.status === 'wip' ? 'var(--ac)' : 'var(--tx3)';
-              return <div key={ph.id || i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
-                  onClick={() => advancePhase(i)}>{dot}</span>
-                <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-                  <input value={ph.name} placeholder={t('ph.phaseName')}
-                    onChange={e => setPhase(i, { name: e.target.value })} />
-                </div>
-                <div className="field" style={{ width: 130, flexShrink: 0, marginBottom: 0 }}>
-                  <SearchSelect value={ph.team || ''} options={(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
-                    onSelect={v => setPhase(i, { team: v })} allowEmpty placeholder={t('ph.phaseTeam')} />
-                </div>
-                <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === 0} onClick={() => movePhase(i, -1)} title={t('ph.moveUp')}>▲</button>
-                <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === phases.length - 1} onClick={() => movePhase(i, 1)} title={t('ph.moveDown')}>▼</button>
-                <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removePhase(i)}>×</button>
-              </div>;
-            })}
-            <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
-              <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
-              {tTemplates.length > 0 && <SearchSelect
-                options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
-                onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
-              <div style={{ flex: 1 }} />
-              <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={clearAll}>{t('ph.clearPhases')}</button>
-            </div>
-          </>}
-
-          {phases.length === 0 && <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {tTemplates.length > 0 && <SearchSelect
-              options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
-              onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
-            <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
-          </div>}
-        </div>;
-      } catch(e) { console.error('Phases render error:', e); return null; } })()}
-
-      {/* ── 4. ASSIGNMENT (team + assignee compact) ─────────────────────── */}
-      <div className="field"><label>{t('qe.team')}</label>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <div style={{ flex: '0 0 180px' }}>
-            <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
-          </div>
-          {isLeaf && <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-            {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
-            <div style={{ minWidth: 160, flex: 1 }}>
-              <SearchSelect
-                options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
-                onSelect={id => { const m = members.find(x => x.id === id); setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: m?.team || x.team })); }}
-                placeholder={t('qe.assignPerson')}
-              />
-            </div>
-          </div>}
-        </div>
+      {/* ── TAB BAR ── */}
+      <div className="qe-tabs" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
+        {nmTabs.map(x => <button key={x.id} className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`} onClick={() => setNmTab(x.id)}>{x.label}</button>)}
       </div>
 
-      {/* ── 5. ESTIMATION ──────────────────────────────────────────────── */}
-      {isLeaf && <>
+      {/* ══════ OVERVIEW TAB ══════ */}
+      {activeNmTab === 'overview' && <>
+        <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
+        <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
+        {isRoot && <>
+          <div className="frow">
+            <div className="field"><label>{t('nm.focusType')}</label>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {['', 'goal', 'painpoint', 'deadline'].map(ft =>
+                  <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? `${GT[ft]} ${t(ft)}` : t('none')}</button>)}
+              </div>
+            </div>
+            {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>{t('nm.severity')}</label>
+              <SearchSelect value={f.severity || 'high'} options={[{ id: 'critical', label: t('critical') }, { id: 'high', label: t('high') }, { id: 'medium', label: t('medium') }]} onSelect={v => s('severity', v)} />
+            </div>}
+            {f.type === 'deadline' && <div className="field" style={{ flex: '0 0 140px' }}><label>{t('qe.date')}</label><input type="date" value={f.date || ''} onChange={e => s('date', e.target.value)} /></div>}
+          </div>
+          {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
+        </>}
+
+        {/* Manual status + progress (leaf without phases only) */}
+        {isLeaf && phases.length === 0 && <div className="frow" style={{ alignItems: 'flex-end' }}>
+          <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
+            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
+          </div>
+          <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
+            <input type="range" min="0" max="100" step="5" value={progPct}
+              onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
+              style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
+          </div>
+        </div>}
+
+        {/* Phases — define status + progress when present */}
+        {!isRoot && <PhaseList
+          phases={f.phases}
+          templates={taskTemplates}
+          teams={teams}
+          members={members}
+          templateId={f.templateId}
+          onChange={handlePhaseChange}
+        />}
+
+        {/* Parent stats (non-leaf, no phases) */}
+        {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
+          <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{doneUnder}/{leafCountUnder} {t('qe.leafItems')} {t('done')} · {progPct}%</div>
+          <div className="prog-wrap" style={{ marginBottom: 6 }}><div className="prog-fill" style={{ width: `${progPct}%`, background: progPct >= 100 ? 'var(--gr)' : 'var(--am)' }} /></div>
+          <div style={{ color: 'var(--tx3)' }}>
+            {stat._r > 0 && <span style={{ color: 'var(--am)' }}>{stat._r.toFixed(0)}d {t('qe.realisticSuffix')} · </span>}
+            {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
+            {stat._startD && <span> · {stat._startD.toLocaleDateString('de-DE')} → {stat._endD.toLocaleDateString('de-DE')}</span>}
+          </div>
+        </div>}
+      </>}
+
+      {/* ══════ WORKFLOW TAB ══════ */}
+      {activeNmTab === 'workflow' && !isRoot && <>
+        <div className="field"><label>{t('qe.team')}</label>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ flex: '0 0 180px' }}>
+              <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
+            </div>
+            {isLeaf && <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+              {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
+              <div style={{ minWidth: 160, flex: 1 }}>
+                <SearchSelect
+                  options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
+                  onSelect={id => { const m = members.find(x => x.id === id); setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: m?.team || x.team })); }}
+                  placeholder={t('qe.assignPerson')}
+                />
+              </div>
+            </div>}
+          </div>
+        </div>
+      </>}
+
+      {/* ══════ EFFORT TAB ══════ */}
+      {activeNmTab === 'effort' && isLeaf && <>
         <div className="field">
           <label>{t('qe.quickEstimate')}</label>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
@@ -228,7 +195,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
                 onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
             })}
           </div>
-          {onEstimate && <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, padding: '2px 0' }} onClick={() => { onClose(); onEstimate(node); }}>{t('qe.estimationWizard')}</button>}
+          {onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginTop: 4 }} onClick={() => { onClose(); onEstimate(node); }}>{t('qe.estimateNow')}</button>}
         </div>
         <div className="frow">
           <div className="field"><label>{t('qe.bestDays')}</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
@@ -240,7 +207,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         <div className="field"><label>{t('qe.confidence')}</label>
           <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
         </div>
-        {/* Scheduled info — readable text, not codeblock */}
         {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
           <span style={{ color: 'var(--tx3)' }}>{f.best}d best × {f.factor || 1.5} = </span>
           <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
@@ -253,59 +219,61 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         </div>}
       </>}
 
-      {/* ── 6. SCHEDULING ──────────────────────────────────────────────── */}
-      {isLeaf && <>
-        <div className="frow">
-          <div className="field"><label>{t('qe.decideBy')}</label>
-            <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
-          </div>
-          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
-              <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>
-              {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')}>×</button>}
+      {/* ══════ TIMING TAB ══════ */}
+      {activeNmTab === 'timing' && <>
+        {isLeaf && <>
+          <div className="frow">
+            <div className="field"><label>{t('qe.decideBy')}</label>
+              <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
+            </div>
+            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
+                <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>
+                {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')}>×</button>}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="frow" style={{ alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-            <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('nm.runParallel')}</label>
-            <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
-            {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
+          <div className="frow" style={{ alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+              <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('nm.runParallel')}</label>
+              <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+              {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
+            </div>
+            {onReorderInQueue && !f.parallel && <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', marginRight: 4 }}>{t('qe.queue')}</span>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 6px' }}>⤒</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 6px' }}>▲</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 6px' }}>▼</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 6px' }}>⤓</button>
+            </div>}
           </div>
-          {onReorderInQueue && !f.parallel && <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', marginRight: 4 }}>{t('qe.queue')}</span>
-            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 6px' }}>⤒</button>
-            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 6px' }}>▲</button>
-            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 6px' }}>▼</button>
-            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 6px' }}>⤓</button>
-          </div>}
+          <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
+        </>}
+
+        <div className="field">
+          <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+            {(f.deps || []).map(d => { const dn = findById(d); return <div key={d} className="dep-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+              </div>
+              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
+            </div>; })}
+            {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
+                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+              </div>
+              <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+            </div>; })}
+          </div>
+          <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
         </div>
       </>}
 
-      {/* ── 7. PREDECESSORS ────────────────────────────────────────────── */}
-      <div className="field">
-        <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-          {(f.deps || []).map(d => { const dn = findById(d); return <div key={d} className="dep-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
-            </div>
-            <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
-          </div>; })}
-          {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
-              {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
-            </div>
-            <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
-          </div>; })}
-        </div>
-        <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
-      </div>
-
-      {/* ── 9. STRUCTURE (rare) ─────────────────────────────────────────── */}
+      {/* ── STRUCTURE (rare) ── */}
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--b)' }}>
         <button className="btn btn-ghost btn-xs" onClick={() => setShowStructure(v => !v)} style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>
           {showStructure ? '▼' : '▶'} {t('nm.advanced')}
@@ -324,7 +292,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         </div>}
       </div>
 
-      {/* ── 10. ACTIONS ─────────────────────────────────────────────────── */}
+      {/* ── ACTIONS ── */}
       <div className="modal-footer">
         {onDelete && <button className="btn btn-danger" onClick={() => { if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) { onDelete(node.id); onClose(); } }}>{t('delete')}</button>}
         {onDuplicate && <button className="btn btn-sec" onClick={() => {

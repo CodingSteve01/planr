@@ -333,7 +333,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', searchIdx = 0, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -490,8 +490,10 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>🕸</div>
-      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div>
-      {onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>}
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{isFiltered ? 'No items match this filter' : 'No items yet'}</div>
+      {isFiltered
+        ? <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
+        : (onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>)}
     </div>
   </div>;
 

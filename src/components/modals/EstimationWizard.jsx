@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { instantiateTemplatePhases, normalizePhases, phaseTeamLabel } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 
 const SIZE_DATA = [
@@ -40,7 +41,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onC
   const [selDeps, setSelDeps] = useState(node?.deps || []);
   const [confidence, setConfidence] = useState(node?.confidence || '');
   const [selTemplate, setSelTemplate] = useState(node?.templateId || '');
-  const [phases, setPhases] = useState(node?.phases || null);
+  const [phases, setPhases] = useState(() => normalizePhases(node?.phases || []));
 
   // PERT estimate: (O + 4R + P) / 6
   const pert = useMemo(() => (optimistic + 4 * realistic + pessimistic) / 6, [optimistic, realistic, pessimistic]);
@@ -116,6 +117,12 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onC
 
       {/* Step 0: Scope + Template */}
       {step === 0 && <div className="fade">
+        <div className="guide-card" style={{ marginBottom: 14 }}>
+          <div className="guide-kicker">{t('ew.flowKicker')}</div>
+          <div className="guide-title">{t('ew.flowTitle')}</div>
+          <div style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('ew.flowBody')}</div>
+        </div>
+
         <div className="field"><label>{t('ew.scopeQ')}</label>
           <textarea value={scope} onChange={e => setScope(e.target.value)} rows={3} placeholder="Describe the scope: what's included, what's not, acceptance criteria..." />
           <p className="helper">{t('ew.scopeHelp')}</p>
@@ -124,27 +131,35 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onC
         {/* Template / Phases — in Scope step for non-root nodes */}
         {node?.id?.includes('.') && <div style={{ marginTop: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ph.phases')}</div>
-          {!phases?.length && tTemplates.length > 0 && <div className="field" style={{ marginBottom: 0 }}>
-            <SearchSelect options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
+          {tTemplates.length > 0 && <div className="field" style={{ marginBottom: 10 }}>
+            <label>{t('ew.templateLabel')}</label>
+            <SearchSelect value={selTemplate || ''} options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
               onSelect={tplId => {
+                if (!tplId) {
+                  setSelTemplate('');
+                  setPhases([]);
+                  return;
+                }
                 const tpl = tTemplates.find(tp => tp.id === tplId);
                 if (!tpl) return;
                 setSelTemplate(tplId);
-                setPhases(tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' })));
-              }} placeholder={t('ph.applyTemplate')} />
+                setPhases(instantiateTemplatePhases(tpl.phases));
+              }} placeholder={t('ph.applyTemplate')} allowEmpty emptyLabel={t('none')} />
+            <p className="helper">{t('ew.templateHelp')}</p>
           </div>}
           {phases?.length > 0 && <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
               {phases.map(ph => {
-                const tn = ph.team && (teams || []).find(tm => tm.id === ph.team)?.name;
+                const tn = phaseTeamLabel(ph, teams);
                 return <div key={ph.id} style={{ fontSize: 11, color: 'var(--tx2)', display: 'flex', gap: 6, padding: '2px 0' }}>
                   <span>○ {ph.name}</span>
+                  {ph.effortPct && <span style={{ color: 'var(--tx3)' }}>{ph.effortPct}%</span>}
                   {tn && <span style={{ color: 'var(--tx3)' }}>— {tn}</span>}
                 </div>;
               })}
             </div>
             <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }}
-              onClick={() => { setPhases(null); setSelTemplate(''); }}>{t('ph.clearPhases')}</button>
+              onClick={() => { setPhases([]); setSelTemplate(''); }}>{t('ph.clearPhases')}</button>
           </>}
           {!phases?.length && !tTemplates.length && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('ph.noPhases')}</div>}
         </div>}

@@ -62,6 +62,16 @@ The search field lives in the shared sub-toolbar (top right, driven by App's glo
 
 `Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
+## Filters
+
+The Network tab now uses the shared sub-toolbar for focused graph slices:
+
+- **Root filter** — keep only one top-level focus item and its descendants. Useful when you want to inspect one initiative without the rest of the graph competing for space.
+- **Team filter** — works like the Tree filter: matching items stay visible, and their ancestors stay visible for context.
+- **Combinable** — root + team can be combined, so you can inspect one root from the perspective of one team.
+
+If a filter combination removes everything, the empty state tells you to widen the filter again.
+
 ## Interaction
 
 - **Single click a node** — opens QuickEdit sidebar. No double-click.

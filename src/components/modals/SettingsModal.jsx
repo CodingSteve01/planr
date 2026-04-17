@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useT, useTheme } from '../../i18n.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { createPhaseDraft, normalizePhases, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
+import { PhaseList } from '../shared/Phases.jsx';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0]; // Mon=1 … Sat=6, Sun=0
 
@@ -20,12 +22,12 @@ export function SettingsModal({ meta, taskTemplates, teams, onSave, onSaveTempla
   };
 
   // ── Templates state ──
-  const [tpls, setTpls] = useState(() => (taskTemplates || []).map(tp => ({ ...tp, phases: tp.phases.map(p => ({ ...p })) })));
+  const [tpls, setTpls] = useState(() => (taskTemplates || []).map(tp => ({ ...tp, phases: normalizePhases(tp.phases) })));
   const [editId, setEditId] = useState(null);
   const editing = editId ? tpls.find(tp => tp.id === editId) : null;
 
   const addTemplate = () => {
-    const tp = { id: 'tpl_' + Date.now(), name: t('ph.freePhase'), phases: [{ name: 'Phase 1', team: '' }] };
+    const tp = { id: 'tpl_' + Date.now(), name: t('ph.freePhase'), phases: [createPhaseDraft({ name: 'Phase 1' })] };
     setTpls([...tpls, tp]);
     setEditId(tp.id);
   };
@@ -35,7 +37,7 @@ export function SettingsModal({ meta, taskTemplates, teams, onSave, onSaveTempla
     setTpls(tpls.filter(x => x.id !== id));
     if (editId === id) setEditId(null);
   };
-  const updateTpl = (id, fn) => setTpls(tpls.map(tp => tp.id === id ? fn({ ...tp, phases: tp.phases.map(p => ({ ...p })) }) : tp));
+  const updateTpl = (id, fn) => setTpls(tpls.map(tp => tp.id === id ? fn({ ...tp, phases: normalizePhases(tp.phases) }) : tp));
 
   const saveAll = () => {
     onSave(m);
@@ -103,8 +105,8 @@ export function SettingsModal({ meta, taskTemplates, teams, onSave, onSaveTempla
             </div>
             <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.5 }}>
               {tp.phases.map((p, i) => {
-                const tn = p.team ? (teams || []).find(tm => tm.id === p.team)?.name || p.team : '';
-                return <span key={i}>{i > 0 ? ' → ' : ''}{p.name}{tn ? ` (${tn})` : ''}</span>;
+                const tn = phaseTeamLabel(p, teams);
+                return <span key={i}>{i > 0 ? ' → ' : ''}{p.name}{p.effortPct ? ` ${p.effortPct}%` : ''}{tn ? ` (${tn})` : ''}</span>;
               })}
             </div>
           </div>
@@ -119,35 +121,20 @@ export function SettingsModal({ meta, taskTemplates, teams, onSave, onSaveTempla
           <input value={editing.name} onChange={e => updateTpl(editing.id, tp => ({ ...tp, name: e.target.value }))} />
         </div>
 
-        {editing.phases.map((ph, i) => (
-          <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--tx3)', width: 18, textAlign: 'right', flexShrink: 0 }}>{i + 1}.</span>
-            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-              <input value={ph.name} placeholder={t('ph.phaseName')}
-                onChange={e => updateTpl(editing.id, tp => { tp.phases[i] = { ...tp.phases[i], name: e.target.value }; return tp; })} />
-            </div>
-            <div className="field" style={{ width: 120, flexShrink: 0, marginBottom: 0 }}>
-              <SearchSelect value={ph.team || ''} options={(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
-                onSelect={v => updateTpl(editing.id, tp => { tp.phases[i] = { ...tp.phases[i], team: v }; return tp; })} allowEmpty placeholder={t('ph.phaseTeam')} />
-            </div>
-            <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} title={t('ph.moveUp')}
-              disabled={i === 0}
-              onClick={() => updateTpl(editing.id, tp => { const p = tp.phases.splice(i, 1)[0]; tp.phases.splice(i - 1, 0, p); return tp; })}>▲</button>
-            <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} title={t('ph.moveDown')}
-              disabled={i === editing.phases.length - 1}
-              onClick={() => updateTpl(editing.id, tp => { const p = tp.phases.splice(i, 1)[0]; tp.phases.splice(i + 1, 0, p); return tp; })}>▼</button>
-            <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }}
-              disabled={editing.phases.length <= 1}
-              onClick={() => updateTpl(editing.id, tp => { tp.phases.splice(i, 1); return tp; })}>×</button>
-          </div>
-        ))}
+        <PhaseList
+          phases={editing.phases}
+          templates={[]}
+          teams={teams}
+          members={[]}
+          showStatus={false}
+          onChange={(nextPhases) => updateTpl(editing.id, tp => ({ ...tp, phases: nextPhases }))}
+        />
 
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <button className="btn btn-sec btn-xs"
-            onClick={() => updateTpl(editing.id, tp => { tp.phases.push({ name: '', team: '' }); return tp; })}>{t('ph.addPhase')}</button>
           <div style={{ flex: 1 }} />
           <button className="btn btn-sec btn-xs" onClick={() => setEditId(null)}>{t('back')}</button>
         </div>
+        <p className="helper">{t('ph.templateHelp')}</p>
       </div>}
 
       <div className="modal-footer">
