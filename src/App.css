@@ -61,7 +61,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .calc{background:var(--bg3);border-radius:var(--r);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--tx3);display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;}
 .calc b{color:var(--gr);}.calc .cp{color:var(--re);}
 .helper{font-size:11px;color:var(--tx3);margin-top:3px;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px 20px;}
 .modal{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:22px;width:min(560px,100%);max-height:88vh;overflow-y:auto;overflow-x:hidden;box-shadow:var(--sh);}
 .modal-lg{width:min(720px,100%);}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;gap:8px;}

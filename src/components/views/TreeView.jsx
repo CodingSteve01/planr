@@ -269,8 +269,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Description (root only) */}
               {d === 1 && r.description && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2, marginLeft: 32 }}>{r.description}</div>}
 
-              {/* Note (non-root, leaf) */}
-              {d > 1 && r.note && <span className="note-inline">— {r.note}</span>}
+              {/* Note removed from tree — visible in QuickEdit/NodeModal only */}
             </td>
 
             {/* Effort: single number (realistic days) */}

@@ -11,7 +11,6 @@ import { useT } from '../../i18n.jsx';
 export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
-  const [showStructure, setShowStructure] = useState(false);
   const [nmTab, setNmTab] = useState('overview');
 
   useEffect(() => setF({ ...node }), [node?.id]);
@@ -83,6 +82,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
     ...(!isRoot ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
+    { id: 'advanced', label: t('nm.advanced') },
   ];
   const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'overview';
 
@@ -273,24 +273,22 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
         </div>
       </>}
 
-      {/* ── STRUCTURE (rare) ── */}
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--b)' }}>
-        <button className="btn btn-ghost btn-xs" onClick={() => setShowStructure(v => !v)} style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>
-          {showStructure ? '▼' : '▶'} {t('nm.advanced')}
-        </button>
-        {showStructure && <div style={{ marginTop: 10 }}>
-          {onMove && <div className="field"><label>{t('nm.parent')}</label>
-            <SearchSelect value={currentParentId} options={parentOptions} onSelect={newPid => {
-              if (newPid === currentParentId) return;
-              if (isDirty) { alert(t('nm.saveFirst')); return; }
-              const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
-              if (!confirm(t('nm.confirmMove', node.name, sub - 1, newPid || t('nm.topLevel')))) return;
-              onMove(node.id, newPid);
-            }} placeholder={t('nm.topLevel')} showIds />
-          </div>}
-          {isLeaf && <div className="field"><label>{t('nm.seq')}</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} style={{ width: 80, fontFamily: 'var(--mono)' }} /></div>}
+      {/* ══════ ADVANCED TAB ══════ */}
+      {activeNmTab === 'advanced' && <>
+        {onMove && <div className="field"><label>{t('nm.parent')}</label>
+          <SearchSelect value={currentParentId} options={parentOptions} onSelect={newPid => {
+            if (newPid === currentParentId) return;
+            if (isDirty) { alert(t('nm.saveFirst')); return; }
+            const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
+            if (!confirm(t('nm.confirmMove', node.name, sub - 1, newPid || t('nm.topLevel')))) return;
+            onMove(node.id, newPid);
+          }} placeholder={t('nm.topLevel')} showIds />
         </div>}
-      </div>
+        {isLeaf && <div className="field"><label>{t('nm.seq')}</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} style={{ width: 80, fontFamily: 'var(--mono)' }} /></div>}
+        {onDelete && <div style={{ marginTop: 16 }}>
+          <button className="btn btn-danger" onClick={() => { if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) { onDelete(node.id); onClose(); } }}>{t('delete')}</button>
+        </div>}
+      </>}
 
       {/* ── ACTIONS ── */}
       <div className="modal-footer">
