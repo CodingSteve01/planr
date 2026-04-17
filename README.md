@@ -50,21 +50,26 @@ Everything lives in [docs/](docs/). This README is an index.
 - **N-level work breakdown** — unlimited nesting, goals / painpoints / deadlines as tree roots
 - **Auto-scheduler** — capacity-aware, vacation-aware, holiday-aware (NRW preset built in)
 - **Critical path analysis** — global and per-goal, with slack calculation
-- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill
+- **Planning confidence model** — three levels (committed / estimated / exploratory) with auto-derivation, manual override, and visual differentiation in the Gantt chart
+- **Planning review tab** — guided workflow for assigning people, spotting unplanned items, and checking team capacity
+- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling
 - **Network graph** — bin-packed layout, obstacle-aware edge routing, fit-to-selection
-- **QuickEdit sidebar** — single-click opens, searchable dropdowns
+- **QuickEdit sidebar + NodeModal** — unified field structure (identity, assignment, estimation, scheduling, dependencies), searchable dropdowns
 - **Markdown + JSON** — fully functional round-trip for both formats
 - **Auto-save** — File System Access API, external change polling, mounts either format
-- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range
-- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic)
-- **Dark / light mode** — system preference
+- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range, batch confidence assignment
+- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic) with confidence step
+- **Bilingual (EN/DE)** — full i18n with language selector in settings, ~350 translated strings
+- **Dark / light mode** — manual toggle (Auto / Dark / Light) in settings
+- **Project report export** — comprehensive HTML report (PDF via print) with executive summary, roadmap, team capacity, critical path, and open decisions
 
 Full list in [docs/features.md](docs/features.md).
 
 ## Tech
 
 - Vite 6 + React 18, plain JavaScript (no TypeScript, no PropTypes)
-- CSS with theme variables
+- CSS with theme variables, dark + light mode via `data-theme` attribute
+- Lightweight i18n system (no external library, ~350 keys in `src/i18n.jsx`)
 - `localStorage` + File System Access API (no server)
 - Deployed to GitHub Pages via `gh-pages` branch
 

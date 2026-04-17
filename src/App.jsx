@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
+import { generateReport } from './utils/report.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { cpm, goalCpm } from './utils/cpm.js';
@@ -66,7 +67,7 @@ export function buildMemberShortMap(members) {
 }
 
 export default function App() {
-  const { t: _t } = useT();
+  const { t: _t, lang: _lang } = useT();
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
@@ -1388,6 +1389,11 @@ export default function App() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${(meta.name || 'planr').toLowerCase().replace(/\s+/g, '-')}-mermaid.md`; a.click();
   }
+  function exportReport() {
+    const html = generateReport({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang: _lang });
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+  }
   function exportCSV() {
     const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Notes'];
     const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${(r.note || '').replace(/"/g, '""')}"`]);
@@ -1641,16 +1647,17 @@ export default function App() {
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'csv') exportCSV(); else if (v === 'sprint') exportSprintMarkdown(); else if (v === 'svg-net') exportSVG(); else if (v === 'png-net') exportNetworkPNG(); else if (v === 'svg-gantt') exportGanttSVG(); else if (v === 'png-gantt') exportGanttPNG(); else if (v === 'mermaid') exportMermaid(); else if (v === 'print') exportPDF(); }}>
+      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v === 'report') exportReport(); else if (v === 'csv') exportCSV(); else if (v === 'sprint') exportSprintMarkdown(); else if (v === 'svg-net') exportSVG(); else if (v === 'png-net') exportNetworkPNG(); else if (v === 'svg-gantt') exportGanttSVG(); else if (v === 'png-gantt') exportGanttPNG(); else if (v === 'mermaid') exportMermaid(); else if (v === 'print') exportPDF(); }}>
         <option value="">Export ▾</option>
-        <option value="sprint">Sprint plan as Markdown</option>
-        <option value="csv">Tasks as CSV</option>
-        {tab === 'net' && <option value="svg-net">Network as SVG</option>}
-        {tab === 'net' && <option value="png-net">Network as PNG (for Whiteboard)</option>}
-        {tab === 'gantt' && <option value="svg-gantt">Gantt as SVG</option>}
-        {tab === 'gantt' && <option value="png-gantt">Gantt as PNG (for Whiteboard)</option>}
-        <option value="mermaid">Mermaid (for Confluence page)</option>
-        <option value="print">Print / PDF</option>
+        <option value="report">📄 {_t('tab.plan')} Report (PDF)</option>
+        <option value="sprint">Sprint plan (Markdown)</option>
+        <option value="csv">Tasks (CSV)</option>
+        {tab === 'net' && <option value="svg-net">Network (SVG)</option>}
+        {tab === 'net' && <option value="png-net">Network (PNG)</option>}
+        {tab === 'gantt' && <option value="svg-gantt">Gantt (SVG)</option>}
+        {tab === 'gantt' && <option value="png-gantt">Gantt (PNG)</option>}
+        <option value="mermaid">Mermaid (Confluence)</option>
+        <option value="print">Print</option>
       </select>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
