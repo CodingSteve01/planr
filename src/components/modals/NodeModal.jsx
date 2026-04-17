@@ -3,6 +3,7 @@ import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
+import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
@@ -180,19 +181,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
             </div>}
           </div>
         </div>
-        {/* Auto-assign suggestion from scheduler */}
-        {isLeaf && !(f.assign || []).length && (() => {
-          const sc2 = scheduled?.find(x => x.id === node?.id);
-          if (!sc2?.autoAssigned || !sc2.personId) return null;
-          const m = members.find(x => x.id === sc2.personId);
-          if (!m) return null;
-          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: '8px 10px', background: 'var(--bg3)', border: '1px dashed var(--am)', borderRadius: 'var(--r)', fontSize: 11 }}>
-            <span style={{ color: 'var(--am)' }}>Vorschlag:</span>
-            <span style={{ fontWeight: 600 }}>{m.name}</span>
-            <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{iso(sc2.startD)} — {iso(sc2.endD)}</span>
-            <button className="btn btn-pri btn-xs" style={{ marginLeft: 'auto' }} onClick={() => setF(x => ({ ...x, assign: [sc2.personId], team: m.team || x.team }))}>Übernehmen</button>
-          </div>;
-        })()}
+        {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
+          onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
       </>}
 
       {/* ══════ EFFORT TAB ══════ */}
