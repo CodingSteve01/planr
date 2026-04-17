@@ -1375,6 +1375,58 @@ export default function App() {
                 <div className="field"><label>Note{commonNote == null ? ' (mixed — overwrites all!)' : ''}</label>
                   <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
                 </div>
+
+                {/* ── Phases batch ── */}
+                {selItems.every(r => r.id.includes('.')) && <>
+                  {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
+                    <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+                      onSelect={tplId => {
+                        const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
+                        if (!tpl) return;
+                        setD('tree', tree.map(r => {
+                          if (!multiSel.has(r.id)) return r;
+                          const phases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i + Math.random() * 1000 | 0), name: p.name, team: p.team || '', status: 'open' }));
+                          return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
+                        }));
+                      }} placeholder={_t('ph.applyTemplate')} />
+                  </div>}
+
+                  {(() => {
+                    // Show common phase status cycling when all items share the same phase structure
+                    const withPhases = selItems.filter(r => r.phases?.length);
+                    if (!withPhases.length) return null;
+                    const refPhases = withPhases[0].phases;
+                    const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
+                    if (!allSameStructure) return null;
+                    // Compute common status per phase position
+                    return <div className="field"><label>{_t('ph.phases')}</label>
+                      {refPhases.map((ph, i) => {
+                        const statuses = withPhases.map(r => r.phases[i].status);
+                        const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
+                        const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                        const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+                        return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                            onClick={() => {
+                              const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
+                              setD('tree', tree.map(r => {
+                                if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
+                                const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
+                                const done = newPhases.filter(p => p.status === 'done').length;
+                                const wip2 = newPhases.filter(p => p.status === 'wip').length;
+                                const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
+                                const prog = Math.round(done / newPhases.length * 100);
+                                return { ...r, phases: newPhases, status: st, progress: prog };
+                              }));
+                            }}>{dot}</span>
+                          <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
+                          {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(mixed)</span>}
+                        </div>;
+                      })}
+                    </div>;
+                  })()}
+                </>}
+
                 <hr className="divider" />
                 <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
               </div>;
