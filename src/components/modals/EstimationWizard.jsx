@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { instantiateTemplatePhases, normalizePhases, phaseTeamLabel } from '../../utils/phases.js';
+import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
 import { useT } from '../../i18n.jsx';
 
 const SIZE_DATA = [
@@ -13,23 +14,14 @@ const SIZE_DATA = [
   { label: 'XXL', days: 45, key: 'ew.xxl' },
 ];
 
-const RISK_DATA = [
-  { id: 'new_tech', key: 'ew.risk.newTech', weight: 0.15 },
-  { id: 'external', key: 'ew.risk.external', weight: 0.1 },
-  { id: 'migration', key: 'ew.risk.migration', weight: 0.15 },
-  { id: 'ux', key: 'ew.risk.ux', weight: 0.1 },
-  { id: 'stakeholder', key: 'ew.risk.stakeholder', weight: 0.1 },
-  { id: 'integration', key: 'ew.risk.integration', weight: 0.15 },
-  { id: 'legacy', key: 'ew.risk.legacy', weight: 0.1 },
-  { id: 'unclear', key: 'ew.risk.unclear', weight: 0.2 },
-];
-
-export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onClose }) {
+export function EstimationWizard({ node, tree, teams, taskTemplates, risks: projectRisks, onSave, onClose }) {
   const { t } = useT();
   const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
 
   const SIZES = useMemo(() => SIZE_DATA.map(s => ({ ...s, desc: t(s.key) })), [t]);
-  const RISKS = useMemo(() => RISK_DATA.map(r => ({ ...r, label: t(r.key) })), [t]);
+  // Use project-defined risks if available, otherwise defaults (multi-lingual)
+  const RISK_DATA = useMemo(() => projectRisks?.length ? projectRisks : DEFAULT_RISKS, [projectRisks]);
+  const RISKS = useMemo(() => RISK_DATA.map(r => ({ ...r, label: resolveRiskName(r, t) })), [RISK_DATA, t]);
 
   const [step, setStep] = useState(0);
   const [scope, setScope] = useState(node?.note || '');
@@ -45,7 +37,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, onSave, onC
 
   // PERT estimate: (O + 4R + P) / 6
   const pert = useMemo(() => (optimistic + 4 * realistic + pessimistic) / 6, [optimistic, realistic, pessimistic]);
-  const riskFactor = useMemo(() => 1 + [...risks].reduce((s, id) => s + (RISK_DATA.find(r => r.id === id)?.weight || 0), 0), [risks]);
+  const riskFactor = useMemo(() => 1 + [...risks].reduce((s, id) => s + (RISK_DATA.find(r => r.id === id)?.weight || 0), 0), [risks, RISK_DATA]);
   const finalBest = useMemo(() => Math.round(pert), [pert]);
   const finalFactor = useMemo(() => Math.round(riskFactor * 10) / 10, [riskFactor]);
   const finalRealistic = useMemo(() => finalBest * Math.min(finalFactor, 1.3) * 1.15, [finalBest, finalFactor]);

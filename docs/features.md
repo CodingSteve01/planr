@@ -123,7 +123,7 @@ QuickEdit-specific:
 ## Estimation
 
 - **Inline** — `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly on leaves
-- **Estimation Wizard** — 7-step PERT wizard: workflow template selection, optimistic, likely, pessimistic inputs, dependencies, plus a Confidence step that suggests confidence based on risk factors
+- **Estimation Wizard** — 7-step PERT wizard: workflow template selection, optimistic, likely, pessimistic inputs, dependencies, plus a Confidence step that suggests confidence based on risk factors. Risks are configurable in Settings (default catalogue provided as multi-lingual fallback)
 
 ## Phases and templates
 

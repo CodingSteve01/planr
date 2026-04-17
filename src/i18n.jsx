@@ -196,6 +196,12 @@ const en = {
   'tv.collapseAll': 'Collapse all', 'tv.expandAll': 'Expand all',
   'tv.items': 'items', 'tv.leafs': 'leafs',
   'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams', 'tv.allRoots': 'All items',
+
+  // ── Risks ──
+  'set.risks': 'Risks', 'set.riskCatalogue': 'Risk Catalogue',
+  'set.riskHelp': 'These risks appear in the Estimation Wizard. Each selected risk increases the uncertainty factor by its weight.',
+  'set.riskName': 'Risk description', 'set.addRisk': '+ Risk',
+  'set.resetRisks': 'Reset to defaults', 'set.confirmResetRisks': 'Reset risks to default values?',
 };
 
 const de = {
@@ -391,6 +397,12 @@ const de = {
   'tv.collapseAll': 'Alle zuklappen', 'tv.expandAll': 'Alle aufklappen',
   'tv.items': 'Items', 'tv.leafs': 'Leaves',
   'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams', 'tv.allRoots': 'Alle Pakete',
+
+  // ── Risiken ──
+  'set.risks': 'Risiken', 'set.riskCatalogue': 'Risikokatalog',
+  'set.riskHelp': 'Diese Risiken erscheinen im Schätzungs-Wizard. Jedes ausgewählte Risiko erhöht den Unsicherheitsfaktor um sein Gewicht.',
+  'set.riskName': 'Risikobezeichnung', 'set.addRisk': '+ Risiko',
+  'set.resetRisks': 'Standard wiederherstellen', 'set.confirmResetRisks': 'Risiken auf Standardwerte zurücksetzen?',
 };
 
 const LANGS = { en, de };
