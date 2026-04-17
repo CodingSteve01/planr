@@ -31,6 +31,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
   const [realistic, setRealistic] = useState(Math.round((node?.best || 0) * 1.3));
   const [pessimistic, setPessimistic] = useState(Math.round((node?.best || 0) * 2));
   const [selDeps, setSelDeps] = useState(node?.deps || []);
+  const [confidence, setConfidence] = useState(node?.confidence || '');
 
   // PERT estimate: (O + 4R + P) / 6
   const pert = useMemo(() => (optimistic + 4 * realistic + pessimistic) / 6, [optimistic, realistic, pessimistic]);
@@ -59,7 +60,7 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
     return out;
   }, [node, tree]);
 
-  const steps = ['Scope', 'Size', 'Risks', 'Three-Point', 'Dependencies', 'Summary'];
+  const steps = ['Scope', 'Size', 'Risks', 'Three-Point', 'Dependencies', 'Confidence', 'Summary'];
 
   function onSizeSelect(idx) {
     setSize(idx);
@@ -186,8 +187,29 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         </div>}
       </div>}
 
-      {/* Step 5: Summary */}
+      {/* Step 5: Confidence */}
       {step === 5 && <div className="fade">
+        <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>Wie sicher bist du dir bei Scope und Aufwand?</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[
+            ['', 'Auto (Planr entscheidet)', 'Basierend auf Person/Aufwand/Risiko wird automatisch eine Confidence abgeleitet.'],
+            ['committed', '● Committed — klar definiert', 'Scope ist klar, Aufwand belastbar geschätzt, Person bekannt oder bestimmbar.'],
+            ['estimated', '◐ Estimated — grob geschätzt', 'Aufwand ist eine grobe Einschätzung, Scope grundsätzlich bekannt, Details noch offen.'],
+            ['exploratory', '○ Exploratory — Scope unklar', 'Wir wissen noch nicht genau was zu tun ist. Erst Konzeption nötig, dann neue Schätzung.'],
+          ].map(([v, label, desc]) => <div key={v}
+            style={{ padding: '10px 14px', background: confidence === v ? (v === 'exploratory' ? 'rgba(127,127,127,.12)' : v === 'estimated' ? 'rgba(245,158,11,.10)' : v === 'committed' ? 'rgba(22,163,74,.10)' : 'var(--bg3)') : 'var(--bg3)', border: `1px solid ${confidence === v ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
+            onClick={() => setConfidence(v)}>
+            <div style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{desc}</div>
+          </div>)}
+        </div>
+        {riskFactor > 1.3 && !confidence && <div style={{ marginTop: 10, fontSize: 11, color: 'var(--am)', background: 'rgba(245,158,11,.08)', padding: '8px 12px', borderRadius: 'var(--r)' }}>
+          Du hast {risks.size} Risiken markiert (Factor ×{riskFactor.toFixed(1)}). Bei so viel Unsicherheit solltest du "Estimated" oder "Exploratory" in Betracht ziehen.
+        </div>}
+      </div>}
+
+      {/* Step 6: Summary */}
+      {step === 6 && <div className="fade">
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Estimation Summary</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
           <div className="sum-card"><div className="sum-v">{finalBest}</div><div className="sum-l">Best case (days)</div></div>
@@ -199,6 +221,9 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
           <strong>Risks identified:</strong> {[...risks].map(id => RISKS.find(r => r.id === id)?.label).join(', ')}
         </div>}
         {scope && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>Scope: {scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
+        {confidence && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
+          <strong>Confidence:</strong> {confidence === 'committed' ? '● Committed' : confidence === 'estimated' ? '◐ Estimated' : '○ Exploratory'}
+        </div>}
         {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Dependencies: {selDeps.join(', ')}</div>}
       </div>}
 
@@ -207,8 +232,8 @@ export function EstimationWizard({ node, tree, onSave, onClose }) {
         {step > 0 && <button className="btn btn-sec" onClick={() => setStep(s => s - 1)}>Back</button>}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>Cancel</button>
-        {step < 5 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>Next</button>
-          : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '' }); onClose(); }}>Apply estimate</button>}
+        {step < 6 ? <button className="btn btn-pri" onClick={() => setStep(s => s + 1)}>Next</button>
+          : <button className="btn btn-pri" onClick={() => { onSave({ best: finalBest, factor: finalFactor, deps: selDeps, note: scope || node?.note || '', confidence }); onClose(); }}>Apply estimate</button>}
       </div>
     </div>
   </div>;

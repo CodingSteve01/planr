@@ -3,6 +3,7 @@ import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
 import { iso, addD, addWorkDays } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
+import { Tip } from '../shared/Tooltip.jsx';
 
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
@@ -14,7 +15,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
-  // Tooltip removed — was too intrusive and obscured the bars. Use the side panel for details.
+  const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
   const [groupBy, setGroupBy] = useState(() => { try { return localStorage.getItem('planr_gantt_group') || 'project'; } catch { return 'project'; } });
@@ -488,8 +489,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
           const confDot = confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null;
           return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
-            onMouseEnter={() => setHoverDepId(s.id)}
-            onMouseLeave={() => setHoverDepId(null)}>
+            onMouseEnter={e => { setHoverDepId(s.id); const node = iMap[s.id]; setTip({ item: { ...node, ...s, isCp }, x: e.clientX, y: e.clientY }); }}
+            onMouseLeave={() => { setHoverDepId(null); setTip(null); }}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1 }} title={confL}>{confDot}</span>}
             {s._unestimated
@@ -797,7 +798,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         return <path d={d} stroke="var(--ac)" strokeWidth={2} fill="none" strokeDasharray="4 3" strokeLinejoin="round" strokeLinecap="round" markerEnd="url(#ldArr)" />;
       })()}
     </svg>}
-    {/* Hover tooltip removed — too intrusive. The QuickEdit sidebar shows full task details. */}
+    {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} tree={tree} />}
     {ctxMenu && (() => {
       const node = iMap[ctxMenu.taskId]; if (!node) return null;
       const close = () => setCtxMenu(null);

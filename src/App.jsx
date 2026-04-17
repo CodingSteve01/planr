@@ -1754,6 +1754,13 @@ export default function App() {
                 <div className="field"><label>Priority{commonPrio == null ? ' (mixed)' : ''}</label>
                   <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
                 </div>
+                <div className="field"><label>Confidence</label>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {[['', 'Auto'], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
+                      <button key={v} className="btn btn-sec btn-xs" style={{ flex: 1, fontSize: 10 }}
+                        onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
+                  </div>
+                </div>
                 <div className="field"><label>Note{commonNote == null ? ' (mixed — overwrites all!)' : ''}</label>
                   <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
                 </div>

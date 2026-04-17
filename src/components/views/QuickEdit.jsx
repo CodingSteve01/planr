@@ -5,28 +5,38 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 
+const CONF_OPTS = [
+  { id: '', label: 'Auto' },
+  { id: 'committed', label: '● Committed' },
+  { id: 'estimated', label: '◐ Estimated' },
+  { id: 'exploratory', label: '○ Exploratory' },
+];
+
 export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue }) {
   const [f, setF] = useState({ ...node });
-  // Only re-sync when a DIFFERENT node is selected (id change).
-  // External content changes (e.g. NodeModal saving an assign) are handled by
-  // App remounting this component via a key prop — no effect chain needed.
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
   if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
-  // Live-update on each change (matches QuickEdit's original behavior)
   const s = (k, v) => { const n = { ...f, [k]: v }; setF(n); onUpdate(n); };
   const fl = () => onUpdate(f);
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
+  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}`;
+
   return <>
+    {/* ── Header: Status + CP ─────────────────────────────────────────── */}
     {isCp && <div style={{ background: '#3d0a0e', border: '1px solid var(--re)', borderRadius: 'var(--r)', padding: '6px 10px', marginBottom: 10, fontSize: 11, color: '#fda4af', display: 'flex', gap: 6, alignItems: 'center' }}>⚡ Critical path item</div>}
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       {isLeaf && <SBadge s={node.status} />}
       {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status} <span style={{ fontSize: 8, color: 'var(--tx3)', fontWeight: 400 }}>(auto)</span></span>}
     </div>
+
+    {/* ── Name ────────────────────────────────────────────────────────── */}
     <div className="field"><label>Name</label><input value={f.name || ''} onChange={e => setF(x => ({ ...x, name: e.target.value }))} onBlur={fl} /></div>
+
+    {/* ── Root: Focus type ────────────────────────────────────────────── */}
     {isRoot && <>
       <div className="field"><label>Focus type</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -43,37 +53,61 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       </div>}
       {f.type && <div className="field"><label>Description</label><input value={f.description || ''} onChange={e => setF(x => ({ ...x, description: e.target.value }))} onBlur={fl} placeholder="Why does this matter?" /></div>}
     </>}
-    <div className="frow">
-      {isLeaf && <div className="field"><label>Status</label>
+
+    {/* ── Status + Confidence (leaf) ──────────────────────────────────── */}
+    {isLeaf && <div className="frow">
+      <div className="field"><label>Status</label>
         <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />
-      </div>}
-      <div className="field"><label>Team</label>
-        <SearchSelect value={f.team || ''} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
       </div>
+      <div className="field"><label>Confidence</label>
+        <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
+      </div>
+    </div>}
+
+    {/* ── Team + Assignee (together) ──────────────────────────────────── */}
+    <div className="field"><label>Team</label>
+      <SearchSelect value={f.team || ''} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
     </div>
+    {isLeaf && <div className="field"><label>Assignee</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+        {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
+      </div>
+      <SearchSelect
+        options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
+        onSelect={id => {
+          const m = members.find(x => x.id === id);
+          const n = { ...f, assign: [...new Set([...(f.assign || []), id])], team: m?.team || f.team };
+          setF(n); onUpdate(n);
+        }}
+        placeholder="Person zuweisen..."
+      />
+    </div>}
+
+    {/* ── Progress (leaf) ─────────────────────────────────────────────── */}
     {isLeaf && <div className="field"><label>Progress {f.progress ?? leafProgress(f)}%</label>
       <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
         onChange={e => { const v = +e.target.value; const n = { ...f, progress: v }; if (v >= 100 && f.status !== 'done') n.status = 'done'; else if (v > 0 && v < 100 && f.status !== 'wip') n.status = 'wip'; else if (v === 0 && f.status !== 'open') n.status = 'open'; setF(n); onUpdate(n); }}
         style={{ width: '100%', accentColor: 'var(--ac)' }} />
     </div>}
+
+    {/* ── Parent: aggregated stats ─────────────────────────────────────── */}
     {!isLeaf && (() => {
       const st = stats?.[node.id];
       const childCount = directChildren(tree, node.id).length;
       const leafCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length;
       const doneCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length;
       return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>Aggregated from {leafCount} leaf items</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{leafCount} leaf items ({doneCount} done)</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
           <span style={{ color: 'var(--tx3)' }}>Children</span><span>{childCount}</span>
-          <span style={{ color: 'var(--tx3)' }}>Progress</span><span>{doneCount}/{leafCount} ({leafCount > 0 ? Math.round(doneCount / leafCount * 100) : 0}%)</span>
           <span style={{ color: 'var(--tx3)' }}>Best</span><span>{st?._b?.toFixed(0) || 0}d</span>
           <span style={{ color: 'var(--tx3)' }}>Realistic</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
-          <span style={{ color: 'var(--tx3)' }}>Worst</span><span>{st?._w?.toFixed(0) || 0}d</span>
-          {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Scheduled</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
+          {st?._startD && <><span style={{ color: 'var(--tx3)' }}>Zeitraum</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>Derived from child items.</div>
       </div>;
     })()}
+
+    {/* ── Estimate (leaf) ─────────────────────────────────────────────── */}
     {isLeaf && <>
       <div className="field"><label>Quick estimate</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -85,119 +119,95 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="frow">
         <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best || 0} onChange={e => setF(x => ({ ...x, best: +e.target.value }))} onBlur={fl} /></div>
         <div className="field"><label>Factor</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => setF(x => ({ ...x, factor: +e.target.value }))} onBlur={fl} /></div>
-      </div>
-      <div className="frow">
         <div className="field"><label>Priority</label>
-          <SearchSelect value={String(f.prio || 1)} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => s('prio', +v)} />
-        </div>
-        <div className="field"><label>Seq</label><input type="number" value={f.seq || 0} onChange={e => setF(x => ({ ...x, seq: +e.target.value }))} onBlur={fl} /></div>
-      </div>
-      <div className="field"><label>Decide by</label>
-        <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
-      </div>
-      <div className="field">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <label style={{ fontSize: 12, color: 'var(--tx2)' }}>Run in parallel {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 4 }}>≡ capacity bypass</span>}</label>
-          <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+          <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => s('prio', +v)} />
         </div>
       </div>
-      {onReorderInQueue && !f.parallel && (
-        <div className="field">
-          <label>Queue position <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 4 }}>among same assignee / team</span></label>
+      {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={() => onEstimate(node)}>Estimation Wizard...</button>}
+    </>}
+
+    {/* ── Scheduled info (leaf) — compact card ────────────────────────── */}
+    {isLeaf && sc && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontFamily: 'var(--mono)', fontSize: 10 }}>
+      <span style={{ color: 'var(--tx3)' }}>Zeitraum</span><span>{iso(sc.startD)} → {iso(sc.endD)}</span>
+      <span style={{ color: 'var(--tx3)' }}>Dauer</span><span>{sc.weeks}w ({sc.calDays}d)</span>
+      <span style={{ color: 'var(--tx3)' }}>Person</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.person} ({sc.capPct}% cap)</span>
+      <span style={{ color: 'var(--tx3)' }}>Aufwand</span><span>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d realistisch{isCp ? ' · ⚡ CP' : ''}</span>
+    </div>}
+    {isLeaf && !sc && f.best > 0 && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+      {re(f.best || 0, f.factor || 1.5).toFixed(1)}d realistisch · nicht eingeplant
+    </div>}
+
+    {/* ── Scheduling controls (leaf) ──────────────────────────────────── */}
+    {isLeaf && <>
+      <div className="frow">
+        <div className="field"><label>Decide by</label>
+          <input type="date" value={f.decideBy || ''} onChange={e => { const v = e.target.value; const n = { ...f, decideBy: v }; setF(n); onUpdate(n); }} />
+        </div>
+        <div className="field"><label>Pinned start {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'first')} title="Move to the front of this person's / team's queue" style={{ flex: 1 }}>⤒ First</button>
-            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'earlier')} title="One step earlier in queue" style={{ flex: 1 }}>▲ Earlier</button>
-            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'later')} title="One step later in queue" style={{ flex: 1 }}>▼ Later</button>
-            <button className="btn btn-sec btn-sm" onClick={() => onReorderInQueue(node.id, 'last')} title="Move to the end of this person's / team's queue" style={{ flex: 1 }}>⤓ Last</button>
+            <input type="date" value={f.pinnedStart || ''} onChange={e => { const v = e.target.value; const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }} style={{ flex: 1 }} />
+            {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => { const n = { ...f, pinnedStart: '' }; setF(n); onUpdate(n); }} title="Unpin">×</button>}
           </div>
-          <p className="helper">Order within the same person's (or team's, if unassigned) workload. Writes `seq`; scheduler breaks ties by prio → seq → id.</p>
         </div>
-      )}
-      <div className="field">
-        <label>Pinned start {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)', marginLeft: 6 }}>📌 hard floor</span>}</label>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <input type="date" value={f.pinnedStart || ''}
-            onChange={e => { const v = e.target.value; const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }}
-            style={{ flex: 1 }}
-            title="Scheduler will not start this task earlier than this date. Deps and capacity can still push it later." />
-          <button className="btn btn-sec btn-sm" onClick={() => { const v = iso(new Date()); const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }}
-            title="Mark this as the next task to start — pins to today.">Start today</button>
-          {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => { const n = { ...f, pinnedStart: '' }; setF(n); onUpdate(n); }} title="Unpin">×</button>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: 'var(--tx2)' }}>Parallel {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}</label>
+        <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+      </div>
+      {onReorderInQueue && !f.parallel && <div className="field">
+        <label style={{ fontSize: 10 }}>Queue</label>
+        <div style={{ display: 'flex', gap: 3 }}>
+          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ flex: 1 }}>⤒</button>
+          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ flex: 1 }}>▲</button>
+          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ flex: 1 }}>▼</button>
+          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ flex: 1 }}>⤓</button>
         </div>
-        <p className="helper">Pin a task's start date when you want it to begin on or after a specific day. Click "Start today" to make it your next task.</p>
-      </div>
-      {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 12 }} onClick={() => onEstimate(node)}>Estimation Wizard...</button>}
-      <div className="field"><label>Assignee</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-          {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
-        </div>
-        <SearchSelect
-          options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}` }))}
-          onSelect={id => {
-            const m = members.find(x => x.id === id);
-            const n = { ...f, assign: [...new Set([...(f.assign || []), id])], team: m?.team || f.team };
-            setF(n); onUpdate(n);
-          }}
-          placeholder="Search and assign person..."
-        />
-      </div>
-      <div className="calc">
-        <span>Realistic:</span><b>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
-        <span>Worst:</span><b>{((f.best || 0) * (f.factor || 1.5)).toFixed(0)}d</b>
-        {isCp && <span className="cp">On critical path</span>}
-      </div>
-      {sc && <div className="calc" style={{ fontSize: 10 }}>
-        <span>Scheduled:</span><b>{iso(sc.startD)} → {iso(sc.endD)}</b>
-        <span>Duration:</span><b>{sc.weeks}w ({sc.calDays}d)</b>
-        <span>Person:</span>
-        <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{sc.person}</b>
-        <span style={{ fontSize: 9 }}>({sc.capPct}% cap, {sc.vacDed}% vac)</span>
       </div>}
     </>}
-    <div className="field"><label>Dependencies{!isLeaf ? ' (apply to all leaves)' : ''}</label>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+
+    {/* ── Dependencies ────────────────────────────────────────────────── */}
+    <div className="field"><label>Predecessors{!isLeaf ? ' (all leaves)' : ''}</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
         {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-            {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {dn.name}</span>}
+            {dn?.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 60, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '2px 6px', outline: 'none', fontFamily: 'var(--mono)' }} />
-            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => { const newDeps = (f.deps || []).filter(x => x !== d); const newLabels = { ...(f._depLabels || {}) }; delete newLabels[d]; const n = { ...f, deps: newDeps, _depLabels: newLabels }; setF(n); onUpdate(n); }}>×</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+            <input value={lbl} onChange={e => s('_depLabels', { ...(f._depLabels || {}), [d]: e.target.value })} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
+            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => { const newDeps = (f.deps || []).filter(x => x !== d); const newLabels = { ...(f._depLabels || {}) }; delete newLabels[d]; const n = { ...f, deps: newDeps, _depLabels: newLabels }; setF(n); onUpdate(n); }}>×</span>
           </div>
         </div>; })}
       </div>
-      <SearchSelect
-        options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })}
-        onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
-        placeholder="Search and add dependency..."
-        showIds
-      />
-      <p className="helper">{isLeaf ? 'Blocked until all deps finish.' : 'Constraint propagates to every leaf under this item.'}</p>
+      <SearchSelect options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder="+ Predecessor..." showIds />
     </div>
     {(() => {
       const successors = tree.filter(r => (r.deps || []).includes(node.id));
       if (!successors.length) return null;
-      return <div className="field"><label>Successors (waiting for this)</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      return <div className="field"><label>Successors</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {successors.map(succ => <div key={succ.id} className="dep-row">
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 600 }}>{succ.id}</span>
-              <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>— {succ.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{succ.name}</span>
             </div>
-            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 12, color: 'var(--tx3)' }} title="Release this successor"
-              onClick={() => { if (confirm(`Remove dependency? "${succ.name}" will no longer wait for this task.`)) onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) }); }}>×</span>
+            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }} title="Release"
+              onClick={() => { if (confirm(`"${succ.name}" wartet nicht mehr auf dieses Item?`)) onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) }); }}>×</span>
           </div>)}
         </div>
       </div>;
     })()}
+
+    {/* ── Notes ────────────────────────────────────────────────────────── */}
     <div className="field"><label>Notes</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
+
+    {/* ── Actions ──────────────────────────────────────────────────────── */}
     <hr className="divider" />
     <div style={{ display: 'flex', gap: 6 }}>
       {onDuplicate && <button className="btn btn-sec" style={{ flex: 1 }} onClick={() => {
         const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
         if (confirm(sub > 1 ? `Duplicate "${node.name}" with ${sub - 1} descendant${sub === 2 ? '' : 's'}?` : `Duplicate "${node.name}"?`)) onDuplicate(node.id);
-      }} title="Create a copy of this item and all its children">⧉ Duplicate</button>}
+      }}>⧉ Duplicate</button>}
       {onDelete && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { if (confirm(`Delete ${node.id}${hasChildren(tree, node.id) ? ' and all children' : ''}?`)) onDelete(node.id); }}>Delete</button>}
     </div>
   </>;
