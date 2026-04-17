@@ -36,7 +36,7 @@ const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 const PRIO_LBL = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
 
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, cpSet, onQuickAdd, onDelete, onReorder }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
@@ -135,6 +135,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     return map;
   }, [members]);
   const memberShort = (id) => shortMap[id] || '?';
+  const sMap = useMemo(() => scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}, [scheduled]);
   const memberFullName = (id) => (members || []).find(x => x.id === id)?.name || id;
   const teamColor = (tid) => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
   const teamName = (tid) => teams?.find(x => x.id === pt(tid))?.name || tid || '';
@@ -250,6 +251,8 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
 
               {/* Assignees — initials */}
               {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} title={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
+              {/* Auto-assigned suggestion from scheduler */}
+              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} title={`Vorschlag: ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
 
               {/* Priority — chevron icon for all leaves */}
               {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} title={`Priority: ${PRIO_LBL[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}

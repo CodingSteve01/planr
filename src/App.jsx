@@ -1363,7 +1363,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} stats={stats} teams={teams} members={members} cpSet={cpSet}
+              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} onReorder={reorderSibling} />
           }
