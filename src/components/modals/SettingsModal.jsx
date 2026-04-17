@@ -49,15 +49,14 @@ export function SettingsModal({ meta, onSave, onClose }) {
       </div>
       <div className="field">
         <label>{t('set.workDays')}</label>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {DAY_NUMBERS.map((day, i) => (
-            <button key={day}
-              className={`btn btn-xs ${wd.includes(day) ? 'btn-pri' : 'btn-sec'}`}
-              onClick={() => toggleDay(day)}
-              style={{ flex: 1, padding: '6px 0', fontSize: 11, textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--b2)' }}>
+          {DAY_NUMBERS.map((day, i) => {
+            const on = wd.includes(day);
+            return <button key={day} onClick={() => toggleDay(day)}
+              style={{ width: 44, padding: '7px 0', fontSize: 11, fontWeight: on ? 600 : 400, textAlign: 'center', cursor: 'pointer', border: 'none', borderRight: i < 6 ? '1px solid var(--b2)' : 'none', background: on ? 'var(--ac2)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx3)', transition: 'all .12s', fontFamily: 'var(--font)' }}>
               {dayLabels[i]}
-            </button>
-          ))}
+            </button>;
+          })}
         </div>
       </div>
       <div className="modal-footer">

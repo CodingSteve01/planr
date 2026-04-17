@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GL } from '../../constants.js';
+import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
@@ -24,20 +24,18 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
   const s = (k, v) => { const n = { ...f, [k]: v }; setF(n); onUpdate(n); };
   const fl = () => onUpdate(f);
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
-  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(t => t.id === m.team)?.name || m.team) : ''}`;
+  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
 
   return <>
-    {/* ── Header: Status + CP ─────────────────────────────────────────── */}
+    {/* ── 1. HEADER ──────────────────────────────────────────────────── */}
     {isCp && <div style={{ background: '#3d0a0e', border: '1px solid var(--re)', borderRadius: 'var(--r)', padding: '6px 10px', marginBottom: 10, fontSize: 11, color: '#fda4af', display: 'flex', gap: 6, alignItems: 'center' }}>⚡ {t('qe.cpItem')}</div>}
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       {isLeaf && <SBadge s={node.status} />}
       {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status} <span style={{ fontSize: 8, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span></span>}
     </div>
 
-    {/* ── Name ────────────────────────────────────────────────────────── */}
+    {/* ── 2. IDENTITY ──────────────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => setF(x => ({ ...x, name: e.target.value }))} onBlur={fl} /></div>
-
-    {/* ── Root: Focus type ────────────────────────────────────────────── */}
     {isRoot && <>
       <div className="field"><label>{t('qe.focusType')}</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -55,19 +53,34 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => setF(x => ({ ...x, description: e.target.value }))} onBlur={fl} placeholder={t('qe.descPlaceholder')} /></div>}
     </>}
 
-    {/* ── Status + Confidence (leaf) ──────────────────────────────────── */}
-    {isLeaf && <div className="frow">
-      <div className="field"><label>{t('qe.status')}</label>
-        <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
-      </div>
-      <div className="field"><label>{t('qe.confidence')}</label>
-        <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
-      </div>
+    {/* ── 3. STATUS & PROGRESS ─────────────────────────────────────────── */}
+    {isLeaf && <div className="field"><label>{t('qe.progress')} {f.progress ?? leafProgress(f)}%</label>
+      <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
+        onChange={e => { const v = +e.target.value; const n = { ...f, progress: v }; if (v >= 100 && f.status !== 'done') n.status = 'done'; else if (v > 0 && v < 100 && f.status !== 'wip') n.status = 'wip'; else if (v === 0 && f.status !== 'open') n.status = 'open'; setF(n); onUpdate(n); }}
+        style={{ width: '100%', accentColor: 'var(--ac)' }} />
     </div>}
+    {!isLeaf && (() => {
+      const st = stats?.[node.id];
+      const leafCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length;
+      const doneCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length;
+      return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{doneCount}/{leafCount} {t('qe.leafItems')} {t('done')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
+          <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
+          {st?._startD && <><span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
+        </div>
+      </div>;
+    })()}
 
-    {/* ── Team + Assignee (together) ──────────────────────────────────── */}
-    <div className="field"><label>{t('qe.team')}</label>
-      <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
+    {/* ── 4. ASSIGNMENT ─────────────────────────────────────────────────── */}
+    <div className="frow">
+      <div className="field"><label>{t('qe.team')}</label>
+        <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
+      </div>
+      {isLeaf && <div className="field"><label>{t('qe.status')}</label>
+        <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
+      </div>}
     </div>
     {isLeaf && <div className="field"><label>{t('qe.assignee')}</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -84,31 +97,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       />
     </div>}
 
-    {/* ── Progress (leaf) ─────────────────────────────────────────────── */}
-    {isLeaf && <div className="field"><label>{t('qe.progress')} {f.progress ?? leafProgress(f)}%</label>
-      <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
-        onChange={e => { const v = +e.target.value; const n = { ...f, progress: v }; if (v >= 100 && f.status !== 'done') n.status = 'done'; else if (v > 0 && v < 100 && f.status !== 'wip') n.status = 'wip'; else if (v === 0 && f.status !== 'open') n.status = 'open'; setF(n); onUpdate(n); }}
-        style={{ width: '100%', accentColor: 'var(--ac)' }} />
-    </div>}
-
-    {/* ── Parent: aggregated stats ─────────────────────────────────────── */}
-    {!isLeaf && (() => {
-      const st = stats?.[node.id];
-      const childCount = directChildren(tree, node.id).length;
-      const leafCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length;
-      const doneCount = leafNodes(tree).filter(c => c.id.startsWith(node.id + '.') && c.status === 'done').length;
-      return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{leafCount} {t('qe.leafItems')} ({doneCount} {t('done')})</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
-          <span style={{ color: 'var(--tx3)' }}>{t('qe.children')}</span><span>{childCount}</span>
-          <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
-          <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
-          {st?._startD && <><span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
-        </div>
-      </div>;
-    })()}
-
-    {/* ── Estimate (leaf) ─────────────────────────────────────────────── */}
+    {/* ── 5. ESTIMATION ────────────────────────────────────────────────── */}
     {isLeaf && <>
       <div className="field"><label>{t('qe.quickEstimate')}</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -124,21 +113,23 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
           <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `1 ${t('critical')}` }, { id: '2', label: `2 ${t('high')}` }, { id: '3', label: `3 ${t('medium')}` }, { id: '4', label: `4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
         </div>
       </div>
+      <div className="field"><label>{t('qe.confidence')}</label>
+        <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
+      </div>
+      {/* Scheduled info card */}
+      {sc && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontFamily: 'var(--mono)', fontSize: 10 }}>
+        <span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{iso(sc.startD)} → {iso(sc.endD)}</span>
+        <span style={{ color: 'var(--tx3)' }}>{t('qe.duration')}</span><span>{sc.weeks}w ({sc.calDays}d)</span>
+        <span style={{ color: 'var(--tx3)' }}>{t('qe.person')}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.person} ({sc.capPct}% cap)</span>
+        <span style={{ color: 'var(--tx3)' }}>{t('qe.effort')}</span><span>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
+      </div>}
+      {!sc && f.best > 0 && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+        {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
+      </div>}
       {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={() => onEstimate(node)}>{t('qe.estimationWizard')}</button>}
     </>}
 
-    {/* ── Scheduled info (leaf) — compact card ────────────────────────── */}
-    {isLeaf && sc && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontFamily: 'var(--mono)', fontSize: 10 }}>
-      <span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{iso(sc.startD)} → {iso(sc.endD)}</span>
-      <span style={{ color: 'var(--tx3)' }}>{t('qe.duration')}</span><span>{sc.weeks}w ({sc.calDays}d)</span>
-      <span style={{ color: 'var(--tx3)' }}>{t('qe.person')}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.person} ({sc.capPct}% cap)</span>
-      <span style={{ color: 'var(--tx3)' }}>{t('qe.effort')}</span><span>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
-    </div>}
-    {isLeaf && !sc && f.best > 0 && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
-      {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
-    </div>}
-
-    {/* ── Scheduling controls (leaf) ──────────────────────────────────── */}
+    {/* ── 6. SCHEDULING ────────────────────────────────────────────────── */}
     {isLeaf && <>
       <div className="frow">
         <div className="field"><label>{t('qe.decideBy')}</label>
@@ -147,7 +138,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
         <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
           <div style={{ display: 'flex', gap: 4 }}>
             <input type="date" value={f.pinnedStart || ''} onChange={e => { const v = e.target.value; const n = { ...f, pinnedStart: v }; setF(n); onUpdate(n); }} style={{ flex: 1 }} />
-            {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => { const n = { ...f, pinnedStart: '' }; setF(n); onUpdate(n); }} title="Unpin">×</button>}
+            {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => { const n = { ...f, pinnedStart: '' }; setF(n); onUpdate(n); }}>×</button>}
           </div>
         </div>
       </div>
@@ -166,7 +157,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       </div>}
     </>}
 
-    {/* ── Dependencies ────────────────────────────────────────────────── */}
+    {/* ── 7. DEPENDENCIES ──────────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.predecessors')}{!isLeaf ? ` (${t('qe.allLeaves')})` : ''}</label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
         {(f.deps || []).map(d => { const dn = tree.find(r => r.id === d); const lbl = (f._depLabels || {})[d] || ''; return <div key={d} className="dep-row">
@@ -180,7 +171,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
           </div>
         </div>; })}
       </div>
-      <SearchSelect options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder="+ Predecessor..." showIds />
+      <SearchSelect options={allIds.map(i => { const n = tree.find(r => r.id === i); return { id: i, label: n?.name || '' }; })} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
     </div>
     {(() => {
       const successors = tree.filter(r => (r.deps || []).includes(node.id));
@@ -192,17 +183,17 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
               <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 600 }}>{succ.id}</span>
               <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{succ.name}</span>
             </div>
-            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }} title="Release"
+            <span className="tag-x" style={{ cursor: 'pointer', opacity: .6, fontSize: 11, color: 'var(--tx3)' }}
               onClick={() => { if (confirm(t('qe.confirmRelease', succ.name))) onUpdate({ ...succ, deps: (succ.deps || []).filter(d => d !== node.id) }); }}>×</span>
           </div>)}
         </div>
       </div>;
     })()}
 
-    {/* ── Notes ────────────────────────────────────────────────────────── */}
+    {/* ── 8. NOTES ──────────────────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
 
-    {/* ── Actions ──────────────────────────────────────────────────────── */}
+    {/* ── 10. ACTIONS ───────────────────────────────────────────────────── */}
     <hr className="divider" />
     <div style={{ display: 'flex', gap: 6 }}>
       {onDuplicate && <button className="btn btn-sec" style={{ flex: 1 }} onClick={() => {
