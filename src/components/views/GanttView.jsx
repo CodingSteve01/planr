@@ -464,6 +464,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             })}
           </div>)}
         </div>}
+        {/* Horizon color band: green(H1) → amber(H2) → gray(beyond) */}
+        {(() => {
+          const h1D = new Date(now); h1D.setDate(h1D.getDate() + h1Weeks * 7);
+          const h2D = new Date(now); h2D.setDate(h2D.getDate() + h2Weeks * 7);
+          const todX = dateToX(now), h1X = dateToX(h1D), h2X = dateToX(h2D);
+          return <div style={{ display: 'flex', height: 3, position: 'relative', overflow: 'hidden', width: tw }}>
+            {todX > 0 && <div style={{ position: 'absolute', left: 0, width: todX, height: '100%', background: 'var(--bg3)' }} />}
+            {h1X > todX && <div style={{ position: 'absolute', left: Math.max(todX, 0), width: h1X - Math.max(todX, 0), height: '100%', background: 'var(--gr)', opacity: .5 }} title={`H1 · ${h1Weeks}w — committed`} />}
+            {h2X > h1X && <div style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: .4 }} title={`H2 · ${h2Weeks}w — estimated`} />}
+            <div style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: .15 }} title="Beyond H2 — exploratory" />
+          </div>;
+        })()}
       </div>
     </div>
     <div className="gantt-body">
@@ -657,7 +669,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                     }} title={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
-                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0, textShadow: conf === 'estimated' ? '0 0 4px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8)' : undefined }}>
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                   title={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}

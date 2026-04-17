@@ -88,37 +88,53 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       </div>;
     })()}
 
-    <div className="guide-card horizon-guide" style={{ marginBottom: 20 }}>
-      <div className="guide-kicker">{t('s.horizonKicker')}</div>
-      <div className="guide-title" style={{ marginBottom: 4 }}>{t('s.horizonTitle')}</div>
-      <div className="horizon-lead">{t('s.horizonLead')}</div>
-      <div className="horizon-grid">
-        <div className="horizon-card horizon-h1">
-          <div className="horizon-meta">
-            <span className="horizon-pill">H1</span>
-            <span className="horizon-date">{iso(h1Date)}</span>
+    {/* Pulse Check — actionable warnings instead of static horizon explainer */}
+    {(() => {
+      const notDone = scheduled.filter(s => s.status !== 'done');
+      const inH1 = notDone.filter(s => s.startD && s.startD <= h1Date);
+      const inH2 = notDone.filter(s => s.startD && s.startD > h1Date && s.startD <= h2Date);
+      const h1NoAssign = inH1.filter(s => !s.personId);
+      const h1NoEstimate = inH1.filter(s => { const n = iMap[s.id]; return !n?.best || n.best === 0; });
+      const h2Exploratory = inH2.filter(s => confidence[s.id] === 'exploratory');
+      const blockedNoOwner = notDone.filter(s => {
+        if (s.personId) return false;
+        const n = iMap[s.id];
+        const deps = n?.deps || [];
+        return deps.some(d => { const dt = tree.find(r => r.id === d); return dt && dt.status !== 'done'; });
+      });
+      const deadlinesAtRisk = goals.filter(g => {
+        if (g.type !== 'deadline' || !g.date) return false;
+        const linked = scheduled.filter(s => s.id.startsWith(g.id + '.'));
+        const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+        return maxEnd && new Date(g.date) < maxEnd;
+      });
+      const checks = [
+        h1NoAssign.length > 0 && { warn: true, text: `${h1NoAssign.length} Tasks in H1 ohne Person`, items: h1NoAssign },
+        h1NoEstimate.length > 0 && { warn: true, text: `${h1NoEstimate.length} Tasks in H1 ohne Schätzung`, items: h1NoEstimate },
+        h2Exploratory.length > 0 && { warn: true, text: `${h2Exploratory.length} Tasks in H2 noch explorativ`, items: h2Exploratory },
+        blockedNoOwner.length > 0 && { warn: true, text: `${blockedNoOwner.length} blockierte Tasks ohne Person`, items: blockedNoOwner },
+        deadlinesAtRisk.length > 0 && { warn: true, text: `${deadlinesAtRisk.length} Deadlines gefährdet`, items: deadlinesAtRisk },
+      ].filter(Boolean);
+      const allClear = checks.length === 0;
+
+      return <div style={{ background: 'var(--bg2)', border: `1px solid ${allClear ? 'var(--gr)' : 'var(--am)'}`, borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: checks.length ? 10 : 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>Pulse Check</span>
+          <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+            <span style={{ color: 'var(--gr)' }}>H1 {iso(h1Date)}</span>
+            <span style={{ color: 'var(--am)' }}>H2 {iso(h2Date)}</span>
           </div>
-          <div className="horizon-name">{t('s.horizonCommitted')}</div>
-          <div className="horizon-copy">{t('s.horizonCommittedBody')}</div>
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
-        <div className="horizon-card horizon-h2">
-          <div className="horizon-meta">
-            <span className="horizon-pill">H2</span>
-            <span className="horizon-date">{iso(h2Date)}</span>
-          </div>
-          <div className="horizon-name">{t('s.horizonEstimated')}</div>
-          <div className="horizon-copy">{t('s.horizonEstimatedBody')}</div>
-        </div>
-        <div className="horizon-card horizon-h3">
-          <div className="horizon-meta">
-            <span className="horizon-pill">H3</span>
-          </div>
-          <div className="horizon-name">{t('s.horizonExploratory')}</div>
-          <div className="horizon-copy">{t('s.horizonExploratoryBody')}</div>
-        </div>
-      </div>
-      <div className="horizon-foot">{t('s.horizonFoot')}</div>
-    </div>
+        {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>Alles im grünen Bereich — keine offenen Punkte.</div>}
+        {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+          <span style={{ color: 'var(--am)', flexShrink: 0 }}>⚠</span>
+          <span style={{ color: 'var(--tx)' }}>{c.text}</span>
+          {c.items?.[0]?.id && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
+            onClick={() => onNavigate?.(c.items[0].id, 'tree')}>→ {c.items[0].id}</span>}
+        </div>)}
+      </div>;
+    })()}
 
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>

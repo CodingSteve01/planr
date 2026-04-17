@@ -153,19 +153,32 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       // Compute skipBefore: the latest of dep/pin/slot "next available date"
       let skipBefore = earlyDate;
       if (slotFree.nextDate && (!skipBefore || slotFree.nextDate > skipBefore)) skipBefore = slotFree.nextDate;
-      const avgCap = tM.length > 0 ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length : 1;
-      const avgVac = tM.length > 0 ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length : 0.9;
-      const dailyAvgCap = avgCap * avgVac;
+      // Day-accurate capacity: count how many team members are actually available on each day
+      // (respects onboarding start and offboarding end dates).
+      const dayTeamCap = d => {
+        if (!tM.length) return 1;
+        let cap = 0;
+        for (const m of tM) {
+          if (m.start && d < localDate(m.start)) continue;
+          if (m.end && d > localDate(m.end)) continue;
+          cap += (m.cap || 1) * (vacInfo[m.id] || 0.9);
+        }
+        return cap / tM.length;
+      };
       let rem = eff, wi = slotWi, firstWorkDay = null, lastWorkDay = null;
       while (rem > 0 && wi < wks.length) {
         for (const d of wks[wi].wds) {
           if (skipBefore && d < skipBefore) continue;
+          const cap = dayTeamCap(d);
+          if (cap <= 0) continue; // no team members available on this day
           if (!firstWorkDay) firstWorkDay = d;
-          rem -= dailyAvgCap; lastWorkDay = d;
+          rem -= cap; lastWorkDay = d;
           if (rem <= 0) break;
         }
         if (rem <= 0) break; wi++;
       }
+      const avgCap = tM.length > 0 ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length : 1;
+      const avgVac = tM.length > 0 ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length : 0.9;
       const eW = Math.min(Math.max(wi, slotWi), wks.length - 1);
       const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
       tEW[id] = { wi: eW, nextDate: nd };
