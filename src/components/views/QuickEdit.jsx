@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { directChildren, hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafNodes, leafProgress, re } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 
@@ -25,6 +25,8 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
   const fl = () => onUpdate(f);
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
+  const SIZES = [['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]];
+  const nearestSize = f.best > 0 ? SIZES.reduce((best, sz) => Math.abs(sz[1] - f.best) < Math.abs(best[1] - f.best) ? sz : best, SIZES[0]) : null;
 
   return <>
     {/* ── 1. HEADER ──────────────────────────────────────────────────── */}
@@ -34,8 +36,9 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status} <span style={{ fontSize: 8, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span></span>}
     </div>
 
-    {/* ── 2. IDENTITY ──────────────────────────────────────────────────── */}
+    {/* ── 2. IDENTITY + NOTES ─────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => setF(x => ({ ...x, name: e.target.value }))} onBlur={fl} /></div>
+    <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
     {isRoot && <>
       <div className="field"><label>{t('qe.focusType')}</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -53,11 +56,15 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => setF(x => ({ ...x, description: e.target.value }))} onBlur={fl} placeholder={t('qe.descPlaceholder')} /></div>}
     </>}
 
-    {/* ── 3. STATUS & PROGRESS ─────────────────────────────────────────── */}
-    {isLeaf && <div className="field"><label>{t('qe.progress')} {f.progress ?? leafProgress(f)}%</label>
+    {/* ── 3. STATUS + PROGRESS (compact) ───────────────────────────────── */}
+    {isLeaf && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ flex: '0 0 100px' }}>
+        <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
+      </div>
       <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
         onChange={e => { const v = +e.target.value; const n = { ...f, progress: v }; if (v >= 100 && f.status !== 'done') n.status = 'done'; else if (v > 0 && v < 100 && f.status !== 'wip') n.status = 'wip'; else if (v === 0 && f.status !== 'open') n.status = 'open'; setF(n); onUpdate(n); }}
-        style={{ width: '100%', accentColor: 'var(--ac)' }} />
+        style={{ flex: 1, accentColor: 'var(--ac)' }} />
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
     </div>}
     {!isLeaf && (() => {
       const st = stats?.[node.id];
@@ -74,16 +81,11 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
     })()}
 
     {/* ── 4. ASSIGNMENT ─────────────────────────────────────────────────── */}
-    <div className="frow">
-      <div className="field"><label>{t('qe.team')}</label>
-        <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
-      </div>
-      {isLeaf && <div className="field"><label>{t('qe.status')}</label>
-        <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
-      </div>}
+    <div className="field"><label>{t('qe.team')}</label>
+      <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
     </div>
     {isLeaf && <div className="field"><label>{t('qe.assignee')}</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
         {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
       </div>
       <SearchSelect
@@ -100,11 +102,16 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
     {/* ── 5. ESTIMATION ────────────────────────────────────────────────── */}
     {isLeaf && <>
       <div className="field"><label>{t('qe.quickEstimate')}</label>
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
-            <button key={sz} className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
-              onClick={() => { const n = { ...f, best: d, factor: fc }; setF(n); onUpdate(n); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>)}
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 4 }}>
+          {SIZES.map(([sz, d, fc]) => {
+            const exact = f.best === d;
+            const nearest = !exact && nearestSize?.[0] === sz && f.best > 0;
+            return <button key={sz} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
+              style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
+              onClick={() => { const n = { ...f, best: d, factor: fc }; setF(n); onUpdate(n); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
+          })}
         </div>
+        {onEstimate && <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, padding: '2px 0' }} onClick={() => onEstimate(node)}>{t('qe.estimationWizard')}</button>}
       </div>
       <div className="frow">
         <div className="field"><label>{t('qe.bestDays')}</label><input type="number" min="0" value={f.best || 0} onChange={e => setF(x => ({ ...x, best: +e.target.value }))} onBlur={fl} /></div>
@@ -116,17 +123,17 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       <div className="field"><label>{t('qe.confidence')}</label>
         <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
       </div>
-      {/* Scheduled info card */}
-      {sc && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontFamily: 'var(--mono)', fontSize: 10 }}>
-        <span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{iso(sc.startD)} → {iso(sc.endD)}</span>
-        <span style={{ color: 'var(--tx3)' }}>{t('qe.duration')}</span><span>{sc.weeks}w ({sc.calDays}d)</span>
-        <span style={{ color: 'var(--tx3)' }}>{t('qe.person')}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.person} ({sc.capPct}% cap)</span>
-        <span style={{ color: 'var(--tx3)' }}>{t('qe.effort')}</span><span>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
+      {/* Scheduled info — normal text, not code-block */}
+      {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
+        <span style={{ color: 'var(--tx3)' }}>{f.best}d × {f.factor || 1.5} = </span>
+        <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
+        <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
+        <br />
+        <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {sc.person}</span>
       </div>}
-      {!sc && f.best > 0 && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 12, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
-        {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
+      {!sc && f.best > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
+        {f.best}d × {f.factor || 1.5} = {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
       </div>}
-      {onEstimate && <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={() => onEstimate(node)}>{t('qe.estimationWizard')}</button>}
     </>}
 
     {/* ── 6. SCHEDULING ────────────────────────────────────────────────── */}
@@ -142,19 +149,20 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: 'var(--tx2)' }}>{t('qe.parallel')} {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
         <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
+        {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
+        {onReorderInQueue && !f.parallel && <>
+          <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('qe.queue')}</span>
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 5px' }} title={t('nm.first')}>⤒</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 5px' }} title={t('nm.earlier')}>▲</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 5px' }} title={t('nm.later')}>▼</button>
+            <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 5px' }} title={t('nm.last')}>⤓</button>
+          </div>
+        </>}
       </div>
-      {onReorderInQueue && !f.parallel && <div className="field">
-        <label style={{ fontSize: 10 }}>{t('qe.queue')}</label>
-        <div style={{ display: 'flex', gap: 3 }}>
-          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ flex: 1 }}>⤒</button>
-          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ flex: 1 }}>▲</button>
-          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ flex: 1 }}>▼</button>
-          <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ flex: 1 }}>⤓</button>
-        </div>
-      </div>}
     </>}
 
     {/* ── 7. DEPENDENCIES ──────────────────────────────────────────────── */}
@@ -190,10 +198,7 @@ export function QuickEdit({ node, tree, members, teams, scheduled, cpSet, stats,
       </div>;
     })()}
 
-    {/* ── 8. NOTES ──────────────────────────────────────────────────────── */}
-    <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => setF(x => ({ ...x, note: e.target.value }))} onBlur={fl} rows={2} /></div>
-
-    {/* ── 10. ACTIONS ───────────────────────────────────────────────────── */}
+    {/* ── ACTIONS ────────────────────────────────────────────────────────── */}
     <hr className="divider" />
     <div style={{ display: 'flex', gap: 6 }}>
       {onDuplicate && <button className="btn btn-sec" style={{ flex: 1 }} onClick={() => {
