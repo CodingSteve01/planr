@@ -3,6 +3,33 @@
 import { iso } from './date.js';
 import { leafNodes, re, resolveToLeafIds } from './scheduler.js';
 
+function parseHexColor(color) {
+  const hex = String(color || '').trim();
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    const [r, g, b] = hex.slice(1).split('');
+    return {
+      r: parseInt(r + r, 16),
+      g: parseInt(g + g, 16),
+      b: parseInt(b + b, 16),
+    };
+  }
+  if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    return {
+      r: parseInt(hex.slice(1, 3), 16),
+      g: parseInt(hex.slice(3, 5), 16),
+      b: parseInt(hex.slice(5, 7), 16),
+    };
+  }
+  return null;
+}
+
+function mixWithWhite(color, amount = 0) {
+  const rgb = parseHexColor(color);
+  if (!rgb) return color;
+  const mix = c => Math.round(c + (255 - c) * amount);
+  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+}
+
 export function generateReport({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang }) {
   const de = lang === 'de';
   const t = (en, deTxt) => de ? deTxt : en;
@@ -83,7 +110,7 @@ export function generateReport({ tree, members, teams, scheduled, weeks, cpSet, 
   // ── BUILD HTML ─────────────────────────────────────────────────────────────
   const css = `@page{margin:18mm 14mm;size:A4 landscape}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:10.5px;color:#1a1e2a;line-height:1.5}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:10.5px;color:#1a1e2a;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
 h1{font-size:20px;margin-bottom:2px}
 h2{font-size:13px;margin:20px 0 6px;padding-bottom:3px;border-bottom:2px solid #2563eb;color:#1d4ed8;page-break-after:avoid}
 h3{font-size:11px;margin:10px 0 4px;color:#4a5268}
@@ -115,6 +142,7 @@ tr:nth-child(even) td{background:#fafbfd}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pb{page-break-before:always}
 .sub{color:#7a839a;font-size:11px;margin-bottom:16px}
+.kpi,.bar,.bar>div,.conf-bar,.conf-bar>div,.tag,.risk,th,tr:nth-child(even) td,.rm-today,.rm-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
 .ft{margin-top:20px;padding-top:6px;border-top:1px solid #e0e4ea;font-size:8px;color:#7a839a;text-align:center}`;
 
   let h = `<!DOCTYPE html><html lang="${de?'de':'en'}"><head><meta charset="utf-8"><title>${meta.name||'Project'} — ${t('Report','Bericht')}</title><style>${css}</style></head><body>`;
@@ -167,11 +195,16 @@ tr:nth-child(even) td{background:#fafbfd}
       const left = Math.max(0, (r.startD - minD) / rangeMs * 100);
       const width = Math.max(1.5, (r.endD - r.startD) / rangeMs * 100);
       const tc = teams.find(x => x.id === r.team)?.color || '#3b82f6';
-      const opacity = r.conf === 'exploratory' ? '55' : r.conf === 'estimated' ? 'aa' : '';
+      const barFill = r.conf === 'exploratory'
+        ? mixWithWhite(tc, 0.72)
+        : r.conf === 'estimated'
+          ? mixWithWhite(tc, 0.45)
+          : mixWithWhite(tc, 0.12);
+      const barText = r.conf === 'committed' ? '#fff' : '#1a1e2a';
       const confDot = r.conf === 'exploratory' ? ' ○' : r.conf === 'estimated' ? ' ◐' : '';
       const label = `${r.type ? `${GT[r.type]} ` : ''}${r.id} ${r.name || ''}${confDot}`;
       h += `<div class="rm-label">${label}</div>`;
-      h += `<div class="rm-track"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-bar" style="left:${left}%;width:${width}%;background:${tc}${opacity}">${r.prog}%${r.pt > 0 ? ` · ${r.pt.toFixed(0)}d` : ''} → ${iso(r.endD)}</div></div>`;
+      h += `<div class="rm-track"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-bar" style="left:${left}%;width:${width}%;background:${barFill};border:1px solid ${tc};color:${barText}">${r.prog}%${r.pt > 0 ? ` · ${r.pt.toFixed(0)}d` : ''} → ${iso(r.endD)}</div></div>`;
     });
     h += `</div>`;
   }
