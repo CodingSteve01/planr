@@ -9,7 +9,12 @@ import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
+const REASON_TIP = { 'manual': 'Manuell gesetzt', 'done': 'Erledigt', 'auto:person+estimate': 'Person + Schätzung vorhanden', 'auto:no-person': 'Keine Person zugewiesen', 'auto:high-risk': 'Risikofaktor ≥ 2.0', 'auto:no-estimate': 'Keine Schätzung', 'inherited': 'Vom schlechtesten Kind-Element' };
+const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
+const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
+const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
+
+export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
 
@@ -228,6 +233,18 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
 
       <div className="field"><label>{t('qe.confidence')}</label>
         <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={value => patchNode({ confidence: value })} />
+        {/* Effective confidence tag — same style as AutoAssignHint */}
+        {(() => {
+          const eff = confidence[node.id] || 'committed';
+          const reason = confReasons[node.id];
+          const isAuto = !f.confidence;
+          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '6px 8px', background: 'var(--bg3)', border: `1px dashed ${CONF_COLOR[eff]}`, borderRadius: 'var(--r)', fontSize: 11 }}>
+            <span style={{ color: CONF_COLOR[eff] }}>{CONF_DOT[eff]}</span>
+            <span style={{ color: CONF_COLOR[eff], fontWeight: 600 }}>{CONF_LABEL[eff]}</span>
+            {isAuto && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>auto</span>}
+            <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 'auto' }}>{REASON_TIP[reason] || ''}</span>
+          </div>;
+        })()}
       </div>
 
       {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>

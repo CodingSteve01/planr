@@ -7,13 +7,30 @@ import { useT } from '../../i18n.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
+const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
+const REASON_TEXT = {
+  'manual': 'Manuell gesetzt',
+  'done': 'Erledigt',
+  'auto:person+estimate': 'Auto: Person + Schätzung vorhanden',
+  'auto:no-person': 'Auto: keine Person zugewiesen',
+  'auto:high-risk': 'Auto: Risikofaktor ≥ 2.0',
+  'auto:no-estimate': 'Auto: keine Schätzung vorhanden',
+  'inherited': 'Abgeleitet vom schlechtesten Kind-Element',
+};
 
-export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet, stats, onOpenItem, onUpdate }) {
+export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, stats, rootFilter = '', teamFilter = '', onOpenItem, onUpdate }) {
   const { t } = useT();
   const [section, setSection] = useState('decide');
+  const [phaseShowAll, setPhaseShowAll] = useState(false);
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
-  const lvs = useMemo(() => leafNodes(tree), [tree]);
+  const allLvs = useMemo(() => leafNodes(tree), [tree]);
+  const lvs = useMemo(() => {
+    let f = allLvs;
+    if (rootFilter) f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
+    if (teamFilter) f = f.filter(r => (r.team || '') === teamFilter);
+    return f;
+  }, [allLvs, rootFilter, teamFilter]);
   const doneSet = useMemo(() => new Set(lvs.filter(r => r.status === 'done').map(r => r.id)), [lvs]);
   const teamName = id => teams.find(tm => tm.id === id)?.name || id || '';
   const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';
@@ -137,10 +154,11 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
               const autoM = hasAuto ? members.find(x => x.id === sc.personId) : null;
               return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
                 onClick={() => onOpenItem?.(r.id)}>
-                <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
+                <span style={{ fontSize: 10, color: CC[r.conf], flexShrink: 0 }}>{CL[r.conf]}</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                 {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
+                <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{REASON_TEXT[confReasons[r.id]] || CN[r.conf]}</span>
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
                   onClick={e => { e.stopPropagation(); acceptAuto(node); }}
@@ -152,42 +170,46 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
       })()}
     </>}
 
-    {/* ══════ PHASES — compact rows ══════ */}
+    {/* ══════ PHASES — grouped by task ══════ */}
     {section === 'phases' && <>
       {phaseTodos.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('p.noPhaseTodos')}</div>}
+      {phaseTodos.length > 0 && <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+        <button className={`btn btn-xs ${!phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(false)}>Aktuelle Phasen</button>
+        <button className={`btn btn-xs ${phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(true)}>Alle offenen ({phaseTodos.length})</button>
+      </div>}
       {(() => {
-        const groups = new Map();
-        phaseTodos.forEach(entry => {
-          const ownerIds = entry.owners.length ? entry.owners : entry.teams.length ? entry.teams.map(tid => `team:${tid}`) : ['unassigned'];
-          ownerIds.forEach(oid => {
-            if (!groups.has(oid)) {
-              const isTeam = oid.startsWith('team:');
-              groups.set(oid, {
-                key: oid, items: [],
-                label: oid === 'unassigned' ? t('unassigned') : isTeam ? teamName(oid.slice(5)) : memberName(oid),
-                color: isTeam ? teamColor(oid.slice(5)) : 'var(--ac)',
-              });
-            }
-            groups.get(oid).items.push(entry);
-          });
+        // Group by task, preserving phase order within each task
+        const filtered = phaseShowAll ? phaseTodos : phaseTodos.filter(e => e.current);
+        const byTask = new Map();
+        filtered.forEach(entry => {
+          if (!byTask.has(entry.task.id)) byTask.set(entry.task.id, { task: entry.task, phases: [] });
+          byTask.get(entry.task.id).phases.push(entry);
         });
-        return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)).map(group => <div key={group.key} style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${group.color}` }}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>{group.label}</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{group.items.length}</span>
-          </div>
-          {group.items.map(({ task, phase, current }) => <div key={`${task.id}_${phase.id}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderBottom: '1px solid var(--b)', borderLeft: current ? '2px solid var(--ac)' : '2px solid transparent', fontSize: 11 }}>
-            <span style={{ cursor: 'pointer', fontSize: 12, color: phase.status === 'wip' ? 'var(--ac)' : 'var(--tx3)', flexShrink: 0 }}
-              onClick={() => advancePhase(task, phase.id)}>{phase.status === 'wip' ? '◐' : '○'}</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{task.id}</span>
-            <span style={{ fontWeight: 500, flexShrink: 0, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{phase.name}</span>
-            <span style={{ color: 'var(--tx3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
-              onClick={() => onOpenItem?.(task.id)}>{task.name}</span>
-            {phase.effortPct > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{phase.effortPct}%</span>}
-            {current && <span style={{ fontSize: 8, color: 'var(--ac)', flexShrink: 0 }}>aktuell</span>}
-          </div>)}
-        </div>);
+        return [...byTask.values()].map(({ task, phases }) => {
+          const team = teams.find(tm => tm.id === task.team);
+          return <div key={task.id} style={{ marginBottom: 10 }}>
+            {/* Task header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', cursor: 'pointer', background: 'var(--bg3)', borderRadius: '4px 4px 0 0', borderLeft: `3px solid ${team?.color || 'var(--b)'}` }}
+              onClick={() => onOpenItem?.(task.id)}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0 }}>{task.id}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+              {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
+              {task.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{task.best}T</span>}
+            </div>
+            {/* Phase rows */}
+            {phases.map(({ phase, current }) => <div key={phase.id}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 20px', borderBottom: '1px solid var(--b)', borderLeft: current ? '3px solid var(--ac)' : '3px solid transparent', fontSize: 11 }}>
+              <span style={{ cursor: 'pointer', fontSize: 12, color: phase.status === 'wip' ? 'var(--ac)' : 'var(--tx3)', flexShrink: 0 }}
+                onClick={() => advancePhase(task, phase.id)}>{phase.status === 'wip' ? '◐' : '○'}</span>
+              <span style={{ fontWeight: 500, minWidth: 80 }}>{phase.name}</span>
+              <span style={{ fontSize: 9, color: 'var(--tx3)', flex: 1 }}>
+                {phaseTeamLabel(phase, teams)}{phaseAssigneeLabel(phase, members) ? ` · ${phaseAssigneeLabel(phase, members)}` : ''}
+              </span>
+              {phase.effortPct > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{phase.effortPct}%</span>}
+              {current && <span style={{ fontSize: 8, color: 'var(--ac)', flexShrink: 0 }}>aktuell</span>}
+            </div>)}
+          </div>;
+        });
       })()}
     </>}
 
@@ -222,15 +244,22 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, cpSet,
     {section === 'blocked' && <>
       {blockedItems.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('p.noBlocked')}</div>}
       {blockedItems.map(r => {
-        const node = iMap[r.id];
+        const node = iMap[r.id]; if (!node) return null;
         const team = teams.find(tm => tm.id === r.team);
+        // Find what blocks this item
+        const parts = r.id.split('.');
+        const ancestors = [];
+        for (let i = 1; i < parts.length; i++) ancestors.push(parts.slice(0, i).join('.'));
+        const allDeps = [...new Set([...(node.deps || []), ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
+        const blockers = allDeps.filter(d => !resolveToLeafIds(tree, d).every(dl => doneSet.has(dl))).map(d => iMap[d]?.name || d);
         return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
-          onClick={() => onOpenItem?.(r.id)}>
+          onClick={() => onOpenItem?.(r.id)}
+          title={blockers.length ? `Wartet auf: ${blockers.join(', ')}` : ''}>
           <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
           {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
-          {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
+          <span style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>wartet auf {blockers.length}</span>
           {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
         </div>;
       })}

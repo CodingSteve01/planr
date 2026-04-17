@@ -778,7 +778,7 @@ export default function App() {
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
-  const confidence = useMemo(() => computeConfidence(tree, members), [tree, members]);
+  const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
 
   // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
@@ -1343,7 +1343,7 @@ export default function App() {
       {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
-      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} cpSet={cpSet} stats={stats}
+      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}
       {tab === 'tree' && <>
@@ -1505,13 +1505,13 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} rootFilter={rootFilter} teamFilter={teamFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
@@ -1523,7 +1523,7 @@ export default function App() {
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}

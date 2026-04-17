@@ -9,7 +9,12 @@ import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
+const REASON_TIP = { 'manual': 'Manuell gesetzt', 'done': 'Erledigt', 'auto:person+estimate': 'Person + Schätzung vorhanden', 'auto:no-person': 'Keine Person zugewiesen', 'auto:high-risk': 'Risikofaktor ≥ 2.0', 'auto:no-estimate': 'Keine Schätzung', 'inherited': 'Vom schlechtesten Kind-Element' };
+const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
+const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
+const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
+
+export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const { t } = useT();
   const [f, setF] = useState({ ...node });
   const [nmTab, setNmTab] = useState('overview');
@@ -208,7 +213,18 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
           </div>
         </div>
         <div className="field"><label>{t('qe.confidence')}</label>
-          <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ flex: 1 }}><SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} /></div>
+            {(() => {
+              const eff = confidence[node.id] || 'committed';
+              const reason = confReasons[node.id];
+              const isAuto = !f.confidence;
+              return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--r)', border: `1px solid ${CONF_COLOR[eff]}`, fontSize: 10, color: CONF_COLOR[eff], cursor: 'help', whiteSpace: 'nowrap' }}
+                title={`${CONF_LABEL[eff]} — ${REASON_TIP[reason] || '?'}`}>
+                {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {CONF_LABEL[eff]}
+              </span>;
+            })()}
+          </div>
         </div>
         {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
           <span style={{ color: 'var(--tx3)' }}>{f.best}d best × {f.factor || 1.5} = </span>

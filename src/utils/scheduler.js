@@ -333,27 +333,29 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
 //   exploratory — scope unclear: no estimate or very high risk factor
 export function computeConfidence(tree, members) {
   const result = {};
-  const lvs = leafNodes(tree); // compute once, reuse below
+  const reasons = {}; // why each item got its confidence level
+  const lvs = leafNodes(tree);
   lvs.forEach(r => {
-    // Manual override wins
-    if (r.confidence) { result[r.id] = r.confidence; return; }
-    if (r.status === 'done') { result[r.id] = 'committed'; return; }
+    if (r.confidence) { result[r.id] = r.confidence; reasons[r.id] = 'manual'; return; }
+    if (r.status === 'done') { result[r.id] = 'committed'; reasons[r.id] = 'done'; return; }
     const hasAssign = (r.assign || []).length > 0;
     const hasEstimate = r.best > 0;
     const highRisk = (r.factor || 1.5) >= 2.0;
     if (hasAssign && hasEstimate && !highRisk) {
       result[r.id] = 'committed';
+      reasons[r.id] = 'auto:person+estimate';
     } else if (hasEstimate && !highRisk) {
       result[r.id] = 'estimated';
+      reasons[r.id] = hasAssign ? 'auto:high-risk' : 'auto:no-person';
     } else {
       result[r.id] = 'exploratory';
+      reasons[r.id] = !hasEstimate ? 'auto:no-estimate' : 'auto:high-risk';
     }
   });
-  // Parents inherit the WORST confidence of their leaf descendants
   const order = ['exploratory', 'estimated', 'committed'];
   tree.forEach(parent => {
     if (isLeafNode(tree, parent.id)) return;
-    if (parent.confidence) { result[parent.id] = parent.confidence; return; }
+    if (parent.confidence) { result[parent.id] = parent.confidence; reasons[parent.id] = 'manual'; return; }
     const childLeaves = lvs.filter(l => l.id.startsWith(parent.id + '.'));
     if (!childLeaves.length) return;
     const worst = childLeaves.reduce((w, c) => {
@@ -361,8 +363,9 @@ export function computeConfidence(tree, members) {
       return ci < w ? ci : w;
     }, 2);
     result[parent.id] = order[worst];
+    reasons[parent.id] = 'inherited';
   });
-  return result;
+  return { confidence: result, reasons };
 }
 
 // Derive leaf progress: phases (single source of truth) > explicit field > status-based default

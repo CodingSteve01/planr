@@ -11,7 +11,8 @@ const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, rootFilter = '', teamFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+const REASON_TIP = { 'manual': 'Manuell gesetzt', 'done': 'Erledigt', 'auto:person+estimate': 'Person + Schätzung vorhanden', 'auto:no-person': 'Keine Person zugewiesen', 'auto:high-risk': 'Risikofaktor ≥ 2.0', 'auto:no-estimate': 'Keine Schätzung', 'inherited': 'Vom schlechtesten Kind-Element' };
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
   const NO_PERSON = t('unassigned');
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
@@ -529,7 +530,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             onMouseEnter={e => { setHoverDepId(s.id); const node = iMap[s.id]; setTip({ item: { ...node, ...s, isCp }, x: e.clientX, y: e.clientY }); }}
             onMouseLeave={() => { setHoverDepId(null); setTip(null); }}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
-            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1 }} title={confL}>{confDot}</span>}
+            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} title={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
               : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} title={s.autoAssigned ? `Auto: ${s.person}` : s.person}>{sn(s.personId, s.person)}</span>}
