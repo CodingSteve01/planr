@@ -142,60 +142,90 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     let asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
     if (!asgn.length && tM.length === 1) asgn = [tM[0].id];
 
-    // ── Team-slot path (multi-member, unassigned) ──────────────────────────────
+    // ── Team-slot path (unassigned → schedule on earliest-free REAL person) ────
+    // Unassigned tasks compete for the same person-capacity as assigned tasks.
+    // This prevents the scheduler from placing work where no one is actually free.
     if (!asgn.length) {
-      const tk = team || '__none';
-      if (!tSlots[tk]) tSlots[tk] = tM.length > 0 ? new Array(tM.length).fill(null).map(() => ({ wi: planStartWi, nextDate: null })) : [{ wi: planStartWi, nextDate: null }];
-      const slots = tSlots[tk];
-      const si = slots.reduce((best, s, i) => s.wi < slots[best].wi ? i : best, 0);
-      const slotFree = slots[si];
-      const slotWi = Math.max(early, slotFree.wi);
-      // Compute skipBefore: the latest of dep/pin/slot "next available date"
-      let skipBefore = earlyDate;
-      if (slotFree.nextDate && (!skipBefore || slotFree.nextDate > skipBefore)) skipBefore = slotFree.nextDate;
-      // Day-accurate capacity: count how many team members are actually available on each day
-      // (respects onboarding start and offboarding end dates).
-      const dayTeamCap = d => {
-        if (!tM.length) return 1;
-        let cap = 0;
+      if (tM.length > 0) {
+        // Find the team member who is free earliest (considering deps, on/offboarding, assigned work)
+        let bp = null, bs = Infinity, bDate = null;
         for (const m of tM) {
-          if (m.start && d < localDate(m.start)) continue;
-          if (m.end && d > localDate(m.end)) continue;
-          cap += (m.cap || 1) * (vacInfo[m.id] || 0.9);
+          const mStart = localDate(m.start || ps);
+          const mEnd = m.end ? localDate(m.end) : null;
+          const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
+          if (ji < 0) continue; // member starts after all planned weeks
+          if (mEnd && mEnd < (earlyDate || planStartDate)) continue; // already offboarded
+          const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
+          const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
+          const fw = Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
+          let fd = mStart;
+          if (earlyDate && earlyDate > fd) fd = earlyDate;
+          if (personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
+          if (parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
+          if (mEnd && fd > mEnd) continue; // this member would already be offboarded
+          if (fw < bs || (fw === bs && fd && (!bDate || fd < bDate))) { bs = fw; bp = m; bDate = fd; }
         }
-        return cap / tM.length;
-      };
-      let rem = eff, wi = slotWi, firstWorkDay = null, lastWorkDay = null;
+        if (bp) {
+          // Schedule on this member's real timeline (same logic as assigned path)
+          const mStart = localDate(bp.start || ps);
+          const personFree = pF[bp.id]?.nextDate;
+          const parallelEndDate = pPE[bp.id]?.nextDate;
+          let skipBefore = mStart;
+          if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
+          if (personFree && personFree > skipBefore) skipBefore = personFree;
+          if (parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
+          const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
+          const endDate = bp.end ? localDate(bp.end) : null;
+          let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
+          while (rem > 0 && wi < wks.length) {
+            const w = wks[wi];
+            if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
+            if (endDate && w.mon > endDate) break;
+            for (const d of w.wds) {
+              if (d < skipBefore) continue;
+              if (endDate && d > endDate) break;
+              if (!firstWorkDay) firstWorkDay = d;
+              rem -= dailyBaseCap; lastWorkDay = d;
+              if (rem <= 0) break;
+            }
+            if (rem <= 0) break; wi++;
+          }
+          const eW = Math.min(wi, wks.length - 1);
+          const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
+          tEW[id] = { wi: eW, nextDate: nd };
+          // Consume this person's capacity so next unassigned task sees it
+          pF[bp.id] = { wi: eW, nextDate: nd };
+          const actualStartD = firstWorkDay || wks[bs]?.mon || wks[0].mon;
+          const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+          res.push({ id: r.id, name: r.name, team, person: `(${bp.name || bp.id})`, personId: null, prio: r.prio, seq: r.seq,
+            best: r.best, effort: eff, startWi: bs, endWi: eW,
+            startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+            capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
+            deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
+          return;
+        }
+      }
+      // Fallback: no team members at all — schedule with unit capacity
+      let rem = eff, wi = Math.max(early, planStartWi), firstWorkDay = null, lastWorkDay = null;
+      const skipBefore = earlyDate || planStartDate;
       while (rem > 0 && wi < wks.length) {
         for (const d of wks[wi].wds) {
-          if (skipBefore && d < skipBefore) continue;
-          const cap = dayTeamCap(d);
-          if (cap <= 0) continue; // no team members available on this day
+          if (d < skipBefore) continue;
           if (!firstWorkDay) firstWorkDay = d;
-          rem -= cap; lastWorkDay = d;
+          rem -= 1; lastWorkDay = d;
           if (rem <= 0) break;
         }
         if (rem <= 0) break; wi++;
       }
-      const avgCap = tM.length > 0 ? tM.reduce((s, m) => s + (m.cap || 1), 0) / tM.length : 1;
-      const avgVac = tM.length > 0 ? tM.reduce((s, m) => s + vacInfo[m.id], 0) / tM.length : 0.9;
-      const eW = Math.min(Math.max(wi, slotWi), wks.length - 1);
+      const eW = Math.min(wi, wks.length - 1);
       const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
       tEW[id] = { wi: eW, nextDate: nd };
-      slots[si] = { wi: eW, nextDate: nd };
-      const actualStartD = firstWorkDay || wks[slotWi]?.mon || wks[0].mon;
+      const actualStartD = firstWorkDay || wks[Math.max(early, planStartWi)]?.mon || wks[0].mon;
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-      allD.forEach(depId => {
-        const dEnd = tEW[depId];
-        if (!dEnd || dEnd.wi < 0) return;
-        if (dEnd.nextDate && actualStartD < dEnd.nextDate) {
-          console.warn(`[scheduler] Dep violation: ${r.id} starts ${iso(actualStartD)} but dep ${depId} not free until ${iso(dEnd.nextDate)}`);
-        }
-      });
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
-        best: r.best, effort: eff, startWi: slotWi, endWi: eW,
+        best: r.best, effort: eff, startWi: Math.max(early, planStartWi), endWi: eW,
         startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-        capPct: Math.round(avgCap * 100), vacDed: Math.round((1 - avgVac) * 100), weeks: eW - slotWi + 1,
+        capPct: 100, vacDed: 0, weeks: eW - Math.max(early, planStartWi) + 1,
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
     }

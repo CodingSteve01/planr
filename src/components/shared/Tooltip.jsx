@@ -5,7 +5,18 @@ import { useT } from '../../i18n.jsx';
 export function Tip({ item, x, y, teams, members, tree }) {
   const { t } = useT();
   if (!item) return null;
-  const sx = Math.min(x + 14, window.innerWidth - 300), sy = Math.max(y - 60, 8);
+  // Position: offset right+below cursor, clamp to viewport
+  const ttW = 280, ttH = 320; // approximate max dimensions
+  const pad = 8;
+  let sx = x + 16; // right of cursor
+  let sy = y + 18; // below cursor
+  // Clamp right edge
+  if (sx + ttW > window.innerWidth - pad) sx = x - ttW - 8;
+  // Clamp bottom edge
+  if (sy + ttH > window.innerHeight - pad) sy = Math.max(pad, window.innerHeight - ttH - pad);
+  // Clamp left/top
+  sx = Math.max(pad, sx);
+  sy = Math.max(pad, sy);
   // Resolve team name
   const teamName = item.team && teams
     ? (teams.find(tm => tm.id === item.team)?.name || item.team)
