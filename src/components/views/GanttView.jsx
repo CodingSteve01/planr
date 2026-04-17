@@ -539,8 +539,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         })}
       </div>
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
-        <div style={{ width: tw, position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, pointerEvents: 'none', zIndex: 0 }}>
+        <div style={{ width: tw, position: 'relative', minHeight: '100%' }}>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
                 individual holiday days get tinted below instead. */}
             {weeks.map((w, i) => <div key={i} style={{ position: 'absolute', left: i * WPX, top: 0, width: WPX, height: '100%', borderRight: '1px solid var(--b)', background: !showDays && w.hasH ? 'rgba(244,63,94,.10)' : '' }} />)}
