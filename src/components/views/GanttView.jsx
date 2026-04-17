@@ -11,7 +11,7 @@ const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, rootFilter = '', teamFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
   const NO_PERSON = t('unassigned');
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
@@ -83,8 +83,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
       _unestimated: true,
     }));
-    return [...scheduled, ...unscheduledLeaves];
-  }, [scheduled, tree]);
+    let items = [...scheduled, ...unscheduledLeaves];
+    if (rootFilter) items = items.filter(s => s.id.startsWith(rootFilter + '.') || s.id === rootFilter);
+    if (teamFilter) items = items.filter(s => (s.team || '') === teamFilter);
+    return items;
+  }, [scheduled, tree, rootFilter, teamFilter]);
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
@@ -226,7 +229,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     });
     return lines;
-  }, [scheduled, cpSet, tree, rows, WPX, showDays]);
+  }, [scheduled, cpSet, tree, rows, rowIdx, WPX, showDays, groupBy]);
 
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   // When a dep targets a parent node, draw ONE line from the latest-finishing child
@@ -259,7 +262,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       });
     });
     return lines;
-  }, [scheduled, tree, rows, cpSet, WPX, showDays]);
+  }, [scheduled, tree, rows, rowIdx, cpSet, WPX, showDays, groupBy]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {

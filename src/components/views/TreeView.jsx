@@ -36,7 +36,7 @@ const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 const PRIO_LBL = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
 
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, stats, teams, members, cpSet, onQuickAdd, onDelete, onReorder }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, cpSet, onQuickAdd, onDelete, onReorder }) {
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
@@ -93,6 +93,9 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
 
   const filt = useMemo(() => {
     let f = sorted;
+    if (rootFilter) {
+      f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
+    }
     if (teamFilter) {
       const matchIds = new Set();
       f.forEach(r => {

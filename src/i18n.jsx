@@ -195,7 +195,7 @@ const en = {
   // ── TreeView ──
   'tv.collapseAll': 'Collapse all', 'tv.expandAll': 'Expand all',
   'tv.items': 'items', 'tv.leafs': 'leafs',
-  'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams',
+  'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams', 'tv.allRoots': 'All items',
 };
 
 const de = {
@@ -390,7 +390,7 @@ const de = {
   // ── TreeView ──
   'tv.collapseAll': 'Alle zuklappen', 'tv.expandAll': 'Alle aufklappen',
   'tv.items': 'Items', 'tv.leafs': 'Leaves',
-  'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams',
+  'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams', 'tv.allRoots': 'Alle Pakete',
 };
 
 const LANGS = { en, de };

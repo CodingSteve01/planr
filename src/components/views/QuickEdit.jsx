@@ -188,6 +188,19 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
           {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}>×</span></span>)}
         </div>
+        {/* Auto-assign suggestion from scheduler */}
+        {!(f.assign || []).length && (() => {
+          const sc = scheduled?.find(s => s.id === node?.id);
+          if (!sc?.autoAssigned || !sc.personId) return null;
+          const m = members.find(x => x.id === sc.personId);
+          if (!m) return null;
+          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, padding: '6px 8px', background: 'var(--bg3)', border: '1px dashed var(--am)', borderRadius: 'var(--r)', fontSize: 11 }}>
+            <span style={{ color: 'var(--am)' }}>Vorschlag:</span>
+            <span style={{ fontWeight: 600 }}>{m.name}</span>
+            <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{iso(sc.startD)} — {iso(sc.endD)}</span>
+            <button className="btn btn-pri btn-xs" style={{ marginLeft: 'auto' }} onClick={() => patchNode({ assign: [sc.personId], team: m.team || f.team })}>Übernehmen</button>
+          </div>;
+        })()}
         <SearchSelect
           options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
           onSelect={id => {
