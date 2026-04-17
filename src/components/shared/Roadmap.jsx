@@ -1,215 +1,434 @@
 import { useMemo } from 'react';
-import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
-
-/**
- * Metro roadmap with turns. Each line starts at the top, runs down,
- * then turns right (90° rounded corner), runs horizontal, turns down again, etc.
- * Creates a zig-zag route like real metro lines that aren't straight.
- * Stations ordered by scheduler. Only major (level-2) labeled.
- */
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
+const ROOT_PAD_X = 28;
+const ROOT_PAD_Y = 16;
+const ROOT_GAP_X = 88;
+
+const HEADER_Y = 8;
+const HEADER_W = 136;
+const HEADER_H = 32;
+const ROOT_ANCHOR_Y = 76;
+const ROOT_STATION_GAP_Y = 40;
+
+const TRUNK_GAP_Y = 84;
+const TRUNK_GAP_MIN_Y = 62;
+const BRANCH_GAP_Y = 58;
+const BRANCH_GAP_MIN_Y = 42;
+const BRANCH_STEP_X = 88;
+
+const LINE_W = 5;
+const MAJOR_R = 5.5;
+const MINOR_R = 3.25;
+const MAJOR_LABEL_W = 154;
+const MINOR_LABEL_W = 124;
+const LABEL_OFF_X = 12;
+
+const parentId = id => id.split('.').slice(0, -1).join('.');
+const depthOf = id => id.split('.').length;
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const truncate = (s, n) => !s ? '' : s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
+function compactGap(count, base, min) {
+  return Math.max(min, base - Math.max(0, count - 6) * 4);
+}
+
+function polylinePath(points) {
+  if (!points.length) return '';
+  return points.map((pt, i) => `${i ? 'L' : 'M'}${pt.x},${pt.y}`).join(' ');
+}
+
+function compareNodes(a, b, meta) {
+  const ma = meta[a.id];
+  const mb = meta[b.id];
+  if (ma?.earliestStart && mb?.earliestStart) {
+    if (+ma.earliestStart !== +mb.earliestStart) return ma.earliestStart - mb.earliestStart;
+  } else if (ma?.earliestStart) return -1;
+  else if (mb?.earliestStart) return 1;
+  if (ma?.latestEnd && mb?.latestEnd) {
+    if (+ma.latestEnd !== +mb.latestEnd) return ma.latestEnd - mb.latestEnd;
+  } else if (ma?.latestEnd) return -1;
+  else if (mb?.latestEnd) return 1;
+  return a.id.localeCompare(b.id, undefined, { numeric: true });
+}
+
+function progressIndex(stations) {
+  let idx = 0;
+  for (let i = 0; i < stations.length; i++) {
+    const st = stations[i];
+    if (st.allDone) idx = i + 1;
+    else if (st.prog > 0) return i + st.prog;
+    else return idx;
+  }
+  return idx;
+}
+
+function progressPoint(anchor, stations, idx) {
+  if (!stations.length || idx <= 0) return null;
+  if (idx >= stations.length) {
+    const last = stations[stations.length - 1];
+    return { x: anchor.x, y: last.y };
+  }
+  const fi = Math.floor(idx);
+  const frac = idx - fi;
+  if (fi === 0) {
+    const first = stations[0];
+    return { x: anchor.x, y: anchor.y + (first.y - anchor.y) * frac };
+  }
+  const start = stations[fi - 1];
+  const end = stations[fi];
+  return { x: start.x, y: start.y + (end.y - start.y) * frac };
+}
+
 export function Roadmap({ tree, scheduled, stats }) {
-  const lvs = useMemo(() => leafNodes(tree), [tree]);
-  const sMap = useMemo(() => scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}, [scheduled]);
-
-  const lines = useMemo(() => {
-    const roots = tree.filter(r => !r.id.includes('.'));
-    return roots.map((root, ri) => {
-      const descendants = tree.filter(r => r.id.startsWith(root.id + '.') && r.id !== root.id);
-      const stations = descendants.map(item => {
-        const depth = item.id.split('.').length;
-        const children = lvs.filter(l => l.id === item.id || l.id.startsWith(item.id + '.'));
-        const done = children.filter(l => l.status === 'done').length;
-        const total = children.length;
-        let earliest = null;
-        children.forEach(l => { const s = sMap[l.id]; if (s?.startD && (!earliest || s.startD < earliest)) earliest = s.startD; });
-        return { id: item.id, name: item.name, depth, done, total, prog: total ? done / total : 0, allDone: total > 0 && done === total, major: depth === 2, earliestStart: earliest };
-      }).sort((a, b) => {
-        if (a.earliestStart && b.earliestStart) return a.earliestStart - b.earliestStart;
-        if (a.earliestStart) return -1;
-        if (b.earliestStart) return 1;
-        return a.id.localeCompare(b.id);
-      });
-
-      const allCh = lvs.filter(l => l.id.startsWith(root.id + '.'));
-      const totalDone = allCh.filter(l => l.status === 'done').length;
-      const lineProg = allCh.length > 0 ? totalDone / allCh.length : 0;
-      let trainIdx = 0;
-      for (let i = 0; i < stations.length; i++) {
-        if (stations[i].allDone) trainIdx = i + 1;
-        else if (stations[i].prog > 0) { trainIdx = i + stations[i].prog; break; }
-        else break;
-      }
-      const st = stats?.[root.id];
-      const atRisk = root.date && st?._endD && st._endD > new Date(root.date);
-      return { id: root.id, name: root.name, type: root.type, col: PALETTE[ri % PALETTE.length], stations, trainIdx, lineProg, atRisk };
-    }).filter(l => l.stations.length > 0);
-  }, [tree, lvs, sMap, stats]);
-
-  if (!lines.length) return null;
-
-  // ── Route each line as a zig-zag path ──
-  // Segments alternate: vertical (down) and horizontal (right).
-  // Each segment holds ~SEG_LEN stations before turning.
-  const SEG_LEN = 5; // stations per segment before a turn
-  const GAP = 28; // pixels between stations along the segment
-  const TURN_R = 14; // corner radius
-  const LINE_W = 5;
-  const MAJ_R = 5;
-  const MIN_R = 2.5;
-  const PAD = 30;
-  const LABEL_W = 120;
-  const LABEL_H = 28;
-  const COL_W = 180; // horizontal space per line
-  const NAME_OFF = 10; // label offset from station dot
-
-  // For each line, compute station coordinates along a zig-zag route
-  const routedLines = useMemo(() => {
-    return lines.map((line, li) => {
-      const baseX = PAD + li * COL_W + COL_W / 2;
-      const startY = PAD + LABEL_H + 16;
-
-      // Build segments: alternate V (down) and H (right)
-      const points = [];
-      let x = baseX, y = startY;
-      let dir = 'V'; // V = vertical (down), H = horizontal (right)
-      let segCount = 0;
-      const hDir = li % 2 === 0 ? 1 : -1; // alternate left/right for variety
-
-      line.stations.forEach((st, si) => {
-        points.push({ x, y, station: st, si });
-
-        segCount++;
-        const nextIsLast = si === line.stations.length - 1;
-
-        if (!nextIsLast && segCount >= SEG_LEN) {
-          // Turn
-          if (dir === 'V') {
-            // Add corner point, switch to H
-            y += TURN_R;
-            dir = 'H';
-          } else {
-            // Add corner point, switch to V
-            x += TURN_R * hDir;
-            dir = 'V';
-          }
-          segCount = 0;
-        } else if (!nextIsLast) {
-          // Continue in same direction
-          if (dir === 'V') y += GAP;
-          else x += GAP * hDir;
-        }
-      });
-
-      return { ...line, points, li };
+  const nodeMap = useMemo(() => Object.fromEntries(tree.map(node => [node.id, node])), [tree]);
+  const childMap = useMemo(() => {
+    const map = {};
+    tree.forEach(node => {
+      const pid = parentId(node.id);
+      if (!map[pid]) map[pid] = [];
+      map[pid].push(node);
     });
-  }, [lines]);
+    return map;
+  }, [tree]);
+  const schedMap = useMemo(() => scheduled ? Object.fromEntries(scheduled.map(item => [item.id, item])) : {}, [scheduled]);
 
-  // Compute SVG bounds
-  const allPts = routedLines.flatMap(l => l.points);
-  const minX = Math.min(...allPts.map(p => p.x)) - PAD - 40;
-  const maxX = Math.max(...allPts.map(p => p.x)) + PAD + 100;
-  const maxY = Math.max(...allPts.map(p => p.y)) + PAD + 40;
-  const svgW = maxX - minX;
-  const svgH = maxY;
+  const meta = useMemo(() => {
+    const ordered = [...tree].sort((a, b) => depthOf(b.id) - depthOf(a.id) || b.id.localeCompare(a.id));
+    const result = {};
+    const leafIdsById = {};
 
-  // Build SVG path through points with rounded corners
-  const buildPath = (points) => {
-    if (points.length < 2) return points.length ? `M${points[0].x},${points[0].y}` : '';
-    let d = `M${points[0].x},${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      d += ` L${points[i].x},${points[i].y}`;
-    }
-    return d;
-  };
+    ordered.forEach(node => {
+      const children = childMap[node.id] || [];
+      const leafIds = children.length
+        ? children.flatMap(child => leafIdsById[child.id] || [])
+        : [node.id];
 
-  // Split path at train index
-  const splitPath = (rl) => {
-    const pts = rl.points;
-    const n = pts.length;
-    if (n === 0) return { done: '', rem: '', trainPt: null };
-    const full = buildPath(pts);
-    if (rl.trainIdx <= 0) return { done: '', rem: full, trainPt: null };
-    if (rl.trainIdx >= n) return { done: full, rem: '', trainPt: null };
+      leafIdsById[node.id] = leafIds;
 
-    const ti = Math.min(rl.trainIdx, n - 1);
-    const fi = Math.floor(ti);
-    const frac = ti - fi;
-    const p1 = pts[fi];
-    const p2 = fi + 1 < n ? pts[fi + 1] : p1;
-    const tp = { x: p1.x + (p2.x - p1.x) * frac, y: p1.y + (p2.y - p1.y) * frac };
+      let done = 0;
+      let earliestStart = null;
+      let latestEnd = null;
 
-    const donePts = [...pts.slice(0, fi + 1), { x: tp.x, y: tp.y }];
-    const remPts = [{ x: tp.x, y: tp.y }, ...pts.slice(fi + 1)];
-    return { done: buildPath(donePts), rem: buildPath(remPts), trainPt: tp };
-  };
+      leafIds.forEach(id => {
+        if (nodeMap[id]?.status === 'done') done++;
+        const sched = schedMap[id];
+        if (sched?.startD && (!earliestStart || sched.startD < earliestStart)) earliestStart = sched.startD;
+        if (sched?.endD && (!latestEnd || sched.endD > latestEnd)) latestEnd = sched.endD;
+      });
+
+      const progressPct = stats?.[node.id]?._progress ?? (leafIds.length ? Math.round(done / leafIds.length * 100) : 0);
+      const branchDepth = children.length ? 1 + Math.max(...children.map(child => result[child.id]?.branchDepth || 0)) : 0;
+
+      result[node.id] = {
+        depth: depthOf(node.id),
+        total: leafIds.length,
+        done,
+        prog: clamp(progressPct / 100, 0, 1),
+        allDone: leafIds.length > 0 && done === leafIds.length,
+        earliestStart,
+        latestEnd,
+        branchDepth,
+        hasChildren: children.length > 0,
+      };
+    });
+
+    return result;
+  }, [tree, childMap, nodeMap, schedMap, stats]);
+
+  const orderedChildrenMap = useMemo(() => {
+    const map = {};
+    Object.entries(childMap).forEach(([pid, items]) => {
+      map[pid] = [...items].sort((a, b) => compareNodes(a, b, meta));
+    });
+    return map;
+  }, [childMap, meta]);
+
+  const layout = useMemo(() => {
+    const roots = (orderedChildrenMap[''] || []).filter(node => !node.id.includes('.'));
+    if (!roots.length) return null;
+
+    const createStation = (node, x, y, side, level) => {
+      const info = meta[node.id] || {};
+      return {
+        id: node.id,
+        name: node.name,
+        x,
+        y,
+        side,
+        labelSide: side || 1,
+        level,
+        major: level === 0,
+        prog: info.prog || 0,
+        done: info.done || 0,
+        total: info.total || 0,
+        allDone: !!info.allDone,
+        hasChildren: !!info.hasChildren,
+      };
+    };
+
+    const assignSides = (children, bias) => {
+      let leftWeight = 0;
+      let rightWeight = 0;
+      const sides = {};
+
+      children.forEach((child, index) => {
+        const weight = Math.max(1, meta[child.id]?.branchDepth || 0);
+        let side;
+        if (index === 0) side = bias;
+        else if (leftWeight <= rightWeight) side = -1;
+        else side = 1;
+
+        sides[child.id] = side;
+        if (side < 0) leftWeight += weight;
+        else rightWeight += weight;
+      });
+
+      return sides;
+    };
+
+    const layoutLane = (parentAnchor, children, laneX, startY, side, level) => {
+      if (!children.length) return { stations: [], lanes: [], bottomY: parentAnchor.y };
+
+      const localGapY = compactGap(children.length, level === 0 ? TRUNK_GAP_Y : BRANCH_GAP_Y, level === 0 ? TRUNK_GAP_MIN_Y : BRANCH_GAP_MIN_Y);
+      const localStations = [];
+      const allStations = [];
+      const lanes = [];
+      let y = startY;
+      let bottomY = parentAnchor.y;
+
+      children.forEach(child => {
+        const station = createStation(child, laneX, y, side, level);
+        localStations.push(station);
+        allStations.push(station);
+
+        let childBottom = station.y;
+        const nestedChildren = orderedChildrenMap[child.id] || [];
+        if (nestedChildren.length) {
+          const nested = layoutLane(
+            station,
+            nestedChildren,
+            laneX + side * BRANCH_STEP_X,
+            y + Math.round(localGapY * 0.82),
+            side,
+            level + 1
+          );
+          allStations.push(...nested.stations);
+          lanes.push(...nested.lanes);
+          childBottom = Math.max(childBottom, nested.bottomY);
+        }
+
+        bottomY = Math.max(bottomY, childBottom);
+        y = childBottom + localGapY;
+      });
+
+      const points = [{ x: parentAnchor.x, y: parentAnchor.y }];
+      if (parentAnchor.x !== laneX) points.push({ x: laneX, y: parentAnchor.y });
+      localStations.forEach(station => points.push({ x: laneX, y: station.y }));
+
+      lanes.unshift({
+        id: `lane|${parentAnchor.id}|${localStations[0].id}`,
+        points,
+        stations: localStations,
+        level,
+      });
+
+      return { stations: allStations, lanes, bottomY };
+    };
+
+    const relativeLines = roots.map((root, index) => {
+      const directChildren = orderedChildrenMap[root.id] || [];
+      if (!directChildren.length) return null;
+
+      const anchor = { id: `${root.id}|anchor`, x: 0, y: ROOT_ANCHOR_Y };
+      const directGapY = compactGap(directChildren.length, TRUNK_GAP_Y, TRUNK_GAP_MIN_Y);
+      const branchBias = index % 2 === 0 ? 1 : -1;
+      const sides = assignSides(directChildren, branchBias);
+
+      const trunkStations = [];
+      const stations = [];
+      const lanes = [];
+      let y = ROOT_ANCHOR_Y + ROOT_STATION_GAP_Y;
+      let bottomY = anchor.y;
+
+      directChildren.forEach(child => {
+        const station = createStation(child, 0, y, sides[child.id], 0);
+        trunkStations.push(station);
+        stations.push(station);
+
+        let childBottom = station.y;
+        const nestedChildren = orderedChildrenMap[child.id] || [];
+        if (nestedChildren.length) {
+          const nested = layoutLane(
+            station,
+            nestedChildren,
+            sides[child.id] * BRANCH_STEP_X,
+            y + Math.round(directGapY * 0.82),
+            sides[child.id],
+            1
+          );
+          stations.push(...nested.stations);
+          lanes.push(...nested.lanes);
+          childBottom = Math.max(childBottom, nested.bottomY);
+        }
+
+        bottomY = Math.max(bottomY, childBottom);
+        y = childBottom + directGapY;
+      });
+
+      lanes.unshift({
+        id: `lane|${root.id}|trunk`,
+        points: [{ x: 0, y: anchor.y }, ...trunkStations.map(station => ({ x: 0, y: station.y }))],
+        stations: trunkStations,
+        level: 0,
+        trunk: true,
+      });
+
+      let minX = -HEADER_W / 2;
+      let maxX = HEADER_W / 2;
+      let maxY = bottomY + 54;
+
+      stations.forEach(station => {
+        const labelW = station.major ? MAJOR_LABEL_W : MINOR_LABEL_W;
+        minX = Math.min(minX, station.x - BRANCH_STEP_X / 2);
+        maxX = Math.max(maxX, station.x + BRANCH_STEP_X / 2);
+        if (station.labelSide < 0) minX = Math.min(minX, station.x - labelW - LABEL_OFF_X);
+        else maxX = Math.max(maxX, station.x + labelW + LABEL_OFF_X);
+        maxY = Math.max(maxY, station.y + 24);
+      });
+
+      const rootInfo = meta[root.id] || {};
+      const rootStats = stats?.[root.id];
+      const atRisk = root.date && rootStats?._endD && rootStats._endD > new Date(root.date);
+      const train = progressPoint(anchor, trunkStations, progressIndex(trunkStations));
+
+      return {
+        root,
+        color: PALETTE[index % PALETTE.length],
+        anchor,
+        trunkStations,
+        stations,
+        lanes,
+        bottomY,
+        minX,
+        maxX,
+        maxY,
+        progress: rootInfo.prog || 0,
+        atRisk,
+        train,
+      };
+    }).filter(Boolean);
+
+    if (!relativeLines.length) return null;
+
+    let cursorX = ROOT_PAD_X;
+    const lines = relativeLines.map(line => {
+      const shiftX = cursorX - line.minX;
+      cursorX += (line.maxX - line.minX) + ROOT_GAP_X;
+      return { ...line, shiftX };
+    });
+
+    const svgW = cursorX + ROOT_PAD_X;
+    const svgH = Math.max(...lines.map(line => line.maxY)) + ROOT_PAD_Y;
+    return { lines, svgW, svgH };
+  }, [meta, orderedChildrenMap, stats]);
+
+  if (!layout?.lines.length) return null;
 
   return <div style={{ overflowX: 'auto', overflowY: 'auto', marginBottom: 20 }}>
-    <svg width={svgW} height={svgH} viewBox={`${minX} 0 ${svgW} ${svgH}`} style={{ display: 'block' }}>
+    <svg width={layout.svgW} height={layout.svgH} viewBox={`0 0 ${layout.svgW} ${layout.svgH}`} style={{ display: 'block' }}>
       <style>{`
-        .m-name{font:500 8px/1 'Inter',system-ui,sans-serif;fill:var(--tx)}
-        .m-done{font:500 8px/1 'Inter',system-ui,sans-serif;fill:var(--tx3);text-decoration:line-through}
-        .m-cnt{font:400 7px/1 'JetBrains Mono',monospace;fill:var(--tx3)}
-        .m-pct{font:800 13px/1 'JetBrains Mono',monospace}
-        .m-id{font:800 10px/1 'JetBrains Mono',monospace;fill:#fff}
-        .m-lbl{font:600 7.5px/1 'Inter',system-ui,sans-serif;fill:rgba(255,255,255,.9)}
+        .rm-major{font:600 11px/1.1 'Inter',system-ui,sans-serif;fill:var(--tx)}
+        .rm-minor{font:500 8.5px/1.1 'Inter',system-ui,sans-serif;fill:var(--tx2)}
+        .rm-done{fill:var(--tx3);text-decoration:line-through}
+        .rm-count{font:400 7px/1 'JetBrains Mono',monospace;fill:var(--tx3)}
+        .rm-pct{font:800 14px/1 'JetBrains Mono',monospace}
+        .rm-id{font:800 10px/1 'JetBrains Mono',monospace;fill:#fff}
+        .rm-title{font:600 7.5px/1 'Inter',system-ui,sans-serif;fill:rgba(255,255,255,.92)}
+        .rm-risk{font:700 7px/1 'JetBrains Mono',monospace;fill:var(--re)}
       `}</style>
 
-      {routedLines.map(rl => {
-        const { done, rem, trainPt } = splitPath(rl);
-        const pts = rl.points;
-        const lastPt = pts[pts.length - 1];
+      {layout.lines.map(line => {
+        const trainY = line.train?.y ?? line.anchor.y;
+        const lastTrunk = line.trunkStations[line.trunkStations.length - 1];
 
-        return <g key={rl.id}>
-          {/* Track */}
-          {rem && <path d={rem} stroke={rl.col} strokeWidth={LINE_W} fill="none" opacity={0.15} strokeLinecap="round" strokeLinejoin="round" />}
-          {done && <path d={done} stroke={rl.col} strokeWidth={LINE_W} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+        return <g key={line.root.id} transform={`translate(${line.shiftX},0)`}>
+          {line.lanes.filter(lane => !lane.trunk).map(lane => (
+            <path
+              key={lane.id}
+              d={polylinePath(lane.points)}
+              stroke={line.color}
+              strokeWidth={LINE_W}
+              fill="none"
+              opacity={lane.level === 1 ? 0.55 : 0.42}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
 
-          {/* Label */}
-          {(() => {
-            const lx = pts[0]?.x || PAD;
-            return <>
-              <rect x={lx - LABEL_W / 2} y={PAD - LABEL_H - 4} width={LABEL_W} height={LABEL_H} rx={5} fill={rl.col} />
-              <text x={lx - LABEL_W / 2 + 8} y={PAD - LABEL_H / 2 - 6} className="m-id" dominantBaseline="middle">{rl.id}</text>
-              <text x={lx - LABEL_W / 2 + 8} y={PAD - LABEL_H / 2 + 5} className="m-lbl" dominantBaseline="middle">
-                {rl.name.length > 16 ? rl.name.slice(0, 15) + '…' : rl.name}
+          <path
+            d={polylinePath([{ x: 0, y: line.anchor.y }, { x: 0, y: lastTrunk.y }])}
+            stroke={line.color}
+            strokeWidth={LINE_W}
+            fill="none"
+            opacity={0.18}
+            strokeLinecap="round"
+          />
+
+          {line.progress > 0 && <path
+            d={polylinePath([{ x: 0, y: line.anchor.y }, { x: 0, y: trainY }])}
+            stroke={line.color}
+            strokeWidth={LINE_W}
+            fill="none"
+            strokeLinecap="round"
+          />}
+
+          {line.train && line.progress < 1 && <g>
+            <circle cx={0} cy={line.train.y} r={MAJOR_R + 4} fill={line.color} opacity={0.18}>
+              <animate attributeName="r" values={`${MAJOR_R + 2};${MAJOR_R + 5};${MAJOR_R + 2}`} dur="2.2s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={0} cy={line.train.y} r={MAJOR_R + 1.5} fill={line.color} />
+            <circle cx={0} cy={line.train.y} r={MAJOR_R - 1.5} fill="#fff" />
+          </g>}
+
+          {line.stations.map(station => {
+            const isDone = station.allDone;
+            const isWip = !isDone && station.prog > 0;
+            const r = station.major ? MAJOR_R : MINOR_R;
+            const lx = station.x + (station.labelSide < 0 ? -LABEL_OFF_X : LABEL_OFF_X);
+            const anchor = station.labelSide < 0 ? 'end' : 'start';
+            const nameClass = `${station.major ? 'rm-major' : 'rm-minor'}${isDone ? ' rm-done' : ''}`;
+
+            return <g key={station.id}>
+              {isDone
+                ? <circle cx={station.x} cy={station.y} r={r} fill={line.color} />
+                : <>
+                  <circle cx={station.x} cy={station.y} r={r + (station.major ? 1 : 0.75)} fill="var(--bg)" />
+                  <circle cx={station.x} cy={station.y} r={r} fill="var(--bg2)" stroke={isWip ? line.color : 'var(--b3)'} strokeWidth={station.major ? 2 : 1.2} />
+                  {isWip && <circle cx={station.x} cy={station.y} r={Math.max(1.8, r - 2)} fill={line.color} />}
+                </>}
+
+              <text x={lx} y={station.y + (station.major ? -2 : 0)} className={nameClass} textAnchor={anchor} dominantBaseline="middle">
+                {truncate(station.name, station.major ? 26 : 21)}
               </text>
-            </>;
-          })()}
 
-          {/* Stations */}
-          {pts.map((pt, pi) => {
-            const st = pt.station;
-            const r = st.major ? MAJ_R : MIN_R;
-            return <g key={st.id}>
-              {st.allDone
-                ? <circle cx={pt.x} cy={pt.y} r={r} fill={rl.col} />
-                : <><circle cx={pt.x} cy={pt.y} r={r + 0.5} fill="var(--bg)" /><circle cx={pt.x} cy={pt.y} r={r} fill="var(--bg2)" stroke={st.prog > 0 ? rl.col : 'var(--b3)'} strokeWidth={st.major ? 2 : 1.2} /></>}
-              {st.major && <text x={pt.x + NAME_OFF} y={pt.y + 1} className={st.allDone ? 'm-done' : 'm-name'} dominantBaseline="middle">
-                {st.name.length > 20 ? st.name.slice(0, 19) + '…' : st.name}
+              {station.major && station.total > 0 && <text x={lx} y={station.y + 10} className="rm-count" textAnchor={anchor}>
+                {station.done}/{station.total}
               </text>}
-              {st.major && st.total > 0 && <text x={pt.x + NAME_OFF} y={pt.y + 10} className="m-cnt">{st.done}/{st.total}</text>}
             </g>;
           })}
 
-          {/* Train */}
-          {trainPt && <g>
-            <circle cx={trainPt.x} cy={trainPt.y} r={MAJ_R + 3} fill={rl.col} opacity={0.2}>
-              <animate attributeName="r" values={`${MAJ_R + 2};${MAJ_R + 5};${MAJ_R + 2}`} dur="2s" repeatCount="indefinite" />
-            </circle>
-            <circle cx={trainPt.x} cy={trainPt.y} r={MAJ_R + 1} fill={rl.col} />
-            <circle cx={trainPt.x} cy={trainPt.y} r={MAJ_R - 2} fill="#fff" />
-          </g>}
+          <rect x={-HEADER_W / 2} y={HEADER_Y} width={HEADER_W} height={HEADER_H} rx={7} fill={line.color} />
+          <text x={-HEADER_W / 2 + 9} y={HEADER_Y + 12} className="rm-id">{line.root.id}</text>
+          <text x={-HEADER_W / 2 + 9} y={HEADER_Y + 23} className="rm-title">
+            {truncate(line.root.name, 21)}
+          </text>
 
-          {/* End pct */}
-          {lastPt && <>
-            <text x={lastPt.x} y={lastPt.y + 24} className="m-pct" textAnchor="middle" fill={rl.lineProg >= 1 ? 'var(--gr)' : rl.col}>
-              {Math.round(rl.lineProg * 100)}%
-            </text>
-            {rl.atRisk && <text x={lastPt.x} y={lastPt.y + 37} textAnchor="middle" style={{ font: '700 7px Inter', fill: 'var(--re)' }}>AT RISK</text>}
-          </>}
+          <text x={0} y={line.bottomY + 28} className="rm-pct" textAnchor="middle" fill={line.progress >= 1 ? 'var(--gr)' : line.color}>
+            {Math.round(line.progress * 100)}%
+          </text>
+          {line.atRisk && <text x={0} y={line.bottomY + 42} className="rm-risk" textAnchor="middle">AT RISK</text>}
         </g>;
       })}
     </svg>
