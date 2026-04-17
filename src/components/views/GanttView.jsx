@@ -432,7 +432,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('g.group')}</span>
+          {/* group label removed — buttons are self-explanatory and the row was too wide */}
           {[['project', t('g.project')], ['projteam', t('g.projTeam')], ['team', t('g.team')], ['person', t('g.person')]].map(([k, l]) =>
             <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
         </div>
