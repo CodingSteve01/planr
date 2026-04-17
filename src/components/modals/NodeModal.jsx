@@ -226,12 +226,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
       </div>
 
       {/* ── 8. PHASES (non-root) ──────────────────────────────────────── */}
-      {!isRoot && (() => {
-        const phases = f.phases || [];
-        const teamName = id => teams.find(tm => tm.id === id)?.name || id;
+      {!isRoot && (() => { try {
+        const phases = Array.isArray(f.phases) ? f.phases : [];
+        const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
+        const teamName = id => (teams || []).find(tm => tm.id === id)?.name || id;
 
         const applyTemplate = (tplId) => {
-          const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
+          const tpl = tTemplates.find(tp => tp.id === tplId);
           if (!tpl) return;
           const newPhases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
           setF(x => ({ ...x, phases: newPhases, templateId: tplId }));
@@ -286,8 +287,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
             })}
             <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
               <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
-              {(taskTemplates || []).length > 0 && <SearchSelect
-                options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+              {tTemplates.length > 0 && <SearchSelect
+                options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
                 onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
               <div style={{ flex: 1 }} />
               <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={clearAll}>{t('ph.clearPhases')}</button>
@@ -295,13 +296,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, scheduled
           </>}
 
           {phases.length === 0 && <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {(taskTemplates || []).length > 0 && <SearchSelect
-              options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+            {tTemplates.length > 0 && <SearchSelect
+              options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
               onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
             <button className="btn btn-sec btn-xs" onClick={addPhase}>{t('ph.addPhase')}</button>
           </div>}
         </div>;
-      })()}
+      } catch(e) { console.error('Phases render error:', e); return null; } })()}
 
       {/* ── 9. STRUCTURE (rare) ─────────────────────────────────────────── */}
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--b)' }}>

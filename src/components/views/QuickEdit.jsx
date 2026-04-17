@@ -81,15 +81,16 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
     })()}
 
     {/* ── 3b. PHASES (non-root nodes) ──────────────────────────────────── */}
-    {!isRoot && (() => {
-      const phases = f.phases || [];
+    {!isRoot && (() => { try {
+      const phases = Array.isArray(f.phases) ? f.phases : [];
       const hasPhases = phases.length > 0;
       const phDerived = derivePhaseStatus(phases);
-      const teamName = id => teams.find(tm => tm.id === id)?.name || id;
+      const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
+      const teamName = id => (teams || []).find(tm => tm.id === id)?.name || id;
       const currentIdx = phases.findIndex(p => p.status !== 'done');
 
       const applyTemplate = (tplId) => {
-        const tpl = (taskTemplates || []).find(tp => tp.id === tplId);
+        const tpl = tTemplates.find(tp => tp.id === tplId);
         if (!tpl) return;
         const newPhases = tpl.phases.map((p, i) => ({ id: 'ph' + (Date.now() + i), name: p.name, team: p.team || '', status: 'open' }));
         const n = { ...f, phases: newPhases, templateId: tplId };
@@ -155,7 +156,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)', marginBottom: 6, display: 'block' }}>{t('ph.phases')}</label>
 
         {hasPhases && <>
-          {f.templateId && (() => { const tpl = (taskTemplates || []).find(tp => tp.id === f.templateId); return tpl ? <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>{t('ph.applied', tpl.name)}</div> : null; })()}
+          {f.templateId && (() => { const tpl = tTemplates.find(tp => tp.id === f.templateId); return tpl ? <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>{t('ph.applied', tpl.name)}</div> : null; })()}
           {phDerived && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span className={`badge b${phDerived.status[0]}`} style={{ fontSize: 10 }}>{phDerived.status === 'done' ? t('done') : phDerived.status === 'wip' ? t('wip') : t('open')}</span>
             <div style={{ flex: 1, height: 4, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden' }}>
@@ -194,14 +195,14 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
         {!hasPhases && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>
           {t('ph.noPhases')}
           <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-            {(taskTemplates || []).length > 0 && <SearchSelect
-              options={(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+            {tTemplates.length > 0 && <SearchSelect
+              options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
               onSelect={applyTemplate} placeholder={t('ph.applyTemplate')} />}
             <button className="btn btn-sec btn-xs" onClick={addFreePhase}>{t('ph.addPhase')}</button>
           </div>
         </div>}
       </div>;
-    })()}
+    } catch(e) { console.error('Phases render error:', e); return null; } })()}
 
     {/* ── 4. ASSIGNMENT ─────────────────────────────────────────────────── */}
     <div className="field"><label>{t('qe.team')}</label>
