@@ -210,10 +210,17 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     scheduled.forEach(s => {
       if (!cpSet.has(s.id)) return;
       const node = iMap[s.id]; if (!node) return;
-      (node.deps || []).flatMap(resD).forEach(depId => {
-        if (!cpSet.has(depId)) return;
-        const dep = sMap[depId]; if (!dep) return;
-        const srcRow = rowIdx[depId], tgtRow = rowIdx[s.id];
+      (node.deps || []).forEach(rawDep => {
+        const leafIds = resD(rawDep);
+        let latestId = null, latestEnd = null;
+        leafIds.forEach(depId => {
+          if (!cpSet.has(depId)) return;
+          const dep = sMap[depId]; if (!dep) return;
+          if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
+        });
+        if (!latestId) return;
+        const dep = sMap[latestId];
+        const srcRow = rowIdx[latestId], tgtRow = rowIdx[s.id];
         if (srcRow == null || tgtRow == null) return;
         lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2 });
       });
@@ -222,24 +229,32 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   }, [scheduled, cpSet, tree, rows, WPX, showDays]);
 
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
+  // When a dep targets a parent node, draw ONE line from the latest-finishing child
+  // (that's the actual blocker), not individual lines from every leaf child.
   const allDepLines = useMemo(() => {
     if (!tree) return [];
     const lines = [];
     scheduled.forEach(s => {
       const node = iMap[s.id]; if (!node) return;
       (node.deps || []).forEach(rawDep => {
-        resD(rawDep).forEach(depId => {
+        const leafIds = resD(rawDep);
+        // Find the latest-finishing scheduled leaf — that's the real blocker
+        let latestId = null, latestEnd = null;
+        leafIds.forEach(depId => {
           const dep = sMap[depId]; if (!dep) return;
-          const srcRow = rowIdx[depId], tgtRow = rowIdx[s.id];
-          if (srcRow == null || tgtRow == null) return;
-          lines.push({
-            key: `${depId}->${s.id}->${rawDep}`,
-            x1: depX1(dep), y1: srcRow * RH + RH / 2,
-            x2: depX2(s), y2: tgtRow * RH + RH / 2,
-            removeFromId: s.id, removeDepId: rawDep,
-            srcId: depId, tgtId: s.id,
-            isCp: cpSet?.has(depId) && cpSet?.has(s.id),
-          });
+          if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
+        });
+        if (!latestId) return;
+        const dep = sMap[latestId];
+        const srcRow = rowIdx[latestId], tgtRow = rowIdx[s.id];
+        if (srcRow == null || tgtRow == null) return;
+        lines.push({
+          key: `${latestId}->${s.id}->${rawDep}`,
+          x1: depX1(dep), y1: srcRow * RH + RH / 2,
+          x2: depX2(s), y2: tgtRow * RH + RH / 2,
+          removeFromId: s.id, removeDepId: rawDep,
+          srcId: latestId, tgtId: s.id,
+          isCp: cpSet?.has(latestId) && cpSet?.has(s.id),
         });
       });
     });
@@ -257,14 +272,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     // Outgoing: this task depends on these (deps must finish before this starts)
     if (target) {
       (node.deps || []).forEach(rawDep => {
-        // Resolve to leaves but keep the original dep ID for removal targeting
-        resD(rawDep).forEach(depId => {
+        const leafIds = resD(rawDep);
+        let latestId = null, latestEnd = null;
+        leafIds.forEach(depId => {
           const dep = sMap[depId]; if (!dep) return;
-          const srcRow = rowIdx[depId], tgtRow = rowIdx[hoverDepId];
-          if (srcRow == null || tgtRow == null) return;
-          rowIds.add(depId);
-          lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+          if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
         });
+        if (!latestId) return;
+        const dep = sMap[latestId];
+        const srcRow = rowIdx[latestId], tgtRow = rowIdx[hoverDepId];
+        if (srcRow == null || tgtRow == null) return;
+        rowIds.add(latestId);
+        lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
       });
     }
     // Incoming: which tasks depend on this one (this must finish before they start)
@@ -510,7 +529,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1 }} title={confL}>{confDot}</span>}
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
-              : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} title={s.person}>{sn(s.personId, s.person)}</span>}
+              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} title={s.autoAssigned ? `Auto: ${s.person}` : s.person}>{sn(s.personId, s.person)}</span>}
             <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
           </div>;
         })}

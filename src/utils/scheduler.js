@@ -50,6 +50,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   if (!wks.length) return { results: [], weeks: [] };
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const lvs = leafNodes(tree);
+  // Build short-name map from member IDs (e.g. "SL", "MZ")
+  const mShort = {};
+  if (members?.length) {
+    const bases = members.map(m => { const w = (m.name || '').trim().split(/\s+/).filter(Boolean); return !w.length ? '?' : w.length === 1 ? w[0].slice(0, 2).toUpperCase() : w.map(x => x[0]).join('').toUpperCase(); });
+    const cnt = {}; bases.forEach(b => { cnt[b] = (cnt[b] || 0) + 1; });
+    const seen = {}; members.forEach((m, i) => { const b = bases[i]; if (cnt[b] === 1) mShort[m.id] = b; else { seen[b] = (seen[b] || 0) + 1; mShort[m.id] = b + seen[b]; } });
+  }
   function resD(id) { return resolveToLeafIds(tree, id); }
   // planStartWi = week index where actual scheduling begins (non-pinned tasks start here).
   // Weeks before this exist for rendering only.
@@ -60,7 +67,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const aFuture = a.pinnedStart && new Date(a.pinnedStart) > planStartDate ? 1 : 0;
     const bFuture = b.pinnedStart && new Date(b.pinnedStart) > planStartDate ? 1 : 0;
     if (aFuture !== bFuture) return aFuture - bFuture;
-    return (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    // Assigned tasks schedule before unassigned at same priority — ensures person
+    // capacity (pF) is consumed by committed work before speculative tasks are placed.
+    const aHasPerson = (a.assign?.length > 0) ? 0 : 1;
+    const bHasPerson = (b.assign?.length > 0) ? 0 : 1;
+    return (a.prio || 4) - (b.prio || 4) || aHasPerson - bHasPerson || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
@@ -76,7 +87,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // free. This eliminates the week-boundary gap: if task A ends Wednesday, the
   // next task starts Thursday (same week), not next Monday.
   const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
-  const tSlots = {}; // per-team slot array of {wi, nextDate}
   const tEW = {};
   const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
@@ -94,13 +104,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // Blanket deduction only for unplanned vacation days
     vacInfo[m.id] = totalWDs > 0 ? 1 - remainingVac / totalWDs : 1;
   });
-  function pC(m, wmon) {
-    if (vs[m.id]?.[iso(wmon)]) return 0; // explicit vacation week
-    const st = localDate(m.start || ps); if (st > addD(wmon, 6)) return 0;
-    const w = wks.find(x => x.mon.getTime() === wmon.getTime());
-    if (!w) return 0;
-    return w.wds.filter(d => d >= st).length * (m.cap || 1) * vacInfo[m.id];
-  }
   const res = [];
   ord.forEach(id => {
     if (tEW[id]?.wi === -1) return;
@@ -197,7 +200,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           pF[bp.id] = { wi: eW, nextDate: nd };
           const actualStartD = firstWorkDay || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-          res.push({ id: r.id, name: r.name, team, person: `(${bp.name || bp.id})`, personId: null, prio: r.prio, seq: r.seq,
+          res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
             best: r.best, effort: eff, startWi: bs, endWi: eW,
             startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
             capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
@@ -222,7 +225,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       tEW[id] = { wi: eW, nextDate: nd };
       const actualStartD = firstWorkDay || wks[Math.max(early, planStartWi)]?.mon || wks[0].mon;
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-      res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, prio: r.prio, seq: r.seq,
+      res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, personShort: '?', prio: r.prio, seq: r.seq,
         best: r.best, effort: eff, startWi: Math.max(early, planStartWi), endWi: eW,
         startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
         capPct: 100, vacDed: 0, weeks: eW - Math.max(early, planStartWi) + 1,
@@ -303,7 +306,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         console.warn(`[scheduler] Dep violation: ${r.id} starts ${iso(actualStartD)} but dep ${depId} not free until ${iso(depEndD)}`);
       }
     });
-    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),

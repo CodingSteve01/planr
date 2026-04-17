@@ -611,7 +611,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
               const y = r.name.length > 26 ? 40 : 33;
               return <>
                 {showPrio && <text x={5} y={y} fontSize={7} fill={PRIO_COL[r.prio]} fontWeight={700} style={{ pointerEvents: 'none' }}>{PRIO_GLYPH[r.prio]}</text>}
-                {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.person}</text>}
+                {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : sc.autoAssigned ? 'var(--am)' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.personShort || sc.person?.split(' ')[0] || ''}</text>}
               </>;
             })()}
           </g>;
