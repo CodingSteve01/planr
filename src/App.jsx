@@ -75,10 +75,6 @@ export default function App() {
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
-  // Bumped after external edits (e.g. NodeModal save) to force QuickEdit remount,
-  // which re-initializes its local form state from the fresh tree. This is the
-  // simplest way to fix the stale-assign bug without fragile useEffect chains.
-  const [qeKey, setQeKey] = useState(0);
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [search, setSearch] = useState('');
@@ -1686,7 +1682,7 @@ export default function App() {
       {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }} /></div>}
       {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} cpSet={cpSet} stats={stats}
-        onNavigate={(id, target) => { setSel(id); setTab(target || 'tree'); }}
+        onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}
       {tab === 'tree' && <>
         <div className="pane-full">
