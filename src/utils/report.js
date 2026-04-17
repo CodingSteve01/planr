@@ -105,9 +105,13 @@ tr:nth-child(even) td{background:#fafbfd}
 .risk-crit{background:#fee2e2;border-left:3px solid #dc2626}
 .risk-high{background:#fef3c7;border-left:3px solid #d97706}
 .risk-med{background:#f0f2f5;border-left:3px solid #7a839a}
-.roadmap{position:relative;margin-bottom:14px}
-.rm-bar{height:18px;border-radius:3px;display:flex;align-items:center;padding:0 5px;font-size:8.5px;font-weight:600;color:#fff;overflow:hidden;margin-bottom:2px;position:absolute}
-.rm-label{position:absolute;font-size:9px;color:#4a5268;white-space:nowrap;right:0;text-align:right;padding-right:4px}
+.roadmap{margin-bottom:14px;display:grid;grid-template-columns:240px 1fr;column-gap:12px;row-gap:8px;align-items:center}
+.rm-axis{position:relative}
+.rm-axis-scale{display:flex;justify-content:space-between;font-size:7.5px;color:#7a839a;font-family:monospace}
+.rm-track{position:relative;height:18px}
+.rm-today{position:absolute;top:-4px;bottom:-4px;width:1px;background:#16a34a;z-index:1;opacity:.7}
+.rm-bar{height:18px;border-radius:3px;display:flex;align-items:center;padding:0 5px;font-size:8.5px;font-weight:600;color:#fff;overflow:hidden;position:absolute;top:0;z-index:2}
+.rm-label{font-size:9px;color:#4a5268;line-height:1.25;padding-right:6px;white-space:normal;overflow-wrap:anywhere}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pb{page-break-before:always}
 .sub{color:#7a839a;font-size:11px;margin-bottom:16px}
@@ -156,18 +160,18 @@ tr:nth-child(even) td{background:#fafbfd}
     const maxD = new Date(Math.max(...rdItems.map(r => r.endD.getTime()), projectEnd?.getTime() || 0));
     const rangeMs = maxD - minD || 1;
     const todayPct = Math.max(0, Math.min(100, (now - minD) / rangeMs * 100));
-    h += `<div class="roadmap" style="height:${rdItems.length * 26 + 20}px">`;
-    h += `<div style="position:absolute;left:${todayPct}%;top:0;bottom:0;width:1px;background:#16a34a;z-index:2"></div>`;
-    h += `<div style="display:flex;justify-content:space-between;font-size:7.5px;color:#7a839a;margin-bottom:4px;font-family:monospace"><span>${iso(minD)}</span><span>${t('Today','Heute')}: ${iso(now)}</span><span>${iso(maxD)}</span></div>`;
-    rdItems.forEach((r, i) => {
+    h += `<div class="roadmap">`;
+    h += `<div></div>`;
+    h += `<div class="rm-axis"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-axis-scale"><span>${iso(minD)}</span><span>${t('Today','Heute')}: ${iso(now)}</span><span>${iso(maxD)}</span></div></div>`;
+    rdItems.forEach(r => {
       const left = Math.max(0, (r.startD - minD) / rangeMs * 100);
       const width = Math.max(1.5, (r.endD - r.startD) / rangeMs * 100);
       const tc = teams.find(x => x.id === r.team)?.color || '#3b82f6';
       const opacity = r.conf === 'exploratory' ? '55' : r.conf === 'estimated' ? 'aa' : '';
       const confDot = r.conf === 'exploratory' ? ' ○' : r.conf === 'estimated' ? ' ◐' : '';
-      const top = i * 26 + 18;
-      h += `<div class="rm-label" style="top:${top+2}px;right:${100-left+1}%">${r.type ? GT[r.type]+' ' : ''}${r.id} ${(r.name||'').slice(0,30)}${confDot}</div>`;
-      h += `<div class="rm-bar" style="top:${top}px;left:${left}%;width:${width}%;background:${tc}${opacity}">${r.prog}%${r.pt > 0 ? ` · ${r.pt.toFixed(0)}d` : ''} → ${iso(r.endD)}</div>`;
+      const label = `${r.type ? `${GT[r.type]} ` : ''}${r.id} ${r.name || ''}${confDot}`;
+      h += `<div class="rm-label">${label}</div>`;
+      h += `<div class="rm-track"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-bar" style="left:${left}%;width:${width}%;background:${tc}${opacity}">${r.prog}%${r.pt > 0 ? ` · ${r.pt.toFixed(0)}d` : ''} → ${iso(r.endD)}</div></div>`;
     });
     h += `</div>`;
   }
