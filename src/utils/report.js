@@ -182,31 +182,64 @@ tr:nth-child(even) td{background:#fafbfd}
 
   // ── 5. ROADMAP ──
   h += `<h2>${t('Roadmap','Roadmap')}</h2>`;
-  const rdItems = rootData.filter(r => r.startD && r.endD);
-  if (rdItems.length && weeks.length) {
-    const minD = weeks[0].mon;
-    const maxD = new Date(Math.max(...rdItems.map(r => r.endD.getTime()), projectEnd?.getTime() || 0));
-    const rangeMs = maxD - minD || 1;
-    const todayPct = Math.max(0, Math.min(100, (now - minD) / rangeMs * 100));
-    h += `<div class="roadmap">`;
-    h += `<div></div>`;
-    h += `<div class="rm-axis"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-axis-scale"><span>${iso(minD)}</span><span>${t('Today','Heute')}: ${iso(now)}</span><span>${iso(maxD)}</span></div></div>`;
-    rdItems.forEach(r => {
-      const left = Math.max(0, (r.startD - minD) / rangeMs * 100);
-      const width = Math.max(1.5, (r.endD - r.startD) / rangeMs * 100);
-      const tc = teams.find(x => x.id === r.team)?.color || '#3b82f6';
-      const barFill = r.conf === 'exploratory'
-        ? mixWithWhite(tc, 0.72)
-        : r.conf === 'estimated'
-          ? mixWithWhite(tc, 0.45)
-          : mixWithWhite(tc, 0.12);
-      const barText = r.conf === 'committed' ? '#fff' : '#1a1e2a';
-      const confDot = r.conf === 'exploratory' ? ' ○' : r.conf === 'estimated' ? ' ◐' : '';
-      const label = `${r.type ? `${GT[r.type]} ` : ''}${r.id} ${r.name || ''}${confDot}`;
-      h += `<div class="rm-label">${label}</div>`;
-      h += `<div class="rm-track"><div class="rm-today" style="left:${todayPct}%"></div><div class="rm-bar" style="left:${left}%;width:${width}%;background:${barFill};border:1px solid ${tc};color:${barText}">${r.prog}%${r.pt > 0 ? ` · ${r.pt.toFixed(0)}d` : ''} → ${iso(r.endD)}</div></div>`;
-    });
-    h += `</div>`;
+  // ── U-Bahn roadmap SVG ──
+  {
+    const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+    const lineH = 44, padL = 130, padR = 40, padT = 24, stopR = 6;
+    const rLines = rootData.filter(r => r.leafCount > 0).map((root, ri) => {
+      const l2 = tree.filter(r => r.id.split('.').length === 2 && r.id.startsWith(root.id + '.')).sort((a, b) => a.id.localeCompare(b.id));
+      const stops = l2.map(item => {
+        const ch = lvs.filter(l => l.id === item.id || l.id.startsWith(item.id + '.'));
+        const dn = ch.filter(l => l.status === 'done').length;
+        const tot = ch.length;
+        return { name: item.name, prog: tot ? dn / tot : 0, done: dn, total: tot, allDone: tot > 0 && dn === tot };
+      });
+      let trainPos = 0;
+      for (let i = 0; i < stops.length; i++) { if (stops[i].allDone) trainPos = i + 1; else if (stops[i].prog > 0) { trainPos = i + stops[i].prog; break; } else break; }
+      return { id: root.id, name: root.name, type: root.type, stops, trainPos, prog: root.prog, col: palette[ri % palette.length] };
+    }).filter(l => l.stops.length > 0);
+
+    if (rLines.length) {
+      const maxStops = Math.max(...rLines.map(l => l.stops.length), 1);
+      const svgW = Math.max(padL + maxStops * 90 + padR, 500);
+      const svgH = padT + rLines.length * lineH + 6;
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" style="font-family:Inter,sans-serif;display:block;margin:0 auto 14px">`;
+      rLines.forEach((line, li) => {
+        const y = padT + li * lineH + lineH / 2;
+        const sc = line.stops.length;
+        const trackW = svgW - padL - padR;
+        const gap = sc > 1 ? trackW / (sc - 1) : trackW;
+        const sx = i => padL + (sc > 1 ? i * gap : trackW / 2);
+        const trainX = padL + Math.min(line.trainPos, sc - 1) * gap;
+        // Label
+        svg += `<rect x="4" y="${y - 10}" width="${padL - 12}" height="20" rx="3" fill="${line.col}"/>`;
+        svg += `<text x="8" y="${y + 1}" font-size="8" font-weight="700" fill="#fff" dominant-baseline="middle" font-family="monospace">${line.id}</text>`;
+        const nm = line.name.length > 14 ? line.name.slice(0, 12) + '…' : line.name;
+        svg += `<text x="${padL - 14}" y="${y + 1}" font-size="8" fill="#fff" dominant-baseline="middle" text-anchor="end">${nm}</text>`;
+        // Track
+        svg += `<line x1="${sx(0)}" y1="${y}" x2="${sx(sc - 1)}" y2="${y}" stroke="#e5e8ee" stroke-width="3" stroke-linecap="round"/>`;
+        if (line.trainPos > 0) svg += `<line x1="${sx(0)}" y1="${y}" x2="${trainX}" y2="${y}" stroke="${line.col}" stroke-width="3" stroke-linecap="round"/>`;
+        // Stops
+        line.stops.forEach((stop, si) => {
+          const x = sx(si);
+          svg += stop.allDone
+            ? `<circle cx="${x}" cy="${y}" r="${stopR}" fill="${line.col}"/><text x="${x}" y="${y + 0.5}" font-size="7" fill="#fff" text-anchor="middle" dominant-baseline="middle" font-weight="700">✓</text>`
+            : `<circle cx="${x}" cy="${y}" r="${stopR}" fill="#fff" stroke="${stop.prog > 0 ? line.col : '#b0b8c8'}" stroke-width="1.5"/>`;
+          if (!stop.allDone && stop.prog > 0) svg += `<text x="${x}" y="${y + 0.5}" font-size="5" fill="${line.col}" text-anchor="middle" dominant-baseline="middle" font-weight="700" font-family="monospace">${Math.round(stop.prog * 100)}</text>`;
+          const sn = stop.name.length > 14 ? stop.name.slice(0, 12) + '…' : stop.name;
+          svg += `<text x="${x}" y="${y - stopR - 3}" font-size="7" fill="#4a5268" text-anchor="middle">${sn}</text>`;
+          svg += `<text x="${x}" y="${y + stopR + 9}" font-size="6" fill="#7a839a" text-anchor="middle" font-family="monospace">${stop.done}/${stop.total}</text>`;
+        });
+        // Train marker
+        if (line.trainPos > 0 && line.trainPos < sc) {
+          svg += `<circle cx="${trainX}" cy="${y}" r="${stopR + 1}" fill="${line.col}"/><circle cx="${trainX}" cy="${y}" r="${stopR - 1}" fill="#fff"/><circle cx="${trainX}" cy="${y}" r="1.5" fill="${line.col}"/>`;
+        }
+        // Percentage
+        svg += `<text x="${sx(sc - 1) + 12}" y="${y + 1}" font-size="8" fill="${line.col}" dominant-baseline="middle" font-weight="700" font-family="monospace">${line.prog}%</text>`;
+      });
+      svg += '</svg>';
+      h += svg;
+    }
   }
 
   // ── 6. GOALS & DEADLINES ──
