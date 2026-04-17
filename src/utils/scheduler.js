@@ -286,13 +286,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const eW = Math.min(wi, wks.length - 1);
     const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
     tEW[id] = { wi: eW, nextDate: nd };
-    if (!r.parallel) {
-      pF[bp.id] = { wi: eW, nextDate: nd };
-    } else {
-      // Track parallel high-water mark: next sequential task must wait for all parallel work to finish.
-      const prev = pPE[bp.id];
-      if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
-        pPE[bp.id] = { wi: eW, nextDate: nd };
+    // Block capacity for ALL assigned people (not just the primary),
+    // so pair-programming or multi-assign tasks occupy everyone involved.
+    const allAssigned = asgn.map(a => members.find(m => m.id === a)).filter(Boolean);
+    for (const m of allAssigned) {
+      if (!r.parallel) {
+        pF[m.id] = { wi: eW, nextDate: nd };
+      } else {
+        const prev = pPE[m.id];
+        if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
+          pPE[m.id] = { wi: eW, nextDate: nd };
+        }
       }
     }
     const actualStartD = firstWorkDay || wks[bs].mon;
