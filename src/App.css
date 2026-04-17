@@ -114,7 +114,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .gh-scroll{flex:1;overflow:hidden;}
 .gantt-body{flex:1;overflow:hidden;display:flex;}
 .gantt-left{width:300px;flex-shrink:0;border-right:1px solid var(--b);overflow-y:hidden;user-select:none;-webkit-user-select:none;}
-.gteam{height:32px;display:flex;align-items:center;padding:0 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--b2);position:sticky;top:0;z-index:3;}
+.gteam{height:32px;display:flex;align-items:center;padding:0 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--b2);}
 .grow-l{height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--b);cursor:pointer;overflow:hidden;transition:background .08s;font-size:12px;}
 .grow-l:hover{background:rgba(127,127,127,.06);}
 .grow-l.cp-row{}

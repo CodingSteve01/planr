@@ -51,7 +51,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
 
   const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
-  return <div style={{ maxWidth: 900 }}>
+  return <div style={{ width: '100%', maxWidth: '100%' }}>
     {/* Progress header */}
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>

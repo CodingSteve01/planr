@@ -4,11 +4,11 @@ const DAY = 864e5;
 
 const PAD_X = 18;
 const PAD_Y = 12;
-const LEFT_GUTTER = 210;
-const RIGHT_PAD = 42;
+const LEFT_GUTTER = 236;
+const RIGHT_PAD = 48;
 const AXIS_H = 58;
-const ROW_H = 98;
-const BADGE_W = 156;
+const ROW_H = 128;
+const BADGE_W = 168;
 const BADGE_H = 34;
 const MONTH_W = 54;
 
@@ -17,9 +17,10 @@ const MAJOR_R = 5.5;
 const MINOR_R = 3.1;
 const SPREAD_GAP = 28;
 const MAJOR_LABEL_GAP = 18;
-const MINOR_DOT_OFF = 15;
+const MINOR_DOT_OFF = 17;
 const MINOR_STEP = 12;
-const MAX_MINOR_PER_ROOT = 5;
+const ROUTE_DROP = 40;
+const MAX_MINOR_PER_ROOT = 4;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -353,7 +354,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
 
   const todayX = xAt(today);
   const positionedLines = lines.map((line, index) => {
-    const baselineY = AXIS_H + index * ROW_H + 36;
+    const rowTop = AXIS_H + index * ROW_H;
     const rawStations = line.timeline.map(station => ({
       ...station,
       rawX: xAt(station.anchorDate),
@@ -377,7 +378,6 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
         side: preferredSide,
         lane: laneBySide[preferredSide],
         endX: Math.max(station.x + 10, station.rawEndX),
-        labelY: baselineY + preferredSide * (MAJOR_LABEL_GAP + laneBySide[preferredSide] * 11),
       };
     });
 
@@ -388,13 +388,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
       const gap = station.x - lastMinorXBySide[preferredSide];
       minorLaneBySide[preferredSide] = gap < 74 ? minorLaneBySide[preferredSide] + 1 : 0;
       lastMinorXBySide[preferredSide] = station.x;
-      const dotY = baselineY + preferredSide * (MINOR_DOT_OFF + minorLaneBySide[preferredSide] * MINOR_STEP);
       return {
         ...station,
         side: preferredSide,
         lane: minorLaneBySide[preferredSide],
-        dotY,
-        labelY: dotY + preferredSide * 10,
         endX: Math.max(station.x + 8, station.rawEndX),
       };
     });
@@ -411,24 +408,83 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
       ...majorPlaced.map(station => station.endX),
       ...minorPlaced.map(station => station.x)
     );
-
-    const trainIdx = progressIndex(majorPlaced);
     const trackStartX = LEFT_GUTTER;
+    const lineLength = Math.max(trackEndX - trackStartX, 96);
+    const bendStartX = trackStartX + Math.min(Math.max(lineLength * 0.18, 48), Math.max(48, lineLength - 72));
+    const bendEndX = trackStartX + Math.min(Math.max(lineLength * 0.34, bendStartX - trackStartX + 44), Math.max(bendStartX - trackStartX + 44, lineLength - 8));
+    const routeStartY = rowTop + 28;
+    const routeEndY = routeStartY + ROUTE_DROP;
+    const routeYAt = x => {
+      if (x <= bendStartX) return routeStartY;
+      if (x >= bendEndX) return routeEndY;
+      const ratio = (x - bendStartX) / Math.max(bendEndX - bendStartX, 1);
+      return routeStartY + (routeEndY - routeStartY) * ratio;
+    };
+    const buildRoutePathToX = x => {
+      const cappedX = clamp(x, trackStartX, trackEndX);
+      const pts = [{ x: trackStartX, y: routeStartY }];
+      if (cappedX <= bendStartX) {
+        pts.push({ x: cappedX, y: routeStartY });
+        return pts;
+      }
+      pts.push({ x: bendStartX, y: routeStartY });
+      if (cappedX <= bendEndX) {
+        pts.push({ x: cappedX, y: routeYAt(cappedX) });
+        return pts;
+      }
+      pts.push({ x: bendEndX, y: routeEndY });
+      pts.push({ x: cappedX, y: routeEndY });
+      return pts;
+    };
+    const pathFromPoints = points => points.map((pt, ptIndex) => `${ptIndex ? 'L' : 'M'}${pt.x},${pt.y}`).join(' ');
+    const routePath = pathFromPoints(buildRoutePathToX(trackEndX));
+
+    const majorAdjusted = majorPlaced.map((station, stationIndex) => {
+      const routeY = routeYAt(station.x);
+      return {
+        ...station,
+        routeY,
+        labelY: routeY + station.side * (MAJOR_LABEL_GAP + station.lane * 12),
+      };
+    });
+
+    const minorAdjusted = minorPlaced.map(station => {
+      const routeY = routeYAt(station.x);
+      const dotY = routeY + station.side * (MINOR_DOT_OFF + station.lane * MINOR_STEP);
+      return {
+        ...station,
+        routeY,
+        dotY,
+        labelY: dotY + station.side * 10,
+      };
+    });
+
+    const trainIdx = progressIndex(majorAdjusted);
     const trainX = line.progress > 0
-      ? progressX(majorPlaced, trainIdx, trackStartX, line.progress >= 1 ? trackEndX : undefined)
+      ? progressX(majorAdjusted, trainIdx, trackStartX, line.progress >= 1 ? trackEndX : undefined)
       : null;
+    const progressPath = trainX != null ? pathFromPoints(buildRoutePathToX(trainX)) : '';
+    const trainY = trainX != null ? routeYAt(trainX) : null;
 
     return {
       ...line,
-      baselineY,
-      majorStations: majorPlaced,
-      minorStations: minorPlaced,
+      rowTop,
+      routeStartY,
+      routeEndY,
+      bendStartX,
+      bendEndX,
+      routePath,
+      progressPath,
+      majorStations: majorAdjusted,
+      minorStations: minorAdjusted,
       trackStartX,
       trackEndX,
       trainX,
+      trainY,
       currentStationId: currentStation?.id || null,
       nextIds,
       majorIds,
+      currentStation,
     };
   });
 
@@ -489,20 +545,20 @@ export function renderRoadmapSvg(args) {
       : line.progress >= 1 ? 'Line complete' : 'Awaiting next stop';
 
     out.push(`<g>`);
-    out.push(`<rect x="${PAD_X}" y="${line.baselineY - BADGE_H / 2}" width="${BADGE_W}" height="${BADGE_H}" rx="7" fill="${line.color}"/>`);
-    out.push(`<text x="${PAD_X + 9}" y="${line.baselineY - 4}" class="rm-badge-id">${esc(line.root.id)}</text>`);
-    out.push(`<text x="${PAD_X + 9}" y="${line.baselineY + 8}" class="rm-badge-name">${esc(truncate(line.root.name, 24))}</text>`);
-    out.push(`<text x="${PAD_X + BADGE_W - 9}" y="${line.baselineY + 4}" text-anchor="end" class="rm-badge-pct">${Math.round(line.progress * 100)}%</text>`);
+    out.push(`<rect x="${PAD_X}" y="${line.routeStartY - BADGE_H / 2}" width="${BADGE_W}" height="${BADGE_H}" rx="7" fill="${line.color}"/>`);
+    out.push(`<text x="${PAD_X + 9}" y="${line.routeStartY - 4}" class="rm-badge-id">${esc(line.root.id)}</text>`);
+    out.push(`<text x="${PAD_X + 9}" y="${line.routeStartY + 8}" class="rm-badge-name">${esc(truncate(line.root.name, 24))}</text>`);
+    out.push(`<text x="${PAD_X + BADGE_W - 9}" y="${line.routeStartY + 4}" text-anchor="end" class="rm-badge-pct">${Math.round(line.progress * 100)}%</text>`);
 
-    out.push(`<text x="${PAD_X}" y="${line.baselineY + 28}" class="rm-summary-k">Now</text>`);
-    out.push(`<text x="${PAD_X + 28}" y="${line.baselineY + 28}" class="rm-summary-v">${esc(currentSummary)}</text>`);
-    out.push(`<text x="${PAD_X}" y="${line.baselineY + 40}" class="rm-summary-k">Next</text>`);
-    out.push(`<text x="${PAD_X + 28}" y="${line.baselineY + 40}" class="rm-summary-v">${esc(nextSummary)}</text>`);
+    out.push(`<text x="${PAD_X}" y="${line.routeStartY + 31}" class="rm-summary-k">Now</text>`);
+    out.push(`<text x="${PAD_X + 28}" y="${line.routeStartY + 31}" class="rm-summary-v">${esc(currentSummary)}</text>`);
+    out.push(`<text x="${PAD_X}" y="${line.routeStartY + 43}" class="rm-summary-k">Next</text>`);
+    out.push(`<text x="${PAD_X + 28}" y="${line.routeStartY + 43}" class="rm-summary-v">${esc(nextSummary)}</text>`);
 
-    out.push(`<line x1="${line.trackStartX}" y1="${line.baselineY}" x2="${line.trackEndX}" y2="${line.baselineY}" stroke="${line.color}" stroke-width="${LINE_W}" opacity="0.16" stroke-linecap="round"/>`);
-    if (line.trainX != null) out.push(`<line x1="${line.trackStartX}" y1="${line.baselineY}" x2="${line.trainX}" y2="${line.baselineY}" stroke="${line.color}" stroke-width="${LINE_W}" stroke-linecap="round"/>`);
+    out.push(`<path d="${line.routePath}" stroke="rgba(148,163,184,.38)" stroke-width="${LINE_W}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    if (line.progressPath) out.push(`<path d="${line.progressPath}" stroke="${line.color}" stroke-width="${LINE_W}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
 
-    line.majorStations.forEach((station, index) => {
+    line.majorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === line.currentStationId && !isDone;
       const isNext = line.nextIds.has(station.id);
@@ -512,18 +568,16 @@ export function renderRoadmapSvg(args) {
         isCurrent ? 'rm-major-current' : '',
         !isCurrent && isNext ? 'rm-major-next' : '',
       ].filter(Boolean).join(' ');
-      const barY = line.baselineY + (index % 2 === 0 ? -7 : 7);
-      if (station.endX > station.x + 6) out.push(`<line x1="${station.x}" y1="${barY}" x2="${station.endX}" y2="${barY}" stroke="${line.color}" stroke-width="3" opacity="${isCurrent || isNext ? 0.48 : 0.26}" stroke-linecap="round"/>`);
       if (isDone) {
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R}" fill="${line.color}"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R}" fill="${line.color}"/>`);
       } else if (isCurrent) {
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R + 3}" fill="${line.color}" opacity="0.14"/>`);
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${line.color}" stroke-width="2.4"/>`);
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R - 2.1}" fill="${line.color}"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R + 3}" fill="${line.color}" opacity="0.14"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${line.color}" stroke-width="2.4"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R - 2.1}" fill="${line.color}"/>`);
       } else {
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${line.baselineY}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${isNext ? line.color : 'var(--b3,#b0b8c8)'}" stroke-width="${isNext ? 2.2 : 2}"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
+        out.push(`<circle cx="${station.x}" cy="${station.routeY}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${isNext ? line.color : 'var(--b3,#b0b8c8)'}" stroke-width="${isNext ? 2.2 : 2}"/>`);
       }
       out.push(`<text x="${station.x}" y="${station.labelY}" text-anchor="middle" class="${labelClass}" dominant-baseline="middle" fill="${isCurrent || isNext ? line.color : ''}">${esc(truncate(station.name, 22))}</text>`);
       if (station.total > 0) out.push(`<text x="${station.x}" y="${station.labelY + 9}" text-anchor="middle" class="rm-count">${station.done}/${station.total}</text>`);
@@ -542,7 +596,7 @@ export function renderRoadmapSvg(args) {
         isDone ? 'rm-done' : '',
         !isDone && (isCurrent || isNext) ? 'rm-minor-next' : '',
       ].filter(Boolean).join(' ');
-      out.push(`<line x1="${station.x}" y1="${line.baselineY}" x2="${station.x}" y2="${station.dotY}" stroke="${line.color}" stroke-width="2" opacity="${isCurrent || isNext ? 0.56 : 0.34}" stroke-linecap="round"/>`);
+      out.push(`<line x1="${station.x}" y1="${station.routeY}" x2="${station.x}" y2="${station.dotY}" stroke="${line.color}" stroke-width="2" opacity="${isCurrent || isNext ? 0.56 : 0.34}" stroke-linecap="round"/>`);
       if (isDone) out.push(`<circle cx="${station.x}" cy="${station.dotY}" r="${MINOR_R}" fill="${line.color}"/>`);
       else if (isCurrent) {
         out.push(`<circle cx="${station.x}" cy="${station.dotY}" r="${MINOR_R + 2.2}" fill="${line.color}" opacity="0.14"/>`);
@@ -558,16 +612,16 @@ export function renderRoadmapSvg(args) {
       else if (isNext) out.push(`<text x="${labelX}" y="${station.labelY - 9}" text-anchor="${labelAnchor}" class="rm-next">NEXT</text>`);
     });
 
-    if (line.trainX != null && line.progress < 1) {
-      out.push(`<circle cx="${line.trainX}" cy="${line.baselineY}" r="${MAJOR_R + 4}" fill="${line.color}" opacity="0.18">`);
+    if (line.trainX != null && line.trainY != null && line.progress < 1) {
+      out.push(`<circle cx="${line.trainX}" cy="${line.trainY}" r="${MAJOR_R + 4}" fill="${line.color}" opacity="0.18">`);
       out.push(`<animate attributeName="r" values="${MAJOR_R + 2};${MAJOR_R + 5};${MAJOR_R + 2}" dur="2.2s" repeatCount="indefinite"/>`);
       out.push(`</circle>`);
-      out.push(`<circle cx="${line.trainX}" cy="${line.baselineY}" r="${MAJOR_R + 1.5}" fill="${line.color}"/>`);
-      out.push(`<circle cx="${line.trainX}" cy="${line.baselineY}" r="${MAJOR_R - 1.7}" fill="#fff"/>`);
+      out.push(`<circle cx="${line.trainX}" cy="${line.trainY}" r="${MAJOR_R + 1.5}" fill="${line.color}"/>`);
+      out.push(`<circle cx="${line.trainX}" cy="${line.trainY}" r="${MAJOR_R - 1.7}" fill="#fff"/>`);
     }
 
-    if (line.hiddenMinorCount > 0) out.push(`<text x="${line.trackEndX + 10}" y="${line.baselineY - 10}" class="rm-more">+${line.hiddenMinorCount}</text>`);
-    if (line.atRisk) out.push(`<text x="${line.trackEndX + 10}" y="${line.baselineY + 11}" class="rm-risk">AT RISK</text>`);
+    if (line.hiddenMinorCount > 0) out.push(`<text x="${line.trackEndX + 10}" y="${line.routeEndY - 10}" class="rm-more">+${line.hiddenMinorCount}</text>`);
+    if (line.atRisk) out.push(`<text x="${line.trackEndX + 10}" y="${line.routeEndY + 11}" class="rm-risk">AT RISK</text>`);
     out.push(`</g>`);
   });
 
