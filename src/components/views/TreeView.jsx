@@ -16,7 +16,7 @@ function StatusIcon({ status, progress = 0 }) {
     </svg>;
   }
   if (status === 'wip') {
-    const p = Math.max(progress || 50, 1);
+    const p = Math.max(progress ?? 50, 1);
     const off = circ * (1 - p / 100);
     return <svg width={size} height={size} viewBox="0 0 18 18" style={{ verticalAlign: 'middle', display: 'inline-block' }} aria-label={`In progress ${p}%`}>
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--b3)" strokeWidth="1.5" />

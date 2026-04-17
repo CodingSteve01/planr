@@ -310,8 +310,10 @@ export function computeConfidence(tree, members) {
   return result;
 }
 
-// Derive leaf progress: explicit field > status-based default
+// Derive leaf progress: phases (single source of truth) > explicit field > status-based default
 export function leafProgress(r) {
+  // Phases are the single source of truth when present
+  if (r.phases?.length) return phaseProgress(r.phases);
   if (r.progress != null && r.progress >= 0) return r.progress;
   if (r.status === 'done') return 100;
   if (r.status === 'wip') return 50;
