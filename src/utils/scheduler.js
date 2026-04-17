@@ -235,38 +235,43 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
 
     // ── Per-person assigned path ───────────────────────────────────────────────
     const cands = members.filter(m => asgn.includes(m.id));
-    let bp = null, bs = 9999;
+    const isMulti = cands.length > 1; // pair programming / multi-assign
+    // For multi-assign: ALL people must be free → use the LATEST free week (max).
+    // For single-assign: use the EARLIEST free week (min) among candidates.
+    let bp = null, bs = isMulti ? 0 : 9999;
     cands.forEach(m => {
       const mStart = localDate(m.start || ps);
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
       const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
       const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-      // Pinned tasks bypass person-capacity (hard start override) — only constrained by
-      // deps and the member's availability start date, just like parallel tasks.
       const fw = (r.parallel || r.pinnedStart)
         ? Math.max(early, ji >= 0 ? ji : 0)
         : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
-      if (fw < bs) { bs = fw; bp = m; }
+      if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
     });
     if (!bp || bs >= wks.length) { tEW[id] = { wi: Math.min(early, wks.length - 1), nextDate: null }; return; }
     let pinOverridden = false;
     if (r.pinnedStart && !r.parallel) {
       const pinDate = localDate(r.pinnedStart);
       const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
-      // Only flag override if the member's onboarding date pushes later (not capacity)
       const mStartDate = localDate(bp.start || ps);
       const mStartWi = wks.findIndex(w => w.wds.some(d => d >= mStartDate));
       if (pinWi >= 0 && mStartWi >= 0 && mStartWi > pinWi) pinOverridden = true;
     }
-    // Compute the earliest date this person can actually start working — the latest of
-    // dep constraint, person free-date, member availability, and pin.
-    const mStart = localDate(bp.start || ps);
-    const personFree = (r.parallel || r.pinnedStart) ? null : pF[bp.id]?.nextDate;
-    const parallelEndDate = (r.parallel || r.pinnedStart) ? null : pPE[bp.id]?.nextDate;
-    let skipBefore = mStart;
+    // skipBefore: latest constraint across ALL assigned people (not just primary).
+    // For multi-assign, everyone must be free before the task can start.
+    let skipBefore = null;
+    for (const m of cands) {
+      const ms = localDate(m.start || ps);
+      if (!skipBefore || ms > skipBefore) skipBefore = ms;
+      if (!(r.parallel || r.pinnedStart)) {
+        const pf = pF[m.id]?.nextDate;
+        const pe = pPE[m.id]?.nextDate;
+        if (pf && pf > skipBefore) skipBefore = pf;
+        if (pe && pe > skipBefore) skipBefore = pe;
+      }
+    }
     if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
-    if (personFree && personFree > skipBefore) skipBefore = personFree;
-    if (parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
     const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
