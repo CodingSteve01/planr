@@ -27,17 +27,17 @@ export function Roadmap({ tree, scheduled, stats }) {
       onMouseMove={onMove} onMouseLeave={onLeave}>
       <div dangerouslySetInnerHTML={{ __html: svg }} />
       {tip && (
-        <div style={{
-          position: 'absolute', left: tip.x, top: tip.y,
-          background: 'var(--bg2, #191d25)', border: '1px solid var(--b2, #364456)',
-          borderRadius: 'var(--r, 7px)', padding: '8px 12px', zIndex: 20,
-          boxShadow: 'var(--sh, 0 4px 24px rgba(0,0,0,.55))',
-          pointerEvents: 'none', maxWidth: 280, whiteSpace: 'pre-line',
-          font: '500 11px/1.5 Inter, system-ui, sans-serif',
-          color: 'var(--tx, #e8ecf4)',
-        }}>
-          {tip.text}
-        </div>
+        <div
+          style={{
+            position: 'absolute', left: tip.x, top: tip.y,
+            background: 'var(--bg2, #191d25)', border: '1px solid var(--b2, #364456)',
+            borderRadius: 'var(--r, 7px)', padding: '8px 10px', zIndex: 20,
+            boxShadow: 'var(--sh, 0 4px 24px rgba(0,0,0,.55))',
+            pointerEvents: 'none', minWidth: 180, maxWidth: 320,
+            color: 'var(--tx, #e8ecf4)',
+          }}
+          dangerouslySetInnerHTML={{ __html: tip.text }}
+        />
       )}
     </div>
   );

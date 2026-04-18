@@ -605,7 +605,7 @@ export function renderRoadmapSvg(args) {
   // ── Styles ──────────────────────────────────────────────────────────────────
   out.push(`<style>
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
-    .rm-abbrev{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1)}
+    .rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1)}
     .rm-abbrev-active{fill:#fff}
     .rm-abbrev-done{opacity:.65}
     .rm-risk-tri{fill:#ef4444}
@@ -674,13 +674,26 @@ export function renderRoadmapSvg(args) {
     majorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === currentId && !isDone;
-      const statusLabel = isDone ? '✓' : `${station.done}/${station.total}`;
-      const tooltipItems = (station.clusterItems || []).map(c => {
+      const stStatus = isDone ? 'done' : station.done > 0 ? 'wip' : 'open';
+      const stProg = station.total > 0 ? station.done / station.total : 0;
+      const headerIcon = statusIcon(stStatus, color, stProg, 14);
+      const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
+      const itemsHtml = (station.clusterItems || []).map(c => {
         const node = nodeMap[c.id];
-        const st = node?.status === 'done' ? '✓' : node?.status === 'wip' ? '▸' : '○';
-        return `${st} ${c.name || c.id}`;
-      }).join('\n');
-      const tooltip = `${station.abbrev} — ${station.name}\n${statusLabel} erledigt\n${tooltipItems}`;
+        const itStatus = node?.status === 'done' ? 'done' : node?.status === 'wip' ? 'wip' : 'open';
+        const itProg = typeof node?.progress === 'number' ? node.progress / 100 : itStatus === 'wip' ? 0.5 : 0;
+        const itIcon = statusIcon(itStatus, color, itProg, 11);
+        const itStyle = itStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
+          : itStatus === 'wip' ? `color:${color}` : 'color:var(--tx2,#cbd5e1)';
+        return `<div style="${rowStyle};padding-left:4px;${itStyle}"><span style="display:inline-flex;line-height:0">${itIcon}</span><span style="font:400 10px/1.2 Inter,system-ui,sans-serif">${esc(c.name || c.id)}</span></div>`;
+      }).join('');
+      const headerHtml = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
+        + `<span style="display:inline-flex;line-height:0">${headerIcon}</span>`
+        + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(station.abbrev)}</span>`
+        + `<span style="font:600 11px/1.2 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4)">${esc(station.name)}</span>`
+        + `<span style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);margin-left:auto">${esc(isDone ? '✓' : station.done + '/' + station.total)}</span>`
+        + `</div>`;
+      const tooltip = headerHtml + itemsHtml;
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
       out.push(`<g class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(tooltip)}">`);
@@ -698,7 +711,7 @@ export function renderRoadmapSvg(args) {
 
       // Abbreviation label
       const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
-      out.push(`<text x="${(station.x + 7).toFixed(1)}" y="${(station.y - 6).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      out.push(`<text x="${(station.x + 8).toFixed(1)}" y="${(station.y - 8).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
     });
 
     // Minor stations (r=3)
@@ -726,7 +739,15 @@ export function renderRoadmapSvg(args) {
     if (trainT <= 0 || progress >= 1) return;
 
     const pct = Math.round(progress * 100);
-    const trainTip = `${line.root.id} — ${line.root.name}\nFortschritt: ${pct}%\n${line.atRisk ? '⚠ AT RISK' : ''}`;
+    const trainIcon = statusIcon('wip', color, progress, 14);
+    const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
+    const trainTip = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
+      + `<span style="display:inline-flex;line-height:0">${trainIcon}</span>`
+      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(line.root.id)}</span>`
+      + `<span style="font:600 11px/1.2 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4)">${esc(line.root.name)}</span>`
+      + `</div>`
+      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">Fortschritt: <b style="color:${color}">${pct}%</b></div>`
+      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ AT RISK</div>` : '');
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
     out.push(`<g id="rm-train-${lineIdx}" class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
     // Pulse glow
@@ -763,15 +784,19 @@ export function renderRoadmapSvg(args) {
     allStations.forEach(station => {
       const stStatus = station.allDone ? 'done' : station.done > 0 ? 'wip' : 'open';
       const stProg = station.total > 0 ? station.done / station.total : 0;
-      const stIcon = statusIcon(stStatus, line.color, stProg, 12);
+      const stIcon = statusIcon(stStatus, line.color, stProg, 13);
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
       const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
-      out.push(`<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px">`);
-      out.push(`<span style="flex-shrink:0;margin-top:1px">${stIcon}</span>`);
-      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:2px;${doneStyle}">${esc(station.abbrev)}</span>`);
+
+      // Main station row: icon + abbrev + name — single line, vertically centered
+      out.push(`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px">`);
+      out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
+      out.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
+      out.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
+      out.push(`</div>`);
+
+      // Cluster details — indented rows below, each with own icon+text centered
       if (station.clusterSize > 1) {
-        out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);${doneStyle}">`);
-        out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
         const extras = station.clusterItems.filter(c => c.id !== station.id);
         extras.forEach(c => {
           const itemNode = nodeMap[c.id];
@@ -779,14 +804,13 @@ export function renderRoadmapSvg(args) {
           const itemProg = typeof itemNode?.progress === 'number' ? itemNode.progress / 100 : itemStatus === 'wip' ? 0.5 : 0;
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
           const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
-            : itemStatus === 'wip' ? `color:${line.color}` : '';
-          out.push(`<span style="display:flex;align-items:center;gap:4px;padding-left:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${itemStyle}">${itemIcon}<span style="overflow:hidden;text-overflow:ellipsis">${esc(truncate(c.name, 22))}</span></span>`);
+            : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
+          out.push(`<div style="display:flex;align-items:center;gap:5px;padding-left:36px;margin-bottom:1px;${itemStyle}">`);
+          out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
+          out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
+          out.push(`</div>`);
         });
-        out.push(`</span>`);
-      } else {
-        out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
       }
-      out.push(`</div>`);
     });
 
     out.push(`</div>`);
