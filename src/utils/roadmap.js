@@ -274,11 +274,16 @@ function hashStr(str) {
  */
 function makeAbbrev(name) {
   if (!name) return '?';
-  const words = name.trim().split(/\s+/);
+  // Strip parenthetical content, leading articles/prefixes, technical noise
+  const clean = name
+    .replace(/\(.*?\)/g, '')
+    .replace(/\b(Ursache|Erstellung|Anpassung|Entwicklung|Umstellung|Integration|Domain|UI\s+Migration)\b:?\s*/gi, '')
+    .trim();
+  const words = (clean || name).trim().split(/\s+/).filter(w => w.length > 0);
   if (words.length >= 2) {
     return words.slice(0, 3).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3);
   }
-  return name.slice(0, 3).toUpperCase();
+  return (words[0] || name).slice(0, 3).toUpperCase();
 }
 
 /**
@@ -346,48 +351,76 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
 
   // Build raw lines (one per root)
   const rawLines = roots.map((root) => {
-    const descendants = tree.filter(node => node.id.startsWith(root.id + '.'));
     const rootInfo = meta[root.id] || {};
 
-    const majorNodes = descendants
-      .filter(node => depthOf(node.id) === 2)
-      .sort((a, b) => compareByTime({
-        id: a.id,
-        anchorDate: meta[a.id]?.earliestStart || meta[a.id]?.latestEnd || toDate(a.pinnedStart) || toDate(a.decideBy) || toDate(a.date),
-      }, {
-        id: b.id,
-        anchorDate: meta[b.id]?.earliestStart || meta[b.id]?.latestEnd || toDate(b.pinnedStart) || toDate(b.decideBy) || toDate(b.date),
-      }));
+    // ── Scheduled-item clustering ─────────────────────────────────────────────
+    // Get all scheduled items for this root project
+    const rootScheduled = (scheduled || []).filter(s => s.id.startsWith(root.id + '.'));
 
-    const relevantMinorNodes = descendants
-      .filter(node => depthOf(node.id) === 3)
-      .filter(node => {
-        const info = meta[node.id] || {};
-        return info.earliestStart || info.latestEnd || info.prog > 0 || info.done > 0 || node.best > 0 || (node.deps || []).length > 0;
-      })
-      .sort((a, b) => compareByTime({
-        id: a.id,
-        anchorDate: meta[a.id]?.earliestStart || meta[a.id]?.latestEnd || toDate(a.pinnedStart) || toDate(a.decideBy) || toDate(a.date),
-      }, {
-        id: b.id,
-        anchorDate: meta[b.id]?.earliestStart || meta[b.id]?.latestEnd || toDate(b.pinnedStart) || toDate(b.decideBy) || toDate(b.date),
-      }));
+    // Sort by endD
+    const sorted = rootScheduled
+      .filter(s => s.endD)  // only items with end dates
+      .sort((a, b) => +new Date(a.endD) - +new Date(b.endD));
 
-    const { visible: minorNodes, hidden: hiddenMinorCount } = pickFeaturedMinors(relevantMinorNodes, meta);
+    // Cluster: group items whose endD are within 14 days of each other
+    const CLUSTER_GAP_DAYS = 14;
+    const clusters = [];
+    let currentCluster = [];
 
-    let syntheticDate = addDays(rootInfo.latestEnd || rootInfo.earliestStart || toDate(now), 21);
-    const nextFallbackDate = () => {
-      const date = syntheticDate;
-      syntheticDate = addDays(syntheticDate, 28);
-      return date;
-    };
+    sorted.forEach(item => {
+      if (!currentCluster.length) {
+        currentCluster.push(item);
+        return;
+      }
+      const lastEnd = new Date(currentCluster[currentCluster.length - 1].endD);
+      const thisEnd = new Date(item.endD);
+      if ((+thisEnd - +lastEnd) / 864e5 <= CLUSTER_GAP_DAYS) {
+        currentCluster.push(item);
+      } else {
+        clusters.push(currentCluster);
+        currentCluster = [item];
+      }
+    });
+    if (currentCluster.length) clusters.push(currentCluster);
 
-    const majorStations = majorNodes.map(node => buildStation(node, 'major', nextFallbackDate()));
-    const minorStations = minorNodes.map(node => buildStation(node, 'minor', nextFallbackDate()));
-    const timeline = [...majorStations, ...minorStations].sort(compareByTime);
+    // Build stations from clusters
+    const majorStations = clusters.map(cluster => {
+      const representative = cluster.reduce((best, item) =>
+        (item.name || '').length > (best.name || '').length ? item : best, cluster[0]);
+      const earliestStart = cluster.reduce((min, item) => {
+        const d = toDate(item.startD);
+        return d && (!min || d < min) ? d : min;
+      }, null);
+      const latestEnd = cluster.reduce((max, item) => {
+        const d = toDate(item.endD);
+        return d && (!max || d > max) ? d : max;
+      }, null);
+      const done = cluster.filter(item => item.status === 'done' || nodeMap[item.id]?.status === 'done').length;
+      const total = cluster.length;
+
+      return {
+        id: representative.id,
+        name: representative.name,
+        abbrev: makeAbbrev(representative.name),
+        clusterSize: cluster.length,
+        clusterItems: cluster.map(c => ({ id: c.id, name: c.name })),
+        kind: 'major',
+        anchorDate: earliestStart || latestEnd,
+        endDate: latestEnd || earliestStart,
+        prog: total > 0 ? done / total : 0,
+        done,
+        total,
+        allDone: done === total && total > 0,
+        depth: 1,
+      };
+    });
+
+    const minorStations = [];
+
+    const timeline = [...majorStations].sort(compareByTime);
 
     // De-duplicate abbreviations within this line
-    deduplicateAbbrevs([...majorStations, ...minorStations]);
+    deduplicateAbbrevs(majorStations);
 
     const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => !max || s.endDate > max ? s.endDate : max, null);
     const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => !min || s.anchorDate < min ? s.anchorDate : min, null);
@@ -403,7 +436,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
       root,
       progress: rootInfo.prog || 0,
       atRisk,
-      hiddenMinorCount,
+      hiddenMinorCount: 0,
       timeline,
       majorStations,
       minorStations,
@@ -645,10 +678,21 @@ export function renderRoadmapSvg(args) {
     allStations.forEach(station => {
       const dotColor = station.allDone ? line.color : 'transparent';
       const borderColor = line.color;
-      out.push(`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">`);
-      out.push(`<span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor}"></span>`);
-      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px">${esc(station.abbrev)}</span>`);
-      out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+      out.push(`<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px">`);
+      out.push(`<span style="flex-shrink:0;width:10px;height:10px;margin-top:1px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor}"></span>`);
+      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:1px">${esc(station.abbrev)}</span>`);
+      if (station.clusterSize > 1) {
+        // Show representative name and all cluster items
+        out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8)">`);
+        out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+        const extras = station.clusterItems.filter(c => c.id !== station.id);
+        extras.forEach(c => {
+          out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:4px">+ ${esc(truncate(c.name, 24))}</span>`);
+        });
+        out.push(`</span>`);
+      } else {
+        out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+      }
       out.push(`</div>`);
     });
 
