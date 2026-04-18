@@ -491,20 +491,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
       || line.timeline[line.timeline.length - 1];
     const currentId = currentStation?.id || null;
 
-    // Train position: fraction along route based on overall project progress
-    let trainT = 0;
-    const doneMajors = majors.filter(m => m.allDone);
-    const activeMajor = majors.find(m => !m.allDone);
-    if (!majors.length) {
-      trainT = line.progress;
-    } else if (!activeMajor) {
-      trainT = 1;
-    } else {
-      const prevT = doneMajors.length ? doneMajors[doneMajors.length - 1].t : 0.02;
-      const segProg = activeMajor.prog || (activeMajor.id === currentId ? 0.1 : 0);
-      trainT = prevT + (activeMajor.t - prevT) * segProg;
-    }
-    trainT = clamp(trainT, 0, 1);
+    // Train position: use overall project progress directly (e.g. 31% done = 31% along route).
+    // This is the most intuitive mapping — the train's position on the line represents
+    // how much of the project's work is complete, regardless of which cluster it falls in.
+    const trainT = clamp(line.progress, 0, 1);
     const trainPt = pointAtFraction(route, trainT);
 
     return {
