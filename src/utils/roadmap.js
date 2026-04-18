@@ -1,30 +1,65 @@
+// ─── Metro/Subway Roadmap Renderer ────────────────────────────────────────────
+// Each project becomes a colored subway line. Stations are depth-2 milestones.
+// Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
+
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 const DAY = 864e5;
 
-const PAD_X = 18;
-const PAD_Y = 24;
-const LEFT_GUTTER = 220;
-const RIGHT_PAD = 96;
-const AXIS_H = 52;
-const ROW_H = 128;
-const BADGE_W = 168;
-const BADGE_H = 34;
-const MONTH_W = 58;
-const MIN_LINE_LEN = 80;
+// ─── Fixed metro route network (1400×800 canvas) ─────────────────────────────
+// Each route is an array of {x,y} waypoints using 45° and 90° angles only.
+const ROUTES = [
+  // Route 0: long east-west with two bends (like U6 Berlin)
+  [
+    { x: 60, y: 680 }, { x: 220, y: 680 }, { x: 280, y: 620 }, { x: 520, y: 620 },
+    { x: 580, y: 560 }, { x: 880, y: 560 }, { x: 940, y: 500 }, { x: 1180, y: 500 },
+    { x: 1340, y: 500 },
+  ],
+  // Route 1: top-left to bottom-right long diagonal (like U7)
+  [
+    { x: 80, y: 80 }, { x: 200, y: 80 }, { x: 260, y: 140 }, { x: 420, y: 140 },
+    { x: 480, y: 200 }, { x: 620, y: 200 }, { x: 680, y: 260 }, { x: 820, y: 260 },
+    { x: 880, y: 320 }, { x: 1020, y: 320 }, { x: 1080, y: 380 }, { x: 1220, y: 380 },
+    { x: 1280, y: 440 }, { x: 1340, y: 440 },
+  ],
+  // Route 2: vertical north-south with jog (like U8)
+  [
+    { x: 700, y: 40 }, { x: 700, y: 180 }, { x: 640, y: 240 }, { x: 640, y: 420 },
+    { x: 700, y: 480 }, { x: 700, y: 620 }, { x: 700, y: 760 },
+  ],
+  // Route 3: medium east-west through center
+  [
+    { x: 280, y: 380 }, { x: 500, y: 380 }, { x: 560, y: 320 }, { x: 760, y: 320 },
+    { x: 820, y: 380 }, { x: 1020, y: 380 },
+  ],
+  // Route 4: top-right sweeping to center-left (like U2)
+  [
+    { x: 1320, y: 60 }, { x: 1200, y: 60 }, { x: 1140, y: 120 }, { x: 980, y: 120 },
+    { x: 920, y: 180 }, { x: 720, y: 180 }, { x: 660, y: 240 }, { x: 500, y: 240 },
+    { x: 440, y: 300 }, { x: 280, y: 300 },
+  ],
+  // Route 5: bottom-left arc upward (like U3)
+  [
+    { x: 60, y: 520 }, { x: 200, y: 520 }, { x: 260, y: 460 }, { x: 420, y: 460 },
+    { x: 480, y: 400 }, { x: 620, y: 400 }, { x: 660, y: 360 },
+  ],
+  // Route 6: short north-east diagonal (spur line)
+  [
+    { x: 880, y: 620 }, { x: 940, y: 560 }, { x: 1060, y: 560 }, { x: 1120, y: 500 },
+    { x: 1240, y: 500 }, { x: 1300, y: 440 },
+  ],
+  // Route 7: small U-shape at left side
+  [
+    { x: 160, y: 320 }, { x: 160, y: 200 }, { x: 220, y: 140 }, { x: 400, y: 140 },
+    { x: 460, y: 200 }, { x: 460, y: 320 },
+  ],
+];
 
-const LINE_W = 5;
-const MAJOR_R = 6;
-const MINOR_R = 2.8;
-const TRAIN_R = 9;
-const LABEL_ANGLE = 38;
-const LABEL_DY = 13;
-const MIN_LABEL_GAP = 26;
+// ─── Canvas dimensions ────────────────────────────────────────────────────────
+const SVG_W = 1400;
+const SVG_H = 800;
 
-const MAX_MINOR_PER_ROOT = 5;
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
+// ─── Helpers (preserved from original) ───────────────────────────────────────
 const parentId = id => id.split('.').slice(0, -1).join('.');
 const depthOf = id => id.split('.').length;
 
@@ -58,16 +93,6 @@ function monthIndex(date) {
 
 function monthCountInclusive(start, end) {
   return monthIndex(end) - monthIndex(start) + 1;
-}
-
-function monthStartsBetween(start, end) {
-  const ticks = [];
-  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
-  while (cur <= end) {
-    ticks.push(new Date(cur));
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-  }
-  return ticks;
 }
 
 function compareByTime(a, b) {
@@ -128,6 +153,7 @@ function pickFeaturedMinors(minorNodes, meta) {
   const activeNodes = minorNodes.filter(node => !meta[node.id]?.allDone && (meta[node.id]?.prog || 0) > 0);
   const futureNodes = minorNodes.filter(node => !meta[node.id]?.allDone && !(meta[node.id]?.prog > 0));
 
+  const MAX_MINOR_PER_ROOT = 5;
   const picked = [];
   const seen = new Set();
   const push = node => {
@@ -153,6 +179,126 @@ function pickFeaturedMinors(minorNodes, meta) {
     hidden: Math.max(0, minorNodes.length - picked.length),
   };
 }
+
+// ─── Metro-specific helpers ───────────────────────────────────────────────────
+
+/** Compute total pixel length of a route (sum of all segment lengths). */
+function routeLength(waypoints) {
+  let total = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    total += Math.sqrt(dx * dx + dy * dy);
+  }
+  return total;
+}
+
+/** Return the {x, y} point at fraction t (0–1) along the route. */
+function pointAtFraction(waypoints, t) {
+  if (waypoints.length === 1) return { ...waypoints[0] };
+  const total = routeLength(waypoints);
+  const target = clamp(t, 0, 1) * total;
+  let traveled = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (traveled + segLen >= target || i === waypoints.length - 1) {
+      const rem = target - traveled;
+      const frac = segLen > 0 ? rem / segLen : 0;
+      return {
+        x: waypoints[i - 1].x + dx * frac,
+        y: waypoints[i - 1].y + dy * frac,
+      };
+    }
+    traveled += segLen;
+  }
+  return { ...waypoints[waypoints.length - 1] };
+}
+
+/** Build an SVG path `d` attribute from waypoints. */
+function waypointsToPath(waypoints) {
+  return waypoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+}
+
+/**
+ * Build an SVG path `d` for the portion of a route from t=0 to t=fraction.
+ * Splits at the exact fractional point and returns only the traveled portion.
+ */
+function partialPath(waypoints, fraction) {
+  if (fraction <= 0) return null;
+  const total = routeLength(waypoints);
+  const target = clamp(fraction, 0, 1) * total;
+
+  const parts = [`M ${waypoints[0].x} ${waypoints[0].y}`];
+  let traveled = 0;
+
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+
+    if (traveled + segLen >= target) {
+      const rem = target - traveled;
+      const frac = segLen > 0 ? rem / segLen : 0;
+      const ex = waypoints[i - 1].x + dx * frac;
+      const ey = waypoints[i - 1].y + dy * frac;
+      parts.push(`L ${ex} ${ey}`);
+      break;
+    }
+
+    parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
+    traveled += segLen;
+
+    if (traveled >= target) break;
+  }
+
+  return parts.join(' ');
+}
+
+/**
+ * Simple string hash → integer (djb2-style).
+ * Used to create stable route assignment based on root ID.
+ */
+function hashStr(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) ^ str.charCodeAt(i);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Generate a short abbreviation for a station name (up to 3 chars).
+ * Takes first letter of each word; falls back to first 2 chars.
+ */
+function makeAbbrev(name) {
+  if (!name) return '?';
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    return words.slice(0, 3).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3);
+  }
+  return name.slice(0, 3).toUpperCase();
+}
+
+/**
+ * Ensure abbreviations are unique within a line by appending numeric suffixes.
+ */
+function deduplicateAbbrevs(stations) {
+  const counts = {};
+  stations.forEach(st => {
+    counts[st.abbrev] = (counts[st.abbrev] || 0) + 1;
+  });
+  const seen = {};
+  stations.forEach(st => {
+    if (counts[st.abbrev] > 1) {
+      seen[st.abbrev] = (seen[st.abbrev] || 0) + 1;
+      st.abbrev = st.abbrev + seen[st.abbrev];
+    }
+  });
+}
+
+// ─── computeRoadmapModel ──────────────────────────────────────────────────────
 
 export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }) {
   const nodeMap = Object.fromEntries(tree.map(node => [node.id, node]));
@@ -185,6 +331,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     return {
       id: node.id,
       name: node.name,
+      abbrev: makeAbbrev(node.name),
       parentId: parentId(node.id),
       kind,
       anchorDate,
@@ -197,7 +344,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     };
   };
 
-  const lines = roots.map((root, rootIndex) => {
+  // Build raw lines (one per root)
+  const rawLines = roots.map((root) => {
     const descendants = tree.filter(node => node.id.startsWith(root.id + '.'));
     const rootInfo = meta[root.id] || {};
 
@@ -237,24 +385,22 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     const majorStations = majorNodes.map(node => buildStation(node, 'major', nextFallbackDate()));
     const minorStations = minorNodes.map(node => buildStation(node, 'minor', nextFallbackDate()));
     const timeline = [...majorStations, ...minorStations].sort(compareByTime);
-    if (!timeline.length) return null;
 
-    const currentStation = timeline.find(station => station.prog > 0 && !station.allDone)
-      || timeline.find(station => !station.allDone)
-      || timeline[timeline.length - 1];
-    const currentIndex = timeline.findIndex(station => station.id === currentStation?.id);
-    const nextStations = currentIndex >= 0
-      ? timeline.slice(currentIndex + 1).filter(station => !station.allDone).slice(0, 2)
-      : [];
+    // De-duplicate abbreviations within this line
+    deduplicateAbbrevs([...majorStations, ...minorStations]);
 
-    const rootLatest = rootInfo.latestEnd || timeline.reduce((max, station) => !max || station.endDate > max ? station.endDate : max, null);
-    const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, station) => !min || station.anchorDate < min ? station.anchorDate : min, null);
+    const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => !max || s.endDate > max ? s.endDate : max, null);
+    const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => !min || s.anchorDate < min ? s.anchorDate : min, null);
     const rootStats = stats?.[root.id];
     const atRisk = root.date && rootStats?._endD && rootStats._endD > new Date(root.date);
 
+    // Duration in days for route-length matching
+    const durationDays = rootEarliest && rootLatest
+      ? Math.max(1, (+rootLatest - +rootEarliest) / DAY)
+      : 1;
+
     return {
       root,
-      color: PALETTE[rootIndex % PALETTE.length],
       progress: rootInfo.prog || 0,
       atRisk,
       hiddenMinorCount,
@@ -263,259 +409,253 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
       minorStations,
       earliestDate: rootEarliest,
       latestDate: rootLatest,
-      currentStation,
-      nextStations,
+      durationDays,
     };
-  }).filter(Boolean);
+  }).filter(line => line.timeline.length > 0 || line.majorStations.length === 0);
 
-  if (!lines.length) return null;
+  if (!rawLines.length) return null;
 
-  const today = toDate(now);
-  const allDates = [];
-  lines.forEach(line => {
-    if (line.earliestDate) allDates.push(line.earliestDate);
-    if (line.latestDate) allDates.push(line.latestDate);
-    line.timeline.forEach(station => {
-      if (station.anchorDate) allDates.push(station.anchorDate);
-      if (station.endDate) allDates.push(station.endDate);
-    });
-    if (line.root.date) allDates.push(toDate(line.root.date));
+  // ── Route assignment ──────────────────────────────────────────────────────
+  // Sort routes by pixel length (longest first).
+  const routesWithLen = ROUTES.map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
+    .sort((a, b) => b.len - a.len);
+
+  // Sort projects by duration (longest first). Ties broken by hash of root.id for stability.
+  const sortedLines = [...rawLines].sort((a, b) => {
+    if (b.durationDays !== a.durationDays) return b.durationDays - a.durationDays;
+    return hashStr(a.root.id) - hashStr(b.root.id);
   });
-  allDates.push(today);
 
-  const minDate = addDays(new Date(Math.min(...allDates.map(date => +date))), -14);
-  const maxDate = addDays(new Date(Math.max(...allDates.map(date => +date))), 14);
-  const months = monthStartsBetween(minDate, maxDate);
-  const timelineW = Math.max(820, monthCountInclusive(minDate, maxDate) * MONTH_W);
-  const svgW = LEFT_GUTTER + timelineW + RIGHT_PAD;
-  const svgH = AXIS_H + lines.length * ROW_H + PAD_Y;
-  const span = Math.max(+maxDate - +minDate, DAY);
-  const xAt = date => LEFT_GUTTER + ((+date - +minDate) / span) * timelineW;
+  // Assign route and palette color by rank.
+  const assignedLines = sortedLines.map((line, rank) => {
+    const routeEntry = routesWithLen[rank % routesWithLen.length];
+    const color = PALETTE[rank % PALETTE.length];
+    return { ...line, color, route: routeEntry.wp, routeLen: routeEntry.len };
+  });
 
-  const monthTicks = months.map(date => ({
-    date,
-    x: xAt(date),
-    label: MONTHS[date.getMonth()],
-    year: String(date.getFullYear()),
-    isQuarter: date.getMonth() % 3 === 0,
-    isYearStart: date.getMonth() === 0,
-  }));
+  // ── Station placement on routes ───────────────────────────────────────────
+  const positionedLines = assignedLines.map(line => {
+    const { earliestDate, latestDate, route, routeLen } = line;
+    const span = earliestDate && latestDate ? Math.max(+latestDate - +earliestDate, DAY) : DAY;
 
-  const todayX = xAt(today);
-
-  const positionedLines = lines.map((line, index) => {
-    const rowTop = AXIS_H + index * ROW_H;
-    const lineY = rowTop + 42;
-    const minX = LEFT_GUTTER + 8;
-    const maxX = svgW - RIGHT_PAD - 8;
-
-    const rawStart = line.earliestDate ? xAt(line.earliestDate) : minX;
-    const rawEnd = line.latestDate ? xAt(line.latestDate) : rawStart + MIN_LINE_LEN;
-    const lineStartX = clamp(rawStart, minX, maxX - MIN_LINE_LEN);
-    const lineEndX = clamp(Math.max(rawEnd, lineStartX + MIN_LINE_LEN), lineStartX + MIN_LINE_LEN, maxX);
-
-    const placeStation = station => ({
-      ...station,
-      x: clamp(xAt(station.anchorDate), lineStartX, lineEndX),
-      y: lineY,
-    });
-
-    const majors = line.majorStations.map(placeStation).sort((a, b) => a.x - b.x);
-    const minors = line.minorStations.map(placeStation).sort((a, b) => a.x - b.x);
-
-    const currentId = line.currentStation?.id || null;
-    const nextIds = new Set(line.nextStations.map(station => station.id));
-
-    // Label visibility: majors → labels with collision check (keep important ones).
-    // minors → label only if it's the current station or a NEXT station.
-    let prevMajorLabelX = -Infinity;
-    majors.forEach(st => {
-      const important = st.id === currentId || nextIds.has(st.id) || st.allDone === false;
-      // Important labels always win collisions against later labels.
-      if (st.x - prevMajorLabelX >= MIN_LABEL_GAP) {
-        st.showLabel = true;
-        prevMajorLabelX = st.x;
-      } else if (important && st.id === currentId) {
-        st.showLabel = true;
-        prevMajorLabelX = st.x;
-      } else {
-        st.showLabel = false;
+    const placeOnRoute = (station) => {
+      let t = 0;
+      if (station.anchorDate && earliestDate && latestDate) {
+        t = clamp((+station.anchorDate - +earliestDate) / span, 0, 1);
       }
-    });
+      // Keep small margin so stations don't fall exactly on endpoints
+      t = clamp(t, 0.02, 0.98);
+      const pt = pointAtFraction(route, t);
+      return { ...station, t, x: pt.x, y: pt.y };
+    };
 
-    minors.forEach(st => {
-      st.showLabel = st.id === currentId || nextIds.has(st.id);
-    });
+    const majors = line.majorStations.map(s => placeOnRoute(s));
+    const minors = line.minorStations.map(s => placeOnRoute(s));
 
-    // Train position: progress along the SORTED major stations.
-    // done stations are behind, current station is reached proportionally.
-    let trainX = null;
+    // Current / next station logic
+    const currentStation = line.timeline.find(s => s.prog > 0 && !s.allDone)
+      || line.timeline.find(s => !s.allDone)
+      || line.timeline[line.timeline.length - 1];
+    const currentId = currentStation?.id || null;
+
+    // Train position: fraction along route based on overall project progress
+    let trainT = 0;
     const doneMajors = majors.filter(m => m.allDone);
-    const nextMajor = majors.find(m => !m.allDone);
+    const activeMajor = majors.find(m => !m.allDone);
     if (!majors.length) {
-      trainX = line.progress > 0 ? lineStartX + (lineEndX - lineStartX) * line.progress : null;
-    } else if (!nextMajor) {
-      trainX = lineEndX;
+      trainT = line.progress;
+    } else if (!activeMajor) {
+      trainT = 1;
     } else {
-      const prevX = doneMajors.length ? doneMajors[doneMajors.length - 1].x : lineStartX;
-      const segProg = nextMajor.prog || (nextMajor.id === currentId ? 0.1 : 0);
-      trainX = prevX + (nextMajor.x - prevX) * segProg;
+      const prevT = doneMajors.length ? doneMajors[doneMajors.length - 1].t : 0.02;
+      const segProg = activeMajor.prog || (activeMajor.id === currentId ? 0.1 : 0);
+      trainT = prevT + (activeMajor.t - prevT) * segProg;
     }
+    trainT = clamp(trainT, 0, 1);
+    const trainPt = pointAtFraction(route, trainT);
 
     return {
       ...line,
-      rowTop,
-      lineY,
-      lineStartX,
-      lineEndX,
       majorStations: majors,
       minorStations: minors,
-      trainX,
-      currentStationId: currentId,
-      nextIds,
+      currentId,
+      trainT,
+      trainPt,
     };
   });
 
   return {
-    svgW,
-    svgH,
-    todayX,
-    monthTicks,
     lines: positionedLines,
   };
 }
+
+// ─── renderRoadmapSvg ─────────────────────────────────────────────────────────
 
 export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
   if (!model?.lines.length) return '';
 
+  const { lines } = model;
   const out = [];
-  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${model.svgW} ${model.svgH}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+
+  // ── Styles ──────────────────────────────────────────────────────────────────
   out.push(`<style>
-    .rm-month{font:600 9px/1 'Inter',system-ui,sans-serif;fill:var(--tx3,#7a839a)}
-    .rm-year{font:700 9px/1 'JetBrains Mono',monospace;fill:var(--tx2,#4a5268)}
-    .rm-badge-id{font:800 11px/1 'JetBrains Mono',monospace;fill:#fff}
-    .rm-badge-name{font:600 8px/1 'Inter',system-ui,sans-serif;fill:rgba(255,255,255,.92)}
-    .rm-badge-pct{font:800 12px/1 'JetBrains Mono',monospace;fill:#fff}
-    .rm-major{font:600 9.5px/1.1 'Inter',system-ui,sans-serif;fill:var(--tx2,#cbd5e1)}
-    .rm-major-active{font-weight:800}
-    .rm-minor{font:500 8px/1.1 'Inter',system-ui,sans-serif;fill:var(--tx3,#94a3b8)}
-    .rm-done{fill:var(--tx3,#64748b);text-decoration:line-through}
-    .rm-count{font:500 7px/1 'JetBrains Mono',monospace;fill:var(--tx3,#7a839a)}
-    .rm-today{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--tx2,#4a5268)}
-    .rm-more{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--tx3,#7a839a)}
-    .rm-risk{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--re,#dc2626)}
-    .rm-tag{font:700 7px/1 'JetBrains Mono',monospace;letter-spacing:.06em}
+    .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
+    .rm-abbrev{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1)}
+    .rm-abbrev-active{fill:#fff}
+    .rm-risk-tri{fill:#ef4444}
   </style>`);
 
-  model.monthTicks.forEach((tick, index) => {
-    out.push(`<g>`);
-    out.push(`<line x1="${tick.x}" y1="${AXIS_H - 12}" x2="${tick.x}" y2="${model.svgH - PAD_Y}" stroke="${tick.isQuarter ? 'rgba(59,130,246,.22)' : 'rgba(148,163,184,.08)'}" stroke-width="${tick.isQuarter ? 1.2 : 1}"/>`);
-    out.push(`<text x="${tick.x + 5}" y="20" class="rm-month">${esc(tick.label)}</text>`);
-    if (tick.isYearStart || index === 0) out.push(`<text x="${tick.x + 5}" y="33" class="rm-year">${esc(tick.year)}</text>`);
+  // ── Route lines ─────────────────────────────────────────────────────────────
+  lines.forEach((line, lineIdx) => {
+    const { route, color, trainT } = line;
+    const pathD = waypointsToPath(route);
+    const progressD = trainT > 0 ? partialPath(route, trainT) : null;
+    const gId = `rm-line-${lineIdx}`;
+
+    out.push(`<g id="${gId}">`);
+
+    // Full route (faded) — drawn first so progress overlays it
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.22"/>`);
+
+    // Traveled portion (full color)
+    if (progressD) {
+      out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+
+    // ── Line badges at start and end ─────────────────────────────────────────
+    const startPt = route[0];
+    const endPt = route[route.length - 1];
+    const badgeLabel = esc(line.root.id);
+    const badgeRx = 5;
+    const badgeH = 20;
+    // Measure label width approximately (13px mono ≈ 8.5px per char)
+    const labelLen = String(line.root.id).length;
+    const badgeW = Math.max(28, labelLen * 9 + 12);
+
+    // Start badge (left-anchored from the start point)
+    const sbx = startPt.x - badgeW - 8;
+    const sby = startPt.y - badgeH / 2;
+    out.push(`<rect x="${sbx}" y="${sby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
+    out.push(`<text x="${sbx + badgeW / 2}" y="${sby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+
+    // End badge (right of end point, unless near edge — then left)
+    const ebx = endPt.x + 10;
+    const eby = endPt.y - badgeH / 2;
+    // Clamp so badge doesn't overflow SVG
+    const ebxClamped = Math.min(ebx, SVG_W - badgeW - 4);
+    out.push(`<rect x="${ebxClamped}" y="${eby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
+    out.push(`<text x="${ebxClamped + badgeW / 2}" y="${eby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+
+    // ── AT RISK warning triangle at end ────────────────────────────────────
+    if (line.atRisk) {
+      const tx = endPt.x + 10 + badgeW + 6;
+      const ty = endPt.y;
+      out.push(`<polygon points="${tx},${ty - 8} ${tx + 9},${ty + 4} ${tx - 9},${ty + 4}" class="rm-risk-tri"/>`);
+      out.push(`<text x="${tx}" y="${ty + 2}" text-anchor="middle" font-size="6" font-weight="800" fill="#fff">!</text>`);
+    }
+
     out.push(`</g>`);
   });
 
-  out.push(`<line x1="${model.todayX}" y1="16" x2="${model.todayX}" y2="${model.svgH - PAD_Y}" stroke="rgba(16,185,129,.55)" stroke-width="1.3" stroke-dasharray="4 4"/>`);
-  out.push(`<text x="${model.todayX + 6}" y="14" class="rm-today">TODAY</text>`);
+  // ── Stations ── drawn after all routes so dots sit on top ─────────────────
+  lines.forEach((line, lineIdx) => {
+    const { color, majorStations, minorStations, currentId } = line;
 
-  model.lines.forEach(line => {
-    out.push(`<g>`);
+    out.push(`<g id="rm-stations-${lineIdx}">`);
 
-    // Badge (fixed, left gutter)
-    const badgeY = line.lineY - BADGE_H / 2;
-    out.push(`<rect x="${PAD_X}" y="${badgeY}" width="${BADGE_W}" height="${BADGE_H}" rx="7" fill="${line.color}"/>`);
-    out.push(`<text x="${PAD_X + 10}" y="${badgeY + 13}" class="rm-badge-id">${esc(line.root.id)}</text>`);
-    out.push(`<text x="${PAD_X + 10}" y="${badgeY + 26}" class="rm-badge-name">${esc(truncate(line.root.name, 24))}</text>`);
-    out.push(`<text x="${PAD_X + BADGE_W - 10}" y="${badgeY + 22}" text-anchor="end" class="rm-badge-pct">${Math.round(line.progress * 100)}%</text>`);
-
-    // Full gray line (the whole route)
-    out.push(`<line x1="${line.lineStartX}" y1="${line.lineY}" x2="${line.lineEndX}" y2="${line.lineY}" stroke="rgba(148,163,184,.32)" stroke-width="${LINE_W}" stroke-linecap="round"/>`);
-
-    // Coloured "traveled" segment up to train
-    if (line.trainX != null && line.trainX > line.lineStartX) {
-      out.push(`<line x1="${line.lineStartX}" y1="${line.lineY}" x2="${line.trainX}" y2="${line.lineY}" stroke="${line.color}" stroke-width="${LINE_W}" stroke-linecap="round"/>`);
-    }
-
-    // Station & label rendering. Majors first (labels below line), minors above.
-    line.majorStations.forEach(station => {
+    // Major stations (r=6 white circle with colored border)
+    majorStations.forEach(station => {
       const isDone = station.allDone;
-      const isCurrent = station.id === line.currentStationId && !isDone;
-      const isNext = line.nextIds.has(station.id);
+      const isCurrent = station.id === currentId && !isDone;
 
-      // Dot
       if (isDone) {
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MAJOR_R}" fill="${line.color}"/>`);
+        // Filled circle for completed stations
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5" fill="${color}"/>`);
       } else if (isCurrent) {
-        // Current station becomes the train hub — render below with train.
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${line.color}" stroke-width="2.4"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="${color}"/>`);
       } else {
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MAJOR_R + 1}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MAJOR_R}" fill="var(--bg2,#171a21)" stroke="${isNext ? line.color : 'var(--b3,#8898b0)'}" stroke-width="${isNext ? 2.2 : 1.8}"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
       }
 
-      // Label (angled 38° CW under the line, growing down-right)
-      if (station.showLabel) {
-        const lx = station.x + 3;
-        const ly = station.y + LABEL_DY;
-        const labelClass = [
-          'rm-major',
-          isDone ? 'rm-done' : '',
-          (isCurrent || isNext) ? 'rm-major-active' : '',
-        ].filter(Boolean).join(' ');
-        const labelFill = isCurrent || isNext ? ` fill="${line.color}"` : '';
-        out.push(`<text x="${lx}" y="${ly}" transform="rotate(${LABEL_ANGLE} ${lx} ${ly})" text-anchor="start" class="${labelClass}"${labelFill}>${esc(truncate(station.name, 20))}</text>`);
+      // Abbreviation label — placed slightly offset from the dot
+      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : 'rm-abbrev';
+      out.push(`<text x="${(station.x + 7).toFixed(1)}" y="${(station.y - 6).toFixed(1)}" class="${abbrevClass}" fill="${isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+    });
 
-        // NOW / NEXT tag above station
-        if (isCurrent) out.push(`<text x="${station.x}" y="${station.y - 12}" text-anchor="middle" class="rm-tag" fill="${line.color}">NOW</text>`);
-        else if (isNext) out.push(`<text x="${station.x}" y="${station.y - 12}" text-anchor="middle" class="rm-tag" fill="${line.color}">NEXT</text>`);
+    // Minor stations (r=3)
+    minorStations.forEach(station => {
+      const isDone = station.allDone;
+      const isCurrent = station.id === currentId && !isDone;
+
+      if (isDone) {
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="${color}" opacity="0.8"/>`);
+      } else {
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.5" opacity="${isCurrent ? 1 : 0.7}"/>`);
+      }
+
+      if (isCurrent) {
+        out.push(`<text x="${(station.x + 5).toFixed(1)}" y="${(station.y - 5).toFixed(1)}" class="rm-abbrev rm-abbrev-active" fill="${color}">${esc(station.abbrev)}</text>`);
       }
     });
 
-    // Minor stations: small dots above the line, labels only for NOW/NEXT
-    line.minorStations.forEach(station => {
-      const isDone = station.allDone;
-      const isCurrent = station.id === line.currentStationId && !isDone;
-      const isNext = line.nextIds.has(station.id);
+    out.push(`</g>`);
+  });
 
-      if (isDone) {
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MINOR_R}" fill="${line.color}" opacity=".85"/>`);
-      } else if (isCurrent) {
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MINOR_R + 0.7}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MINOR_R}" fill="${line.color}"/>`);
-      } else {
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MINOR_R + 0.7}" fill="var(--bg,#111318)"/>`);
-        out.push(`<circle cx="${station.x}" cy="${station.y}" r="${MINOR_R}" fill="var(--bg2,#171a21)" stroke="${isNext ? line.color : 'var(--b3,#8898b0)'}" stroke-width="1.4"/>`);
-      }
+  // ── Trains ── drawn last so they appear on top of everything ───────────────
+  lines.forEach((line, lineIdx) => {
+    const { color, trainT, trainPt, progress } = line;
+    if (trainT <= 0 || progress >= 1) return;
 
-      if (station.showLabel) {
-        // Minors with labels go ABOVE the line so they don't clash with major labels below
-        const lx = station.x + 3;
-        const ly = station.y - LABEL_DY;
-        const labelClass = `rm-minor ${isDone ? 'rm-done' : ''}`.trim();
-        const labelFill = isCurrent || isNext ? ` fill="${line.color}"` : '';
-        out.push(`<text x="${lx}" y="${ly}" transform="rotate(-${LABEL_ANGLE} ${lx} ${ly})" text-anchor="start" class="${labelClass}"${labelFill}>${esc(truncate(station.name, 20))}</text>`);
-        if (isCurrent) out.push(`<text x="${station.x}" y="${station.y + 18}" text-anchor="middle" class="rm-tag" fill="${line.color}">NOW</text>`);
-        else if (isNext) out.push(`<text x="${station.x}" y="${station.y + 18}" text-anchor="middle" class="rm-tag" fill="${line.color}">NEXT</text>`);
-      }
-    });
-
-    // Train: bold coloured disc at the current position
-    if (line.trainX != null && line.progress < 1 && line.trainX > line.lineStartX) {
-      out.push(`<circle cx="${line.trainX}" cy="${line.lineY}" r="${TRAIN_R + 4}" fill="${line.color}" opacity="0.22">`);
-      out.push(`<animate attributeName="r" values="${TRAIN_R + 2};${TRAIN_R + 6};${TRAIN_R + 2}" dur="2.4s" repeatCount="indefinite"/>`);
-      out.push(`</circle>`);
-      out.push(`<circle cx="${line.trainX}" cy="${line.lineY}" r="${TRAIN_R}" fill="${line.color}" stroke="var(--bg,#111318)" stroke-width="2.2"/>`);
-      out.push(`<circle cx="${line.trainX}" cy="${line.lineY}" r="${TRAIN_R - 4}" fill="#fff"/>`);
-    }
-
-    if (line.hiddenMinorCount > 0) out.push(`<text x="${line.lineEndX + 8}" y="${line.lineY - 4}" class="rm-more">+${line.hiddenMinorCount}</text>`);
-    if (line.atRisk) out.push(`<text x="${line.lineEndX + 8}" y="${line.lineY + 10}" class="rm-risk">AT RISK</text>`);
-
+    out.push(`<g id="rm-train-${lineIdx}">`);
+    // Pulse glow
+    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="14" fill="${color}" opacity="0.18">`);
+    out.push(`<animate attributeName="r" values="11;16;11" dur="2.4s" repeatCount="indefinite"/>`);
+    out.push(`<animate attributeName="opacity" values="0.22;0.08;0.22" dur="2.4s" repeatCount="indefinite"/>`);
+    out.push(`</circle>`);
+    // Train body
+    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"/>`);
+    // White center dot
+    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="2.5" fill="#fff"/>`);
     out.push(`</g>`);
   });
 
   out.push(`</svg>`);
+
+  // ── Legend (HTML below SVG) ────────────────────────────────────────────────
+  out.push(`<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:20px;padding:0 4px">`);
+
+  lines.forEach(line => {
+    const allStations = [...line.majorStations, ...line.minorStations]
+      .sort((a, b) => a.t - b.t);
+    if (!allStations.length) return;
+
+    out.push(`<div style="min-width:160px;max-width:220px">`);
+    // Line header
+    out.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
+    out.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
+    out.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
+    out.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(line.root.name, 22))}</span>`);
+    out.push(`</div>`);
+
+    // Station rows
+    allStations.forEach(station => {
+      const dotColor = station.allDone ? line.color : 'transparent';
+      const borderColor = line.color;
+      out.push(`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">`);
+      out.push(`<span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor}"></span>`);
+      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px">${esc(station.abbrev)}</span>`);
+      out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+      out.push(`</div>`);
+    });
+
+    out.push(`</div>`);
+  });
+
+  out.push(`</div>`);
+
   return out.join('');
 }

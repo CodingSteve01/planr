@@ -83,6 +83,7 @@ See [network-graph.md](network-graph.md).
 - **Tree view** — classic hierarchical editor with indentation, priority, status, progress
 - **Gantt view** — timeline with grouping
 - **Network view** — subway-style graph
+- **Roadmap view** — metro/subway map: each project is a colored line on a fixed network of 8 pre-computed routes; depth-2 nodes become stations placed proportionally to their date within the project span; a pulsing train marker shows current progress; lines are assigned to routes by project duration (longest → longest route) and the assignment is stable across adds/removes. A legend below the SVG maps station abbreviations to full names.
 - **Summary view** — per-goal progress, deadlines, risks
 - **Horizon guidance in Summary** — H1 / H2 / H3 are explained as near-term planning states, not as internal product terminology
 - **Planning Review tab** — Decisions, open phase TODOs, Team Capacity, and Blocked work in one review surface. Quick-assign inline. Shows breadcrumbs.

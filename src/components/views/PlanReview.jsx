@@ -105,7 +105,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
 
   const total = confCounts.committed + confCounts.estimated + confCounts.exploratory;
 
-  return <div style={{ maxWidth: 920 }}>
+  return <div style={{ width: '100%', maxWidth: '100%' }}>
     {/* Confidence bar */}
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
       {[['committed', 'var(--gr)'], ['estimated', 'var(--am)'], ['exploratory', 'var(--tx3)']].map(([c, col]) =>
