@@ -359,17 +359,23 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     const schedIds = new Set(rootScheduled.map(s => s.id));
 
     // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
-    // Use their meta dates so they appear as "reached stations" on the map.
+    // Done tasks = "the journey already traveled". They may lack dates from the scheduler,
+    // so we give dateless done items a synthetic "past" date before the project's first event.
+    const firstSchedDate = rootScheduled.reduce((min, s) => {
+      const d = toDate(s.startD || s.endD);
+      return d && (!min || d < min) ? d : min;
+    }, null);
+    const syntheticPast = firstSchedDate ? addDays(firstSchedDate, -14) : addDays(toDate(now), -30);
+
     const doneLeaves = tree
       .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done')
       .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only, not already scheduled
       .map(n => {
         const m = meta[n.id] || {};
-        const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date);
+        const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date) || syntheticPast;
         const start = m.earliestStart || end;
         return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
-      })
-      .filter(s => s.endD);
+      });
 
     // Combine scheduled + done leaves, sort by endD
     const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
@@ -637,9 +643,9 @@ export function renderRoadmapSvg(args) {
       const tooltip = `${station.abbrev} — ${station.name}\n${statusLabel} erledigt\n${tooltipItems}`;
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
-      out.push(`<g style="cursor:pointer" pointer-events="all">`);
+      out.push(`<g class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(tooltip)}">`);
       // Invisible larger hit area for tooltip
-      out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"><title>${esc(tooltip)}</title></circle>`);
+      out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
       if (isDone) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="${color}"/>`);
       } else if (isCurrent) {
@@ -682,14 +688,14 @@ export function renderRoadmapSvg(args) {
     const pct = Math.round(progress * 100);
     const trainTip = `${line.root.id} — ${line.root.name}\nFortschritt: ${pct}%\n${line.atRisk ? '⚠ AT RISK' : ''}`;
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
-    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all">`);
+    out.push(`<g id="rm-train-${lineIdx}" class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
     // Pulse glow
     out.push(`<circle cx="${tx}" cy="${ty}" r="14" fill="${color}" opacity="0.18">`);
     out.push(`<animate attributeName="r" values="11;16;11" dur="2.4s" repeatCount="indefinite"/>`);
     out.push(`<animate attributeName="opacity" values="0.22;0.08;0.22" dur="2.4s" repeatCount="indefinite"/>`);
     out.push(`</circle>`);
     // Train body
-    out.push(`<circle cx="${tx}" cy="${ty}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"><title>${esc(trainTip)}</title></circle>`);
+    out.push(`<circle cx="${tx}" cy="${ty}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"/>`);
     // White center dot
     out.push(`<circle cx="${tx}" cy="${ty}" r="2.5" fill="#fff"/>`);
     out.push(`</g>`);
