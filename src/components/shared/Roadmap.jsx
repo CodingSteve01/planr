@@ -1,10 +1,11 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { renderRoadmapSvg } from '../../utils/roadmap.js';
 
 export function Roadmap({ tree, scheduled, stats, onOpenItem }) {
   const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats }), [tree, scheduled, stats]);
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
+  const tipRef = useRef(null);
 
   const onMove = useCallback(e => {
     const g = e.target.closest('[data-tip]');
@@ -12,7 +13,15 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem }) {
       const text = g.getAttribute('data-tip');
       if (text) {
         const rect = ref.current?.getBoundingClientRect();
-        setTip({ text, x: e.clientX - (rect?.left || 0) + 12, y: e.clientY - (rect?.top || 0) - 8 });
+        setTip({
+          text,
+          cx: e.clientX - (rect?.left || 0),
+          cy: e.clientY - (rect?.top || 0),
+          cw: rect?.width || 0,
+          ch: rect?.height || 0,
+          x: e.clientX - (rect?.left || 0) + 14,
+          y: e.clientY - (rect?.top || 0) - 8,
+        });
         return;
       }
     }
@@ -29,14 +38,32 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem }) {
     }
   }, [onOpenItem]);
 
+  // After render, measure tooltip and flip it left/up if it would overflow the container
+  useLayoutEffect(() => {
+    if (!tip || !tipRef.current) return;
+    const tw = tipRef.current.offsetWidth;
+    const th = tipRef.current.offsetHeight;
+    let nx = tip.cx + 14;
+    let ny = tip.cy - 8;
+    if (nx + tw > tip.cw - 8) nx = tip.cx - tw - 14;    // flip left
+    if (nx < 8) nx = 8;                                  // clamp left edge
+    if (ny + th > tip.ch - 8) ny = tip.ch - th - 8;      // clamp bottom
+    if (ny < 8) ny = 8;                                  // clamp top
+    if (nx !== tip.x || ny !== tip.y) {
+      tipRef.current.style.left = nx + 'px';
+      tipRef.current.style.top = ny + 'px';
+    }
+  }, [tip]);
+
   if (!svg) return null;
   return (
-    <div ref={ref} style={{ marginBottom: 20, overflow: 'hidden', position: 'relative' }}
+    <div ref={ref} style={{ marginBottom: 20, position: 'relative' }}
       onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>
       <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
       <div dangerouslySetInnerHTML={{ __html: svg }} />
       {tip && (
         <div
+          ref={tipRef}
           style={{
             position: 'absolute', left: tip.x, top: tip.y,
             background: 'var(--bg2, #191d25)', border: '1px solid var(--b2, #364456)',
