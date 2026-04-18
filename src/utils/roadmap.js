@@ -361,8 +361,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
     // Use their meta dates so they appear as "reached stations" on the map.
     const doneLeaves = tree
-      .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done' && !n.id.slice(root.id.length + 1).includes('.') === false)
-      .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only
+      .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done')
+      .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only, not already scheduled
       .map(n => {
         const m = meta[n.id] || {};
         const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date);
@@ -408,7 +408,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
         const d = toDate(item.endD);
         return d && (!max || d > max) ? d : max;
       }, null);
-      const done = cluster.filter(item => item.status === 'done' || nodeMap[item.id]?.status === 'done').length;
+      const done = cluster.filter(item => item.status === 'done').length;
       const total = cluster.length;
 
       return {
@@ -522,6 +522,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
 
   return {
     lines: positionedLines,
+    nodeMap,
   };
 }
 
@@ -531,7 +532,7 @@ export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
   if (!model?.lines.length) return '';
 
-  const { lines } = model;
+  const { lines, nodeMap } = model;
   const out = [];
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
@@ -541,7 +542,9 @@ export function renderRoadmapSvg(args) {
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
     .rm-abbrev{font:700 8px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1)}
     .rm-abbrev-active{fill:#fff}
+    .rm-abbrev-done{opacity:.65}
     .rm-risk-tri{fill:#ef4444}
+    g[style*=cursor]{pointer-events:all}
   </style>`);
 
   // ── Route lines ─────────────────────────────────────────────────────────────
@@ -606,20 +609,31 @@ export function renderRoadmapSvg(args) {
     majorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === currentId && !isDone;
+      const statusLabel = isDone ? '✓' : `${station.done}/${station.total}`;
+      const tooltipItems = (station.clusterItems || []).map(c => {
+        const node = nodeMap[c.id];
+        const st = node?.status === 'done' ? '✓' : node?.status === 'wip' ? '▸' : '○';
+        return `${st} ${c.name || c.id}`;
+      }).join('\n');
+      const tooltip = `${station.abbrev} — ${station.name}\n${statusLabel} erledigt\n${tooltipItems}`;
+      const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
+      out.push(`<g style="cursor:pointer" pointer-events="all">`);
+      // Invisible larger hit area for tooltip
+      out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"><title>${esc(tooltip)}</title></circle>`);
       if (isDone) {
-        // Filled circle for completed stations
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="${color}"/>`);
       } else if (isCurrent) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
       } else {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
       }
+      out.push(`</g>`);
 
-      // Abbreviation label — placed slightly offset from the dot
-      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : 'rm-abbrev';
-      out.push(`<text x="${(station.x + 7).toFixed(1)}" y="${(station.y - 6).toFixed(1)}" class="${abbrevClass}" fill="${isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      // Abbreviation label
+      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
+      out.push(`<text x="${(station.x + 7).toFixed(1)}" y="${(station.y - 6).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
     });
 
     // Minor stations (r=3)
@@ -646,16 +660,19 @@ export function renderRoadmapSvg(args) {
     const { color, trainT, trainPt, progress } = line;
     if (trainT <= 0 || progress >= 1) return;
 
-    out.push(`<g id="rm-train-${lineIdx}">`);
+    const pct = Math.round(progress * 100);
+    const trainTip = `${line.root.id} — ${line.root.name}\nFortschritt: ${pct}%\n${line.atRisk ? '⚠ AT RISK' : ''}`;
+    const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
+    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all">`);
     // Pulse glow
-    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="14" fill="${color}" opacity="0.18">`);
+    out.push(`<circle cx="${tx}" cy="${ty}" r="14" fill="${color}" opacity="0.18">`);
     out.push(`<animate attributeName="r" values="11;16;11" dur="2.4s" repeatCount="indefinite"/>`);
     out.push(`<animate attributeName="opacity" values="0.22;0.08;0.22" dur="2.4s" repeatCount="indefinite"/>`);
     out.push(`</circle>`);
     // Train body
-    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"/>`);
+    out.push(`<circle cx="${tx}" cy="${ty}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"><title>${esc(trainTip)}</title></circle>`);
     // White center dot
-    out.push(`<circle cx="${trainPt.x.toFixed(1)}" cy="${trainPt.y.toFixed(1)}" r="2.5" fill="#fff"/>`);
+    out.push(`<circle cx="${tx}" cy="${ty}" r="2.5" fill="#fff"/>`);
     out.push(`</g>`);
   });
 
@@ -681,20 +698,25 @@ export function renderRoadmapSvg(args) {
     allStations.forEach(station => {
       const dotColor = station.allDone ? line.color : 'transparent';
       const borderColor = line.color;
+      const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.55' : '';
+      const statusBadge = station.allDone ? ' ✓' : station.done > 0 ? ` ${station.done}/${station.total}` : '';
       out.push(`<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px">`);
       out.push(`<span style="flex-shrink:0;width:10px;height:10px;margin-top:1px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor}"></span>`);
-      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:1px">${esc(station.abbrev)}</span>`);
+      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:1px;${doneStyle}">${esc(station.abbrev)}</span>`);
       if (station.clusterSize > 1) {
-        // Show representative name and all cluster items
-        out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8)">`);
-        out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+        out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);${doneStyle}">`);
+        out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
         const extras = station.clusterItems.filter(c => c.id !== station.id);
         extras.forEach(c => {
-          out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:4px">+ ${esc(truncate(c.name, 24))}</span>`);
+          const itemNode = nodeMap[c.id];
+          const itemDone = itemNode?.status === 'done';
+          const itemStyle = itemDone ? 'text-decoration:line-through;opacity:.55' : '';
+          const mark = itemDone ? '✓' : '○';
+          out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:4px;${itemStyle}">${mark} ${esc(truncate(c.name, 22))}</span>`);
         });
         out.push(`</span>`);
       } else {
-        out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}</span>`);
+        out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
       }
       out.push(`</div>`);
     });
