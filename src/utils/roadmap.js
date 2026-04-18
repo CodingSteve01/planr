@@ -356,10 +356,23 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     // ── Scheduled-item clustering ─────────────────────────────────────────────
     // Get all scheduled items for this root project
     const rootScheduled = (scheduled || []).filter(s => s.id.startsWith(root.id + '.'));
+    const schedIds = new Set(rootScheduled.map(s => s.id));
 
-    // Sort by endD
-    const sorted = rootScheduled
-      .filter(s => s.endD)  // only items with end dates
+    // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
+    // Use their meta dates so they appear as "reached stations" on the map.
+    const doneLeaves = tree
+      .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done' && !n.id.slice(root.id.length + 1).includes('.') === false)
+      .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only
+      .map(n => {
+        const m = meta[n.id] || {};
+        const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date);
+        const start = m.earliestStart || end;
+        return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
+      })
+      .filter(s => s.endD);
+
+    // Combine scheduled + done leaves, sort by endD
+    const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
       .sort((a, b) => +new Date(a.endD) - +new Date(b.endD));
 
     // Cluster: group items whose endD are within 14 days of each other
