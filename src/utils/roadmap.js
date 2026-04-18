@@ -480,34 +480,53 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   });
 
   // ── Station placement on routes ───────────────────────────────────────────
+  // Metro maps are SCHEMATIC: stations are evenly spaced, not time-proportional.
+  // Done stations come first (the train has "passed" them), then open ones ahead.
+  // This prevents the visual lie of showing open stations behind the train.
   const positionedLines = assignedLines.map(line => {
-    const { earliestDate, latestDate, route, routeLen } = line;
-    const span = earliestDate && latestDate ? Math.max(+latestDate - +earliestDate, DAY) : DAY;
+    const { route } = line;
 
-    const placeOnRoute = (station) => {
-      let t = 0;
-      if (station.anchorDate && earliestDate && latestDate) {
-        t = clamp((+station.anchorDate - +earliestDate) / span, 0, 1);
-      }
-      // Keep small margin so stations don't fall exactly on endpoints
-      t = clamp(t, 0.02, 0.98);
+    // Sort: done first (by date), then not-done (by date)
+    const allStations = [...line.majorStations, ...line.minorStations];
+    const doneStations = allStations.filter(s => s.allDone).sort(compareByTime);
+    const openStations = allStations.filter(s => !s.allDone).sort(compareByTime);
+    const ordered = [...doneStations, ...openStations];
+
+    // Evenly distribute along route with margins
+    const count = ordered.length;
+    const positioned = ordered.map((station, i) => {
+      const t = count > 0 ? clamp((i + 1) / (count + 1), 0.04, 0.96) : 0.5;
       const pt = pointAtFraction(route, t);
       return { ...station, t, x: pt.x, y: pt.y };
-    };
+    });
 
-    const majors = line.majorStations.map(s => placeOnRoute(s));
-    const minors = line.minorStations.map(s => placeOnRoute(s));
+    const majors = positioned.filter(s => s.kind === 'major');
+    const minors = positioned.filter(s => s.kind === 'minor');
 
-    // Current / next station logic
-    const currentStation = line.timeline.find(s => s.prog > 0 && !s.allDone)
-      || line.timeline.find(s => !s.allDone)
-      || line.timeline[line.timeline.length - 1];
+    // Current station: first not-done station in route order
+    const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
+      || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
 
-    // Train position: use overall project progress directly (e.g. 31% done = 31% along route).
-    // This is the most intuitive mapping — the train's position on the line represents
-    // how much of the project's work is complete, regardless of which cluster it falls in.
-    const trainT = clamp(line.progress, 0, 1);
+    // Train position: sits right at the boundary between done and not-done stations.
+    // Within the gap, interpolate by the current station's partial progress.
+    const lastDone = positioned.filter(s => s.allDone).slice(-1)[0];
+    const firstOpen = positioned.find(s => !s.allDone);
+    let trainT;
+    if (!positioned.length) {
+      trainT = 0;
+    } else if (!firstOpen) {
+      trainT = 0.98; // all done
+    } else if (!lastDone) {
+      // Nothing done yet — train approaches first station
+      trainT = firstOpen.t * Math.max(firstOpen.prog || 0, 0.15);
+    } else {
+      // Between last done and first open
+      const gap = firstOpen.t - lastDone.t;
+      const partial = firstOpen.prog || 0;
+      trainT = lastDone.t + gap * Math.max(partial, 0.15);
+    }
+    trainT = clamp(trainT, 0, 1);
     const trainPt = pointAtFraction(route, trainT);
 
     return {
@@ -696,12 +715,15 @@ export function renderRoadmapSvg(args) {
 
     // Station rows
     allStations.forEach(station => {
-      const dotColor = station.allDone ? line.color : 'transparent';
+      const isPartial = !station.allDone && station.done > 0;
+      // Dot: filled = done, half = partial, outline = open
+      const dotColor = station.allDone ? line.color : isPartial ? line.color : 'transparent';
+      const dotOpacity = isPartial ? '0.45' : '1';
       const borderColor = line.color;
-      const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.55' : '';
-      const statusBadge = station.allDone ? ' ✓' : station.done > 0 ? ` ${station.done}/${station.total}` : '';
+      const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
+      const statusBadge = station.allDone ? ' ✓' : station.done > 0 ? ` ${station.done}/${station.total}` : ` 0/${station.total}`;
       out.push(`<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px">`);
-      out.push(`<span style="flex-shrink:0;width:10px;height:10px;margin-top:1px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor}"></span>`);
+      out.push(`<span style="flex-shrink:0;width:10px;height:10px;margin-top:1px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor};opacity:${dotOpacity}"></span>`);
       out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:1px;${doneStyle}">${esc(station.abbrev)}</span>`);
       if (station.clusterSize > 1) {
         out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);${doneStyle}">`);
