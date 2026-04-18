@@ -1,13 +1,13 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { renderRoadmapSvg } from '../../utils/roadmap.js';
 
-export function Roadmap({ tree, scheduled, stats }) {
+export function Roadmap({ tree, scheduled, stats, onOpenItem }) {
   const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats }), [tree, scheduled, stats]);
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
 
   const onMove = useCallback(e => {
-    const g = e.target.closest('.rm-stop');
+    const g = e.target.closest('[data-tip]');
     if (g) {
       const text = g.getAttribute('data-tip');
       if (text) {
@@ -21,10 +21,19 @@ export function Roadmap({ tree, scheduled, stats }) {
 
   const onLeave = useCallback(() => setTip(null), []);
 
+  const onClick = useCallback(e => {
+    const el = e.target.closest('[data-item-id]');
+    if (el && onOpenItem) {
+      const id = el.getAttribute('data-item-id');
+      if (id) onOpenItem(id);
+    }
+  }, [onOpenItem]);
+
   if (!svg) return null;
   return (
     <div ref={ref} style={{ marginBottom: 20, overflow: 'hidden', position: 'relative' }}
-      onMouseMove={onMove} onMouseLeave={onLeave}>
+      onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>
+      <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
       <div dangerouslySetInnerHTML={{ __html: svg }} />
       {tip && (
         <div

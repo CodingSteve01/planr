@@ -9,7 +9,7 @@ import { Roadmap } from '../shared/Roadmap.jsx';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onExportTodo }) {
+export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onOpenItem, onExportTodo }) {
   const { t } = useT();
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
@@ -61,7 +61,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
 
     {/* Roadmap bus-line */}
-    <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} />
+    <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} />
 
     {/* Planning confidence */}
     {(() => {

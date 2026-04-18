@@ -739,26 +739,27 @@ export function renderRoadmapSvg(args) {
     if (trainT <= 0 || progress >= 1) return;
 
     const pct = Math.round(progress * 100);
-    const trainIcon = statusIcon('wip', color, progress, 14);
     const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
     const trainTip = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
-      + `<span style="display:inline-flex;line-height:0">${trainIcon}</span>`
-      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(line.root.id)}</span>`
-      + `<span style="font:600 11px/1.2 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4)">${esc(line.root.name)}</span>`
+      + `<span style="font:700 14px/1 'JetBrains Mono',monospace;color:${color}">🚆</span>`
+      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.08em">Zug</span>`
+      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color};margin-left:auto">${esc(line.root.id)}</span>`
       + `</div>`
-      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">Fortschritt: <b style="color:${color}">${pct}%</b></div>`
+      + `<div style="font:500 10.5px/1.4 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4);margin-bottom:4px">${esc(line.root.name)}</div>`
+      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">Aktuelle Position: <b style="color:${color}">${pct}%</b> der Strecke</div>`
       + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ AT RISK</div>` : '');
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
-    out.push(`<g id="rm-train-${lineIdx}" class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
-    // Pulse glow
-    out.push(`<circle cx="${tx}" cy="${ty}" r="14" fill="${color}" opacity="0.18">`);
-    out.push(`<animate attributeName="r" values="11;16;11" dur="2.4s" repeatCount="indefinite"/>`);
-    out.push(`<animate attributeName="opacity" values="0.22;0.08;0.22" dur="2.4s" repeatCount="indefinite"/>`);
+    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
+    // Halo / pulse glow
+    out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
+    out.push(`<animate attributeName="r" values="13;18;13" dur="2.4s" repeatCount="indefinite"/>`);
+    out.push(`<animate attributeName="opacity" values="0.22;0.06;0.22" dur="2.4s" repeatCount="indefinite"/>`);
     out.push(`</circle>`);
-    // Train body
-    out.push(`<circle cx="${tx}" cy="${ty}" r="7" fill="${color}" stroke="var(--bg,#111318)" stroke-width="2.2"/>`);
-    // White center dot
-    out.push(`<circle cx="${tx}" cy="${ty}" r="2.5" fill="#fff"/>`);
+    // Outer ring (distinguishes train from circular stations: rounded rectangle = train car)
+    out.push(`<rect x="${(+tx - 11).toFixed(1)}" y="${(+ty - 7).toFixed(1)}" width="22" height="14" rx="4" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`);
+    // Window slits — two small white rectangles like train windows
+    out.push(`<rect x="${(+tx - 7).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
+    out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
     out.push(`</g>`);
   });
 
@@ -788,14 +789,15 @@ export function renderRoadmapSvg(args) {
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
       const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
 
-      // Main station row: icon + abbrev + name — single line, vertically centered
-      out.push(`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px">`);
+      // Main station row: icon + abbrev + name — single line, vertically centered.
+      // Clickable → opens the representative item's dialog.
+      out.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px">`);
       out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
       out.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
       out.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
       out.push(`</div>`);
 
-      // Cluster details — indented rows below, each with own icon+text centered
+      // Cluster details — indented rows below, each with own icon+text centered, clickable
       if (station.clusterSize > 1) {
         const extras = station.clusterItems.filter(c => c.id !== station.id);
         extras.forEach(c => {
@@ -805,7 +807,7 @@ export function renderRoadmapSvg(args) {
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
           const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
             : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
-          out.push(`<div style="display:flex;align-items:center;gap:5px;padding-left:36px;margin-bottom:1px;${itemStyle}">`);
+          out.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}">`);
           out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
           out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
           out.push(`</div>`);
