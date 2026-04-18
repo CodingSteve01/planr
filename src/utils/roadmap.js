@@ -272,6 +272,42 @@ function hashStr(str) {
  * Generate a short abbreviation for a station name (up to 3 chars).
  * Takes first letter of each word; falls back to first 2 chars.
  */
+/**
+ * Inline SVG status indicator — same visual language across SVG and legend:
+ * - 'done'   → filled circle with white checkmark
+ * - 'wip'    → outlined circle with a pie-slice filled showing progress
+ * - 'open'   → empty outlined circle
+ * Progress in [0..1] only used for 'wip'.
+ */
+function statusIcon(status, color, progress = 0, size = 12) {
+  const r = size / 2 - 1.2;
+  const c = size / 2;
+  if (status === 'done') {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+      + `<circle cx="${c}" cy="${c}" r="${r}" fill="${color}"/>`
+      + `<path d="M${c - r * 0.55},${c} L${c - r * 0.1},${c + r * 0.45} L${c + r * 0.65},${c - r * 0.45}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `</svg>`;
+  }
+  if (status === 'wip' && progress > 0) {
+    // Pie slice for progress
+    const angle = Math.min(Math.max(progress, 0), 1) * Math.PI * 2;
+    const ex = c + r * Math.sin(angle);
+    const ey = c - r * Math.cos(angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = progress >= 0.999
+      ? `M${c},${c - r} A${r},${r} 0 1,1 ${c - 0.01},${c - r} Z`
+      : `M${c},${c} L${c},${c - r} A${r},${r} 0 ${large},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+      + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
+      + `<path d="${path}" fill="${color}" opacity=".6"/>`
+      + `</svg>`;
+  }
+  // open (includes wip with 0 progress)
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+    + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
+    + `</svg>`;
+}
+
 function makeAbbrev(name) {
   if (!name) return '?';
   // Strip parenthetical content, leading articles/prefixes, technical noise
@@ -279,11 +315,12 @@ function makeAbbrev(name) {
     .replace(/\(.*?\)/g, '')
     .replace(/\b(Ursache|Erstellung|Anpassung|Entwicklung|Umstellung|Integration|Domain|UI\s+Migration)\b:?\s*/gi, '')
     .trim();
-  const words = (clean || name).trim().split(/\s+/).filter(w => w.length > 0);
+  // Keep only words starting with a letter (drop arrows, symbols, numerals-only)
+  const words = (clean || name).trim().split(/\s+/).filter(w => /^[A-Za-zÄÖÜäöüß]/.test(w));
   if (words.length >= 2) {
     return words.slice(0, 3).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3);
   }
-  return (words[0] || name).slice(0, 3).toUpperCase();
+  return (words[0] || name).replace(/[^A-Za-zÄÖÜäöüß0-9]/g, '').slice(0, 3).toUpperCase();
 }
 
 /**
@@ -492,16 +529,38 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
-    // Sort: done first (by date), then not-done (by date)
+    // Sort: done first (by endDate), then not-done (by endDate).
+    // endDate = when the milestone is actually reached. A station only counts as
+    // "passed" when its last task ends, not when it starts.
+    const byEnd = (a, b) => (+a.endDate || Infinity) - (+b.endDate || Infinity)
+      || a.id.localeCompare(b.id, undefined, { numeric: true });
     const allStations = [...line.majorStations, ...line.minorStations];
-    const doneStations = allStations.filter(s => s.allDone).sort(compareByTime);
-    const openStations = allStations.filter(s => !s.allDone).sort(compareByTime);
-    const ordered = [...doneStations, ...openStations];
+    const doneStations = allStations.filter(s => s.allDone).sort(byEnd);
+    const openStations = allStations.filter(s => !s.allDone).sort(byEnd);
 
-    // Evenly distribute along route with margins
-    const count = ordered.length;
-    const positioned = ordered.map((station, i) => {
-      const t = count > 0 ? clamp((i + 1) / (count + 1), 0.04, 0.96) : 0.5;
+    // Train position = effort-weighted project progress. This is THE truth indicator.
+    const trainT = clamp(line.progress, 0.02, 0.96);
+
+    // Distribute stations so done ones are always in [0.03, trainT] and open ones
+    // always in [trainT, 0.97]. That way, everything "behind" the train is truly done
+    // and everything "ahead" is not yet fully reached.
+    const doneRange = [0.03, Math.max(trainT - 0.01, 0.03)];
+    const openRange = [Math.min(trainT + 0.01, 0.97), 0.97];
+
+    const distribute = (stations, [lo, hi]) => {
+      const n = stations.length;
+      if (!n) return [];
+      if (n === 1) return [{ station: stations[0], t: (lo + hi) / 2 }];
+      return stations.map((station, i) => ({
+        station,
+        t: lo + ((hi - lo) * (i + 1)) / (n + 1),
+      }));
+    };
+
+    const positioned = [
+      ...distribute(doneStations, doneRange),
+      ...distribute(openStations, openRange),
+    ].map(({ station, t }) => {
       const pt = pointAtFraction(route, t);
       return { ...station, t, x: pt.x, y: pt.y };
     });
@@ -509,30 +568,11 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     const majors = positioned.filter(s => s.kind === 'major');
     const minors = positioned.filter(s => s.kind === 'minor');
 
-    // Current station: first not-done station in route order
+    // Current station: first not-done station (the one being approached)
     const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
       || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
 
-    // Train position: sits right at the boundary between done and not-done stations.
-    // Within the gap, interpolate by the current station's partial progress.
-    const lastDone = positioned.filter(s => s.allDone).slice(-1)[0];
-    const firstOpen = positioned.find(s => !s.allDone);
-    let trainT;
-    if (!positioned.length) {
-      trainT = 0;
-    } else if (!firstOpen) {
-      trainT = 0.98; // all done
-    } else if (!lastDone) {
-      // Nothing done yet — train approaches first station
-      trainT = firstOpen.t * Math.max(firstOpen.prog || 0, 0.15);
-    } else {
-      // Between last done and first open
-      const gap = firstOpen.t - lastDone.t;
-      const partial = firstOpen.prog || 0;
-      trainT = lastDone.t + gap * Math.max(partial, 0.15);
-    }
-    trainT = clamp(trainT, 0, 1);
     const trainPt = pointAtFraction(route, trainT);
 
     return {
@@ -721,26 +761,26 @@ export function renderRoadmapSvg(args) {
 
     // Station rows
     allStations.forEach(station => {
-      const isPartial = !station.allDone && station.done > 0;
-      // Dot: filled = done, half = partial, outline = open
-      const dotColor = station.allDone ? line.color : isPartial ? line.color : 'transparent';
-      const dotOpacity = isPartial ? '0.45' : '1';
-      const borderColor = line.color;
+      const stStatus = station.allDone ? 'done' : station.done > 0 ? 'wip' : 'open';
+      const stProg = station.total > 0 ? station.done / station.total : 0;
+      const stIcon = statusIcon(stStatus, line.color, stProg, 12);
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
-      const statusBadge = station.allDone ? ' ✓' : station.done > 0 ? ` ${station.done}/${station.total}` : ` 0/${station.total}`;
+      const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
       out.push(`<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px">`);
-      out.push(`<span style="flex-shrink:0;width:10px;height:10px;margin-top:1px;border-radius:50%;background:${dotColor};border:2px solid ${borderColor};opacity:${dotOpacity}"></span>`);
-      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:1px;${doneStyle}">${esc(station.abbrev)}</span>`);
+      out.push(`<span style="flex-shrink:0;margin-top:1px">${stIcon}</span>`);
+      out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;color:${line.color};min-width:24px;margin-top:2px;${doneStyle}">${esc(station.abbrev)}</span>`);
       if (station.clusterSize > 1) {
         out.push(`<span style="font:400 9px/1.4 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);${doneStyle}">`);
         out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
         const extras = station.clusterItems.filter(c => c.id !== station.id);
         extras.forEach(c => {
           const itemNode = nodeMap[c.id];
-          const itemDone = itemNode?.status === 'done';
-          const itemStyle = itemDone ? 'text-decoration:line-through;opacity:.55' : '';
-          const mark = itemDone ? '✓' : '○';
-          out.push(`<span style="display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:4px;${itemStyle}">${mark} ${esc(truncate(c.name, 22))}</span>`);
+          const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
+          const itemProg = typeof itemNode?.progress === 'number' ? itemNode.progress / 100 : itemStatus === 'wip' ? 0.5 : 0;
+          const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
+          const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
+            : itemStatus === 'wip' ? `color:${line.color}` : '';
+          out.push(`<span style="display:flex;align-items:center;gap:4px;padding-left:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${itemStyle}">${itemIcon}<span style="overflow:hidden;text-overflow:ellipsis">${esc(truncate(c.name, 22))}</span></span>`);
         });
         out.push(`</span>`);
       } else {
