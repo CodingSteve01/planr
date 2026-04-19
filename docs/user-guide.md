@@ -19,14 +19,11 @@ After either, the project is auto-saved to `localStorage` until you mount a file
 
 ### Picking a template
 
-When starting a new project, pick a template that matches your use case. Five templates are available:
+When starting a new project, pick a template that matches your use case:
 
 | Template | Icon | Best for |
 |---|---|---|
 | Software Development | 💻 | Classic dev projects — RE, refinement, dev, testing |
-| Event Planning | 🎉 | Venue-based or logistics-heavy events |
-| Marketing Campaign | 📣 | Brief → creative → approval → launch flows |
-| Research / Study | 🔬 | Experiments, long-horizon studies, write-ups |
 | Generic / Empty | 📋 | Minimal starting point for any other project type |
 
 The template seeds the project with matching **T-shirt sizes**, **risks**, and **task templates**. You can change all of these freely in Settings afterwards — the template is just a starting point.

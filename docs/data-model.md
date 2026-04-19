@@ -179,7 +179,7 @@ Templates live in `src/utils/projectTemplates.js` and are only used at project-c
 }
 ```
 
-Five built-in templates are provided: `software-dev` (💻), `event-planning` (🎉), `marketing-campaign` (📣), `research-study` (🔬), `generic` (📋). The default is `software-dev`.
+Two built-in templates are provided: `software-dev` (💻, default) and `generic` (📋).
 
 ## Phase (on TreeItem)
 

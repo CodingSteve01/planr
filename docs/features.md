@@ -131,7 +131,7 @@ QuickEdit-specific:
 
 ## Project Templates
 
-- **Template picker in New Project wizard** — five built-in templates: Software Development (💻), Event Planning (🎉), Marketing Campaign (📣), Research / Study (🔬), Generic / Empty (📋). Default is Software Development.
+- **Template picker in New Project wizard** — two built-in templates: Software Development (💻, default) and Generic / Empty (📋).
 - **Seeds risks, sizes, and task templates** — the selected template populates `data.risks`, `data.sizes`, and `data.taskTemplates` at creation time; everything is editable in Settings afterwards
 - **One-time seed** — `projectTemplateId` is not stored; the template is purely a creation-time convenience, not an ongoing link
 - **Backwards compatible** — existing saved plans without template-seeded data continue to work unchanged; they fall back to built-in defaults as before

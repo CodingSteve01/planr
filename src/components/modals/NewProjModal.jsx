@@ -3,7 +3,7 @@ import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
 import { GT, GL } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
-import { PROJECT_TEMPLATES, DEFAULT_TEMPLATE_ID } from '../../utils/projectTemplates.js';
+import { PROJECT_TEMPLATES, DEFAULT_TEMPLATE_ID, applyTemplate } from '../../utils/projectTemplates.js';
 
 export function NewProjModal({ onCreate, onClose }) {
   const { t } = useT();
@@ -43,8 +43,10 @@ export function NewProjModal({ onCreate, onClose }) {
       description: g.description || '',
     }));
 
-    // Seed risks, sizes, and task templates from the selected project template
+    // Seed risks, sizes, and task templates from the selected project template.
+    // applyTemplate() resolves i18n keys to strings in the current UI language.
     const tpl = PROJECT_TEMPLATES.find(p => p.id === templateId) ?? PROJECT_TEMPLATES.find(p => p.id === DEFAULT_TEMPLATE_ID);
+    const seeded = applyTemplate(tpl, t);
     onCreate({
       meta: { ...f, version: '2' },
       teams: ts,
@@ -52,9 +54,9 @@ export function NewProjModal({ onCreate, onClose }) {
       vacations: [],
       tree,
       holidays: hols,
-      risks: tpl ? [...tpl.risks] : undefined,
-      sizes: tpl ? [...tpl.sizes] : undefined,
-      taskTemplates: tpl ? tpl.taskTemplates.map(tt => ({ ...tt, phases: tt.phases.map(ph => ({ ...ph })) })) : undefined,
+      risks: seeded.risks,
+      sizes: seeded.sizes,
+      taskTemplates: seeded.taskTemplates,
     });
   }
 
