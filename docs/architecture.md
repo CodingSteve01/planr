@@ -156,12 +156,13 @@ See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items.
 
 - **App.jsx and NetGraph.jsx are &gt; 400 LOC** — should be split
 - **Dark-mode palette needs a proper WCAG-AA pass** — currently iterated into shape, not designed
-- **Gantt zoom buttons not wired** — state and handler exist, UI control missing
 - **One-member-one-team** — members can't have different capacities per team
 - **Day-level scheduler granularity** — currently weekly
 
 ## Deployment
 
 `npm run build` outputs to `dist/`. The `gh-pages` workflow in `.github/workflows/` publishes it to the `gh-pages` branch. The site is served at `/planr/` (match `vite.config.js`).
+
+Public hosted app: **https://codingsteve01.github.io/planr**
 
 For a dev loop: `npm run dev`. Note: we leave the dev server management to the user — don't start a second Vite instance.

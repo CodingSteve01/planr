@@ -13,6 +13,14 @@ Planr turns a work breakdown tree into an auto-scheduled plan. You write goals, 
 
 No backend, no accounts, no cloud sync. A static React SPA that persists to `localStorage` or a local `.json` / `.md` file via the File System Access API.
 
+## Start instantly (no local setup)
+
+You can use Planr directly in the browser:
+
+- **https://codingsteve01.github.io/planr**
+
+No local server required.
+
 ## Quick start
 
 ```bash

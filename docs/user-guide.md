@@ -2,6 +2,8 @@
 
 End-to-end walkthrough for planning a project in Planr. If you want the feature catalog, see [features.md](features.md). View-specific details live in [gantt.md](gantt.md) and [network-graph.md](network-graph.md).
 
+Want to skip local setup? Open Planr directly: **https://codingsteve01.github.io/planr**
+
 ## 1. Start a project
 
 Open the app. On first launch there is no project loaded.
