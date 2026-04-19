@@ -31,31 +31,58 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   return (
     <div className="onboard">
       <div className="onboard-card fade">
-        <div className="onboard-logo">Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
-        <div className="onboard-sub">{t('ob.sub')}</div>
-
-        {previewSvg && (
-          <div className="ob-preview">
-            <div className="ob-preview-label">{t('ob.preview.label')}</div>
-            <div className="ob-preview-svg" dangerouslySetInnerHTML={{ __html: previewSvg }} />
+        {/* ── Hero ── */}
+        <div className="ob-hero">
+          <div className="ob-hero-text">
+            <div className="ob-logo">Planr<span className="ob-logo-dot">.</span></div>
+            <div className="ob-tagline">{t('ob.tagline')}</div>
+            <div className="ob-sub">{t('ob.sub')}</div>
+            <div className="ob-cta">
+              <button className="ob-btn ob-btn-pri" onClick={onCreate}>
+                <span>{t('ob.newProject')}</span>
+                <span className="ob-btn-arrow">→</span>
+              </button>
+              {onLoadDemo && (
+                <button className="ob-btn ob-btn-ghost" onClick={onLoadDemo}>
+                  {t('ob.tryDemo')}
+                </button>
+              )}
+            </div>
+            <button className="ob-link" onClick={() => fRef.current?.click()}>
+              {t('ob.loadProject')}
+            </button>
           </div>
-        )}
 
-        <div className="feat-grid">
+          {previewSvg && (
+            <div className="ob-preview">
+              <div className="ob-preview-chrome">
+                <span className="ob-dot ob-dot-red" />
+                <span className="ob-dot ob-dot-amber" />
+                <span className="ob-dot ob-dot-green" />
+                <span className="ob-preview-title">{t('ob.preview.label')}</span>
+              </div>
+              <div className="ob-preview-svg" dangerouslySetInnerHTML={{ __html: previewSvg }} />
+            </div>
+          )}
+        </div>
+
+        {/* ── Feature chips ── */}
+        <div className="ob-feat-row">
           {FEATURES.map(([icon, title, desc]) => (
-            <div key={title} className="feat">
-              <span className="feat-icon">{icon}</span>
-              <div className="feat-text"><strong>{title}</strong><span>{desc}</span></div>
+            <div key={title} className="ob-chip" title={desc}>
+              <span className="ob-chip-icon">{icon}</span>
+              <span className="ob-chip-label">{title}</span>
             </div>
           ))}
         </div>
-        <div className="ob-actions">
-          <button className="ob-btn ob-pri" onClick={onCreate}>{t('ob.newProject')}</button>
-          {onLoadDemo && (
-            <button className="ob-btn ob-sec" onClick={onLoadDemo}>{t('ob.tryDemo')}</button>
-          )}
-          <div className="ob-div">{t('ob.or')}</div>
-          <button className="ob-btn ob-sec" onClick={() => fRef.current?.click()}>{t('ob.loadProject')}</button>
+
+        {/* ── Footer credit ── */}
+        <div className="ob-foot">
+          <span>{t('ob.foot.offline')}</span>
+          <span className="ob-foot-sep">·</span>
+          <span>{t('ob.foot.nobackend')}</span>
+          <span className="ob-foot-sep">·</span>
+          <span>{t('ob.foot.formats')}</span>
         </div>
       </div>
     </div>

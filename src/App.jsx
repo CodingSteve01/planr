@@ -1263,7 +1263,7 @@ export default function App() {
       // Auto-start tour for first-time users (tour not yet dismissed)
       try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
     }} />}
-    <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
+    <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
   </>;
 
   // removed: topDownReady guide bubble (was blocking tree view)
