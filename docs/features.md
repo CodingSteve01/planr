@@ -2,6 +2,11 @@
 
 Full catalog of what Planr does. Grouped by area. Links point to detail docs where the behavior has enough depth to warrant its own page.
 
+## Access
+
+- **Hosted app** — start directly at https://codingsteve01.github.io/planr (no local server setup needed)
+- **Local dev app** — run via Vite (`npm run dev`) when contributing or debugging locally
+
 ## Work breakdown
 
 - **N-level tree** — unlimited nesting (leaves are detected structurally, not by fixed depth)
