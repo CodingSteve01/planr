@@ -6,11 +6,11 @@ export function Onboard({ onCreate, onLoad, fRef }) {
   const FEATURES = [
     ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc')],
     ['📅', t('ob.feat.auto'), t('ob.feat.auto.desc')],
+    ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc')],
     ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc')],
     ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc')],
     ['🕸', t('ob.feat.net'), t('ob.feat.net.desc')],
     ['🎯', t('ob.feat.focus'), t('ob.feat.focus.desc')],
-    ['💾', t('ob.feat.save'), t('ob.feat.save.desc')],
   ];
 
   return (
