@@ -595,6 +595,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
 
 export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
+  const labels = args.labels || {};
   if (!model?.lines.length) return '';
 
   const { lines, nodeMap } = model;
@@ -740,14 +741,17 @@ export function renderRoadmapSvg(args) {
 
     const pct = Math.round(progress * 100);
     const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
+    const lTrain = labels.train || 'Train';
+    const lCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', pct);
+    const lAtRisk = labels.atRisk || 'AT RISK';
     const trainTip = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
       + `<span style="font:700 14px/1 'JetBrains Mono',monospace;color:${color}">🚆</span>`
-      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.08em">Zug</span>`
+      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.08em">${esc(lTrain)}</span>`
       + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color};margin-left:auto">${esc(line.root.id)}</span>`
       + `</div>`
       + `<div style="font:500 10.5px/1.4 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4);margin-bottom:4px">${esc(line.root.name)}</div>`
-      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">Aktuelle Position: <b style="color:${color}">${pct}%</b> der Strecke</div>`
-      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ AT RISK</div>` : '');
+      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">${esc(lCurrentPos)}</div>`
+      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ ${esc(lAtRisk)}</div>` : '');
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
     out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
     // Halo / pulse glow

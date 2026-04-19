@@ -9,7 +9,7 @@ Planr supports two persistent formats (`.json` and `.md`) and several export-onl
 The `.json` format is the internal data shape serialized directly via `JSON.stringify(data, null, 2)`. Everything round-trips exactly: IDs, field names, optional fields, everything.
 
 **When to prefer JSON:**
-- You want stable, hand-crafted team/member IDs (e.g. `FE`, `georg`)
+- You want stable, hand-crafted team/member IDs (e.g. `FE`, `alex`)
 - You're diffing project files in git and want a predictable format
 - You won't be editing the file by hand
 
@@ -84,7 +84,7 @@ Each `###` heading starts a template, numbered lines are phases. Team after ` �
 | Holidays array | ✓ | ✓ | ✓ |
 | Plan start/end | ✓ | ✓ | ✓ |
 | **Team IDs** (e.g. `FE`, `BE`) | ✓ | ✓ | ✗ regenerated as `T1, T2, …` |
-| **Member IDs** (e.g. `georg`) | ✓ | ✓ | ✗ regenerated as `m{timestamp}{i}` |
+| **Member IDs** (e.g. `alex`) | ✓ | ✓ | ✗ regenerated as `m{timestamp}{i}` |
 | `meta.holidays` preset marker (e.g. `"NRW"`) | ✓ | — | ✗ lost (but the holiday array itself is preserved) |
 
 **Mixed-workflow implication:** if you pair a human-edited MD with a JSON-editing workflow (or vice versa), expect Team/Member IDs to drift. The semantic data stays intact because all references (`tree.team`, `tree.assign`, `vacations.person`) are re-resolved through name-lookup. If stable IDs matter to you, stick to one format.
@@ -174,9 +174,4 @@ The report respects the current language setting (EN or DE).
 
 ## Data location (local)
 
-The repo's private project data lives in `data/` (gitignored):
-
-- `data/venneker.planr.json` — the main working file
-- `data/venneker-project-plan.md` — the Markdown twin
-
-Only the meta shape is public. Actual project content is not version-controlled.
+The repo's `data/` directory is gitignored. Place your own `.json` or `.md` project files there and mount them via **Open File…** — they will never be committed to git.

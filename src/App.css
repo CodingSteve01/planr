@@ -221,6 +221,35 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .saving{animation:pulse 1.2s ease infinite;}
 
+/* ── Tour ── */
+.tour-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+.tour-card{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:28px 28px 22px;width:min(420px,100%);box-shadow:var(--sh);position:relative;overflow:hidden;}
+.tour-progress{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bg3);}
+.tour-progress-fill{height:100%;background:var(--ac2);transition:width .25s ease;}
+.tour-counter{font-size:10px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:16px;}
+.tour-icon{font-size:32px;margin-bottom:12px;line-height:1;}
+.tour-title{font-size:17px;font-weight:700;color:var(--tx);margin:0 0 10px;}
+.tour-body{font-size:13px;color:var(--tx2);line-height:1.6;margin:0 0 18px;}
+.tour-dots{display:flex;gap:6px;margin-bottom:20px;}
+.tour-dot{width:6px;height:6px;border-radius:50%;background:var(--b2);transition:background .15s;}
+.tour-dot.on{background:var(--ac2);}
+.tour-actions{display:flex;justify-content:space-between;align-items:center;}
+.tour-nav{display:flex;gap:8px;}
+.tour-skip{font-size:11px;color:var(--tx3);padding:4px 8px;}
+.tour-next{min-width:80px;}
+
+/* ── New-feature popover ── */
+.new-feat-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);z-index:299;display:flex;align-items:center;justify-content:center;padding:20px;}
+.new-feat-card{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:22px 24px 18px;width:min(420px,100%);box-shadow:var(--sh);}
+.new-feat-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.new-feat-list{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:8px;}
+.new-feat-list li{font-size:12px;color:var(--tx2);line-height:1.5;padding-left:16px;position:relative;}
+.new-feat-list li::before{content:'→';position:absolute;left:0;color:var(--ac2);font-size:10px;top:1px;}
+.new-feat-foot{display:flex;justify-content:flex-end;}
+
+/* ── "New!" badge (inline next to tab labels etc.) ── */
+.badge-new{display:inline-block;font-size:8px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;background:var(--ac2);color:#fff;border-radius:3px;padding:1px 4px;vertical-align:middle;margin-left:4px;line-height:1.4;}
+
 /* ── Print ── */
 @media print{
   .topbar,.tab-bar,.subtoolbar,.gantt-footer,.ng-toolbar,.ng-legend,.side,.modal-footer{display:none!important;}

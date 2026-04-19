@@ -12,7 +12,9 @@ All types. No TypeScript — the code is plain JS — so these are documentation
   tree: [TreeItem],
   vacations: [Vacation],
   holidays: [Holiday],
-  taskTemplates: [TaskTemplate]  // optional
+  taskTemplates: [TaskTemplate],  // optional
+  risks: [Risk],                  // optional — project-specific risk catalogue
+  sizes: [Size]                   // optional — project-specific T-shirt sizes
 }
 ```
 
@@ -145,6 +147,20 @@ Holidays reduce the working-day count for affected weeks.
 Templates define reusable workflow blueprints. When applied to a task, the template's phases are **copied** (snapshot) — editing a template later does not retroactively change existing tasks.
 
 Stored at project level in `data.taskTemplates`, exported/imported with JSON and Markdown.
+
+## Size
+
+```js
+{
+  label,   // display name shown in pickers, e.g. "M"
+  days,    // best-case day count used to pre-fill the three-point estimate
+  factor   // default uncertainty factor applied when a size is quick-picked
+}
+```
+
+The full catalogue is editable in **Settings → T-Shirt Sizes**. When `data.sizes` is absent (existing saved plans), the built-in defaults from `src/utils/sizes.js` are used transparently.
+
+Default sizes: XS=1d (×1.3), S=3d (×1.3), M=7d (×1.4), L=15d (×1.5), XL=30d (×1.5), XXL=45d (×1.6).
 
 ## Phase (on TreeItem)
 

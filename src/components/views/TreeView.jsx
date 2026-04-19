@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { GT } from '../../constants.js';
+import { useT } from '../../i18n.jsx';
 
 function depth(id) { return id.split('.').length; }
 
@@ -30,13 +31,15 @@ function StatusIcon({ status, progress = 0 }) {
     <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--tx3)" strokeWidth="1.5" />
   </svg>;
 }
-const STATUS_LBL = { open: 'Open', wip: 'In Progress', done: 'Done' };
+// STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 const PRIO_LBL = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
 
 export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
+  const { t } = useT();
+  const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
@@ -165,25 +168,25 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
 
   return <div>
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
-      <button className="btn btn-sec btn-xs" onClick={collapseAll} title={hasSelection ? `Collapse ${multiSel.size} selected items + their children` : 'Collapse all items'}>{hasSelection ? `Collapse selection (${multiSel.size})` : 'Collapse all'}</button>
-      <button className="btn btn-sec btn-xs" onClick={expandAll} title={hasSelection ? `Expand ${multiSel.size} selected items + their children` : 'Expand all items'}>{hasSelection ? `Expand selection (${multiSel.size})` : 'Expand all'}</button>
+      <button className="btn btn-sec btn-xs" onClick={collapseAll} title={hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
+      <button className="btn btn-sec btn-xs" onClick={expandAll} title={hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Status icons">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="open" /> open</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="wip" progress={50} /> wip</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="done" /> done</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="open" /> {t('tv.statusOpen').toLowerCase()}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="wip" progress={50} /> {t('wip').toLowerCase()}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="done" /> {t('tv.statusDone').toLowerCase()}</span>
       </span>
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Priority icons">
-        <span style={{ color: 'var(--re)' }}>⏫</span>crit
-        <span style={{ color: 'var(--am)' }}>▲</span>high
-        <span style={{ color: 'var(--ac)' }}>▬</span>med
-        <span style={{ color: 'var(--tx3)' }}>▼</span>low
+        <span style={{ color: 'var(--re)' }}>⏫</span>{t('tv.prioCrit')}
+        <span style={{ color: 'var(--am)' }}>▲</span>{t('tv.prioHigh')}
+        <span style={{ color: 'var(--ac)' }}>▬</span>{t('tv.prioMed')}
+        <span style={{ color: 'var(--tx3)' }}>▼</span>{t('tv.prioLow')}
       </span>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} items</span>
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}
     {selected?.id && selPos && (
       <div style={{ display: 'flex', gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 33, zIndex: 10 }}>
-        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>Selected</span>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
         <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
         <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
         {onReorder && selPos.count > 1 && <>
@@ -195,7 +198,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
         <span style={{ flex: 1 }} />
         <button className="btn btn-sec btn-xs" onClick={() => { if (confirm(`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}?`)) onDelete(selected.id); }}
           title={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}`}
-          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>× Delete</button>
+          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
       </div>
     )}
     <table className="tree-tbl">
@@ -236,7 +239,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
                 : <span style={{ display: 'inline-block', width: 14 }} />}
 
               {/* Status icon — SVG matching the network graph's symbology */}
-              <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} title={STATUS_LBL[effStatus]}>
+              <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} title={statusLbl[effStatus]}>
                 <StatusIcon status={effStatus} progress={prog} />
               </span>
 
@@ -252,7 +255,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Assignees — initials */}
               {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} title={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
               {/* Auto-assigned suggestion from scheduler */}
-              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} title={`Vorschlag: ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
+              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} title={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
 
               {/* Priority — chevron icon for all leaves */}
               {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} title={`Priority: ${PRIO_LBL[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}

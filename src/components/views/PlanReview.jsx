@@ -8,18 +8,18 @@ import { useT } from '../../i18n.jsx';
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
-const REASON_TEXT = {
-  'manual': 'Manuell gesetzt',
-  'done': 'Erledigt',
-  'auto:person+estimate': 'Auto: Person + Schätzung vorhanden',
-  'auto:no-person': 'Auto: keine Person zugewiesen',
-  'auto:high-risk': 'Auto: Risikofaktor ≥ 2.0',
-  'auto:no-estimate': 'Auto: keine Schätzung vorhanden',
-  'inherited': 'Abgeleitet vom schlechtesten Kind-Element',
-};
 
 export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, stats, rootFilter = '', teamFilter = '', onOpenItem, onUpdate }) {
   const { t } = useT();
+  const reasonText = r => ({
+    'manual': t('pr.reasonManual'),
+    'done': t('pr.reasonDone'),
+    'auto:person+estimate': t('pr.reasonPersonEstimate'),
+    'auto:no-person': t('pr.reasonNoPerson'),
+    'auto:high-risk': t('pr.reasonHighRisk'),
+    'auto:no-estimate': t('pr.reasonNoEstimate'),
+    'inherited': t('pr.reasonInherited'),
+  }[r] || r);
   const [section, setSection] = useState('decide');
   const [phaseShowAll, setPhaseShowAll] = useState(false);
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
@@ -158,7 +158,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                 {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
-                <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{REASON_TEXT[confReasons[r.id]] || CN[r.conf]}</span>
+                <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
                   onClick={e => { e.stopPropagation(); acceptAuto(node); }}
@@ -174,8 +174,8 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
     {section === 'phases' && <>
       {phaseTodos.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('p.noPhaseTodos')}</div>}
       {phaseTodos.length > 0 && <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        <button className={`btn btn-xs ${!phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(false)}>Aktuelle Phasen</button>
-        <button className={`btn btn-xs ${phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(true)}>Alle offenen ({phaseTodos.length})</button>
+        <button className={`btn btn-xs ${!phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(false)}>{t('pr.currentPhases')}</button>
+        <button className={`btn btn-xs ${phaseShowAll ? 'btn-pri' : 'btn-sec'}`} onClick={() => setPhaseShowAll(true)}>{t('pr.allOpen', phaseTodos.length)}</button>
       </div>}
       {(() => {
         // Group by task, preserving phase order within each task
@@ -206,7 +206,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
                 {phaseTeamLabel(phase, teams)}{phaseAssigneeLabel(phase, members) ? ` · ${phaseAssigneeLabel(phase, members)}` : ''}
               </span>
               {phase.effortPct > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{phase.effortPct}%</span>}
-              {current && <span style={{ fontSize: 8, color: 'var(--ac)', flexShrink: 0 }}>aktuell</span>}
+              {current && <span style={{ fontSize: 8, color: 'var(--ac)', flexShrink: 0 }}>{t('pr.current')}</span>}
             </div>)}
           </div>;
         });
@@ -234,7 +234,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
             <span style={{ color: 'var(--gr)' }}>{tc.committedPt.toFixed(0)} PT</span>
-            {tc.unassignedPt > 0 && <span style={{ color: 'var(--am)' }}>{tc.unassignedPt.toFixed(0)} PT offen ({tc.unassignedCount})</span>}
+            {tc.unassignedPt > 0 && <span style={{ color: 'var(--am)' }}>{t('pr.ptOpen', tc.unassignedPt.toFixed(0), tc.unassignedCount)}</span>}
           </div>
         </div>;
       })}
@@ -254,12 +254,12 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
         const blockers = allDeps.filter(d => !resolveToLeafIds(tree, d).every(dl => doneSet.has(dl))).map(d => iMap[d]?.name || d);
         return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
           onClick={() => onOpenItem?.(r.id)}
-          title={blockers.length ? `Wartet auf: ${blockers.join(', ')}` : ''}>
+          title={blockers.length ? `${t('p.waitingFor')}: ${blockers.join(', ')}` : ''}>
           <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
           {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
-          <span style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>wartet auf {blockers.length}</span>
+          <span style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('pr.waitingOn', blockers.length)}</span>
           {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
         </div>;
       })}

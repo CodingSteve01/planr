@@ -58,7 +58,7 @@ No automated tests. The rationale: the app is visual, interactive, and relativel
 
 When you submit a change, describe how you verified it:
 
-- "Loaded venneker sample, ran through the Wizard's flow, confirmed no regressions in Gantt and Network views"
+- "Loaded my sample project, ran through the Wizard's flow, confirmed no regressions in Gantt and Network views"
 - "Reproduced bug at step X, applied fix, re-ran, bug is gone"
 
 ## Architecture notes before big changes

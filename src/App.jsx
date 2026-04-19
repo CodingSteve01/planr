@@ -9,6 +9,7 @@ import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentSt
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
+import { Tour } from './components/shared/Tour.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -95,6 +96,29 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
+
+  // ── Tour state ──
+  // tourStep === null → tour closed; 0..N → active step
+  const TOUR_DONE_KEY = 'planr_tour_done';
+  const NEW_SEEN_KEY = 'planr_new_seen_v1';
+  const [tourStep, setTourStep] = useState(null);
+  // Show new-feature popover once for existing users (has a project, hasn't seen v1 yet)
+  const [showNewFeat, setShowNewFeat] = useState(() => {
+    try {
+      const seen = localStorage.getItem(NEW_SEEN_KEY);
+      const hasProject = !!localStorage.getItem(SK);
+      return !seen && hasProject;
+    } catch { return false; }
+  });
+  const dismissNewFeat = () => {
+    setShowNewFeat(false);
+    try { localStorage.setItem(NEW_SEEN_KEY, '1'); } catch {}
+  };
+  const startTour = () => setTourStep(0);
+  const closeTour = () => {
+    setTourStep(null);
+    try { localStorage.setItem(TOUR_DONE_KEY, '1'); } catch {}
+  };
 
   async function rememberHandle(handle) {
     fileHandleRef.current = handle;
@@ -1228,15 +1252,43 @@ export default function App() {
 
   if (!data) return <>
     <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef} />
-    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
+    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => {
+      setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
+      // Auto-start tour for first-time users (tour not yet dismissed)
+      try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
+    }} />}
     <input ref={fRef} type="file" accept=".json" style={{ display: 'none' }} onChange={loadFile} />
   </>;
 
   // removed: topDownReady guide bubble (was blocking tree view)
 
+  // "New!" badge: shown on tabs until the user dismisses the new-feature popover
+  const showNewBadge = showNewFeat;
   const TABS = [
-    { id: 'summary', label: _t('tab.summary') }, { id: 'plan', label: _t('tab.plan') }, { id: 'tree', label: _t('tab.tree') }, { id: 'gantt', label: _t('tab.gantt') },
-    { id: 'net', label: _t('tab.net') }, { id: 'resources', label: _t('tab.resources') }, { id: 'holidays', label: _t('tab.holidays') },
+    { id: 'summary', label: _t('tab.summary'), isNew: showNewBadge },
+    { id: 'plan', label: _t('tab.plan'), isNew: showNewBadge },
+    { id: 'tree', label: _t('tab.tree') },
+    { id: 'gantt', label: _t('tab.gantt'), isNew: showNewBadge },
+    { id: 'net', label: _t('tab.net') },
+    { id: 'resources', label: _t('tab.resources') },
+    { id: 'holidays', label: _t('tab.holidays') },
+  ];
+
+  // ── Tour steps (resolved at render time so they pick up the active language) ──
+  const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
+    icon: _t(`tour.s${i}.icon`),
+    title: _t(`tour.s${i}.title`),
+    body: _t(`tour.s${i}.body`),
+  }));
+
+  // ── New-feature list (shown once to existing users) ──
+  const NEW_FEATURES = [
+    _t('new.roadmap'),
+    _t('new.dayZoom'),
+    _t('new.confidence'),
+    _t('new.dragLink'),
+    _t('new.planReview'),
+    // TODO: add Network Graph improvements once documented
   ];
 
   return <div className="app">
@@ -1295,6 +1347,8 @@ export default function App() {
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
+      <button className="btn btn-ghost btn-sm" title={_t('tour.helpTitle')} style={{ padding: '4px 8px', fontWeight: 700 }}
+        onClick={startTour}>{_t('tour.help')}</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
@@ -1312,7 +1366,12 @@ export default function App() {
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">
-      {TABS.map(t => <div key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</div>)}
+      {TABS.map(t => (
+        <div key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
+          {t.label}
+          {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+        </div>
+      ))}
       <div style={{ flex: 1 }} />
     </div>
     {(tab === 'tree' || tab === 'gantt' || tab === 'net') && <div className="subtoolbar">
@@ -1503,7 +1562,7 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
@@ -1521,17 +1580,52 @@ export default function App() {
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
       {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue} />}
-    {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
-    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onClose={() => setModal(null)} />}
+    {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
-    {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []}
+    {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
     {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
+
+    {/* ── Onboarding tour ── */}
+    {tourStep !== null && (
+      <Tour
+        steps={TOUR_STEPS}
+        step={tourStep}
+        onNext={() => setTourStep(s => Math.min(s + 1, TOUR_STEPS.length - 1))}
+        onPrev={() => setTourStep(s => Math.max(s - 1, 0))}
+        onSkip={closeTour}
+      />
+    )}
+
+    {/* ── New-feature popover (one-time, existing users) ── */}
+    {showNewFeat && tourStep === null && (
+      <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
+        <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
+          <div className="new-feat-title">
+            <span style={{ fontSize: 16 }}>🎉</span>
+            {_t('new.title')}
+          </div>
+          <ul className="new-feat-list">
+            {NEW_FEATURES.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+          <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, color: 'var(--tx3)' }}
+              onClick={() => { dismissNewFeat(); startTour(); }}>
+              {_t('tour.restartTour')} →
+            </button>
+            <button className="btn btn-pri btn-sm" onClick={dismissNewFeat}>
+              {_t('new.dismiss')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>;
 }

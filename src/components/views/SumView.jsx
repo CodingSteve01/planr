@@ -40,8 +40,8 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     upcoming.forEach(s => {
       const key = s.personId || `team:${s.team || 'none'}`;
       if (!groups.has(key)) {
-        const tName = teams.find(t => t.id === s.team)?.name || s.team || 'No team';
-        groups.set(key, { key, label: s.personId ? s.person : `${tName} (unassigned)`, isPerson: !!s.personId, color: s.personId ? 'var(--ac)' : 'var(--tx3)', items: [] });
+        const tName = teams.find(tm => tm.id === s.team)?.name || s.team || t('noTeam');
+        groups.set(key, { key, label: s.personId ? s.person : `${tName} ${t('pc.unassigned')}`, isPerson: !!s.personId, color: s.personId ? 'var(--ac)' : 'var(--tx3)', items: [] });
       }
       groups.get(key).items.push(s);
     });
@@ -113,24 +113,24 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
         return maxEnd && new Date(g.date) < maxEnd;
       });
       const checks = [
-        h1NoAssign.length > 0 && { warn: true, text: `${h1NoAssign.length} Tasks in H1 ohne Person`, items: h1NoAssign },
-        h1NoEstimate.length > 0 && { warn: true, text: `${h1NoEstimate.length} Tasks in H1 ohne Schätzung`, items: h1NoEstimate },
-        h2Exploratory.length > 0 && { warn: true, text: `${h2Exploratory.length} Tasks in H2 noch explorativ`, items: h2Exploratory },
-        blockedNoOwner.length > 0 && { warn: true, text: `${blockedNoOwner.length} blockierte Tasks ohne Person`, items: blockedNoOwner },
-        deadlinesAtRisk.length > 0 && { warn: true, text: `${deadlinesAtRisk.length} Deadlines gefährdet`, items: deadlinesAtRisk },
+        h1NoAssign.length > 0 && { warn: true, text: t('pc.h1NoPerson', h1NoAssign.length), items: h1NoAssign },
+        h1NoEstimate.length > 0 && { warn: true, text: t('pc.h1NoEstimate', h1NoEstimate.length), items: h1NoEstimate },
+        h2Exploratory.length > 0 && { warn: true, text: t('pc.h2Exploratory', h2Exploratory.length), items: h2Exploratory },
+        blockedNoOwner.length > 0 && { warn: true, text: t('pc.blockedNoPerson', blockedNoOwner.length), items: blockedNoOwner },
+        deadlinesAtRisk.length > 0 && { warn: true, text: t('pc.deadlinesAtRisk', deadlinesAtRisk.length), items: deadlinesAtRisk },
       ].filter(Boolean);
       const allClear = checks.length === 0;
 
       return <div style={{ background: 'var(--bg2)', border: `1px solid ${allClear ? 'var(--gr)' : 'var(--am)'}`, borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: checks.length ? 10 : 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>Pulse Check</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>{t('pc.title')}</span>
           <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
             <span style={{ color: 'var(--gr)' }}>H1 {iso(h1Date)}</span>
             <span style={{ color: 'var(--am)' }}>H2 {iso(h2Date)}</span>
           </div>
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
-        {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>Alles im grünen Bereich — keine offenen Punkte.</div>}
+        {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>{t('pc.allClear')}</div>}
         {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
           <span style={{ color: 'var(--am)', flexShrink: 0 }}>⚠</span>
           <span style={{ color: 'var(--tx)' }}>{c.text}</span>
@@ -161,7 +161,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
             <span style={{ fontSize: 13 }}>{GT[dl.type]}</span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
-            {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{daysLeft}d left</span>}
+            {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
             <span style={{ marginLeft: 'auto' }}>
               {dl.type === 'deadline' && isLate ? <span className="badge bc">{t('s.atRisk')}</span> : dl.type === 'deadline' && maxEnd ? <span className="badge bd">{t('s.onTrack')}</span> : null}
               {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
@@ -219,7 +219,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{s.effort?.toFixed(0)}d</span>
               </div>;
             })}
-            {g.items.length > 8 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: '3px 0' }}>+ {g.items.length - 8} more</div>}
+            {g.items.length > 8 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: '3px 0' }}>{t('pc.moreItems', g.items.length - 8)}</div>}
           </div>
         </div>)}
       </div>

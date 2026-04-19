@@ -8,14 +8,21 @@ import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
+import { DEFAULT_SIZES } from '../../utils/sizes.js';
 
-const REASON_TIP = { 'manual': 'Manuell gesetzt', 'done': 'Erledigt', 'auto:person+estimate': 'Person + Schätzung vorhanden', 'auto:no-person': 'Keine Person zugewiesen', 'auto:high-risk': 'Risikofaktor ≥ 2.0', 'auto:no-estimate': 'Keine Schätzung', 'inherited': 'Vom schlechtesten Kind-Element' };
+// REASON_TIP is built inside the component using t() — see reasonTip helper below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
   const { t } = useT();
+  const REASON_TIP = {
+    'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
+    'auto:person+estimate': t('g.reasonPersonEstimate'), 'auto:no-person': t('g.reasonNoPerson'),
+    'auto:high-risk': t('g.reasonHighRisk'), 'auto:no-estimate': t('g.reasonNoEstimate'),
+    'inherited': t('g.reasonInherited'),
+  };
   const [f, setF] = useState({ ...node });
 
   useEffect(() => {
@@ -36,7 +43,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, scheduled
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const allIds = tree.map(r => r.id).filter(id => id !== node.id);
-  const SIZES = [['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]];
+  const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor]);
   const nearestSize = f.best > 0 ? SIZES.reduce((best, size) => Math.abs(size[1] - f.best) < Math.abs(best[1] - f.best) ? size : best, SIZES[0]) : null;
   const phases = normalizePhases(f.phases);
   const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;

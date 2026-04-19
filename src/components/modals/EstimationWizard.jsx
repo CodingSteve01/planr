@@ -3,22 +3,16 @@ import { leafNodes, parentId } from '../../utils/scheduler.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { instantiateTemplatePhases, normalizePhases, phaseTeamLabel } from '../../utils/phases.js';
 import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
+import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 
-const SIZE_DATA = [
-  { label: 'XS', days: 1, key: 'ew.xs' },
-  { label: 'S', days: 3, key: 'ew.s' },
-  { label: 'M', days: 7, key: 'ew.m' },
-  { label: 'L', days: 15, key: 'ew.l' },
-  { label: 'XL', days: 30, key: 'ew.xl' },
-  { label: 'XXL', days: 45, key: 'ew.xxl' },
-];
-
-export function EstimationWizard({ node, tree, teams, taskTemplates, risks: projectRisks, onSave, onClose }) {
+export function EstimationWizard({ node, tree, teams, taskTemplates, risks: projectRisks, sizes: projectSizes, onSave, onClose }) {
   const { t } = useT();
   const tTemplates = Array.isArray(taskTemplates) ? taskTemplates : [];
 
-  const SIZES = useMemo(() => SIZE_DATA.map(s => ({ ...s, desc: t(s.key) })), [t]);
+  // Use project-defined sizes if available, otherwise defaults
+  const SIZE_DATA = useMemo(() => projectSizes?.length ? projectSizes : DEFAULT_SIZES, [projectSizes]);
+  const SIZES = SIZE_DATA;
   // Use project-defined risks if available, otherwise defaults (multi-lingual)
   const RISK_DATA = useMemo(() => projectRisks?.length ? projectRisks : DEFAULT_RISKS, [projectRisks]);
   const RISKS = useMemo(() => RISK_DATA.map(r => ({ ...r, label: resolveRiskName(r, t) })), [RISK_DATA, t]);
@@ -175,7 +169,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: size === i ? 'var(--ac2)' + '22' : 'var(--bg3)', border: `1px solid ${size === i ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
             onClick={() => onSizeSelect(i)}>
             <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 16, width: 40, color: size === i ? 'var(--ac)' : 'var(--tx2)' }}>{s.label}</span>
-            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} {t('days')}</div><div style={{ fontSize: 11, color: 'var(--tx3)' }}>{s.desc}</div></div>
+            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} {t('days')}</div>{s.desc && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{s.desc}</div>}</div>
           </div>)}
         </div>
       </div>}

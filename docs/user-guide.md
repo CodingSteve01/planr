@@ -1,5 +1,7 @@
 # User Guide
 
+> **Planr is a desktop-first web application. It's optimized for large screens and keyboard/mouse interaction — it's not intended for mobile use.**
+
 End-to-end walkthrough for planning a project in Planr. If you want the feature catalog, see [features.md](features.md). View-specific details live in [gantt.md](gantt.md) and [network-graph.md](network-graph.md).
 
 Want to skip local setup? Open Planr directly: **https://codingsteve01.github.io/planr**
@@ -28,7 +30,7 @@ Open the **Resources** tab.
   - **start** — availability start date; capacity is zero before this
 - Explicit vacation weeks go under **Vacations** — per-person, per-week entries with zero capacity.
 
-> **Current limitation:** one member = one team. If someone works across teams with different capacities, the pragmatic workaround is multiple resource entries (e.g. "Steffen — BE 30%", "Steffen — FE 20%"). A proper multi-team model is planned.
+> **Current limitation:** one member = one team. If someone works across teams with different capacities, the pragmatic workaround is multiple resource entries (e.g. "Alex — Backend 30%", "Alex — Frontend 20%"). A proper multi-team model is planned.
 
 ## 3. Build the work tree
 
@@ -56,7 +58,7 @@ Two paths:
 
 **Estimation Wizard** — PERT 3-point. Enter **optimistic**, **most likely**, and **pessimistic**. The wizard now also lets you pick the workflow template directly, so a fresh branch can be classified and estimated in one pass.
 
-T-shirt sizes are purely visual (XS/S/M/L/XL/XXL) and are derived from `best`.
+T-shirt sizes (XS/S/M/L/XL/XXL by default) are configurable under **Settings → T-Shirt Sizes** — you can rename, reorder, add, or remove sizes and change the day counts. The selected size pre-fills the three-point estimate inputs and sets the default uncertainty factor.
 
 **Confidence** is auto-derived per leaf based on assignment, estimate, and risk factors. You can override it manually or via the Estimation Wizard (which now includes a dedicated Confidence step suggesting a level based on the risks you entered). Three levels:
 
@@ -116,14 +118,15 @@ See [scheduler.md](scheduler.md) for the algorithm.
 
 ## 8. Review the result
 
-Five views, each with a different lens:
+Six views, each with a different lens:
 
 - **Tree** — structure and progress
 - **Gantt** — timeline, conflicts, critical path, confidence bar styling — see [gantt.md](gantt.md)
 - **Network** — dependency topology and critical path — see [network-graph.md](network-graph.md)
-- In **Network**, you can now also narrow the graph via the sub-toolbar:
+- In **Network**, you can also narrow the graph via the sub-toolbar:
   - **Root filter** — inspect just one top-level branch
   - **Team filter** — inspect only one team's slice, while keeping ancestors visible for context
+- **Roadmap** — metro-style map showing all projects as colored subway lines. Each station represents a cluster of tasks with similar end dates. A pulsing train marker shows progress along the line (effort-weighted). Hover stations or legend items for tooltips; click a legend item to open that task directly. Projects are assigned to fixed routes by duration — the map is stable as the plan evolves.
 - **Summary** — per-goal progress, deadline risk, team load
 - **Planning** — the Planning Review tab with four sections:
   - **Decisions** — items that are ready (no blocking deps) but need a person assigned. Quick-assign inline.
@@ -193,6 +196,6 @@ These are deliberate — don't fight them:
 
 - **Single click, not double click.** One click opens the QuickEdit sidebar. The `⊞` button opens the full modal.
 - **Scroll = pan, pinch = zoom** (network graph). Wheel does NOT zoom.
-- **Names, never IDs.** The app always shows `Frontend` and `Georg Bez`, never `FE` and `georg`.
+- **Names, never IDs.** The app always shows `Frontend` and `Alex Kim`, never `FE` and `alex`.
 - **Perceived 100 % = 150 % real zoom** in the graph. The zoom label divides by 1.5 so "100 %" looks natural.
 - **Searchable dropdowns** whenever a list has more than about 5 items. Type to filter.

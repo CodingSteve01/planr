@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
 import { GT, GL } from '../../constants.js';
+import { useT } from '../../i18n.jsx';
 
 export function NewProjModal({ onCreate, onClose }) {
+  const { t } = useT();
   const today = iso(new Date()), twoY = iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const [step, setStep] = useState(1);
   const [f, setF] = useState({ name: '', planStart: today, planEnd: twoY, holidays: 'NRW' });
@@ -43,16 +45,16 @@ export function NewProjModal({ onCreate, onClose }) {
 
   return <div className="overlay">
     <div className="modal modal-lg fade">
-      <h2>New project {step === 2 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontWeight: 400 }}>— Focus</span>}</h2>
+      <h2>{t('np.title')} {step === 2 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontWeight: 400 }}>{t('np.titleFocus')}</span>}</h2>
 
       {step === 1 && <>
-        <div className="field"><label>Project name</label>
-          <input value={f.name} onChange={e => sf('name', e.target.value)} placeholder="My project" autoFocus />
+        <div className="field"><label>{t('np.projectName')}</label>
+          <input value={f.name} onChange={e => sf('name', e.target.value)} placeholder={t('np.projectNamePlaceholder')} autoFocus />
         </div>
         <div className="frow">
-          <div className="field"><label>Plan start</label><input type="date" value={f.planStart} onChange={e => sf('planStart', e.target.value)} /></div>
-          <div className="field"><label>Plan end</label><input type="date" value={f.planEnd} onChange={e => sf('planEnd', e.target.value)} /></div>
-          <div className="field"><label>Holidays</label>
+          <div className="field"><label>{t('np.planStart')}</label><input type="date" value={f.planStart} onChange={e => sf('planStart', e.target.value)} /></div>
+          <div className="field"><label>{t('np.planEnd')}</label><input type="date" value={f.planEnd} onChange={e => sf('planEnd', e.target.value)} /></div>
+          <div className="field"><label>{t('np.holidays')}</label>
             <select value={f.holidays} onChange={e => sf('holidays', e.target.value)}>
               <option value="NRW">Germany — NRW</option><option value="none">None</option>
             </select>
@@ -60,39 +62,39 @@ export function NewProjModal({ onCreate, onClose }) {
         </div>
         <hr className="divider" />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>Teams</div>
-          <button className="btn btn-sec btn-sm" onClick={() => setTs(ts => [...ts, { id: `T${ts.length + 1}`, name: '', color: '#a78bfa' }])}>+ Add team</button>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>{t('np.teams')}</div>
+          <button className="btn btn-sec btn-sm" onClick={() => setTs(ts => [...ts, { id: `T${ts.length + 1}`, name: '', color: '#a78bfa' }])}>{t('np.addTeam')}</button>
         </div>
-        {ts.map((t, i) => <div key={i} className="frow" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
-          <div className="field" style={{ flex: '0 0 70px' }}><label>ID</label><input value={t.id} onChange={e => upT(i, 'id', e.target.value)} /></div>
-          <div className="field"><label>Name</label><input value={t.name} onChange={e => upT(i, 'name', e.target.value)} placeholder="Team name" /></div>
-          <div className="field" style={{ flex: '0 0 55px' }}><label>Color</label><input type="color" value={t.color} onChange={e => upT(i, 'color', e.target.value)} /></div>
-          <div style={{ marginBottom: 12 }}><button className="btn btn-danger btn-sm" onClick={() => setTs(ts => ts.filter((_, j) => j !== i))}>Remove</button></div>
+        {ts.map((tm, i) => <div key={i} className="frow" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
+          <div className="field" style={{ flex: '0 0 70px' }}><label>{t('np.teamId')}</label><input value={tm.id} onChange={e => upT(i, 'id', e.target.value)} /></div>
+          <div className="field"><label>{t('np.teamName')}</label><input value={tm.name} onChange={e => upT(i, 'name', e.target.value)} placeholder={t('np.teamNamePlaceholder')} /></div>
+          <div className="field" style={{ flex: '0 0 55px' }}><label>{t('np.teamColor')}</label><input type="color" value={tm.color} onChange={e => upT(i, 'color', e.target.value)} /></div>
+          <div style={{ marginBottom: 12 }}><button className="btn btn-danger btn-sm" onClick={() => setTs(ts => ts.filter((_, j) => j !== i))}>{t('np.removeTeam')}</button></div>
         </div>)}
         <div className="modal-footer">
-          <button className="btn btn-sec" onClick={onClose}>Cancel</button>
-          <button className="btn btn-pri" disabled={!f.name} onClick={() => setStep(2)}>Next →</button>
+          <button className="btn btn-sec" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn btn-pri" disabled={!f.name} onClick={() => setStep(2)}>{t('np.nextFocus')}</button>
         </div>
       </>}
 
       {step === 2 && <>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>Start with the big topics: goals, painpoints, and deadlines. Planr will create them as top-level items so you can break them down into causes, measures, and leaf tasks afterwards.</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>{t('np.focusLead')}</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-          {Object.keys(GT).map(t => <button key={t} className="goal-type-btn" onClick={() => addG(t)}>{GT[t]} Add {GL[t]}</button>)}
+          {Object.keys(GT).map(tp => <button key={tp} className="goal-type-btn" onClick={() => addG(tp)}>{GT[tp]} {t('np.addGoal', GL[tp])}</button>)}
         </div>
         {goals.map((g, i) => <div key={g.id} style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 10, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 14 }}>{GT[g.type]}</span>
             <input style={{ flex: 1, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 8px', outline: 'none' }} placeholder={GL[g.type] + ' name'} value={g.name} onChange={e => upG(i, 'name', e.target.value)} />
             {g.type === 'deadline' && <input type="date" style={{ width: 130, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 11, padding: '5px 6px', outline: 'none' }} value={g.date || ''} onChange={e => upG(i, 'date', e.target.value)} />}
-            <button className="btn btn-danger btn-xs" onClick={() => setGoals(gs => gs.filter((_, j) => j !== i))}>Remove</button>
+            <button className="btn btn-danger btn-xs" onClick={() => setGoals(gs => gs.filter((_, j) => j !== i))}>{t('rv.remove')}</button>
           </div>
-          <input style={{ width: '100%', background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx2)', fontSize: 11, padding: '4px 8px', outline: 'none' }} placeholder="Description (optional)" value={g.description || ''} onChange={e => upG(i, 'description', e.target.value)} />
+          <input style={{ width: '100%', background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx2)', fontSize: 11, padding: '4px 8px', outline: 'none' }} placeholder={t('np.descPlaceholder')} value={g.description || ''} onChange={e => upG(i, 'description', e.target.value)} />
         </div>)}
-        {!goals.length && <div style={{ textAlign: 'center', padding: 24, color: 'var(--tx3)', fontSize: 11 }}>No focus items yet. Add some above, or skip this step.</div>}
+        {!goals.length && <div style={{ textAlign: 'center', padding: 24, color: 'var(--tx3)', fontSize: 11 }}>{t('np.noFocus')}</div>}
         <div className="modal-footer">
-          <button className="btn btn-sec" onClick={() => setStep(1)}>← Back</button>
-          <button className="btn btn-pri" onClick={doCreate}>Create project</button>
+          <button className="btn btn-sec" onClick={() => setStep(1)}>{t('np.backStep')}</button>
+          <button className="btn btn-pri" onClick={doCreate}>{t('np.createProject')}</button>
         </div>
       </>}
     </div>

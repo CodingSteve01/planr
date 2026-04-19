@@ -3,8 +3,9 @@ import { nextChildId } from '../../utils/scheduler.js';
 import { instantiateTemplatePhases } from '../../utils/phases.js';
 import { GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { DEFAULT_SIZES } from '../../utils/sizes.js';
 
-export function AddModal({ tree, teams, taskTemplates, selected, onAdd, onClose }) {
+export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, selected, onAdd, onClose }) {
   const defParent = useMemo(() => selected?.id || '', [selected]);
 
   const parents = useMemo(() => {
@@ -84,9 +85,9 @@ export function AddModal({ tree, teams, taskTemplates, selected, onAdd, onClose 
         </div>}
         <div className="field"><label>Quick estimate (optional)</label>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {[['XS', 1, 1.3], ['S', 3, 1.3], ['M', 7, 1.4], ['L', 15, 1.5], ['XL', 30, 1.5], ['XXL', 45, 1.6]].map(([sz, d, fc]) =>
-              <button key={sz} type="button" className={`btn ${f.best === d ? 'btn-pri' : 'btn-sec'} btn-sm`}
-                onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>)}
+            {(projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(sz =>
+              <button key={sz.label} type="button" className={`btn ${f.best === sz.days ? 'btn-pri' : 'btn-sec'} btn-sm`}
+                onClick={() => { s('best', sz.days); s('factor', sz.factor); }}>{sz.label}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{sz.days}d</span></button>)}
           </div>
           <p className="helper">Leave at 0 for structural grouping items — estimates aggregate from children.</p>
         </div>

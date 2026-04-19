@@ -4,6 +4,7 @@
 import { iso } from './date.js';
 import { buildMemberShortMap } from '../App.jsx';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
+import { DEFAULT_SIZES } from './sizes.js';
 
 // ── Export: data → Markdown ──────────────────────────────────────────────────
 export function buildMarkdownText({ tree, members, teams, vacations, data, meta }) {
@@ -11,7 +12,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   const memberName = id => members.find(m => m.id === id)?.name || id;
   const shortMap = buildMemberShortMap(members);
   const memberShort = id => shortMap[id] || memberName(id);
-  const SZ = { 1: 'XS', 3: 'S', 7: 'M', 15: 'L', 30: 'XL', 45: 'XXL' };
+  const activeSizes = data?.sizes?.length ? data.sizes : DEFAULT_SIZES;
+  const SZ = Object.fromEntries(activeSizes.map(s => [s.days, s.label]));
   const sz = b => { const k = Object.keys(SZ).map(Number).sort((a, c) => Math.abs(a - b) - Math.abs(c - b)); return SZ[k[0]] || ''; };
   const esc = s => (s || '').toString().replace(/\|/g, '\\|').replace(/\n/g, ' ');
   let md = `# ${meta.name || 'Project'}\n\n`;

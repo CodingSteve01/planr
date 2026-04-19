@@ -66,7 +66,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       <h2>Jira Export</h2>
 
       {/* Root selection */}
-      <div className="field"><label>Pakete auswählen</label>
+      <div className="field"><label>{t('je.selectPackages')}</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {roots.map(r => {
             const on = selectedRoots.has(r.id);
@@ -81,19 +81,19 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       </div>
 
       {/* Hierarchy mapping */}
-      <div className="field"><label>Hierarchie-Mapping</label>
+      <div className="field"><label>{t('je.hierarchyMapping')}</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: 11, alignItems: 'center' }}>
-          <span style={{ color: 'var(--tx3)' }}>Level 1 (Root)</span>
+          <span style={{ color: 'var(--tx3)' }}>{t('je.level1')}</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {['Epic', 'Story', 'Task'].map(v => <button key={v} className={`btn btn-xs ${mapping[1] === v ? 'btn-pri' : 'btn-sec'}`}
               onClick={() => setMapping(m => ({ ...m, 1: v }))}>{v}</button>)}
           </div>
-          <span style={{ color: 'var(--tx3)' }}>Level 2+</span>
+          <span style={{ color: 'var(--tx3)' }}>{t('je.level2')}</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {['Epic', 'Story', 'Task'].map(v => <button key={v} className={`btn btn-xs ${mapping[2] === v ? 'btn-pri' : 'btn-sec'}`}
               onClick={() => setMapping(m => ({ ...m, 2: v }))}>{v}</button>)}
           </div>
-          <span style={{ color: 'var(--tx3)' }}>Leaves (Arbeitspakete)</span>
+          <span style={{ color: 'var(--tx3)' }}>{t('je.leaves')}</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {['Story', 'Task', 'Sub-task'].map(v => <button key={v} className={`btn btn-xs ${mapping.leaf === v ? 'btn-pri' : 'btn-sec'}`}
               onClick={() => setMapping(m => ({ ...m, leaf: v }))}>{v}</button>)}
@@ -104,10 +104,10 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       {/* Options */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 11 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <input type="checkbox" checked={skipDone} onChange={e => setSkipDone(e.target.checked)} /> Erledigte überspringen
+          <input type="checkbox" checked={skipDone} onChange={e => setSkipDone(e.target.checked)} /> {t('je.skipDone')}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <input type="checkbox" checked={includeAutoAssign} onChange={e => setIncludeAutoAssign(e.target.checked)} /> Scheduler-Vorschläge als Assignee
+          <input type="checkbox" checked={includeAutoAssign} onChange={e => setIncludeAutoAssign(e.target.checked)} /> {t('je.includeAutoAssign')}
         </label>
       </div>
 
@@ -125,7 +125,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
             {r.assigneeName && <span style={{ color: 'var(--ac)', flexShrink: 0 }}>{r.assigneeName.split(' ')[0]}</span>}
           </div>
         ))}
-        {preview.length > 30 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>+ {preview.length - 30} weitere</div>}
+        {preview.length > 30 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>{t('je.moreItems', preview.length - 30)}</div>}
       </div>
 
       <div className="modal-footer">

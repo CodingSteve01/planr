@@ -197,11 +197,136 @@ const en = {
   'tv.items': 'items', 'tv.leafs': 'leafs',
   'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams', 'tv.allRoots': 'All items',
 
+  // ── Sizes ──
+  'set.sizes': 'T-Shirt Sizes', 'set.sizeCatalogue': 'T-Shirt Size Catalogue',
+  'set.sizeHelp': 'These sizes appear in the Estimation Wizard and quick-estimate pickers. Each size sets the default best-case day count and uncertainty factor.',
+  'set.sizeLabel': 'Label', 'set.sizeDays': 'Days', 'set.sizeFactor': 'Factor',
+  'set.sizeLabelPlaceholder': 'e.g. M', 'set.addSize': '+ Size',
+  'set.resetSizes': 'Reset to defaults', 'set.confirmResetSizes': 'Reset sizes to default values?',
+
   // ── Risks ──
   'set.risks': 'Risks', 'set.riskCatalogue': 'Risk Catalogue',
   'set.riskHelp': 'These risks appear in the Estimation Wizard. Each selected risk increases the uncertainty factor by its weight.',
   'set.riskName': 'Risk description', 'set.addRisk': '+ Risk',
   'set.resetRisks': 'Reset to defaults', 'set.confirmResetRisks': 'Reset risks to default values?',
+
+  // ── AutoAssignHint ──
+  'aa.suggestion': 'Suggestion:', 'aa.accept': 'Accept',
+
+  // ── NewProjModal ──
+  'np.title': 'New project', 'np.titleFocus': '— Focus',
+  'np.projectName': 'Project name', 'np.projectNamePlaceholder': 'My project',
+  'np.planStart': 'Plan start', 'np.planEnd': 'Plan end', 'np.holidays': 'Holidays',
+  'np.teams': 'Teams', 'np.addTeam': '+ Add team',
+  'np.teamId': 'ID', 'np.teamName': 'Name', 'np.teamNamePlaceholder': 'Team name',
+  'np.teamColor': 'Color', 'np.removeTeam': 'Remove',
+  'np.nextFocus': 'Next →', 'np.backStep': '← Back',
+  'np.createProject': 'Create project',
+  'np.focusLead': 'Start with the big topics: goals, painpoints, and deadlines. Planr will create them as top-level items so you can break them down into causes, measures, and leaf tasks afterwards.',
+  'np.addGoal': 'Add {0}',
+  'np.noFocus': 'No focus items yet. Add some above, or skip this step.',
+  'np.descPlaceholder': 'Description (optional)',
+
+  // ── Roadmap ──
+  'rm.train': 'Train', 'rm.currentPos': 'Current position: {0}% of route', 'rm.atRisk': 'AT RISK',
+
+  // ── SumView – Pulse Check ──
+  'pc.title': 'Pulse Check',
+  'pc.allClear': 'All clear — no open issues.',
+  'pc.h1NoPerson': '{0} tasks in H1 without person',
+  'pc.h1NoEstimate': '{0} tasks in H1 without estimate',
+  'pc.h2Exploratory': '{0} tasks in H2 still exploratory',
+  'pc.blockedNoPerson': '{0} blocked tasks without person',
+  'pc.deadlinesAtRisk': '{0} deadlines at risk',
+  'pc.dLeft': '{0}d left',
+  'pc.moreItems': '+ {0} more',
+  'pc.unassigned': '(unassigned)',
+
+  // ── GanttView – confidence reason tooltips ──
+  'g.reasonManual': 'Set manually', 'g.reasonDone': 'Done',
+  'g.reasonPersonEstimate': 'Person + estimate present', 'g.reasonNoPerson': 'No person assigned',
+  'g.reasonHighRisk': 'Risk factor ≥ 2.0', 'g.reasonNoEstimate': 'No estimate',
+  'g.reasonInherited': 'Derived from worst child item',
+
+  // ── PlanReview – confidence reason labels ──
+  'pr.reasonManual': 'Set manually', 'pr.reasonDone': 'Done',
+  'pr.reasonPersonEstimate': 'Auto: person + estimate present', 'pr.reasonNoPerson': 'Auto: no person assigned',
+  'pr.reasonHighRisk': 'Auto: risk factor ≥ 2.0', 'pr.reasonNoEstimate': 'Auto: no estimate',
+  'pr.reasonInherited': 'Derived from worst child item',
+  'pr.currentPhases': 'Current phases', 'pr.allOpen': 'All open ({0})',
+  'pr.current': 'current', 'pr.waitingOn': 'waiting on {0}',
+  'pr.ptOpen': '{0} PT open ({1})',
+
+  // ── ResView ──
+  'rv.teams': 'Teams', 'rv.addTeam': '+ Add team',
+  'rv.members': 'Team Members', 'rv.addPerson': '+ Add person',
+  'rv.noMembers': 'No team members yet.',
+  'rv.noMembersHint': 'Add people to assign tasks and plan capacity.',
+  'rv.vacations': 'Vacation Weeks', 'rv.addWeek': '+ Add week',
+  'rv.vacHint': 'Enter Monday date of each vacation week (YYYY-MM-DD). Scheduler skips that week for the person.',
+  'rv.fullName': 'Full name', 'rv.role': 'Role', 'rv.capacityPct': 'Capacity %',
+  'rv.vacDays': 'Vacation days/yr', 'rv.startDate': 'Start date', 'rv.endDate': 'End date',
+  'rv.chooseTeam': 'Choose team...', 'rv.choosePerson': 'Choose person...',
+  'rv.person': 'Person', 'rv.weekStart': 'Week start (Mon)', 'rv.note': 'Note',
+  'rv.remove': 'Remove', 'rv.clone': '⧉ Clone',
+
+  // ── JiraExportModal ──
+  'je.selectPackages': 'Select packages', 'je.hierarchyMapping': 'Hierarchy mapping',
+  'je.skipDone': 'Skip done items', 'je.includeAutoAssign': 'Include scheduler suggestions as assignee',
+  'je.moreItems': '+ {0} more',
+  'je.level1': 'Level 1 (Root)', 'je.level2': 'Level 2+', 'je.leaves': 'Leaves (work packages)',
+
+  // ── TreeView – toolbar strings ──
+  'tv.collapseSelection': 'Collapse selection ({0})', 'tv.expandSelection': 'Expand selection ({0})',
+  'tv.collapseSelectionTitle': 'Collapse {0} selected items + their children',
+  'tv.expandSelectionTitle': 'Expand {0} selected items + their children',
+  'tv.selected': 'Selected',
+  'tv.deleteItem': '× Delete',
+  'tv.statusOpen': 'Open', 'tv.statusWip': 'In Progress', 'tv.statusDone': 'Done',
+  'tv.prioCrit': 'crit', 'tv.prioHigh': 'high', 'tv.prioMed': 'med', 'tv.prioLow': 'low',
+
+  // ── Onboard splash ──
+  'ob.sub': 'Resource-aware project scheduler',
+  'ob.newProject': 'Start new project',
+  'ob.loadProject': 'Load project (.json)',
+  'ob.feat.tree': 'Work Tree', 'ob.feat.tree.desc': 'Hierarchical WBS with deps & multiple assignments',
+  'ob.feat.auto': 'Auto-schedule', 'ob.feat.auto.desc': 'Person-level parallel scheduling + capacity planning',
+  'ob.feat.horizons': '3 Horizons', 'ob.feat.horizons.desc': 'Committed, estimated, exploratory planning windows',
+  'ob.feat.cp': 'Critical Path', 'ob.feat.cp.desc': 'CPM analysis — see what drives your end date',
+  'ob.feat.net': 'Network Graph', 'ob.feat.net.desc': 'Visual dependency map, zoom/pan, click to edit',
+  'ob.feat.focus': 'Focus Areas', 'ob.feat.focus.desc': 'Goals, painpoints, deadlines, and top-down planning',
+  'ob.feat.save': 'Save / Load', 'ob.feat.save.desc': 'JSON export/import — works offline & GitHub Pages',
+
+  // ── Tour ──
+  'tour.aria': 'Planr tour', 'tour.step': 'Step {0} of {1}',
+  'tour.skip': 'Skip tour', 'tour.finish': 'Done',
+  'tour.help': '?',
+  'tour.helpTitle': 'Help',
+  'tour.restartTour': 'Restart tour',
+  'tour.whatsNew': "What's new",
+  'tour.newBadge': 'New',
+
+  // ── Tour steps ──
+  'tour.s0.icon': '🌳', 'tour.s0.title': 'Work Tree',
+  'tour.s0.body': 'Your project lives here as a tree. Add tasks, group them into packages, and nest them as deep as you need. Click a row to edit it in the side panel.',
+
+  'tour.s1.icon': '📅', 'tour.s1.title': 'Auto-schedule',
+  'tour.s1.body': 'Planr schedules every task automatically — person by person, respecting dependencies, capacity, and holidays. Switch to the Schedule tab to see the Gantt chart.',
+
+  'tour.s2.icon': '+', 'tour.s2.title': 'Add your first task',
+  'tour.s2.body': 'Click "+ Add item" in the Work Tree toolbar (or press the button when the tree is empty). Give it a name, assign a person, and add a rough estimate in days.',
+
+  'tour.s3.icon': '📊', 'tour.s3.title': 'Track progress',
+  'tour.s3.body': 'The Overview tab shows the project pulse: roadmap, planning confidence, focus items, and upcoming work. Set tasks to "In Progress" or "Done" to move the needle.',
+
+  // ── New-feature popover (shown once to existing users) ──
+  'new.title': "What's new in Planr",
+  'new.dismiss': 'Got it',
+  'new.roadmap': 'Metro Roadmap in Overview — visual bus-line progress per top-level package.',
+  'new.dayZoom': 'Day-level zoom in Schedule — drag the zoom slider past 70 px/week to see individual days.',
+  'new.confidence': 'Confidence markers on Gantt bars — ●◐○ shows how solid each estimate is.',
+  'new.dragLink': 'Drag-to-link dependencies — grab the edge handle of any Gantt bar and drop it on another.',
+  'new.planReview': 'Planning Review tab — confidence split, unassigned items, and blocked work in one place.',
 };
 
 const de = {
@@ -398,11 +523,136 @@ const de = {
   'tv.items': 'Items', 'tv.leafs': 'Leaves',
   'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams', 'tv.allRoots': 'Alle Pakete',
 
+  // ── Größen ──
+  'set.sizes': 'T-Shirt-Größen', 'set.sizeCatalogue': 'T-Shirt-Größen-Katalog',
+  'set.sizeHelp': 'Diese Größen erscheinen im Schätzungs-Wizard und in den Schnellschätzungs-Buttons. Jede Größe legt die Standard-Tagesanzahl (Best Case) und den Unsicherheitsfaktor fest.',
+  'set.sizeLabel': 'Bezeichnung', 'set.sizeDays': 'Tage', 'set.sizeFactor': 'Faktor',
+  'set.sizeLabelPlaceholder': 'z. B. M', 'set.addSize': '+ Größe',
+  'set.resetSizes': 'Standard wiederherstellen', 'set.confirmResetSizes': 'Größen auf Standardwerte zurücksetzen?',
+
   // ── Risiken ──
   'set.risks': 'Risiken', 'set.riskCatalogue': 'Risikokatalog',
   'set.riskHelp': 'Diese Risiken erscheinen im Schätzungs-Wizard. Jedes ausgewählte Risiko erhöht den Unsicherheitsfaktor um sein Gewicht.',
   'set.riskName': 'Risikobezeichnung', 'set.addRisk': '+ Risiko',
   'set.resetRisks': 'Standard wiederherstellen', 'set.confirmResetRisks': 'Risiken auf Standardwerte zurücksetzen?',
+
+  // ── AutoAssignHint ──
+  'aa.suggestion': 'Vorschlag:', 'aa.accept': 'Übernehmen',
+
+  // ── NewProjModal ──
+  'np.title': 'Neues Projekt', 'np.titleFocus': '— Fokus',
+  'np.projectName': 'Projektname', 'np.projectNamePlaceholder': 'Mein Projekt',
+  'np.planStart': 'Planstart', 'np.planEnd': 'Planende', 'np.holidays': 'Feiertage',
+  'np.teams': 'Teams', 'np.addTeam': '+ Team hinzufügen',
+  'np.teamId': 'ID', 'np.teamName': 'Name', 'np.teamNamePlaceholder': 'Teamname',
+  'np.teamColor': 'Farbe', 'np.removeTeam': 'Entfernen',
+  'np.nextFocus': 'Weiter →', 'np.backStep': '← Zurück',
+  'np.createProject': 'Projekt anlegen',
+  'np.focusLead': 'Starte mit den großen Themen: Ziele, Painpoints und Deadlines. Planr legt sie als Oberelemente an, damit du sie danach in Ursachen, Maßnahmen und Aufgaben aufbrechen kannst.',
+  'np.addGoal': '{0} hinzufügen',
+  'np.noFocus': 'Noch keine Fokus-Items. Füge welche hinzu oder überspringe diesen Schritt.',
+  'np.descPlaceholder': 'Beschreibung (optional)',
+
+  // ── Roadmap ──
+  'rm.train': 'Zug', 'rm.currentPos': 'Aktuelle Position: {0}% der Strecke', 'rm.atRisk': 'GEFÄHRDET',
+
+  // ── SumView – Pulse Check ──
+  'pc.title': 'Pulse Check',
+  'pc.allClear': 'Alles im grünen Bereich — keine offenen Punkte.',
+  'pc.h1NoPerson': '{0} Tasks in H1 ohne Person',
+  'pc.h1NoEstimate': '{0} Tasks in H1 ohne Schätzung',
+  'pc.h2Exploratory': '{0} Tasks in H2 noch explorativ',
+  'pc.blockedNoPerson': '{0} blockierte Tasks ohne Person',
+  'pc.deadlinesAtRisk': '{0} Deadlines gefährdet',
+  'pc.dLeft': '{0}T übrig',
+  'pc.moreItems': '+ {0} weitere',
+  'pc.unassigned': '(nicht zugewiesen)',
+
+  // ── GanttView – Confidence-Reason-Tooltips ──
+  'g.reasonManual': 'Manuell gesetzt', 'g.reasonDone': 'Erledigt',
+  'g.reasonPersonEstimate': 'Person + Schätzung vorhanden', 'g.reasonNoPerson': 'Keine Person zugewiesen',
+  'g.reasonHighRisk': 'Risikofaktor ≥ 2.0', 'g.reasonNoEstimate': 'Keine Schätzung',
+  'g.reasonInherited': 'Vom schlechtesten Kind-Element',
+
+  // ── PlanReview – Confidence-Reason-Labels ──
+  'pr.reasonManual': 'Manuell gesetzt', 'pr.reasonDone': 'Erledigt',
+  'pr.reasonPersonEstimate': 'Auto: Person + Schätzung vorhanden', 'pr.reasonNoPerson': 'Auto: keine Person zugewiesen',
+  'pr.reasonHighRisk': 'Auto: Risikofaktor ≥ 2.0', 'pr.reasonNoEstimate': 'Auto: keine Schätzung vorhanden',
+  'pr.reasonInherited': 'Abgeleitet vom schlechtesten Kind-Element',
+  'pr.currentPhases': 'Aktuelle Phasen', 'pr.allOpen': 'Alle offenen ({0})',
+  'pr.current': 'aktuell', 'pr.waitingOn': 'wartet auf {0}',
+  'pr.ptOpen': '{0} PT offen ({1})',
+
+  // ── ResView ──
+  'rv.teams': 'Teams', 'rv.addTeam': '+ Team hinzufügen',
+  'rv.members': 'Team-Mitglieder', 'rv.addPerson': '+ Person hinzufügen',
+  'rv.noMembers': 'Noch keine Team-Mitglieder.',
+  'rv.noMembersHint': 'Personen hinzufügen, um Aufgaben zuzuweisen und Kapazitäten zu planen.',
+  'rv.vacations': 'Urlaubswochen', 'rv.addWeek': '+ Woche hinzufügen',
+  'rv.vacHint': 'Montag-Datum jeder Urlaubswoche eingeben (JJJJ-MM-TT). Der Scheduler überspringt diese Woche für die Person.',
+  'rv.fullName': 'Vollständiger Name', 'rv.role': 'Rolle', 'rv.capacityPct': 'Kapazität %',
+  'rv.vacDays': 'Urlaubstage/Jahr', 'rv.startDate': 'Startdatum', 'rv.endDate': 'Enddatum',
+  'rv.chooseTeam': 'Team auswählen...', 'rv.choosePerson': 'Person auswählen...',
+  'rv.person': 'Person', 'rv.weekStart': 'Wochenstart (Mo)', 'rv.note': 'Notiz',
+  'rv.remove': 'Entfernen', 'rv.clone': '⧉ Klonen',
+
+  // ── JiraExportModal ──
+  'je.selectPackages': 'Pakete auswählen', 'je.hierarchyMapping': 'Hierarchie-Mapping',
+  'je.skipDone': 'Erledigte überspringen', 'je.includeAutoAssign': 'Scheduler-Vorschläge als Assignee',
+  'je.moreItems': '+ {0} weitere',
+  'je.level1': 'Ebene 1 (Root)', 'je.level2': 'Ebene 2+', 'je.leaves': 'Leaves (Arbeitspakete)',
+
+  // ── TreeView – Toolbar-Texte ──
+  'tv.collapseSelection': 'Auswahl zuklappen ({0})', 'tv.expandSelection': 'Auswahl aufklappen ({0})',
+  'tv.collapseSelectionTitle': '{0} ausgewählte Items + Kinder zuklappen',
+  'tv.expandSelectionTitle': '{0} ausgewählte Items + Kinder aufklappen',
+  'tv.selected': 'Ausgewählt',
+  'tv.deleteItem': '× Löschen',
+  'tv.statusOpen': 'Offen', 'tv.statusWip': 'In Bearbeitung', 'tv.statusDone': 'Erledigt',
+  'tv.prioCrit': 'krit.', 'tv.prioHigh': 'hoch', 'tv.prioMed': 'mittel', 'tv.prioLow': 'niedrig',
+
+  // ── Onboard-Splash ──
+  'ob.sub': 'Ressourcenbewusster Projektplaner',
+  'ob.newProject': 'Neues Projekt starten',
+  'ob.loadProject': 'Projekt laden (.json)',
+  'ob.feat.tree': 'Arbeitspakete', 'ob.feat.tree.desc': 'Hierarchischer WBS mit Abhängigkeiten & mehreren Zuweisungen',
+  'ob.feat.auto': 'Auto-Planung', 'ob.feat.auto.desc': 'Personenbezogene Parallelplanung + Kapazitätsplanung',
+  'ob.feat.horizons': '3 Horizonte', 'ob.feat.horizons.desc': 'Committed, estimated, exploratory Planungsfenster',
+  'ob.feat.cp': 'Kritischer Pfad', 'ob.feat.cp.desc': 'CPM-Analyse — sehe was dein Enddatum treibt',
+  'ob.feat.net': 'Netzwerkgraph', 'ob.feat.net.desc': 'Visuelles Abhängigkeits-Diagramm, Zoom/Pan, Klick zum Bearbeiten',
+  'ob.feat.focus': 'Fokus-Bereiche', 'ob.feat.focus.desc': 'Ziele, Painpoints, Deadlines und Top-down-Planung',
+  'ob.feat.save': 'Speichern / Laden', 'ob.feat.save.desc': 'JSON Export/Import — funktioniert offline & GitHub Pages',
+
+  // ── Tour ──
+  'tour.aria': 'Planr Tour', 'tour.step': 'Schritt {0} von {1}',
+  'tour.skip': 'Tour überspringen', 'tour.finish': 'Fertig',
+  'tour.help': '?',
+  'tour.helpTitle': 'Hilfe',
+  'tour.restartTour': 'Tour neu starten',
+  'tour.whatsNew': 'Was ist neu',
+  'tour.newBadge': 'Neu',
+
+  // ── Tour-Schritte ──
+  'tour.s0.icon': '🌳', 'tour.s0.title': 'Arbeitspakete',
+  'tour.s0.body': 'Dein Projekt lebt hier als Baum. Füge Aufgaben hinzu, gruppiere sie in Pakete und schachtle sie so tief wie nötig. Klicke eine Zeile, um sie im Seitenpanel zu bearbeiten.',
+
+  'tour.s1.icon': '📅', 'tour.s1.title': 'Automatische Planung',
+  'tour.s1.body': 'Planr plant jede Aufgabe automatisch — Person für Person, unter Berücksichtigung von Abhängigkeiten, Kapazität und Feiertagen. Wechsle zum Tab "Zeitplan" um den Gantt-Chart zu sehen.',
+
+  'tour.s2.icon': '+', 'tour.s2.title': 'Erste Aufgabe anlegen',
+  'tour.s2.body': 'Klicke auf "+ Item hinzufügen" in der Arbeitspakete-Toolbar (oder den Button wenn der Baum leer ist). Vergib einen Namen, weise eine Person zu und gib eine grobe Schätzung in Tagen an.',
+
+  'tour.s3.icon': '📊', 'tour.s3.title': 'Fortschritt verfolgen',
+  'tour.s3.body': 'Die Übersicht zeigt den Projektpuls: Roadmap, Planungssicherheit, Fokus-Items und anstehende Arbeit. Setze Aufgaben auf "In Bearbeitung" oder "Erledigt" um den Fortschritt zu zeigen.',
+
+  // ── Neue-Features-Popover (einmalig für Bestandsnutzer) ──
+  'new.title': 'Was ist neu in Planr',
+  'new.dismiss': 'Verstanden',
+  'new.roadmap': 'Metro-Roadmap in Übersicht — visueller Bus-Linien-Fortschritt pro Oberpaket.',
+  'new.dayZoom': 'Tages-Zoom im Zeitplan — Zoom-Regler über 70 px/Woche ziehen für Tagesansicht.',
+  'new.confidence': 'Confidence-Marker auf Gantt-Balken — ●◐○ zeigt wie belastbar jede Schätzung ist.',
+  'new.dragLink': 'Drag-to-Link für Abhängigkeiten — Randgriff eines Gantt-Balkens ziehen und auf einen anderen fallen lassen.',
+  'new.planReview': 'Planungsübersicht-Tab — Confidence-Verteilung, nicht zugewiesene Items und geblockte Arbeit an einem Ort.',
 };
 
 const LANGS = { en, de };

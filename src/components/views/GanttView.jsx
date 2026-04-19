@@ -11,9 +11,14 @@ const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
 
-const REASON_TIP = { 'manual': 'Manuell gesetzt', 'done': 'Erledigt', 'auto:person+estimate': 'Person + Schätzung vorhanden', 'auto:no-person': 'Keine Person zugewiesen', 'auto:high-risk': 'Risikofaktor ≥ 2.0', 'auto:no-estimate': 'Keine Schätzung', 'inherited': 'Vom schlechtesten Kind-Element' };
 export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
+  const REASON_TIP = {
+    'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
+    'auto:person+estimate': t('g.reasonPersonEstimate'), 'auto:no-person': t('g.reasonNoPerson'),
+    'auto:high-risk': t('g.reasonHighRisk'), 'auto:no-estimate': t('g.reasonNoEstimate'),
+    'inherited': t('g.reasonInherited'),
+  };
   const NO_PERSON = t('unassigned');
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
@@ -201,11 +206,34 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   // the RIGHT edge of the bar (end of endD's day column); target mounts at
   // the LEFT edge (start of startD's day column). Falls back to week-aligned
   // positions when dates aren't available.
-  function depX1(s) { return showDays && s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX; }
-  function depX2(s) { return showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX; }
+  // When the task is currently being dragged, add the live drag pixel offset so
+  // dependency lines follow the bar in real time (Bug 2 fix).
+  function dragOffsetFor(s) {
+    if (!drag || drag.id !== s.id || drag.isReorder) return 0;
+    return dDelta * (showDays ? DPX : WPX);
+  }
+  function depX1(s) {
+    const base = showDays && s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX;
+    return base + dragOffsetFor(s);
+  }
+  function depX2(s) {
+    const base = showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX;
+    return base + dragOffsetFor(s);
+  }
 
   // CP dependency lines (only between visible scheduled items)
-  const rowIdx = useMemo(() => { const m = {}; rows.forEach((r, i) => { if (r.type === 'task' && !r.s._unestimated) m[r.s.id] = i; }); return m; }, [rows]);
+  // rowIdx maps task ID → array of ALL row indices (a multi-assigned task appears in
+  // multiple person/team groups, so we need every occurrence for dep-line drawing).
+  const rowIdx = useMemo(() => {
+    const m = {};
+    rows.forEach((r, i) => {
+      if (r.type === 'task' && !r.s._unestimated) {
+        if (!m[r.s.id]) m[r.s.id] = [];
+        m[r.s.id].push(i);
+      }
+    });
+    return m;
+  }, [rows]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
@@ -224,13 +252,17 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         });
         if (!latestId) return;
         const dep = sMap[latestId];
-        const srcRow = rowIdx[latestId], tgtRow = rowIdx[s.id];
-        if (srcRow == null || tgtRow == null) return;
-        lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2 });
+        const srcRows = rowIdx[latestId], tgtRows = rowIdx[s.id];
+        if (!srcRows?.length || !tgtRows?.length) return;
+        srcRows.forEach(srcRow => {
+          tgtRows.forEach(tgtRow => {
+            lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2 });
+          });
+        });
       });
     });
     return lines;
-  }, [scheduled, cpSet, tree, rows, rowIdx, WPX, showDays, groupBy]);
+  }, [scheduled, cpSet, tree, rows, rowIdx, WPX, showDays, groupBy, dDelta, drag]);
 
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   // When a dep targets a parent node, draw ONE line from the latest-finishing child
@@ -250,20 +282,24 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         });
         if (!latestId) return;
         const dep = sMap[latestId];
-        const srcRow = rowIdx[latestId], tgtRow = rowIdx[s.id];
-        if (srcRow == null || tgtRow == null) return;
-        lines.push({
-          key: `${latestId}->${s.id}->${rawDep}`,
-          x1: depX1(dep), y1: srcRow * RH + RH / 2,
-          x2: depX2(s), y2: tgtRow * RH + RH / 2,
-          removeFromId: s.id, removeDepId: rawDep,
-          srcId: latestId, tgtId: s.id,
-          isCp: cpSet?.has(latestId) && cpSet?.has(s.id),
+        const srcRows = rowIdx[latestId], tgtRows = rowIdx[s.id];
+        if (!srcRows?.length || !tgtRows?.length) return;
+        srcRows.forEach((srcRow, si) => {
+          tgtRows.forEach((tgtRow, ti) => {
+            lines.push({
+              key: `${latestId}@${si}->${s.id}@${ti}->${rawDep}`,
+              x1: depX1(dep), y1: srcRow * RH + RH / 2,
+              x2: depX2(s), y2: tgtRow * RH + RH / 2,
+              removeFromId: s.id, removeDepId: rawDep,
+              srcId: latestId, tgtId: s.id,
+              isCp: cpSet?.has(latestId) && cpSet?.has(s.id),
+            });
+          });
         });
       });
     });
     return lines;
-  }, [scheduled, tree, rows, rowIdx, cpSet, WPX, showDays, groupBy]);
+  }, [scheduled, tree, rows, rowIdx, cpSet, WPX, showDays, groupBy, dDelta, drag]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
@@ -284,10 +320,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         });
         if (!latestId) return;
         const dep = sMap[latestId];
-        const srcRow = rowIdx[latestId], tgtRow = rowIdx[hoverDepId];
-        if (srcRow == null || tgtRow == null) return;
+        const srcRows = rowIdx[latestId], tgtRows = rowIdx[hoverDepId];
+        if (!srcRows?.length || !tgtRows?.length) return;
         rowIds.add(latestId);
-        lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+        srcRows.forEach(srcRow => {
+          tgtRows.forEach(tgtRow => {
+            lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+          });
+        });
       });
     }
     // Incoming: which tasks depend on this one (this must finish before they start)
@@ -297,14 +337,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         const resolved = resD(rawDep);
         if (!resolved.includes(hoverDepId)) return;
         if (!target) return;
-        const srcRow = rowIdx[hoverDepId], tgtRow = rowIdx[s.id];
-        if (srcRow == null || tgtRow == null) return;
+        const srcRows = rowIdx[hoverDepId], tgtRows = rowIdx[s.id];
+        if (!srcRows?.length || !tgtRows?.length) return;
         rowIds.add(s.id);
-        lines.push({ x1: depX1(target), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
+        srcRows.forEach(srcRow => {
+          tgtRows.forEach(tgtRow => {
+            lines.push({ x1: depX1(target), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
+          });
+        });
       });
     });
     return { lines, rowIds };
-  }, [hoverDepId, tree, scheduled, rows, WPX, showDays]);
+  }, [hoverDepId, tree, scheduled, rows, WPX, showDays, dDelta, drag]);
 
   const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
@@ -365,7 +409,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   function onBMD(e, s) {
     e.stopPropagation();
     justDraggedRef.current = false;
-    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, startD: s.startD, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: rowIdx[s.id], lastDy: 0, isReorder: false };
+    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, startD: s.startD, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0, lastDy: 0, isReorder: false };
     dragRef.current = d;
     setDrag(d);
     setDDelta(0);
@@ -503,7 +547,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     </div>
     <div className="gantt-body">
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
-        {rows.map((row) => {
+        {rows.map((row, rowI) => {
           if (row.type === 'group') {
             const g = row.group;
             const isCol = collapsed.has(g.key);
@@ -525,7 +569,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
           const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
           const confL = confidence[s.id];
           const confDot = confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null;
-          return <div key={s.id} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          // Use compound key: group key + task id to avoid key collision when the same task
+          // appears in multiple groups (e.g. multi-assigned task in person grouping).
+          return <div key={`${row.group.key}::${s.id}`} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => onBarClick(s)}
             onMouseEnter={e => { setHoverDepId(s.id); const node = iMap[s.id]; setTip({ item: { ...node, ...s, isCp }, x: e.clientX, y: e.clientY }); }}
             onMouseLeave={() => { setHoverDepId(null); setTip(null); }}>
@@ -605,10 +651,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               </React.Fragment>;
             })}
           </div>
-          {rows.map((row) => {
+          {rows.map((row, rowI) => {
             if (row.type === 'group') { const isSub = row.level === 1; return <div key={row.group.key} style={{ height: RH, background: isSub ? 'var(--bg3)' : 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />; }
             const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
-            if (s._unestimated) return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
+            // Use compound key: group key + task id to avoid key collision when the same task
+            // appears in multiple groups (e.g. multi-assigned task in person grouping).
+            const rowKey = `${row.group.key}::${s.id}`;
+            if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
             const isDrag = drag?.id === s.id;
             // Bar geometry — day-accurate in day-mode (using scheduler's per-day startD/endD),
             // week-aligned otherwise.
@@ -640,7 +689,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               : conf === 'estimated'
               ? { background: `repeating-linear-gradient(135deg, ${tc}, ${tc} 3px, transparent 3px, transparent 6px)`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)', opacity: 0.85 }
               : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
-            return <div key={s.id} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+            return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
@@ -805,11 +854,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         {searchMatchList.length
           ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
-          : '0 matches'}
+          : `0 ${t('g.matches')}`}
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
-        {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ' AT RISK' : dl.maxEnd ? ' on track' : ''}
+        {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ` ${t('s.atRisk')}` : dl.maxEnd ? ` ${t('s.onTrack')}` : ''}
       </span>)}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
       {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
@@ -824,10 +873,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
         </span> : null;
       })()}
       {linkMode && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>
-        🔗 Click another bar to {linkMode.mode === 'pred' ? 'make it depend on' : 'add it as predecessor of'} <b>{linkMode.fromId}</b>
-        <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>Cancel</button>
+        🔗 {t('g.linkClick', linkMode.mode === 'pred' ? t('g.ctxPred') : t('g.ctxSucc'))} <b>{linkMode.fromId}</b>
+        <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>{t('cancel')}</button>
       </span>}
-      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 Drop on a bar to link as dependency</span>}
+      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
       {/* Bar-help text removed — discoverable via right-click context menu */}
     </div>
     {/* Viewport overlay for the live drag-to-link line */}

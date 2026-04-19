@@ -13,6 +13,8 @@ Planr turns a work breakdown tree into an auto-scheduled plan. You write goals, 
 
 No backend, no accounts, no cloud sync. A static React SPA that persists to `localStorage` or a local `.json` / `.md` file via the File System Access API.
 
+> **Desktop-first.** Planr is optimized for large screens and keyboard/mouse interaction. It is not intended for mobile use.
+
 ## Start instantly (no local setup)
 
 You can use Planr directly in the browser:
@@ -46,6 +48,8 @@ Everything lives in [docs/](docs/). This README is an index.
 - **[docs/network-graph.md](docs/network-graph.md)** — network graph: layout, zoom, fit-to-selection
 - **[docs/import-export.md](docs/import-export.md)** — JSON, Markdown, CSV, Sprint MD, Mermaid, SVG, PNG, round-trip caveats
 
+The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/features.md) under "Views and navigation" and in [docs/user-guide.md](docs/user-guide.md#8-review-the-result).
+
 ### For developers
 
 - **[docs/architecture.md](docs/architecture.md)** — modules, tech stack, design decisions, backlog
@@ -60,13 +64,16 @@ Everything lives in [docs/](docs/). This README is an index.
 - **Critical path analysis** — global and per-goal, with slack calculation
 - **Planning confidence model** — three levels (committed / estimated / exploratory) with auto-derivation, manual override, and visual differentiation in the Gantt chart
 - **Planning review tab** — guided workflow for assigning people, spotting open phases, checking team capacity, and working per-person TODO lists
-- **Gantt chart** — drag-to-pin, draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling, weighted phase overlays
+- **Metro-style Roadmap** — SVG subway map in the Summary/Overview tab: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress; hover for tooltips, click legend items to open tasks
+- **Gantt chart** — drag-to-pin (day accuracy), draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling, day-level zoom, weighted phase overlays
 - **Network graph** — bin-packed layout, obstacle-aware edge routing, fit-to-selection
 - **QuickEdit sidebar + NodeModal** — tabbed quick edit, visible "Estimate now" CTA, searchable dropdowns
 - **Markdown + JSON** — fully functional round-trip for both formats
 - **Auto-save** — File System Access API, external change polling, mounts either format
 - **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range, batch confidence assignment
+- **Multi-assignee tasks** — assign multiple people to a task; each shows up in person-grouped views
 - **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic) with workflow template selection directly in the wizard
+- **Global search** — Ctrl/Cmd+F searches across tasks with cycling and auto-scroll in all views
 - **Bilingual (EN/DE)** — full i18n with language selector in settings, ~350 translated strings
 - **Dark / light mode** — manual toggle (Auto / Dark / Light) in settings
 - **Project report export** — comprehensive HTML report (PDF via print) with executive summary, roadmap, team capacity, critical path, and open decisions

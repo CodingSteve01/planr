@@ -1,5 +1,7 @@
 # Features
 
+> **Planr is a desktop-first web application. It's optimized for large screens and keyboard/mouse interaction — it's not intended for mobile use.**
+
 Full catalog of what Planr does. Grouped by area. Links point to detail docs where the behavior has enough depth to warrant its own page.
 
 ## Access
@@ -15,6 +17,7 @@ Full catalog of what Planr does. Grouped by area. Links point to detail docs whe
 - **Sibling reorder** — move a selected item up / down / to first / to last within its sibling group; all IDs (including descendants) and dep references auto-renumber
 - **Contextual action toolbar** — a sticky row above the tree surfaces reorder + delete for the currently selected item; per-row actions collapse to just `+` (add child)
 - **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click selects a range; bulk edit team, priority, status, assignee, confidence
+- **Multi-assignee tasks** — a leaf can have more than one assignee; each shows up in person-grouped views (Gantt, Planning Review)
 - **Status derivation** — parent status is computed from children (done / wip / open)
 - **Progress tracking** — 0–100 % slider on leaves; weighted (by realistic effort) cascade to parents; circular indicator in the network graph
 
@@ -88,7 +91,7 @@ See [network-graph.md](network-graph.md).
 - **Tree view** — classic hierarchical editor with indentation, priority, status, progress
 - **Gantt view** — timeline with grouping
 - **Network view** — subway-style graph
-- **Roadmap view** — metro/subway map: each project is a colored line on a fixed network of 8 pre-computed routes; stations are derived from scheduled (Gantt) leaf tasks — items whose `endD` values fall within 14 days of each other are clustered into a single station, keeping the map clean; stations are placed proportionally to their date within the project span; a pulsing train marker shows current progress; lines are assigned to routes by project duration (longest → longest route) and the assignment is stable across adds/removes. The legend below the SVG maps station abbreviations to full names and expands clusters to list all grouped items.
+- **Roadmap view** — metro-style SVG map. Each project is a colored subway line on one of 8 pre-computed fixed routes (assigned by project duration, longest project → longest route; assignment is stable across plan edits). Stations represent clusters of leaf tasks whose end dates fall within 14 days of each other — close-deadline tasks are grouped into one station to keep the map readable. Station positions are proportional to their date within the project span. A pulsing train marker sits at the effort-weighted progress point along the line. Hover any station or train for a tooltip; click a legend item to open that task in QuickEdit. The legend below the map lists all stations with their full names and expands clusters.
 - **Summary view** — per-goal progress, deadlines, risks
 - **Horizon guidance in Summary** — H1 / H2 / H3 are explained as near-term planning states, not as internal product terminology
 - **Planning Review tab** — Decisions, open phase TODOs, Team Capacity, and Blocked work in one review surface. Quick-assign inline. Shows breadcrumbs.
@@ -130,6 +133,7 @@ QuickEdit-specific:
 
 - **Inline** — `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly on leaves
 - **Estimation Wizard** — 7-step PERT wizard: workflow template selection, optimistic, likely, pessimistic inputs, dependencies, plus a Confidence step that suggests confidence based on risk factors. Risks are configurable in Settings (default catalogue provided as multi-lingual fallback)
+- **Configurable T-shirt sizes** — the size catalogue (label, day count, uncertainty factor) is editable in **Settings → T-Shirt Sizes**; used in the wizard's Size step and in all quick-estimate pickers. Defaults to XS/S/M/L/XL/XXL; existing plans without `data.sizes` fall back to the built-in defaults automatically
 
 ## Phases and templates
 
