@@ -43,7 +43,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const allIds = tree.map(r => r.id).filter(id => id !== node.id);
-  const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor]);
+  const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor, s.desc || '']);
   const nearestSize = f.best > 0 ? SIZES.reduce((best, size) => Math.abs(size[1] - f.best) < Math.abs(best[1] - f.best) ? size : best, SIZES[0]) : null;
   const phases = normalizePhases(f.phases);
   const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;
@@ -219,11 +219,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       <div className="field">
         <label>{t('qe.quickEstimate')}</label>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
-          {SIZES.map(([sizeLabel, days, factor]) => {
+          {SIZES.map(([sizeLabel, days, factor, desc]) => {
             const exact = f.best === days;
             const nearest = !exact && nearestSize?.[0] === sizeLabel && f.best > 0;
             return <button key={sizeLabel} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
               style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
+              title={desc || undefined}
               onClick={() => patchNode({ best: days, factor })}>{sizeLabel}<span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>{days}d</span></button>;
           })}
         </div>

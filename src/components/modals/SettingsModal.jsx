@@ -175,14 +175,15 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
         <p className="helper" style={{ marginBottom: 12 }}>{t('set.sizeHelp')}</p>
 
         <div style={{ display: 'flex', gap: 4, marginBottom: 6, fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', paddingRight: 28 }}>
-          <span style={{ flex: 1 }}>{t('set.sizeLabel')}</span>
+          <span style={{ flex: '0 0 64px' }}>{t('set.sizeLabel')}</span>
           <span style={{ width: 80, flexShrink: 0, textAlign: 'right' }}>{t('set.sizeDays')}</span>
           <span style={{ width: 72, flexShrink: 0, textAlign: 'right' }}>{t('set.sizeFactor')}</span>
+          <span style={{ flex: 1 }}>{t('set.sizeDesc')}</span>
         </div>
 
         {sizeList.map((sz, i) => (
           <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+            <div className="field" style={{ flex: '0 0 64px', marginBottom: 0 }}>
               <input value={sz.label} placeholder={t('set.sizeLabelPlaceholder')}
                 onChange={e => updateSize(i, { label: e.target.value })} />
             </div>
@@ -195,6 +196,10 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
               <input type="number" step="0.1" min="1" max="5" value={sz.factor} placeholder="×"
                 onChange={e => updateSize(i, { factor: +e.target.value || 1.5 })}
                 style={{ textAlign: 'right' }} />
+            </div>
+            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+              <input value={sz.desc || ''} placeholder={t('set.sizeDesc')}
+                onChange={e => updateSize(i, { desc: e.target.value })} />
             </div>
             <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeSize(i)}>×</button>
           </div>

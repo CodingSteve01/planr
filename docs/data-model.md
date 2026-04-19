@@ -154,13 +154,32 @@ Stored at project level in `data.taskTemplates`, exported/imported with JSON and
 {
   label,   // display name shown in pickers, e.g. "M"
   days,    // best-case day count used to pre-fill the three-point estimate
-  factor   // default uncertainty factor applied when a size is quick-picked
+  factor,  // default uncertainty factor applied when a size is quick-picked
+  desc     // optional hint text shown as tooltip / sublabel in pickers (may be absent or "")
 }
 ```
 
-The full catalogue is editable in **Settings → T-Shirt Sizes**. When `data.sizes` is absent (existing saved plans), the built-in defaults from `src/utils/sizes.js` are used transparently.
+The full catalogue is editable in **Settings → T-Shirt Sizes**. When `data.sizes` is absent (existing saved plans), the built-in defaults from `src/utils/sizes.js` are used transparently. Missing `desc` on existing sizes is treated as empty — no migration needed.
 
 Default sizes: XS=1d (×1.3), S=3d (×1.3), M=7d (×1.4), L=15d (×1.5), XL=30d (×1.5), XXL=45d (×1.6).
+
+## ProjectTemplate (seed only — not stored in project data)
+
+Templates live in `src/utils/projectTemplates.js` and are only used at project-creation time to seed `data.risks`, `data.sizes`, and `data.taskTemplates`. They are **not** an ongoing property of the project — once created, the project's own fields are the source of truth.
+
+```js
+{
+  id,            // unique slug, e.g. 'software-dev'
+  nameKey,       // i18n key for the display name
+  descKey,       // i18n key for the short description shown in the picker
+  icon,          // emoji displayed in the picker card
+  risks,         // [Risk] — initial risk catalogue (plain-text names, no i18nKey)
+  sizes,         // [Size] — initial size catalogue (includes desc)
+  taskTemplates  // [TaskTemplate] — initial task templates
+}
+```
+
+Five built-in templates are provided: `software-dev` (💻), `event-planning` (🎉), `marketing-campaign` (📣), `research-study` (🔬), `generic` (📋). The default is `software-dev`.
 
 ## Phase (on TreeItem)
 

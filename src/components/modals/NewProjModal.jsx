@@ -3,11 +3,13 @@ import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
 import { GT, GL } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
+import { PROJECT_TEMPLATES, DEFAULT_TEMPLATE_ID } from '../../utils/projectTemplates.js';
 
 export function NewProjModal({ onCreate, onClose }) {
   const { t } = useT();
   const today = iso(new Date()), twoY = iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const [step, setStep] = useState(1);
+  const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
   const [f, setF] = useState({ name: '', planStart: today, planEnd: twoY, holidays: 'NRW' });
   const [ts, setTs] = useState([{ id: 'T1', name: 'Frontend', color: '#3b82f6' }, { id: 'T2', name: 'Backend', color: '#f43f5e' }]);
   const [goals, setGoals] = useState([]);
@@ -40,7 +42,20 @@ export function NewProjModal({ onCreate, onClose }) {
       date: g.date || '',
       description: g.description || '',
     }));
-    onCreate({ meta: { ...f, version: '2' }, teams: ts, members: [], vacations: [], tree, holidays: hols });
+
+    // Seed risks, sizes, and task templates from the selected project template
+    const tpl = PROJECT_TEMPLATES.find(p => p.id === templateId) ?? PROJECT_TEMPLATES.find(p => p.id === DEFAULT_TEMPLATE_ID);
+    onCreate({
+      meta: { ...f, version: '2' },
+      teams: ts,
+      members: [],
+      vacations: [],
+      tree,
+      holidays: hols,
+      risks: tpl ? [...tpl.risks] : undefined,
+      sizes: tpl ? [...tpl.sizes] : undefined,
+      taskTemplates: tpl ? tpl.taskTemplates.map(tt => ({ ...tt, phases: tt.phases.map(ph => ({ ...ph })) })) : undefined,
+    });
   }
 
   return <div className="overlay">
@@ -48,6 +63,31 @@ export function NewProjModal({ onCreate, onClose }) {
       <h2>{t('np.title')} {step === 2 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontWeight: 400 }}>{t('np.titleFocus')}</span>}</h2>
 
       {step === 1 && <>
+        {/* ── Template picker ── */}
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label>{t('np.template')}</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6, marginTop: 4 }}>
+            {PROJECT_TEMPLATES.map(tpl => (
+              <button key={tpl.id} type="button"
+                onClick={() => setTemplateId(tpl.id)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
+                  padding: '8px 10px', borderRadius: 'var(--r)', cursor: 'pointer', textAlign: 'left',
+                  background: templateId === tpl.id ? 'var(--ac2)22' : 'var(--bg3)',
+                  border: `1px solid ${templateId === tpl.id ? 'var(--ac)' : 'var(--b2)'}`,
+                  color: 'var(--tx)', fontFamily: 'var(--font)',
+                }}>
+                <span style={{ fontSize: 20, lineHeight: 1 }}>{tpl.icon}</span>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{t(tpl.nameKey)}</span>
+                <span style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>{t(tpl.descKey)}</span>
+              </button>
+            ))}
+          </div>
+          <p className="helper" style={{ marginTop: 6 }}>{t('np.templateHelp')}</p>
+        </div>
+
+        <hr className="divider" />
+
         <div className="field"><label>{t('np.projectName')}</label>
           <input value={f.name} onChange={e => sf('name', e.target.value)} placeholder={t('np.projectNamePlaceholder')} autoFocus />
         </div>

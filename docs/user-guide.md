@@ -12,10 +12,24 @@ Open the app. On first launch there is no project loaded.
 
 Two ways to begin:
 
-- **New Project Wizard** — guided, three steps: basics (name, dates), teams & members, first goals/painpoints/deadlines.
+- **New Project Wizard** — guided steps: pick a template, fill in basics (name, dates, teams), add first goals/painpoints/deadlines.
 - **Open File** — pick an existing `.json` or `.md` file via the file picker.
 
 After either, the project is auto-saved to `localStorage` until you mount a file (see [import-export.md](import-export.md)).
+
+### Picking a template
+
+When starting a new project, pick a template that matches your use case. Five templates are available:
+
+| Template | Icon | Best for |
+|---|---|---|
+| Software Development | 💻 | Classic dev projects — RE, refinement, dev, testing |
+| Event Planning | 🎉 | Venue-based or logistics-heavy events |
+| Marketing Campaign | 📣 | Brief → creative → approval → launch flows |
+| Research / Study | 🔬 | Experiments, long-horizon studies, write-ups |
+| Generic / Empty | 📋 | Minimal starting point for any other project type |
+
+The template seeds the project with matching **T-shirt sizes**, **risks**, and **task templates**. You can change all of these freely in Settings afterwards — the template is just a starting point.
 
 ## 2. Set up teams and members
 

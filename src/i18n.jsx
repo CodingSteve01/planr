@@ -200,7 +200,7 @@ const en = {
   // ── Sizes ──
   'set.sizes': 'T-Shirt Sizes', 'set.sizeCatalogue': 'T-Shirt Size Catalogue',
   'set.sizeHelp': 'These sizes appear in the Estimation Wizard and quick-estimate pickers. Each size sets the default best-case day count and uncertainty factor.',
-  'set.sizeLabel': 'Label', 'set.sizeDays': 'Days', 'set.sizeFactor': 'Factor',
+  'set.sizeLabel': 'Label', 'set.sizeDays': 'Days', 'set.sizeFactor': 'Factor', 'set.sizeDesc': 'Description (optional)',
   'set.sizeLabelPlaceholder': 'e.g. M', 'set.addSize': '+ Size',
   'set.resetSizes': 'Reset to defaults', 'set.confirmResetSizes': 'Reset sizes to default values?',
 
@@ -226,6 +226,19 @@ const en = {
   'np.addGoal': 'Add {0}',
   'np.noFocus': 'No focus items yet. Add some above, or skip this step.',
   'np.descPlaceholder': 'Description (optional)',
+  'np.template': 'Project template', 'np.templateHelp': 'Choose a template that matches your use case. It seeds the project with suitable sizes, risks, and task templates — you can adjust everything in Settings afterwards.',
+
+  // ── Project Templates ──
+  'tpl.softwareDev': 'Software Development',
+  'tpl.softwareDev.desc': 'Classic software project — RE, refinement, dev, testing. Sizes XS–XXL in days, standard tech risks.',
+  'tpl.eventPlanning': 'Event Planning',
+  'tpl.eventPlanning.desc': 'Concept → preparation → execution → wrap-up. Sizes in days/weeks, venue and vendor risks.',
+  'tpl.marketingCampaign': 'Marketing Campaign',
+  'tpl.marketingCampaign.desc': 'Brief → creative → approval → launch → measure. Approval and creative-direction risks.',
+  'tpl.researchStudy': 'Research / Study',
+  'tpl.researchStudy.desc': 'Literature → experiment design → data collection → analysis → write-up. Larger sizes, higher risk factors for uncertainty.',
+  'tpl.generic': 'Generic / Empty',
+  'tpl.generic.desc': 'Minimal starting point: basic sizes XS–XL, simple risks, one task template. Adjust everything to your needs.',
 
   // ── Roadmap ──
   'rm.train': 'Train', 'rm.currentPos': 'Current position: {0}% of route', 'rm.atRisk': 'AT RISK',
@@ -526,7 +539,7 @@ const de = {
   // ── Größen ──
   'set.sizes': 'T-Shirt-Größen', 'set.sizeCatalogue': 'T-Shirt-Größen-Katalog',
   'set.sizeHelp': 'Diese Größen erscheinen im Schätzungs-Wizard und in den Schnellschätzungs-Buttons. Jede Größe legt die Standard-Tagesanzahl (Best Case) und den Unsicherheitsfaktor fest.',
-  'set.sizeLabel': 'Bezeichnung', 'set.sizeDays': 'Tage', 'set.sizeFactor': 'Faktor',
+  'set.sizeLabel': 'Bezeichnung', 'set.sizeDays': 'Tage', 'set.sizeFactor': 'Faktor', 'set.sizeDesc': 'Beschreibung (optional)',
   'set.sizeLabelPlaceholder': 'z. B. M', 'set.addSize': '+ Größe',
   'set.resetSizes': 'Standard wiederherstellen', 'set.confirmResetSizes': 'Größen auf Standardwerte zurücksetzen?',
 
@@ -552,6 +565,19 @@ const de = {
   'np.addGoal': '{0} hinzufügen',
   'np.noFocus': 'Noch keine Fokus-Items. Füge welche hinzu oder überspringe diesen Schritt.',
   'np.descPlaceholder': 'Beschreibung (optional)',
+  'np.template': 'Projektvorlage', 'np.templateHelp': 'Wähle eine Vorlage die zum Projekttyp passt. Sie befüllt das Projekt mit passenden Größen, Risiken und Aufgabenvorlagen — alles kann danach in den Einstellungen angepasst werden.',
+
+  // ── Projektvorlagen ──
+  'tpl.softwareDev': 'Software-Entwicklung',
+  'tpl.softwareDev.desc': 'Klassisches Softwareprojekt — RE, Refinement, Entwicklung, Testing. Größen XS–XXL in Tagen, typische Tech-Risiken.',
+  'tpl.eventPlanning': 'Veranstaltungsplanung',
+  'tpl.eventPlanning.desc': 'Konzept → Vorbereitung → Durchführung → Nachbereitung. Größen in Tagen/Wochen, Location- und Lieferantenrisiken.',
+  'tpl.marketingCampaign': 'Marketing-Kampagne',
+  'tpl.marketingCampaign.desc': 'Briefing → Kreation → Freigabe → Launch → Messung. Freigabe- und Kreativrichtungsrisiken.',
+  'tpl.researchStudy': 'Forschung / Studie',
+  'tpl.researchStudy.desc': 'Literatur → Versuchsdesign → Datenerhebung → Analyse → Dokumentation. Größere Größen, höhere Risikofaktoren.',
+  'tpl.generic': 'Generisch / Leer',
+  'tpl.generic.desc': 'Minimaler Einstieg: Grundgrößen XS–XL, einfache Risiken, eine Aufgabenvorlage. Alles anpassbar.',
 
   // ── Roadmap ──
   'rm.train': 'Zug', 'rm.currentPos': 'Aktuelle Position: {0}% der Strecke', 'rm.atRisk': 'GEFÄHRDET',

@@ -43,7 +43,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   const findById = id => tree.find(r => r.id === id);
   const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
-  const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor]);
+  const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor, s.desc || '']);
   const nearestSize = f.best > 0 ? SIZES.reduce((best, sz) => Math.abs(sz[1] - f.best) < Math.abs(best[1] - f.best) ? sz : best, SIZES[0]) : null;
   const CONF_OPTS = useMemo(() => [
     { id: '', label: t('auto') },
@@ -202,11 +202,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         <div className="field">
           <label>{t('qe.quickEstimate')}</label>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-            {SIZES.map(([sz, d, fc]) => {
+            {SIZES.map(([sz, d, fc, desc]) => {
               const exact = f.best === d;
               const nearest = !exact && nearestSize?.[0] === sz && f.best > 0;
               return <button key={sz} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
                 style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
+                title={desc || undefined}
                 onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
             })}
           </div>

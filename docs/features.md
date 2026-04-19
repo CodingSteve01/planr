@@ -129,11 +129,18 @@ QuickEdit-specific:
 - **Auto-scroll to first match** — Tree scrolls the row into view, Gantt scrolls both axes to land on the first matching bar, Network pans/fits to the match set
 - **Match count** — shown inline in the Gantt footer / Network toolbar
 
+## Project Templates
+
+- **Template picker in New Project wizard** — five built-in templates: Software Development (💻), Event Planning (🎉), Marketing Campaign (📣), Research / Study (🔬), Generic / Empty (📋). Default is Software Development.
+- **Seeds risks, sizes, and task templates** — the selected template populates `data.risks`, `data.sizes`, and `data.taskTemplates` at creation time; everything is editable in Settings afterwards
+- **One-time seed** — `projectTemplateId` is not stored; the template is purely a creation-time convenience, not an ongoing link
+- **Backwards compatible** — existing saved plans without template-seeded data continue to work unchanged; they fall back to built-in defaults as before
+
 ## Estimation
 
 - **Inline** — `best` (optimistic days) and `factor` (complexity multiplier, default 1.5) directly on leaves
 - **Estimation Wizard** — 7-step PERT wizard: workflow template selection, optimistic, likely, pessimistic inputs, dependencies, plus a Confidence step that suggests confidence based on risk factors. Risks are configurable in Settings (default catalogue provided as multi-lingual fallback)
-- **Configurable T-shirt sizes** — the size catalogue (label, day count, uncertainty factor) is editable in **Settings → T-Shirt Sizes**; used in the wizard's Size step and in all quick-estimate pickers. Defaults to XS/S/M/L/XL/XXL; existing plans without `data.sizes` fall back to the built-in defaults automatically
+- **Configurable T-shirt sizes** — the size catalogue (label, day count, uncertainty factor, optional description) is editable in **Settings → T-Shirt Sizes**; used in the wizard's Size step and in all quick-estimate pickers. Defaults to XS/S/M/L/XL/XXL; existing plans without `data.sizes` fall back to the built-in defaults automatically. Descriptions appear as tooltips on size buttons and as sublabels in the Estimation Wizard.
 
 ## Phases and templates
 
