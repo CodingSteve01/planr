@@ -1251,7 +1251,13 @@ export default function App() {
   </div>;
 
   if (!data) return <>
-    <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef} />
+    <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
+      onLoadDemo={() => {
+        import('./utils/demoProject.js').then(m => {
+          const demo = m.buildDemoProject(_t);
+          setData(demo); setSaved(false); setTab('summary'); setSel(demo.tree?.[0] || null);
+        });
+      }} />
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => {
       setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
       // Auto-start tour for first-time users (tour not yet dismissed)

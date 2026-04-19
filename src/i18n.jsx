@@ -328,7 +328,11 @@ const en = {
   // ── Onboard splash ──
   'ob.sub': 'Resource-aware project scheduler',
   'ob.newProject': 'Start new project',
+  'ob.tryDemo': 'Try demo project',
   'ob.loadProject': 'Load project (.json)',
+  'ob.or': 'or',
+  'ob.preview.label': 'This is what your plan looks like — each project is a subway line, the train shows real-time progress.',
+  'demo.projectName': 'Planr Demo Project',
   'ob.feat.tree': 'Work Tree', 'ob.feat.tree.desc': 'Hierarchical WBS with deps & multiple assignments',
   'ob.feat.auto': 'Auto-schedule', 'ob.feat.auto.desc': 'Person-level parallel scheduling + capacity planning',
   'ob.feat.metro': 'Metro Roadmap', 'ob.feat.metro.desc': 'Projects as subway lines — see progress at a glance',
@@ -695,7 +699,11 @@ const de = {
   // ── Onboard-Splash ──
   'ob.sub': 'Ressourcenbewusster Projektplaner',
   'ob.newProject': 'Neues Projekt starten',
+  'ob.tryDemo': 'Demo-Projekt ausprobieren',
   'ob.loadProject': 'Projekt laden (.json)',
+  'ob.or': 'oder',
+  'ob.preview.label': 'So sieht dein Plan aus — jedes Projekt ist eine U-Bahn-Linie, der Zug zeigt den aktuellen Fortschritt.',
+  'demo.projectName': 'Planr Demo-Projekt',
   'ob.feat.tree': 'Arbeitspakete', 'ob.feat.tree.desc': 'Hierarchischer WBS mit Abhängigkeiten & mehreren Zuweisungen',
   'ob.feat.auto': 'Auto-Planung', 'ob.feat.auto.desc': 'Personenbezogene Parallelplanung + Kapazitätsplanung',
   'ob.feat.metro': 'U-Bahn-Roadmap', 'ob.feat.metro.desc': 'Projekte als U-Bahn-Linien — Fortschritt auf einen Blick',
