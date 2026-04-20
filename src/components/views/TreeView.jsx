@@ -118,7 +118,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
       }
       return true;
     });
-  }, [sorted, search, teamFilter, collapsed]);
+  }, [sorted, search, teamFilter, rootFilter, collapsed]);
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {
