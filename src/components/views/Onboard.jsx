@@ -69,7 +69,7 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
         {/* ── Feature chips ── */}
         <div className="ob-feat-row">
           {FEATURES.map(([icon, title, desc]) => (
-            <div key={title} className="ob-chip" title={desc}>
+            <div key={title} className="ob-chip" data-htip={desc}>
               <span className="ob-chip-icon">{icon}</span>
               <span className="ob-chip-label">{title}</span>
             </div>

@@ -207,7 +207,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               const nearest = !exact && nearestSize?.[0] === sz && f.best > 0;
               return <button key={sz} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
                 style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
-                title={desc || undefined}
+                data-htip={desc || undefined}
                 onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
             })}
           </div>
@@ -228,7 +228,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               const reason = confReasons[node.id];
               const isAuto = !f.confidence;
               return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--r)', border: `1px solid ${CONF_COLOR[eff]}`, fontSize: 10, color: CONF_COLOR[eff], cursor: 'help', whiteSpace: 'nowrap' }}
-                title={`${CONF_LABEL[eff]} — ${REASON_TIP[reason] || '?'}`}>
+                data-htip={`${CONF_LABEL[eff]} — ${REASON_TIP[reason] || '?'}`}>
                 {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {CONF_LABEL[eff]}
               </span>;
             })()}
@@ -239,7 +239,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
           <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
           <br />
-          <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {sc.person} ({sc.capPct}% cap)</span>
+          <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)} ({sc.capPct}% cap)</span>
         </div>}
         {!sc && f.best > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
           {f.best}d best × {f.factor || 1.5} = {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}

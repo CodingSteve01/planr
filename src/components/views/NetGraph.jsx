@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
+import { buildMemberShortMap } from '../../App.jsx';
 
 const NODE_W = 130;
 const NODE_H = 44;
@@ -333,7 +334,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -355,6 +356,15 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const hasChildrenSet = useMemo(() => { const s = new Set(); tree.forEach(r => { const p = r.id.split('.').slice(0, -1).join('.'); if (p) s.add(p); }); return s; }, [tree]);
+  const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
+  // Render all assignees of a node compactly — "KK+MB" or "KK+MB+1" for 3+
+  const assignLabel = (r, sc) => {
+    const ids = (r.assign || []).length > 0 ? r.assign : (sc?.personId ? [sc.personId] : []);
+    if (!ids.length) return sc?.personShort || sc?.person?.split(' ')[0] || '';
+    const shorts = ids.map(id => shortMap[id] || '?');
+    if (shorts.length <= 2) return shorts.join('+');
+    return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+  };
 
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
   const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
@@ -501,8 +511,8 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
 
   return <div className="netgraph-wrap" style={{ cursor: panning ? 'grabbing' : 'default' }}>
     <div className="ng-toolbar">
-      <button className="btn btn-pri btn-sm" onClick={fitToScreen} title={searchMatches?.size ? 'Fit to search matches' : 'Fit to selection or whole graph'}>Fit</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { const newPan = { x: 12, y: 12 }; panRef.current = newPan; zoomRef.current = 1.5; setZoom(1.5); setPan(newPan); }} title="Reset to 100%">{Math.round(zoom / 1.5 * 100)}%</button>
+      <button className="btn btn-pri btn-sm" onClick={fitToScreen} data-htip={searchMatches?.size ? 'Fit to search matches' : 'Fit to selection or whole graph'}>Fit</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { const newPan = { x: 12, y: 12 }; panRef.current = newPan; zoomRef.current = 1.5; setZoom(1.5); setPan(newPan); }} data-htip="Reset to 100%">{Math.round(zoom / 1.5 * 100)}%</button>
       <button className="btn btn-sec btn-sm" onClick={() => {
         const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
         const mx = r.width / 2, my = r.height / 2;
@@ -611,7 +621,7 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
               const y = r.name.length > 26 ? 40 : 33;
               return <>
                 {showPrio && <text x={5} y={y} fontSize={7} fill={PRIO_COL[r.prio]} fontWeight={700} style={{ pointerEvents: 'none' }}>{PRIO_GLYPH[r.prio]}</text>}
-                {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : sc.autoAssigned ? 'var(--am)' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {sc.personShort || sc.person?.split(' ')[0] || ''}</text>}
+                {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : sc.autoAssigned ? 'var(--am)' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {assignLabel(r, sc)}</text>}
               </>;
             })()}
           </g>;
@@ -630,6 +640,6 @@ export function NetGraph({ tree, scheduled, teams, cpSet, stats, search = '', se
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
     </div>
-    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} tree={tree} />}
+    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} />}
   </div>;
 }

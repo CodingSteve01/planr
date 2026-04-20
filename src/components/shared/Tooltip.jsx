@@ -21,6 +21,14 @@ export function Tip({ item, x, y, teams, members, tree }) {
   const teamName = item.team && teams
     ? (teams.find(tm => tm.id === item.team)?.name || item.team)
     : item.team;
+  // Resolve all assignee names (multi-assignee support)
+  const assignNames = (() => {
+    const ids = item.assign || [];
+    if (ids.length > 0 && members) {
+      return ids.map(id => members.find(m => m.id === id)?.name || id).join(', ');
+    }
+    return item.person || null;
+  })();
   // Resolve dep names
   const depList = item.deps && tree
     ? (typeof item.deps === 'string' ? item.deps.split(', ') : Array.isArray(item.deps) ? item.deps : [])
@@ -29,7 +37,7 @@ export function Tip({ item, x, y, teams, members, tree }) {
 
   return <div className="tt" style={{ left: sx, top: sy }}>
     <div className="tt-title">{item.id} — {item.name}</div><hr className="tt-sep" />
-    {item.person && <div className="tt-row"><span>{t('tt.assigned')}</span><b>{item.person}</b></div>}
+    {assignNames && <div className="tt-row"><span>{t('tt.assigned')}</span><b>{assignNames}</b></div>}
     {teamName && <div className="tt-row"><span>{t('tt.team')}</span><b>{teamName}</b></div>}
     {item.best > 0 && <div className="tt-row"><span>{t('tt.bestCase')}</span><b>{item.best}d</b></div>}
     {item.effort > 0 && <div className="tt-row"><span>{t('tt.realistic')}</span><b>{item.effort?.toFixed(1)}d</b></div>}

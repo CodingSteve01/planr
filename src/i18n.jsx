@@ -324,6 +324,7 @@ const en = {
   'tv.deleteItem': '× Delete',
   'tv.statusOpen': 'Open', 'tv.statusWip': 'In Progress', 'tv.statusDone': 'Done',
   'tv.prioCrit': 'crit', 'tv.prioHigh': 'high', 'tv.prioMed': 'med', 'tv.prioLow': 'low',
+  'tv.priority': 'Priority',
 
   // ── Onboard splash ──
   'ob.sub': 'Resource-aware project scheduler',
@@ -699,6 +700,7 @@ const de = {
   'tv.deleteItem': '× Löschen',
   'tv.statusOpen': 'Offen', 'tv.statusWip': 'In Bearbeitung', 'tv.statusDone': 'Erledigt',
   'tv.prioCrit': 'krit.', 'tv.prioHigh': 'hoch', 'tv.prioMed': 'mittel', 'tv.prioLow': 'niedrig',
+  'tv.priority': 'Priorität',
 
   // ── Onboard-Splash ──
   'ob.sub': 'Ressourcenbewusster Projektplaner',

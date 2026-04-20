@@ -73,10 +73,10 @@ export function TemplatesModal({ templates, teams, onSave, onClose }) {
                 <SearchSelect value={ph.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
                   onSelect={v => updateTpl(editing.id, tp => { tp.phases[i] = { ...tp.phases[i], team: v }; return tp; })} allowEmpty placeholder={t('ph.phaseTeam')} />
               </div>
-              <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} title={t('ph.moveUp')}
+              <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} data-htip={t('ph.moveUp')}
                 disabled={i === 0}
                 onClick={() => updateTpl(editing.id, tp => { const p = tp.phases.splice(i, 1)[0]; tp.phases.splice(i - 1, 0, p); return tp; })}>▲</button>
-              <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} title={t('ph.moveDown')}
+              <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} data-htip={t('ph.moveDown')}
                 disabled={i === editing.phases.length - 1}
                 onClick={() => updateTpl(editing.id, tp => { const p = tp.phases.splice(i, 1)[0]; tp.phases.splice(i + 1, 0, p); return tp; })}>▼</button>
               <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }}

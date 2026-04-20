@@ -224,7 +224,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const nearest = !exact && nearestSize?.[0] === sizeLabel && f.best > 0;
             return <button key={sizeLabel} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
               style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
-              title={desc || undefined}
+              data-htip={desc || undefined}
               onClick={() => patchNode({ best: days, factor })}>{sizeLabel}<span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>{days}d</span></button>;
           })}
         </div>
@@ -260,7 +260,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
         <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
         <br />
-        <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {sc.person}</span>
+        <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)}</span>
       </div>}
       {!sc && f.best > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
         {f.best}d × {f.factor || 1.5} = {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
@@ -288,10 +288,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           {onReorderInQueue && !f.parallel && <>
             <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('qe.queue')}</span>
             <div style={{ display: 'flex', gap: 2 }}>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 5px' }} title={t('nm.first')}>⤒</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 5px' }} title={t('nm.earlier')}>▲</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 5px' }} title={t('nm.later')}>▼</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 5px' }} title={t('nm.last')}>⤓</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 5px' }} data-htip={t('nm.first')}>⤒</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 5px' }} data-htip={t('nm.earlier')}>▲</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 5px' }} data-htip={t('nm.later')}>▼</button>
+              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 5px' }} data-htip={t('nm.last')}>⤓</button>
             </div>
           </>}
         </div>

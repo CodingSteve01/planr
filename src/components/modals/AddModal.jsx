@@ -87,7 +87,7 @@ export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, sele
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {(projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(sz =>
               <button key={sz.label} type="button" className={`btn ${f.best === sz.days ? 'btn-pri' : 'btn-sec'} btn-sm`}
-                title={sz.desc || undefined}
+                data-htip={sz.desc || undefined}
                 onClick={() => { s('best', sz.days); s('factor', sz.factor); }}>{sz.label}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{sz.days}d</span></button>)}
           </div>
           <p className="helper">Leave at 0 for structural grouping items — estimates aggregate from children.</p>

@@ -175,7 +175,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
             </div>
             <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
             {gp.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} title={r?.name}>{id}</span>; })}
+              {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
               {gp.critical.size > 6 && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
             </div>}
           </>}
@@ -208,14 +208,14 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
               const team = teams.find(t => t.id === s.team);
               return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'var(--bg-done)' : 'transparent', border: '1px solid', borderColor: isWip ? 'var(--gr)' : 'var(--b2)' }}
                 onClick={() => onNavigate?.(s.id, 'tree')}
-                title={`${s.id} — ${s.name}\n${iso(s.startD)} → ${iso(s.endD)}\n${s.effort?.toFixed(1)}d effort`}>
+                data-htip={`${s.id} — ${s.name}\n${iso(s.startD)} → ${iso(s.endD)}\n${s.effort?.toFixed(1)}d effort`}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 60 }}>{iso(s.startD)?.slice(5)}</span>
                 <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isWip && <span style={{ color: 'var(--am)', marginRight: 3 }}>◐</span>}
                   {s.name}
                 </span>
                 {team && <span style={{ fontSize: 9, color: team.color, fontWeight: 500, flexShrink: 0 }}>{team.name}</span>}
-                {overdue && <span style={{ fontSize: 9, color: 'var(--re)', flexShrink: 0 }} title={`Decide by ${node.decideBy} — overdue`}>⏰!</span>}
+                {overdue && <span style={{ fontSize: 9, color: 'var(--re)', flexShrink: 0 }} data-htip={`Decide by ${node.decideBy} — overdue`}>⏰!</span>}
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{s.effort?.toFixed(0)}d</span>
               </div>;
             })}

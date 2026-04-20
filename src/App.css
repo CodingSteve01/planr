@@ -323,3 +323,4 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 [data-theme="light"] .gw-yb{background:#dbeafe;}
 [data-theme="light"] ::-webkit-scrollbar-track{background:#f0f2f5;}
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:#b0b8c8;}
+.htip-pop{background:var(--bg2,#191d25);color:var(--tx,#e8ecf4);border:1px solid var(--b2,#364456);border-radius:var(--r,7px);padding:6px 10px;font:500 11px/1.4 Inter,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}

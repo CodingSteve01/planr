@@ -162,7 +162,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
                   onClick={e => { e.stopPropagation(); acceptAuto(node); }}
-                  title={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`}>{memberShort(sc.personId)}</button>}
+                  data-htip={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`}>{memberShort(sc.personId)}</button>}
               </div>;
             })}
           </div>;
@@ -254,7 +254,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
         const blockers = allDeps.filter(d => !resolveToLeafIds(tree, d).every(dl => doneSet.has(dl))).map(d => iMap[d]?.name || d);
         return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
           onClick={() => onOpenItem?.(r.id)}
-          title={blockers.length ? `${t('p.waitingFor')}: ${blockers.join(', ')}` : ''}>
+          data-htip={blockers.length ? `${t('p.waitingFor')}: ${blockers.join(', ')}` : undefined}>
           <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>

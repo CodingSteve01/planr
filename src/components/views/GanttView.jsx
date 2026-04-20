@@ -24,6 +24,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
+  // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+
+  const snAll = (s) => {
+    const ids = (s.assign || []).length > 0 ? s.assign : (s.personId ? [s.personId] : []);
+    if (!ids.length) return sn(s.personId, s.person);
+    const shorts = ids.map(id => shortMap[id] || sn(id, ''));
+    if (shorts.length <= 2) return shorts.join('+');
+    return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+  };
   const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -538,9 +546,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
           const todX = dateToX(now), h1X = dateToX(h1D), h2X = dateToX(h2D);
           return <div style={{ display: 'flex', height: 3, position: 'relative', overflow: 'hidden', width: tw }}>
             {todX > 0 && <div style={{ position: 'absolute', left: 0, width: todX, height: '100%', background: 'var(--bg3)' }} />}
-            {h1X > todX && <div style={{ position: 'absolute', left: Math.max(todX, 0), width: h1X - Math.max(todX, 0), height: '100%', background: 'var(--gr)', opacity: .5 }} title={`H1 · ${h1Weeks}w — committed`} />}
-            {h2X > h1X && <div style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: .4 }} title={`H2 · ${h2Weeks}w — estimated`} />}
-            <div style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: .15 }} title="Beyond H2 — exploratory" />
+            {h1X > todX && <div style={{ position: 'absolute', left: Math.max(todX, 0), width: h1X - Math.max(todX, 0), height: '100%', background: 'var(--gr)', opacity: .5 }} data-htip={`H1 · ${h1Weeks}w — committed`} />}
+            {h2X > h1X && <div style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: .4 }} data-htip={`H2 · ${h2Weeks}w — estimated`} />}
+            <div style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: .15 }} data-htip="Beyond H2 — exploratory" />
           </div>;
         })()}
       </div>
@@ -576,10 +584,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             onMouseEnter={e => { setHoverDepId(s.id); const node = iMap[s.id]; setTip({ item: { ...node, ...s, isCp }, x: e.clientX, y: e.clientY }); }}
             onMouseLeave={() => { setHoverDepId(null); setTip(null); }}>
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
-            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} title={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
+            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
             {s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
-              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} title={s.autoAssigned ? `Auto: ${s.person}` : s.person}>{sn(s.personId, s.person)}</span>}
+              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} data-htip={s.autoAssigned ? `Auto: ${s.person}` : (s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>}
             <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
           </div>;
         })}
@@ -607,7 +615,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             })}
             {/* Pre-planStart zone: striped overlay for the rendering area before the scheduling horizon */}
             {(() => { const psX = planStart ? dateToX(new Date(planStart)) : 0;
-              return psX > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: psX, height: '100%', background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)', pointerEvents: 'none', zIndex: 1 }} title="Before scheduling horizon — only pinned tasks appear here" /> : null;
+              return psX > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: psX, height: '100%', background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)', pointerEvents: 'none', zIndex: 1 }} data-htip="Before scheduling horizon — only pinned tasks appear here" /> : null;
             })()}
             {/* Past zone: subtle dim overlay for everything before today */}
             {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.06)', pointerEvents: 'none', zIndex: 1 }} />}
@@ -620,9 +628,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               const h1X = dateToX(h1Date);
               const h2X = dateToX(h2Date);
               return <>
-                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} title={`Horizon 1 (${h1Weeks}w) — items here should be committed`} />}
+                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} data-htip={`Horizon 1 (${h1Weeks}w) — items here should be committed`} />}
                 {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X + 4, top: 2, fontSize: 8, color: 'var(--ac)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H1 · {h1Weeks}w</div>}
-                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} title={`Horizon 2 (${h2Weeks}w) — items here should be at least estimated`} />}
+                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} data-htip={`Horizon 2 (${h2Weeks}w) — items here should be at least estimated`} />}
                 {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X + 4, top: 2, fontSize: 8, color: 'var(--am)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H2 · {h2Weeks}w</div>}
               </>;
             })()}
@@ -636,11 +644,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
               return <React.Fragment key={dl.id}>
                 {backfillW > 0 && <div style={{ position: 'absolute', left: x - backfillW, top: 0, width: backfillW, height: '100%',
                   background: `linear-gradient(to right, transparent, ${dl.severity === 'critical' ? 'rgba(244,63,94,.14)' : 'rgba(245,158,11,.14)'})`,
-                  pointerEvents: 'none', zIndex: 3 }} title={titleStr} />}
+                  pointerEvents: 'none', zIndex: 3 }} data-htip={titleStr} />}
                 {/* Mast: vertical line at the deadline week */}
-                <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: .7, zIndex: 4 }} title={titleStr} />
+                <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: .7, zIndex: 4 }} data-htip={titleStr} />
                 {/* Flag: triangle notch on the left (pointing back toward the backfill), label body to the right of the mast */}
-                <div style={{ position: 'absolute', left: x, top: 1, zIndex: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center', maxWidth: 120 }} title={titleStr}>
+                <div style={{ position: 'absolute', left: x, top: 1, zIndex: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center', maxWidth: 120 }} data-htip={titleStr}>
                   <div style={{
                     background: col, color: '#fff', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)',
                     padding: '2px 6px 2px 8px', letterSpacing: '.02em',
@@ -728,7 +736,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                 onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id }); }}>
                 {/* Progress overlay: lighter strip on the left proportional to progress % */}
                 {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
-                  return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} title={`${prog}% done`} /> : null; })()}
+                  return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} data-htip={`${prog}% done`} /> : null; })()}
                 {/* Phase segments overlay */}
                 {node?.phases?.length > 1 && (() => {
                   const phases = normalizePhases(node.phases);
@@ -738,24 +746,24 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
                       flex: `${shares[pi] || 1} 0 0`,
                       borderRight: pi < phases.length - 1 ? '1px solid rgba(0,0,0,.2)' : 'none',
                       background: ph.status === 'done' ? 'rgba(255,255,255,.15)' : ph.status === 'wip' ? 'transparent' : 'rgba(0,0,0,.12)',
-                    }} title={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
+                    }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
                 <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0, textShadow: conf === 'estimated' ? '0 0 4px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8)' : undefined }}>
-                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} title="Parallel — runs alongside other work (capacity bypass)">≡</span>}
+                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
-                  title={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
+                  data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>}
                 </span>
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}
-                <div title="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
+                <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
                   style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', border: `1.5px solid ${tc}`, opacity: linkDrag ? 1 : 0.7 }} />
                 </div>
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
-              {decideWi >= 0 && s.status !== 'done' && <div title={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
+              {decideWi >= 0 && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
                 style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
             </div>;
           })}
@@ -842,12 +850,12 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       </div>
     </div>
     <div className="gantt-footer">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
         <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
         <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} title="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} title="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
         <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
       </div>
@@ -860,16 +868,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
         {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ` ${t('s.atRisk')}` : dl.maxEnd ? ` ${t('s.onTrack')}` : ''}
       </span>)}
-      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} title={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
-      {unestimatedCount > 0 && <span className="badge bw" title="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
+      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
+      {unestimatedCount > 0 && <span className="badge bw" data-htip="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
         allItems.forEach(s => { if (s.status !== 'done') counts[confidence[s.id] || 'committed']++; });
         return (counts.estimated > 0 || counts.exploratory > 0) ? <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
-          <span title="Committed: person assigned, estimate solid">● {counts.committed}</span>
-          <span style={{ color: 'var(--am)' }} title="Estimated: team/estimate exists but no person or high risk">◐ {counts.estimated}</span>
-          <span title="Exploratory: scope unclear, needs concept work">○ {counts.exploratory}</span>
+          <span data-htip="Committed: person assigned, estimate solid">● {counts.committed}</span>
+          <span style={{ color: 'var(--am)' }} data-htip="Estimated: team/estimate exists but no person or high risk">◐ {counts.estimated}</span>
+          <span data-htip="Exploratory: scope unclear, needs concept work">○ {counts.exploratory}</span>
         </span> : null;
       })()}
       {linkMode && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>

@@ -27,6 +27,7 @@ import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
+import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 
 function loadLocalProject() {
   try {
@@ -1297,19 +1298,21 @@ export default function App() {
     // TODO: add Network Graph improvements once documented
   ];
 
-  return <div className="app">
+  return <>
+    <HoverTipProvider />
+    <div className="app">
     <div className="topbar">
-      <span className="logo" title="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
+      <span className="logo" data-htip="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
-        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} title={!saved ? 'Unsaved changes' : (fileName && !fileSynced ? 'Saved locally — file on disk pending auto-save' : 'All changes saved')} />
+        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? 'Unsaved changes' : (fileName && !fileSynced ? 'Saved locally — file on disk pending auto-save' : 'All changes saved')} />
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
-        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} title={`Save now (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+S) — bypass the ${SAVE_DEBOUNCE_MS / 1000}s auto-save debounce`} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={`Save now (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+S) — bypass the ${SAVE_DEBOUNCE_MS / 1000}s auto-save debounce`} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
-      <label title={autoSave ? `Auto-save is ON — writes to disk ${SAVE_DEBOUNCE_MS / 1000}s after the last change. Click 💾 to save now.` : 'Auto-save is OFF — your changes only land in localStorage. Click 💾 (or Ctrl+S) to write to the file.'} className="toggle">
+      <label data-htip={autoSave ? `Auto-save is ON — writes to disk ${SAVE_DEBOUNCE_MS / 1000}s after the last change. Click 💾 to save now.` : 'Auto-save is OFF — your changes only land in localStorage. Click 💾 (or Ctrl+S) to write to the file.'} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
         <span className="slider" />
       </label>
@@ -1339,13 +1342,13 @@ export default function App() {
           tip = `Changes are safe in localStorage and will be written to the file ${SAVE_DEBOUNCE_MS / 1000}s after your last edit. Press Ctrl/Cmd+S or click 💾 to save now.`;
         }
         return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          title={tip}
+          data-htip={tip}
           onClick={() => { if (clickable) saveToFile(true); }}>
           {text}
           {externalChangeAvailable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
             <span style={{ color: 'var(--am)' }}>· file changed</span>
-            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} title="Reload project from the file on disk (overwrites current in-memory state)">reload</button>
-            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} title="Dismiss — ignore this external change">×</span>
+            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} data-htip="Reload project from the file on disk (overwrites current in-memory state)">reload</button>
+            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} data-htip="Dismiss — ignore this external change">×</span>
           </span>}
         </span>;
       })()}
@@ -1353,11 +1356,11 @@ export default function App() {
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
-      <button className="btn btn-ghost btn-sm" title={_t('tour.helpTitle')} style={{ padding: '4px 8px', fontWeight: 700 }}
+      <button className="btn btn-ghost btn-sm" data-htip={_t('tour.helpTitle')} style={{ padding: '4px 8px', fontWeight: 700 }}
         onClick={startTour}>{_t('tour.help')}</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
-      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} title="Save as (pick format: JSON or Markdown)">Save as</button>
+      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
       <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; const ctx = { ..._exportCtx(), selectedIds: multiSel.size > 0 ? multiSel : null }; if (v === 'jira') { setModal('jira'); } else if (v === 'report') exportReport(ctx); else if (v === 'sprint') exportSprintMarkdown(ctx); else if (v === 'png-net') exportNetworkPNG(ctx); else if (v === 'png-gantt') exportGanttPNG(ctx); else if (v === 'mermaid') exportMermaid(ctx); else if (v === 'json') exportJSON(ctx); }}>
         <option value="">Export ▾</option>
         <option value="jira">Jira…</option>
@@ -1396,9 +1399,9 @@ export default function App() {
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => i - 1); }
         }} />
       {search && <>
-        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} title={`Previous match (Shift+Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↑)`} style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
-        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} title={`Next match (Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↓)`} style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
-        <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} title="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} data-htip={`Previous match (Shift+Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↑)`} style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} data-htip={`Next match (Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↓)`} style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} data-htip="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
       </>}
     </div>}
     <div className="main">
@@ -1530,7 +1533,7 @@ export default function App() {
                       const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
                       return <>
                         {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                          {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" title="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
+                          {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
                         </div>}
                         <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
                       </>;
@@ -1565,7 +1568,7 @@ export default function App() {
             })()}
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
-              <button className="btn btn-ghost btn-icon sm" title="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
+              <button className="btn btn-ghost btn-icon sm" data-htip="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
@@ -1575,7 +1578,7 @@ export default function App() {
         </div>}
       </>}
       {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter}
+      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
@@ -1633,5 +1636,6 @@ export default function App() {
         </div>
       </div>
     )}
-  </div>;
+  </div>
+  </>;
 }

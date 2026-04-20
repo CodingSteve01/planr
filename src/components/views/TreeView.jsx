@@ -35,11 +35,10 @@ function StatusIcon({ status, progress = 0 }) {
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-const PRIO_LBL = { 1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low' };
-
 export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
+  const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
@@ -102,7 +101,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     if (teamFilter) {
       const matchIds = new Set();
       f.forEach(r => {
-        if ((r.team || '').includes(teamFilter)) {
+        if ((r.team || '') === teamFilter) {
           matchIds.add(r.id);
           const parts = r.id.split('.'); for (let i = 1; i < parts.length; i++) { matchIds.add(parts.slice(0, i).join('.')); }
         }
@@ -163,19 +162,19 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     return { idx, count: siblings.length };
   }, [selected?.id, tree]);
   const toolBtn = (label, title, onClick, disabled) => <button
-    className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} title={title}
+    className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
     style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer' }}>{label}</button>;
 
   return <div>
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
-      <button className="btn btn-sec btn-xs" onClick={collapseAll} title={hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
-      <button className="btn btn-sec btn-xs" onClick={expandAll} title={hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Status icons">
+      <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
+      <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} data-htip="Status icons">
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="open" /> {t('tv.statusOpen').toLowerCase()}</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="wip" progress={50} /> {t('wip').toLowerCase()}</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="done" /> {t('tv.statusDone').toLowerCase()}</span>
       </span>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Priority icons">
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} data-htip="Priority icons">
         <span style={{ color: 'var(--re)' }}>⏫</span>{t('tv.prioCrit')}
         <span style={{ color: 'var(--am)' }}>▲</span>{t('tv.prioHigh')}
         <span style={{ color: 'var(--ac)' }}>▬</span>{t('tv.prioMed')}
@@ -197,7 +196,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
         </>}
         <span style={{ flex: 1 }} />
         <button className="btn btn-sec btn-xs" onClick={() => { if (confirm(`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}?`)) onDelete(selected.id); }}
-          title={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}`}
+          data-htip={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}`}
           style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
       </div>
     )}
@@ -239,7 +238,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
                 : <span style={{ display: 'inline-block', width: 14 }} />}
 
               {/* Status icon — SVG matching the network graph's symbology */}
-              <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} title={statusLbl[effStatus]}>
+              <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} data-htip={statusLbl[effStatus]}>
                 <StatusIcon status={effStatus} progress={prog} />
               </span>
 
@@ -250,15 +249,15 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               <span className={`tn${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}>{r.name}</span>
 
               {/* Team — small colored dot + name (subtle) */}
-              {tName && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} title={`Team: ${tName}`}>● {tName}</span>}
+              {tName && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`Team: ${tName}`}>● {tName}</span>}
 
               {/* Assignees — initials */}
-              {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} title={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
+              {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} data-htip={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
               {/* Auto-assigned suggestion from scheduler */}
-              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} title={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
+              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} data-htip={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
 
               {/* Priority — chevron icon for all leaves */}
-              {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} title={`Priority: ${PRIO_LBL[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
+              {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
 
               {/* Severity for roots */}
               {d === 1 && r.severity && r.severity !== 'high' && <span style={{ marginLeft: 8, fontSize: 10, color: r.severity === 'critical' ? 'var(--re)' : 'var(--am)', fontWeight: 600, textTransform: 'uppercase' }}>{r.severity}</span>}
@@ -267,10 +266,10 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {d === 1 && r.date && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>📅 {r.date}</span>}
 
               {/* Decide-by date — overdue check */}
-              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} title={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
+              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
 
               {/* Critical path indicator */}
-              {isCp && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--re)' }} title="On critical path">⚡</span>}
+              {isCp && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--re)' }} data-htip="On critical path">⚡</span>}
 
               {/* Collapsed children count */}
               {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
@@ -295,7 +294,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
             {/* Actions — only quick-add stays as a per-row affordance. Reorder and delete
                 live in the contextual toolbar above and act on the currently selected item. */}
             <td style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
-              <button title={`Add child under ${r.id}`} onClick={e => { e.stopPropagation(); onQuickAdd(r); }}
+              <button data-htip={`Add child under ${r.id}`} onClick={e => { e.stopPropagation(); onQuickAdd(r); }}
                 style={{ width: 20, height: 20, padding: 0, background: 'transparent', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: 14, lineHeight: 1, borderRadius: 3 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg4)'; e.currentTarget.style.color = 'var(--ac)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tx3)'; }}>+</button>
