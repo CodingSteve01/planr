@@ -235,7 +235,7 @@ function Slide3Network({ demo }) {
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 260 }}>
           <defs>
             <marker id="arrowhead" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
-              <polygon points="0 0, 7 2.5, 0 5" fill="rgba(255,255,255,0.25)" />
+              <polygon points="0 0, 7 2.5, 0 5" fill="var(--tx3)" opacity="0.55" />
             </marker>
           </defs>
           {/* Edges */}
@@ -255,7 +255,8 @@ function Slide3Network({ demo }) {
             return (
               <path key={i}
                 d={`M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`}
-                stroke="rgba(255,255,255,0.22)"
+                stroke="var(--tx3)"
+                strokeOpacity="0.5"
                 strokeWidth="1.5"
                 fill="none"
                 markerEnd="url(#arrowhead)"

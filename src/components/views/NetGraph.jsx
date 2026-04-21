@@ -555,7 +555,7 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
         {allEdges.filter(e => !e.isHier).map(e => {
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
           const isActive = activeId && (e.from === activeId || e.to === activeId);
-          const op = isActive ? .85 : isCp ? .5 : .2;
+          const op = isActive ? .9 : isCp ? .55 : .35;
           const owner = iMap[e.depOwner || e.from]; const label = owner?._depLabels?.[e.depTarget || e.to] || '';
           const lp = e.labelPt;
           return <g key={e.id}>
@@ -577,7 +577,8 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
           const isSel = selId === r.id; const isDone = r.status === 'done';
           const isCp = cpSet?.has(r.id);
           const isConn = connectedSet?.has(r.id);
-          const subtreeDimmed = connectedSet && connectedSet.size > 3 && !connectedSet.has(r.id);
+          // Only dim on deliberate selection — hover alone should not push non-connected nodes into the background.
+          const subtreeDimmed = selId && connectedSet && connectedSet.size > 3 && !connectedSet.has(r.id);
           const isRoot = !r.id.includes('.');
           const depth = r.id.split('.').length;
           const prog = stats?.[r.id]?._progress ?? 0;
@@ -588,7 +589,7 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
           const isMatch = searchMatches?.has(r.id);
           const isActiveMatch = r.id === activeMatchId;
           const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
-          const finalOpacity = subtreeDimmed ? .2 : searchDimmed ? .25 : 1;
+          const finalOpacity = subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
               stroke={isActiveMatch ? 'var(--ac)' : isMatch ? 'var(--am)' : isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
