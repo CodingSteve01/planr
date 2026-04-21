@@ -1,22 +1,8 @@
-import { useMemo } from 'react';
 import { useT } from '../../i18n.jsx';
-import { buildDemoProject } from '../../utils/demoProject.js';
-import { treeStats } from '../../utils/scheduler.js';
-import { renderRoadmapSvg } from '../../utils/roadmap.js';
+import { FeatureCarousel } from '../shared/FeatureCarousel.jsx';
 
 export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   const { t } = useT();
-
-  // Inline Metro preview — uses the actual renderer with the demo tree.
-  const previewSvg = useMemo(() => {
-    try {
-      const demo = buildDemoProject(t);
-      const stats = treeStats(demo.tree);
-      return renderRoadmapSvg({ tree: demo.tree, scheduled: [], stats });
-    } catch {
-      return '';
-    }
-  }, [t]);
 
   const FEATURES = [
     ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc'), t('ob.feat.tree.htip')],
@@ -53,17 +39,7 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
             </button>
           </div>
 
-          {previewSvg && (
-            <div className="ob-preview">
-              <div className="ob-preview-chrome">
-                <span className="ob-dot ob-dot-red" />
-                <span className="ob-dot ob-dot-amber" />
-                <span className="ob-dot ob-dot-green" />
-                <span className="ob-preview-title">{t('ob.preview.label')}</span>
-              </div>
-              <div className="ob-preview-svg" dangerouslySetInnerHTML={{ __html: previewSvg }} />
-            </div>
-          )}
+          <FeatureCarousel />
         </div>
 
         {/* ── Feature chips ── */}

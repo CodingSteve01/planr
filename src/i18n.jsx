@@ -384,6 +384,12 @@ const en = {
   'new.confidence': 'Confidence markers on Gantt bars — ●◐○ shows how solid each estimate is.',
   'new.dragLink': 'Drag-to-link dependencies — grab the edge handle of any Gantt bar and drop it on another.',
   'new.planReview': 'Planning Review tab — confidence split, unassigned items, and blocked work in one place.',
+
+  // ── Feature Carousel captions ──
+  'carousel.slide1.caption': 'Each project is a subway line. The train shows real-time progress.',
+  'carousel.slide2.caption': 'Auto-scheduled Gantt — capacity-aware, respects dependencies and vacations.',
+  'carousel.slide3.caption': 'Network graph reveals dependency chains and critical path.',
+  'carousel.slide4.caption': 'Plan review shows confidence split and upcoming sprint at a glance.',
 };
 
 const de = {
@@ -767,6 +773,12 @@ const de = {
   'new.confidence': 'Confidence-Marker auf Gantt-Balken — ●◐○ zeigt wie belastbar jede Schätzung ist.',
   'new.dragLink': 'Drag-to-Link für Abhängigkeiten — Randgriff eines Gantt-Balkens ziehen und auf einen anderen fallen lassen.',
   'new.planReview': 'Planungsübersicht-Tab — Confidence-Verteilung, nicht zugewiesene Items und geblockte Arbeit an einem Ort.',
+
+  // ── Feature-Carousel-Untertitel ──
+  'carousel.slide1.caption': 'Jedes Projekt ist eine U-Bahn-Linie. Der Zug zeigt den Echtzeit-Fortschritt.',
+  'carousel.slide2.caption': 'Automatisch geplanter Gantt — kapazitätsbewusst, respektiert Abhängigkeiten und Urlaub.',
+  'carousel.slide3.caption': 'Der Netzwerkgraph zeigt Abhängigkeitsketten und den kritischen Pfad.',
+  'carousel.slide4.caption': 'Die Planungsübersicht zeigt Confidence-Verteilung und den nächsten Sprint auf einen Blick.',
 };
 
 const LANGS = { en, de };
