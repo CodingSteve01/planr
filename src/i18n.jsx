@@ -195,7 +195,7 @@ const en = {
   // ── TreeView ──
   'tv.collapseAll': 'Collapse all', 'tv.expandAll': 'Expand all',
   'tv.items': 'items', 'tv.leafs': 'leafs',
-  'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams', 'tv.allRoots': 'All items',
+  'tv.addItem': '+ Add item', 'tv.allTeams': 'All teams', 'tv.allRoots': 'All items', 'tv.allPeople': 'All people',
 
   // ── Sizes ──
   'set.sizes': 'T-Shirt Sizes', 'set.sizeCatalogue': 'T-Shirt Size Catalogue',
@@ -346,6 +346,13 @@ const en = {
   'ob.feat.net': 'Network Graph', 'ob.feat.net.desc': 'Visual dependency map, zoom/pan, click to edit',
   'ob.feat.focus': 'Focus Areas', 'ob.feat.focus.desc': 'Goals, painpoints, deadlines, and top-down planning',
   'ob.feat.save': 'Save / Load', 'ob.feat.save.desc': 'JSON export/import — works offline & GitHub Pages',
+  'ob.feat.tree.htip': 'html:<div><b>🌳 Work Tree</b><br/>Hierarchical work breakdown with <b>nested items, dependencies, and multi-person assignments</b>.<br/>Drag to reorder, shift-click for range select, right-click for context actions.</div>',
+  'ob.feat.auto.htip': 'html:<div><b>📅 Auto-schedule</b><br/>Planr runs a <b>person-level parallel scheduler</b> — each person works their queue in priority order, respecting capacity and vacations.<br/>No manual date entry needed: change estimates or priorities and the schedule updates instantly.</div>',
+  'ob.feat.metro.htip': 'html:<div><b>🚆 Metro Roadmap</b><br/>Each project becomes a <b>subway line</b>. Milestones are stations, the train shows real-time progress along the route.<br/>Hover stations for dates and status — a one-glance status page for stakeholders.</div>',
+  'ob.feat.horizons.htip': 'html:<div><b>🧭 3 Planning Horizons</b><br/><b>H1 Committed</b> · work starting soon, fully defined.<br/><b>H2 Estimated</b> · coming up, roughly scoped.<br/><b>H3 Exploratory</b> · further out, intentionally lightweight.</div>',
+  'ob.feat.cp.htip': 'html:<div><b>⚡ Critical Path</b><br/>Planr runs <b>CPM analysis</b> across the entire work tree and highlights the chain of tasks that directly controls your end date.<br/>Red bars = critical path. Shorten them or add people to accelerate the project.</div>',
+  'ob.feat.net.htip': 'html:<div><b>🕸 Network Graph</b><br/>A <b>zoomable, pannable dependency map</b> of your entire project.<br/>Click a node to edit, drag from the edge handle to create dependencies. Filtered by the same root / team / person selectors as other views.</div>',
+  'ob.feat.focus.htip': 'html:<div><b>🎯 Focus Areas</b><br/>Link <b>goals, painpoints, and deadlines</b> to work items for top-down planning.<br/>The Overview tab shows which focus areas are at risk and how much work is linked to each objective.</div>',
 
   // ── Tour ──
   'tour.aria': 'Planr tour', 'tour.step': 'Step {0} of {1}',
@@ -571,7 +578,7 @@ const de = {
   // ── TreeView ──
   'tv.collapseAll': 'Alle zuklappen', 'tv.expandAll': 'Alle aufklappen',
   'tv.items': 'Items', 'tv.leafs': 'Leaves',
-  'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams', 'tv.allRoots': 'Alle Pakete',
+  'tv.addItem': '+ Item hinzufügen', 'tv.allTeams': 'Alle Teams', 'tv.allRoots': 'Alle Pakete', 'tv.allPeople': 'Alle Personen',
 
   // ── Größen ──
   'set.sizes': 'T-Shirt-Größen', 'set.sizeCatalogue': 'T-Shirt-Größen-Katalog',
@@ -722,6 +729,13 @@ const de = {
   'ob.feat.net': 'Netzwerkgraph', 'ob.feat.net.desc': 'Visuelles Abhängigkeits-Diagramm, Zoom/Pan, Klick zum Bearbeiten',
   'ob.feat.focus': 'Fokus-Bereiche', 'ob.feat.focus.desc': 'Ziele, Painpoints, Deadlines und Top-down-Planung',
   'ob.feat.save': 'Speichern / Laden', 'ob.feat.save.desc': 'JSON Export/Import — funktioniert offline & GitHub Pages',
+  'ob.feat.tree.htip': 'html:<div><b>🌳 Arbeitspakete</b><br/>Hierarchischer Projektstrukturplan mit <b>verschachtelten Items, Abhängigkeiten und Mehrfachzuweisungen</b>.<br/>Drag & Drop zum Sortieren, Shift-Klick für Mehrfachauswahl, Rechtsklick für Kontextaktionen.</div>',
+  'ob.feat.auto.htip': 'html:<div><b>📅 Auto-Planung</b><br/>Planr führt einen <b>personenbezogenen Parallelplaner</b> aus — jede Person arbeitet ihre Warteschlange nach Priorität ab, unter Berücksichtigung von Kapazität und Urlaub.<br/>Keine manuellen Datumseingaben: Schätzungen oder Prioritäten ändern und der Plan aktualisiert sich sofort.</div>',
+  'ob.feat.metro.htip': 'html:<div><b>🚆 U-Bahn-Roadmap</b><br/>Jedes Projekt wird zur <b>U-Bahn-Linie</b>. Meilensteine sind Haltestellen, der Zug zeigt den Echtzeit-Fortschritt.<br/>Hover über Haltestellen für Termine und Status — eine Statusseite auf einen Blick für Stakeholder.</div>',
+  'ob.feat.horizons.htip': 'html:<div><b>🧭 3 Planungshorizonte</b><br/><b>H1 Verbindlich</b> · startet bald, vollständig definiert.<br/><b>H2 Geschätzt</b> · kommt danach, grob geplant.<br/><b>H3 Explorativ</b> · liegt weiter draußen, bewusst offen gehalten.</div>',
+  'ob.feat.cp.htip': 'html:<div><b>⚡ Kritischer Pfad</b><br/>Planr führt eine <b>CPM-Analyse</b> über den gesamten Arbeitsbaum durch und hebt die Aufgabenkette hervor, die direkt das Enddatum bestimmt.<br/>Rote Balken = kritischer Pfad. Kürzen oder Personen hinzufügen, um das Projekt zu beschleunigen.</div>',
+  'ob.feat.net.htip': 'html:<div><b>🕸 Netzwerkgraph</b><br/>Eine <b>zoom- und schwenkbare Abhängigkeitskarte</b> des gesamten Projekts.<br/>Node anklicken zum Bearbeiten, vom Rand ziehen um Abhängigkeiten zu erstellen. Gefiltert durch dieselben Root-/Team-/Personen-Filter wie andere Ansichten.</div>',
+  'ob.feat.focus.htip': 'html:<div><b>🎯 Fokus-Bereiche</b><br/><b>Ziele, Painpoints und Deadlines</b> mit Arbeitspaketen verknüpfen für Top-down-Planung.<br/>Die Übersicht zeigt, welche Fokus-Bereiche gefährdet sind und wie viel Arbeit an jedes Ziel geknüpft ist.</div>',
 
   // ── Tour ──
   'tour.aria': 'Planr Tour', 'tour.step': 'Schritt {0} von {1}',

@@ -88,6 +88,7 @@ export default function App() {
   const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
   const [teamFilter, setTeamFilter] = useState('');
   const [rootFilter, setRootFilter] = useState('');
+  const [personFilter, setPersonFilter] = useState('');
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -769,14 +770,31 @@ export default function App() {
       });
       items = items.filter(r => visibleIds.has(r.id));
     }
+    if (personFilter) {
+      const visibleIds = new Set();
+      items.forEach(r => {
+        if ((r.assign || []).includes(personFilter)) {
+          visibleIds.add(r.id);
+          const parts = r.id.split('.');
+          for (let i = 1; i < parts.length; i++) {
+            const ancestor = parts.slice(0, i).join('.');
+            visibleIds.add(ancestor);
+          }
+        }
+      });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
     return items;
-  }, [tree, rootFilter, teamFilter]);
+  }, [tree, rootFilter, teamFilter, personFilter]);
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
   useEffect(() => {
     if (teamFilter && !teams.some(t => t.id === teamFilter)) setTeamFilter('');
   }, [teams, teamFilter]);
+  useEffect(() => {
+    if (personFilter && !members.some(m => m.id === personFilter)) setPersonFilter('');
+  }, [members, personFilter]);
   // Backward compat: migrate old deadlines[] into tree roots
   useEffect(() => {
     if (!data?.deadlines?.length) return;
@@ -1383,13 +1401,14 @@ export default function App() {
       ))}
       <div style={{ flex: 1 }} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net') && <div className="subtoolbar">
-      {/* Root + Team filters: shared across Tree, Gantt, Network */}
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan') && <div className="subtoolbar">
+      {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
+      <div style={{ width: 150 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
       <div style={{ flex: 1 }} />
-      <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
+      {tab !== 'plan' && <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
         placeholder={`Search… (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+F)`}
         value={search} onChange={e => { setSearch(e.target.value); setSearchIdx(0); }}
         onKeyDown={e => {
@@ -1397,8 +1416,8 @@ export default function App() {
           if (e.key === 'Enter') { e.preventDefault(); setSearchIdx(i => e.shiftKey ? i - 1 : i + 1); }
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => i + 1); }
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => i - 1); }
-        }} />
-      {search && <>
+        }} />}
+      {tab !== 'plan' && search && <>
         <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} data-htip={`Previous match (Shift+Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↑)`} style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
         <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} data-htip={`Next match (Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↓)`} style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
         <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} data-htip="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
@@ -1409,7 +1428,7 @@ export default function App() {
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
-      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter}
+      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}
       {tab === 'tree' && <>
@@ -1429,7 +1448,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
+              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} onReorder={reorderSibling} />
           }
@@ -1577,8 +1596,8 @@ export default function App() {
           </>}
         </div>}
       </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter}
+      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}

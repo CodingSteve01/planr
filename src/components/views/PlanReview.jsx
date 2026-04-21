@@ -9,7 +9,7 @@ const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, stats, rootFilter = '', teamFilter = '', onOpenItem, onUpdate }) {
+export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, stats, rootFilter = '', teamFilter = '', personFilter = '', onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -29,8 +29,9 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
     let f = allLvs;
     if (rootFilter) f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
     if (teamFilter) f = f.filter(r => (r.team || '') === teamFilter);
+    if (personFilter) f = f.filter(r => (r.assign || []).includes(personFilter));
     return f;
-  }, [allLvs, rootFilter, teamFilter]);
+  }, [allLvs, rootFilter, teamFilter, personFilter]);
   const doneSet = useMemo(() => new Set(lvs.filter(r => r.status === 'done').map(r => r.id)), [lvs]);
   const teamName = id => teams.find(tm => tm.id === id)?.name || id || '';
   const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';

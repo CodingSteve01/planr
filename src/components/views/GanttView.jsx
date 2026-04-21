@@ -11,7 +11,7 @@ const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -100,8 +100,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     let items = [...scheduled, ...unscheduledLeaves];
     if (rootFilter) items = items.filter(s => s.id.startsWith(rootFilter + '.') || s.id === rootFilter);
     if (teamFilter) items = items.filter(s => (s.team || '') === teamFilter);
+    if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
     return items;
-  }, [scheduled, tree, rootFilter, teamFilter]);
+  }, [scheduled, tree, rootFilter, teamFilter, personFilter]);
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];

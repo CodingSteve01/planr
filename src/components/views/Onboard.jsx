@@ -19,13 +19,13 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   }, [t]);
 
   const FEATURES = [
-    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc')],
-    ['📅', t('ob.feat.auto'), t('ob.feat.auto.desc')],
-    ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc')],
-    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc')],
-    ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc')],
-    ['🕸', t('ob.feat.net'), t('ob.feat.net.desc')],
-    ['🎯', t('ob.feat.focus'), t('ob.feat.focus.desc')],
+    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc'), t('ob.feat.tree.htip')],
+    ['📅', t('ob.feat.auto'), t('ob.feat.auto.desc'), t('ob.feat.auto.htip')],
+    ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc'), t('ob.feat.metro.htip')],
+    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc'), t('ob.feat.horizons.htip')],
+    ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc'), t('ob.feat.cp.htip')],
+    ['🕸', t('ob.feat.net'), t('ob.feat.net.desc'), t('ob.feat.net.htip')],
+    ['🎯', t('ob.feat.focus'), t('ob.feat.focus.desc'), t('ob.feat.focus.htip')],
   ];
 
   return (
@@ -68,8 +68,8 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
 
         {/* ── Feature chips ── */}
         <div className="ob-feat-row">
-          {FEATURES.map(([icon, title, desc]) => (
-            <div key={title} className="ob-chip" data-htip={desc}>
+          {FEATURES.map(([icon, title, desc, htip]) => (
+            <div key={title} className="ob-chip" data-htip={htip || desc}>
               <span className="ob-chip-icon">{icon}</span>
               <span className="ob-chip-label">{title}</span>
             </div>

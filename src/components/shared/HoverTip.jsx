@@ -49,7 +49,14 @@ export function HoverTipProvider() {
   }, [tip]);
 
   if (!tip) return null;
-  return (
+  return tip.text.startsWith('html:') ? (
+    <div
+      ref={tipRef}
+      className="htip-pop"
+      style={{ position: 'fixed', left: tip.x + 14, top: tip.y + 14, pointerEvents: 'none', zIndex: 9999 }}
+      dangerouslySetInnerHTML={{ __html: tip.text.slice(5) }}
+    />
+  ) : (
     <div
       ref={tipRef}
       className="htip-pop"

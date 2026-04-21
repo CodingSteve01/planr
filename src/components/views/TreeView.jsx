@@ -35,7 +35,7 @@ function StatusIcon({ status, progress = 0 }) {
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -108,6 +108,16 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
       });
       f = f.filter(r => matchIds.has(r.id));
     }
+    if (personFilter) {
+      const matchIds = new Set();
+      f.forEach(r => {
+        if ((r.assign || []).includes(personFilter)) {
+          matchIds.add(r.id);
+          const parts = r.id.split('.'); for (let i = 1; i < parts.length; i++) { matchIds.add(parts.slice(0, i).join('.')); }
+        }
+      });
+      f = f.filter(r => matchIds.has(r.id));
+    }
     if (search) { const q = search.toLowerCase(); f = f.filter(r => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.note || '').toLowerCase().includes(q)); }
     return f.filter(r => {
       const parts = r.id.split('.');
@@ -117,7 +127,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
       }
       return true;
     });
-  }, [sorted, search, teamFilter, rootFilter, collapsed]);
+  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed]);
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {
