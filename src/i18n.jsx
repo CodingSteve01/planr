@@ -317,7 +317,7 @@ const en = {
   'bv.noActivity': 'No activity in this horizon.',
 
   // ── NodeModal / QuickEdit — Insights tab ──
-  'nm.tab.insights': 'Snapshot',
+  'nm.tab.insights': 'Insights',
   'ins.timing': 'Timing', 'ins.period': 'Period',
   'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
   'ins.effort': 'Effort', 'ins.effortBest': 'Best × factor',
@@ -756,7 +756,7 @@ const de = {
   'bv.noActivity': 'Keine Aktivität in diesem Horizont.',
 
   // ── NodeModal / QuickEdit — Insights-Tab ──
-  'nm.tab.insights': 'Schnappschuss',
+  'nm.tab.insights': 'Insights',
   'ins.timing': 'Zeitplan', 'ins.period': 'Zeitraum',
   'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',
   'ins.effort': 'Aufwand', 'ins.effortBest': 'Best × Faktor',

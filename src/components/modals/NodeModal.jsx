@@ -32,10 +32,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
   // Refs for focus targets — keyed by focusHint value
   const focusRefs = {
+    name: useRef(null),
     pinnedStart: useRef(null),
     bestDays: useRef(null),
     assign: useRef(null),
     phases: useRef(null),
+    status: useRef(null),
     customFields: useRef(null),
     deps: useRef(null),
   };
@@ -184,19 +186,19 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
         onPhaseToggle={handlePhaseToggle}
         onEditSection={sectionId => {
-          const tabMap = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
-          const fieldMap = { timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', dependencies: 'deps', customFields: 'customFields' };
-          const target = tabMap[sectionId];
-          if (target && nmTabs.find(x => x.id === target)) {
-            setNmTab(target);
-            setFocusHint(fieldMap[sectionId] || null);
-          }
+          const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
+          const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
+          const requested = tabMap[sectionId];
+          // Fallback: if requested tab is hidden, land on overview so user is never stuck.
+          const target = nmTabs.find(x => x.id === requested) ? requested : 'overview';
+          setNmTab(target);
+          setFocusHint(fieldMap[sectionId] || null);
         }}
       />}
 
       {/* ══════ OVERVIEW TAB ══════ */}
       {activeNmTab === 'overview' && <>
-        <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
+        <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
         <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
         {isRoot && <>
           <div className="frow">
@@ -213,33 +215,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
           {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
         </>}
-
-        {/* Manual status + progress (leaf without phases only) */}
-        {isLeaf && phases.length === 0 && <div className="frow" style={{ alignItems: 'flex-end' }}>
-          <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
-            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
-              // Sync progress when status changes manually
-              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100 }));
-              else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
-              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
-            }} />
-          </div>
-          <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
-            <input type="range" min="0" max="100" step="5" value={progPct}
-              onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
-              style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
-          </div>
-        </div>}
-
-        {/* Phases — define status + progress when present */}
-        {!isRoot && <div ref={focusRefs.phases}><PhaseList
-          phases={f.phases}
-          templates={taskTemplates}
-          teams={teams}
-          members={members}
-          templateId={f.templateId}
-          onChange={handlePhaseChange}
-        /></div>}
 
         {/* Parent stats (non-leaf, no phases) */}
         {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
@@ -266,6 +241,32 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {/* ══════ WORKFLOW TAB ══════ */}
       {activeNmTab === 'workflow' && !isRoot && <>
+        {/* Manual status + progress (leaf without phases only) */}
+        {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
+          <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
+            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
+              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100 }));
+              else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
+              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
+            }} />
+          </div>
+          <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
+            <input type="range" min="0" max="100" step="5" value={progPct}
+              onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
+              style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
+          </div>
+        </div>}
+
+        {/* Phases — define status + progress when present */}
+        <div ref={focusRefs.phases}><PhaseList
+          phases={f.phases}
+          templates={taskTemplates}
+          teams={teams}
+          members={members}
+          templateId={f.templateId}
+          onChange={handlePhaseChange}
+        /></div>
+
         <div className="field"><label>{t('qe.team')}</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <div style={{ flex: '0 0 180px' }}>

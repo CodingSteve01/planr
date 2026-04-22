@@ -30,10 +30,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const [focusHint, setFocusHint] = useState(null);
 
   const focusRefs = {
+    name: useRef(null),
     pinnedStart: useRef(null),
     bestDays: useRef(null),
     assign: useRef(null),
     phases: useRef(null),
+    status: useRef(null),
     customFields: useRef(null),
     deps: useRef(null),
   };
@@ -182,19 +184,19 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       customFields={customFields}
       onPhaseToggle={togglePhase}
       onEditSection={sectionId => {
-        const tabMap = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
-        const fieldMap = { timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', dependencies: 'deps', customFields: 'customFields' };
-        const target = tabMap[sectionId];
-        if (target && tabs.find(x => x.id === target)) {
-          setTab(target);
-          setFocusHint(fieldMap[sectionId] || null);
-        }
+        const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
+        const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
+        const requested = tabMap[sectionId];
+        // Fallback: if requested tab is hidden (e.g. workflow not shown), land on overview so user is never stuck.
+        const target = tabs.find(x => x.id === requested) ? requested : 'overview';
+        setTab(target);
+        setFocusHint(fieldMap[sectionId] || null);
       }}
     />}
 
     {/* ══════ OVERVIEW TAB ══════ */}
     {activeTab === 'overview' && <>
-      <div className="field"><label>{t('qe.name')}</label><input value={f.name || ''} onChange={e => bufferNode({ name: e.target.value })} onBlur={flushNode} /></div>
+      <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => bufferNode({ name: e.target.value })} onBlur={flushNode} /></div>
       <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => bufferNode({ note: e.target.value })} onBlur={flushNode} rows={2} /></div>
 
       {isRoot && <>
@@ -213,39 +215,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
         {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => bufferNode({ description: e.target.value })} onBlur={flushNode} placeholder={t('qe.descPlaceholder')} /></div>}
       </>}
-
-      {/* Status + Progress — manual only when NO phases */}
-      {isLeaf && phases.length === 0 && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ flex: '0 0 100px' }}>
-          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
-            // Sync progress when status changes manually
-            if (value === 'done') patchNode({ status: 'done', progress: 100 });
-            else if (value === 'open') patchNode({ status: 'open', progress: 0 });
-            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
-          }} />
-        </div>
-        <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
-          onChange={e => {
-            const value = +e.target.value;
-            const next = { ...f, progress: value };
-            if (value >= 100 && f.status !== 'done') next.status = 'done';
-            else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
-            else if (value === 0 && f.status !== 'open') next.status = 'open';
-            commitNode(next);
-          }}
-          style={{ flex: 1, accentColor: 'var(--ac)' }} />
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
-      </div>}
-
-      {/* Phases — define status + progress when present */}
-      {!isRoot && <div ref={focusRefs.phases}><PhaseList
-        phases={f.phases}
-        templates={taskTemplates}
-        teams={teams}
-        members={members}
-        templateId={f.templateId}
-        onChange={commitPhases}
-      /></div>}
 
       {/* Parent aggregate stats (non-leaf, no phases) */}
       {!isLeaf && phases.length === 0 && (() => {
@@ -275,6 +244,39 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
     {/* ══════ WORKFLOW TAB ══════ */}
     {activeTab === 'workflow' && !isRoot && <>
+      {/* Status + Progress — manual only when NO phases */}
+      {isLeaf && phases.length === 0 && <div ref={focusRefs.status} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ flex: '0 0 100px' }}>
+          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
+            // Sync progress when status changes manually
+            if (value === 'done') patchNode({ status: 'done', progress: 100 });
+            else if (value === 'open') patchNode({ status: 'open', progress: 0 });
+            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
+          }} />
+        </div>
+        <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
+          onChange={e => {
+            const value = +e.target.value;
+            const next = { ...f, progress: value };
+            if (value >= 100 && f.status !== 'done') next.status = 'done';
+            else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
+            else if (value === 0 && f.status !== 'open') next.status = 'open';
+            commitNode(next);
+          }}
+          style={{ flex: 1, accentColor: 'var(--ac)' }} />
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
+      </div>}
+
+      {/* Phases — define status + progress when present */}
+      <div ref={focusRefs.phases}><PhaseList
+        phases={f.phases}
+        templates={taskTemplates}
+        teams={teams}
+        members={members}
+        templateId={f.templateId}
+        onChange={commitPhases}
+      /></div>
+
       <div className="field"><label>{t('qe.team')}</label>
         <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
       </div>

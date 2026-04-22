@@ -122,8 +122,35 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
 
   const statusColor = S_COLOR[status] || 'var(--tx3)';
 
+  const detailsClick = onEditSection ? () => onEditSection('details') : undefined;
   return (
     <div style={{ fontSize: 12 }}>
+      {/* Name + description — clickable, jumps to Details tab */}
+      <div
+        onClick={detailsClick}
+        data-htip={detailsClick ? editLabel : undefined}
+        style={{
+          padding: '6px 8px', margin: '0 -8px 8px', borderRadius: 'var(--r)',
+          cursor: detailsClick ? 'pointer' : 'default', transition: 'background .12s',
+        }}
+        onMouseEnter={detailsClick ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
+        onMouseLeave={detailsClick ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+      >
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--tx)', lineHeight: 1.25, marginBottom: 4 }}>
+          {node.name || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('qe.name')}</span>}
+        </div>
+        {(node.description || node.note) && (
+          <div style={{ fontSize: 11, color: 'var(--tx2)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+            {node.description || node.note}
+          </div>
+        )}
+        {node.description && node.note && node.note !== node.description && (
+          <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.4, marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+            {node.note}
+          </div>
+        )}
+      </div>
+
       {/* Status + progress header — clickable, jumps to Details tab */}
       <div
         onClick={onEditSection ? () => onEditSection('status') : undefined}
@@ -242,33 +269,37 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         </Section>
       )}
 
-      {/* People section */}
+      {/* People section — assignees + team in one row */}
       {(assignees.length > 0 || team || sc?.autoAssigned) && (
         <Section label={t('ins.people')} onClick={sec('people')} editLabel={editLabel}>
-          {(assignees.length > 0 || sc?.autoAssigned) && (
-            <KVRow label={t('ins.assignees')}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <KVRow label={t('ins.assignees')}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {(assignees.length > 0 || sc?.autoAssigned) && (
                 <span>{assignees.length > 0 ? assignees.map(m => m.name).join(', ') : sc?.person}</span>
-                {sc?.autoAssigned && (
-                  <span
-                    data-htip={t('ins.autoAssignedTip')}
-                    style={{
-                      background: 'var(--bg3)', color: 'var(--am)',
-                      border: '1px dashed var(--am)', fontSize: 10,
-                      padding: '1px 6px', borderRadius: 4,
-                    }}
-                  >
-                    🤖 {t('ins.autoAssigned')}
+              )}
+              {sc?.autoAssigned && (
+                <span
+                  data-htip={t('ins.autoAssignedTip')}
+                  style={{
+                    background: 'var(--bg3)', color: 'var(--am)',
+                    border: '1px dashed var(--am)', fontSize: 10,
+                    padding: '1px 6px', borderRadius: 4,
+                  }}
+                >
+                  🤖 {t('ins.autoAssigned')}
+                </span>
+              )}
+              {team && (
+                <>
+                  <span style={{ color: 'var(--tx3)', fontSize: 10 }}>·</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: team.color || 'var(--b3)' }} />
+                    <span style={{ color: 'var(--tx2)' }}>{team.name}</span>
                   </span>
-                )}
-              </span>
-            </KVRow>
-          )}
-          {team && (
-            <KVRow label={t('ins.team')}>
-              <span style={{ color: team.color || 'var(--tx)', fontWeight: 500 }}>{team.name}</span>
-            </KVRow>
-          )}
+                </>
+              )}
+            </span>
+          </KVRow>
         </Section>
       )}
 
