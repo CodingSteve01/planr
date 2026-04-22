@@ -183,47 +183,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       })}
     </div>)}
 
-    {/* Sprint planning — Up next per person/team */}
-    {sprintGroups.length > 0 && <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 0 8px' }}>
-        <div className="section-h" style={{ margin: 0 }}>{t('s.upNext')}</div>
-        <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('s.scheduledWithin')}</span>
-        {[14, 30, 60, 90].map(d => <button key={d} className={`btn btn-xs ${horizonDays === d ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => setHd(d)}>{d}d</button>)}
-        {onExportTodo && <button className="btn btn-sec btn-xs" style={{ padding: '2px 7px', fontSize: 10 }} onClick={() => onExportTodo(horizonDays)}>{t('s.exportTodo')}</button>}
-        <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{upcoming.length} {t('s.tasks')} · {sprintGroups.length} {sprintGroups.length === 1 ? t('s.lane') : t('s.lanes')}</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10, marginBottom: 18 }}>
-        {sprintGroups.map(g => <div key={g.key} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid var(--b)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{g.items.length}</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {g.items.slice(0, 8).map(s => {
-              const node = iMap[s.id];
-              const isWip = s.status === 'wip';
-              const startsSoon = s.startD && diffDays(now, s.startD) <= 7;
-              const overdue = node?.decideBy && new Date(node.decideBy) < now;
-              const team = teams.find(t => t.id === s.team);
-              return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'var(--bg-done)' : 'transparent', border: '1px solid', borderColor: isWip ? 'var(--gr)' : 'var(--b2)' }}
-                onClick={() => onNavigate?.(s.id, 'tree')}
-                data-htip={`${s.id} — ${s.name}\n${iso(s.startD)} → ${iso(s.endD)}\n${s.effort?.toFixed(1)}d effort`}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 60 }}>{iso(s.startD)?.slice(5)}</span>
-                <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {isWip && <span style={{ color: 'var(--am)', marginRight: 3 }}>◐</span>}
-                  {s.name}
-                </span>
-                {team && <span style={{ fontSize: 9, color: team.color, fontWeight: 500, flexShrink: 0 }}>{team.name}</span>}
-                {overdue && <span style={{ fontSize: 9, color: 'var(--re)', flexShrink: 0 }} data-htip={`Decide by ${node.decideBy} — overdue`}>⏰!</span>}
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{s.effort?.toFixed(0)}d</span>
-              </div>;
-            })}
-            {g.items.length > 8 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: '3px 0' }}>{t('pc.moreItems', g.items.length - 8)}</div>}
-          </div>
-        </div>)}
-      </div>
-    </>}
+    {/* "Up next" moved to Briefing tab — avoids duplication. */}
 
     {/* Team effort - compact */}
     <div className="section-h">{t('s.resources')}</div>

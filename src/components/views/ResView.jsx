@@ -29,7 +29,7 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
       {members.map(m => <div key={m.id} className="res-card">
         <div className="res-ch">
           <span className="res-name">{m.name || m.id}<span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: 400 }} data-htip="Auto-generated short name (used in Markdown)">{shortMap[m.id]}</span></span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><TBadge t={m.team} teams={teams} />{onClone && <button className="btn btn-sec btn-xs" onClick={() => onClone(m)} data-htip={t('rv.clone')}>{t('rv.clone')}</button>}<button className="btn btn-danger btn-xs" onClick={() => onDel(m.id)}>{t('rv.remove')}</button></div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>{onClone && <button className="btn btn-sec btn-xs" onClick={() => onClone(m)} data-htip={t('rv.clone')}>{t('rv.clone')}</button>}<button className="btn btn-danger btn-xs" onClick={() => onDel(m.id)}>{t('rv.remove')}</button></div>
         </div>
         {[
           [t('rv.fullName'), <LazyInput value={m.name || ''} onCommit={v => onUpd({ ...m, name: v })} />],
