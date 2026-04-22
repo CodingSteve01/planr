@@ -188,6 +188,7 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
+  const [section, setSection] = useState('members');
   const [editingTeamId, setEditingTeamId]     = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [editingVacIdx, setEditingVacIdx]     = useState(null);
@@ -198,38 +199,56 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
   const editingTeamIdx = editingTeam    != null ? teams.indexOf(editingTeam)                   : -1;
   const editingMember = editingMemberId != null ? members.find(m => m.id === editingMemberId)  : null;
 
-  /* sort vacations by start date for display */
-  const sortedVacs = [...vacations].sort((a, b) => (a.from || '') < (b.from || '') ? -1 : 1);
+  /* sort vacations: latest first within year */
+  const sortedVacs = [...vacations].sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
+  const vacsByYear = sortedVacs.reduce((acc, v) => {
+    const y = (v.from || '').slice(0, 4) || '—';
+    (acc[y] ||= []).push(v);
+    return acc;
+  }, {});
+  const vacYears = Object.keys(vacsByYear).sort((a, b) => b.localeCompare(a));
+
+  const addVacation = () => {
+    const newVacs = [...vacations, { person: members[0]?.id || '', from: '', to: '', note: '' }];
+    onVac(newVacs);
+    setEditingVacIdx(newVacs.length - 1);
+  };
 
   return (
-    <div>
-      {/* ═══════════════ TEAMS ═══════════════ */}
-      <section className="res-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <div className="section-h" style={{ margin: 0 }}>{t('rv.teams')}</div>
-          <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>{t('rv.addTeam')}</button>
-        </div>
-        <ul className="res-list">
-          {teams.map((tm, i) => (
-            <TeamReadRow
-              key={tm.id}
-              team={tm}
-              memberCount={memberCountForTeam(tm.id)}
-              onClick={() => setEditingTeamId(tm.id)}
-              t={t}
-            />
-          ))}
-        </ul>
-      </section>
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      {/* Section pills */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
+        {[
+          ['teams', `${t('rv.teams')} (${teams.length})`],
+          ['members', `${t('rv.members')} (${members.length})`],
+          ['vacations', `${t('rv.vacations')} (${vacations.length})`],
+        ].map(([k, l]) =>
+          <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
+            style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
+        <div style={{ flex: 1 }} />
+        {section === 'teams' && <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>{t('rv.addTeam')}</button>}
+        {section === 'vacations' && <button className="btn btn-sec btn-sm" onClick={addVacation}>{t('rv.addVacation')}</button>}
+      </div>
 
-      <hr className="divider" />
+      {/* ═══════════════ TEAMS ═══════════════ */}
+      {section === 'teams' && (
+        teams.length === 0
+          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
+          : <ul className="res-list">
+              {teams.map(tm => (
+                <TeamReadRow
+                  key={tm.id}
+                  team={tm}
+                  memberCount={memberCountForTeam(tm.id)}
+                  onClick={() => setEditingTeamId(tm.id)}
+                  t={t}
+                />
+              ))}
+            </ul>
+      )}
 
       {/* ═══════════════ MEMBERS ═══════════════ */}
-      <section className="res-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <div className="section-h" style={{ margin: 0 }}>{t('rv.members')}</div>
-          {!teams.length && <button className="btn btn-sec btn-sm" onClick={() => onAdd()}>{t('rv.addPerson')}</button>}
-        </div>
+      {section === 'members' && (<>
         {!members.length && !teams.length && (
           <div className="empty">
             <div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>
@@ -237,15 +256,13 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
             <p>{t('rv.noMembersHint')}</p>
           </div>
         )}
-        {/* Grouped by team — each group has its own "+ Add person to <team>" button */}
         {[...teams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
           const teamMembers = members.filter(m => (m.team || '') === tm.id);
           if (!teamMembers.length && tm.id === '') return null;
           return (
             <div key={tm.id || '__none__'} style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingLeft: 2 }}>
-                <span className="res-dot" style={{ background: tm.color || 'var(--ac)' }} />
-                <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--tx2)' }}>{tm.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${tm.color || 'var(--b)'}` }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: tm.color || 'var(--tx2)' }}>{tm.name}</span>
                 <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
                 {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
               </div>
@@ -264,47 +281,40 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
             </div>
           );
         })}
-      </section>
-
-      <hr className="divider" />
+      </>)}
 
       {/* ═══════════════ VACATIONS ═══════════════ */}
-      <section className="res-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <div className="section-h" style={{ margin: 0 }}>{t('rv.vacations')}</div>
-          <button
-            className="btn btn-sec btn-sm"
-            onClick={() => {
-              const newVacs = [...vacations, { person: members[0]?.id || '', from: '', to: '', note: '' }];
-              onVac(newVacs);
-              setEditingVacIdx(newVacs.length - 1);
-            }}
-          >
-            {t('rv.addVacation')}
-          </button>
-        </div>
+      {section === 'vacations' && (<>
         <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
-        {vacations.length > 0 && (
-          <ul className="res-list">
-            {sortedVacs.map(v => {
-              const origIdx = vacations.indexOf(v);
-              const mem = members.find(m => m.id === v.person);
-              const team = mem ? teams.find(t => t.id === mem.team) : null;
-              const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
-              return (
-                <li key={origIdx} className="res-row" onClick={() => setEditingVacIdx(origIdx)}>
-                  <span className="res-avatar" style={{ background: team?.color || 'var(--ac)', width: 22, height: 22, fontSize: 10 }}>
-                    {initials(mem?.name || v.person || '?')}
-                  </span>
-                  <span className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</span>
-                  <span className="res-row-meta">{range}</span>
-                  {v.note && <span className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note}</span>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+        {vacations.length === 0
+          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>
+          : vacYears.map(year => (
+              <div key={year} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{year}</span>
+                  <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
+                </div>
+                <ul className="res-list">
+                  {vacsByYear[year].map(v => {
+                    const origIdx = vacations.indexOf(v);
+                    const mem = members.find(m => m.id === v.person);
+                    const team = mem ? teams.find(tm => tm.id === mem.team) : null;
+                    const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
+                    return (
+                      <li key={origIdx} className="res-row" onClick={() => setEditingVacIdx(origIdx)}>
+                        <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>
+                          {initials(mem?.name || v.person || '?')}
+                        </span>
+                        <span className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</span>
+                        <span className="res-row-meta">{range}</span>
+                        {v.note && <span className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+      </>)}
 
       {/* ═══════════════ MODALS ═══════════════ */}
       {editingTeam && (
