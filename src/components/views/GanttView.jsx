@@ -244,8 +244,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       });
       return totalWeight > 0 ? Math.round(totalProgress / totalWeight) : 0;
     };
-    const buildSummaryItem = (node, scopeItems, scopeCtx = {}) => {
-      const dated = scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
+    const buildSummaryItem = (node, scopeItems, children = EMPTY_ARR, scopeCtx = {}) => {
+      const datedChildren = children
+        .map(child => child?.s)
+        .filter(item => item && !item._unestimated && item.startD && item.endD);
+      const dated = datedChildren.length
+        ? datedChildren
+        : scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
       const doneCount = scopeItems.filter(item => item.status === 'done').length;
       const wipCount = scopeItems.filter(item => item.status === 'wip').length;
       const mix = { done: 0, committed: 0, estimated: 0, exploratory: 0 };
@@ -303,7 +308,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         type: 'summary',
         key: `${namespace}::summary:${nodeId}`,
         collapseKey,
-        s: buildSummaryItem(node, scopeItems, scopeCtx),
+        s: buildSummaryItem(node, scopeItems, children, scopeCtx),
         node,
         level,
         groupKey: namespace,
@@ -368,7 +373,38 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           });
         });
     }
-    return { nodes, defaultCollapsed: [...defaultCollapsed] };
+    const patchSummaryWindows = row => {
+      if (!row?.children?.length) return row;
+      const nextChildren = row.children.map(patchSummaryWindows).filter(Boolean);
+      if (row.type !== 'summary') return { ...row, children: nextChildren };
+
+      let minStart = null;
+      let maxEnd = null;
+      nextChildren.forEach(child => {
+        const childItem = child?.s;
+        if (!childItem || childItem._unestimated || !childItem.startD || !childItem.endD) return;
+        const childStart = childItem.startD instanceof Date ? childItem.startD : new Date(childItem.startD);
+        const childEnd = childItem.endD instanceof Date ? childItem.endD : new Date(childItem.endD);
+        if (!minStart || childStart < minStart) minStart = childStart;
+        if (!maxEnd || childEnd > maxEnd) maxEnd = childEnd;
+      });
+
+      if (!minStart || !maxEnd) return { ...row, children: nextChildren };
+      return {
+        ...row,
+        s: {
+          ...row.s,
+          startD: new Date(+minStart),
+          endD: new Date(+maxEnd),
+          startWi: weekIndexOfDate(minStart),
+          endWi: weekIndexOfDate(maxEnd),
+          calDays: Math.max(1, Math.round((maxEnd - minStart) / 864e5) + 1),
+        },
+        children: nextChildren,
+      };
+    };
+
+    return { nodes: nodes.map(patchSummaryWindows), defaultCollapsed: [...defaultCollapsed] };
   }, [allItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t]);
 
   const collapsed = useMemo(() => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed), [collapsedByMode, groupBy, structure.defaultCollapsed]);
