@@ -143,7 +143,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {/* Manual status + progress (leaf without phases only) */}
         {isLeaf && phases.length === 0 && <div className="frow" style={{ alignItems: 'flex-end' }}>
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
-            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => s('status', v)} />
+            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
+              // Sync progress when status changes manually
+              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100 }));
+              else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
+              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
+            }} />
           </div>
           <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
             <input type="range" min="0" max="100" step="5" value={progPct}

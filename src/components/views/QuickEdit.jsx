@@ -150,7 +150,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       {/* Status + Progress — manual only when NO phases */}
       {isLeaf && phases.length === 0 && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         <div style={{ flex: '0 0 100px' }}>
-          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => patchNode({ status: value })} />
+          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
+            // Sync progress when status changes manually
+            if (value === 'done') patchNode({ status: 'done', progress: 100 });
+            else if (value === 'open') patchNode({ status: 'open', progress: 0 });
+            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
+          }} />
         </div>
         <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
           onChange={e => {
