@@ -64,9 +64,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > planStartDate));
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => {
-    const aFuture = a.pinnedStart && new Date(a.pinnedStart) > planStartDate ? 1 : 0;
-    const bFuture = b.pinnedStart && new Date(b.pinnedStart) > planStartDate ? 1 : 0;
-    if (aFuture !== bFuture) return aFuture - bFuture;
+    // Pinned tasks schedule FIRST so their person-capacity (pF) consumption is visible
+    // to subsequent auto-assigned work. Otherwise auto tasks fill the same window as
+    // a future-pinned task and overlap on the same person.
+    const aPinned = a.pinnedStart ? 0 : 1;
+    const bPinned = b.pinnedStart ? 0 : 1;
+    if (aPinned !== bPinned) return aPinned - bPinned;
     // Assigned tasks schedule before unassigned at same priority — ensures person
     // capacity (pF) is consumed by committed work before speculative tasks are placed.
     const aHasPerson = (a.assign?.length > 0) ? 0 : 1;
