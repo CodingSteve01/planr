@@ -33,14 +33,14 @@ function buildDemoTree() {
     ] },
     { id: 'P1.1.5', name: 'Integration testing', status: 'open', best: 7, factor: 1.4, prio: 2, seq: 16, deps: ['P1.1.3', 'P1.1.4'], assign: ['M3'], team: 'T2', customValues: { jira: 'DEMO-5' } },
     { id: 'P1.2', name: 'Go-to-market', status: 'open', best: 0, factor: 1.5, prio: 3, seq: 20, deps: [], assign: [], team: '' },
-    { id: 'P1.2.1', name: 'Marketing site', status: 'open', best: 5, factor: 1.4, prio: 3, seq: 21, deps: ['P1.1.2'], assign: ['M2'], team: 'T1' },
+    { id: 'P1.2.1', name: 'Marketing site', status: 'open', best: 5, factor: 1.4, prio: 3, seq: 21, deps: ['P1.1.2'], assign: [], team: 'T1' },
     { id: 'P1.2.2', name: 'Launch campaign', status: 'open', best: 10, factor: 1.5, prio: 3, seq: 22, deps: ['P1.1.5', 'P1.2.1'], assign: ['M3'], team: 'T1' },
 
     // Pain point: Slow checkout
     { id: 'P2', name: 'Fix slow checkout', type: 'painpoint', severity: 'high', status: 'wip', best: 0, factor: 1.5, prio: 2, seq: 30, deps: [], assign: [], team: '', description: 'Checkout page takes >4s to load, conversions down.' },
     { id: 'P2.1', name: 'Profile the bottleneck', status: 'done', best: 3, factor: 1.3, prio: 2, seq: 31, deps: [], assign: ['M1'], team: 'T2' },
     { id: 'P2.2', name: 'Optimize DB queries', status: 'wip', progress: 75, best: 6, factor: 1.4, prio: 2, seq: 32, deps: ['P2.1'], assign: ['M1'], team: 'T2', pinnedStart: relDate(7) },
-    { id: 'P2.3', name: 'Add CDN caching', status: 'open', best: 4, factor: 1.3, prio: 2, seq: 33, deps: ['P2.1'], assign: ['M1'], team: 'T2' },
+    { id: 'P2.3', name: 'Add CDN caching', status: 'open', best: 4, factor: 1.3, prio: 2, seq: 33, deps: ['P2.1'], assign: [], team: 'T2' },
     { id: 'P2.4', name: 'Verify in production', status: 'open', best: 2, factor: 1.3, prio: 2, seq: 34, deps: ['P2.2', 'P2.3'], assign: ['M3'], team: 'T2' },
 
     // Deadline: compliance audit

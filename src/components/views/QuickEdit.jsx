@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -27,6 +27,32 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     'inherited': t('g.reasonInherited'),
   };
   const [f, setF] = useState({ ...node });
+  const [focusHint, setFocusHint] = useState(null);
+
+  const focusRefs = {
+    pinnedStart: useRef(null),
+    bestDays: useRef(null),
+    assign: useRef(null),
+    phases: useRef(null),
+    customFields: useRef(null),
+    deps: useRef(null),
+  };
+
+  useLayoutEffect(() => {
+    if (!focusHint) return;
+    const el = focusRefs[focusHint]?.current;
+    if (el) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.focus();
+        if (el.select) el.select();
+      } else {
+        const inner = el.querySelector('input, textarea');
+        if (inner) { inner.focus(); if (inner.select) inner.select(); }
+        else el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    }
+    setFocusHint(null);
+  }, [focusHint, tabProp]);
 
   useEffect(() => {
     setF({ ...node });
@@ -143,9 +169,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       confReasons={confReasons}
       customFields={customFields}
       onEditSection={sectionId => {
-        const map = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
-        const target = map[sectionId];
-        if (target && tabs.find(x => x.id === target)) setTab(target);
+        const tabMap = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
+        const fieldMap = { timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', dependencies: 'deps', customFields: 'customFields' };
+        const target = tabMap[sectionId];
+        if (target && tabs.find(x => x.id === target)) {
+          setTab(target);
+          setFocusHint(fieldMap[sectionId] || null);
+        }
       }}
     />}
 
@@ -195,14 +225,14 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       </div>}
 
       {/* Phases — define status + progress when present */}
-      {!isRoot && <PhaseList
+      {!isRoot && <div ref={focusRefs.phases}><PhaseList
         phases={f.phases}
         templates={taskTemplates}
         teams={teams}
         members={members}
         templateId={f.templateId}
         onChange={commitPhases}
-      />}
+      /></div>}
 
       {/* Parent aggregate stats (non-leaf, no phases) */}
       {!isLeaf && phases.length === 0 && (() => {
@@ -220,7 +250,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       })()}
 
       {/* ── Custom fields ── */}
-      {customFields.length > 0 && <div style={{ marginTop: 4 }}>
+      {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
         <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
         {customFields.map(cf => <div key={cf.id} className="field">
           <label>{cf.name}</label>
@@ -242,14 +272,16 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => patchNode({ assign, team })} />
-        <SearchSelect
-          options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
-          onSelect={id => {
-            const member = members.find(entry => entry.id === id);
-            patchNode({ assign: [...new Set([...(f.assign || []), id])], team: member?.team || f.team });
-          }}
-          placeholder={t('qe.assignPerson')}
-        />
+        <div ref={focusRefs.assign}>
+          <SearchSelect
+            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
+            onSelect={id => {
+              const member = members.find(entry => entry.id === id);
+              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: member?.team || f.team });
+            }}
+            placeholder={t('qe.assignPerson')}
+          />
+        </div>
       </div>}
     </>}
 
@@ -271,7 +303,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       </div>
 
       <div className="frow">
-        <div className="field"><label>{t('qe.bestDays')}</label><input type="number" min="0" value={f.best || 0} onChange={e => bufferNode({ best: +e.target.value })} onBlur={flushNode} /></div>
+        <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" value={f.best || 0} onChange={e => bufferNode({ best: +e.target.value })} onBlur={flushNode} /></div>
         <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => bufferNode({ factor: +e.target.value })} onBlur={flushNode} /></div>
         <div className="field"><label>{t('qe.priority')}</label>
           <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `1 ${t('critical')}` }, { id: '2', label: `2 ${t('high')}` }, { id: '3', label: `3 ${t('medium')}` }, { id: '4', label: `4 ${t('low')}` }]} onSelect={value => patchNode({ prio: +value })} />
@@ -315,7 +347,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
           <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
-              <input type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
+              <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
               {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>×</button>}
             </div>
           </div>
@@ -370,10 +402,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>;
           })}
         </div>
-        <SearchSelect options={allIds.map(id => {
-          const entry = tree.find(row => row.id === id);
-          return { id, label: entry?.name || '' };
-        })} onSelect={id => patchNode({ deps: [...new Set([...(f.deps || []), id])] })} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+        <div ref={focusRefs.deps}>
+          <SearchSelect options={allIds.map(id => {
+            const entry = tree.find(row => row.id === id);
+            return { id, label: entry?.name || '' };
+          })} onSelect={id => patchNode({ deps: [...new Set([...(f.deps || []), id])] })} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+        </div>
       </div>
     </>}
 

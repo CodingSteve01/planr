@@ -14,33 +14,37 @@ const PH_COLOR = { done: 'var(--gr)', wip: 'var(--am)', open: 'var(--tx3)' };
 
 function KVRow({ label, children, style }) {
   return (
-    <div style={{ display: 'contents' }}>
+    <>
       <span style={{ fontSize: 11, color: 'var(--tx3)', paddingRight: 8, alignSelf: 'start', paddingTop: 2, ...style }}>{label}</span>
       <span style={{ fontSize: 12, color: 'var(--tx)', ...style }}>{children}</span>
-    </div>
+    </>
   );
 }
 
-function SectionDivider({ label, onClick, editLabel }) {
+function Section({ label, onClick, editLabel, children }) {
   const clickable = !!onClick;
   return (
     <div
       onClick={onClick}
       data-htip={clickable ? editLabel : undefined}
       style={{
-        gridColumn: '1 / -1',
-        fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
-        color: 'var(--tx3)', marginTop: 10, marginBottom: 2,
-        borderBottom: '1px solid var(--b)', paddingBottom: 3,
+        borderRadius: 'var(--r)',
+        padding: '6px 8px',
+        margin: '8px -8px 0',
         cursor: clickable ? 'pointer' : 'default',
-        display: 'flex', alignItems: 'center', gap: 4,
-        userSelect: 'none',
+        transition: 'background .12s',
       }}
-      onMouseEnter={clickable ? e => { e.currentTarget.querySelector('.sec-edit-icon').style.opacity = '1'; } : undefined}
-      onMouseLeave={clickable ? e => { e.currentTarget.querySelector('.sec-edit-icon').style.opacity = '0'; } : undefined}
+      onMouseEnter={clickable ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
+      onMouseLeave={clickable ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
     >
-      <span>{label}</span>
-      {clickable && <span className="sec-edit-icon" style={{ opacity: 0, fontSize: 9, color: 'var(--ac)', transition: 'opacity .15s' }}>✎</span>}
+      <div style={{
+        fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
+        color: clickable ? 'var(--tx2)' : 'var(--tx3)', marginBottom: 4,
+        borderBottom: '1px solid var(--b)', paddingBottom: 3, userSelect: 'none',
+      }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '4px 8px' }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -132,12 +136,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         {isCp && <span className="badge b-cp">⚡ CP</span>}
       </div>
 
-      {/* Main KV grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '5px 0' }}>
+      {/* Sections */}
 
-        {/* Timing section */}
-        {(startDate || endDate) && <>
-          <SectionDivider label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel} />
+      {/* Timing section */}
+      {(startDate || endDate) && (
+        <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {startDate && endDate && (
             <KVRow label={t('ins.period')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
@@ -162,11 +165,12 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               </span>
             </KVRow>
           )}
-        </>}
+        </Section>
+      )}
 
-        {/* Effort section — leaf only */}
-        {isLeaf && (node.best > 0) && <>
-          <SectionDivider label={t('ins.effort')} onClick={sec('effort')} editLabel={editLabel} />
+      {/* Effort section — leaf only */}
+      {isLeaf && (node.best > 0) && (
+        <Section label={t('ins.effort')} onClick={sec('effort')} editLabel={editLabel}>
           <KVRow label={t('ins.effortBest')}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{effortBest}d</span>
             <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--tx3)' }}>× {node.factor || 1.5} = </span>
@@ -177,11 +181,12 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{Math.round(sc.capacityFraction * 100)}%</span>
             </KVRow>
           )}
-        </>}
+        </Section>
+      )}
 
-        {/* Parent: aggregate section */}
-        {!isLeaf && leafCount > 0 && <>
-          <SectionDivider label={t('ins.subtasks')} />
+      {/* Parent: aggregate section — no onClick, no hover */}
+      {!isLeaf && leafCount > 0 && (
+        <Section label={t('ins.subtasks')}>
           <KVRow label={t('ins.breakdown')}>
             <span>
               <span style={{ color: 'var(--gr)' }}>✓ {doneUnder}</span>
@@ -198,11 +203,12 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               {effortBest > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginLeft: 4 }}>({effortBest?.toFixed(0)}d best)</span>}
             </KVRow>
           )}
-        </>}
+        </Section>
+      )}
 
-        {/* People section */}
-        {(assignees.length > 0 || team) && <>
-          <SectionDivider label={t('ins.people')} onClick={sec('people')} editLabel={editLabel} />
+      {/* People section */}
+      {(assignees.length > 0 || team) && (
+        <Section label={t('ins.people')} onClick={sec('people')} editLabel={editLabel}>
           {assignees.length > 0 && (
             <KVRow label={t('ins.assignees')}>
               <span>{assignees.map(m => m.name).join(', ')}</span>
@@ -213,42 +219,43 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <span style={{ color: team.color || 'var(--tx)', fontWeight: 500 }}>{team.name}</span>
             </KVRow>
           )}
-        </>}
+        </Section>
+      )}
 
-        {/* Phases section — leaf only, if phases exist */}
-        {isLeaf && node.phases?.length > 0 && (() => {
-          const currentPhaseIdx = node.phases.findIndex(p => p.status !== 'done');
-          return <>
-            <SectionDivider label={t('ins.phases')} onClick={sec('phases')} editLabel={editLabel} />
+      {/* Phases section — leaf only, if phases exist */}
+      {isLeaf && node.phases?.length > 0 && (() => {
+        const currentPhaseIdx = node.phases.findIndex(p => p.status !== 'done');
+        return (
+          <Section label={t('ins.phases')} onClick={sec('phases')} editLabel={editLabel}>
             {node.phases.map((ph, idx) => {
               const isCurrent = idx === currentPhaseIdx;
               const dot = PH_DOT[ph.status] || '○';
               const color = PH_COLOR[ph.status] || 'var(--tx3)';
               const pct = ph.effortPct != null ? ph.effortPct : null;
               return (
-                <div key={ph.id || idx} style={{ display: 'contents' }}>
-                  <span style={{ fontSize: 11, color: 'var(--tx3)', paddingRight: 8, alignSelf: 'start', paddingTop: 2 }} />
+                <KVRow key={ph.id || idx} label="">
                   <span style={{ fontSize: 11, color: isCurrent ? 'var(--tx)' : 'var(--tx2)', fontWeight: isCurrent ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color }}>{dot}</span>
                     <span>{ph.name || ph.id}</span>
                     {pct != null && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
                     {isCurrent && <span style={{ fontSize: 9, color: 'var(--ac)', marginLeft: 2 }}>←</span>}
                   </span>
-                </div>
+                </KVRow>
               );
             })}
-          </>;
-        })()}
+          </Section>
+        );
+      })()}
 
-        {/* Dependencies section */}
-        {(preds.length > 0 || succs.length > 0) && <>
-          <SectionDivider label={t('ins.deps')} onClick={sec('dependencies')} editLabel={editLabel} />
+      {/* Dependencies section */}
+      {(preds.length > 0 || succs.length > 0) && (
+        <Section label={t('ins.deps')} onClick={sec('dependencies')} editLabel={editLabel}>
           {preds.length > 0 && (
             <KVRow label={t('qe.predecessors')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {preds.map(p => (
                   <span key={p.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={() => onOpenItem?.(p.id)}>
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)' }}>{p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{p.name}</span>
@@ -262,7 +269,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {succs.map(s => (
                   <span key={s.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={() => onOpenItem?.(s.id)}>
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(s.id); }}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)' }}>{s.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[s.status] }}>{S_DOT[s.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{s.name}</span>
@@ -271,11 +278,12 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               </div>
             </KVRow>
           )}
-        </>}
+        </Section>
+      )}
 
-        {/* Custom fields with values */}
-        {filledCustomFields.length > 0 && <>
-          <SectionDivider label={t('cf.fieldValues')} onClick={sec('customFields')} editLabel={editLabel} />
+      {/* Custom fields with values */}
+      {filledCustomFields.length > 0 && (
+        <Section label={t('cf.fieldValues')} onClick={sec('customFields')} editLabel={editLabel}>
           {filledCustomFields.map(cf => {
             const val = (node.customValues || {})[cf.id];
             const url = cf.type === 'uri' ? resolveUri(cf, val) : null;
@@ -288,8 +296,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               </KVRow>
             );
           })}
-        </>}
-      </div>
+        </Section>
+      )}
     </div>
   );
 }

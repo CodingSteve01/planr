@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -28,8 +28,38 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   };
   const [f, setF] = useState({ ...node });
   const [nmTab, setNmTab] = useState('insights');
+  const [focusHint, setFocusHint] = useState(null);
+
+  // Refs for focus targets — keyed by focusHint value
+  const focusRefs = {
+    pinnedStart: useRef(null),
+    bestDays: useRef(null),
+    assign: useRef(null),
+    phases: useRef(null),
+    customFields: useRef(null),
+    deps: useRef(null),
+  };
 
   useEffect(() => setF({ ...node }), [node?.id]);
+
+  // Focus the primary field after tab switch driven by Insights click
+  useLayoutEffect(() => {
+    if (!focusHint) return;
+    const el = focusRefs[focusHint]?.current;
+    if (el) {
+      // If el is a native input/textarea, focus it directly; otherwise focus first input inside
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.focus();
+        if (el.select) el.select();
+      } else {
+        const inner = el.querySelector('input, textarea');
+        if (inner) { inner.focus(); if (inner.select) inner.select(); }
+        else el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    }
+    setFocusHint(null);
+  }, [focusHint, nmTab]);
+
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
   const isDirty = useMemo(() => node && JSON.stringify({ ...node }) !== JSON.stringify(f), [node, f]);
@@ -139,9 +169,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         confReasons={confReasons}
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
         onEditSection={sectionId => {
-          const map = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
-          const target = map[sectionId];
-          if (target && nmTabs.find(x => x.id === target)) setNmTab(target);
+          const tabMap = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
+          const fieldMap = { timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', dependencies: 'deps', customFields: 'customFields' };
+          const target = tabMap[sectionId];
+          if (target && nmTabs.find(x => x.id === target)) {
+            setNmTab(target);
+            setFocusHint(fieldMap[sectionId] || null);
+          }
         }}
       />}
 
@@ -183,14 +217,14 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         {/* Phases — define status + progress when present */}
-        {!isRoot && <PhaseList
+        {!isRoot && <div ref={focusRefs.phases}><PhaseList
           phases={f.phases}
           templates={taskTemplates}
           teams={teams}
           members={members}
           templateId={f.templateId}
           onChange={handlePhaseChange}
-        />}
+        /></div>}
 
         {/* Parent stats (non-leaf, no phases) */}
         {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
@@ -204,7 +238,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         {/* ── Custom fields ── */}
-        {customFields.length > 0 && <div style={{ marginTop: 4 }}>
+        {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
           <div className="frow" style={{ flexWrap: 'wrap' }}>
             {customFields.map(cf => <div key={cf.id} className="field" style={{ flex: '1 1 200px' }}>
@@ -224,7 +258,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>
             {isLeaf && <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
               {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
-              <div style={{ minWidth: 160, flex: 1 }}>
+              <div ref={focusRefs.assign} style={{ minWidth: 160, flex: 1 }}>
                 <SearchSelect
                   options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
                   onSelect={id => { const m = members.find(x => x.id === id); setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: m?.team || x.team })); }}
@@ -255,7 +289,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           {onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginTop: 4 }} onClick={() => { onClose(); onEstimate(node); }}>{t('qe.estimateNow')}</button>}
         </div>
         <div className="frow">
-          <div className="field"><label>{t('qe.bestDays')}</label><input type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
+          <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.priority')}</label>
             <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `⏫ 1 ${t('critical')}` }, { id: '2', label: `▲ 2 ${t('high')}` }, { id: '3', label: `▬ 3 ${t('medium')}` }, { id: '4', label: `▼ 4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
@@ -296,7 +330,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>
             <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
-                <input type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
+                <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
                 <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>
                 {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')}>×</button>}
               </div>
@@ -337,7 +371,9 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
             </div>; })}
           </div>
-          <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+          <div ref={focusRefs.deps}>
+            <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+          </div>
         </div>
       </>}
 
