@@ -18,6 +18,7 @@ import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView } from './components/views/ResView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
+import { BriefingView } from './components/views/BriefingView.jsx';
 import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
@@ -1328,6 +1329,7 @@ export default function App() {
   const showNewBadge = showNewFeat;
   const TABS = [
     { id: 'summary', label: _t('tab.summary'), isNew: showNewBadge },
+    { id: 'briefing', label: _t('tab.briefing') },
     { id: 'plan', label: _t('tab.plan'), isNew: showNewBadge },
     { id: 'tree', label: _t('tab.tree') },
     { id: 'gantt', label: _t('tab.gantt'), isNew: showNewBadge },
@@ -1438,7 +1440,7 @@ export default function App() {
       ))}
       <div style={{ flex: 1 }} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan') && <div className="subtoolbar">
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
@@ -1465,6 +1467,12 @@ export default function App() {
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
+      {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
+        tree={tree} scheduled={scheduled} vacations={vacations} members={members} teams={teams}
+        stats={stats} confidence={confidence} cpSet={cpSet}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+        onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
+      /></div>}
       {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}

@@ -711,24 +711,49 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
-              {/* Vacation overlays — only in person grouping, one stripe per vacation range */}
-              {groupBy === 'person' && row.group.key.startsWith('person:') && (() => {
-                const pid = row.group.key.slice('person:'.length);
-                const pvacs = vacByPerson[pid];
-                if (!pvacs?.length) return null;
-                return pvacs.map((v, vi) => {
-                  const x1 = dateToX(new Date(v.from + 'T00:00:00'));
-                  // to+1 day so the block covers the full last day column
-                  const toDate = new Date(v.to + 'T00:00:00'); toDate.setDate(toDate.getDate() + 1);
-                  const x2 = dateToX(toDate);
-                  const w = Math.max(x2 - x1, DPX);
-                  if (x2 <= 0 || x1 >= tw) return null;
-                  return <div key={vi} style={{
-                    position: 'absolute', left: x1, top: 0, width: w, height: '100%',
-                    background: 'repeating-linear-gradient(45deg, rgba(127,127,127,.15) 0 6px, transparent 6px 12px)',
+              {/* Vacation overlays — per-assignee on every task row regardless of grouping */}
+              {(() => {
+                // Collect all person IDs for this row's task
+                const assigneeIds = [...new Set([
+                  ...(s.assign || []),
+                  ...(s.personId ? [s.personId] : []),
+                ])];
+                if (!assigneeIds.length) return null;
+                // Gather [personId, vacation, slotIndex, totalSlots] tuples for all visible vacations
+                const slots = [];
+                assigneeIds.forEach(pid => {
+                  const pvacs = vacByPerson[pid];
+                  if (!pvacs?.length) return;
+                  pvacs.forEach(v => {
+                    const x1 = dateToX(new Date(v.from + 'T00:00:00'));
+                    const toDate = new Date(v.to + 'T00:00:00'); toDate.setDate(toDate.getDate() + 1);
+                    const x2 = dateToX(toDate);
+                    if (x2 <= 0 || x1 >= tw) return;
+                    slots.push({ pid, v, x1, x2 });
+                  });
+                });
+                if (!slots.length) return null;
+                // When multiple assignees have vacations, split the row vertically into bands
+                // so you can tell who is absent. Count distinct persons with at least one block.
+                const personOrder = [...new Set(slots.map(sl => sl.pid))];
+                const nBands = personOrder.length;
+                return slots.map((sl, si) => {
+                  const w = Math.max(sl.x2 - sl.x1, DPX);
+                  const personName = members.find(m => m.id === sl.pid)?.name || sl.pid;
+                  const bandIdx = personOrder.indexOf(sl.pid);
+                  // Vertical split: each person gets an equal horizontal band within the row
+                  const bandH = Math.floor(RH / nBands);
+                  const topPx = bandIdx * bandH;
+                  const heightPx = bandIdx === nBands - 1 ? RH - topPx : bandH;
+                  return <div key={`vac-${sl.pid}-${si}`} style={{
+                    position: 'absolute', left: sl.x1, top: topPx, width: w, height: heightPx,
+                    background: 'repeating-linear-gradient(45deg, rgba(127,127,127,.28) 0 6px, transparent 6px 12px)',
+                    borderLeft: '1px solid rgba(255,255,255,.12)',
+                    borderRight: '1px solid rgba(255,255,255,.12)',
                     zIndex: 2, pointerEvents: 'none',
-                  }} data-htip={`${t('g.vacation')}: ${v.from} → ${v.to}${v.note ? ' · ' + v.note : ''}`}>
-                    {w > 40 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'var(--tx3)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{t('g.vacation')}</span>}
+                  }} data-htip={`${personName} · ${t('g.vacation')}: ${sl.v.from} → ${sl.v.to}${sl.v.note ? ' · ' + sl.v.note : ''}`}>
+                    {w > 48 && nBands === 1 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 9, fontWeight: 600, color: 'var(--tx2)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{t('g.vacation')}</span>}
+                    {w > 48 && nBands > 1 && heightPx >= 12 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 8, fontWeight: 600, color: 'var(--tx2)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none', overflow: 'hidden', maxWidth: w - 8 }}>{(members.find(m => m.id === sl.pid)?.name || sl.pid).split(' ')[0]}</span>}
                   </div>;
                 });
               })()}

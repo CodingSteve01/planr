@@ -5,6 +5,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
+import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
@@ -26,7 +27,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     'inherited': t('g.reasonInherited'),
   };
   const [f, setF] = useState({ ...node });
-  const [nmTab, setNmTab] = useState('overview');
+  const [nmTab, setNmTab] = useState('insights');
 
   useEffect(() => setF({ ...node }), [node?.id]);
   const sc = scheduled?.find(s => s.id === node?.id);
@@ -93,13 +94,14 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
   // Tab definitions
   const nmTabs = [
+    { id: 'insights', label: t('nm.tab.insights') },
     { id: 'overview', label: t('qe.tab.overview') },
     ...(!isRoot ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
     { id: 'advanced', label: t('nm.advanced') },
   ];
-  const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'overview';
+  const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'insights';
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
   const setCustomValue = (fieldId, val) => s('customValues', { ...(f.customValues || {}), [fieldId]: val });
 
@@ -123,6 +125,20 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       <div className="qe-tabs" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
         {nmTabs.map(x => <button key={x.id} className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`} onClick={() => setNmTab(x.id)}>{x.label}</button>)}
       </div>
+
+      {/* ══════ INSIGHTS TAB ══════ */}
+      {activeNmTab === 'insights' && <TaskInsights
+        node={node}
+        tree={tree}
+        members={members}
+        teams={teams}
+        scheduled={scheduled}
+        cpSet={cpSet}
+        stats={stats}
+        confidence={confidence}
+        confReasons={confReasons}
+        customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
+      />}
 
       {/* ══════ OVERVIEW TAB ══════ */}
       {activeNmTab === 'overview' && <>

@@ -5,6 +5,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
+import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
@@ -53,13 +54,14 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
 
   const tabs = [
+    { id: 'insights', label: t('nm.tab.insights') },
     { id: 'overview', label: t('qe.tab.overview') },
     ...(!isRoot ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
   ];
 
-  const activeTab = tabs.find(item => item.id === tabProp) ? tabProp : 'overview';
+  const activeTab = tabs.find(item => item.id === tabProp) ? tabProp : 'insights';
   const setTab = onTabChange || (() => {});
   useEffect(() => { if (activeTab !== tabProp && onTabChange) onTabChange(activeTab); }, [activeTab]);
 
@@ -127,6 +129,20 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     <div className="qe-tabs">
       {tabs.map(item => <button key={item.id} className={`qe-tab${activeTab === item.id ? ' active' : ''}`} onClick={() => setTab(item.id)}>{item.label}</button>)}
     </div>
+
+    {/* ══════ INSIGHTS TAB ══════ */}
+    {activeTab === 'insights' && <TaskInsights
+      node={node}
+      tree={tree}
+      members={members}
+      teams={teams}
+      scheduled={scheduled}
+      cpSet={cpSet}
+      stats={stats}
+      confidence={confidence}
+      confReasons={confReasons}
+      customFields={customFields}
+    />}
 
     {/* ══════ OVERVIEW TAB ══════ */}
     {activeTab === 'overview' && <>

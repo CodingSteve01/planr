@@ -116,9 +116,32 @@ The search field in the sub-toolbar (top right, shared across Tree / Gantt / Net
 
 `Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
+## Vacation overlays
+
+Every task row shows hatched stripe overlays for any vacation periods of its assignees — regardless of the active grouping mode (Project, Team, Person, or Project › Team).
+
+- Stripe pattern: `repeating-linear-gradient(45deg, …)` at `rgba(127,127,127,.28)` with thin left/right edge borders (`rgba(255,255,255,.12)`) so vacation block edges are visible against any bar color.
+- When a task has **one assignee**, the full row height is used and a "Vacation"/"Urlaub" label appears on blocks wide enough to hold it.
+- When a task has **multiple assignees**, the row is split into equal horizontal bands (one per person with at least one vacation block). Each band shows the person's first name as a label. Hover each band's tooltip to see the full person name and date range.
+- Tooltip (`data-htip`): `PersonName · Vacation: YYYY-MM-DD → YYYY-MM-DD [· note]`
+- `vacByPerson` is built once per render via `useMemo` — each row only looks up the IDs of its own assignees, so performance does not degrade with many rows.
+
 ## Hover tooltips (left panel)
 
 Hovering a row label in the left panel shows a tooltip with task details (same style as the Network Graph tooltips). Includes name, team, assignee, estimate, confidence, dates, and status.
+
+For items that have both an estimate and scheduling data, the tooltip shows a **duration breakdown** section:
+
+```
+Duration breakdown
+  Best: 5d × 1.4 = 7.0d
+  Calendar: 12d
+  Vacation: +2d        (only shown when vacDed > 0)
+  Capacity: 80%        (only shown when capPct < 100)
+  Starts: 2026-01-12
+```
+
+This uses the fields already present on every scheduled item: `best`, `effort`, `calDays`, `vacDed`, `capPct`, `startD`.
 
 ## Horizon lines
 

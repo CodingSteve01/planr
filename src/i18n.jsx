@@ -20,7 +20,7 @@ const en = {
   'cp': 'Critical path',
 
   // ── Tabs ──
-  'tab.summary': 'Overview', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
+  'tab.summary': 'Overview', 'tab.briefing': 'Briefing', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
 
   // ── HolView ──
@@ -176,6 +176,9 @@ const en = {
   'tt.realistic': 'Realistic', 'tt.start': 'Start', 'tt.end': 'End',
   'tt.deps': 'Dependencies', 'tt.cp': 'Critical path', 'tt.cpYes': 'YES',
   'tt.dblClick': 'Dbl-click for details',
+  'tt.durBreakdown': 'Duration breakdown',
+  'tt.durBest': 'Best', 'tt.durCal': 'Calendar', 'tt.durVac': 'Vacation',
+  'tt.durCap': 'Capacity', 'tt.durStart': 'Starts',
 
   // ── Settings ──
   'set.title': 'Project Settings', 'set.globalTitle': 'Global Settings',
@@ -300,6 +303,27 @@ const en = {
   'pc.dLeft': '{0}d left',
   'pc.moreItems': '+ {0} more',
   'pc.unassigned': '(unassigned)',
+
+  // ── BriefingView ──
+  'bv.horizon': 'Horizon',
+  'bv.thisWeek': 'This week', 'bv.next2weeks': 'Next 2 weeks', 'bv.next4weeks': 'Next 4 weeks',
+  'bv.vacations': 'Vacations', 'bv.activeWork': 'Active work',
+  'bv.milestones': 'Upcoming milestones', 'bv.risks': 'Risks / At risk',
+  'bv.tasks': 'tasks', 'bv.onVacation': 'On vacation',
+  'bv.startsSoon': 'starts', 'bv.today': 'today',
+  'bv.overdue': 'Overdue', 'bv.lateEnd': 'Projected end past deadline',
+  'bv.exploratoryDeadline': 'Exploratory — deadline near',
+  'bv.noActivity': 'No activity in this horizon.',
+
+  // ── NodeModal / QuickEdit — Insights tab ──
+  'nm.tab.insights': 'Insights',
+  'ins.timing': 'Timing', 'ins.period': 'Period',
+  'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
+  'ins.effort': 'Effort', 'ins.effortBest': 'Best × factor',
+  'ins.capacity': 'Capacity',
+  'ins.subtasks': 'Subtasks', 'ins.breakdown': 'Breakdown', 'ins.leaves': 'leaves',
+  'ins.people': 'People', 'ins.assignees': 'Assignees', 'ins.team': 'Team',
+  'ins.deps': 'Dependencies',
 
   // ── GanttView – confidence reason tooltips ──
   'g.reasonManual': 'Set manually', 'g.reasonDone': 'Done',
@@ -429,7 +453,7 @@ const de = {
   'cp': 'Kritischer Pfad',
 
   // ── Tabs ──
-  'tab.summary': 'Übersicht', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
+  'tab.summary': 'Übersicht', 'tab.briefing': 'Briefing', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
 
   // ── HolView ──
@@ -585,6 +609,9 @@ const de = {
   'tt.realistic': 'Realistisch', 'tt.start': 'Start', 'tt.end': 'Ende',
   'tt.deps': 'Abhängigkeiten', 'tt.cp': 'Kritischer Pfad', 'tt.cpYes': 'JA',
   'tt.dblClick': 'Doppelklick für Details',
+  'tt.durBreakdown': 'Aufwand Aufschlüsselung',
+  'tt.durBest': 'Best Case', 'tt.durCal': 'Kalender', 'tt.durVac': 'Urlaub',
+  'tt.durCap': 'Kapazität', 'tt.durStart': 'Start',
 
   // ── Settings ──
   'set.title': 'Projekteinstellungen', 'set.globalTitle': 'Globale Einstellungen',
@@ -709,6 +736,27 @@ const de = {
   'pc.dLeft': '{0}T übrig',
   'pc.moreItems': '+ {0} weitere',
   'pc.unassigned': '(nicht zugewiesen)',
+
+  // ── BriefingView ──
+  'bv.horizon': 'Horizont',
+  'bv.thisWeek': 'Diese Woche', 'bv.next2weeks': 'Nächste 2 Wochen', 'bv.next4weeks': 'Nächste 4 Wochen',
+  'bv.vacations': 'Urlaub', 'bv.activeWork': 'Aktive Arbeit',
+  'bv.milestones': 'Bevorstehende Meilensteine', 'bv.risks': 'Risiken / Gefährdet',
+  'bv.tasks': 'Aufgaben', 'bv.onVacation': 'Im Urlaub',
+  'bv.startsSoon': 'startet', 'bv.today': 'heute',
+  'bv.overdue': 'Überfällig', 'bv.lateEnd': 'Voraussichtliches Ende nach Deadline',
+  'bv.exploratoryDeadline': 'Explorativ — Deadline nah',
+  'bv.noActivity': 'Keine Aktivität in diesem Horizont.',
+
+  // ── NodeModal / QuickEdit — Insights-Tab ──
+  'nm.tab.insights': 'Insights',
+  'ins.timing': 'Zeitplan', 'ins.period': 'Zeitraum',
+  'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',
+  'ins.effort': 'Aufwand', 'ins.effortBest': 'Best × Faktor',
+  'ins.capacity': 'Kapazität',
+  'ins.subtasks': 'Unteraufgaben', 'ins.breakdown': 'Aufschlüsselung', 'ins.leaves': 'Leaves',
+  'ins.people': 'Personen', 'ins.assignees': 'Zuständig', 'ins.team': 'Team',
+  'ins.deps': 'Abhängigkeiten',
 
   // ── GanttView – Confidence-Reason-Tooltips ──
   'g.reasonManual': 'Manuell gesetzt', 'g.reasonDone': 'Erledigt',

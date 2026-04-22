@@ -6,7 +6,7 @@ export function Tip({ item, x, y, teams, members, tree }) {
   const { t } = useT();
   if (!item) return null;
   // Position: offset right+below cursor, clamp to viewport
-  const ttW = 280, ttH = 320; // approximate max dimensions
+  const ttW = 280, ttH = 360; // approximate max dimensions
   const pad = 8;
   let sx = x + 16; // right of cursor
   let sy = y + 18; // below cursor
@@ -43,6 +43,36 @@ export function Tip({ item, x, y, teams, members, tree }) {
     {item.effort > 0 && <div className="tt-row"><span>{t('tt.realistic')}</span><b>{item.effort?.toFixed(1)}d</b></div>}
     {item.startD && <div className="tt-row"><span>{t('tt.start')}</span><b>{iso(item.startD)}</b></div>}
     {item.endD && <div className="tt-row"><span>{t('tt.end')}</span><b>{iso(item.endD)}</b></div>}
+    {/* Duration breakdown — shown when item has both an estimate and scheduling data */}
+    {item.best > 0 && item.calDays > 0 && (() => {
+      const node = tree ? tree.find(r => r.id === item.id) : null;
+      const factor = node?.factor || item.factor || 1.5;
+      const effort = item.effort ?? (item.best * factor);
+      const vacDed = item.vacDed ?? 0;
+      const vacDays = vacDed > 0 ? Math.round(effort * vacDed / 100) : 0;
+      const capPct = item.capPct ?? 100;
+      return <>
+        <hr className="tt-sep" />
+        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 3 }}>{t('tt.durBreakdown')}</div>
+          <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.durBest')}: <b style={{ color: 'var(--tx2)' }}>{item.best}d × {factor} = {effort?.toFixed(1)}d</b>
+          </div>
+          <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.durCal')}: <b style={{ color: 'var(--tx2)' }}>{item.calDays}d</b>
+          </div>
+          {vacDays > 0 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.durVac')}: <b style={{ color: 'var(--am)' }}>+{vacDays}d</b>
+          </div>}
+          {capPct < 100 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.durCap')}: <b style={{ color: 'var(--am)' }}>{capPct}%</b>
+          </div>}
+          {item.startD && <div style={{ marginLeft: 4 }}>
+            {t('tt.durStart')}: <b style={{ color: 'var(--tx2)' }}>{iso(item.startD)}</b>
+          </div>}
+        </div>
+      </>;
+    })()}
     {depList && depList.length > 0 && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>
       <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('tt.deps')}</div>
       {depList.map(d => <div key={d} style={{ marginLeft: 4 }}>{d}</div>)}
