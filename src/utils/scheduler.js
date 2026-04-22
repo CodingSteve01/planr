@@ -99,6 +99,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     if (!vs[nv.person]) vs[nv.person] = new Set();
     for (const d of eachDayInclusive(nv.from, nv.to)) vs[nv.person].add(iso(d));
   });
+  // Returns true if ANY of the given assignee IDs has the given ISO date blocked by vacation.
+  // Works for single-assign (union of 1 set) and multi-assign alike.
+  const anyAssigneeOnVacation = (dateIso, assignIds, vacSets) =>
+    assignIds.some(id => vacSets[id]?.has(dateIso));
+
   // Total working days in plan period (for blanket vacation deduction)
   const totalWDs = wks.reduce((s, w) => s + w.wds.length, 0);
   // Per-person: count explicit vacation days (only working days), remaining unplanned vacation
@@ -189,14 +194,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
-          const bpVacSet = vs[bp.id];
           while (rem > 0 && wi < wks.length) {
             const w = wks[wi];
             if (endDate && w.mon > endDate) break;
             for (const d of w.wds) {
               if (d < skipBefore) continue;
               if (endDate && d > endDate) break;
-              if (bpVacSet?.has(iso(d))) continue; // skip vacation day
+              if (anyAssigneeOnVacation(iso(d), [bp.id], vs)) continue; // skip vacation day
               if (!firstWorkDay) firstWorkDay = d;
               rem -= dailyBaseCap; lastWorkDay = d;
               if (rem <= 0) break;
@@ -285,14 +289,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
     const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
-    const bpVacSet = vs[bp.id];
     while (rem > 0 && wi < wks.length) {
       const w = wks[wi];
       if (endDate && w.mon > endDate) break; // person offboarded
       for (const d of w.wds) {
         if (d < skipBefore) continue;
         if (endDate && d > endDate) break; // past offboarding date
-        if (bpVacSet?.has(iso(d))) continue; // skip vacation day
+        if (anyAssigneeOnVacation(iso(d), isMulti ? asgn : [bp.id], vs)) continue; // skip if any assignee on vacation
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d;
         if (rem <= 0) break;

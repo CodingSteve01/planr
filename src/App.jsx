@@ -82,7 +82,7 @@ export default function App() {
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
   // because the old code held a stale node object in state.
-  const [sideTab, setSideTab] = useState('overview');
+  const [sideTab, setSideTab] = useState('insights');
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());

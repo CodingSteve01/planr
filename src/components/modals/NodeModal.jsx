@@ -138,6 +138,11 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         confidence={confidence}
         confReasons={confReasons}
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
+        onEditSection={sectionId => {
+          const map = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
+          const target = map[sectionId];
+          if (target && nmTabs.find(x => x.id === target)) setNmTab(target);
+        }}
       />}
 
       {/* ══════ OVERVIEW TAB ══════ */}

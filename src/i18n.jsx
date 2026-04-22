@@ -323,7 +323,9 @@ const en = {
   'ins.capacity': 'Capacity',
   'ins.subtasks': 'Subtasks', 'ins.breakdown': 'Breakdown', 'ins.leaves': 'leaves',
   'ins.people': 'People', 'ins.assignees': 'Assignees', 'ins.team': 'Team',
+  'ins.phases': 'Phases',
   'ins.deps': 'Dependencies',
+  'ins.editSection': 'Edit',
 
   // ── GanttView – confidence reason tooltips ──
   'g.reasonManual': 'Set manually', 'g.reasonDone': 'Done',
@@ -756,7 +758,9 @@ const de = {
   'ins.capacity': 'Kapazität',
   'ins.subtasks': 'Unteraufgaben', 'ins.breakdown': 'Aufschlüsselung', 'ins.leaves': 'Leaves',
   'ins.people': 'Personen', 'ins.assignees': 'Zuständig', 'ins.team': 'Team',
+  'ins.phases': 'Phasen',
   'ins.deps': 'Abhängigkeiten',
+  'ins.editSection': 'Bearbeiten',
 
   // ── GanttView – Confidence-Reason-Tooltips ──
   'g.reasonManual': 'Manuell gesetzt', 'g.reasonDone': 'Erledigt',

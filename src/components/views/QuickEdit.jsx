@@ -142,6 +142,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       confidence={confidence}
       confReasons={confReasons}
       customFields={customFields}
+      onEditSection={sectionId => {
+        const map = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
+        const target = map[sectionId];
+        if (target && tabs.find(x => x.id === target)) setTab(target);
+      }}
     />}
 
     {/* ══════ OVERVIEW TAB ══════ */}
