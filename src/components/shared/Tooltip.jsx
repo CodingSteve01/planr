@@ -1,27 +1,62 @@
-import { iso } from '../../utils/date.js';
+import { iso, localDate } from '../../utils/date.js';
 import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
+
+function MetaChip({ label, value, tone = 'default' }) {
+  const color = tone === 'danger' ? 'var(--re)'
+    : tone === 'warn' ? 'var(--am)'
+    : 'var(--tx)';
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 5,
+      padding: '3px 8px',
+      borderRadius: 999,
+      background: 'var(--bg3)',
+      border: '1px solid var(--b)',
+      fontSize: 10,
+      lineHeight: 1.2,
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ color: 'var(--tx3)' }}>{label}</span>
+      <span style={{ color, fontFamily: 'var(--mono)', fontWeight: 700 }}>{value}</span>
+    </span>
+  );
+}
+
+function SectionTitle({ label }) {
+  return (
+    <div style={{
+      fontSize: 9,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '.08em',
+      color: 'var(--tx3)',
+      marginBottom: 5,
+    }}>
+      {label}
+    </div>
+  );
+}
 
 export function Tip({ item, x, y, teams, members, tree }) {
   const { t } = useT();
   if (!item) return null;
-  // Position: offset right+below cursor, clamp to viewport
-  const ttW = 280, ttH = 360; // approximate max dimensions
+
+  const ttW = 320;
+  const ttH = 420;
   const pad = 8;
-  let sx = x + 16; // right of cursor
-  let sy = y + 18; // below cursor
-  // Clamp right edge
+  let sx = x + 16;
+  let sy = y + 18;
   if (sx + ttW > window.innerWidth - pad) sx = x - ttW - 8;
-  // Clamp bottom edge
   if (sy + ttH > window.innerHeight - pad) sy = Math.max(pad, window.innerHeight - ttH - pad);
-  // Clamp left/top
   sx = Math.max(pad, sx);
   sy = Math.max(pad, sy);
-  // Resolve team name
+
   const teamName = item.team && teams
     ? (teams.find(tm => tm.id === item.team)?.name || item.team)
     : item.team;
-  // Resolve all assignee names (multi-assignee support)
   const assignNames = (() => {
     const ids = item.assign || [];
     if (ids.length > 0 && members) {
@@ -29,73 +64,134 @@ export function Tip({ item, x, y, teams, members, tree }) {
     }
     return item.person || null;
   })();
-  // Resolve dep names
   const depList = item.deps && tree
     ? (typeof item.deps === 'string' ? item.deps.split(', ') : Array.isArray(item.deps) ? item.deps : [])
-        .map(d => { const n = tree.find(r => r.id === d); return n ? `${d} (${n.name})` : d; })
+      .map(d => {
+        const n = tree.find(r => r.id === d);
+        return n ? `${d} (${n.name})` : d;
+      })
     : null;
 
-  return <div className="tt" style={{ left: sx, top: sy }}>
-    <div className="tt-title">{item.id} — {item.name}</div><hr className="tt-sep" />
-    {assignNames && <div className="tt-row"><span>{t('tt.assigned')}</span><b>{assignNames}</b></div>}
-    {teamName && <div className="tt-row"><span>{t('tt.team')}</span><b>{teamName}</b></div>}
-    {item.best > 0 && <div className="tt-row"><span>{t('tt.bestCase')}</span><b>{item.best}d</b></div>}
-    {item.effort > 0 && <div className="tt-row"><span>{t('tt.realistic')}</span><b>{item.effort?.toFixed(1)}d</b></div>}
-    {item.startD && <div className="tt-row"><span>{t('tt.start')}</span><b>{iso(item.startD)}</b></div>}
-    {item.endD && <div className="tt-row"><span>{t('tt.end')}</span><b>{iso(item.endD)}</b></div>}
-    {/* Duration breakdown — shown when item has both an estimate and scheduling data */}
-    {item.best > 0 && item.calDays > 0 && (() => {
-      const node = tree ? tree.find(r => r.id === item.id) : null;
-      const factor = node?.factor || item.factor || 1.5;
-      const effort = item.effort ?? (item.best * factor);
-      const capPct = item.capPct ?? 100;
-      // Prefer explicit window fields; fall back to old vacDed-derived estimate
-      const vacDays = item.vacDays ?? (item.vacDed > 0 ? Math.round(effort * item.vacDed / 100) : 0);
-      const holidaysInWindow = item.holidaysInWindow ?? 0;
-      const workingDaysInWindow = item.workingDaysInWindow ?? null;
-      return <>
+  const node = tree ? tree.find(r => r.id === item.id) : null;
+  const factor = node?.factor || item.factor || 1.5;
+  const effort = item.effort ?? (item.best > 0 ? item.best * factor : 0);
+  const capPct = item.capPct ?? 100;
+  const vacDays = item.vacDays ?? (item.vacDed > 0 ? Math.round(effort * item.vacDed / 100) : 0);
+  const holidaysInWindow = item.holidaysInWindow ?? 0;
+  const actualStart = item.status === 'done'
+    ? (item.startD || (node?.completedStart ? localDate(node.completedStart) : (node?.completedAt ? localDate(node.completedAt) : null)))
+    : null;
+  const actualEnd = item.status === 'done'
+    ? (node?.completedAt ? localDate(node.completedAt) : (item.endD || (node?.completedEnd ? localDate(node.completedEnd) : actualStart)))
+    : null;
+  const plannedStart = node?.plannedStart ? localDate(node.plannedStart) : (item.status === 'done' ? null : item.startD);
+  const plannedEnd = node?.plannedEnd ? localDate(node.plannedEnd) : (item.status === 'done' ? null : item.endD);
+  const displayStart = actualStart || item.startD;
+  const displayEnd = actualEnd || item.endD;
+  const calDays = displayStart && displayEnd
+    ? Math.max(1, Math.round((displayEnd - displayStart) / 864e5) + 1)
+    : item.calDays || 0;
+  const workingDaysInWindow = item.workingDaysInWindow ?? (calDays > 0 ? Math.max(0, calDays - vacDays - holidaysInWindow) : null);
+  const statusLabel = item.status === 'done' ? t('tv.statusDone') : item.status === 'wip' ? t('tv.statusWip') : t('tv.statusOpen');
+  const statusColor = item.status === 'done' ? 'var(--gr)' : item.status === 'wip' ? 'var(--am)' : 'var(--tx3)';
+  const statusDot = item.status === 'done' ? '✓' : item.status === 'wip' ? '◐' : '○';
+  const timingChips = [
+    item._summaryCount ? { label: t('tv.items'), value: String(item._summaryCount) } : null,
+    item._doneCount > 0 ? { label: t('tv.statusDone'), value: String(item._doneCount) } : null,
+    calDays > 0 ? { label: t('tt.durCal'), value: `${calDays}d` } : null,
+    workingDaysInWindow != null ? { label: t('tt.workingDays'), value: `${workingDaysInWindow}d` } : null,
+    holidaysInWindow > 0 ? { label: t('tt.holidaysInWindow'), value: `${holidaysInWindow}d`, tone: 'danger' } : null,
+    vacDays > 0 ? { label: t('tt.vacDays'), value: `${vacDays}d`, tone: 'warn' } : null,
+    capPct < 100 ? { label: t('tt.durCap'), value: `${capPct}%` } : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="tt" style={{ left: sx, top: sy }}>
+      <div className="tt-title">{item.id} — {item.name}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        <span style={{ color: statusColor, fontWeight: 700, fontSize: 11 }}>{statusDot} {statusLabel}</span>
+        {item.isCp && <span style={{ color: 'var(--re)', fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700 }}>⚡ CP</span>}
+        {assignNames && <span style={{ color: 'var(--tx2)', fontSize: 10 }}>{assignNames}</span>}
+        {teamName && <span style={{ color: 'var(--tx3)', fontSize: 10 }}>· {teamName}</span>}
+      </div>
+
+      {(displayStart || displayEnd || plannedStart || plannedEnd || item.pinnedStart || node?.decideBy) && (
+        <>
+          <SectionTitle label={t('ins.timing')} />
+          {displayStart && displayEnd && (
+            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{item.status === 'done' ? t('ins.actual') : t('ins.period')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{iso(displayStart)} → {iso(displayEnd)}</span>
+              {calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
+            </div>
+          )}
+          {item.status === 'done' && plannedStart && plannedEnd && (
+            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.planned')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{iso(plannedStart)} → {iso(plannedEnd)}</span>
+            </div>
+          )}
+          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>📌 {item.pinnedStart}</div>}
+          {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>⏰ {node.decideBy}</div>}
+          {timingChips.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {timingChips.map(chip => <MetaChip key={chip.label} label={chip.label} value={chip.value} tone={chip.tone} />)}
+            </div>
+          )}
+        </>
+      )}
+
+      {item.best > 0 && (
+        <>
+          <hr className="tt-sep" />
+          <SectionTitle label={t('ins.effort')} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px 8px', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--tx3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em' }}>{t('ins.effortBest')}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{item.best}d</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>× {factor} =</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>{effort?.toFixed(1)}d</span>
+          </div>
+        </>
+      )}
+
+      {depList && depList.length > 0 && (
+        <>
+          <hr className="tt-sep" />
+          <SectionTitle label={t('tt.deps')} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--tx2)' }}>
+            {depList.map(d => <div key={d}>{d}</div>)}
+          </div>
+        </>
+      )}
+
+      {item.note && (
+        <>
+          <hr className="tt-sep" />
+          <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic', lineHeight: 1.45 }}>{item.note}</div>
+        </>
+      )}
+
+      {item.phases?.length > 0 && (
+        <>
+          <hr className="tt-sep" />
+          <SectionTitle label={t('ph.phases')} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
+            {item.phases.map(ph => (
+              <div key={ph.id}>
+                {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
+                {ph.effortPct ? ` · ${ph.effortPct}%` : ''}
+                {phaseTeamLabel(ph, teams) ? ` — ${phaseTeamLabel(ph, teams)}` : ''}
+                {phaseAssigneeLabel(ph, members) ? ` · ${phaseAssigneeLabel(ph, members)}` : ''}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!item._summary && <>
         <hr className="tt-sep" />
-        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
-          <div style={{ fontWeight: 600, marginBottom: 3 }}>{t('tt.durBreakdown')}</div>
-          <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.durBest')}: <b style={{ color: 'var(--tx2)' }}>{item.best}d × {factor} = {effort?.toFixed(1)}d</b>
-          </div>
-          <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.durCal')}: <b style={{ color: 'var(--tx2)' }}>{item.calDays}d</b>
-          </div>
-          {vacDays > 0 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.vacDays')}: <b style={{ color: 'var(--am)' }}>{vacDays}</b>
-          </div>}
-          {holidaysInWindow > 0 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.holidaysInWindow')}: <b style={{ color: 'var(--re)' }}>{holidaysInWindow}</b>
-          </div>}
-          <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.workingDays')}: <b style={{ color: 'var(--tx2)' }}>{workingDaysInWindow ?? (item.calDays - vacDays - holidaysInWindow)}</b>
-          </div>
-          {capPct < 100 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.durCap')}: <b style={{ color: 'var(--am)' }}>{capPct}%</b>
-          </div>}
-          {item.startD && <div style={{ marginLeft: 4 }}>
-            {t('tt.durStart')}: <b style={{ color: 'var(--tx2)' }}>{iso(item.startD)}</b>
-          </div>}
-        </div>
-      </>;
-    })()}
-    {depList && depList.length > 0 && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>
-      <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('tt.deps')}</div>
-      {depList.map(d => <div key={d} style={{ marginLeft: 4 }}>{d}</div>)}
-    </div></>}
-    {item.isCp && <div className="tt-row"><span>{t('tt.cp')}</span><b style={{ color: 'var(--re)' }}>{t('tt.cpYes')}</b></div>}
-    {item.note && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{item.note}</div></>}
-    {item.phases?.length > 0 && <><hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>
-      <div style={{ fontWeight: 600, marginBottom: 2 }}>{t('ph.phases')}</div>
-      {item.phases.map(ph => <div key={ph.id} style={{ marginLeft: 4 }}>
-        {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
-        {ph.effortPct ? ` · ${ph.effortPct}%` : ''}
-        {phaseTeamLabel(ph, teams) ? ` — ${phaseTeamLabel(ph, teams)}` : ''}
-        {phaseAssigneeLabel(ph, members) ? ` · ${phaseAssigneeLabel(ph, members)}` : ''}
-      </div>)}
-    </div></>}
-    <hr className="tt-sep" /><div style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('tt.dblClick')}</div>
-  </div>;
+        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('tt.dblClick')}</div>
+      </>}
+    </div>
+  );
 }

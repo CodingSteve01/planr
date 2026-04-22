@@ -18,7 +18,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -29,6 +29,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const [f, setF] = useState({ ...node });
   const [nmTab, setNmTab] = useState('insights');
   const [focusHint, setFocusHint] = useState(null);
+  const [highlightedDepId, setHighlightedDepId] = useState(null);
+  const depRowRefs = useRef({});
   const activateTab = (e, action) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -49,6 +51,17 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
   useEffect(() => setF({ ...node }), [node?.id]);
 
+  useEffect(() => {
+    if (!focusRequest) {
+      setHighlightedDepId(null);
+      return;
+    }
+    const requestedTab = focusRequest.tab || (focusRequest.focusHint === 'deps' ? 'timing' : null);
+    if (requestedTab) setNmTab(requestedTab);
+    if (focusRequest.focusHint) setFocusHint(focusRequest.focusHint);
+    setHighlightedDepId(focusRequest.depId || null);
+  }, [focusRequest, node?.id]);
+
   // Focus the primary field after tab switch driven by Insights click
   useLayoutEffect(() => {
     if (!focusHint) return;
@@ -67,10 +80,23 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     setFocusHint(null);
   }, [focusHint, nmTab]);
 
+  useLayoutEffect(() => {
+    if (!highlightedDepId || nmTab !== 'timing') return;
+    const row = depRowRefs.current[highlightedDepId];
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const id = window.setTimeout(() => setHighlightedDepId(current => current === highlightedDepId ? null : current), 2200);
+    return () => window.clearTimeout(id);
+  }, [highlightedDepId, nmTab, f.deps]);
+
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
   const isDirty = useMemo(() => node && JSON.stringify({ ...node }) !== JSON.stringify(f), [node, f]);
   const safeClose = () => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onClose(); };
+  const handleNavigate = id => {
+    if (!id || !onNavigate) return;
+    if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
+    onNavigate(id);
+  };
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') safeClose(); };
     window.addEventListener('keydown', h);
@@ -161,7 +187,25 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {/* ── HEADER ── */}
       {ancestors.length > 0 && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {ancestors.map((a, i) => <span key={a.id}>{i > 0 && <span style={{ color: 'var(--b3)' }}> › </span>}<span style={{ fontFamily: 'var(--mono)', fontSize: 9 }}>{a.id}</span> {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}</span>)}
+        {ancestors.map((a, i) => <span key={a.id}>
+          {i > 0 && <span style={{ color: 'var(--b3)' }}> › </span>}
+          <button
+            type="button"
+            onClick={() => handleNavigate(a.id)}
+            data-htip={`${a.id} — ${a.name}`}
+            style={{
+              appearance: 'none',
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              color: 'inherit',
+              cursor: onNavigate ? 'pointer' : 'default',
+              font: 'inherit',
+            }}
+          >
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 9 }}>{a.id}</span> {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}
+          </button>
+        </span>)}
       </div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)', fontSize: 13, fontWeight: 600 }}>{node.id}</span>
@@ -195,6 +239,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         confReasons={confReasons}
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
         onPhaseToggle={handlePhaseToggle}
+        onOpenItem={handleNavigate}
         onEditSection={sectionId => {
           const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
           const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
@@ -395,7 +440,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         <div className="field">
           <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-            {(f.deps || []).map(d => { const dn = findById(d); return <div key={d} className="dep-row">
+            {(f.deps || []).map(d => { const dn = findById(d); const isHighlighted = highlightedDepId === d; return <div key={d} className="dep-row"
+              ref={el => {
+                if (el) depRowRefs.current[d] = el;
+                else delete depRowRefs.current[d];
+              }}
+              style={isHighlighted ? { background: 'rgba(59,130,246,.10)', borderColor: 'rgba(59,130,246,.35)', boxShadow: '0 0 0 1px rgba(59,130,246,.25)' } : undefined}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
                 {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}

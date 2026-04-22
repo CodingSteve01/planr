@@ -3,6 +3,13 @@ import { isLeafNode, parentId, pt, re, resolveToLeafIds } from './scheduler.js';
 
 const DEFAULT_WORK_DAYS = [1, 2, 3, 4, 5];
 
+export function clampCompletedDate(dateLike) {
+  if (!dateLike) return '';
+  const date = typeof dateLike === 'string' ? localDate(dateLike) : localDate(dateLike);
+  const today = localDate(new Date());
+  return iso(date > today ? today : date);
+}
+
 function buildVacationSets(vacations) {
   const sets = {};
   (vacations || []).forEach(v => {
@@ -42,10 +49,41 @@ export function inferCompletedPersonId(item, members, scheduledSnap = null) {
   return teamMembers.length === 1 ? teamMembers[0].id : null;
 }
 
-export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, workDays, planStart }) {
-  if (item?.completedAt) return item.completedAt;
-  if (item?.completedEnd) return item.completedEnd;
-  if (scheduledSnap?.endD) return iso(scheduledSnap.endD);
+function estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, vacations, hm, workDays }) {
+  if (!item?.pinnedStart) return '';
+  const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
+  const vacationSets = buildVacationSets(vacations);
+  const member = completedPersonId ? (members || []).find(m => m.id === completedPersonId) : null;
+  const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
+  const dailyCap = Math.max(0.1, member?.cap || 1);
+  let remainingEffort = re(item?.best || 0, item?.factor || 1.5);
+  let cursor = localDate(item.pinnedStart);
+  let lastWorkDay = new Date(cursor);
+  let guard = 0;
+
+  while (!isUsableWorkDay(cursor, wdSet, hm, vacationSets, assigneeIds) && guard < 60) {
+    cursor = addD(cursor, 1);
+    lastWorkDay = new Date(cursor);
+    guard++;
+  }
+  if (!remainingEffort || remainingEffort <= 0) return clampCompletedDate(cursor);
+
+  while (remainingEffort > 0 && guard < 4000) {
+    if (isUsableWorkDay(cursor, wdSet, hm, vacationSets, assigneeIds)) {
+      remainingEffort -= dailyCap;
+      lastWorkDay = new Date(cursor);
+    }
+    if (remainingEffort <= 0) break;
+    cursor = addD(cursor, 1);
+    guard++;
+  }
+  return clampCompletedDate(lastWorkDay);
+}
+
+export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, workDays, planStart, completedPersonId, members, vacations, hm }) {
+  if (item?.completedAt) return clampCompletedDate(item.completedAt);
+  if (item?.completedEnd) return clampCompletedDate(item.completedEnd);
+  if (scheduledSnap?.endD) return clampCompletedDate(scheduledSnap.endD);
 
   const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
   let earliestSuccessorStart = null;
@@ -61,10 +99,13 @@ export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, work
   });
 
   if (earliestSuccessorStart) {
-    return iso(addWorkDays(earliestSuccessorStart, -1, wdSet));
+    return clampCompletedDate(addWorkDays(earliestSuccessorStart, -1, wdSet));
   }
 
-  return planStart || iso(new Date());
+  const pinnedEstimate = estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, vacations, hm, workDays });
+  if (pinnedEstimate) return pinnedEstimate;
+
+  return clampCompletedDate(planStart || new Date());
 }
 
 export function deriveCompletedWindow({ item, completedAt, completedPersonId, members, vacations, hm, workDays }) {
@@ -74,12 +115,7 @@ export function deriveCompletedWindow({ item, completedAt, completedPersonId, me
   const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
   const dailyCap = Math.max(0.1, member?.cap || 1);
 
-  let endDate = localDate(completedAt || item?.completedAt || item?.completedEnd || new Date());
-  let guard = 0;
-  while (!isUsableWorkDay(endDate, wdSet, hm, vacationSets, assigneeIds) && guard < 180) {
-    endDate = addD(endDate, -1);
-    guard++;
-  }
+  const endDate = localDate(clampCompletedDate(completedAt || item?.completedAt || item?.completedEnd || new Date()));
 
   let remainingEffort = re(item?.best || 0, item?.factor || 1.5);
   if (!remainingEffort || remainingEffort <= 0) {

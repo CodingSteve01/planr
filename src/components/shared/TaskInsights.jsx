@@ -7,6 +7,7 @@ import { useT } from '../../i18n.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '✓' };
 const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
+const S_LABEL = { open: 'tv.statusOpen', wip: 'tv.statusWip', done: 'tv.statusDone' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const PH_DOT = { done: '✓', wip: '◐', open: '○' };
@@ -119,8 +120,16 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   ].filter(Boolean);
 
   // Schedule
-  const startDate = sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null);
-  const endDate = sc?.endD || null;
+  const plannedStartDate = node.plannedStart ? localDate(node.plannedStart) : (sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null));
+  const plannedEndDate = node.plannedEnd ? localDate(node.plannedEnd) : (sc?.endD || null);
+  const actualStartDate = node.status === 'done'
+    ? (node.completedStart ? localDate(node.completedStart) : (node.completedAt ? localDate(node.completedAt) : null))
+    : null;
+  const actualEndDate = node.status === 'done'
+    ? (node.completedAt ? localDate(node.completedAt) : (node.completedEnd ? localDate(node.completedEnd) : actualStartDate))
+    : null;
+  const startDate = actualStartDate || plannedStartDate;
+  const endDate = actualEndDate || plannedEndDate;
   const calDays = (startDate && endDate) ? diffDays(startDate, endDate) : null;
 
   // Team
@@ -197,7 +206,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         onMouseLeave={onEditSection ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
       >
         <span style={{ fontWeight: 700, color: statusColor, fontSize: 13 }}>
-          {S_DOT[status]} {t(status)}
+          {S_DOT[status]} {t(S_LABEL[status] || status)}
         </span>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{progPct}%</span>
         <div style={{ flex: '1 1 80px', height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 60 }}>
@@ -213,7 +222,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {(startDate || endDate) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {startDate && endDate && (
-            <KVRow label={t('ins.period')}>
+            <KVRow label={node.status === 'done' ? t('ins.actual') : t('ins.period')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
                 {iso(startDate)} → {iso(endDate)}
               </span>
@@ -222,6 +231,13 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                   ({calDays} {t('ins.calDays')})
                 </span>
               )}
+            </KVRow>
+          )}
+          {node.status === 'done' && plannedStartDate && plannedEndDate && (
+            <KVRow label={t('ins.planned')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                {iso(plannedStartDate)} → {iso(plannedEndDate)}
+              </span>
             </KVRow>
           )}
           {node.pinnedStart && (

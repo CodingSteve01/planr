@@ -48,6 +48,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
+  const clampCompletedDate = (dateLike) => {
+    if (!dateLike) return '';
+    const date = localDate(dateLike);
+    const today = localDate(new Date());
+    return iso(date > today ? today : date);
+  };
+  const weekIndexOfDate = (date) => {
+    if (!date) return -1;
+    const idx = wks.findIndex(w => date < addD(w.mon, 7));
+    return idx >= 0 ? idx : wks.length - 1;
+  };
   const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
   const lvs = leafNodes(tree);
   // Build short-name map from member IDs (e.g. "SL", "MZ")
@@ -92,7 +103,22 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
   const tEW = {};
   const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
-  lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
+  lvs.forEach(r => {
+    if (r.status === 'done') {
+      const completedAt = clampCompletedDate(r.completedAt || r.completedEnd);
+      if (!completedAt) {
+        tEW[r.id] = { wi: -1, nextDate: null };
+        return;
+      }
+      const completedDate = localDate(completedAt);
+      tEW[r.id] = {
+        wi: weekIndexOfDate(completedDate),
+        nextDate: addWorkDays(completedDate, 1, wdSet),
+      };
+      return;
+    }
+    if (!r.best || r.best === 0) tEW[r.id] = { wi: -1, nextDate: null };
+  });
   // Vacation: precompute per-person Set of blocked day ISO strings from date ranges.
   // Accepts both new {from, to} format and legacy {week} format (via normalizeVacation).
   const vs = {}; // vs[personId] = Set<isoDateString>
@@ -144,8 +170,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   });
   const res = [];
   ord.forEach(id => {
-    if (tEW[id]?.wi === -1) return;
     const r = iMap[id];
+    if (r?.status === 'done') return;
+    if (tEW[id]?.wi === -1) return;
     if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = { wi: -1, nextDate: null }; return; }
     const eff = re(r.best, r.factor);
     const team = pt(r.team);

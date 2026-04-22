@@ -111,11 +111,13 @@ export default function App() {
   const [multiSel, setMultiSel] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
+  const [modalFocus, setModalFocus] = useState(null);
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
   const [teamFilter, setTeamFilter] = useState('');
   const [rootFilter, setRootFilter] = useState('');
   const [personFilter, setPersonFilter] = useState('');
+  const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -125,6 +127,7 @@ export default function App() {
   const [fileName, setFileName] = useState(null);
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
+  useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
@@ -598,7 +601,7 @@ export default function App() {
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
       // Extract metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '';
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '';
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -608,6 +611,10 @@ export default function App() {
           const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
           const cm = t.match(/^conf:(committed|estimated|exploratory)$/i); if (cm) { confidence = cm[1].toLowerCase(); return; }
           const dm = t.match(/^done:(\d{4}-\d{2}-\d{2})$/i); if (dm) { completedAt = dm[1]; return; }
+          const dsm = t.match(/^done-start:(\d{4}-\d{2}-\d{2})$/i); if (dsm) { completedStart = dsm[1]; return; }
+          const dem = t.match(/^done-end:(\d{4}-\d{2}-\d{2})$/i); if (dem) { completedEnd = dem[1]; return; }
+          const psm = t.match(/^plan-start:(\d{4}-\d{2}-\d{2})$/i); if (psm) { plannedStart = psm[1]; return; }
+          const pem = t.match(/^plan-end:(\d{4}-\d{2}-\d{2})$/i); if (pem) { plannedEnd = pem[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
@@ -665,6 +672,10 @@ export default function App() {
       if (parallel) item.parallel = true;
       if (confidence) item.confidence = confidence;
       if (completedAt) item.completedAt = completedAt;
+      if (completedStart) item.completedStart = completedStart;
+      if (completedEnd) item.completedEnd = completedEnd;
+      if (plannedStart) item.plannedStart = plannedStart;
+      if (plannedEnd) item.plannedEnd = plannedEnd;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;
@@ -817,10 +828,41 @@ export default function App() {
   const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
-  const rootItems = useMemo(() => tree.filter(r => !r.id.includes('.')), [tree]);
+  const visibleTree = useMemo(() => {
+    if (!hideDone) return tree;
+    const byId = Object.fromEntries(tree.map(r => [r.id, r]));
+    const byParent = {};
+    tree.forEach(r => {
+      const pid = r.id.split('.').slice(0, -1).join('.');
+      if (!byParent[pid]) byParent[pid] = [];
+      byParent[pid].push(r);
+    });
+    const keep = new Set();
+    const visit = id => {
+      const node = byId[id];
+      if (!node) return false;
+      const children = byParent[id] || [];
+      const hasVisibleChild = children.some(child => visit(child.id));
+      const shouldShow = children.length > 0 || node.status !== 'done' || hasVisibleChild;
+      if (shouldShow) keep.add(id);
+      return shouldShow;
+    };
+    (byParent[''] || []).forEach(root => visit(root.id));
+    return tree.filter(r => keep.has(r.id));
+  }, [tree, hideDone]);
+  const visibleIdSet = useMemo(() => new Set(visibleTree.map(r => r.id)), [visibleTree]);
+  const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
   const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
+  useEffect(() => {
+    if (!hideDone) return;
+    if (selId && !visibleIdSet.has(selId)) _setSelId(null);
+    setMultiSel(prev => {
+      const next = new Set([...prev].filter(id => visibleIdSet.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [hideDone, selId, visibleIdSet]);
   const netTree = useMemo(() => {
-    let items = tree;
+    let items = visibleTree;
     if (rootFilter) items = items.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
     if (teamFilter) {
       const visibleIds = new Set();
@@ -851,7 +893,7 @@ export default function App() {
       items = items.filter(r => visibleIds.has(r.id));
     }
     return items;
-  }, [tree, rootFilter, teamFilter, personFilter]);
+  }, [visibleTree, rootFilter, teamFilter, personFilter]);
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -895,18 +937,28 @@ export default function App() {
 
     tree.forEach(r => {
       if (!isLeafNode(tree, r.id)) return;
-      const hasCompletionMeta = !!(r.completedAt || r.completedStart || r.completedEnd || r.completedPersonId || r.completedPerson || r.completedAutoAssigned);
+      const hasCompletionMeta = !!(r.completedAt || r.completedStart || r.completedEnd || r.completedPersonId || r.completedPerson || r.completedAutoAssigned || r.plannedStart || r.plannedEnd);
       const prev = prevTreeMap.get(r.id);
       const snap = prevScheduledMap.get(r.id);
 
       if (r.status === 'done') {
         const completedPersonId = inferCompletedPersonId(r, members, snap);
-        const completedAt = r.completedAt || (prev?.status !== 'done'
+        const completedAt = (prev?.status !== 'done' && !r.completedAt)
           ? todayIso
-          : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart }));
+          : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart, completedPersonId, members, vacations, hm });
         if (!completedAt) return;
-        const window = deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays });
+        const shouldRefreshWindow = prev?.status !== 'done'
+          || prev?.completedAt !== completedAt
+          || prev?.completedPersonId !== completedPersonId
+          || !r.completedStart
+          || !r.completedEnd
+          || r.completedAt !== completedAt;
+        const window = shouldRefreshWindow
+          ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
+          : { completedStart: r.completedStart, completedEnd: r.completedEnd };
         const completedPerson = r.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : snap?.person || '');
+        const plannedStart = r.plannedStart || (snap?.startD ? iso(snap.startD) : '');
+        const plannedEnd = r.plannedEnd || (snap?.endD ? iso(snap.endD) : '');
         const patch = {
           completedAt,
           completedStart: window.completedStart,
@@ -915,6 +967,8 @@ export default function App() {
         if (completedPersonId) patch.completedPersonId = completedPersonId;
         if (completedPerson) patch.completedPerson = completedPerson;
         if (snap?.autoAssigned || r.completedAutoAssigned) patch.completedAutoAssigned = true;
+        if (plannedStart) patch.plannedStart = plannedStart;
+        if (plannedEnd) patch.plannedEnd = plannedEnd;
         const needsPatch = Object.entries(patch).some(([key, value]) => r[key] !== value);
         if (!needsPatch) return;
         patches.set(r.id, patch);
@@ -935,8 +989,8 @@ export default function App() {
         const patch = patches.get(r.id);
         if (!patch) return r;
         if (patch._clearCompletedWindow) {
-          const { completedAt, completedStart, completedEnd, completedPersonId, completedPerson, completedAutoAssigned, ...rest } = r;
-          if (completedAt == null && completedStart == null && completedEnd == null && completedPersonId == null && completedPerson == null && completedAutoAssigned == null) return r;
+          const { completedAt, completedStart, completedEnd, completedPersonId, completedPerson, completedAutoAssigned, plannedStart, plannedEnd, ...rest } = r;
+          if (completedAt == null && completedStart == null && completedEnd == null && completedPersonId == null && completedPerson == null && completedAutoAssigned == null && plannedStart == null && plannedEnd == null) return r;
           didChange = true;
           return rest;
         }
@@ -953,6 +1007,16 @@ export default function App() {
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
+  const viewScheduled = useMemo(() => scheduled.filter(s => visibleIdSet.has(s.id)), [scheduled, visibleIdSet]);
+  const viewGoals = useMemo(() => visibleTree.filter(r => !r.id.includes('.') && r.type), [visibleTree]);
+  const viewStats = useMemo(() => {
+    if (!hideDone) return stats;
+    const s = treeStats(visibleTree);
+    enrichParentSchedules(s, visibleTree, viewScheduled);
+    return s;
+  }, [hideDone, stats, visibleTree, viewScheduled]);
+  const viewCpSet = useMemo(() => hideDone ? cpm(visibleTree).critical : cpSet, [hideDone, visibleTree, cpSet]);
+  const viewGoalPaths = useMemo(() => hideDone ? goalCpm(visibleTree) : goalPaths, [hideDone, visibleTree, goalPaths]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
   const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -1013,8 +1077,80 @@ export default function App() {
 
   // Normalize a loaded data object: convert legacy week-based vacations to {from, to} on load.
   function normalizeLoadedData(d) {
-    if (!d || !Array.isArray(d.vacations) || !d.vacations.length) return d;
-    return { ...d, vacations: d.vacations.map(normalizeVacation) };
+    if (!d) return d;
+    const rawVacations = Array.isArray(d.vacations) ? d.vacations : [];
+    const vacations = rawVacations.map(normalizeVacation);
+    const vacChanged = rawVacations.length !== vacations.length || rawVacations.some((vac, idx) => {
+      const norm = vacations[idx];
+      return vac?.person !== norm?.person || vac?.from !== norm?.from || vac?.to !== norm?.to || vac?.note !== norm?.note;
+    });
+    if (!Array.isArray(d.tree) || !d.tree.length) {
+      return vacChanged ? { ...d, vacations } : d;
+    }
+
+    const members = Array.isArray(d.members) ? d.members : [];
+    const tree = Array.isArray(d.tree) ? d.tree : [];
+    const hm = buildHMap(d.holidays || []);
+    const workDays = d.meta?.workDays || [1, 2, 3, 4, 5];
+    const planStart = d.meta?.planStart || iso(new Date());
+    const emptyScheduledMap = new Map();
+    let changed = vacChanged;
+
+    const nextTree = tree.map(item => {
+      if (item.status !== 'done') return item;
+
+      const completedPersonId = inferCompletedPersonId(item, members, null);
+      const completedAt = inferCompletedAt({
+        item,
+        tree,
+        scheduledMap: emptyScheduledMap,
+        scheduledSnap: null,
+        workDays,
+        planStart,
+        completedPersonId,
+        members,
+        vacations,
+        hm,
+      });
+      if (!completedAt) return item;
+
+      const derivedWindow = deriveCompletedWindow({
+        item,
+        completedAt,
+        completedPersonId,
+        members,
+        vacations,
+        hm,
+        workDays,
+      });
+      const completedStart = item.completedStart && item.completedStart <= completedAt
+        ? item.completedStart
+        : derivedWindow.completedStart;
+      const completedEnd = completedAt;
+      const completedPerson = item.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : '');
+      const plannedStart = item.plannedStart || item.pinnedStart || '';
+      const next = {
+        ...item,
+        completedAt,
+        completedStart,
+        completedEnd,
+      };
+      if (completedPersonId) next.completedPersonId = completedPersonId;
+      if (completedPerson) next.completedPerson = completedPerson;
+      if (plannedStart && !item.plannedStart) next.plannedStart = plannedStart;
+      if (next.completedAt !== item.completedAt
+        || next.completedStart !== item.completedStart
+        || next.completedEnd !== item.completedEnd
+        || next.completedPersonId !== item.completedPersonId
+        || next.completedPerson !== item.completedPerson
+        || next.plannedStart !== item.plannedStart) {
+        changed = true;
+        return next;
+      }
+      return item;
+    });
+
+    return changed ? { ...d, vacations, tree: nextTree } : d;
   }
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
   // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
@@ -1358,10 +1494,11 @@ export default function App() {
     };
     r.readAsText(f); e.target.value = '';
   }
-  function onBarClick(s) {
+  function onBarClick(s, focusRequest = null) {
     const node = tree.find(r => r.id === s.id);
     if (!node) return;
     flushSync(() => {
+      setModalFocus(focusRequest);
       setMN({ ...node, ...s });
       setModal('node');
     });
@@ -1558,6 +1695,13 @@ export default function App() {
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
       <div style={{ width: 150 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} data-htip={_t('ui.hideDoneTip')}>
+        <label className="toggle">
+          <input type="checkbox" checked={hideDone} onChange={e => setHideDone(e.target.checked)} aria-label={_t('ui.hideDone')} />
+          <span className="slider" />
+        </label>
+        <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{_t('ui.hideDone')}</span>
+      </div>
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
@@ -1576,7 +1720,7 @@ export default function App() {
       </>}
     </div>}
     <div className="main">
-      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={visibleTree} scheduled={viewScheduled} goals={viewGoals} members={members} teams={teams} cpSet={viewCpSet} goalPaths={viewGoalPaths} stats={viewStats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
         onOpenItem={id => {
           const node = tree.find(r => r.id === id); if (!node) return;
@@ -1585,8 +1729,8 @@ export default function App() {
         }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
-        tree={tree} scheduled={scheduled} vacations={vacations} members={members} teams={teams}
-        stats={stats} confidence={confidence} cpSet={cpSet}
+        tree={visibleTree} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
+        stats={viewStats} confidence={confidence} cpSet={viewCpSet}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         onOpenItem={id => {
           const node = tree.find(r => r.id === id); if (!node) return;
@@ -1596,7 +1740,7 @@ export default function App() {
         }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })}
       /></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         onOpenItem={id => {
           const node = tree.find(r => r.id === id); if (!node) return;
           if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
@@ -1605,9 +1749,9 @@ export default function App() {
         onUpdate={updateNode} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {!tree.length
-            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={(node, e, visibleIds) => {
+          {!visibleTree.length
+            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
+            : <TreeView tree={visibleTree} selected={selected} multiSel={multiSel} onSelect={(node, e, visibleIds) => {
                 if (e?.shiftKey && selected && visibleIds) {
                   // Shift-click: range select from last selected to this
                   const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
@@ -1619,7 +1763,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
+              }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={viewStats} teams={teams} members={members} scheduled={viewScheduled} cpSet={viewCpSet}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview'); }}
               onDelete={deleteNode} onReorder={reorderSibling} />
@@ -1767,8 +1911,8 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} vacations={vacations} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={viewScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} tree={visibleTree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} onReorderSibling={reorderSibling} /></div>}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} stats={viewStats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
@@ -1779,11 +1923,18 @@ export default function App() {
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
-      onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
-      onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
-      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
-      onReorderInQueue={reorderInQueue} />}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}
+      onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
+      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
+      onReorderInQueue={reorderInQueue}
+      onNavigate={id => {
+        const target = tree.find(r => r.id === id);
+        if (!target) return;
+        setModalFocus(null);
+        setMN(target);
+        setSel(target);
+      }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}

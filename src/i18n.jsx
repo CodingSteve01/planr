@@ -50,6 +50,8 @@ const en = {
   'qe.tab.overview': 'Details', 'qe.tab.workflow': 'Phases', 'qe.tab.estimate': 'Estimate', 'qe.tab.schedule': 'Plan', 'qe.tab.deps': 'Dependencies', 'qe.tab.effort': 'Estimate', 'qe.tab.timing': 'Schedule',
   'qe.horizonHint': 'H1 is for committed work, H2 for estimated work, and everything after that may stay exploratory until it is clarified.',
   'qe.completedHint': 'Used to reconstruct done items in the Gantt. Leave empty until the item is actually finished.',
+  'ui.hideDone': 'Hide done',
+  'ui.hideDoneTip': 'Hide completed items across the planning views',
   'qe.allLeaves': 'all leaves',
   'qe.confirmRelease': '"{0}" will no longer wait for this item?',
   'qe.confirmDelete': 'Delete {0}?', 'qe.confirmDeleteChildren': 'Delete {0} and all children?',
@@ -71,7 +73,7 @@ const en = {
 
   // ── Gantt ──
   'g.group': 'Group', 'g.project': 'Project', 'g.projTeam': 'Project › Team',
-  'g.team': 'Team', 'g.person': 'Person',
+  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Resource',
   'g.noItems': 'No items yet', 'g.addTasks': 'Add tasks to see the Gantt chart.',
   'g.zoom': 'Zoom', 'g.week': 'Week', 'g.day': 'Day', 'g.today': 'Today',
   'g.noEstimate': 'no estimate', 'g.matches': 'matches',
@@ -88,6 +90,8 @@ const en = {
   'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
   'g.horizonLegendTip': 'Before H1 work should be committed, before H2 at least estimated, and after H2 exploratory work is still acceptable.',
   'g.vacation': 'Vacation',
+  'ins.actual': 'Actual',
+  'ins.planned': 'Planned',
 
   // ── SumView ──
   's.projected': 'Projected end', 's.focus': 'Focus',
@@ -494,6 +498,8 @@ const de = {
   'qe.tab.overview': 'Details', 'qe.tab.workflow': 'Phasen', 'qe.tab.estimate': 'Schätzung', 'qe.tab.schedule': 'Planung', 'qe.tab.deps': 'Abhängigkeiten', 'qe.tab.effort': 'Schätzung', 'qe.tab.timing': 'Zeitplan',
   'qe.horizonHint': 'H1 ist für committed Arbeit, H2 für grob geschätzte Arbeit, und alles danach darf explorativ bleiben, bis es präzisiert ist.',
   'qe.completedHint': 'Wird genutzt, um erledigte Items im Gantt rückzurechnen. Leer lassen, bis das Item wirklich fertig ist.',
+  'ui.hideDone': 'Erledigte ausblenden',
+  'ui.hideDoneTip': 'Erledigte Items in den Planungs-Views ausblenden',
   'qe.allLeaves': 'alle Leaves',
   'qe.confirmRelease': '„{0}" wartet nicht mehr auf dieses Item?',
   'qe.confirmDelete': '{0} löschen?', 'qe.confirmDeleteChildren': '{0} und alle Unterelemente löschen?',
@@ -515,7 +521,7 @@ const de = {
 
   // ── Gantt ──
   'g.group': 'Gruppierung', 'g.project': 'Projekt', 'g.projTeam': 'Projekt › Team',
-  'g.team': 'Team', 'g.person': 'Person',
+  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Ressource',
   'g.noItems': 'Noch keine Items', 'g.addTasks': 'Aufgaben hinzufügen um den Gantt-Chart zu sehen.',
   'g.zoom': 'Zoom', 'g.week': 'Woche', 'g.day': 'Tag', 'g.today': 'Heute',
   'g.noEstimate': 'kein Aufwand', 'g.matches': 'Treffer',
@@ -532,6 +538,8 @@ const de = {
   'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
   'g.horizonLegendTip': 'Vor H1 sollte Arbeit committed sein, vor H2 mindestens grob geschätzt, und nach H2 darf sie noch explorativ sein.',
   'g.vacation': 'Urlaub',
+  'ins.actual': 'Ist',
+  'ins.planned': 'Soll',
 
   // ── SumView ──
   's.projected': 'Voraussichtliches Ende', 's.focus': 'Fokus',

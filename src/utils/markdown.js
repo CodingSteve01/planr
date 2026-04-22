@@ -82,6 +82,10 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
     if (r.confidence) tags.push(`conf:${r.confidence}`);
     if (r.completedAt) tags.push(`done:${r.completedAt}`);
+    if (r.completedStart) tags.push(`done-start:${r.completedStart}`);
+    if (r.completedEnd) tags.push(`done-end:${r.completedEnd}`);
+    if (r.plannedStart) tags.push(`plan-start:${r.plannedStart}`);
+    if (r.plannedEnd) tags.push(`plan-end:${r.plannedEnd}`);
     // Custom field values inline: {jira:PROJ-123, customer:Acme}
     const cvEntries = r.customValues ? Object.entries(r.customValues).filter(([, v]) => v != null && v !== '') : [];
     if (cvEntries.length) tags.push(...cvEntries.map(([k, v]) => `cv.${k}:${String(v).replace(/[,}]/g, ' ')}`));

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
+import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
-import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
+import { clampCompletedDate } from '../../utils/completion.js';
+import { resolveToLeafIds, isLeafNode, parentId } from '../../utils/scheduler.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
@@ -9,8 +10,15 @@ import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
-const NO_PROJECT = '__none__';
+const NO_PERSON = '__no_person__';
 const EMPTY_ARR = [];
+const DAY_ZOOM = 98;
+
+function normalizeViewMode(mode) {
+  if (mode === 'person') return 'resource';
+  if (mode === 'projteam') return 'team';
+  return mode || 'project';
+}
 
 function withAlpha(color, alpha) {
   if (!color?.startsWith('#')) return color;
@@ -23,7 +31,34 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+function StatusRing({ status, progress = 0, color = 'var(--tx3)' }) {
+  const size = 14;
+  const stroke = 1.4;
+  const radius = 5.4;
+  const center = 7;
+  const circ = 2 * Math.PI * radius;
+  if (status === 'done') {
+    return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
+      <circle cx={center} cy={center} r={radius} fill="none" stroke={withAlpha(color, 0.7)} strokeWidth={stroke} />
+      <path d="M4 7.2 L6.1 9.2 L10 5" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>;
+  }
+  if (status === 'wip') {
+    const pct = Math.max(1, Math.min(100, progress || 50));
+    const off = circ * (1 - pct / 100);
+    return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
+      <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--b2)" strokeWidth={stroke} />
+      <circle cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth="1.8"
+        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
+        transform={`rotate(-90 ${center} ${center})`} />
+    </svg>;
+  }
+  return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
+    <circle cx={center} cy={center} r={radius} fill="none" stroke={withAlpha(color, 0.6)} strokeWidth={stroke} />
+  </svg>;
+}
+
+export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -31,7 +66,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     'auto:high-risk': t('g.reasonHighRisk'), 'auto:no-estimate': t('g.reasonNoEstimate'),
     'inherited': t('g.reasonInherited'),
   };
-  const NO_PERSON = t('unassigned');
+  const UNASSIGNED_LABEL = t('unassigned');
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -50,8 +85,15 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
-  const [groupBy, setGroupBy] = useState(() => { try { return localStorage.getItem('planr_gantt_group') || 'project'; } catch { return 'project'; } });
-  const [collapsed, setCollapsed] = useState(new Set());
+  const [groupBy, setGroupBy] = useState(() => { try { return normalizeViewMode(localStorage.getItem('planr_gantt_group')); } catch { return 'project'; } });
+  const [collapsedByMode, setCollapsedByMode] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('planr_gantt_collapsed') || '{}');
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch {
+      return {};
+    }
+  });
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
@@ -62,17 +104,22 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const [h1Weeks] = useState(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } });
   const [h2Weeks] = useState(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } });
   // Zoom: WPX = pixels per week. 20 = default, lower zooms out (months), higher zooms in (toward day-level)
-  const [zoom, setZoom] = useState(() => { try { return +localStorage.getItem('planr_gantt_zoom') || DEFAULT_WPX; } catch { return DEFAULT_WPX; } });
+  const [zoom, setZoom] = useState(() => { try { return +localStorage.getItem('planr_gantt_zoom') || DAY_ZOOM; } catch { return DAY_ZOOM; } });
   const setZ = v => { const c = Math.max(8, Math.min(140, v)); setZoom(c); try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {} };
   const WPX = zoom;
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
-  const setGB = v => { setGroupBy(v); try { localStorage.setItem('planr_gantt_group', v); } catch {} };
+  const setGB = v => {
+    const next = normalizeViewMode(v);
+    setGroupBy(next);
+    try { localStorage.setItem('planr_gantt_group', next); } catch {}
+  };
   const activateMode = (e, action) => {
     if (e.button !== 0) return;
     e.preventDefault();
     action();
   };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
+  const [bodyScrollbarH, setBodyScrollbarH] = useState(0);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
   const scrollLock = useRef(false);
@@ -80,6 +127,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   function syncS(e) { if (hR.current) hR.current.scrollLeft = e.target.scrollLeft; if (lR.current) { scrollLock.current = true; lR.current.scrollTop = e.target.scrollTop; } }
   function syncL(e) { if (scrollLock.current) { scrollLock.current = false; return; } if (bR.current) bR.current.scrollTop = e.target.scrollTop; }
   function onLWheel(e) { if (bR.current) { bR.current.scrollTop += e.deltaY; bR.current.scrollLeft += e.deltaX; } }
+  useEffect(() => {
+    try { localStorage.setItem('planr_gantt_collapsed', JSON.stringify(collapsedByMode)); } catch {}
+  }, [collapsedByMode]);
 
   const tw = weeks.length * WPX;
   // Map a Date to its pixel X position on the Gantt body.
@@ -118,16 +168,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const allItems = useMemo(() => {
     const sIdSet = new Set(scheduled.map(s => s.id));
     const unscheduledLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
-      id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, assign: r.assign || [], prio: r.prio, seq: r.seq,
+      id: r.id, name: r.name, team: r.team || '', person: UNASSIGNED_LABEL, personId: null, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
       startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
       _unestimated: true,
     }));
     const doneLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status === 'done').map(r => {
-      const startD = r.completedStart ? localDate(r.completedStart) : (r.completedAt ? localDate(r.completedAt) : null);
-      const endD = r.completedEnd ? localDate(r.completedEnd) : (r.completedAt ? localDate(r.completedAt) : startD);
+      const completedAt = clampCompletedDate(r.completedAt || r.completedEnd || r.completedStart);
+      const endD = completedAt ? localDate(completedAt) : null;
+      let startD = r.completedStart ? localDate(r.completedStart) : endD;
+      if (startD && endD && startD > endD) startD = new Date(endD);
       const completedPersonId = r.completedPersonId || r.assign?.[0] || null;
-      const completedPerson = r.completedPerson || (completedPersonId ? (memberById[completedPersonId]?.name || completedPersonId) : NO_PERSON);
+      const completedPerson = r.completedPerson || (completedPersonId ? (memberById[completedPersonId]?.name || completedPersonId) : UNASSIGNED_LABEL);
       return {
         id: r.id,
         name: r.name,
@@ -163,95 +215,247 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
+  const treeOrder = useMemo(() => Object.fromEntries((tree || []).map((r, idx) => [r.id, idx])), [tree]);
+  const childrenByParent = useMemo(() => {
+    const map = {};
+    (tree || []).forEach(r => {
+      const pid = parentId(r.id);
+      if (!map[pid]) map[pid] = [];
+      map[pid].push(r.id);
+    });
+    Object.values(map).forEach(ids => ids.sort((a, b) => (treeOrder[a] ?? 0) - (treeOrder[b] ?? 0)));
+    return map;
+  }, [tree, treeOrder]);
+  const rootIds = useMemo(() => (childrenByParent[''] || EMPTY_ARR), [childrenByParent]);
+  const personIdsOf = s => {
+    const ids = new Set();
+    if (s.personId) ids.add(s.personId);
+    (s.assign || []).forEach(a => ids.add(a));
+    return [...ids];
+  };
+  const typeColorOf = node => node?.type === 'deadline'
+    ? 'var(--re)'
+    : node?.type === 'painpoint'
+    ? 'var(--am)'
+    : node?.type === 'goal'
+    ? 'var(--ac)'
+    : 'var(--ac2)';
 
-  // Build groups based on groupBy. Groups can have subGroups for nested modes.
-  const groups = useMemo(() => {
-    const result = [];
-    const sortItems = arr => arr.sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
-    const teamGroupOf = (items, parentKey = '') => {
-      const usedT = [...new Set(items.map(s => s.team || NO_TEAM))];
-      const tOrd = [...new Set([...teams.map(t => t.id), ...usedT])].filter(t => usedT.includes(t));
-      return tOrd.map(tid => {
-        const subItems = sortItems(items.filter(s => (s.team || NO_TEAM) === tid));
-        if (!subItems.length) return null;
-        const t = teams.find(x => x.id === tid);
-        return {
-          key: parentKey + 'team:' + tid,
-          label: tid === NO_TEAM ? t('noTeam') : (t?.name || tid),
-          color: tid === NO_TEAM ? NO_TEAM_COLOR : (t?.color || '#3b82f6'),
-          items: subItems,
-        };
-      }).filter(Boolean);
-    };
-
-    if (groupBy === 'team') {
-      teamGroupOf(allItems).forEach(g => result.push(g));
-    } else if (groupBy === 'person') {
-      const mMap = Object.fromEntries(members.map(m => [m.id, m]));
-      // Collect all person IDs a task belongs to: primary personId + all secondary assignees.
-      const personIdsOf = s => {
-        const ids = new Set();
-        if (s.personId) ids.add(s.personId);
-        (s.assign || []).forEach(a => ids.add(a));
-        return [...ids];
-      };
-      const personLabel = pid => { const m = mMap[pid]; return m ? (m.name || m.id) : pid; };
-      // Gather all person IDs across all items
-      const used = [...new Set(allItems.flatMap(personIdsOf))];
-      // Add NO_PERSON bucket for truly unassigned items
-      if (allItems.some(s => !personIdsOf(s).length)) used.push(NO_PERSON);
-      used.sort((a, b) => a === NO_PERSON ? 1 : b === NO_PERSON ? -1 : personLabel(a).localeCompare(personLabel(b)));
-      used.forEach(pk => {
-        const items = sortItems(pk === NO_PERSON
-          ? allItems.filter(s => !personIdsOf(s).length)
-          : allItems.filter(s => personIdsOf(s).includes(pk)));
-        if (!items.length) return;
-        const lbl = pk === NO_PERSON ? NO_PERSON : personLabel(pk);
-        result.push({ key: 'person:' + pk, label: lbl, color: pk === NO_PERSON ? NO_TEAM_COLOR : 'var(--ac)', items });
-      });
-    } else if (groupBy === 'project' || groupBy === 'projteam') {
-      const used = [...new Set(allItems.map(s => rootOf(s.id)))];
-      const treeRootOrder = (tree || []).filter(r => !r.id.includes('.')).map(r => r.id);
-      used.sort((a, b) => { const ai = treeRootOrder.indexOf(a), bi = treeRootOrder.indexOf(b); return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi); });
-      used.forEach(rid => {
-        const projItems = sortItems(allItems.filter(s => rootOf(s.id) === rid));
-        if (!projItems.length) return;
-        const root = iMap[rid];
-        const label = root ? `${root.type ? GT[root.type] + ' ' : ''}${rid} — ${root.name}` : rid;
-        const color = root?.type === 'deadline' ? 'var(--re)' : root?.type === 'painpoint' ? 'var(--am)' : root?.type === 'goal' ? 'var(--ac)' : 'var(--tx3)';
-        const baseKey = 'project:' + rid;
-        if (groupBy === 'projteam') {
-          // Nested: project contains team subgroups
-          const subGroups = teamGroupOf(projItems, baseKey + '/');
-          result.push({ key: baseKey, label, color, items: projItems, subGroups, tag: root?.type });
-        } else {
-          result.push({ key: baseKey, label, color, items: projItems, tag: root?.type });
+  const structure = useMemo(() => {
+    const defaultCollapsed = new Set();
+    const sortItems = arr => [...arr].sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
+    const buildScopeMeta = scopeItems => {
+      const byNode = {};
+      const itemById = {};
+      scopeItems.forEach(item => {
+        itemById[item.id] = item;
+        let cid = item.id;
+        while (cid) {
+          if (!byNode[cid]) byNode[cid] = [];
+          byNode[cid].push(item);
+          cid = parentId(cid);
         }
       });
+      return { byNode, itemById };
+    };
+    const summaryProgress = scopeItems => {
+      let totalWeight = 0;
+      let totalProgress = 0;
+      scopeItems.forEach(item => {
+        const node = iMap[item.id];
+        const progress = node?.progress != null ? node.progress : item.status === 'done' ? 100 : item.status === 'wip' ? 50 : 0;
+        const weight = item.effort || Math.max(item.best || 0, 1);
+        totalWeight += weight;
+        totalProgress += progress * weight;
+      });
+      return totalWeight > 0 ? Math.round(totalProgress / totalWeight) : 0;
+    };
+    const buildSummaryItem = (node, scopeItems, scopeCtx = {}) => {
+      const dated = scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
+      const doneCount = scopeItems.filter(item => item.status === 'done').length;
+      const wipCount = scopeItems.filter(item => item.status === 'wip').length;
+      const mix = { done: 0, committed: 0, estimated: 0, exploratory: 0 };
+      scopeItems.forEach(item => {
+        if (item.status === 'done') { mix.done++; return; }
+        mix[confidence[item.id] || 'committed']++;
+      });
+      const best = scopeItems.reduce((sum, item) => sum + (item.best || 0), 0);
+      const effort = scopeItems.reduce((sum, item) => sum + (item.effort || ((item.best || 0) * ((iMap[item.id]?.factor) || 1.5))), 0);
+      const startD = dated.length ? new Date(Math.min(...dated.map(item => +item.startD))) : null;
+      const endD = dated.length ? new Date(Math.max(...dated.map(item => +item.endD))) : null;
+      const status = doneCount === scopeItems.length
+        ? 'done'
+        : (doneCount > 0 || wipCount > 0 ? 'wip' : 'open');
+      return {
+        ...node,
+        id: node.id,
+        name: node.name,
+        team: scopeCtx.teamId || node.team || '',
+        person: scopeCtx.personName || null,
+        assign: [],
+        deps: node.deps || [],
+        phases: node.phases || [],
+        best,
+        effort,
+        status,
+        progress: summaryProgress(scopeItems),
+        startD,
+        endD,
+        startWi: startD ? weekIndexOfDate(startD) : -1,
+        endWi: endD ? weekIndexOfDate(endD) : -1,
+        calDays: startD && endD ? Math.max(1, Math.round((endD - startD) / 864e5) + 1) : 0,
+        _summary: true,
+        _summaryCount: scopeItems.length,
+        _scheduledCount: dated.length,
+        _doneCount: doneCount,
+        _summaryMix: mix,
+        _barColor: scopeCtx.color || typeColorOf(node),
+      };
+    };
+    const buildNode = (nodeId, meta, namespace, level, scopeCtx) => {
+      const node = iMap[nodeId];
+      const scopeItems = meta.byNode[nodeId] || EMPTY_ARR;
+      if (!node || !scopeItems.length) return null;
+      const childIds = (childrenByParent[nodeId] || EMPTY_ARR).filter(cid => (meta.byNode[cid] || EMPTY_ARR).length > 0);
+      if (isLeafNode(tree || [], nodeId) || !childIds.length) {
+        const item = meta.itemById[nodeId];
+        if (!item) return null;
+        return { type: 'task', key: `${namespace}::task:${nodeId}`, s: item, node, level, groupKey: namespace };
+      }
+      const children = childIds.map(cid => buildNode(cid, meta, namespace, level + 1, scopeCtx)).filter(Boolean);
+      const collapseKey = `${namespace}::collapse:${nodeId}`;
+      if (children.length > 0 && children.every(child => child.type === 'task')) defaultCollapsed.add(collapseKey);
+      return {
+        type: 'summary',
+        key: `${namespace}::summary:${nodeId}`,
+        collapseKey,
+        s: buildSummaryItem(node, scopeItems, scopeCtx),
+        node,
+        level,
+        groupKey: namespace,
+        children,
+      };
+    };
+    const buildTreeNodes = (scopeItems, namespace, baseLevel, scopeCtx = {}) => {
+      const meta = buildScopeMeta(sortItems(scopeItems));
+      return rootIds.map(rid => buildNode(rid, meta, namespace, baseLevel, scopeCtx)).filter(Boolean);
+    };
+    const nodes = [];
+    if (groupBy === 'project') {
+      nodes.push(...buildTreeNodes(allItems, 'project', 0));
+    } else if (groupBy === 'team') {
+      const usedTeams = [...new Set(allItems.map(item => item.team || NO_TEAM))];
+      const orderedTeams = [...new Set([...teams.map(team => team.id), ...usedTeams])].filter(id => usedTeams.includes(id));
+      orderedTeams.forEach(teamId => {
+        const scopeItems = sortItems(allItems.filter(item => (item.team || NO_TEAM) === teamId));
+        if (!scopeItems.length) return;
+        const team = teams.find(entry => entry.id === teamId);
+        const label = teamId === NO_TEAM ? t('noTeam') : (team?.name || teamId);
+        const color = teamId === NO_TEAM ? NO_TEAM_COLOR : (team?.color || '#3b82f6');
+        nodes.push({
+          type: 'group',
+          key: `team:${teamId}`,
+          collapseKey: `team:${teamId}`,
+          label,
+          color,
+          count: scopeItems.length,
+          level: 0,
+          children: buildTreeNodes(scopeItems, `team:${teamId}`, 1, { teamId: teamId === NO_TEAM ? '' : teamId, color }),
+        });
+      });
+    } else {
+      const usedPeople = [...new Set(allItems.flatMap(personIdsOf))];
+      if (allItems.some(item => !personIdsOf(item).length)) usedPeople.push(NO_PERSON);
+      usedPeople
+        .sort((a, b) => {
+          if (a === NO_PERSON) return 1;
+          if (b === NO_PERSON) return -1;
+          const aLabel = memberById[a]?.name || a;
+          const bLabel = memberById[b]?.name || b;
+          return aLabel.localeCompare(bLabel);
+        })
+        .forEach(personId => {
+          const scopeItems = sortItems(personId === NO_PERSON
+            ? allItems.filter(item => !personIdsOf(item).length)
+            : allItems.filter(item => personIdsOf(item).includes(personId)));
+          if (!scopeItems.length) return;
+          const member = memberById[personId];
+          const label = personId === NO_PERSON ? UNASSIGNED_LABEL : (member?.name || personId);
+          const color = personId === NO_PERSON ? NO_TEAM_COLOR : (teamById[member?.team]?.color || 'var(--ac)');
+          nodes.push({
+            type: 'group',
+            key: `resource:${personId}`,
+            collapseKey: `resource:${personId}`,
+            label,
+            color,
+            count: scopeItems.length,
+            level: 0,
+            children: buildTreeNodes(scopeItems, `resource:${personId}`, 1, { personName: label, color }),
+          });
+        });
     }
-    return result;
-  }, [allItems, groupBy, teams, tree, members]);
+    return { nodes, defaultCollapsed: [...defaultCollapsed] };
+  }, [allItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t]);
 
-  // Flatten groups + subGroups into row stream, respecting collapsed state at each level
+  const collapsed = useMemo(() => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed), [collapsedByMode, groupBy, structure.defaultCollapsed]);
+  const updateCollapsed = updater => {
+    setCollapsedByMode(prev => {
+      const base = new Set(prev[groupBy] || structure.defaultCollapsed);
+      const next = updater(base) || base;
+      return { ...prev, [groupBy]: [...next] };
+    });
+  };
+  const allCollapseKeys = useMemo(() => {
+    const keys = new Set();
+    const visit = row => {
+      if (row?.collapseKey && row.children?.length) keys.add(row.collapseKey);
+      row?.children?.forEach(visit);
+    };
+    structure.nodes.forEach(visit);
+    return [...keys];
+  }, [structure.nodes]);
+  const toggleCollapse = key => updateCollapsed(set => {
+    const next = new Set(set);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const collapseAll = () => {
+    setTip(null);
+    setCollapsedByMode(prev => ({ ...prev, [groupBy]: allCollapseKeys }));
+  };
+  const expandAll = () => {
+    setTip(null);
+    setCollapsedByMode(prev => ({ ...prev, [groupBy]: [] }));
+  };
   const rows = useMemo(() => {
     const out = [];
-    groups.forEach(g => {
-      out.push({ type: 'group', group: g, level: 0 });
-      if (collapsed.has(g.key)) return;
-      if (g.subGroups) {
-        g.subGroups.forEach(sg => {
-          out.push({ type: 'group', group: sg, level: 1 });
-          if (collapsed.has(sg.key)) return;
-          sg.items.forEach(s => out.push({ type: 'task', s, group: sg, level: 2 }));
-        });
-      } else {
-        g.items.forEach(s => out.push({ type: 'task', s, group: g, level: 1 }));
-      }
-    });
+    const visit = row => {
+      out.push(row);
+      if (!row.children?.length) return;
+      const collapseKey = row.collapseKey || row.key;
+      if (collapsed.has(collapseKey)) return;
+      row.children.forEach(visit);
+    };
+    structure.nodes.forEach(visit);
     return out;
-  }, [groups, collapsed]);
+  }, [structure, collapsed]);
+  useEffect(() => {
+    const measureScrollbar = () => {
+      if (!bR.current) return;
+      const next = Math.max(0, bR.current.offsetHeight - bR.current.clientHeight);
+      setBodyScrollbarH(prev => prev === next ? prev : next);
+    };
+    measureScrollbar();
+    window.addEventListener('resize', measureScrollbar);
+    const id = window.setTimeout(measureScrollbar, 0);
+    return () => {
+      window.removeEventListener('resize', measureScrollbar);
+      window.clearTimeout(id);
+    };
+  }, [rows.length, tw, showDays]);
 
-  const RH = 28, HH = 28;
+  const RH = 28, HH = 28, FLAG_ROW_H = 18;
+  const rowCenterY = rowIndex => FLAG_ROW_H + rowIndex * RH + RH / 2;
   const dlL = (goals || []).filter(d => d.date).map(dl => {
     const di = weeks.findIndex(w => w.mon > new Date(dl.date));
     const wi = di >= 0 ? di : weeks.length;
@@ -382,7 +586,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         if (!srcRows?.length || !tgtRows?.length) return;
         srcRows.forEach(srcRow => {
           tgtRows.forEach(tgtRow => {
-            lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2 });
+            lines.push({ x1: depX1(dep), y1: rowCenterY(srcRow), x2: depX2(s), y2: rowCenterY(tgtRow) });
           });
         });
       });
@@ -414,8 +618,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           tgtRows.forEach((tgtRow, ti) => {
             lines.push({
               key: `${latestId}@${si}->${s.id}@${ti}->${rawDep}`,
-              x1: depX1(dep), y1: srcRow * RH + RH / 2,
-              x2: depX2(s), y2: tgtRow * RH + RH / 2,
+              x1: depX1(dep), y1: rowCenterY(srcRow),
+              x2: depX2(s), y2: rowCenterY(tgtRow),
               removeFromId: s.id, removeDepId: rawDep,
               srcId: latestId, tgtId: s.id,
               isCp: cpSet?.has(latestId) && cpSet?.has(s.id),
@@ -451,7 +655,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         rowIds.add(latestId);
         srcRows.forEach(srcRow => {
           tgtRows.forEach(tgtRow => {
-            lines.push({ x1: depX1(dep), y1: srcRow * RH + RH / 2, x2: depX2(target), y2: tgtRow * RH + RH / 2, kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
+            lines.push({ x1: depX1(dep), y1: rowCenterY(srcRow), x2: depX2(target), y2: rowCenterY(tgtRow), kind: 'in', removeFromId: hoverDepId, removeDepId: rawDep });
           });
         });
       });
@@ -468,7 +672,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         rowIds.add(s.id);
         srcRows.forEach(srcRow => {
           tgtRows.forEach(tgtRow => {
-            lines.push({ x1: depX1(target), y1: srcRow * RH + RH / 2, x2: depX2(s), y2: tgtRow * RH + RH / 2, kind: 'out', removeFromId: s.id, removeDepId: rawDep });
+            lines.push({ x1: depX1(target), y1: rowCenterY(srcRow), x2: depX2(s), y2: rowCenterY(tgtRow), kind: 'out', removeFromId: s.id, removeDepId: rawDep });
           });
         });
       });
@@ -476,7 +680,42 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     return { lines, rowIds };
   }, [hoverDepId, tree, scheduled, rows, WPX, showDays, dDelta, drag]);
 
-  const toggleCollapse = key => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
+  const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
+  const cpNodeSet = useMemo(() => {
+    const set = new Set(cpSet || []);
+    (cpSet || []).forEach(id => {
+      let pid = parentId(id);
+      while (pid) {
+        set.add(pid);
+        pid = parentId(pid);
+      }
+    });
+    return set;
+  }, [cpSet]);
+  const rowIsCp = row => cpNodeSet.has(row.s.id);
+  const rowTooltipItem = row => row.type === 'group'
+    ? null
+    : { ...row.node, ...row.s, isCp: rowIsCp(row) };
+  const dismissTooltip = (clearDepHover = false) => {
+    setTip(null);
+    if (clearDepHover) setHoverDepId(null);
+  };
+  const showRowTip = (row, event, includeDeps = false) => {
+    const item = rowTooltipItem(row);
+    if (!item) return;
+    if (includeDeps && row.type === 'task') setHoverDepId(row.s.id);
+    setTip({ item, x: event.clientX, y: event.clientY });
+  };
+  const hideRowTip = (row, includeDeps = false) => {
+    if (includeDeps && row.type === 'task') setHoverDepId(null);
+    setTip(null);
+  };
+  const openRowItem = (row, focusRequest = null) => {
+    if (row.type === 'group') return;
+    dismissTooltip(true);
+    onBarClick?.(row.s, focusRequest);
+  };
 
   // Search: Set for dimming (all matches across allItems), ordered list for cycling (visible rows only).
   const searchMatches = useMemo(() => {
@@ -532,10 +771,31 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const dragRef = useRef(null);
   const justDraggedRef = useRef(false);
 
-  function onBMD(e, s) {
+  function onBMD(e, row) {
     e.stopPropagation();
+    dismissTooltip(true);
     justDraggedRef.current = false;
-    const d = { id: s.id, startWi: s.startWi, endWi: s.endWi, startD: s.startD, ox: e.clientX, oy: e.clientY, seq: s.seq, team: s.team, prio: s.prio, rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0, lastDy: 0, isReorder: false };
+    const s = row.s;
+    const d = {
+      id: s.id,
+      startWi: s.startWi,
+      endWi: s.endWi,
+      startD: s.startD,
+      ox: e.clientX,
+      oy: e.clientY,
+      seq: s.seq,
+      team: s.team,
+      prio: s.prio,
+      rowType: row.type,
+      canPin: row.type === 'task' && s.status !== 'done' && !s._unestimated,
+      reorderMode: groupBy === 'project' && onReorderSibling
+        ? 'tree'
+        : (row.type === 'task' && onReorderInQueue ? 'queue' : null),
+      lockVertical: row.type === 'summary',
+      rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
+      lastDy: 0,
+      isReorder: false,
+    };
     dragRef.current = d;
     setDrag(d);
     setDDelta(0);
@@ -548,11 +808,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) justDraggedRef.current = true;
       // Once in reorder mode, STAY there (sticky) — prevents mode-flipping when the
       // mouse wobbles horizontally during a vertical drag.
-      const enterReorder = !d.isReorder && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx);
+      const enterReorder = !!d.reorderMode && !d.isReorder && Math.abs(dy) > 10 && (d.lockVertical || Math.abs(dy) > Math.abs(dx));
       if (d.isReorder || enterReorder) {
         d.isReorder = true; d.lastDy = dy;
         setDrag({ ...d }); // re-render for cursor + visual feedback
-      } else {
+      } else if (d.canPin) {
         const stepPx = showDays ? DPX : WPX;
         setDDelta(Math.round(dx / stepPx));
       }
@@ -564,9 +824,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     if (d) {
       if (d.isReorder && d.lastDy) {
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
-        const dir = d.lastDy > 0 ? 'later' : 'earlier';
-        onReorderInQueue?.(d.id, dir, rowShift);
-      } else if (dDelta !== 0) {
+        if (d.reorderMode === 'tree') {
+          const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
+          onReorderSibling?.(d.id, dir);
+        } else {
+          const dir = d.lastDy > 0 ? 'later' : 'earlier';
+          onReorderInQueue?.(d.id, dir, rowShift);
+        }
+      } else if (d.canPin && dDelta !== 0) {
         // Day mode: offset from the bar's actual start date (not the week's Monday).
         // Week mode: offset from the start week's Monday (bar is week-aligned).
         const baseDate = showDays && d.startD ? new Date(d.startD) : new Date(weeks[d.startWi].mon);
@@ -584,7 +849,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       dragRef.current = null;
       setDrag(null); setDDelta(0);
     }
-    if (linkDrag) setLinkDrag(null);
+    if (linkDrag) {
+      dismissTooltip(true);
+      setLinkDrag(null);
+    }
   }
   // Escape key cancels any in-progress drag or link operation.
   useEffect(() => {
@@ -602,6 +870,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   function onLinkStart(e, fromId) {
     e.stopPropagation();
     e.preventDefault();
+    dismissTooltip(true);
     setLinkDrag({ fromId, mouseX: e.clientX, mouseY: e.clientY });
   }
   // Complete a link-drag onto a target bar
@@ -622,12 +891,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
 
   const unestimatedCount = useMemo(() => allItems.filter(s => s._unestimated).length, [allItems]);
 
-  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => { if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); } }}>
+  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => {
+    dismissTooltip(true);
+    setHoverLineKey(null);
+    if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); }
+  }}>
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* group label removed — buttons are self-explanatory and the row was too wide */}
-          {[['project', t('g.project')], ['projteam', t('g.projTeam')], ['team', t('g.team')], ['person', t('g.person')]].map(([k, l]) =>
+          {[['project', t('g.project')], ['team', t('g.team')], ['resource', t('g.resource')]].map(([k, l]) =>
             <button
               key={k}
               className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
@@ -635,6 +908,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
               onClick={e => { if (e.detail === 0) setGB(k); }}
               style={{ padding: '2px 7px', fontSize: 10 }}
             >{l}</button>)}
+          {allCollapseKeys.length > 0 && <>
+            <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
+            <button className="btn btn-sec btn-xs" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
+            <button className="btn btn-sec btn-xs" onClick={collapseAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.collapseAll')}</button>
+          </>}
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
@@ -679,45 +957,57 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     </div>
     <div className="gantt-body">
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
-        {rows.map((row, rowI) => {
+        <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
+        {rows.map(row => {
           if (row.type === 'group') {
-            const g = row.group;
-            const isCol = collapsed.has(g.key);
-            const isSub = row.level === 1;
-            return <div key={g.key} className="gteam" style={{ color: g.color, borderLeft: `${isSub ? 2 : 3}px solid ${g.color}`, background: isSub ? 'var(--bg3)' : 'var(--bg2)', paddingLeft: isSub ? 18 : 6, height: RH, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: isSub ? 11 : 13, fontWeight: isSub ? 500 : 600, textTransform: isSub ? 'none' : 'uppercase', letterSpacing: isSub ? 0 : '.06em' }}
-              onClick={() => toggleCollapse(g.key)}>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center' }}>{isCol ? '▶' : '▼'}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{g.items.length}</span>
+            const isCol = collapsed.has(row.collapseKey || row.key);
+            return <div key={row.key} className="gteam" style={{ color: row.color, borderLeft: `3px solid ${row.color}`, background: 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              <button
+                type="button"
+                aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
+                onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey || row.key); }}
+                style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', cursor: 'pointer' }}
+              >{isCol ? '▶' : '▼'}</button>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+              <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
             </div>;
           }
-          const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
+          const s = row.s;
+          const isSummary = row.type === 'summary';
+          const isCp = rowIsCp(row);
           const dim = cpOnly && !isCp;
-          const indent = row.level === 2 ? 12 : 0;
+          const indent = row.level * 14;
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
           const isMatchL = searchMatches?.has(s.id);
           const isActiveMatchL = s.id === activeMatchId;
           const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
-          const confL = confidence[s.id];
-          const confDot = confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null;
-          // Use compound key: group key + task id to avoid key collision when the same task
-          // appears in multiple groups (e.g. multi-assigned task in person grouping).
-          return <div key={`${row.group.key}::${s.id}`} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
-            onClick={() => onBarClick(s)}
-            onMouseEnter={e => { setHoverDepId(s.id); const node = iMap[s.id]; setTip({ item: { ...node, ...s, isCp }, x: e.clientX, y: e.clientY }); }}
-            onMouseLeave={() => { setHoverDepId(null); setTip(null); }}>
+          const confL = confidence[s.id] || 'committed';
+          const confDot = isSummary ? null : (confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null);
+          const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
+          const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
+          const ringColor = isSummary ? 'var(--tx3)' : rowColor(row);
+          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+            onClick={() => openRowItem(row)}>
+            {isSummary && <button
+              type="button"
+              aria-label={isCollapsed ? t('tv.expandAll') : t('tv.collapseAll')}
+              onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey); }}
+              style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', flexShrink: 0, cursor: 'pointer' }}
+            >{isCollapsed ? '▶' : '▼'}</button>}
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
-            {s._unestimated
+            <StatusRing status={s.status} progress={statusProgress} color={ringColor} />
+            <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>
+            {!isSummary && (s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
-              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} data-htip={s.autoAssigned ? `Auto: ${s.person}` : (s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>}
-            <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} data-htip={s.autoAssigned ? `Auto: ${s.person}` : (s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
           </div>;
         })}
+        {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
       </div>
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
-        <div style={{ width: tw, position: 'relative', minHeight: '100%' }}>
+        <div style={{ width: tw, position: 'relative', minHeight: FLAG_ROW_H + rows.length * RH }}>
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
                 individual holiday days get tinted below instead. */}
@@ -783,15 +1073,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
               </React.Fragment>;
             })}
           </div>
-          {rows.map((row, rowI) => {
-            if (row.type === 'group') { const isSub = row.level === 1; return <div key={row.group.key} style={{ height: RH, background: isSub ? 'var(--bg3)' : 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />; }
-          const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
-          // Use compound key: group key + task id to avoid key collision when the same task
-          // appears in multiple groups (e.g. multi-assigned task in person grouping).
-          const rowKey = `${row.group.key}::${s.id}`;
-          if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
-          if (s._completed && (!s.startD || !s.endD)) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
-          const isDrag = drag?.id === s.id;
+          <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)' }} />
+          {rows.map(row => {
+            if (row.type === 'group') {
+              return <div key={row.key} style={{ height: RH, background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />;
+            }
+            const s = row.s;
+            const tc = rowColor(row);
+            const isSummary = row.type === 'summary';
+            const isCp = rowIsCp(row);
+            const rowKey = rowKeyOf(row);
+            if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
+            if (s._completed && (!s.startD || !s.endD)) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
+            const isDrag = drag?.id === s.id;
             // Bar geometry — day-accurate in day-mode (using scheduler's per-day startD/endD),
             // week-aligned otherwise.
             let baseLeft, baseWidth;
@@ -811,22 +1105,33 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
-            const node = iMap[s.id];
+            const node = row.node || iMap[s.id];
             const conf = confidence[s.id] || 'committed';
-            const decideBy = node?.decideBy;
+            const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
             const isDecideOverdue = decideBy && new Date(decideBy) < now;
             // Confidence-based bar styling
             const confStyle = conf === 'exploratory'
               ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
               : conf === 'estimated'
-              ? { background: withAlpha(tc, 0.18), border: `1px solid ${tc}`, color: tc, textShadow: 'none', opacity: 0.9 }
+              ? { background: withAlpha(tc, 0.38), border: `1px solid ${tc}`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' }
               : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
-            return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
-              onMouseEnter={() => setHoverDepId(s.id)}
-              onMouseLeave={() => setHoverDepId(null)}>
+            const summaryStyle = s.status === 'done'
+              ? {
+                  background: 'var(--bg4)',
+                  border: '1px solid var(--b2)',
+                  color: 'var(--tx2)',
+                  textShadow: 'none',
+                }
+              : {
+                  background: 'var(--bg3)',
+                  border: '1px solid var(--b2)',
+                  color: 'var(--tx)',
+                  textShadow: 'none',
+                };
+            return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
               {/* Vacation overlays — per-assignee on every task row regardless of grouping */}
-              {(() => {
+              {!isSummary && (() => {
                 const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
                 if (!bands.length) return null;
                 return bands.map(band => {
@@ -841,7 +1146,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
               })()}
               {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
                 style={{
-                  left: barLeft, width: Math.max(bW, 6),
+                  left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,
                   // Vertical reorder feedback: bar visually follows the mouse vertically,
                   // with a strong glow so the user sees they're in reorder mode.
                   transform: (isDrag && drag?.isReorder) ? `translateY(${Math.round(drag.lastDy / RH) * RH}px)` : undefined,
@@ -851,17 +1156,46 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
                     : isMatch ? '0 0 0 2px var(--am)'
                     : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
-                  ...(s.status === 'done'
-                    ? { background: 'rgba(127,127,127,.14)', border: `1.5px solid ${tc}`, color: 'var(--tx2)', textShadow: 'none', opacity: 0.85 }
+                  ...(isSummary
+                    ? summaryStyle
+                    : s.status === 'done'
+                    ? {
+                        background: `linear-gradient(0deg, rgba(120,128,138,.58), rgba(120,128,138,.58)), ${tc}`,
+                        border: '1px solid rgba(255,255,255,.14)',
+                        color: 'rgba(255,255,255,.92)',
+                        textShadow: '0 1px 1.5px rgba(0,0,0,.28)',
+                      }
                     : confStyle),
                   cursor: linkMode || linkDrag ? 'crosshair'
+                    : isSummary ? (groupBy === 'project' ? 'ns-resize' : 'pointer')
                     : s.status === 'done' ? 'pointer'
                     : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
                 }}
-                onMouseDown={e => { if (linkMode || linkDrag || s.status === 'done') return; onBMD(e, s); }}
-                onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
+                onMouseEnter={e => {
+                  if (dragRef.current || drag || linkDrag || linkMode || hoverLineKey) return;
+                  showRowTip(row, e, !isSummary);
+                }}
+                onMouseLeave={() => hideRowTip(row, !isSummary)}
+                onMouseDown={e => {
+                  dismissTooltip(true);
+                  if (linkMode || linkDrag) return;
+                  if (isSummary) {
+                    if (groupBy !== 'project' || !onReorderSibling) return;
+                    onBMD(e, row);
+                    return;
+                  }
+                  if (s.status === 'done') return;
+                  onBMD(e, row);
+                }}
+                onMouseUp={() => { if (linkDrag && !isSummary) { dismissTooltip(true); onLinkDrop(s.id); } }}
                 onClick={() => {
+                  dismissTooltip(true);
+                  if (isSummary) {
+                    if (justDraggedRef.current) { justDraggedRef.current = false; return; }
+                    onBarClick?.(s);
+                    return;
+                  }
                   if (linkMode && linkMode.fromId !== s.id) {
                     // Click-link mode (legacy via context menu): this bar becomes successor (depends on linkMode.fromId) or predecessor
                     if (linkMode.mode === 'pred') onAddDep?.(s.id, linkMode.fromId);
@@ -873,14 +1207,30 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                   // also open the QuickEdit sidebar on mouse-up.
                   if (justDraggedRef.current) { justDraggedRef.current = false; return; }
                   if (linkDrag) return;
-                  onBarClick(s);
+                  onBarClick?.(s);
                 }}
-                onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id }); }}>
+                onContextMenu={e => {
+                  if (isSummary) return;
+                  e.preventDefault();
+                  dismissTooltip(true);
+                  setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id });
+                }}>
                 {/* Progress overlay: lighter strip on the left proportional to progress % */}
-                {(() => { const prog = node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
-                  return prog > 0 && prog < 100 ? <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog}%`, background: 'rgba(255,255,255,.18)', borderRadius: '4px 0 0 4px', pointerEvents: 'none' }} data-htip={`${prog}% done`} /> : null; })()}
+                {(() => { const prog = s.progress ?? node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
+                  if (!(prog > 0 && prog < 100)) return null;
+                  return <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${prog}%`,
+                    background: isSummary ? 'rgba(127,127,127,.18)' : 'rgba(255,255,255,.18)',
+                    borderRadius: isSummary ? '5px 0 0 5px' : '4px 0 0 4px',
+                    pointerEvents: 'none',
+                  }} data-htip={`${prog}% done`} />;
+                })()}
                 {/* Phase segments overlay */}
-                {node?.phases?.length > 1 && (() => {
+                {!isSummary && node?.phases?.length > 1 && (() => {
                   const phases = normalizePhases(node.phases);
                   const shares = phaseWeightShares(phases);
                   return <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, display: 'flex', pointerEvents: 'none', borderRadius: 4, overflow: 'hidden' }}>
@@ -891,26 +1241,33 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
+                {s.status === 'done' && <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: isSummary ? 'rgba(119,128,138,.08)' : 'rgba(119,128,138,.16)',
+                  borderRadius: isSummary ? 5 : 4,
+                  pointerEvents: 'none',
+                }} />}
                 <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'var(--gr)' }}>✓</span>}
-                {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
-                {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
+                {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
+                {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
+                {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                   data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
-                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>}
+                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}
-                {s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
+                {!isSummary && s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
                   style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', border: `1.5px solid ${tc}`, opacity: linkDrag ? 1 : 0.7 }} />
                 </div>}
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
-              {decideWi >= 0 && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
+              {decideWi >= 0 && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
                 style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
             </div>;
           })}
-          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: rows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
+          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: FLAG_ROW_H + rows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
             <defs>
               <marker id="gar" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--re)" /></marker>
               <marker id="garH" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker>
@@ -950,41 +1307,21 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 // grey arrows disappear visually between adjacent bars.
                 const opacity = emphasized ? 0.95 : (l.isCp ? 0.7 : 0.55);
                 const strokeWidth = emphasized ? 1.8 : 1.2;
-                // × badge sits right at the start of the curve — close enough to the hover
-                // path that the pointer never leaves the hover target on the way to the badge.
-                const mx = l.x1 + 12;
-                const my = l.y1;
-                const removeDep = () => {
-                  // Clear hover state BEFORE confirm so React commits the hover-cleared render
-                  // before the dep mutation lands (avoids render thrash on the vanishing line).
+                const openDependency = () => {
+                  dismissTooltip(true);
                   setHoverLineKey(null);
-                  setHoverDepId(null);
-                  setTimeout(() => {
-                    if (confirm(`Remove dependency: ${l.removeFromId} no longer depends on ${l.removeDepId}?`)) {
-                      // Targeted removal — reads latest tree state in App, touches only deps field.
-                      onRemoveDep?.(l.removeFromId, l.removeDepId);
-                    }
-                  }, 0);
+                  onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
                 };
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} style={{ pointerEvents: 'none' }} />
                   {/* Wide invisible hover/click target */}
                   <path d={path} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                    onMouseEnter={() => setHoverLineKey(l.key)}
+                    onMouseEnter={() => { dismissTooltip(true); setHoverLineKey(l.key); }}
                     onMouseLeave={() => setHoverLineKey(k => k === l.key ? null : k)}
-                    onClick={removeDep}>
-                    <title>Click to remove this dependency</title>
+                    onClick={openDependency}>
+                    <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId}`}</title>
                   </path>
-                  {isHovered && <>
-                    <circle cx={mx} cy={my} r={7} fill="var(--bg2)" stroke="var(--re)" strokeWidth={1.5}
-                      style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                      onMouseEnter={() => setHoverLineKey(l.key)}
-                      onClick={removeDep}>
-                      <title>Remove dependency</title>
-                    </circle>
-                    <text x={mx} y={my + 3.5} fontSize="11" textAnchor="middle" fill="var(--re)" fontWeight="700" style={{ pointerEvents: 'none', userSelect: 'none' }}>×</text>
-                  </>}
                 </g>;
               });
             })()}
@@ -996,7 +1333,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
         <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
-        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(98)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
+        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
@@ -1065,13 +1402,22 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             onClick={() => { onTaskUpdate?.({ ...node, parallel: !node.parallel }); close(); }}>
             {node.parallel ? `≡ ${t('g.ctxSequential')}` : `≡ ${t('g.ctxParallel')}`}
           </div>
-          {onReorderInQueue && !node.parallel && <>
+          {(groupBy === 'project' ? onReorderSibling : onReorderInQueue) && !node.parallel && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxQueueOrder')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'earlier'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'later'); close(); }}>▼ {t('g.ctxRunLater')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
+            {groupBy === 'project'
+              ? <>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'up'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'down'); close(); }}>▼ {t('g.ctxRunLater')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
+              </>
+              : <>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'earlier'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'later'); close(); }}>▼ {t('g.ctxRunLater')}</div>
+                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
+              </>}
           </>}
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           {node.pinnedStart
