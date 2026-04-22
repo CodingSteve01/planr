@@ -29,6 +29,11 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const [f, setF] = useState({ ...node });
   const [nmTab, setNmTab] = useState('insights');
   const [focusHint, setFocusHint] = useState(null);
+  const activateTab = (e, action) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    action();
+  };
 
   // Refs for focus targets — keyed by focusHint value
   const focusRefs = {
@@ -169,7 +174,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {/* ── TAB BAR ── */}
       <div className="qe-tabs" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
-        {nmTabs.map(x => <button key={x.id} className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`} onClick={() => setNmTab(x.id)}>{x.label}</button>)}
+        {nmTabs.map(x => <button
+          key={x.id}
+          className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
+          onMouseDown={e => activateTab(e, () => setNmTab(x.id))}
+          onClick={e => { if (e.detail === 0) setNmTab(x.id); }}
+        >{x.label}</button>)}
       </div>
 
       {/* ══════ INSIGHTS TAB ══════ */}
@@ -245,14 +255,23 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
             <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
-              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100 }));
+              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100, completedAt: x.completedAt || iso(new Date()) }));
               else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
               else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
             }} />
           </div>
           <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
             <input type="range" min="0" max="100" step="5" value={progPct}
-              onChange={e => { const v = +e.target.value; s('progress', v); if (v >= 100 && f.status !== 'done') s('status', 'done'); else if (v > 0 && v < 100 && f.status !== 'wip') s('status', 'wip'); else if (v === 0 && f.status !== 'open') s('status', 'open'); }}
+              onChange={e => {
+                const v = +e.target.value;
+                setF(x => {
+                  const next = { ...x, progress: v };
+                  if (v >= 100 && x.status !== 'done') { next.status = 'done'; next.completedAt = x.completedAt || iso(new Date()); }
+                  else if (v > 0 && v < 100 && x.status !== 'wip') next.status = 'wip';
+                  else if (v === 0 && x.status !== 'open') next.status = 'open';
+                  return next;
+                });
+              }}
               style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
           </div>
         </div>}
@@ -351,6 +370,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')}>×</button>}
               </div>
             </div>
+          </div>
+          <div className="field"><label>{t('qe.completedAt')}</label>
+            <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => s('completedAt', e.target.value)} />
+            <div className="helper">{t('qe.completedHint')}</div>
           </div>
           <div className="frow" style={{ alignItems: 'center', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>

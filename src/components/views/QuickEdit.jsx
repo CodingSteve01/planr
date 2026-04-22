@@ -28,6 +28,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   };
   const [f, setF] = useState({ ...node });
   const [focusHint, setFocusHint] = useState(null);
+  const activateTab = (e, action) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    action();
+  };
 
   const focusRefs = {
     name: useRef(null),
@@ -167,7 +172,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     </div>
 
     <div className="qe-tabs">
-      {tabs.map(item => <button key={item.id} className={`qe-tab${activeTab === item.id ? ' active' : ''}`} onClick={() => setTab(item.id)}>{item.label}</button>)}
+      {tabs.map(item => <button
+        key={item.id}
+        className={`qe-tab${activeTab === item.id ? ' active' : ''}`}
+        onMouseDown={e => activateTab(e, () => setTab(item.id))}
+        onClick={e => { if (e.detail === 0) setTab(item.id); }}
+      >{item.label}</button>)}
     </div>
 
     {/* ══════ INSIGHTS TAB ══════ */}
@@ -249,7 +259,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         <div style={{ flex: '0 0 100px' }}>
           <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
             // Sync progress when status changes manually
-            if (value === 'done') patchNode({ status: 'done', progress: 100 });
+            if (value === 'done') patchNode({ status: 'done', progress: 100, completedAt: f.completedAt || iso(new Date()) });
             else if (value === 'open') patchNode({ status: 'open', progress: 0 });
             else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
           }} />
@@ -258,7 +268,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           onChange={e => {
             const value = +e.target.value;
             const next = { ...f, progress: value };
-            if (value >= 100 && f.status !== 'done') next.status = 'done';
+            if (value >= 100 && f.status !== 'done') { next.status = 'done'; next.completedAt = f.completedAt || iso(new Date()); }
             else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
             else if (value === 0 && f.status !== 'open') next.status = 'open';
             commitNode(next);
@@ -366,6 +376,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>×</button>}
             </div>
           </div>
+        </div>
+        <div className="field"><label>{t('qe.completedAt')}</label>
+          <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => patchNode({ completedAt: e.target.value })} />
+          <div className="helper">{t('qe.completedHint')}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>

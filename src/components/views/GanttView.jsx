@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { WPX as DEFAULT_WPX, MDE, GT } from '../../constants.js';
-import { iso, addD, addWorkDays } from '../../utils/date.js';
+import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -10,6 +10,18 @@ import { useT } from '../../i18n.jsx';
 const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
+const EMPTY_ARR = [];
+
+function withAlpha(color, alpha) {
+  if (!color?.startsWith('#')) return color;
+  let hex = color.slice(1);
+  if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+  if (hex.length !== 6) return color;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
@@ -23,6 +35,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const wdSet = useMemo(() => new Set(workDays || [1, 2, 3, 4, 5]), [workDays]);
   // Build short-name map directly from members (avoids stale-prop issues).
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
+  const memberById = useMemo(() => Object.fromEntries(members.map(m => [m.id, m])), [members]);
+  const teamById = useMemo(() => Object.fromEntries(teams.map(t => [t.id, t])), [teams]);
+  const leafIdSet = useMemo(() => new Set((tree || []).filter(r => isLeafNode(tree || [], r.id)).map(r => r.id)), [tree]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
   // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+
   const snAll = (s) => {
@@ -52,6 +67,11 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const WPX = zoom;
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
   const setGB = v => { setGroupBy(v); try { localStorage.setItem('planr_gantt_group', v); } catch {} };
+  const activateMode = (e, action) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    action();
+  };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
@@ -80,6 +100,12 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     const dayInWeek = dow === 0 ? 6 : dow - 1; // Mon=0 ... Sun=6
     return wi * WPX + dayInWeek * DPX;
   }
+  function weekIndexOfDate(date) {
+    if (!date || !weeks.length) return -1;
+    const d = date instanceof Date ? date : localDate(date);
+    const wi = weeks.findIndex(w => d < addD(w.mon, 7));
+    return wi >= 0 ? wi : weeks.length - 1;
+  }
   const months = useMemo(() => {
     const ms = []; let cm = null, cc = 0, cs = 0;
     weeks.forEach((w, i) => { const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`; if (ym !== cm) { if (cm) ms.push({ ym: cm, count: cc, start: cs }); cm = ym; cc = 1; cs = i; } else cc++; });
@@ -91,18 +117,48 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   // Memoized to avoid recalculating on every render (perf: search typing was laggy).
   const allItems = useMemo(() => {
     const sIdSet = new Set(scheduled.map(s => s.id));
-    const unscheduledLeaves = (tree || []).filter(r => isLeafNode(tree || [], r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
+    const unscheduledLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
       id: r.id, name: r.name, team: r.team || '', person: NO_PERSON, personId: null, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
       startD: null, endD: null, startWi: -1, endWi: -1, weeks: 0, calDays: 0, capPct: 0, vacDed: 0,
       _unestimated: true,
     }));
-    let items = [...scheduled, ...unscheduledLeaves];
+    const doneLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status === 'done').map(r => {
+      const startD = r.completedStart ? localDate(r.completedStart) : (r.completedAt ? localDate(r.completedAt) : null);
+      const endD = r.completedEnd ? localDate(r.completedEnd) : (r.completedAt ? localDate(r.completedAt) : startD);
+      const completedPersonId = r.completedPersonId || r.assign?.[0] || null;
+      const completedPerson = r.completedPerson || (completedPersonId ? (memberById[completedPersonId]?.name || completedPersonId) : NO_PERSON);
+      return {
+        id: r.id,
+        name: r.name,
+        team: r.team || '',
+        person: completedPerson,
+        personId: completedPersonId,
+        assign: r.assign || [],
+        prio: r.prio,
+        seq: r.seq,
+        best: r.best || 0,
+        status: r.status,
+        note: r.note || '',
+        deps: (r.deps || []).join(', '),
+        startD,
+        endD,
+        startWi: startD ? weekIndexOfDate(startD) : -1,
+        endWi: endD ? weekIndexOfDate(endD) : -1,
+        weeks: startD && endD ? Math.max(1, weekIndexOfDate(endD) - weekIndexOfDate(startD) + 1) : 0,
+        calDays: startD && endD ? Math.max(1, Math.round((endD - startD) / 864e5) + 1) : 0,
+        capPct: 0,
+        vacDed: 0,
+        autoAssigned: !!r.completedAutoAssigned,
+        _completed: true,
+      };
+    });
+    let items = [...scheduled, ...doneLeaves, ...unscheduledLeaves];
     if (rootFilter) items = items.filter(s => s.id.startsWith(rootFilter + '.') || s.id === rootFilter);
     if (teamFilter) items = items.filter(s => (s.team || '') === teamFilter);
     if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
     return items;
-  }, [scheduled, tree, rootFilter, teamFilter, personFilter]);
+  }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter]);
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
@@ -209,7 +265,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   // Always day-accurate — even in week mode the line sits on the correct day
   // column within the week, not at the week's left edge.
   const todayX = todayWi >= 0 ? dateToX(now) : -1;
-  const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teams.find(x => x.id === t)?.color || '#3b82f6');
+  const gTC = t => t === NO_TEAM ? NO_TEAM_COLOR : (teamById[t]?.color || '#3b82f6');
 
   // Day-accurate mount-point helpers for dependency lines. Source mounts at
   // the RIGHT edge of the bar (end of endD's day column); target mounts at
@@ -254,6 +310,57 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     });
     return m;
   }, [vacations]);
+  const vacBandsByTaskId = useMemo(() => {
+    const bands = {};
+    allItems.forEach(s => {
+      const assigneeIds = [...new Set([...(s.assign || []), ...(s.personId ? [s.personId] : [])])];
+      if (!assigneeIds.length) return;
+      const slots = [];
+      assigneeIds.forEach(pid => {
+        const pvacs = vacByPerson[pid];
+        if (!pvacs?.length) return;
+        pvacs.forEach(v => {
+          const x1 = dateToX(localDate(v.from));
+          const x2 = dateToX(addD(localDate(v.to), 1));
+          if (x2 <= 0 || x1 >= tw) return;
+          slots.push({
+            pid,
+            personName: memberById[pid]?.name || pid,
+            note: v.note || '',
+            from: v.from,
+            to: v.to,
+            width: Math.max(x2 - x1, DPX),
+            x1,
+            x2,
+          });
+        });
+      });
+      if (!slots.length) return;
+      const personOrder = [...new Set(slots.map(sl => sl.pid))];
+      const personIndex = Object.fromEntries(personOrder.map((pid, idx) => [pid, idx]));
+      const nBands = personOrder.length;
+      bands[s.id] = slots.map((sl, idx) => {
+        const bandIdx = personIndex[sl.pid] ?? 0;
+        const bandH = Math.floor(RH / nBands);
+        const topPx = bandIdx * bandH;
+        const heightPx = bandIdx === nBands - 1 ? RH - topPx : bandH;
+        return {
+          key: `vac-${sl.pid}-${idx}`,
+          personName: sl.personName,
+          firstName: sl.personName.split(' ')[0] || sl.personName,
+          note: sl.note,
+          from: sl.from,
+          to: sl.to,
+          nBands,
+          topPx,
+          heightPx,
+          width: sl.width,
+          x1: sl.x1,
+        };
+      });
+    });
+    return bands;
+  }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
     if (!cpSet?.size || !tree) return [];
@@ -521,7 +628,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           {/* group label removed — buttons are self-explanatory and the row was too wide */}
           {[['project', t('g.project')], ['projteam', t('g.projTeam')], ['team', t('g.team')], ['person', t('g.person')]].map(([k, l]) =>
-            <button key={k} className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`} onClick={() => setGB(k)} style={{ padding: '2px 7px', fontSize: 10 }}>{l}</button>)}
+            <button
+              key={k}
+              className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
+              onMouseDown={e => activateMode(e, () => setGB(k))}
+              onClick={e => { if (e.detail === 0) setGB(k); }}
+              style={{ padding: '2px 7px', fontSize: 10 }}
+            >{l}</button>)}
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
@@ -672,12 +785,13 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           </div>
           {rows.map((row, rowI) => {
             if (row.type === 'group') { const isSub = row.level === 1; return <div key={row.group.key} style={{ height: RH, background: isSub ? 'var(--bg3)' : 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />; }
-            const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
-            // Use compound key: group key + task id to avoid key collision when the same task
-            // appears in multiple groups (e.g. multi-assigned task in person grouping).
-            const rowKey = `${row.group.key}::${s.id}`;
-            if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
-            const isDrag = drag?.id === s.id;
+          const s = row.s; const tc = gTC(s.team); const isCp = cpSet?.has(s.id);
+          // Use compound key: group key + task id to avoid key collision when the same task
+          // appears in multiple groups (e.g. multi-assigned task in person grouping).
+          const rowKey = `${row.group.key}::${s.id}`;
+          if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
+          if (s._completed && (!s.startD || !s.endD)) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
+          const isDrag = drag?.id === s.id;
             // Bar geometry — day-accurate in day-mode (using scheduler's per-day startD/endD),
             // week-aligned otherwise.
             let baseLeft, baseWidth;
@@ -706,58 +820,26 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             const confStyle = conf === 'exploratory'
               ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
               : conf === 'estimated'
-              ? { background: `repeating-linear-gradient(135deg, ${tc}, ${tc} 3px, transparent 3px, transparent 6px)`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)', opacity: 0.85 }
+              ? { background: withAlpha(tc, 0.18), border: `1px solid ${tc}`, color: tc, textShadow: 'none', opacity: 0.9 }
               : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
             return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
               {/* Vacation overlays — per-assignee on every task row regardless of grouping */}
               {(() => {
-                // Collect all person IDs for this row's task
-                const assigneeIds = [...new Set([
-                  ...(s.assign || []),
-                  ...(s.personId ? [s.personId] : []),
-                ])];
-                if (!assigneeIds.length) return null;
-                // Gather [personId, vacation, slotIndex, totalSlots] tuples for all visible vacations
-                const slots = [];
-                assigneeIds.forEach(pid => {
-                  const pvacs = vacByPerson[pid];
-                  if (!pvacs?.length) return;
-                  pvacs.forEach(v => {
-                    const x1 = dateToX(new Date(v.from + 'T00:00:00'));
-                    const toDate = new Date(v.to + 'T00:00:00'); toDate.setDate(toDate.getDate() + 1);
-                    const x2 = dateToX(toDate);
-                    if (x2 <= 0 || x1 >= tw) return;
-                    slots.push({ pid, v, x1, x2 });
-                  });
-                });
-                if (!slots.length) return null;
-                // When multiple assignees have vacations, split the row vertically into bands
-                // so you can tell who is absent. Count distinct persons with at least one block.
-                const personOrder = [...new Set(slots.map(sl => sl.pid))];
-                const nBands = personOrder.length;
-                return slots.map((sl, si) => {
-                  const w = Math.max(sl.x2 - sl.x1, DPX);
-                  const personName = members.find(m => m.id === sl.pid)?.name || sl.pid;
-                  const bandIdx = personOrder.indexOf(sl.pid);
-                  // Vertical split: each person gets an equal horizontal band within the row
-                  const bandH = Math.floor(RH / nBands);
-                  const topPx = bandIdx * bandH;
-                  const heightPx = bandIdx === nBands - 1 ? RH - topPx : bandH;
-                  return <div key={`vac-${sl.pid}-${si}`} style={{
-                    position: 'absolute', left: sl.x1, top: topPx, width: w, height: heightPx,
-                    background: 'repeating-linear-gradient(45deg, rgba(127,127,127,.28) 0 6px, transparent 6px 12px)',
-                    borderLeft: '1px solid rgba(255,255,255,.12)',
-                    borderRight: '1px solid rgba(255,255,255,.12)',
+                const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
+                if (!bands.length) return null;
+                return bands.map(band => {
+                  return <div key={band.key} style={{
+                    position: 'absolute', left: band.x1, top: band.topPx, width: band.width, height: band.heightPx,
+                    background: 'rgba(245,158,11,.18)',
+                    borderLeft: '1px solid rgba(245,158,11,.28)',
+                    borderRight: '1px solid rgba(245,158,11,.28)',
                     zIndex: 2, pointerEvents: 'none',
-                  }} data-htip={`${personName} · ${t('g.vacation')}: ${sl.v.from} → ${sl.v.to}${sl.v.note ? ' · ' + sl.v.note : ''}`}>
-                    {w > 48 && nBands === 1 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 9, fontWeight: 600, color: 'var(--tx2)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{t('g.vacation')}</span>}
-                    {w > 48 && nBands > 1 && heightPx >= 12 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 8, fontWeight: 600, color: 'var(--tx2)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none', overflow: 'hidden', maxWidth: w - 8 }}>{(members.find(m => m.id === sl.pid)?.name || sl.pid).split(' ')[0]}</span>}
-                  </div>;
+                  }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />;
                 });
               })()}
-              {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
+              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6),
                   // Vertical reorder feedback: bar visually follows the mouse vertically,
@@ -769,12 +851,15 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
                     : isMatch ? '0 0 0 2px var(--am)'
                     : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
-                  ...confStyle,
+                  ...(s.status === 'done'
+                    ? { background: 'rgba(127,127,127,.14)', border: `1.5px solid ${tc}`, color: 'var(--tx2)', textShadow: 'none', opacity: 0.85 }
+                    : confStyle),
                   cursor: linkMode || linkDrag ? 'crosshair'
+                    : s.status === 'done' ? 'pointer'
                     : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
                 }}
-                onMouseDown={e => { if (linkMode || linkDrag) return; onBMD(e, s); }}
+                onMouseDown={e => { if (linkMode || linkDrag || s.status === 'done') return; onBMD(e, s); }}
                 onMouseUp={() => { if (linkDrag) onLinkDrop(s.id); }}
                 onClick={() => {
                   if (linkMode && linkMode.fromId !== s.id) {
@@ -806,18 +891,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
-                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0, textShadow: conf === 'estimated' ? '0 0 4px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.8)' : undefined }}>
+                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'var(--gr)' }}>✓</span>}
                 {node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                 {node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                   data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
-                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>}
+                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>}
                 </span>
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}
-                <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
+                {s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
                   style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', border: `1.5px solid ${tc}`, opacity: linkDrag ? 1 : 0.7 }} />
-                </div>
+                </div>}
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
               {decideWi >= 0 && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}

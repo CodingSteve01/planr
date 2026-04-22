@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { SK } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
@@ -7,6 +8,7 @@ import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
+import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { cpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
@@ -42,6 +44,27 @@ function loadLocalProject() {
 
 function isValidProjectData(value) {
   return value && Array.isArray(value.tree);
+}
+
+function scheduleIdleWrite(work, timeout = 1000) {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    return window.requestIdleCallback(work, { timeout });
+  }
+  return window.setTimeout(work, 0);
+}
+
+function cancelIdleWrite(id) {
+  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(id);
+    return;
+  }
+  clearTimeout(id);
+}
+
+function activateOnPress(e, action) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  action();
 }
 
 // Build unique short-name map for members (initials, with collision suffixes on ALL collisions)
@@ -97,6 +120,8 @@ export default function App() {
   const fRef = useRef(null);
   const searchRef = useRef(null);
   const fileHandleRef = useRef(null);
+  const prevTreeRef = useRef([]);
+  const prevScheduledRef = useRef([]);
   const [fileName, setFileName] = useState(null);
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
@@ -205,13 +230,19 @@ export default function App() {
   const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
   useEffect(() => {
     if (!data) return;
+    let idleId = null;
     const t = setTimeout(() => {
-      localStorage.setItem(SK, JSON.stringify(data));
-      // localStorage save is always successful → data is "saved" (just maybe not to file yet)
-      setSaved(true);
-      setLastSavedAt(new Date());
-    }, 300);
-    return () => clearTimeout(t);
+      idleId = scheduleIdleWrite(() => {
+        localStorage.setItem(SK, JSON.stringify(data));
+        // localStorage save is always successful → data is "saved" (just maybe not to file yet)
+        setSaved(true);
+        setLastSavedAt(new Date());
+      }, 1200);
+    }, 800);
+    return () => {
+      clearTimeout(t);
+      if (idleId != null) cancelIdleWrite(idleId);
+    };
   }, [data]);
   // Mark file-out-of-sync whenever data changes
   useEffect(() => { if (data) setFileSynced(false); }, [data]);
@@ -567,7 +598,7 @@ export default function App() {
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
       // Extract metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '';
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '';
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -576,6 +607,7 @@ export default function App() {
           const pm = t.match(/^prio:(\d+)$/i); if (pm) { prio = +pm[1]; return; }
           const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
           const cm = t.match(/^conf:(committed|estimated|exploratory)$/i); if (cm) { confidence = cm[1].toLowerCase(); return; }
+          const dm = t.match(/^done:(\d{4}-\d{2}-\d{2})$/i); if (dm) { completedAt = dm[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
@@ -632,6 +664,7 @@ export default function App() {
       if (pinnedStart) item.pinnedStart = pinnedStart;
       if (parallel) item.parallel = true;
       if (confidence) item.confidence = confidence;
+      if (completedAt) item.completedAt = completedAt;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;
@@ -849,6 +882,74 @@ export default function App() {
   const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
   const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, viewStart, planEnd, hm, workDays, planStart) : { results: [], weeks: [] }, [tree, members, vacations, viewStart, planStart, planEnd, hm, workDays]);
+
+  // Persist the last visible schedule window for completed tasks so they stay visible
+  // in the Gantt after being marked done, without reintroducing them into future planning.
+  useEffect(() => {
+    const prevTree = prevTreeRef.current || [];
+    const prevTreeMap = new Map(prevTree.map(r => [r.id, r]));
+    const prevScheduledMap = new Map((prevScheduledRef.current || []).map(s => [s.id, s]));
+    const currentScheduledMap = new Map((scheduled || []).map(s => [s.id, s]));
+    const patches = new Map();
+    const todayIso = iso(new Date());
+
+    tree.forEach(r => {
+      if (!isLeafNode(tree, r.id)) return;
+      const hasCompletionMeta = !!(r.completedAt || r.completedStart || r.completedEnd || r.completedPersonId || r.completedPerson || r.completedAutoAssigned);
+      const prev = prevTreeMap.get(r.id);
+      const snap = prevScheduledMap.get(r.id);
+
+      if (r.status === 'done') {
+        const completedPersonId = inferCompletedPersonId(r, members, snap);
+        const completedAt = r.completedAt || (prev?.status !== 'done'
+          ? todayIso
+          : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart }));
+        if (!completedAt) return;
+        const window = deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays });
+        const completedPerson = r.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : snap?.person || '');
+        const patch = {
+          completedAt,
+          completedStart: window.completedStart,
+          completedEnd: window.completedEnd,
+        };
+        if (completedPersonId) patch.completedPersonId = completedPersonId;
+        if (completedPerson) patch.completedPerson = completedPerson;
+        if (snap?.autoAssigned || r.completedAutoAssigned) patch.completedAutoAssigned = true;
+        const needsPatch = Object.entries(patch).some(([key, value]) => r[key] !== value);
+        if (!needsPatch) return;
+        patches.set(r.id, patch);
+        return;
+      }
+      if (hasCompletionMeta) patches.set(r.id, { _clearCompletedWindow: true });
+    });
+
+    prevTreeRef.current = tree;
+    prevScheduledRef.current = scheduled;
+
+    if (!patches.size) return;
+
+    let didChange = false;
+    setData(d => {
+      if (!d?.tree?.length) return d;
+      const nextTree = d.tree.map(r => {
+        const patch = patches.get(r.id);
+        if (!patch) return r;
+        if (patch._clearCompletedWindow) {
+          const { completedAt, completedStart, completedEnd, completedPersonId, completedPerson, completedAutoAssigned, ...rest } = r;
+          if (completedAt == null && completedStart == null && completedEnd == null && completedPersonId == null && completedPerson == null && completedAutoAssigned == null) return r;
+          didChange = true;
+          return rest;
+        }
+        const alreadyApplied = Object.entries(patch).every(([k, v]) => r[k] === v);
+        if (alreadyApplied) return r;
+        didChange = true;
+        return { ...r, ...patch };
+      });
+      return didChange ? { ...d, tree: nextTree } : d;
+    });
+    setSaved(false);
+  }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
+
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
   const cpSet = useMemo(() => cpm(tree).critical, [tree]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
@@ -1257,7 +1358,14 @@ export default function App() {
     };
     r.readAsText(f); e.target.value = '';
   }
-  function onBarClick(s) { const node = tree.find(r => r.id === s.id); if (node) { setMN({ ...node, ...s }); setModal('node'); } }
+  function onBarClick(s) {
+    const node = tree.find(r => r.id === s.id);
+    if (!node) return;
+    flushSync(() => {
+      setMN({ ...node, ...s });
+      setModal('node');
+    });
+  }
   async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); setSel(null); setModal(null); setTab('summary'); }
 
   // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
@@ -1433,7 +1541,12 @@ export default function App() {
     </div>
     <div className="tab-bar">
       {TABS.map(t => (
-        <div key={t.id} className={`tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
+        <div
+          key={t.id}
+          className={`tab${tab === t.id ? ' on' : ''}`}
+          onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
+          onClick={e => { if (e.detail === 0) setTab(t.id); }}
+        >
           {t.label}
           {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
         </div>
