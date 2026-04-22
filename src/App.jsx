@@ -1508,7 +1508,7 @@ export default function App() {
                 } else { setSel(node); setMultiSel(new Set()); }
               }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
+              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview'); }}
               onDelete={deleteNode} onReorder={reorderSibling} />
           }
         </div>
