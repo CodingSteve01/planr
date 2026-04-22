@@ -307,6 +307,8 @@ const en = {
 
   // ── BriefingView ──
   'bv.horizon': 'Horizon',
+  'bv.exportTodo': 'Export TODO',
+  'bv.exportTodoHint': 'Download tasks in horizon as Markdown',
   'bv.thisWeek': 'This week', 'bv.next2weeks': 'Next 2 weeks', 'bv.next4weeks': 'Next 4 weeks',
   'bv.vacations': 'Vacations', 'bv.activeWork': 'Active work',
   'bv.milestones': 'Upcoming milestones', 'bv.risks': 'Risks / At risk',
@@ -746,6 +748,8 @@ const de = {
 
   // ── BriefingView ──
   'bv.horizon': 'Horizont',
+  'bv.exportTodo': 'TODO exportieren',
+  'bv.exportTodoHint': 'Aufgaben im Horizont als Markdown herunterladen',
   'bv.thisWeek': 'Diese Woche', 'bv.next2weeks': 'Nächste 2 Wochen', 'bv.next4weeks': 'Nächste 4 Wochen',
   'bv.vacations': 'Urlaub', 'bv.activeWork': 'Aktive Arbeit',
   'bv.milestones': 'Bevorstehende Meilensteine', 'bv.risks': 'Risiken / Gefährdet',

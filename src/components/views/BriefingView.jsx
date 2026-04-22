@@ -35,7 +35,7 @@ function weeksBetween(a, b) {
   return Math.round(days / 7);
 }
 
-export function BriefingView({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, rootFilter, teamFilter, personFilter, onOpenItem }) {
+export function BriefingView({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
   const { t } = useT();
 
   const HORIZON_OPTS = [
@@ -200,6 +200,14 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
               style={{ padding: '3px 8px', fontSize: 11 }}
               onClick={() => setHd(+h.id)}>{h.label}</button>
           ))}
+          {onExportTodo && (
+            <button className="btn btn-sec btn-xs"
+              style={{ padding: '3px 8px', fontSize: 11, marginLeft: 6 }}
+              onClick={() => onExportTodo(horizonDays)}
+              data-htip={t('bv.exportTodoHint')}>
+              ⬇ {t('bv.exportTodo')}
+            </button>
+          )}
         </div>
       </div>
 

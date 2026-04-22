@@ -1465,16 +1465,30 @@ export default function App() {
     <div className="main">
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
-        onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
+        onOpenItem={id => {
+          const node = tree.find(r => r.id === id); if (!node) return;
+          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
+          else { setMN(node); setModal('node'); }
+        }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
         tree={tree} scheduled={scheduled} vacations={vacations} members={members} teams={teams}
         stats={stats} confidence={confidence} cpSet={cpSet}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
-        onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
+        onOpenItem={id => {
+          const node = tree.find(r => r.id === id); if (!node) return;
+          // Parent with children → filter Tree view to that subtree instead of opening modal
+          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
+          else { setMN(node); setModal('node'); }
+        }}
+        onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })}
       /></div>}
       {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
-        onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
+        onOpenItem={id => {
+          const node = tree.find(r => r.id === id); if (!node) return;
+          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
+          else { setMN(node); setModal('node'); }
+        }}
         onUpdate={updateNode} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
