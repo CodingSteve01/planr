@@ -45,14 +45,15 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
     <hr className="divider" />
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
       <div className="section-h" style={{ margin: 0 }}>{t('rv.vacations')}</div>
-      <button className="btn btn-sec btn-sm" onClick={() => onVac([...vacations, { person: members[0]?.id || '', week: '', note: '' }])}>{t('rv.addWeek')}</button>
+      <button className="btn btn-sec btn-sm" onClick={() => onVac([...vacations, { person: members[0]?.id || '', from: '', to: '', note: '' }])}>{t('rv.addVacation')}</button>
     </div>
     <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
     {vacations.length > 0 && <table className="vac-tbl">
-      <thead><tr><th>{t('rv.person')}</th><th>{t('rv.weekStart')}</th><th>{t('rv.note')}</th><th></th></tr></thead>
+      <thead><tr><th>{t('rv.person')}</th><th>{t('rv.vacFrom')}</th><th>{t('rv.vacTo')}</th><th>{t('rv.note')}</th><th></th></tr></thead>
       <tbody>{vacations.map((v, i) => <tr key={i}>
         <td><SearchSelect value={v.person} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={val => onVac(vacations.map((x, j) => j === i ? { ...x, person: val } : x))} placeholder={t('rv.choosePerson')} /></td>
-        <td><LazyInput value={v.week} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, week: val } : x))} placeholder="2026-07-13" /></td>
+        <td><LazyInput type="date" value={v.from || ''} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, from: val } : x))} placeholder="2026-07-14" /></td>
+        <td><LazyInput type="date" value={v.to || ''} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, to: val } : x))} placeholder="2026-07-25" /></td>
         <td><LazyInput value={v.note || ''} onCommit={val => onVac(vacations.map((x, j) => j === i ? { ...x, note: val } : x))} /></td>
         <td><button className="btn btn-danger btn-xs" onClick={() => onVac(vacations.filter((_, j) => j !== i))}>{t('rv.remove')}</button></td>
       </tr>)}</tbody>

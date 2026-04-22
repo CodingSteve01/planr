@@ -23,6 +23,15 @@ const en = {
   'tab.summary': 'Overview', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
 
+  // ── HolView ──
+  'hv.title': 'Holidays', 'hv.importNRW': '↓ Import NRW', 'hv.addManual': '+ Add manually',
+  'hv.clearAll': 'Clear all', 'hv.confirmClear': 'Delete all holidays?',
+  'hv.stats': '{0} computed · {1} manual',
+  'hv.desc': 'Holidays are excluded from working day calculations. NRW holidays are computed dynamically via Easter algorithm and stored in the project file.',
+  'hv.empty': 'No holidays configured', 'hv.emptyBtn': '↓ Import NRW holidays',
+  'hv.day': 'Day', 'hv.date': 'Date', 'hv.name': 'Name', 'hv.source': 'Source',
+  'hv.srcNRW': 'NRW', 'hv.srcCustom': 'custom',
+
   // ── QuickEdit ──
   'qe.cpItem': 'Critical path item',
   'qe.name': 'Name', 'qe.status': 'Status', 'qe.team': 'Team', 'qe.assignee': 'Assignee',
@@ -77,6 +86,7 @@ const en = {
   'g.confirmRemoveDep': 'Remove dependency: {0} no longer depends on {1}?',
   'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
   'g.horizonLegendTip': 'Before H1 work should be committed, before H2 at least estimated, and after H2 exploratory work is still acceptable.',
+  'g.vacation': 'Vacation',
 
   // ── SumView ──
   's.projected': 'Projected end', 's.focus': 'Focus',
@@ -311,12 +321,13 @@ const en = {
   'rv.members': 'Team Members', 'rv.addPerson': '+ Add person',
   'rv.noMembers': 'No team members yet.',
   'rv.noMembersHint': 'Add people to assign tasks and plan capacity.',
-  'rv.vacations': 'Vacation Weeks', 'rv.addWeek': '+ Add week',
-  'rv.vacHint': 'Enter Monday date of each vacation week (YYYY-MM-DD). Scheduler skips that week for the person.',
+  'rv.vacations': 'Vacations', 'rv.addVacation': '+ Add vacation',
+  'rv.vacHint': 'Enter date ranges for vacation periods. The scheduler skips those days for the person.',
+  'rv.vacFrom': 'From', 'rv.vacTo': 'To', 'rv.vacDateRange': 'Date range',
   'rv.fullName': 'Full name', 'rv.role': 'Role', 'rv.capacityPct': 'Capacity %',
   'rv.vacDays': 'Vacation days/yr', 'rv.startDate': 'Start date', 'rv.endDate': 'End date',
   'rv.chooseTeam': 'Choose team...', 'rv.choosePerson': 'Choose person...',
-  'rv.person': 'Person', 'rv.weekStart': 'Week start (Mon)', 'rv.note': 'Note',
+  'rv.person': 'Person', 'rv.note': 'Note',
   'rv.remove': 'Remove', 'rv.clone': '⧉ Clone',
 
   // ── JiraExportModal ──
@@ -421,6 +432,15 @@ const de = {
   'tab.summary': 'Übersicht', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
 
+  // ── HolView ──
+  'hv.title': 'Feiertage', 'hv.importNRW': '↓ NRW importieren', 'hv.addManual': '+ Manuell hinzufügen',
+  'hv.clearAll': 'Alle löschen', 'hv.confirmClear': 'Alle Feiertage löschen?',
+  'hv.stats': '{0} berechnet · {1} manuell',
+  'hv.desc': 'Feiertage werden bei der Arbeitstageberechnung ausgeschlossen. NRW-Feiertage werden über den Osteralgorithmus dynamisch berechnet und in der Projektdatei gespeichert.',
+  'hv.empty': 'Keine Feiertage konfiguriert', 'hv.emptyBtn': '↓ NRW-Feiertage importieren',
+  'hv.day': 'Tag', 'hv.date': 'Datum', 'hv.name': 'Name', 'hv.source': 'Quelle',
+  'hv.srcNRW': 'NRW', 'hv.srcCustom': 'manuell',
+
   // ── QuickEdit ──
   'qe.cpItem': 'Kritischer-Pfad-Item',
   'qe.name': 'Name', 'qe.status': 'Status', 'qe.team': 'Team', 'qe.assignee': 'Zuständig',
@@ -475,6 +495,7 @@ const de = {
   'g.confirmRemoveDep': 'Abhängigkeit entfernen: {0} hängt nicht mehr von {1} ab?',
   'g.horizonLegend': 'H1 committed · H2 estimated · H3 exploratory',
   'g.horizonLegendTip': 'Vor H1 sollte Arbeit committed sein, vor H2 mindestens grob geschätzt, und nach H2 darf sie noch explorativ sein.',
+  'g.vacation': 'Urlaub',
 
   // ── SumView ──
   's.projected': 'Voraussichtliches Ende', 's.focus': 'Fokus',
@@ -709,12 +730,13 @@ const de = {
   'rv.members': 'Team-Mitglieder', 'rv.addPerson': '+ Person hinzufügen',
   'rv.noMembers': 'Noch keine Team-Mitglieder.',
   'rv.noMembersHint': 'Personen hinzufügen, um Aufgaben zuzuweisen und Kapazitäten zu planen.',
-  'rv.vacations': 'Urlaubswochen', 'rv.addWeek': '+ Woche hinzufügen',
-  'rv.vacHint': 'Montag-Datum jeder Urlaubswoche eingeben (JJJJ-MM-TT). Der Scheduler überspringt diese Woche für die Person.',
+  'rv.vacations': 'Urlaub', 'rv.addVacation': '+ Urlaub hinzufügen',
+  'rv.vacHint': 'Urlaubszeiträume als Datum-Range eingeben. Der Scheduler überspringt diese Tage für die Person.',
+  'rv.vacFrom': 'Von', 'rv.vacTo': 'Bis', 'rv.vacDateRange': 'Zeitraum',
   'rv.fullName': 'Vollständiger Name', 'rv.role': 'Rolle', 'rv.capacityPct': 'Kapazität %',
   'rv.vacDays': 'Urlaubstage/Jahr', 'rv.startDate': 'Startdatum', 'rv.endDate': 'Enddatum',
   'rv.chooseTeam': 'Team auswählen...', 'rv.choosePerson': 'Person auswählen...',
-  'rv.person': 'Person', 'rv.weekStart': 'Wochenstart (Mo)', 'rv.note': 'Notiz',
+  'rv.person': 'Person', 'rv.note': 'Notiz',
   'rv.remove': 'Entfernen', 'rv.clone': '⧉ Klonen',
 
   // ── JiraExportModal ──

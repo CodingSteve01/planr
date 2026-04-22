@@ -5,6 +5,7 @@ import { PhaseList } from '../shared/Phases.jsx';
 import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
@@ -81,8 +82,8 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
   const TABS = [
     { id: 'general', label: t('set.title') },
     { id: 'templates', label: t('ph.templates') },
-    { id: 'sizes', label: t('set.sizes') },
     { id: 'customfields', label: t('cf.tab') },
+    { id: 'sizes', label: t('set.sizes') },
     { id: 'risks', label: t('set.risks') },
   ];
 
@@ -242,10 +243,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
               </div>
               <div className="field" style={{ flex: '0 0 120px', marginBottom: 0 }}>
                 <label style={{ fontSize: 10 }}>{t('cf.type')}</label>
-                <select value={cf.type} onChange={e => updateCf(i, { type: e.target.value })}
-                  style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--b2)', borderRadius: 'var(--r)', background: 'var(--bg)', color: 'var(--tx)', fontSize: 12 }}>
-                  {CF_TYPES.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                </select>
+                <SearchSelect value={cf.type} options={CF_TYPES} onSelect={id => updateCf(i, { type: id })} />
               </div>
               <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', marginBottom: 1 }} onClick={() => removeCf(i)}>×</button>
             </div>

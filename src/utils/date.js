@@ -43,3 +43,21 @@ export const fmtDate = s => {
   return new Date(s).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 };
 export const diffDays = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
+
+// Iterate every calendar day from fromIso to toIso (inclusive), yielding Date objects.
+export function* eachDayInclusive(fromIso, toIso) {
+  const s = localDate(fromIso);
+  const e = localDate(toIso);
+  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) yield new Date(d);
+}
+
+// Normalize a vacation entry to {person, from, to, note} regardless of whether
+// it was stored in the old week-based format {person, week, note} or the new
+// date-range format {person, from, to, note}.
+// Backward compat: week → from=week, to=week+4 days (Mon–Fri).
+export function normalizeVacation(v) {
+  if (v.from && v.to) return { person: v.person, from: v.from, to: v.to, note: v.note || '' };
+  const from = v.week || v.from || '';
+  const to = from ? iso(addD(localDate(from), 4)) : '';
+  return { person: v.person, from, to, note: v.note || '' };
+}

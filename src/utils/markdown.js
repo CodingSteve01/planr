@@ -42,8 +42,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     md += '\n';
   }
   if ((vacations || []).length) {
-    md += `## Vacation Weeks\n\n| Person | Week (Mon) | Note |\n|---|---|---|\n`;
-    vacations.forEach(v => { md += `| ${esc(memberName(v.person))} | ${v.week || ''} | ${esc(v.note)} |\n`; });
+    md += `## Vacations\n\n| Person | From | To | Note |\n|---|---|---|---|\n`;
+    vacations.forEach(v => { md += `| ${esc(memberName(v.person))} | ${v.from || ''} | ${v.to || ''} | ${esc(v.note)} |\n`; });
     md += '\n';
   }
   if ((data?.holidays || []).length) {

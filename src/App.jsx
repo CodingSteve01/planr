@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SK } from './constants.js';
-import { iso } from './utils/date.js';
+import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReport } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
@@ -174,7 +174,7 @@ export default function App() {
 
         const file = await handle.getFile();
         const text = await file.text();
-        const restored = handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text);
+        const restored = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
         if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
 
         if (!cancelled) {
@@ -283,7 +283,7 @@ export default function App() {
       const file = await fileHandleRef.current.getFile();
       const text = await file.text();
       const isMd = file.name.endsWith('.md');
-      const d = isMd ? parseMdToProject(text) : JSON.parse(text);
+      const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
       if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
         setData(d);
         setLastSavedAt(new Date(file.lastModified));
@@ -477,11 +477,20 @@ export default function App() {
         return;
       }
 
-      // Vacation Weeks section: table | Person | Week | Note |
+      // Vacations section: accepts both formats
+      // Old (3-col): | Person | Week (Mon) | Note |
+      // New (4-col): | Person | From | To | Note |
       if (section === 'vacations') {
-        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
-        if (m && !/^Person$/i.test(m[1])) {
-          vacationsArr.push({ person: m[1].trim(), week: m[2].trim(), note: m[3].trim() });
+        // Try 4-col first (new format)
+        const m4 = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m4 && !/^Person$/i.test(m4[1]) && !/^---|^\s*$/.test(m4[1])) {
+          vacationsArr.push({ person: m4[1].trim(), from: m4[2].trim(), to: m4[3].trim(), note: m4[4].trim() });
+          return;
+        }
+        // Fall back to 3-col (old week format)
+        const m3 = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m3 && !/^Person$/i.test(m3[1]) && !/^---|^\s*$/.test(m3[1])) {
+          vacationsArr.push({ person: m3[1].trim(), week: m3[2].trim(), note: m3[3].trim() });
         }
         return;
       }
@@ -709,6 +718,8 @@ export default function App() {
       }
     });
     vacationsArr.forEach(v => { v.person = resolveMember(v.person); });
+    // Normalize to {person, from, to, note} — converts legacy week format on load
+    const normalizedVacations = vacationsArr.map(normalizeVacation);
     // Strip transient _parsedShort field from members
     mems.forEach(m => { delete m._parsedShort; });
 
@@ -717,7 +728,7 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
-    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}), ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}) };
+    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: normalizedVacations, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}), ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}) };
   }
 
   async function loadFromFile() {
@@ -730,7 +741,7 @@ export default function App() {
         const file = await handle.getFile();
         const text = await file.text();
         const isMd = handle.name.endsWith('.md');
-        const d = isMd ? parseMdToProject(text) : JSON.parse(text);
+        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
         if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.' : 'Invalid JSON project file — no tree items found.');
         // Apply data immediately — don't block on file write permission
         await rememberHandle(handle);
@@ -898,6 +909,11 @@ export default function App() {
     });
   }, [stats, members]);
 
+  // Normalize a loaded data object: convert legacy week-based vacations to {from, to} on load.
+  function normalizeLoadedData(d) {
+    if (!d || !Array.isArray(d.vacations) || !d.vacations.length) return d;
+    return { ...d, vacations: d.vacations.map(normalizeVacation) };
+  }
   function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
   // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
   // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
@@ -1224,7 +1240,7 @@ export default function App() {
       try {
         const text = ev.target.result;
         const isMd = f.name.endsWith('.md');
-        const d = isMd ? parseMdToProject(text) : JSON.parse(text);
+        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
         if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
         // Set data first, then clean up handle in background
         setData(d);
@@ -1255,7 +1271,7 @@ export default function App() {
       }
       const file = await handle.getFile();
       const text = await file.text();
-      const d = handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text);
+      const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
       if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
       setData(d);
       setSel(null);
@@ -1395,7 +1411,7 @@ export default function App() {
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
-      <button className="btn btn-ghost btn-sm" data-htip={_t('tour.helpTitle')} style={{ padding: '4px 8px', fontWeight: 700 }}
+      <button className="btn btn-sec btn-sm" data-htip={_t('tour.helpTitle')}
         onClick={startTour}>{_t('tour.help')}</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
@@ -1616,7 +1632,7 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} vacations={vacations} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}

@@ -4,7 +4,6 @@
 
 import { computeNRW } from './holidays.js';
 import { applyTemplate, getTemplate } from './projectTemplates.js';
-import { DEFAULT_CUSTOM_FIELDS } from './customFields.js';
 
 const today = new Date();
 const iso = d => {
@@ -83,12 +82,18 @@ export function buildDemoProject(t) {
       { id: 'M2', name: 'Sam Rivera', team: 'T1', cap: 1, vac: 25 },
       { id: 'M3', name: 'Jordan Lee', team: 'T2', cap: 0.5, vac: 25 },
     ],
-    vacations: [],
+    vacations: [
+      { person: 'M1', from: relDate(20), to: relDate(34), note: 'Summer vacation' },
+      { person: 'M2', from: relDate(60), to: relDate(67), note: '' },
+      { person: 'M3', from: relDate(90), to: relDate(97), note: '' },
+    ],
     tree: buildDemoTree(),
     holidays: hols,
     risks: seeded.risks,
     sizes: seeded.sizes,
     taskTemplates: seeded.taskTemplates,
-    customFields: DEFAULT_CUSTOM_FIELDS,
+    customFields: [
+      { id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: 'https://yourcompany.atlassian.net/browse/{value}' },
+    ],
   };
 }

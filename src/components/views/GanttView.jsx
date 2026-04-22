@@ -11,7 +11,7 @@ const NO_TEAM = '__no_team__';
 const NO_TEAM_COLOR = '#64748b';
 const NO_PROJECT = '__none__';
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -244,6 +244,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
     return m;
   }, [rows]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
+  // Per-person vacation blocks: Map<personId, [{from, to}]>
+  const vacByPerson = useMemo(() => {
+    const m = {};
+    (vacations || []).forEach(v => {
+      if (!v.person || !v.from || !v.to) return;
+      if (!m[v.person]) m[v.person] = [];
+      m[v.person].push(v);
+    });
+    return m;
+  }, [vacations]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
     if (!cpSet?.size || !tree) return [];
@@ -701,6 +711,27 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], cpSet,
             return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
               onMouseEnter={() => setHoverDepId(s.id)}
               onMouseLeave={() => setHoverDepId(null)}>
+              {/* Vacation overlays — only in person grouping, one stripe per vacation range */}
+              {groupBy === 'person' && row.group.key.startsWith('person:') && (() => {
+                const pid = row.group.key.slice('person:'.length);
+                const pvacs = vacByPerson[pid];
+                if (!pvacs?.length) return null;
+                return pvacs.map((v, vi) => {
+                  const x1 = dateToX(new Date(v.from + 'T00:00:00'));
+                  // to+1 day so the block covers the full last day column
+                  const toDate = new Date(v.to + 'T00:00:00'); toDate.setDate(toDate.getDate() + 1);
+                  const x2 = dateToX(toDate);
+                  const w = Math.max(x2 - x1, DPX);
+                  if (x2 <= 0 || x1 >= tw) return null;
+                  return <div key={vi} style={{
+                    position: 'absolute', left: x1, top: 0, width: w, height: '100%',
+                    background: 'repeating-linear-gradient(45deg, rgba(127,127,127,.15) 0 6px, transparent 6px 12px)',
+                    zIndex: 2, pointerEvents: 'none',
+                  }} data-htip={`${t('g.vacation')}: ${v.from} → ${v.to}${v.note ? ' · ' + v.note : ''}`}>
+                    {w > 40 && <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'var(--tx3)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{t('g.vacation')}</span>}
+                  </div>;
+                });
+              })()}
               {s.status !== 'done' && bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6),

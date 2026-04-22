@@ -1,4 +1,4 @@
-import { addD, iso, addWorkDays, localDate } from './date.js';
+import { addD, iso, addWorkDays, localDate, eachDayInclusive, normalizeVacation } from './date.js';
 import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
 
@@ -90,15 +90,24 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const tEW = {};
   const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
   lvs.filter(r => r.status === 'done' || !r.best || r.best === 0).forEach(r => { tEW[r.id] = { wi: -1, nextDate: null }; });
-  // Vacation: explicit weeks per person
-  const vs = {}; (vacations || []).forEach(v => { if (!vs[v.person]) vs[v.person] = {}; vs[v.person][v.week] = true; });
+  // Vacation: precompute per-person Set of blocked day ISO strings from date ranges.
+  // Accepts both new {from, to} format and legacy {week} format (via normalizeVacation).
+  const vs = {}; // vs[personId] = Set<isoDateString>
+  (vacations || []).forEach(v => {
+    const nv = normalizeVacation(v);
+    if (!nv.from || !nv.to) return;
+    if (!vs[nv.person]) vs[nv.person] = new Set();
+    for (const d of eachDayInclusive(nv.from, nv.to)) vs[nv.person].add(iso(d));
+  });
   // Total working days in plan period (for blanket vacation deduction)
   const totalWDs = wks.reduce((s, w) => s + w.wds.length, 0);
-  // Per-person: count of explicit vacation weeks, remaining unplanned vacation
+  // Per-person: count explicit vacation days (only working days), remaining unplanned vacation
   const vacInfo = {};
+  const wdIsoSet = new Set(wks.flatMap(w => w.wds.map(d => iso(d))));
   members.forEach(m => {
-    const explicitWeeks = Object.keys(vs[m.id] || {}).length;
-    const explicitDays = explicitWeeks * 5;
+    const blockedDays = vs[m.id] || new Set();
+    // Count only days that are actual working days in the plan period
+    const explicitDays = [...blockedDays].filter(d => wdIsoSet.has(d)).length;
     const totalVac = m.vac || 25;
     const remainingVac = Math.max(0, totalVac - explicitDays);
     // Blanket deduction only for unplanned vacation days
@@ -180,13 +189,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
+          const bpVacSet = vs[bp.id];
           while (rem > 0 && wi < wks.length) {
             const w = wks[wi];
-            if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
             if (endDate && w.mon > endDate) break;
             for (const d of w.wds) {
               if (d < skipBefore) continue;
               if (endDate && d > endDate) break;
+              if (bpVacSet?.has(iso(d))) continue; // skip vacation day
               if (!firstWorkDay) firstWorkDay = d;
               rem -= dailyBaseCap; lastWorkDay = d;
               if (rem <= 0) break;
@@ -275,13 +285,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
     const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
+    const bpVacSet = vs[bp.id];
     while (rem > 0 && wi < wks.length) {
       const w = wks[wi];
-      if (vs[bp.id]?.[iso(w.mon)]) { wi++; continue; }
       if (endDate && w.mon > endDate) break; // person offboarded
       for (const d of w.wds) {
         if (d < skipBefore) continue;
         if (endDate && d > endDate) break; // past offboarding date
+        if (bpVacSet?.has(iso(d))) continue; // skip vacation day
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d;
         if (rem <= 0) break;
