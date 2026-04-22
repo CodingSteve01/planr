@@ -48,9 +48,11 @@ export function Tip({ item, x, y, teams, members, tree }) {
       const node = tree ? tree.find(r => r.id === item.id) : null;
       const factor = node?.factor || item.factor || 1.5;
       const effort = item.effort ?? (item.best * factor);
-      const vacDed = item.vacDed ?? 0;
-      const vacDays = vacDed > 0 ? Math.round(effort * vacDed / 100) : 0;
       const capPct = item.capPct ?? 100;
+      // Prefer explicit window fields; fall back to old vacDed-derived estimate
+      const vacDays = item.vacDays ?? (item.vacDed > 0 ? Math.round(effort * item.vacDed / 100) : 0);
+      const holidaysInWindow = item.holidaysInWindow ?? 0;
+      const workingDaysInWindow = item.workingDaysInWindow ?? null;
       return <>
         <hr className="tt-sep" />
         <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
@@ -62,8 +64,14 @@ export function Tip({ item, x, y, teams, members, tree }) {
             {t('tt.durCal')}: <b style={{ color: 'var(--tx2)' }}>{item.calDays}d</b>
           </div>
           {vacDays > 0 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
-            {t('tt.durVac')}: <b style={{ color: 'var(--am)' }}>+{vacDays}d</b>
+            {t('tt.vacDays')}: <b style={{ color: 'var(--am)' }}>{vacDays}</b>
           </div>}
+          {holidaysInWindow > 0 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.holidaysInWindow')}: <b style={{ color: 'var(--re)' }}>{holidaysInWindow}</b>
+          </div>}
+          <div style={{ marginLeft: 4, marginBottom: 1 }}>
+            {t('tt.workingDays')}: <b style={{ color: 'var(--tx2)' }}>{workingDaysInWindow ?? (item.calDays - vacDays - holidaysInWindow)}</b>
+          </div>
           {capPct < 100 && <div style={{ marginLeft: 4, marginBottom: 1 }}>
             {t('tt.durCap')}: <b style={{ color: 'var(--am)' }}>{capPct}%</b>
           </div>}

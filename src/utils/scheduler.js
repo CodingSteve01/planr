@@ -104,6 +104,27 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const anyAssigneeOnVacation = (dateIso, assignIds, vacSets) =>
     assignIds.some(id => vacSets[id]?.has(dateIso));
 
+  // Compute window stats for a scheduled task: vacation working days (union across all assignees),
+  // holiday working days, and net working days in [startD, endD].
+  // assignIds: array of person IDs (may be empty for unassigned fallback).
+  const computeWindowStats = (startD, endD, assignIds) => {
+    let vacDays = 0, holidaysInWindow = 0, workingDaysInWindow = 0;
+    if (!startD || !endD) return { vacDays, holidaysInWindow, workingDaysInWindow };
+    const startIso = iso(startD);
+    const endIso = iso(endD);
+    for (const d of eachDayInclusive(startIso, endIso)) {
+      const dIso = iso(d);
+      if (!wdSet.has(d.getDay())) continue; // not a configured work day
+      if (hm[dIso]) { holidaysInWindow++; continue; } // holiday (not counted as vac or working)
+      if (assignIds.length > 0 && assignIds.some(id => vs[id]?.has(dIso))) {
+        vacDays++;
+      } else {
+        workingDaysInWindow++;
+      }
+    }
+    return { vacDays, holidaysInWindow, workingDaysInWindow };
+  };
+
   // Total working days in plan period (for blanket vacation deduction)
   const totalWDs = wks.reduce((s, w) => s + w.wds.length, 0);
   // Per-person: count explicit vacation days (only working days), remaining unplanned vacation
@@ -214,10 +235,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           pF[bp.id] = { wi: eW, nextDate: nd };
           const actualStartD = firstWorkDay || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+          const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
           res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
             best: r.best, effort: eff, startWi: bs, endWi: eW,
             startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
             capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
+            vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
             deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
           return;
         }
@@ -239,10 +262,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       tEW[id] = { wi: eW, nextDate: nd };
       const actualStartD = firstWorkDay || wks[Math.max(early, planStartWi)]?.mon || wks[0].mon;
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+      const ws1 = computeWindowStats(actualStartD, actualEndD, []);
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, personShort: '?', prio: r.prio, seq: r.seq,
         best: r.best, effort: eff, startWi: Math.max(early, planStartWi), endWi: eW,
         startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
         capPct: 100, vacDed: 0, weeks: eW - Math.max(early, planStartWi) + 1,
+        vacDays: ws1.vacDays, holidaysInWindow: ws1.holidaysInWindow, workingDaysInWindow: ws1.workingDaysInWindow,
         deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
       return;
     }
@@ -329,11 +354,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         console.warn(`[scheduler] Dep violation: ${r.id} starts ${iso(actualStartD)} but dep ${depId} not free until ${iso(depEndD)}`);
       }
     });
+    // For multi-assign: union of all assignees' vacation sets (any day any assignee is on vacation counts once).
+    const ws2 = computeWindowStats(actualStartD, actualEndD, isMulti ? asgn : [bp.id]);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
+      vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '' });
   });
   return { results: res, weeks: wks };

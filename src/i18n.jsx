@@ -179,6 +179,7 @@ const en = {
   'tt.durBreakdown': 'Duration breakdown',
   'tt.durBest': 'Best', 'tt.durCal': 'Calendar', 'tt.durVac': 'Vacation',
   'tt.durCap': 'Capacity', 'tt.durStart': 'Starts',
+  'tt.vacDays': 'Vacation days in window', 'tt.holidaysInWindow': 'Holidays in window', 'tt.workingDays': 'Working days',
 
   // ── Settings ──
   'set.title': 'Project Settings', 'set.globalTitle': 'Global Settings',
@@ -327,6 +328,8 @@ const en = {
   'ins.deps': 'Dependencies',
   'ins.editSection': 'Edit',
   'ins.phaseToggle': 'Click to toggle status',
+  'ins.autoAssigned': 'Auto-assigned',
+  'ins.autoAssignedTip': 'Scheduler suggested this person — accept to confirm',
 
   // ── GanttView – confidence reason tooltips ──
   'g.reasonManual': 'Set manually', 'g.reasonDone': 'Done',
@@ -615,6 +618,7 @@ const de = {
   'tt.durBreakdown': 'Aufwand Aufschlüsselung',
   'tt.durBest': 'Best Case', 'tt.durCal': 'Kalender', 'tt.durVac': 'Urlaub',
   'tt.durCap': 'Kapazität', 'tt.durStart': 'Start',
+  'tt.vacDays': 'Urlaubstage im Zeitraum', 'tt.holidaysInWindow': 'Feiertage im Zeitraum', 'tt.workingDays': 'Arbeitstage',
 
   // ── Settings ──
   'set.title': 'Projekteinstellungen', 'set.globalTitle': 'Globale Einstellungen',
@@ -763,6 +767,8 @@ const de = {
   'ins.deps': 'Abhängigkeiten',
   'ins.editSection': 'Bearbeiten',
   'ins.phaseToggle': 'Klick ändert Status',
+  'ins.autoAssigned': 'Auto-zugewiesen',
+  'ins.autoAssignedTip': 'Vom Scheduler vorgeschlagen — bestätigen zum Übernehmen',
 
   // ── GanttView – Confidence-Reason-Tooltips ──
   'g.reasonManual': 'Manuell gesetzt', 'g.reasonDone': 'Erledigt',

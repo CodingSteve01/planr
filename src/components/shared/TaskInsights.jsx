@@ -187,7 +187,32 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--tx3)' }}>× {node.factor || 1.5} = </span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}> {effort?.toFixed(1)}d</span>
           </KVRow>
-          {sc?.capacityFraction != null && (
+          {sc?.calDays > 0 && (
+            <KVRow label={t('tt.durCal')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.calDays}d</span>
+            </KVRow>
+          )}
+          {sc?.vacDays > 0 && (
+            <KVRow label={t('tt.vacDays')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>{sc.vacDays}d</span>
+            </KVRow>
+          )}
+          {sc?.holidaysInWindow > 0 && (
+            <KVRow label={t('tt.holidaysInWindow')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--re)' }}>{sc.holidaysInWindow}d</span>
+            </KVRow>
+          )}
+          {sc?.workingDaysInWindow != null && (
+            <KVRow label={t('tt.workingDays')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.workingDaysInWindow}d</span>
+            </KVRow>
+          )}
+          {sc?.capPct != null && sc.capPct < 100 && (
+            <KVRow label={t('ins.capacity')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.capPct}%</span>
+            </KVRow>
+          )}
+          {sc?.capacityFraction != null && sc?.capPct == null && (
             <KVRow label={t('ins.capacity')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{Math.round(sc.capacityFraction * 100)}%</span>
             </KVRow>
@@ -218,11 +243,25 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       )}
 
       {/* People section */}
-      {(assignees.length > 0 || team) && (
+      {(assignees.length > 0 || team || sc?.autoAssigned) && (
         <Section label={t('ins.people')} onClick={sec('people')} editLabel={editLabel}>
-          {assignees.length > 0 && (
+          {(assignees.length > 0 || sc?.autoAssigned) && (
             <KVRow label={t('ins.assignees')}>
-              <span>{assignees.map(m => m.name).join(', ')}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span>{assignees.length > 0 ? assignees.map(m => m.name).join(', ') : sc?.person}</span>
+                {sc?.autoAssigned && (
+                  <span
+                    data-htip={t('ins.autoAssignedTip')}
+                    style={{
+                      background: 'var(--bg3)', color: 'var(--am)',
+                      border: '1px dashed var(--am)', fontSize: 10,
+                      padding: '1px 6px', borderRadius: 4,
+                    }}
+                  >
+                    🤖 {t('ins.autoAssigned')}
+                  </span>
+                )}
+              </span>
             </KVRow>
           )}
           {team && (
