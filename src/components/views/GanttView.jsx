@@ -32,7 +32,7 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -137,8 +137,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     return ms;
   }, [weeks]);
 
-  // Build all-items list: scheduled items + un-estimated leaves (so nothing hides).
-  // Memoized to avoid recalculating on every render (perf: search typing was laggy).
+  // Build the fact base for this Gantt scope: scheduled items + unscheduled leaves,
+  // filtered by root/team/person, but NOT by hideDone. Summary rows derive from this
+  // full scoped set so their aggregates stay factually correct.
   const allItems = useMemo(() => {
     const sIdSet = new Set(scheduled.map(s => s.id));
     const unscheduledLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
@@ -185,6 +186,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
     return items;
   }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter]);
+  const displayItems = useMemo(() => hideDone ? allItems.filter(item => item.status !== 'done') : allItems, [allItems, hideDone]);
 
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
@@ -244,13 +246,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       });
       return totalWeight > 0 ? Math.round(totalProgress / totalWeight) : 0;
     };
-    const buildSummaryItem = (node, scopeItems, children = EMPTY_ARR, scopeCtx = {}) => {
-      const datedChildren = children
-        .map(child => child?.s)
-        .filter(item => item && !item._unestimated && item.startD && item.endD);
-      const dated = datedChildren.length
-        ? datedChildren
-        : scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
+    const buildSummaryItem = (node, scopeItems, scopeCtx = {}) => {
+      const dated = scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
       const doneCount = scopeItems.filter(item => item.status === 'done').length;
       const wipCount = scopeItems.filter(item => item.status === 'wip').length;
       const mix = { done: 0, committed: 0, estimated: 0, exploratory: 0 };
@@ -291,43 +288,46 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         _barColor: scopeCtx.color || typeColorOf(node),
       };
     };
-    const buildNode = (nodeId, meta, namespace, level, scopeCtx) => {
+    const buildNode = (nodeId, meta, visibleMeta, namespace, level, scopeCtx) => {
       const node = iMap[nodeId];
       const scopeItems = meta.byNode[nodeId] || EMPTY_ARR;
-      if (!node || !scopeItems.length) return null;
-      const childIds = (childrenByParent[nodeId] || EMPTY_ARR).filter(cid => (meta.byNode[cid] || EMPTY_ARR).length > 0);
+      const visibleScopeItems = visibleMeta.byNode[nodeId] || EMPTY_ARR;
+      if (!node || !scopeItems.length || !visibleScopeItems.length) return null;
+      const childIds = (childrenByParent[nodeId] || EMPTY_ARR).filter(cid => (visibleMeta.byNode[cid] || EMPTY_ARR).length > 0);
       if (isLeafNode(tree || [], nodeId) || !childIds.length) {
-        const item = meta.itemById[nodeId];
+        const item = visibleMeta.itemById[nodeId];
         if (!item) return null;
         return { type: 'task', key: `${namespace}::task:${nodeId}`, s: item, node, level, groupKey: namespace };
       }
-      const children = childIds.map(cid => buildNode(cid, meta, namespace, level + 1, scopeCtx)).filter(Boolean);
+      const children = childIds.map(cid => buildNode(cid, meta, visibleMeta, namespace, level + 1, scopeCtx)).filter(Boolean);
       const collapseKey = `${namespace}::collapse:${nodeId}`;
       if (children.length > 0 && children.every(child => child.type === 'task')) defaultCollapsed.add(collapseKey);
       return {
         type: 'summary',
         key: `${namespace}::summary:${nodeId}`,
         collapseKey,
-        s: buildSummaryItem(node, scopeItems, children, scopeCtx),
+        s: buildSummaryItem(node, scopeItems, scopeCtx),
         node,
         level,
         groupKey: namespace,
         children,
       };
     };
-    const buildTreeNodes = (scopeItems, namespace, baseLevel, scopeCtx = {}) => {
+    const buildTreeNodes = (scopeItems, visibleScopeItems, namespace, baseLevel, scopeCtx = {}) => {
       const meta = buildScopeMeta(sortItems(scopeItems));
-      return rootIds.map(rid => buildNode(rid, meta, namespace, baseLevel, scopeCtx)).filter(Boolean);
+      const visibleMeta = buildScopeMeta(sortItems(visibleScopeItems));
+      return rootIds.map(rid => buildNode(rid, meta, visibleMeta, namespace, baseLevel, scopeCtx)).filter(Boolean);
     };
     const nodes = [];
     if (groupBy === 'project') {
-      nodes.push(...buildTreeNodes(allItems, 'project', 0));
+      nodes.push(...buildTreeNodes(allItems, displayItems, 'project', 0));
     } else if (groupBy === 'team') {
-      const usedTeams = [...new Set(allItems.map(item => item.team || NO_TEAM))];
+      const usedTeams = [...new Set(displayItems.map(item => item.team || NO_TEAM))];
       const orderedTeams = [...new Set([...teams.map(team => team.id), ...usedTeams])].filter(id => usedTeams.includes(id));
       orderedTeams.forEach(teamId => {
         const scopeItems = sortItems(allItems.filter(item => (item.team || NO_TEAM) === teamId));
-        if (!scopeItems.length) return;
+        const visibleScopeItems = sortItems(displayItems.filter(item => (item.team || NO_TEAM) === teamId));
+        if (!visibleScopeItems.length) return;
         const team = teams.find(entry => entry.id === teamId);
         const label = teamId === NO_TEAM ? t('noTeam') : (team?.name || teamId);
         const color = teamId === NO_TEAM ? NO_TEAM_COLOR : (team?.color || '#3b82f6');
@@ -337,14 +337,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           collapseKey: `team:${teamId}`,
           label,
           color,
-          count: scopeItems.length,
+          count: visibleScopeItems.length,
           level: 0,
-          children: buildTreeNodes(scopeItems, `team:${teamId}`, 1, { teamId: teamId === NO_TEAM ? '' : teamId, color }),
+          children: buildTreeNodes(scopeItems, visibleScopeItems, `team:${teamId}`, 1, { teamId: teamId === NO_TEAM ? '' : teamId, color }),
         });
       });
     } else {
-      const usedPeople = [...new Set(allItems.flatMap(personIdsOf))];
-      if (allItems.some(item => !personIdsOf(item).length)) usedPeople.push(NO_PERSON);
+      const usedPeople = [...new Set(displayItems.flatMap(personIdsOf))];
+      if (displayItems.some(item => !personIdsOf(item).length)) usedPeople.push(NO_PERSON);
       usedPeople
         .sort((a, b) => {
           if (a === NO_PERSON) return 1;
@@ -357,7 +357,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const scopeItems = sortItems(personId === NO_PERSON
             ? allItems.filter(item => !personIdsOf(item).length)
             : allItems.filter(item => personIdsOf(item).includes(personId)));
-          if (!scopeItems.length) return;
+          const visibleScopeItems = sortItems(personId === NO_PERSON
+            ? displayItems.filter(item => !personIdsOf(item).length)
+            : displayItems.filter(item => personIdsOf(item).includes(personId)));
+          if (!visibleScopeItems.length) return;
           const member = memberById[personId];
           const label = personId === NO_PERSON ? UNASSIGNED_LABEL : (member?.name || personId);
           const color = personId === NO_PERSON ? NO_TEAM_COLOR : (teamById[member?.team]?.color || 'var(--ac)');
@@ -367,45 +370,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             collapseKey: `resource:${personId}`,
             label,
             color,
-            count: scopeItems.length,
+            count: visibleScopeItems.length,
             level: 0,
-            children: buildTreeNodes(scopeItems, `resource:${personId}`, 1, { personName: label, color }),
+            children: buildTreeNodes(scopeItems, visibleScopeItems, `resource:${personId}`, 1, { personName: label, color }),
           });
         });
     }
-    const patchSummaryWindows = row => {
-      if (!row?.children?.length) return row;
-      const nextChildren = row.children.map(patchSummaryWindows).filter(Boolean);
-      if (row.type !== 'summary') return { ...row, children: nextChildren };
-
-      let minStart = null;
-      let maxEnd = null;
-      nextChildren.forEach(child => {
-        const childItem = child?.s;
-        if (!childItem || childItem._unestimated || !childItem.startD || !childItem.endD) return;
-        const childStart = childItem.startD instanceof Date ? childItem.startD : new Date(childItem.startD);
-        const childEnd = childItem.endD instanceof Date ? childItem.endD : new Date(childItem.endD);
-        if (!minStart || childStart < minStart) minStart = childStart;
-        if (!maxEnd || childEnd > maxEnd) maxEnd = childEnd;
-      });
-
-      if (!minStart || !maxEnd) return { ...row, children: nextChildren };
-      return {
-        ...row,
-        s: {
-          ...row.s,
-          startD: new Date(+minStart),
-          endD: new Date(+maxEnd),
-          startWi: weekIndexOfDate(minStart),
-          endWi: weekIndexOfDate(maxEnd),
-          calDays: Math.max(1, Math.round((maxEnd - minStart) / 864e5) + 1),
-        },
-        children: nextChildren,
-      };
-    };
-
-    return { nodes: nodes.map(patchSummaryWindows), defaultCollapsed: [...defaultCollapsed] };
-  }, [allItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t]);
+    return { nodes, defaultCollapsed: [...defaultCollapsed] };
+  }, [allItems, displayItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t]);
 
   const collapsed = useMemo(() => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed), [collapsedByMode, groupBy, structure.defaultCollapsed]);
   const updateCollapsed = updater => {
@@ -731,8 +703,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const searchMatches = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
     if (!q) return null;
-    return new Set(allItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
-  }, [search, allItems]);
+    return new Set(displayItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
+  }, [search, displayItems]);
   // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
   const searchMatchList = useMemo(() => {
     if (!searchMatches?.size) return [];
@@ -899,7 +871,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     </div>
   </div>;
 
-  const unestimatedCount = useMemo(() => allItems.filter(s => s._unestimated).length, [allItems]);
+  const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
 
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => {
     dismissTooltip(true);
