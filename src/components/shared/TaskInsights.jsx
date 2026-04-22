@@ -49,9 +49,10 @@ function Section({ label, onClick, editLabel, children }) {
   );
 }
 
-export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection }) {
+export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle }) {
   const { t } = useT();
   const editLabel = t('ins.editSection');
+  const phaseToggleTip = t('ins.phaseToggle');
   const sec = onEditSection ? id => () => onEditSection(id) : () => undefined;
 
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
@@ -123,8 +124,18 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
 
   return (
     <div style={{ fontSize: 12 }}>
-      {/* Status + progress header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+      {/* Status + progress header — clickable, jumps to Details tab */}
+      <div
+        onClick={onEditSection ? () => onEditSection('status') : undefined}
+        data-htip={onEditSection ? editLabel : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap',
+          padding: '6px 8px', margin: '0 -8px 8px', borderRadius: 'var(--r)',
+          cursor: onEditSection ? 'pointer' : 'default', transition: 'background .12s',
+        }}
+        onMouseEnter={onEditSection ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
+        onMouseLeave={onEditSection ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+      >
         <span style={{ fontWeight: 700, color: statusColor, fontSize: 13 }}>
           {S_DOT[status]} {t(status)}
         </span>
@@ -235,7 +246,13 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               return (
                 <KVRow key={ph.id || idx} label="">
                   <span style={{ fontSize: 11, color: isCurrent ? 'var(--tx)' : 'var(--tx2)', fontWeight: isCurrent ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ color }}>{dot}</span>
+                    <span
+                      style={{ color, cursor: onPhaseToggle ? 'pointer' : 'default', transition: 'transform .1s', display: 'inline-block' }}
+                      data-htip={onPhaseToggle ? phaseToggleTip : undefined}
+                      onClick={onPhaseToggle ? e => { e.stopPropagation(); onPhaseToggle(ph.id); } : undefined}
+                      onMouseEnter={onPhaseToggle ? e => { e.currentTarget.style.transform = 'scale(1.4)'; } : undefined}
+                      onMouseLeave={onPhaseToggle ? e => { e.currentTarget.style.transform = 'scale(1)'; } : undefined}
+                    >{dot}</span>
                     <span>{ph.name || ph.id}</span>
                     {pct != null && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
                     {isCurrent && <span style={{ fontSize: 9, color: 'var(--ac)', marginLeft: 2 }}>←</span>}

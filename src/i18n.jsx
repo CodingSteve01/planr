@@ -47,7 +47,7 @@ const en = {
   'qe.period': 'Period', 'qe.duration': 'Duration', 'qe.person': 'Person',
   'qe.effort': 'Effort', 'qe.realisticSuffix': 'realistic', 'qe.notScheduled': 'not scheduled',
   'qe.leafItems': 'leaf items', 'qe.autoStatus': '(auto)',
-  'qe.tab.overview': 'Overview', 'qe.tab.workflow': 'Workflow', 'qe.tab.estimate': 'Estimate', 'qe.tab.schedule': 'Plan', 'qe.tab.deps': 'Dependencies', 'qe.tab.effort': 'Effort', 'qe.tab.timing': 'Timing',
+  'qe.tab.overview': 'Details', 'qe.tab.workflow': 'Phases', 'qe.tab.estimate': 'Estimate', 'qe.tab.schedule': 'Plan', 'qe.tab.deps': 'Dependencies', 'qe.tab.effort': 'Estimate', 'qe.tab.timing': 'Schedule',
   'qe.horizonHint': 'H1 is for committed work, H2 for estimated work, and everything after that may stay exploratory until it is clarified.',
   'qe.allLeaves': 'all leaves',
   'qe.confirmRelease': '"{0}" will no longer wait for this item?',
@@ -57,7 +57,7 @@ const en = {
   // ── NodeModal ──
   'nm.focusType': 'Focus type', 'nm.severity': 'Severity',
   'nm.appliesToAllLeaves': '(applies to all leaves)',
-  'nm.advanced': 'Advanced', 'nm.parent': 'Parent (move this item + descendants)',
+  'nm.advanced': 'More', 'nm.parent': 'Parent (move this item + descendants)',
   'nm.topLevel': '— Top level —', 'nm.seq': 'Seq',
   'nm.confidenceOverride': 'Confidence override',
   'nm.runParallel': 'Run in parallel', 'nm.capacityBypass': 'capacity bypass',
@@ -316,7 +316,7 @@ const en = {
   'bv.noActivity': 'No activity in this horizon.',
 
   // ── NodeModal / QuickEdit — Insights tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Snapshot',
   'ins.timing': 'Timing', 'ins.period': 'Period',
   'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
   'ins.effort': 'Effort', 'ins.effortBest': 'Best × factor',
@@ -326,6 +326,7 @@ const en = {
   'ins.phases': 'Phases',
   'ins.deps': 'Dependencies',
   'ins.editSection': 'Edit',
+  'ins.phaseToggle': 'Click to toggle status',
 
   // ── GanttView – confidence reason tooltips ──
   'g.reasonManual': 'Set manually', 'g.reasonDone': 'Done',
@@ -482,7 +483,7 @@ const de = {
   'qe.period': 'Zeitraum', 'qe.duration': 'Dauer', 'qe.person': 'Person',
   'qe.effort': 'Aufwand', 'qe.realisticSuffix': 'realistisch', 'qe.notScheduled': 'nicht eingeplant',
   'qe.leafItems': 'Leaf-Items', 'qe.autoStatus': '(auto)',
-  'qe.tab.overview': 'Überblick', 'qe.tab.workflow': 'Workflow', 'qe.tab.estimate': 'Schätzung', 'qe.tab.schedule': 'Planung', 'qe.tab.deps': 'Abhängigkeiten', 'qe.tab.effort': 'Aufwand', 'qe.tab.timing': 'Zeitplan',
+  'qe.tab.overview': 'Details', 'qe.tab.workflow': 'Phasen', 'qe.tab.estimate': 'Schätzung', 'qe.tab.schedule': 'Planung', 'qe.tab.deps': 'Abhängigkeiten', 'qe.tab.effort': 'Schätzung', 'qe.tab.timing': 'Zeitplan',
   'qe.horizonHint': 'H1 ist für committed Arbeit, H2 für grob geschätzte Arbeit, und alles danach darf explorativ bleiben, bis es präzisiert ist.',
   'qe.allLeaves': 'alle Leaves',
   'qe.confirmRelease': '„{0}" wartet nicht mehr auf dieses Item?',
@@ -492,7 +493,7 @@ const de = {
   // ── NodeModal ──
   'nm.focusType': 'Fokus-Typ', 'nm.severity': 'Schweregrad',
   'nm.appliesToAllLeaves': '(gilt für alle Leaves)',
-  'nm.advanced': 'Erweitert', 'nm.parent': 'Übergeordnet (verschiebt Item + Unterelemente)',
+  'nm.advanced': 'Weitere', 'nm.parent': 'Übergeordnet (verschiebt Item + Unterelemente)',
   'nm.topLevel': '— Oberste Ebene —', 'nm.seq': 'Seq',
   'nm.confidenceOverride': 'Confidence-Override',
   'nm.runParallel': 'Parallel ausführen', 'nm.capacityBypass': 'Kapazität umgehen',
@@ -751,7 +752,7 @@ const de = {
   'bv.noActivity': 'Keine Aktivität in diesem Horizont.',
 
   // ── NodeModal / QuickEdit — Insights-Tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Schnappschuss',
   'ins.timing': 'Zeitplan', 'ins.period': 'Zeitraum',
   'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',
   'ins.effort': 'Aufwand', 'ins.effortBest': 'Best × Faktor',
@@ -761,6 +762,7 @@ const de = {
   'ins.phases': 'Phasen',
   'ins.deps': 'Abhängigkeiten',
   'ins.editSection': 'Bearbeiten',
+  'ins.phaseToggle': 'Klick ändert Status',
 
   // ── GanttView – Confidence-Reason-Tooltips ──
   'g.reasonManual': 'Manuell gesetzt', 'g.reasonDone': 'Erledigt',

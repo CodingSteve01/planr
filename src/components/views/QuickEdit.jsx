@@ -79,10 +79,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const memberName = id => members.find(member => member.id === id)?.name || id;
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
 
+  const hasPhases = isLeaf && (node.phases?.length > 0 || node.best > 0);
   const tabs = [
     { id: 'insights', label: t('nm.tab.insights') },
     { id: 'overview', label: t('qe.tab.overview') },
-    ...(!isRoot ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
+    ...(hasPhases ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
   ];
@@ -105,6 +106,17 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   };
 
   const flushNode = () => onUpdate(f);
+
+  // Phase inline toggle from Insights: cycle open → wip → done → open
+  const togglePhase = phaseId => {
+    const nextPhases = (f.phases || []).map(p => {
+      if (p.id !== phaseId) return p;
+      const next = p.status === 'open' ? 'wip' : p.status === 'wip' ? 'done' : 'open';
+      return { ...p, status: next };
+    });
+    const derived = derivePhaseStatus(nextPhases);
+    commitNode({ ...f, phases: nextPhases, ...(derived ? { status: derived.status, progress: derived.progress } : {}) });
+  };
 
   // Phases onChange: phases define status + progress when present
   const commitPhases = (nextPhases, extra = {}) => {
@@ -158,7 +170,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
     {/* ══════ INSIGHTS TAB ══════ */}
     {activeTab === 'insights' && <TaskInsights
-      node={node}
+      node={f}
       tree={tree}
       members={members}
       teams={teams}
@@ -168,6 +180,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       confidence={confidence}
       confReasons={confReasons}
       customFields={customFields}
+      onPhaseToggle={togglePhase}
       onEditSection={sectionId => {
         const tabMap = { timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', dependencies: 'timing', customFields: 'overview' };
         const fieldMap = { timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', dependencies: 'deps', customFields: 'customFields' };
