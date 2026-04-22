@@ -6,6 +6,7 @@ import { resolveToLeafIds, isLeafNode, parentId } from '../../utils/scheduler.js
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
+import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
@@ -29,33 +30,6 @@ function withAlpha(color, alpha) {
   const g = parseInt(hex.slice(2, 4), 16);
   const b = parseInt(hex.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function StatusRing({ status, progress = 0, color = 'var(--tx3)' }) {
-  const size = 14;
-  const stroke = 1.4;
-  const radius = 5.4;
-  const center = 7;
-  const circ = 2 * Math.PI * radius;
-  if (status === 'done') {
-    return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
-      <circle cx={center} cy={center} r={radius} fill="none" stroke={withAlpha(color, 0.7)} strokeWidth={stroke} />
-      <path d="M4 7.2 L6.1 9.2 L10 5" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>;
-  }
-  if (status === 'wip') {
-    const pct = Math.max(1, Math.min(100, progress || 50));
-    const off = circ * (1 - pct / 100);
-    return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
-      <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--b2)" strokeWidth={stroke} />
-      <circle cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth="1.8"
-        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`} />
-    </svg>;
-  }
-  return <svg width={size} height={size} viewBox="0 0 14 14" style={{ display: 'inline-block', flexShrink: 0 }} aria-hidden="true">
-    <circle cx={center} cy={center} r={radius} fill="none" stroke={withAlpha(color, 0.6)} strokeWidth={stroke} />
-  </svg>;
 }
 
 export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
@@ -986,7 +960,6 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const confDot = isSummary ? null : (confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null);
           const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
-          const ringColor = isSummary ? 'var(--tx3)' : rowColor(row);
           return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => openRowItem(row)}>
             {isSummary && <button
@@ -997,7 +970,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             >{isCollapsed ? '▶' : '▼'}</button>}
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
-            <StatusRing status={s.status} progress={statusProgress} color={ringColor} />
+            <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>
             {!isSummary && (s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>

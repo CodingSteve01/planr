@@ -3,35 +3,9 @@ import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
+import { StatusIcon } from '../shared/StatusIcon.jsx';
 
 function depth(id) { return id.split('.').length; }
-
-// Status icon — inline SVG so it matches the network graph's circle-with-progress symbology
-function StatusIcon({ status, progress = 0 }) {
-  const size = 18, r = 7.5, cx = 9, cy = 9;
-  const circ = 2 * Math.PI * r;
-  if (status === 'done') {
-    // Outlined green circle + green check inside (matches network graph's done state)
-    return <svg width={size} height={size} viewBox="0 0 18 18" style={{ verticalAlign: 'middle', display: 'inline-block' }} aria-label="Done">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--gr)" strokeWidth="1.6" />
-      <path d="M5 9.2 L8 12 L13 6" fill="none" stroke="var(--gr)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>;
-  }
-  if (status === 'wip') {
-    const p = Math.max(progress ?? 50, 1);
-    const off = circ * (1 - p / 100);
-    return <svg width={size} height={size} viewBox="0 0 18 18" style={{ verticalAlign: 'middle', display: 'inline-block' }} aria-label={`In progress ${p}%`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--b3)" strokeWidth="1.5" />
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--am)" strokeWidth="1.8"
-        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`} />
-      {p > 0 && <text x={cx} y={cy + 2.5} fontSize={7} textAnchor="middle" fill="var(--tx2)" fontFamily="var(--mono)" fontWeight="600">{Math.round(p)}</text>}
-    </svg>;
-  }
-  return <svg width={size} height={size} viewBox="0 0 18 18" style={{ verticalAlign: 'middle', display: 'inline-block' }} aria-label="Open">
-    <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--tx3)" strokeWidth="1.5" />
-  </svg>;
-}
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };

@@ -842,10 +842,20 @@ export default function App() {
       const node = byId[id];
       if (!node) return false;
       const children = byParent[id] || [];
-      const hasVisibleChild = children.some(child => visit(child.id));
-      const shouldShow = children.length > 0 || node.status !== 'done' || hasVisibleChild;
-      if (shouldShow) keep.add(id);
-      return shouldShow;
+      if (!children.length) {
+        const shouldShow = node.status !== 'done';
+        if (shouldShow) keep.add(id);
+        return shouldShow;
+      }
+      // For non-leaf structure, derived parent statuses can be stale or intentionally
+      // aggregate child state. Hide/show should therefore be driven only by whether
+      // there is any non-done leaf left below this branch.
+      let hasVisibleChild = false;
+      children.forEach(child => {
+        if (visit(child.id)) hasVisibleChild = true;
+      });
+      if (hasVisibleChild) keep.add(id);
+      return hasVisibleChild;
     };
     (byParent[''] || []).forEach(root => visit(root.id));
     return tree.filter(r => keep.has(r.id));
