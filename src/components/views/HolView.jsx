@@ -12,41 +12,50 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
   for (let y = Math.min(nowY - 1, new Date(planStart).getFullYear()); y <= Math.max(nowY + 2, new Date(planEnd).getFullYear()); y++)
     planYears.push(y);
 
-  const sorted = [...(holidays || [])].sort((a, b) => a.date.localeCompare(b.date));
+  const list = holidays || [];
+  const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
+  const byYear = sorted.reduce((acc, h) => {
+    const y = (h.date || '').slice(0, 4) || '—';
+    (acc[y] ||= []).push(h);
+    return acc;
+  }, {});
+  const years = Object.keys(byYear).sort((a, b) => b.localeCompare(a));
 
   function importNRW() {
     const nrw = computeNRW(planYears);
-    const ex = new Set((holidays || []).map(h => h.date));
-    onUpdate([...(holidays || []), ...nrw.filter(h => !ex.has(h.date))].sort((a, b) => a.date.localeCompare(b.date)));
+    const ex = new Set(list.map(h => h.date));
+    onUpdate([...list, ...nrw.filter(h => !ex.has(h.date))].sort((a, b) => a.date.localeCompare(b.date)));
   }
 
   function upd(idx, k, v) {
-    onUpdate((holidays || []).map((h, i) => i === idx ? { ...h, [k]: v, auto: false } : h));
+    onUpdate(list.map((h, i) => i === idx ? { ...h, [k]: v, auto: false } : h));
   }
 
   function del(idx) {
-    onUpdate((holidays || []).filter((_, i) => i !== idx));
+    onUpdate(list.filter((_, i) => i !== idx));
   }
 
-  const aC = (holidays || []).filter(h => h.auto).length;
-  const mC = (holidays || []).filter(h => !h.auto).length;
+  const aC = list.filter(h => h.auto).length;
+  const mC = list.filter(h => !h.auto).length;
+
+  const smallInput = { background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 11, padding: '2px 6px', fontFamily: 'var(--mono)', outline: 'none' };
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div className="section-h" style={{ margin: 0 }}>{t('hv.title')}</div>
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      {/* Header actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         <button className="btn btn-pri btn-sm" onClick={importNRW}>{t('hv.importNRW')} ({planYears.join(', ')})</button>
-        <button className="btn btn-sec btn-sm" onClick={() => onUpdate([...(holidays || []), { date: iso(new Date()), name: '', auto: false }])}>{t('hv.addManual')}</button>
-        {(holidays || []).length > 0 && (
+        <button className="btn btn-sec btn-sm" onClick={() => onUpdate([...list, { date: iso(new Date()), name: '', auto: false }])}>{t('hv.addManual')}</button>
+        {list.length > 0 && (
           <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(t('hv.confirmClear'))) onUpdate([]); }}>{t('hv.clearAll')}</button>
         )}
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('hv.stats').replace('{0}', aC).replace('{1}', mC)}</span>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('hv.stats').replace('{0}', aC).replace('{1}', mC)}</span>
       </div>
 
-      <p style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 14 }}>{t('hv.desc')}</p>
+      <p className="helper" style={{ marginBottom: 10 }}>{t('hv.desc')}</p>
 
-      {!(holidays || []).length && (
+      {!list.length && (
         <div className="empty">
           <div style={{ fontSize: 28, marginBottom: 10 }}>📆</div>
           <div style={{ fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('hv.empty')}</div>
@@ -54,56 +63,41 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
         </div>
       )}
 
-      {sorted.length > 0 && (
-        <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
-          <table className="tree-tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>{t('hv.day')}</th>
-                <th style={{ width: 110 }}>{t('hv.date')}</th>
-                <th>{t('hv.name')}</th>
-                <th style={{ width: 70 }}>{t('hv.source')}</th>
-                <th style={{ width: 32 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map(h => {
-                const gi = (holidays || []).indexOf(h);
-                const dt = new Date(h.date);
-                const dow = DOW_DE[dt.getDay()];
-                return (
-                  <tr key={h.date + gi} className="tr">
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', padding: '6px 10px' }}>{dow}</td>
-                    {h.auto
-                      ? <td style={{ fontFamily: 'var(--mono)', fontSize: 11, padding: '6px 10px' }}>{h.date}</td>
-                      : <td style={{ padding: '4px 6px' }}>
-                          <LazyInput type="date" value={h.date} onCommit={v => upd(gi, 'date', v)}
-                            style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 11, padding: '3px 6px', fontFamily: 'var(--mono)', width: 110, outline: 'none' }} />
-                        </td>
-                    }
-                    {h.auto
-                      ? <td style={{ fontSize: 12, padding: '6px 10px' }}>{h.name}</td>
-                      : <td style={{ padding: '4px 6px' }}>
-                          <LazyInput value={h.name} onCommit={v => upd(gi, 'name', v)}
-                            style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 12, padding: '3px 6px', outline: 'none' }}
-                            placeholder={t('hv.name')} />
-                        </td>
-                    }
-                    <td style={{ padding: '6px 10px' }}>
-                      <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 9 }}>
-                        {h.auto ? t('hv.srcNRW') : t('hv.srcCustom')}
-                      </span>
-                    </td>
-                    <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                      <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)}>×</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {years.map(y => (
+        <div key={y} style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{y}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{byYear[y].length}</span>
+          </div>
+          <ul className="res-list">
+            {byYear[y].map(h => {
+              const gi = list.indexOf(h);
+              const dt = new Date(h.date);
+              const dow = DOW_DE[dt.getDay()];
+              return (
+                <li key={h.date + gi} className="res-row" style={{ cursor: 'default' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', width: 24, flexShrink: 0 }}>{dow}</span>
+                  {h.auto
+                    ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, width: 90, flexShrink: 0 }}>{h.date}</span>
+                    : <LazyInput type="date" value={h.date} onCommit={v => upd(gi, 'date', v)}
+                        style={{ ...smallInput, width: 110, flexShrink: 0 }} />
+                  }
+                  {h.auto
+                    ? <span className="res-row-name">{h.name}</span>
+                    : <LazyInput value={h.name} onCommit={v => upd(gi, 'name', v)}
+                        style={{ ...smallInput, flex: 1, fontFamily: 'var(--font)', fontSize: 12 }}
+                        placeholder={t('hv.name')} />
+                  }
+                  <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 9, flexShrink: 0 }}>
+                    {h.auto ? t('hv.srcNRW') : t('hv.srcCustom')}
+                  </span>
+                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', flexShrink: 0 }} onClick={() => del(gi)}>×</button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
-      )}
+      ))}
     </div>
   );
 }
