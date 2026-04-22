@@ -1208,7 +1208,7 @@ export default function App() {
   }
 
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
-  function addMember() { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
+  function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).

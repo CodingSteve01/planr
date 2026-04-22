@@ -350,7 +350,7 @@ const en = {
 
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Add team',
-  'rv.members': 'Team Members', 'rv.addPerson': '+ Add person',
+  'rv.members': 'Team Members', 'rv.addPerson': 'Add person',
   'rv.noMembers': 'No team members yet.',
   'rv.noMembersHint': 'Add people to assign tasks and plan capacity.',
   'rv.vacations': 'Vacations', 'rv.addVacation': '+ Add vacation',
@@ -361,6 +361,8 @@ const en = {
   'rv.chooseTeam': 'Choose team...', 'rv.choosePerson': 'Choose person...',
   'rv.person': 'Person', 'rv.note': 'Note',
   'rv.remove': 'Remove', 'rv.clone': '⧉ Clone',
+  'rv.teamColor': 'Team color', 'rv.teamName': 'Team name', 'rv.collapse': 'Collapse',
+  'rv.editTeam': 'Edit team', 'rv.editMember': 'Edit member', 'rv.editVacation': 'Edit vacation', 'rv.close': 'Close',
 
   // ── JiraExportModal ──
   'je.selectPackages': 'Select packages', 'je.hierarchyMapping': 'Hierarchy mapping',
@@ -791,7 +793,7 @@ const de = {
 
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Team hinzufügen',
-  'rv.members': 'Team-Mitglieder', 'rv.addPerson': '+ Person hinzufügen',
+  'rv.members': 'Team-Mitglieder', 'rv.addPerson': 'Person hinzufügen',
   'rv.noMembers': 'Noch keine Team-Mitglieder.',
   'rv.noMembersHint': 'Personen hinzufügen, um Aufgaben zuzuweisen und Kapazitäten zu planen.',
   'rv.vacations': 'Urlaub', 'rv.addVacation': '+ Urlaub hinzufügen',
@@ -802,6 +804,8 @@ const de = {
   'rv.chooseTeam': 'Team auswählen...', 'rv.choosePerson': 'Person auswählen...',
   'rv.person': 'Person', 'rv.note': 'Notiz',
   'rv.remove': 'Entfernen', 'rv.clone': '⧉ Klonen',
+  'rv.teamColor': 'Team-Farbe', 'rv.teamName': 'Team-Name', 'rv.collapse': 'Einklappen',
+  'rv.editTeam': 'Team bearbeiten', 'rv.editMember': 'Person bearbeiten', 'rv.editVacation': 'Urlaub bearbeiten', 'rv.close': 'Schließen',
 
   // ── JiraExportModal ──
   'je.selectPackages': 'Pakete auswählen', 'je.hierarchyMapping': 'Hierarchie-Mapping',
