@@ -186,7 +186,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
         onPhaseToggle={handlePhaseToggle}
         onEditSection={sectionId => {
-          const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'overview', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
+          const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
           const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
           const requested = tabMap[sectionId];
           // Fallback: if requested tab is hidden, land on overview so user is never stuck.
