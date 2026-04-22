@@ -442,7 +442,15 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
       : (connectedSet && connectedSet.size > 1 ? connectedSet : new Set(allPos.map(([id]) => id)));
     fitToNodes(target);
   }
-  useEffect(() => { if (layout) setTimeout(fitToScreen, 50); }, [layout]);
+  // Auto-fit only on first mount — subsequent layout changes (node edits) must not
+  // reset zoom/pan. User can always press the Fit button to re-center manually.
+  const didInitialFit = useRef(false);
+  useEffect(() => {
+    if (layout && !didInitialFit.current) {
+      didInitialFit.current = true;
+      setTimeout(fitToScreen, 50);
+    }
+  }, [layout]);
   // When search or searchIdx changes, jump to the active match (or all matches on first query).
   useEffect(() => {
     if (!searchMatchList.length) return;

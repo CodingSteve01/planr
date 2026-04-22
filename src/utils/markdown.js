@@ -5,6 +5,7 @@ import { iso } from './date.js';
 import { buildMemberShortMap } from '../App.jsx';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
 import { DEFAULT_SIZES } from './sizes.js';
+import { DEFAULT_CUSTOM_FIELDS } from './customFields.js';
 
 // ── Export: data → Markdown ──────────────────────────────────────────────────
 export function buildMarkdownText({ tree, members, teams, vacations, data, meta }) {
@@ -50,6 +51,21 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     data.holidays.forEach(h => { md += `| ${h.date} | ${esc(h.name)} | ${h.auto ? 'auto' : 'custom'} |\n`; });
     md += '\n';
   }
+
+  // Custom fields definition — write if user has explicitly defined any, OR if any task
+  // carries a custom value (so field metadata travels with the value for roundtrip).
+  // If neither → stay silent: MD stays identical to pre-feature files.
+  const anyCustomValues = tree.some(r => r.customValues && Object.values(r.customValues).some(v => v != null && v !== ''));
+  const customFields = data?.customFields?.length ? data.customFields : (anyCustomValues ? DEFAULT_CUSTOM_FIELDS : null);
+  if (customFields?.length) {
+    md += `## Custom Fields\n\n| ID | Name | Type | Template/Options |\n|---|---|---|---|\n`;
+    customFields.forEach(cf => {
+      const extra = cf.type === 'uri' ? (cf.uriTemplate || '') : cf.type === 'select' ? (cf.options || []).join(',') : '';
+      md += `| ${esc(cf.id)} | ${esc(cf.name)} | ${cf.type} | ${esc(extra)} |\n`;
+    });
+    md += '\n';
+  }
+
   md += `## Work Tree\n`;
   tree.forEach(r => {
     const d = r.id.split('.').length;
@@ -65,6 +81,9 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (r.seq) tags.push(`seq:${r.seq}`);
     if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
     if (r.confidence) tags.push(`conf:${r.confidence}`);
+    // Custom field values inline: {jira:PROJ-123, customer:Acme}
+    const cvEntries = r.customValues ? Object.entries(r.customValues).filter(([, v]) => v != null && v !== '') : [];
+    if (cvEntries.length) tags.push(...cvEntries.map(([k, v]) => `cv.${k}:${String(v).replace(/[,}]/g, ' ')}`));
     const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
     const depItems = (r.deps || []).map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
     const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';

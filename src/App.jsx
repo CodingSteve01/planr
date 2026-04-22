@@ -3,6 +3,7 @@ import { SK } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReport } from './utils/exports.js';
+import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
@@ -74,6 +75,8 @@ export default function App() {
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
+  useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -388,11 +391,12 @@ export default function App() {
     const explicitTeams = []; // teams from "## Teams" table (with color)
     const vacationsArr = [], holidaysArr = [];
     const taskTemplates = [];
+    const parsedCustomFields = []; // custom field definitions from ## Custom Fields section
     let currentTpl = null; // template being parsed
     let projName = null;
     let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
     const idStack = [];
-    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | null
+    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | 'customfields' | null
     let lastItem = null;
 
     lines.forEach(line => {
@@ -407,6 +411,7 @@ export default function App() {
         else if (lower === 'resources' || /resources?$/i.test(lower)) section = 'resources';
         else if (lower.startsWith('vacation')) section = 'vacations';
         else if (lower === 'holidays') section = 'holidays';
+        else if (lower === 'custom fields') section = 'customfields';
         else if (lower === 'work tree') section = 'tree';
         else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
         else if (section === 'templates' && hm[0].startsWith('###')) {
@@ -490,6 +495,19 @@ export default function App() {
         return;
       }
 
+      // Custom Fields section: table | ID | Name | Type | Template/Options |
+      if (section === 'customfields') {
+        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m && !/^ID$/i.test(m[1])) {
+          const cfId = m[1].trim(), cfName = m[2].trim(), cfType = m[3].trim(), cfExtra = m[4].trim();
+          const cf = { id: cfId, name: cfName, type: cfType };
+          if (cfType === 'uri') cf.uriTemplate = cfExtra;
+          else if (cfType === 'select') cf.options = cfExtra ? cfExtra.split(',').map(s => s.trim()).filter(Boolean) : [];
+          parsedCustomFields.push(cf);
+        }
+        return;
+      }
+
       // Task Templates section: numbered phase lines "1. PhaseName — TeamName"
       if (section === 'templates') {
         if (currentTpl) {
@@ -538,8 +556,9 @@ export default function App() {
       let id = '';
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
-      // Extract metadata tag block: {prio:N, seq:N, severity, conf:X}
+      // Extract metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
       let prio = 2, seq = 0, severity = 'high', confidence = '';
+      const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
         const tags = tagM[1].split(',').map(t => t.trim());
@@ -547,6 +566,7 @@ export default function App() {
           const pm = t.match(/^prio:(\d+)$/i); if (pm) { prio = +pm[1]; return; }
           const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
           const cm = t.match(/^conf:(committed|estimated|exploratory)$/i); if (cm) { confidence = cm[1].toLowerCase(); return; }
+          const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
         raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
@@ -602,6 +622,7 @@ export default function App() {
       if (pinnedStart) item.pinnedStart = pinnedStart;
       if (parallel) item.parallel = true;
       if (confidence) item.confidence = confidence;
+      if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;
     });
@@ -696,7 +717,7 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
-    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}) };
+    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: vacationsArr, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}), ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}) };
   }
 
   async function loadFromFile() {
@@ -1424,16 +1445,15 @@ export default function App() {
       </>}
     </div>}
     <div className="main">
-      {tab === 'summary' && <div className="pane"><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
-      {tab === 'plan' && <div className="pane"><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={cpSet} stats={stats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         onOpenItem={id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } }}
         onUpdate={updateNode} /></div>}
-      {tab === 'tree' && <>
-        <div className="pane-full">
-          <div style={{ flex: 1, overflow: 'auto' }}>
+      {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
+        <div style={{ flex: 1, overflow: 'auto' }}>
           {!tree.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>No items yet</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={(node, e, visibleIds) => {
@@ -1449,10 +1469,10 @@ export default function App() {
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
               }} search={search} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet}
+              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); }}
               onDelete={deleteNode} onReorder={reorderSibling} />
           }
-          </div>
         </div>
         {selected && <div className="side fade">
           {multiSel.size > 0 ? <>
@@ -1590,31 +1610,31 @@ export default function App() {
               <button className="btn btn-ghost btn-icon sm" data-htip="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue} /></div>
           </>}
         </div>}
-      </>}
-      {tab === 'gantt' && <div className="pane-full"><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
-      {tab === 'net' && <div className="pane-full"><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter}
+      </div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={goals} teams={teams} members={members} cpSet={cpSet} tree={tree} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} /></div>}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={scheduled} teams={teams} members={members} cpSet={cpSet} stats={stats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
-      {tab === 'resources' && <div className="pane"><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
+      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
         onTeamUpd={(i, k, v) => setD('teams', teams.map((t, j) => j === i ? { ...t, [k]: v } : t))}
         onTeamAdd={() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }])}
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
-      {tab === 'holidays' && <div className="pane"><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
+      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} stats={stats} confidence={confidence} confReasons={confReasons}
       onClose={() => { setModal(null); setMN(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
-    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

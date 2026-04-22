@@ -4,18 +4,20 @@ import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
+import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
+import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 
 // REASON_TIP is built inside the component using t() — see reasonTip below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -98,6 +100,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     { id: 'advanced', label: t('nm.advanced') },
   ];
   const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'overview';
+  const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
+  const setCustomValue = (fieldId, val) => s('customValues', { ...(f.customValues || {}), [fieldId]: val });
 
   return <div className="overlay">
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
@@ -175,6 +179,17 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             {stat._r > 0 && <span style={{ color: 'var(--am)' }}>{stat._r.toFixed(0)}d {t('qe.realisticSuffix')} · </span>}
             {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
             {stat._startD && <span> · {stat._startD.toLocaleDateString('de-DE')} → {stat._endD.toLocaleDateString('de-DE')}</span>}
+          </div>
+        </div>}
+
+        {/* ── Custom fields ── */}
+        {customFields.length > 0 && <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
+          <div className="frow" style={{ flexWrap: 'wrap' }}>
+            {customFields.map(cf => <div key={cf.id} className="field" style={{ flex: '1 1 200px' }}>
+              <label>{cf.name}</label>
+              <CustomFieldInput field={cf} value={(f.customValues || {})[cf.id] ?? ''} onChange={val => setCustomValue(cf.id, val)} />
+            </div>)}
           </div>
         </div>}
       </>}

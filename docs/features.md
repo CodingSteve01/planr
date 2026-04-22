@@ -120,6 +120,7 @@ QuickEdit-specific:
 - **Pinned start** — date picker in Timing tab; shows "📌" when active, `×` to clear
 - **Decide by** — date field for decision-gate items; overdue dates render red
 - **Escape or click-outside** deselects
+- **Commit strategy** — text/number inputs (name, notes, description, best days, factor, dep label) use a local-buffer pattern: keystrokes update local state only, and the upstream `onUpdate` fires on blur. Discrete controls (status, progress slider, date pickers, selects, buttons) commit immediately since each interaction is a single intentional action.
 
 ## Global search
 

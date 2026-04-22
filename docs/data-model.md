@@ -14,7 +14,8 @@ All types. No TypeScript — the code is plain JS — so these are documentation
   holidays: [Holiday],
   taskTemplates: [TaskTemplate],  // optional
   risks: [Risk],                  // optional — project-specific risk catalogue
-  sizes: [Size]                   // optional — project-specific T-shirt sizes
+  sizes: [Size],                  // optional — project-specific T-shirt sizes
+  customFields: [CustomField]     // optional — user-defined fields shown on all tasks
 }
 ```
 
@@ -56,7 +57,10 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
 
   // Phases (non-root items only):
   phases,        // [{id, name, team, teams, assign, effortPct, status}] — workflow phases, undefined if none
-  templateId     // string — informational: which TaskTemplate was used (snapshot, not live ref)
+  templateId,    // string — informational: which TaskTemplate was used (snapshot, not live ref)
+
+  // Custom field values (any item):
+  customValues   // { [fieldId]: string|number } — keyed by CustomField.id; absent = no values set
 }
 ```
 
@@ -163,6 +167,25 @@ The full catalogue is editable in **Settings → T-Shirt Sizes**. When `data.siz
 
 Default sizes: XS=1d (×1.3), S=3d (×1.3), M=7d (×1.4), L=15d (×1.5), XL=30d (×1.5), XXL=45d (×1.6).
 
+## CustomField
+
+```js
+{
+  id,           // unique slug, e.g. 'jira' or 'cf_1234567890'
+  name,         // display label shown in NodeModal/QuickEdit, e.g. "Jira ID"
+  type,         // "text" | "number" | "uri" | "select"
+  uriTemplate,  // (uri only) e.g. "https://company.atlassian.net/browse/{value}"
+                //   — if empty, the value itself is treated as the URL
+  options       // (select only) string[] of selectable values
+}
+```
+
+Managed in **Settings → Custom Fields** (between T-Shirt Sizes and Risks). If `data.customFields` is absent on load, the default seed `[{ id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: '' }]` is used transparently.
+
+Values live on each `TreeItem.customValues` — absent means no value set; render as empty/blank, never error.
+
+Exported to Markdown under `## Custom Fields` (field definitions) and inline in tree items as `{cv.fieldId:value}` tags. Both are parsed on import for full round-trip.
+
 ## ProjectTemplate (seed only — not stored in project data)
 
 Templates live in `src/utils/projectTemplates.js` and are only used at project-creation time to seed `data.risks`, `data.sizes`, and `data.taskTemplates`. They are **not** an ongoing property of the project — once created, the project's own fields are the source of truth.
@@ -228,6 +251,7 @@ When a field is missing from an import:
 - `tree[].confidence` → `undefined` (auto-derived by `computeConfidence()`)
 - `tree[].phases` → `undefined` (no phases)
 - `tree[].templateId` → `undefined`
+- `tree[].customValues` → `{}` (no custom field values)
 - `members[].cap` → `1.0`
 - `members[].vac` → `25`
 - `meta.planStart` → today

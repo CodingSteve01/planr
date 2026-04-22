@@ -38,6 +38,7 @@ Dependency arrows between nodes, routed with obstacle-awareness so they don't cu
 - **Scroll to pan** — two-finger scroll moves the viewport
 - **Cursor-anchored zoom** — the point under the cursor stays fixed while zooming in/out. Implemented with refs for pan/zoom so rapid wheel events read the freshest values (the prior closure-captured-state approach caused the viewport to jump erratically during fast scrolls).
 - **Perceived 100 % = 150 % real zoom** — the zoom label divides by 1.5 so what looks like "100 %" is comfortable
+- **Zoom/pan persists across edits** — opening QuickEdit or NodeModal and saving a node does not reset the viewport. Auto-fit runs only on the first mount; subsequent layout recomputations (triggered by tree changes) leave the viewport untouched.
 
 This mapping matches what users actually want: "too small" at real 100 % vs. "right" at real 150 %.
 

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
+import { resolveUri } from '../../utils/customFields.js';
 
 function depth(id) { return id.split('.').length; }
 
@@ -35,7 +36,7 @@ function StatusIcon({ status, progress = 0 }) {
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, onQuickAdd, onDelete, onReorder }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, customFields, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -70,13 +71,18 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
       if (collapsed.has(anc)) toExpand.push(anc);
     }
     if (toExpand.length) setCollapsed(s => { const n = new Set(s); toExpand.forEach(a => n.delete(a)); return n; });
-    setTimeout(() => { if (selRef.current) selRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+    setTimeout(() => {
+      if (!selRef.current) return;
+      const rect = selRef.current.getBoundingClientRect();
+      const inView = rect.top >= 0 && rect.bottom <= (window.innerHeight || document.documentElement.clientHeight);
+      if (!inView) selRef.current.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+    }, 50);
   }, [selected?.id]);
 
   // Scroll to first search match whenever the query changes (and the filtered list updates).
   useEffect(() => {
     if (!search) return;
-    setTimeout(() => { firstMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+    setTimeout(() => { firstMatchRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' }); }, 50);
   }, [search]);
 
   const toggle = (id) => setCollapsed(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -280,6 +286,22 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
 
               {/* Critical path indicator */}
               {isCp && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--re)' }} data-htip="On critical path">⚡</span>}
+
+              {/* Custom field indicator — show link icon if any uri field has a value */}
+              {customFields?.length > 0 && (() => {
+                const vals = r.customValues || {};
+                const filledUriFields = customFields.filter(cf => cf.type === 'uri' && vals[cf.id]);
+                const filledOtherFields = customFields.filter(cf => cf.type !== 'uri' && vals[cf.id] != null && vals[cf.id] !== '');
+                if (!filledUriFields.length && !filledOtherFields.length) return null;
+                const tipParts = [
+                  ...filledUriFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
+                  ...filledOtherFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
+                ];
+                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', opacity: 0.8 }}
+                  data-htip={tipParts.join(' · ')}>
+                  {filledUriFields.length > 0 && '↗'}{filledOtherFields.length > 0 && filledUriFields.length === 0 && '·'}
+                </span>;
+              })()}
 
               {/* Collapsed children count */}
               {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}

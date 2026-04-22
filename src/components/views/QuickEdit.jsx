@@ -4,18 +4,20 @@ import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
+import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
+import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 
 // REASON_TIP is built inside the component using t() — see reasonTip helper below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -48,6 +50,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const phases = normalizePhases(f.phases);
   const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;
   const memberName = id => members.find(member => member.id === id)?.name || id;
+  const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
 
   const tabs = [
     { id: 'overview', label: t('qe.tab.overview') },
@@ -194,6 +197,16 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
         </div>;
       })()}
+
+      {/* ── Custom fields ── */}
+      {customFields.length > 0 && <div style={{ marginTop: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
+        {customFields.map(cf => <div key={cf.id} className="field">
+          <label>{cf.name}</label>
+          <CustomFieldInput field={cf} value={(f.customValues || {})[cf.id] ?? ''}
+            onChange={val => patchNode({ customValues: { ...(f.customValues || {}), [cf.id]: val } })} />
+        </div>)}
+      </div>}
     </>}
 
     {/* ══════ WORKFLOW TAB ══════ */}
@@ -314,7 +327,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 {target?.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <input value={label} onChange={e => patchNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
+                <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
                 <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
                   const nextDeps = (f.deps || []).filter(id => id !== dep);
                   const nextLabels = { ...(f._depLabels || {}) };

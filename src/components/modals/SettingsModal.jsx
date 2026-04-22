@@ -4,10 +4,11 @@ import { createPhaseDraft, normalizePhases, phaseTeamLabel } from '../../utils/p
 import { PhaseList } from '../shared/Phases.jsx';
 import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
+import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
-export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, teams, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onClose }) {
+export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
   const { t, langPref, setLang } = useT();
   const { themePref, setTheme } = useTheme();
   const [tab, setTab] = useState('general');
@@ -55,11 +56,25 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
   const removeSize = (i) => setSizeList(sizeList.filter((_, j) => j !== i));
   const resetSizeDefaults = () => { if (confirm(t('set.confirmResetSizes'))) setSizeList([...DEFAULT_SIZES]); };
 
+  // ── Custom fields state ──
+  const [cfList, setCfList] = useState(() => projectCustomFields?.length ? [...projectCustomFields] : [...DEFAULT_CUSTOM_FIELDS]);
+  const updateCf = (i, patch) => setCfList(cfList.map((f, j) => j === i ? { ...f, ...patch } : f));
+  const addCf = () => setCfList([...cfList, { id: 'cf_' + Date.now(), name: '', type: 'text' }]);
+  const removeCf = (i) => { if (confirm(t('cf.removeField') + '?')) setCfList(cfList.filter((_, j) => j !== i)); };
+
+  const CF_TYPES = [
+    { id: 'text', label: t('cf.type.text') },
+    { id: 'number', label: t('cf.type.number') },
+    { id: 'uri', label: t('cf.type.uri') },
+    { id: 'select', label: t('cf.type.select') },
+  ];
+
   const saveAll = () => {
     onSave(m);
     onSaveTemplates(tpls);
     onSaveRisks?.(riskList);
     onSaveSizes?.(sizeList);
+    onSaveCustomFields?.(cfList);
     onClose();
   };
 
@@ -67,6 +82,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
     { id: 'general', label: t('set.title') },
     { id: 'templates', label: t('ph.templates') },
     { id: 'sizes', label: t('set.sizes') },
+    { id: 'customfields', label: t('cf.tab') },
     { id: 'risks', label: t('set.risks') },
   ];
 
@@ -210,6 +226,44 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
           <div style={{ flex: 1 }} />
           <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={resetSizeDefaults}>{t('set.resetSizes')}</button>
         </div>
+      </>}
+
+      {/* ══════ CUSTOM FIELDS TAB ══════ */}
+      {tab === 'customfields' && <>
+        <h2>{t('cf.tab')}</h2>
+        <p className="helper" style={{ marginBottom: 12 }}>{t('cf.help')}</p>
+
+        {cfList.map((cf, i) => (
+          <div key={cf.id || i} style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div className="field" style={{ flex: '1 1 140px', marginBottom: 0 }}>
+                <label style={{ fontSize: 10 }}>{t('cf.name')}</label>
+                <input value={cf.name} placeholder="e.g. Jira ID" onChange={e => updateCf(i, { name: e.target.value })} />
+              </div>
+              <div className="field" style={{ flex: '0 0 120px', marginBottom: 0 }}>
+                <label style={{ fontSize: 10 }}>{t('cf.type')}</label>
+                <select value={cf.type} onChange={e => updateCf(i, { type: e.target.value })}
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--b2)', borderRadius: 'var(--r)', background: 'var(--bg)', color: 'var(--tx)', fontSize: 12 }}>
+                  {CF_TYPES.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', marginBottom: 1 }} onClick={() => removeCf(i)}>×</button>
+            </div>
+            {cf.type === 'uri' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+              <label style={{ fontSize: 10 }}>{t('cf.template')}</label>
+              <input value={cf.uriTemplate || ''} placeholder="https://company.atlassian.net/browse/{value}"
+                onChange={e => updateCf(i, { uriTemplate: e.target.value })} style={{ fontFamily: 'var(--mono)', fontSize: 11 }} />
+            </div>}
+            {cf.type === 'select' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+              <label style={{ fontSize: 10 }}>{t('cf.options')}</label>
+              <input value={(cf.options || []).join(', ')} placeholder="Option A, Option B, Option C"
+                onChange={e => updateCf(i, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} />
+            </div>}
+          </div>
+        ))}
+
+        {cfList.length === 0 && <div style={{ color: 'var(--tx3)', fontSize: 11, padding: '12px 0', textAlign: 'center' }}>No custom fields yet.</div>}
+        <button className="btn btn-sec btn-sm" style={{ width: '100%', marginTop: 4 }} onClick={addCf}>{t('cf.addField')}</button>
       </>}
 
       {/* ══════ RISKS TAB ══════ */}

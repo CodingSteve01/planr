@@ -210,6 +210,15 @@ const en = {
   'set.riskName': 'Risk description', 'set.addRisk': '+ Risk',
   'set.resetRisks': 'Reset to defaults', 'set.confirmResetRisks': 'Reset risks to default values?',
 
+  // ── Custom Fields ──
+  'cf.tab': 'Custom Fields',
+  'cf.name': 'Field name', 'cf.type': 'Type', 'cf.template': 'URI template (optional)',
+  'cf.options': 'Options (comma-separated)', 'cf.addField': '+ Add field', 'cf.removeField': 'Remove field',
+  'cf.help': 'Custom fields appear on all tasks. URI fields can auto-build links from a template like https://company.atlassian.net/browse/{value}.',
+  'cf.type.text': 'Text', 'cf.type.number': 'Number', 'cf.type.uri': 'URI / Link', 'cf.type.select': 'Select',
+  'cf.openLink': 'Open link',
+  'cf.fieldValues': 'Custom Fields',
+
   // ── AutoAssignHint ──
   'aa.suggestion': 'Suggestion:', 'aa.accept': 'Accept',
 
@@ -598,6 +607,15 @@ const de = {
   'set.riskHelp': 'Diese Risiken erscheinen im Schätzungs-Wizard. Jedes ausgewählte Risiko erhöht den Unsicherheitsfaktor um sein Gewicht.',
   'set.riskName': 'Risikobezeichnung', 'set.addRisk': '+ Risiko',
   'set.resetRisks': 'Standard wiederherstellen', 'set.confirmResetRisks': 'Risiken auf Standardwerte zurücksetzen?',
+
+  // ── Eigene Felder ──
+  'cf.tab': 'Eigene Felder',
+  'cf.name': 'Feldname', 'cf.type': 'Typ', 'cf.template': 'URI-Vorlage (optional)',
+  'cf.options': 'Optionen (kommagetrennt)', 'cf.addField': '+ Feld hinzufügen', 'cf.removeField': 'Feld entfernen',
+  'cf.help': 'Eigene Felder erscheinen auf allen Aufgaben. URI-Felder können Links automatisch aufbauen, z. B. https://company.atlassian.net/browse/{value}.',
+  'cf.type.text': 'Text', 'cf.type.number': 'Zahl', 'cf.type.uri': 'URI / Link', 'cf.type.select': 'Auswahl',
+  'cf.openLink': 'Link öffnen',
+  'cf.fieldValues': 'Eigene Felder',
 
   // ── AutoAssignHint ──
   'aa.suggestion': 'Vorschlag:', 'aa.accept': 'Übernehmen',
