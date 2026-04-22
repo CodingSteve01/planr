@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useT } from '../../i18n.jsx';
-import { buildDemoProject } from '../../utils/demoProject.js';
 import { treeStats, schedule, leafNodes, computeConfidence } from '../../utils/scheduler.js';
 import { buildHMap } from '../../utils/holidays.js';
 import { renderRoadmapSvg } from '../../utils/roadmap.js';
@@ -408,8 +407,16 @@ const IDLE_RESTART = 30000;
 
 export function FeatureCarousel() {
   const { t } = useT();
-  const demo = useMemo(() => {
-    try { return buildDemoProject(t); } catch { return null; }
+  const [demo, setDemo] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    import('../../utils/demoProject.js')
+      .then(m => {
+        if (!alive) return;
+        try { setDemo(m.buildDemoProject(t)); } catch { setDemo(null); }
+      })
+      .catch(() => { if (alive) setDemo(null); });
+    return () => { alive = false; };
   }, [t]);
 
   const [current, setCurrent] = useState(0);

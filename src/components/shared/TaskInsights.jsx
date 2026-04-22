@@ -21,6 +21,29 @@ function KVRow({ label, children, style }) {
   );
 }
 
+function StatChip({ label, value, tone = 'default' }) {
+  const toneColor = tone === 'danger' ? 'var(--re)'
+    : tone === 'warn' ? 'var(--am)'
+    : 'var(--tx)';
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 5,
+      padding: '3px 8px',
+      borderRadius: 999,
+      background: 'var(--bg3)',
+      border: '1px solid var(--b)',
+      fontSize: 10,
+      lineHeight: 1.2,
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ color: 'var(--tx3)' }}>{label}</span>
+      <span style={{ color: toneColor, fontFamily: 'var(--mono)', fontWeight: 700 }}>{value}</span>
+    </span>
+  );
+}
+
 function Section({ label, onClick, editLabel, children }) {
   const clickable = !!onClick;
   return (
@@ -84,6 +107,16 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   // Effort
   const effort = isLeaf ? re(node.best || 0, node.factor || 1.5) : stats?.[node.id]?._r;
   const effortBest = isLeaf ? (node.best || 0) : stats?.[node.id]?._b;
+  const capacityPct = sc?.capPct != null ? sc.capPct
+    : sc?.capacityFraction != null ? Math.round(sc.capacityFraction * 100)
+    : null;
+  const effortStats = [
+    sc?.calDays > 0 ? { label: t('tt.durCal'), value: `${sc.calDays}d` } : null,
+    sc?.workingDaysInWindow != null ? { label: t('tt.workingDays'), value: `${sc.workingDaysInWindow}d` } : null,
+    sc?.holidaysInWindow > 0 ? { label: t('tt.holidaysInWindow'), value: `${sc.holidaysInWindow}d`, tone: 'danger' } : null,
+    sc?.vacDays > 0 ? { label: t('tt.vacDays'), value: `${sc.vacDays}d`, tone: 'warn' } : null,
+    capacityPct != null && capacityPct < 100 ? { label: t('ins.capacity'), value: `${capacityPct}%` } : null,
+  ].filter(Boolean);
 
   // Schedule
   const startDate = sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null);
@@ -209,41 +242,31 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Effort section — leaf only */}
       {isLeaf && (node.best > 0) && (
         <Section label={t('ins.effort')} onClick={sec('effort')} editLabel={editLabel}>
-          <KVRow label={t('ins.effortBest')}>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{effortBest}d</span>
-            <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--tx3)' }}>× {node.factor || 1.5} = </span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}> {effort?.toFixed(1)}d</span>
-          </KVRow>
-          {sc?.calDays > 0 && (
-            <KVRow label={t('tt.durCal')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.calDays}d</span>
-            </KVRow>
-          )}
-          {sc?.vacDays > 0 && (
-            <KVRow label={t('tt.vacDays')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>{sc.vacDays}d</span>
-            </KVRow>
-          )}
-          {sc?.holidaysInWindow > 0 && (
-            <KVRow label={t('tt.holidaysInWindow')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--re)' }}>{sc.holidaysInWindow}d</span>
-            </KVRow>
-          )}
-          {sc?.workingDaysInWindow != null && (
-            <KVRow label={t('tt.workingDays')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.workingDaysInWindow}d</span>
-            </KVRow>
-          )}
-          {sc?.capPct != null && sc.capPct < 100 && (
-            <KVRow label={t('ins.capacity')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{sc.capPct}%</span>
-            </KVRow>
-          )}
-          {sc?.capacityFraction != null && sc?.capPct == null && (
-            <KVRow label={t('ins.capacity')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{Math.round(sc.capacityFraction * 100)}%</span>
-            </KVRow>
-          )}
+          <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px 8px',
+              flexWrap: 'wrap',
+              padding: '4px 0 2px',
+            }}>
+              <span style={{ color: 'var(--tx3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                {t('ins.effortBest')}
+              </span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{effortBest}d</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>× {node.factor || 1.5} =</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>
+                {effort?.toFixed(1)}d
+              </span>
+            </div>
+            {effortStats.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {effortStats.map(stat => (
+                  <StatChip key={stat.label} label={stat.label} value={stat.value} tone={stat.tone} />
+                ))}
+              </div>
+            )}
+          </div>
         </Section>
       )}
 
