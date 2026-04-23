@@ -331,12 +331,20 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         const team = teams.find(entry => entry.id === teamId);
         const label = teamId === NO_TEAM ? t('noTeam') : (team?.name || teamId);
         const color = teamId === NO_TEAM ? NO_TEAM_COLOR : (team?.color || '#3b82f6');
+        const groupSummary = buildSummaryItem({
+          id: `team:${teamId}`,
+          name: label,
+          team: teamId === NO_TEAM ? '' : teamId,
+          deps: [],
+          phases: [],
+        }, scopeItems, { teamId: teamId === NO_TEAM ? '' : teamId, color });
         nodes.push({
           type: 'group',
           key: `team:${teamId}`,
           collapseKey: `team:${teamId}`,
           label,
           color,
+          s: groupSummary,
           count: visibleScopeItems.length,
           level: 0,
           children: buildTreeNodes(scopeItems, visibleScopeItems, `team:${teamId}`, 1, { teamId: teamId === NO_TEAM ? '' : teamId, color }),
@@ -364,12 +372,21 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const member = memberById[personId];
           const label = personId === NO_PERSON ? UNASSIGNED_LABEL : (member?.name || personId);
           const color = personId === NO_PERSON ? NO_TEAM_COLOR : (teamById[member?.team]?.color || 'var(--ac)');
+          const groupSummary = buildSummaryItem({
+            id: `resource:${personId}`,
+            name: label,
+            team: member?.team || '',
+            person: label,
+            deps: [],
+            phases: [],
+          }, scopeItems, { personName: label, color });
           nodes.push({
             type: 'group',
             key: `resource:${personId}`,
             collapseKey: `resource:${personId}`,
             label,
             color,
+            s: groupSummary,
             count: visibleScopeItems.length,
             level: 0,
             children: buildTreeNodes(scopeItems, visibleScopeItems, `resource:${personId}`, 1, { personName: label, color }),
@@ -1057,7 +1074,59 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)' }} />
           {rows.map(row => {
             if (row.type === 'group') {
-              return <div key={row.key} style={{ height: RH, background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }} />;
+              const s = row.s;
+              const hasWindow = s?.startD && s?.endD && !s?._unestimated;
+              let baseLeft = 0;
+              let baseWidth = 0;
+              if (hasWindow) {
+                if (showDays) {
+                  baseLeft = dateToX(s.startD) + 2;
+                  baseWidth = dateToX(s.endD) + DPX - dateToX(s.startD) - 4;
+                } else {
+                  baseLeft = s.startWi * WPX + 2;
+                  baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
+                }
+              }
+              const barLeft = Math.max(0, baseLeft);
+              const barWidth = Math.max(baseWidth, 6);
+              const groupStyle = s?.status === 'done'
+                ? { background: 'var(--bg4)', border: '1px solid var(--b2)', color: 'var(--tx2)', textShadow: 'none' }
+                : { background: 'var(--bg3)', border: '1px solid var(--b2)', color: 'var(--tx)', textShadow: 'none' };
+              const groupProgress = s?.progress ?? (s?.status === 'done' ? 100 : s?.status === 'wip' ? 50 : 0);
+              return <div key={row.key} style={{ height: RH, position: 'relative', background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }}>
+                {hasWindow && <div className="gbar"
+                  style={{
+                    left: barLeft,
+                    width: barWidth,
+                    top: 5,
+                    height: 18,
+                    borderRadius: 5,
+                    cursor: 'default',
+                    boxShadow: 'none',
+                    ...groupStyle,
+                  }}>
+                  {groupProgress > 0 && groupProgress < 100 && <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${groupProgress}%`,
+                    background: 'rgba(127,127,127,.18)',
+                    borderRadius: '5px 0 0 5px',
+                    pointerEvents: 'none',
+                  }} />}
+                  {s?.status === 'done' && <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(119,128,138,.08)',
+                    borderRadius: 5,
+                    pointerEvents: 'none',
+                  }} />}
+                  <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s?.status === 'done' ? 'line-through' : 'none' }}>{row.label}</span>
+                  </span>
+                </div>}
+              </div>;
             }
             const s = row.s;
             const tc = rowColor(row);
