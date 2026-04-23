@@ -5,13 +5,14 @@ import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
+import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, customFields, onQuickAdd, onDelete, onReorder }) {
+export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -260,7 +261,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
 
               {/* Critical path indicator */}
-              {isCp && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--re)' }} data-htip="On critical path">⚡</span>}
+              {isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ marginLeft: 8 }} />}
 
               {/* Custom field indicator — show link icon if any uri field has a value */}
               {customFields?.length > 0 && (() => {

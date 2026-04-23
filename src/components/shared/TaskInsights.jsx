@@ -86,7 +86,6 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const sc = scheduled?.find(s => s.id === node.id);
-  const isCp = cpSet?.has(node.id);
   const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, node), [tree, scheduled, node]);
 
   // Progress
@@ -216,7 +215,6 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           <div style={{ width: `${progPct}%`, height: '100%', background: progPct >= 100 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }} />
         </div>
         <span style={{ color: confColor, fontSize: 11, fontFamily: 'var(--mono)' }}>{confDot} {confLabel}</span>
-        {isCp && <span className="badge b-cp">⚡ CP</span>}
       </div>
 
       {/* Sections */}

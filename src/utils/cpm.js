@@ -28,6 +28,57 @@ function buildLeafContext(tree) {
   return { leafMap, deps, resolveLeafIds };
 }
 
+function buildCriticalChains(critical, criticalEdges) {
+  const nodes = [...critical].sort();
+  const succ = Object.fromEntries(nodes.map(id => [id, []]));
+  const pred = Object.fromEntries(nodes.map(id => [id, []]));
+
+  [...criticalEdges].forEach(edge => {
+    const [from, to] = edge.split('->');
+    if (!succ[from] || !pred[to]) return;
+    succ[from].push(to);
+    pred[to].push(from);
+  });
+  Object.values(succ).forEach(list => list.sort());
+  Object.values(pred).forEach(list => list.sort());
+
+  const starts = nodes.filter(id => !(pred[id] || []).length);
+  const chains = [];
+  const maxChains = 128;
+
+  const walk = (id, path) => {
+    if (chains.length >= maxChains) return;
+    const nextPath = [...path, id];
+    const next = succ[id] || [];
+    if (!next.length) {
+      chains.push(nextPath);
+      return;
+    }
+    next.forEach(nextId => walk(nextId, nextPath));
+  };
+
+  starts.forEach(startId => walk(startId, []));
+  return {
+    starts,
+    ends: nodes.filter(id => !(succ[id] || []).length),
+    chains,
+  };
+}
+
+export function criticalPathLabelMap(paths = {}) {
+  const map = {};
+  Object.entries(paths || {}).forEach(([scopeId, scope], scopeIndex) => {
+    (scope?.chains || []).forEach((chain, chainIndex) => {
+      const label = `CP${scopeIndex + 1}.${chainIndex + 1}`;
+      chain.forEach(id => {
+        if (!map[id]) map[id] = [];
+        if (!map[id].includes(label)) map[id].push(label);
+      });
+    });
+  });
+  return map;
+}
+
 function analyzeScopes(tree, scopes) {
   const { leafMap, deps } = buildLeafContext(tree);
   const allLeafIds = Object.keys(leafMap);
@@ -95,12 +146,16 @@ function analyzeScopes(tree, scopes) {
       });
     });
 
+    const chainInfo = buildCriticalChains(critical, criticalEdges);
     critical.forEach(id => unionCritical.add(id));
     criticalEdges.forEach(edge => unionEdges.add(edge));
     pathMap[scope.id] = {
       ...scope.meta,
       critical,
       criticalEdges,
+      criticalStarts: chainInfo.starts,
+      criticalEnds: chainInfo.ends,
+      chains: chainInfo.chains,
       needed: [...needed],
       targets,
       chainLength: scopeEnd,

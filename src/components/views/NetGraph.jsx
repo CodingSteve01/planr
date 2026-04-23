@@ -334,7 +334,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+export function NetGraph({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -649,6 +649,6 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
     </div>
-    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} scheduled={scheduled} />}
+    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
   </div>;
 }

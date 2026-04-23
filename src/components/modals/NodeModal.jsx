@@ -6,6 +6,7 @@ import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
+import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
@@ -20,7 +21,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -222,7 +223,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)', fontSize: 13, fontWeight: 600 }}>{node.id}</span>
         {isLeaf && <SBadge s={node.status} />}
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
-        {isCp && <span className="badge b-cp">⚡ CP</span>}
+        {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
         {f.parallel && <span className="badge bo">≡</span>}
         {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
       </div>
@@ -413,7 +414,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
           <span style={{ color: 'var(--tx3)' }}>{f.best}d best × {f.factor || 1.5} = </span>
           <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
-          <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}{isCp ? ' · ⚡ CP' : ''}</span>
+          <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span>
           <br />
           <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)} ({sc.capPct}% cap)</span>
         </div>}

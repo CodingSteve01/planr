@@ -1,6 +1,7 @@
 import { iso, localDate } from '../../utils/date.js';
 import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
+import { CriticalPathBadge } from './CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 function MetaChip({ label, value, tone = 'default' }) {
@@ -41,7 +42,7 @@ function SectionTitle({ label }) {
   );
 }
 
-export function Tip({ item, x, y, teams, members, tree, scheduled = [] }) {
+export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {} }) {
   const { t } = useT();
   if (!item) return null;
 
@@ -112,7 +113,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [] }) {
       <div className="tt-title">{item.id} — {item.name}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
         <span style={{ color: statusColor, fontWeight: 700, fontSize: 11 }}>{statusDot} {statusLabel}</span>
-        {item.isCp && <span style={{ color: 'var(--re)', fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700 }}>⚡ CP</span>}
+        {item.isCp && <CriticalPathBadge id={item.id} labels={cpLabels} compact />}
         {assignNames && <span style={{ color: 'var(--tx2)', fontSize: 10 }}>{assignNames}</span>}
         {teamName && <span style={{ color: 'var(--tx3)', fontSize: 10 }}>· {teamName}</span>}
       </div>

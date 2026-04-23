@@ -8,6 +8,7 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
+import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
@@ -33,7 +34,7 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -439,20 +440,36 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     structure.nodes.forEach(visit);
     return out;
   }, [structure, collapsed]);
-  useEffect(() => {
-    const measureScrollbar = () => {
-      if (!bR.current) return;
-      const next = Math.max(0, bR.current.offsetHeight - bR.current.clientHeight);
-      setBodyScrollbarH(prev => prev === next ? prev : next);
+  const cpNodeSet = useMemo(() => new Set(cpSet || []), [cpSet]);
+  const cpRowMeta = useMemo(() => {
+    const containsMemo = new Map();
+    const containsCritical = row => {
+      if (!row) return false;
+      if (containsMemo.has(row.key)) return containsMemo.get(row.key);
+      const result = row.type === 'task'
+        ? cpNodeSet.has(row.s.id)
+        : (row.children || EMPTY_ARR).some(child => containsCritical(child));
+      containsMemo.set(row.key, result);
+      return result;
     };
-    measureScrollbar();
-    window.addEventListener('resize', measureScrollbar);
-    const id = window.setTimeout(measureScrollbar, 0);
-    return () => {
-      window.removeEventListener('resize', measureScrollbar);
-      window.clearTimeout(id);
+    const highlightMemo = new Map();
+    const highlightCritical = row => {
+      if (!row) return false;
+      if (highlightMemo.has(row.key)) return highlightMemo.get(row.key);
+      const result = row.type === 'task'
+        ? cpNodeSet.has(row.s.id)
+        : !!row.collapseKey && collapsed.has(row.collapseKey) && containsCritical(row);
+      highlightMemo.set(row.key, result);
+      return result;
     };
-  }, [rows.length, tw, showDays]);
+    return { containsCritical, highlightCritical };
+  }, [cpNodeSet, collapsed]);
+  const rowIsCp = row => cpRowMeta.highlightCritical(row);
+  const rowRelevantToCp = row => cpRowMeta.containsCritical(row);
+  const visibleRows = useMemo(
+    () => (cpOnly ? rows.filter(row => rowRelevantToCp(row)) : rows),
+    [rows, cpOnly, cpRowMeta],
+  );
 
   const RH = 28, HH = 28, FLAG_ROW_H = 18;
   const rowCenterY = rowIndex => FLAG_ROW_H + rowIndex * RH + RH / 2;
@@ -490,19 +507,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     return base + dragOffsetFor(s);
   }
 
-  // CP dependency lines (only between visible scheduled items)
-  // rowIdx maps task ID → array of ALL row indices (a multi-assigned task appears in
-  // multiple person/team groups, so we need every occurrence for dep-line drawing).
+  // rowIdx maps task ID → array of ALL visible row indices (a multi-assigned task appears
+  // in multiple person/team groups, so we need every occurrence for dep-line drawing).
   const rowIdx = useMemo(() => {
     const m = {};
-    rows.forEach((r, i) => {
+    visibleRows.forEach((r, i) => {
       if (r.type === 'task' && !r.s._unestimated) {
         if (!m[r.s.id]) m[r.s.id] = [];
         m[r.s.id].push(i);
       }
     });
     return m;
-  }, [rows]);
+  }, [visibleRows]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const cpEdgeSet = useMemo(() => cpEdges || new Set(), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
@@ -567,33 +583,6 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     return bands;
   }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
-  const cpLines = useMemo(() => {
-    if (!cpEdgeSet.size || !tree) return [];
-    const lines = [];
-    scheduled.forEach(s => {
-      const node = iMap[s.id]; if (!node) return;
-      (node.deps || []).forEach(rawDep => {
-        const leafIds = resD(rawDep);
-        let latestId = null, latestEnd = null;
-        leafIds.forEach(depId => {
-          const dep = sMap[depId]; if (!dep) return;
-          if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
-        });
-        if (!latestId) return;
-        if (!cpEdgeSet.has(`${latestId}->${s.id}`)) return;
-        const dep = sMap[latestId];
-        const srcRows = rowIdx[latestId], tgtRows = rowIdx[s.id];
-        if (!srcRows?.length || !tgtRows?.length) return;
-        srcRows.forEach(srcRow => {
-          tgtRows.forEach(tgtRow => {
-            lines.push({ x1: depX1(dep), y1: rowCenterY(srcRow), x2: depX2(s), y2: rowCenterY(tgtRow) });
-          });
-        });
-      });
-    });
-    return lines;
-  }, [scheduled, cpEdgeSet, tree, rows, rowIdx, WPX, showDays, groupBy, dDelta, drag]);
-
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   // When a dep targets a parent node, draw ONE line from the latest-finishing child
   // (that's the actual blocker), not individual lines from every leaf child.
@@ -610,26 +599,36 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const dep = sMap[depId]; if (!dep) return;
           if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
         });
-        if (!latestId) return;
-        const dep = sMap[latestId];
-        const srcRows = rowIdx[latestId], tgtRows = rowIdx[s.id];
-        if (!srcRows?.length || !tgtRows?.length) return;
-        srcRows.forEach((srcRow, si) => {
-          tgtRows.forEach((tgtRow, ti) => {
-            lines.push({
-              key: `${latestId}@${si}->${s.id}@${ti}->${rawDep}`,
-              x1: depX1(dep), y1: rowCenterY(srcRow),
-              x2: depX2(s), y2: rowCenterY(tgtRow),
-              removeFromId: s.id, removeDepId: rawDep,
-              srcId: latestId, tgtId: s.id,
-              isCp: cpEdgeSet.has(`${latestId}->${s.id}`),
+        const addLine = (depId, keyPrefix, isCriticalEdge = false) => {
+          const dep = sMap[depId];
+          const srcRows = rowIdx[depId];
+          const tgtRows = rowIdx[s.id];
+          if (!dep || !srcRows?.length || !tgtRows?.length) return;
+          srcRows.forEach((srcRow, si) => {
+            tgtRows.forEach((tgtRow, ti) => {
+              lines.push({
+                key: `${keyPrefix}:${depId}@${si}->${s.id}@${ti}->${rawDep}`,
+                x1: depX1(dep),
+                y1: rowCenterY(srcRow),
+                x2: depX2(s),
+                y2: rowCenterY(tgtRow),
+                removeFromId: s.id,
+                removeDepId: rawDep,
+                srcId: depId,
+                tgtId: s.id,
+                isCp: isCriticalEdge,
+              });
             });
           });
-        });
+        };
+        if (latestId) addLine(latestId, 'dep', cpEdgeSet.has(`${latestId}->${s.id}`));
+        leafIds
+          .filter(depId => depId !== latestId && cpEdgeSet.has(`${depId}->${s.id}`))
+          .forEach(depId => addLine(depId, 'cp', true));
       });
     });
     return lines;
-  }, [scheduled, tree, rows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
+  }, [scheduled, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
@@ -678,40 +677,32 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       });
     });
     return { lines, rowIds };
-  }, [hoverDepId, tree, scheduled, rows, WPX, showDays, dDelta, drag]);
+  }, [hoverDepId, tree, scheduled, visibleRows, WPX, showDays, dDelta, drag]);
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
-  const cpNodeSet = useMemo(() => new Set(cpSet || []), [cpSet]);
-  const cpRowMeta = useMemo(() => {
-    const containsMemo = new Map();
-    const containsCritical = row => {
-      if (!row) return false;
-      if (containsMemo.has(row.key)) return containsMemo.get(row.key);
-      const result = row.type === 'task'
-        ? cpNodeSet.has(row.s.id)
-        : (row.children || EMPTY_ARR).some(child => containsCritical(child));
-      containsMemo.set(row.key, result);
-      return result;
+  useEffect(() => {
+    const measureScrollbar = () => {
+      if (!bR.current) return;
+      const next = Math.max(0, bR.current.offsetHeight - bR.current.clientHeight);
+      setBodyScrollbarH(prev => prev === next ? prev : next);
     };
-    const highlightMemo = new Map();
-    const highlightCritical = row => {
-      if (!row) return false;
-      if (highlightMemo.has(row.key)) return highlightMemo.get(row.key);
-      const result = row.type === 'task'
-        ? cpNodeSet.has(row.s.id)
-        : !!row.collapseKey && collapsed.has(row.collapseKey) && containsCritical(row);
-      highlightMemo.set(row.key, result);
-      return result;
+    measureScrollbar();
+    window.addEventListener('resize', measureScrollbar);
+    const id = window.setTimeout(measureScrollbar, 0);
+    return () => {
+      window.removeEventListener('resize', measureScrollbar);
+      window.clearTimeout(id);
     };
-    return { containsCritical, highlightCritical };
-  }, [cpNodeSet, collapsed]);
-  const rowIsCp = row => cpRowMeta.highlightCritical(row);
-  const rowRelevantToCp = row => cpRowMeta.containsCritical(row);
+  }, [visibleRows.length, tw, showDays]);
   const visibleCriticalCount = useMemo(() => {
     if (!cpSet?.size) return 0;
     return new Set(rows.filter(row => row.type === 'task' && cpSet.has(row.s.id)).map(row => row.s.id)).size;
   }, [rows, cpSet]);
+  const renderedDepLines = useMemo(
+    () => (cpOnly ? allDepLines.filter(line => line.isCp) : allDepLines),
+    [allDepLines, cpOnly],
+  );
   const rowTooltipItem = row => row.type === 'group'
     ? null
     : { ...row.node, ...row.s, isCp: rowIsCp(row) };
@@ -744,8 +735,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
   const searchMatchList = useMemo(() => {
     if (!searchMatches?.size) return [];
-    return rows.filter(r => r.type === 'task' && searchMatches.has(r.s.id)).map(r => r.s.id);
-  }, [searchMatches, rows]);
+    return visibleRows.filter(r => r.type === 'task' && searchMatches.has(r.s.id)).map(r => r.s.id);
+  }, [searchMatches, visibleRows]);
   const activeMatchId = searchMatchList.length
     ? searchMatchList[((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length]
     : null;
@@ -755,16 +746,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   useEffect(() => {
     if (!activeMatchId || !bR.current) return;
     const id = setTimeout(() => {
-      const rowIndex = rows.findIndex(r => r.type === 'task' && r.s?.id === activeMatchId);
+      const rowIndex = visibleRows.findIndex(r => r.type === 'task' && r.s?.id === activeMatchId);
       if (rowIndex < 0 || !bR.current) return;
       const targetY = rowIndex * RH;
-      const s = rows[rowIndex].s;
+      const s = visibleRows[rowIndex].s;
       const targetX = s._unestimated ? undefined : Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
       const scrollTop = Math.max(0, targetY - bR.current.clientHeight / 2 + RH);
       bR.current.scrollTo({ top: scrollTop, left: targetX ?? bR.current.scrollLeft, behavior: 'smooth' });
     }, 50);
     return () => clearTimeout(id);
-  }, [activeMatchId]);
+  }, [activeMatchId, visibleRows, showDays, WPX]);
 
   // Scroll to today on first render so the user lands on the current time window.
   const didScrollToToday = useRef(false);
@@ -976,7 +967,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     <div className="gantt-body">
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
         <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
-        {rows.map(row => {
+        {visibleRows.map(row => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
             const isCp = rowIsCp(row);
@@ -988,7 +979,6 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey || row.key); }}
                 style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', cursor: 'pointer' }}
               >{isCol ? '▶' : '▼'}</button>
-              {isCp && <span style={{ fontSize: 10, color: 'var(--re)', lineHeight: 1 }}>⚡</span>}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
               <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
             </div>;
@@ -1018,6 +1008,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
+            {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>
             {!isSummary && (s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
@@ -1029,7 +1020,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
       </div>
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
-        <div style={{ width: tw, position: 'relative', minHeight: FLAG_ROW_H + rows.length * RH }}>
+        <div style={{ width: tw, position: 'relative', minHeight: FLAG_ROW_H + visibleRows.length * RH }}>
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
                 individual holiday days get tinted below instead. */}
@@ -1096,7 +1087,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             })}
           </div>
           <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)' }} />
-          {rows.map(row => {
+          {visibleRows.map(row => {
             if (row.type === 'group') {
               const s = row.s;
               const hasWindow = s?.startD && s?.endD && !s?._unestimated;
@@ -1344,7 +1335,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
             </div>;
           })}
-          {allDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: FLAG_ROW_H + rows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
+          {renderedDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: FLAG_ROW_H + visibleRows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
             <defs>
               <marker id="gar" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--re)" /></marker>
               <marker id="garH" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker>
@@ -1373,7 +1364,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 const c2x = tx - dx;
                 return `M${l.x1},${l.y1} L${sx},${l.y1} C${c1x},${l.y1} ${c2x},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
               };
-              return allDepLines.map(l => {
+              return renderedDepLines.map(l => {
                 const path = buildPath(l);
                 const isHovered = hoverLineKey === l.key;
                 const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
@@ -1425,7 +1416,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
         {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ` ${t('s.atRisk')}` : dl.maxEnd ? ` ${t('s.onTrack')}` : ''}
       </span>)}
-      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items' : 'Click to highlight the critical chains of the visible root items. Multiple red paths are possible when there is no slack.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
+      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items again.' : 'Click to show only the critical track of the current scope. Non-critical rows and non-critical dependency arrows are hidden.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
       {unestimatedCount > 0 && <span className="badge bw" data-htip="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}
       {(() => {
@@ -1463,7 +1454,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       })()}
     </svg>}
     {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
-    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} />}
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
     {ctxMenu && (() => {
       const node = iMap[ctxMenu.taskId]; if (!node) return null;
       const close = () => setCtxMenu(null);

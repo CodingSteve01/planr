@@ -324,6 +324,11 @@ const en = {
   'bv.overdue': 'Overdue', 'bv.lateEnd': 'Projected end past deadline',
   'bv.exploratoryDeadline': 'Exploratory — deadline near',
   'bv.noActivity': 'No activity in this horizon.',
+  'bv.activeItems': 'Active items',
+  'bv.activePeople': 'Active people',
+  'bv.upcomingCount': 'Upcoming milestones',
+  'bv.riskCount': 'Risk items',
+  'bv.vacationCount': 'Vacation windows',
 
   // ── NodeModal / QuickEdit — Insights tab ──
   'nm.tab.insights': 'Insights',
@@ -354,6 +359,13 @@ const en = {
   'pr.currentPhases': 'Current phases', 'pr.allOpen': 'All open ({0})',
   'pr.current': 'current', 'pr.waitingOn': 'waiting on {0}',
   'pr.ptOpen': '{0} PT open ({1})',
+  'pr.criticalPaths': 'Critical paths',
+  'pr.criticalHint': 'These are the actual zero-slack chains. Filters no longer recalculate them; they only affect what is visible elsewhere.',
+  'pr.chainLength': '{0}d critical chain',
+  'pr.standalone': 'standalone zero-slack task',
+  'pr.scopePaths': '{0} paths · {1} critical items',
+  'pr.filterHint': 'Some steps are outside the current team/resource filter and shown dimmed.',
+  'pr.noCriticalPaths': 'No critical paths in the current scope.',
 
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Add team',
@@ -774,6 +786,11 @@ const de = {
   'bv.overdue': 'Überfällig', 'bv.lateEnd': 'Voraussichtliches Ende nach Deadline',
   'bv.exploratoryDeadline': 'Explorativ — Deadline nah',
   'bv.noActivity': 'Keine Aktivität in diesem Horizont.',
+  'bv.activeItems': 'Aktive Items',
+  'bv.activePeople': 'Aktive Personen',
+  'bv.upcomingCount': 'Bevorstehende Meilensteine',
+  'bv.riskCount': 'Risiko-Items',
+  'bv.vacationCount': 'Urlaubsfenster',
 
   // ── NodeModal / QuickEdit — Insights-Tab ──
   'nm.tab.insights': 'Insights',
@@ -804,6 +821,13 @@ const de = {
   'pr.currentPhases': 'Aktuelle Phasen', 'pr.allOpen': 'Alle offenen ({0})',
   'pr.current': 'aktuell', 'pr.waitingOn': 'wartet auf {0}',
   'pr.ptOpen': '{0} PT offen ({1})',
+  'pr.criticalPaths': 'Kritische Pfade',
+  'pr.criticalHint': 'Das sind die echten Null-Puffer-Ketten. Filter rechnen sie nicht neu, sie beeinflussen nur die Sichtbarkeit an anderer Stelle.',
+  'pr.chainLength': '{0}d kritische Kette',
+  'pr.standalone': 'isolierte Null-Puffer-Aufgabe',
+  'pr.scopePaths': '{0} Pfade · {1} kritische Items',
+  'pr.filterHint': 'Einige Schritte liegen außerhalb des aktuellen Team-/Ressourcen-Filters und werden ausgegraut gezeigt.',
+  'pr.noCriticalPaths': 'Keine kritischen Pfade im aktuellen Scope.',
 
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Team hinzufügen',

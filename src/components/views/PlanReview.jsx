@@ -3,13 +3,14 @@ import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatu
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, stats, rootFilter = '', teamFilter = '', personFilter = '', onOpenItem, onUpdate }) {
+export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -37,6 +38,13 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
   const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';
   const memberName = id => members.find(m => m.id === id)?.name || id;
   const memberShort = id => { const m = members.find(x => x.id === id); if (!m) return '?'; const w = (m.name || '').trim().split(/\s+/); return w.length === 1 ? w[0].slice(0, 2).toUpperCase() : w.map(x => x[0]).join('').toUpperCase(); };
+  const matchesFilter = node => {
+    if (!node) return false;
+    if (rootFilter && !(node.id === rootFilter || node.id.startsWith(rootFilter + '.'))) return false;
+    if (teamFilter && (node.team || '') !== teamFilter) return false;
+    if (personFilter && !(node.assign || []).includes(personFilter)) return false;
+    return true;
+  };
 
   function isReady(id) {
     const item = iMap[id]; if (!item) return true;
@@ -105,6 +113,26 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
   };
 
   const total = confCounts.committed + confCounts.estimated + confCounts.exploratory;
+  const criticalScopes = useMemo(() => {
+    const entries = Object.entries(cpPaths || {}).map(([scopeId, scope], idx) => {
+      const chains = (scope?.chains || []).filter(chain => chain.length);
+      if (!chains.length) return null;
+      const nodes = [...new Set(chains.flat())];
+      const hasMatchingNode = !teamFilter && !personFilter
+        ? true
+        : nodes.some(id => matchesFilter(iMap[id]));
+      if (rootFilter && scopeId !== rootFilter) return null;
+      if (!hasMatchingNode) return null;
+      return {
+        scopeId,
+        scope,
+        chains,
+        cpNoBase: idx,
+        nodes,
+      };
+    }).filter(Boolean);
+    return entries;
+  }, [cpPaths, iMap, rootFilter, teamFilter, personFilter]);
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Confidence bar */}
@@ -130,6 +158,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
         ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
         ['capacity', t('p.teamCapacity')],
         ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
+        ['critical', `${t('pr.criticalPaths')} (${criticalScopes.reduce((sum, scope) => sum + scope.chains.length, 0)})`],
       ].map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
@@ -158,7 +187,7 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
                 <span style={{ fontSize: 10, color: CC[r.conf], flexShrink: 0 }}>{CL[r.conf]}</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-                {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
+                {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
                 <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
@@ -259,9 +288,67 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
           <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-          {r.isCp && <span style={{ fontSize: 8, color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>CP</span>}
+          {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
           <span style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('pr.waitingOn', blockers.length)}</span>
           {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
+        </div>;
+      })}
+    </>}
+
+    {section === 'critical' && <>
+      {criticalScopes.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.noCriticalPaths')}</div>}
+      {criticalScopes.length > 0 && <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 14px', marginBottom: 14, fontSize: 11, color: 'var(--tx2)' }}>
+        {t('pr.criticalHint')}
+        {(teamFilter || personFilter) && <div style={{ marginTop: 6, color: 'var(--tx3)' }}>{t('pr.filterHint')}</div>}
+      </div>}
+      {criticalScopes.map((entry, scopeIndex) => {
+        const scopeNode = iMap[entry.scopeId];
+        return <div key={entry.scopeId} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--b)' }}>
+            <span className="badge b-cp">{scopeIndex + 1}</span>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{scopeNode?.name || entry.scopeId}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{entry.scopeId}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.scopePaths', entry.chains.length, entry.nodes.length)}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {entry.chains.map((chain, chainIndex) => {
+              const cpNo = `${scopeIndex + 1}.${chainIndex + 1}`;
+              return <div key={`${entry.scopeId}:${chain.join('>')}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span className="badge b-cp" style={{ flexShrink: 0, minWidth: 42, textAlign: 'center' }}>CP{cpNo}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                  {chain.map((id, idx) => {
+                    const node = iMap[id];
+                    const sc = sMap[id];
+                    const dimmed = (teamFilter || personFilter) && !matchesFilter(node);
+                    return <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      {idx > 0 && <span style={{ color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>→</span>}
+                      <button
+                        className="btn btn-sec btn-xs"
+                        onClick={() => onOpenItem?.(id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          maxWidth: 260,
+                          padding: '4px 8px',
+                          borderColor: 'rgba(154,36,40,.45)',
+                          background: dimmed ? 'var(--bg3)' : 'rgba(154,36,40,.08)',
+                          opacity: dimmed ? .55 : 1,
+                        }}
+                        data-htip={node?.name || id}
+                      >
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>{id}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>{node?.name || id}</span>
+                        {sc?.effort > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{sc.effort.toFixed(0)}d</span>}
+                      </button>
+                    </span>;
+                  })}
+                  {chain.length === 1 && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('pr.standalone')}</span>}
+                </div>
+              </div>;
+            })}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.chainLength', entry.scope.chainLength.toFixed(1))}</div>
         </div>;
       })}
     </>}

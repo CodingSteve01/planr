@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { iso, localDate, diffDays } from '../../utils/date.js';
 import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
+import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '✓' };
@@ -36,7 +37,7 @@ function weeksBetween(a, b) {
   return Math.round(days / 7);
 }
 
-export function BriefingView({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
+export function BriefingView({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
   const { t } = useT();
 
   const HORIZON_OPTS = [
@@ -186,6 +187,14 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
   const today = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
   const noContent = personCards.length === 0 && milestones.length === 0 && atRisk.length === 0 && vacationsInHorizon.length === 0;
+  const activeItemsCount = personCards.reduce((sum, card) => sum + card.items.length, 0);
+  const summaryCards = [
+    { label: t('bv.activeItems'), value: activeItemsCount, tone: 'var(--ac)' },
+    { label: t('bv.activePeople'), value: personCards.length, tone: 'var(--gr)' },
+    { label: t('bv.upcomingCount'), value: milestones.length, tone: 'var(--am)' },
+    { label: t('bv.riskCount'), value: atRisk.length, tone: atRisk.length ? 'var(--re)' : 'var(--tx3)' },
+    { label: t('bv.vacationCount'), value: vacationsInHorizon.length, tone: 'var(--tx2)' },
+  ];
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -193,7 +202,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>🗞 {t('tab.briefing')}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{t('tab.briefing')}</div>
           <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>{today}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -208,10 +217,19 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
               style={{ padding: '3px 8px', fontSize: 11, marginLeft: 6 }}
               onClick={() => onExportTodo(horizonDays)}
               data-htip={t('bv.exportTodoHint')}>
-              ⬇ {t('bv.exportTodo')}
+              {t('bv.exportTodo')}
             </button>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 18 }}>
+        {summaryCards.map(card => (
+          <div key={card.label} className="sum-card" style={{ minWidth: 0 }}>
+            <div className="sum-v" style={{ color: card.tone }}>{card.value}</div>
+            <div className="sum-l">{card.label}</div>
+          </div>
+        ))}
       </div>
 
       {noContent && (
@@ -223,7 +241,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       {/* Vacations in horizon */}
       {vacationsInHorizon.length > 0 && (
         <>
-          <div className="section-h" style={{ marginTop: 0 }}>🏖 {t('bv.vacations')}</div>
+          <div className="section-h" style={{ marginTop: 0 }}>{t('bv.vacations')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
             {vacationsInHorizon.map((v, i) => {
               const member = members.find(m => m.id === v.person);
@@ -249,7 +267,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       {/* Per-person cards */}
       {personCards.length > 0 && (
         <>
-          <div className="section-h" style={{ marginTop: 0 }}>🔨 {t('bv.activeWork')}</div>
+          <div className="section-h" style={{ marginTop: 0 }}>{t('bv.activeWork')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
             {personCards.map(card => {
               const myVacs = vacationsInHorizon.filter(v => v.person === card.personId);
@@ -269,8 +287,8 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
 
                   {/* Vacation notice if any */}
                   {myVacs.map((v, i) => (
-                    <div key={i} style={{ fontSize: 11, color: 'var(--am)', marginBottom: 6 }}>
-                      🏖 {t('bv.onVacation')}: {fmtDateDE(localDate(v.from))}–{fmtDateDE(localDate(v.to))}
+                    <div key={i} style={{ fontSize: 11, color: 'var(--am)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+                      {t('bv.onVacation')}: {fmtDateDE(localDate(v.from))}–{fmtDateDE(localDate(v.to))}
                       {v.note && ` · ${v.note}`}
                     </div>
                   ))}
@@ -293,19 +311,21 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
 
                       return (
                         <div key={s.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'var(--bg-done, rgba(34,197,94,.08))' : 'var(--bg3)', border: `1px solid ${isWip ? 'var(--gr)' : 'var(--b2)'}` }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'rgba(34,197,94,.08)' : 'var(--bg3)', border: `1px solid ${isWip ? 'var(--gr)' : 'var(--b2)'}` }}
                           onClick={() => onOpenItem?.(s.id)}>
+                          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
                           <span style={{ color: S_COLOR[s.status], fontSize: 12, flexShrink: 0 }}>{S_DOT[s.status]}</span>
+                          {cpSet?.has(s.id) && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
                           <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {s.name}
                           </span>
                           {others.length > 0 && (
-                            <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>
-                              🤝 {others.join(', ')}
+                            <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {others.join(', ')}
                             </span>
                           )}
                           {isStartingSoon && !isWip && (
-                            <span style={{ fontSize: 10, color: 'var(--ac)', flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
                               {t('bv.startsSoon')} {fmtDateDE(s.startD)}
                             </span>
                           )}
@@ -331,7 +351,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       {/* Upcoming milestones */}
       {milestones.length > 0 && (
         <>
-          <div className="section-h">🎯 {t('bv.milestones')}</div>
+          <div className="section-h">{t('bv.milestones')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
             {milestones.map(m => {
               const dl = localDate(m.date);
@@ -358,7 +378,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       {/* Risks / At-risk */}
       {atRisk.length > 0 && (
         <>
-          <div className="section-h">⚠ {t('bv.risks')}</div>
+          <div className="section-h">{t('bv.risks')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
             {atRisk.map(r => (
               <div key={r.id}
