@@ -4,6 +4,7 @@ import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/schedule
 import { iso, diffDays } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
+import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 
@@ -49,6 +50,10 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     return [...groups.values()].sort((a, b) => a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1);
   }, [upcoming, teams]);
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
+  const timelineById = useMemo(
+    () => Object.fromEntries(tree.map(node => [node.id, summarizeNodeTimeline(tree, scheduled, node)])),
+    [tree, scheduled],
+  );
 
   const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
@@ -148,10 +153,13 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
+        const timeline = timelineById[dl.id];
         const linked = dl.type === 'deadline'
           ? deadlineScopedScheduledItems(tree, scheduled, dl.id)
           : scheduled.filter(s => s.id.startsWith(dl.id + '.'));
-        const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+        const maxEnd = dl.type === 'deadline'
+          ? (timeline?.deadline?.end || timeline?.planned?.end || null)
+          : (timeline?.planned?.end || (linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null));
         const dlDate = dl.date ? new Date(dl.date) : null;
         const isLate = maxEnd && dlDate && dlDate < maxEnd;
         const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
@@ -171,6 +179,12 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
             </span>
           </div>
           {dl.description && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
+          {timeline?.planned?.end && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
+              <span>{t('ins.planned')}: {iso(timeline.planned.start)} → {iso(timeline.planned.end)}</span>
+              {timeline.deadline && <span>{t('qe.affectsDeadline')}: {iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}</span>}
+            </div>
+          )}
           {gp && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
               <span>{t('s.tasksDone', gpDone + '/' + gp.needed.length, gp.critical.size)}</span>
@@ -207,6 +221,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       <table className="tree-tbl">
         <thead><tr><th>Item</th><th className="r">{t('s.effort')}</th><th className="r">{t('s.progress')}</th><th>{t('s.projected')}</th></tr></thead>
         <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
+          const timeline = timelineById[r.id];
           const leaves = lvs.filter(c => c.id === r.id || c.id.startsWith(r.id + '.'));
           const done = leaves.filter(l => l.status === 'done').length;
           const prog = leaves.length > 0 ? Math.round(done / leaves.length * 100) : 0;
@@ -217,8 +232,9 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
               <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog === 100 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
               <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>{done}/{leaves.length}</span>
             </div></td>
-            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: s._endD ? 'var(--tx)' : 'var(--tx3)' }}>
-              {s._endD ? s._endD.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: timeline?.planned?.end ? 'var(--tx)' : 'var(--tx3)' }}>
+              {timeline?.planned?.end ? timeline.planned.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              {timeline?.deadline?.end && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{t('qe.affectsDeadline')}: {timeline.deadline.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
             </td>
           </tr>; })}</tbody>
       </table>

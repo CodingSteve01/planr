@@ -1,5 +1,6 @@
 import { iso, localDate } from '../../utils/date.js';
 import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
+import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 
 function MetaChip({ label, value, tone = 'default' }) {
@@ -40,7 +41,7 @@ function SectionTitle({ label }) {
   );
 }
 
-export function Tip({ item, x, y, teams, members, tree }) {
+export function Tip({ item, x, y, teams, members, tree, scheduled = [] }) {
   const { t } = useT();
   if (!item) return null;
 
@@ -73,19 +74,20 @@ export function Tip({ item, x, y, teams, members, tree }) {
     : null;
 
   const node = tree ? tree.find(r => r.id === item.id) : null;
+  const timeline = tree ? summarizeNodeTimeline(tree, scheduled, node || item.id) : null;
   const factor = node?.factor || item.factor || 1.5;
   const effort = item.effort ?? (item.best > 0 ? item.best * factor : 0);
   const capPct = item.capPct ?? 100;
   const vacDays = item.vacDays ?? (item.vacDed > 0 ? Math.round(effort * item.vacDed / 100) : 0);
   const holidaysInWindow = item.holidaysInWindow ?? 0;
-  const actualStart = item.status === 'done'
+  const actualStart = timeline?.actual?.start || (item.status === 'done'
     ? (item.startD || (node?.completedStart ? localDate(node.completedStart) : (node?.completedAt ? localDate(node.completedAt) : null)))
-    : null;
-  const actualEnd = item.status === 'done'
+    : null);
+  const actualEnd = timeline?.actual?.end || (item.status === 'done'
     ? (node?.completedAt ? localDate(node.completedAt) : (item.endD || (node?.completedEnd ? localDate(node.completedEnd) : actualStart)))
-    : null;
-  const plannedStart = node?.plannedStart ? localDate(node.plannedStart) : (item.status === 'done' ? null : item.startD);
-  const plannedEnd = node?.plannedEnd ? localDate(node.plannedEnd) : (item.status === 'done' ? null : item.endD);
+    : null);
+  const plannedStart = timeline?.planned?.start || (node?.plannedStart ? localDate(node.plannedStart) : (item.status === 'done' ? null : item.startD));
+  const plannedEnd = timeline?.planned?.end || (node?.plannedEnd ? localDate(node.plannedEnd) : (item.status === 'done' ? null : item.endD));
   const displayStart = actualStart || item.startD;
   const displayEnd = actualEnd || item.endD;
   const calDays = displayStart && displayEnd
@@ -115,20 +117,27 @@ export function Tip({ item, x, y, teams, members, tree }) {
         {teamName && <span style={{ color: 'var(--tx3)', fontSize: 10 }}>· {teamName}</span>}
       </div>
 
-      {(displayStart || displayEnd || plannedStart || plannedEnd || item.pinnedStart || node?.decideBy) && (
+      {(displayStart || displayEnd || plannedStart || plannedEnd || timeline?.deadline || item.pinnedStart || node?.decideBy) && (
         <>
           <SectionTitle label={t('ins.timing')} />
-          {displayStart && displayEnd && (
+          {actualStart && actualEnd && (
             <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
-              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{item.status === 'done' ? t('ins.actual') : t('ins.period')}</span>
-              <span style={{ fontFamily: 'var(--mono)' }}>{iso(displayStart)} → {iso(displayEnd)}</span>
-              {calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.actual')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{iso(actualStart)} → {iso(actualEnd)}</span>
             </div>
           )}
-          {item.status === 'done' && plannedStart && plannedEnd && (
+          {plannedStart && plannedEnd && (
             <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
-              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.planned')}</span>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{actualStart ? t('ins.planned') : t('ins.period')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(plannedStart)} → {iso(plannedEnd)}</span>
+              {!actualStart && calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
+            </div>
+          )}
+          {timeline?.deadline && (
+            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('qe.affectsDeadline')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}</span>
+              <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
             </div>
           )}
           {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>📌 {item.pinnedStart}</div>}

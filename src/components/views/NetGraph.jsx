@@ -649,6 +649,6 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, stats, s
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
     </div>
-    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} />}
+    {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} scheduled={scheduled} />}
   </div>;
 }

@@ -72,6 +72,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // planStartWi = week index where actual scheduling begins (non-pinned tasks start here).
   // Weeks before this exist for rendering only.
   const planStartDate = localDate(planStartStr || ps);
+  const planEndDate = localDate(pe);
   const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > planStartDate));
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => {
@@ -154,19 +155,53 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     return { vacDays, holidaysInWindow, workingDaysInWindow };
   };
 
-  // Total working days in plan period (for blanket vacation deduction)
-  const totalWDs = wks.reduce((s, w) => s + w.wds.length, 0);
-  // Per-person: count explicit vacation days (only working days), remaining unplanned vacation
+  const countWorkDays = (from, to) => {
+    if (!from || !to || to < from) return 0;
+    let count = 0;
+    for (const day of eachDayInclusive(iso(from), iso(to))) {
+      const dayIso = iso(day);
+      if (!wdSet.has(day.getDay())) continue;
+      if (hm?.[dayIso]) continue;
+      count++;
+    }
+    return count;
+  };
+  const maxDate = (...dates) => dates.filter(Boolean).reduce((max, date) => !max || date > max ? date : max, null);
+  const minDate = (...dates) => dates.filter(Boolean).reduce((min, date) => !min || date < min ? date : min, null);
+  // Per-person: explicit vacation inside the active plan period + prorated annual allowance
   const vacInfo = {};
-  const wdIsoSet = new Set(wks.flatMap(w => w.wds.map(d => iso(d))));
   members.forEach(m => {
+    const memberStart = m.start ? localDate(m.start) : planStartDate;
+    const memberEnd = m.end ? localDate(m.end) : planEndDate;
+    const activeStart = maxDate(planStartDate, memberStart);
+    const activeEnd = minDate(planEndDate, memberEnd);
+    const activeWorkDays = countWorkDays(activeStart, activeEnd);
+    if (!activeStart || !activeEnd || activeEnd < activeStart || activeWorkDays <= 0) {
+      vacInfo[m.id] = 1;
+      return;
+    }
+
     const blockedDays = vs[m.id] || new Set();
-    // Count only days that are actual working days in the plan period
-    const explicitDays = [...blockedDays].filter(d => wdIsoSet.has(d)).length;
-    const totalVac = m.vac || 25;
-    const remainingVac = Math.max(0, totalVac - explicitDays);
-    // Blanket deduction only for unplanned vacation days
-    vacInfo[m.id] = totalWDs > 0 ? 1 - remainingVac / totalWDs : 1;
+    const explicitDays = [...blockedDays].filter(dayIso => {
+      const day = localDate(dayIso);
+      return day >= activeStart && day <= activeEnd && wdSet.has(day.getDay()) && !hm?.[dayIso];
+    }).length;
+
+    let entitledVacation = 0;
+    for (let year = activeStart.getFullYear(); year <= activeEnd.getFullYear(); year++) {
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year, 11, 31);
+      const overlapStart = maxDate(activeStart, yearStart);
+      const overlapEnd = minDate(activeEnd, yearEnd);
+      if (!overlapStart || !overlapEnd || overlapEnd < overlapStart) continue;
+      const fullYearWorkDays = countWorkDays(yearStart, yearEnd);
+      const overlapWorkDays = countWorkDays(overlapStart, overlapEnd);
+      if (fullYearWorkDays <= 0 || overlapWorkDays <= 0) continue;
+      entitledVacation += (m.vac || 25) * (overlapWorkDays / fullYearWorkDays);
+    }
+
+    const remainingVac = Math.max(0, entitledVacation - explicitDays);
+    vacInfo[m.id] = Math.max(0, 1 - remainingVac / activeWorkDays);
   });
   const res = [];
   ord.forEach(id => {

@@ -4,6 +4,7 @@ import { iso, diffDays, localDate } from '../../utils/date.js';
 import { resolveUri } from '../../utils/customFields.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { AutoAssignBadge } from './AutoAssignBadge.jsx';
+import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '✓' };
@@ -86,6 +87,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   const isRoot = !node.id.includes('.');
   const sc = scheduled?.find(s => s.id === node.id);
   const isCp = cpSet?.has(node.id);
+  const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, node), [tree, scheduled, node]);
 
   // Progress
   const leafsUnder = useMemo(() => leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')), [tree, node.id]);
@@ -121,14 +123,14 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   ].filter(Boolean);
 
   // Schedule
-  const plannedStartDate = node.plannedStart ? localDate(node.plannedStart) : (sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null));
-  const plannedEndDate = node.plannedEnd ? localDate(node.plannedEnd) : (sc?.endD || null);
-  const actualStartDate = node.status === 'done'
+  const plannedStartDate = timeline?.planned?.start || (node.plannedStart ? localDate(node.plannedStart) : (sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null)));
+  const plannedEndDate = timeline?.planned?.end || (node.plannedEnd ? localDate(node.plannedEnd) : (sc?.endD || null));
+  const actualStartDate = timeline?.actual?.start || (node.status === 'done'
     ? (node.completedStart ? localDate(node.completedStart) : (node.completedAt ? localDate(node.completedAt) : null))
-    : null;
-  const actualEndDate = node.status === 'done'
+    : null);
+  const actualEndDate = timeline?.actual?.end || (node.status === 'done'
     ? (node.completedAt ? localDate(node.completedAt) : (node.completedEnd ? localDate(node.completedEnd) : actualStartDate))
-    : null;
+    : null);
   const startDate = actualStartDate || plannedStartDate;
   const endDate = actualEndDate || plannedEndDate;
   const calDays = (startDate && endDate) ? diffDays(startDate, endDate) : null;
@@ -220,24 +222,39 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Sections */}
 
       {/* Timing section */}
-      {(startDate || endDate) && (
+      {(startDate || endDate || timeline?.deadline) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
-          {startDate && endDate && (
-            <KVRow label={node.status === 'done' ? t('ins.actual') : t('ins.period')}>
+          {actualStartDate && actualEndDate && (
+            <KVRow label={t('ins.actual')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
-                {iso(startDate)} → {iso(endDate)}
+                {iso(actualStartDate)} → {iso(actualEndDate)}
               </span>
-              {calDays != null && (
+              {actualStartDate && actualEndDate && (
+                <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                  ({diffDays(actualStartDate, actualEndDate)} {t('ins.calDays')})
+                </span>
+              )}
+            </KVRow>
+          )}
+          {plannedStartDate && plannedEndDate && (
+            <KVRow label={actualStartDate ? t('ins.planned') : t('ins.period')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                {iso(plannedStartDate)} → {iso(plannedEndDate)}
+              </span>
+              {!actualStartDate && calDays != null && (
                 <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
                   ({calDays} {t('ins.calDays')})
                 </span>
               )}
             </KVRow>
           )}
-          {node.status === 'done' && plannedStartDate && plannedEndDate && (
-            <KVRow label={t('ins.planned')}>
+          {timeline?.deadline && (
+            <KVRow label={t('qe.affectsDeadline')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
-                {iso(plannedStartDate)} → {iso(plannedEndDate)}
+                {iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}
+              </span>
+              <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                ({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})
               </span>
             </KVRow>
           )}

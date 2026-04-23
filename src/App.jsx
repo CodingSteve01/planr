@@ -11,6 +11,7 @@ import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentSt
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { rootCpm, goalCpm } from './utils/cpm.js';
+import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
@@ -1029,10 +1030,9 @@ export default function App() {
     enrichParentSchedules(s, visibleTree, viewScheduled);
     return s;
   }, [hideDone, stats, visibleTree, viewScheduled]);
-  const viewCpData = useMemo(() => hideDone ? rootCpm(visibleTree) : cpData, [hideDone, visibleTree, cpData]);
-  const viewCpSet = viewCpData.critical;
-  const viewCpEdges = viewCpData.edges;
-  const viewGoalPaths = useMemo(() => hideDone ? goalCpm(visibleTree) : goalPaths, [hideDone, visibleTree, goalPaths]);
+  const viewCpSet = cpData.critical;
+  const viewCpEdges = cpData.edges;
+  const viewGoalPaths = goalPaths;
   const leaves = useMemo(() => leafNodes(tree), [tree]);
   const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
@@ -1793,19 +1793,35 @@ export default function App() {
             {(() => {
               const selItems = tree.filter(r => multiSel.has(r.id));
               const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
-              const commonAssign = (() => { const first = selItems[0]?.assign?.[0]; if (!first) return null; return selItems.every(r => (r.assign || []).length === 1 && r.assign[0] === first) ? first : null; })();
               const commonTeam = commonOf('team');
               const commonStatus = commonOf('status');
               const commonPrio = commonOf('prio');
               const commonBest = commonOf('best');
               const commonFactor = commonOf('factor');
+              const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
+              const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
+              const commonParallel = commonOf('parallel', r => !!r.parallel);
+              const commonConfidence = commonOf('confidence', r => r.confidence || '');
               const commonNote = commonOf('note');
               const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
+              const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
+                const rootId = deadlineRootIdForNode(tree, item.id);
+                return !!rootId && item.id !== rootId;
+              });
+              const deadlineParentExcluded = allDeadlineScoped && selItems.some(item => {
+                const rootId = deadlineRootIdForNode(tree, item.id);
+                const pid = item.id.split('.').slice(0, -1).join('.');
+                return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
+              });
+              const commonDeadlineRelevant = allDeadlineScoped
+                ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false)
+                : null;
               const anyNonRoot = selItems.some(r => r.id.includes('.'));
               const batchTabs = [
                 { id: 'overview', label: _t('qe.tab.overview') },
-                ...(anyNonRoot ? [{ id: 'workflow', label: _t('qe.tab.workflow') }] : []),
+                { id: 'workflow', label: _t('qe.tab.workflow') },
                 ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
+                ...((allLeaf || allDeadlineScoped) ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
               ];
               const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
 
@@ -1906,10 +1922,48 @@ export default function App() {
                   <div className="field"><label>{_t('qe.confidence')}</label>
                     <div style={{ display: 'flex', gap: 3 }}>
                       {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
-                        <button key={v} className="btn btn-sec btn-xs" style={{ flex: 1, fontSize: 10 }}
+                        <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 10 }}
                           onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
                     </div>
                   </div>
+                </>}
+
+                {bTab === 'timing' && <>
+                  {allLeaf && <div className="frow">
+                    <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
+                    </div>
+                    <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v } : r))} />
+                    </div>
+                  </div>}
+                  {allLeaf && <div className="field">
+                    <label>{_t('qe.parallel')}{commonParallel == null ? ' (mixed)' : ''}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <label className="toggle">
+                        <input type="checkbox" checked={!!commonParallel} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked } : r))} />
+                        <span className="slider" />
+                      </label>
+                      <span style={{ fontSize: 11, color: commonParallel ? 'var(--am)' : 'var(--tx2)' }}>{commonParallel ? _t('yes') : _t('no')}</span>
+                    </div>
+                  </div>}
+                  {allDeadlineScoped && <div className="field">
+                    <label>{_t('qe.affectsDeadline')}{commonDeadlineRelevant == null ? ' (mixed)' : ''}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <label className="toggle">
+                        <input
+                          type="checkbox"
+                          checked={commonDeadlineRelevant !== false}
+                          disabled={deadlineParentExcluded}
+                          onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r))}
+                        />
+                        <span className="slider" />
+                      </label>
+                      <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+                        {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
+                      </span>
+                    </div>
+                  </div>}
                 </>}
 
                 <hr className="divider" />
@@ -1951,7 +2005,7 @@ export default function App() {
         setMN(target);
         setSel(target);
       }} />}
-    {modal === 'add' && <AddModal tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}

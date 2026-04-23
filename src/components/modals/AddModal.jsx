@@ -7,9 +7,10 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 
-export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, selected, onAdd, onClose }) {
+export function AddModal({ tree, teams, members = [], taskTemplates, sizes: projectSizes, selected, onAdd, onClose }) {
   const { t } = useT();
   const defParent = useMemo(() => selected?.id || '', [selected]);
+  const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;
 
   const parents = useMemo(() => {
     const opts = [{ id: '', label: '— New top item —' }];
@@ -72,6 +73,20 @@ export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, sele
         <div className="field"><label>Team (optional)</label>
           <SearchSelect value={f.team} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
         </div>
+        <div className="field"><label>{t('qe.assignee')}</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
+            {(f.assign || []).map(id => <span key={id} className="tag">{members.find(member => member.id === id)?.name || id}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(entry => entry !== id))}>×</span></span>)}
+          </div>
+          <SearchSelect
+            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
+            onSelect={id => {
+              const member = members.find(entry => entry.id === id);
+              s('assign', [...new Set([...(f.assign || []), id])]);
+              if (member?.team && !f.team) s('team', member.team);
+            }}
+            placeholder={t('qe.assignPerson')}
+          />
+        </div>
       </>}
 
       {!isTopLevel && <>
@@ -82,6 +97,20 @@ export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, sele
           <div className="field"><label>Status</label>
             <SearchSelect value={f.status} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />
           </div>
+        </div>
+        <div className="field"><label>{t('qe.assignee')}</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
+            {(f.assign || []).map(id => <span key={id} className="tag">{members.find(member => member.id === id)?.name || id}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(entry => entry !== id))}>×</span></span>)}
+          </div>
+          <SearchSelect
+            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
+            onSelect={id => {
+              const member = members.find(entry => entry.id === id);
+              s('assign', [...new Set([...(f.assign || []), id])]);
+              if (member?.team && !f.team) s('team', member.team);
+            }}
+            placeholder={t('qe.assignPerson')}
+          />
         </div>
         {showDeadlineRelevant && <div className="field">
           <label>{t('qe.affectsDeadline')}</label>

@@ -10,6 +10,7 @@ import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
+import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -128,6 +129,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   ], [t]);
 
   const phases = normalizePhases(f.phases);
+  const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, f), [tree, scheduled, f]);
 
   // Ancestors
   const ancestors = [];
@@ -182,7 +184,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const nmTabs = [
     { id: 'insights', label: t('nm.tab.insights') },
     { id: 'overview', label: t('qe.tab.overview') },
-    ...(hasPhases ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
+    { id: 'workflow', label: t('qe.tab.workflow') },
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
     { id: 'advanced', label: t('nm.advanced') },
@@ -264,26 +266,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       {activeNmTab === 'overview' && <>
         <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
         <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
-        {showDeadlineRelevant && <div className="field">
-          <label>{t('qe.affectsDeadline')}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={f.deadlineRelevant !== false}
-                disabled={deadlineParentExcluded}
-                onChange={e => s('deadlineRelevant', e.target.checked ? undefined : false)}
-              />
-              <span className="slider" />
-            </label>
-            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
-              {f.deadlineRelevant === false ? t('no') : t('yes')}
-            </span>
-          </div>
-          <div className="helper">
-            {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
-          </div>
-        </div>}
         {isRoot && <>
           <div className="frow">
             <div className="field"><label>{t('nm.focusType')}</label>
@@ -300,6 +282,15 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
         </>}
 
+        {(timeline?.planned || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
+          <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{t('ins.timing')}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
+            {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} → {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{timeline.actual ? t('ins.planned') : t('ins.period')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} → {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} → {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
+          </div>
+        </div>}
+
         {/* Parent stats (non-leaf, no phases) */}
         {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
           <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{doneUnder}/{leafCountUnder} {t('qe.leafItems')} {t('done')} · {progPct}%</div>
@@ -307,7 +298,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div style={{ color: 'var(--tx3)' }}>
             {stat._r > 0 && <span style={{ color: 'var(--am)' }}>{stat._r.toFixed(0)}d {t('qe.realisticSuffix')} · </span>}
             {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
-            {stat._startD && <span> · {stat._startD.toLocaleDateString('de-DE')} → {stat._endD.toLocaleDateString('de-DE')}</span>}
+            {timeline?.planned && <span> · {timeline.planned.start.toLocaleDateString('de-DE')} → {timeline.planned.end.toLocaleDateString('de-DE')}</span>}
+            {timeline?.deadline && <span> · {t('qe.affectsDeadline')}: {timeline.deadline.start.toLocaleDateString('de-DE')} → {timeline.deadline.end.toLocaleDateString('de-DE')}</span>}
           </div>
         </div>}
 
@@ -324,7 +316,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       </>}
 
       {/* ══════ WORKFLOW TAB ══════ */}
-      {activeNmTab === 'workflow' && !isRoot && <>
+      {activeNmTab === 'workflow' && <>
         {/* Manual status + progress (leaf without phases only) */}
         {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
@@ -351,21 +343,21 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         {/* Phases — define status + progress when present */}
-        <div ref={focusRefs.phases}><PhaseList
+        {isLeaf && <div ref={focusRefs.phases}><PhaseList
           phases={f.phases}
           templates={taskTemplates}
           teams={teams}
           members={members}
           templateId={f.templateId}
           onChange={handlePhaseChange}
-        /></div>
+        /></div>}
 
         <div className="field"><label>{t('qe.team')}</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <div style={{ flex: '0 0 180px' }}>
               <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
             </div>
-            {isLeaf && <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
               {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
               <div ref={focusRefs.assign} style={{ minWidth: 160, flex: 1 }}>
                 <SearchSelect
@@ -374,7 +366,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                   placeholder={t('qe.assignPerson')}
                 />
               </div>
-            </div>}
+            </div>
           </div>
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
@@ -465,6 +457,26 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
           <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
         </>}
+        {showDeadlineRelevant && <div className="field">
+          <label>{t('qe.affectsDeadline')}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={f.deadlineRelevant !== false}
+                disabled={deadlineParentExcluded}
+                onChange={e => s('deadlineRelevant', e.target.checked ? undefined : false)}
+              />
+              <span className="slider" />
+            </label>
+            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+              {f.deadlineRelevant === false ? t('no') : t('yes')}
+            </span>
+          </div>
+          <div className="helper">
+            {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
+          </div>
+        </div>}
 
         <div className="field">
           <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>

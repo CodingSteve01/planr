@@ -10,6 +10,7 @@ import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
+import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -94,12 +95,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;
   const memberName = id => members.find(member => member.id === id)?.name || id;
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
+  const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, f), [tree, scheduled, f]);
 
   const hasPhases = isLeaf && (node.phases?.length > 0 || node.best > 0);
   const tabs = [
     { id: 'insights', label: t('nm.tab.insights') },
     { id: 'overview', label: t('qe.tab.overview') },
-    ...(hasPhases ? [{ id: 'workflow', label: t('qe.tab.workflow') }] : []),
+    { id: 'workflow', label: t('qe.tab.workflow') },
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
   ];
@@ -217,26 +219,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     {activeTab === 'overview' && <>
       <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => bufferNode({ name: e.target.value })} onBlur={flushNode} /></div>
       <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => bufferNode({ note: e.target.value })} onBlur={flushNode} rows={2} /></div>
-      {showDeadlineRelevant && <div className="field">
-        <label>{t('qe.affectsDeadline')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={f.deadlineRelevant !== false}
-              disabled={deadlineParentExcluded}
-              onChange={e => patchNode({ deadlineRelevant: e.target.checked ? undefined : false })}
-            />
-            <span className="slider" />
-          </label>
-          <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
-            {f.deadlineRelevant === false ? t('no') : t('yes')}
-          </span>
-        </div>
-        <div className="helper">
-          {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
-        </div>
-      </div>}
 
       {isRoot && <>
         <div className="field"><label>{t('qe.focusType')}</label>
@@ -255,6 +237,15 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => bufferNode({ description: e.target.value })} onBlur={flushNode} placeholder={t('qe.descPlaceholder')} /></div>}
       </>}
 
+      {(timeline?.planned || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{t('ins.timing')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} — {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
+          {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{timeline.actual ? t('ins.planned') : t('ins.period')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+          {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
+        </div>
+      </div>}
+
       {/* Parent aggregate stats (non-leaf, no phases) */}
       {!isLeaf && phases.length === 0 && (() => {
         const st = stats?.[node.id];
@@ -265,7 +256,8 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
-            {st?._startD && <><span style={{ color: 'var(--tx3)' }}>{t('qe.period')}</span><span>{st._startD.toLocaleDateString('de-DE')} — {st._endD.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{t('ins.planned')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
           </div>
         </div>;
       })()}
@@ -282,7 +274,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     </>}
 
     {/* ══════ WORKFLOW TAB ══════ */}
-    {activeTab === 'workflow' && !isRoot && <>
+    {activeTab === 'workflow' && <>
       {/* Status + Progress — manual only when NO phases */}
       {isLeaf && phases.length === 0 && <div ref={focusRefs.status} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         <div style={{ flex: '0 0 100px' }}>
@@ -307,25 +299,26 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       </div>}
 
       {/* Phases — define status + progress when present */}
-      <div ref={focusRefs.phases}><PhaseList
+      {isLeaf && <div ref={focusRefs.phases}><PhaseList
         phases={f.phases}
         templates={taskTemplates}
         teams={teams}
         members={members}
         templateId={f.templateId}
         onChange={commitPhases}
-      /></div>
+      /></div>}
 
       <div className="field"><label>{t('qe.team')}</label>
         <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
       </div>
 
-      {isLeaf && <div className="field"><label>{t('qe.assignee')}</label>
+      <div className="field"><label>{t('qe.assignee')}</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
           {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}>×</span></span>)}
         </div>
-        <AutoAssignHint node={f} scheduled={scheduled} members={members}
+        {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => patchNode({ assign, team })} />
+        }
         <div ref={focusRefs.assign}>
           <SearchSelect
             options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
@@ -336,7 +329,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             placeholder={t('qe.assignPerson')}
           />
         </div>
-      </div>}
+      </div>
     </>}
 
     {/* ══════ EFFORT TAB ══════ */}
@@ -426,6 +419,26 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
       </>}
+      {showDeadlineRelevant && <div className="field">
+        <label>{t('qe.affectsDeadline')}</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={f.deadlineRelevant !== false}
+              disabled={deadlineParentExcluded}
+              onChange={e => patchNode({ deadlineRelevant: e.target.checked ? undefined : false })}
+            />
+            <span className="slider" />
+          </label>
+          <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+            {f.deadlineRelevant === false ? t('no') : t('yes')}
+          </span>
+        </div>
+        <div className="helper">
+          {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
+        </div>
+      </div>}
 
       <div className="field"><label>{t('qe.predecessors')}{!isLeaf ? ` (${t('qe.allLeaves')})` : ''}</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>

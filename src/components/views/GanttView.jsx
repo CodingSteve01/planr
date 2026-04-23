@@ -1463,7 +1463,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       })()}
     </svg>}
     {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
-    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} />}
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} />}
     {ctxMenu && (() => {
       const node = iMap[ctxMenu.taskId]; if (!node) return null;
       const close = () => setCtxMenu(null);
