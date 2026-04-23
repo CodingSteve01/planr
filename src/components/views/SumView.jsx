@@ -146,6 +146,19 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       </div>;
     })()}
 
+    {/* Team effort - compact */}
+    <div className="section-h">{t('s.resources')}</div>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v">{members.length}</div><div className="sum-l">{t('s.people')}</div></div>
+      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
+      {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
+        return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 600, color: team?.color || 'var(--tx)' }}>{d.pt.toFixed(0)} PT</div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
+        </div>; })}
+    </div>
+
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
@@ -199,21 +212,6 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
         </div>;
       })}
     </div>)}
-
-    {/* "Up next" moved to Briefing tab — avoids duplication. */}
-
-    {/* Team effort - compact */}
-    <div className="section-h">{t('s.resources')}</div>
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v">{members.length}</div><div className="sum-l">{t('s.people')}</div></div>
-      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
-      {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
-        return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 600, color: team?.color || 'var(--tx)' }}>{d.pt.toFixed(0)} PT</div>
-          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
-        </div>; })}
-    </div>
 
     {/* Project breakdown */}
     {tree.filter(r => r.lvl === 1).length > 0 && <>
