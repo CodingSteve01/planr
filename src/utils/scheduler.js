@@ -129,6 +129,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     if (!vs[nv.person]) vs[nv.person] = new Set();
     for (const d of eachDayInclusive(nv.from, nv.to)) vs[nv.person].add(iso(d));
   });
+  // Pinned tasks reserve future person-days but should not force the entire
+  // queue behind them. Later tasks may still use free time before the pin.
+  const pinnedBusy = new Set();
+  const reservePinnedDays = (personIds, workedDays) => {
+    if (!personIds?.length || !workedDays?.length) return;
+    personIds.forEach(id => workedDays.forEach(dayIso => pinnedBusy.add(`${id}|${dayIso}`)));
+  };
+  const anyAssigneePinnedBusy = (dateIso, assignIds) =>
+    assignIds.some(id => pinnedBusy.has(`${id}|${dateIso}`));
   // Returns true if ANY of the given assignee IDs has the given ISO date blocked by vacation.
   // Works for single-assign (union of 1 set) and multi-assign alike.
   const anyAssigneeOnVacation = (dateIso, assignIds, vacSets) =>
@@ -280,15 +289,18 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
+          const workedDays = [];
           while (rem > 0 && wi < wks.length) {
             const w = wks[wi];
             if (endDate && w.mon > endDate) break;
             for (const d of w.wds) {
               if (d < skipBefore) continue;
               if (endDate && d > endDate) break;
-              if (anyAssigneeOnVacation(iso(d), [bp.id], vs)) continue; // skip vacation day
+              const dIso = iso(d);
+              if (anyAssigneeOnVacation(dIso, [bp.id], vs)) continue; // skip vacation day
+              if (!r.pinnedStart && anyAssigneePinnedBusy(dIso, [bp.id])) continue;
               if (!firstWorkDay) firstWorkDay = d;
-              rem -= dailyBaseCap; lastWorkDay = d;
+              rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
               if (rem <= 0) break;
             }
             if (rem <= 0) break; wi++;
@@ -296,8 +308,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const eW = Math.min(wi, wks.length - 1);
           const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
           tEW[id] = { wi: eW, nextDate: nd };
-          // Consume this person's capacity so next unassigned task sees it
-          pF[bp.id] = { wi: eW, nextDate: nd };
+          if (!r.pinnedStart) {
+            // Non-pinned work consumes the queue directly. Pinned work blocks via
+            // pinnedBusy instead so earlier gaps remain usable.
+            pF[bp.id] = { wi: eW, nextDate: nd };
+          } else {
+            reservePinnedDays([bp.id], workedDays);
+          }
           const actualStartD = firstWorkDay || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
           const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
@@ -379,15 +396,19 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
     const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
+    const workedDays = [];
     while (rem > 0 && wi < wks.length) {
       const w = wks[wi];
       if (endDate && w.mon > endDate) break; // person offboarded
       for (const d of w.wds) {
         if (d < skipBefore) continue;
         if (endDate && d > endDate) break; // past offboarding date
-        if (anyAssigneeOnVacation(iso(d), isMulti ? asgn : [bp.id], vs)) continue; // skip if any assignee on vacation
+        const dIso = iso(d);
+        const activeAssignees = isMulti ? asgn : [bp.id];
+        if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
+        if (!r.pinnedStart && anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
         if (!firstWorkDay) firstWorkDay = d;
-        rem -= dailyBaseCap; lastWorkDay = d;
+        rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
         if (rem <= 0) break;
       }
       if (rem <= 0) break; wi++;
@@ -399,15 +420,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // so pair-programming or multi-assign tasks occupy everyone involved.
     const allAssigned = asgn.map(a => members.find(m => m.id === a)).filter(Boolean);
     for (const m of allAssigned) {
-      if (!r.parallel) {
+      if (!r.parallel && !r.pinnedStart) {
         pF[m.id] = { wi: eW, nextDate: nd };
-      } else {
+      } else if (r.parallel && !r.pinnedStart) {
         const prev = pPE[m.id];
         if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
           pPE[m.id] = { wi: eW, nextDate: nd };
         }
       }
     }
+    if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
     const actualStartD = firstWorkDay || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
     // Dep violation diagnostic: warn if this task starts before any of its deps finish.

@@ -521,9 +521,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           }} placeholder={t('nm.topLevel')} showIds />
         </div>}
         {isLeaf && <div className="field"><label>{t('nm.seq')}</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} style={{ width: 80, fontFamily: 'var(--mono)' }} /></div>}
-        {onDelete && <div style={{ marginTop: 16 }}>
-          <button className="btn btn-danger" onClick={() => { if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) { onDelete(node.id); onClose(); } }}>{t('delete')}</button>
-        </div>}
       </>}
 
       {/* ── ACTIONS ── */}
