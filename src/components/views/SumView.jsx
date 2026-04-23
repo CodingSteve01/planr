@@ -171,8 +171,8 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
           ? deadlineScopedScheduledItems(tree, scheduled, dl.id)
           : scheduled.filter(s => s.id.startsWith(dl.id + '.'));
         const maxEnd = dl.type === 'deadline'
-          ? (timeline?.deadline?.end || timeline?.planned?.end || null)
-          : (timeline?.planned?.end || (linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null));
+          ? (timeline?.deadline?.end || timeline?.period?.end || null)
+          : (timeline?.period?.end || (linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null));
         const dlDate = dl.date ? new Date(dl.date) : null;
         const isLate = maxEnd && dlDate && dlDate < maxEnd;
         const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
@@ -192,9 +192,9 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
             </span>
           </div>
           {dl.description && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
-          {timeline?.planned?.end && (
+          {timeline?.period?.end && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
-              <span>{t('ins.planned')}: {iso(timeline.planned.start)} → {iso(timeline.planned.end)}</span>
+              <span>{t('ins.period')}: {iso(timeline.period.start)} → {iso(timeline.period.end)}</span>
               {timeline.deadline && <span>{t('qe.affectsDeadline')}: {iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}</span>}
             </div>
           )}
@@ -230,8 +230,8 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
               <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog === 100 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
               <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>{done}/{leaves.length}</span>
             </div></td>
-            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: timeline?.planned?.end ? 'var(--tx)' : 'var(--tx3)' }}>
-              {timeline?.planned?.end ? timeline.planned.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: timeline?.period?.end ? 'var(--tx)' : 'var(--tx3)' }}>
+              {timeline?.period?.end ? timeline.period.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
               {timeline?.deadline?.end && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{t('qe.affectsDeadline')}: {timeline.deadline.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
             </td>
           </tr>; })}</tbody>

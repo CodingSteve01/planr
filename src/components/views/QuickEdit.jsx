@@ -237,11 +237,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => bufferNode({ description: e.target.value })} onBlur={flushNode} placeholder={t('qe.descPlaceholder')} /></div>}
       </>}
 
-      {(timeline?.planned || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+      {(timeline?.period || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
         <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{t('ins.timing')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
           {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} — {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
-          {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{timeline.actual ? t('ins.planned') : t('ins.period')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+          {!timeline?.actual && timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
+          {timeline?.actual && timeline?.planned && (timeline.planned.start.getTime() !== timeline.actual.start.getTime() || timeline.planned.end.getTime() !== timeline.actual.end.getTime()) && <><span style={{ color: 'var(--tx3)' }}>{t('ins.planned')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
           {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
         </div>
       </div>}
@@ -256,7 +257,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
-            {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{t('ins.planned')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
             {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
           </div>
         </div>;

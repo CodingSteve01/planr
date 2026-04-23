@@ -28,8 +28,8 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
             ? deadlineScopedScheduledItems(tree, scheduled, r.id)
             : scheduled.filter(sc => sc.id.startsWith(r.id + '.'));
           const maxEnd = r.type === 'deadline'
-            ? (timeline?.deadline?.end || timeline?.planned?.end || null)
-            : (timeline?.planned?.end || (childSch.length > 0 ? childSch.reduce((m,sc)=>sc.endD>m?sc.endD:m,new Date(0)) : null));
+            ? (timeline?.deadline?.end || timeline?.period?.end || null)
+            : (timeline?.period?.end || (childSch.length > 0 ? childSch.reduce((m,sc)=>sc.endD>m?sc.endD:m,new Date(0)) : null));
           const dlDate = r.date ? new Date(r.date) : null;
           const isLate = maxEnd && dlDate && maxEnd > dlDate;
           const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
@@ -45,8 +45,8 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
               {childSch.length>0&&<span className="badge bo">{childSch.length} scheduled</span>}
             </div>
             {r.description&&<div style={{fontSize:11,color:'var(--tx3)'}}>{r.description}</div>}
-            {timeline?.planned?.end&&<div style={{fontSize:10,color:'var(--tx3)',fontFamily:'var(--mono)',marginTop:4}}>
-              {iso(timeline.planned.start)} → {iso(timeline.planned.end)}
+            {timeline?.period?.end&&<div style={{fontSize:10,color:'var(--tx3)',fontFamily:'var(--mono)',marginTop:4}}>
+              {iso(timeline.period.start)} → {iso(timeline.period.end)}
               {timeline?.deadline?.end&&<span> · {t('qe.affectsDeadline')}: {iso(timeline.deadline.end)}</span>}
             </div>}
             {prog>0&&<div style={{marginTop:6}}>

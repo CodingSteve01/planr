@@ -3,6 +3,7 @@ import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
+import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
@@ -134,6 +135,49 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
   const teamColor = (tid) => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
   const teamName = (tid) => teams?.find(x => x.id === pt(tid))?.name || tid || '';
   const fmtDate = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
+  const scheduleRangeById = useMemo(() => {
+    const childrenByParent = {};
+    tree.forEach(node => {
+      const pid = node.id.split('.').slice(0, -1).join('.') || '';
+      if (!childrenByParent[pid]) childrenByParent[pid] = [];
+      childrenByParent[pid].push(node.id);
+    });
+    const makeWindow = (startValue, endValue) => {
+      const start = startValue ? (startValue instanceof Date ? startValue : localDate(startValue)) : null;
+      const end = endValue ? (endValue instanceof Date ? endValue : localDate(endValue)) : start;
+      if (!start || !end) return null;
+      return start <= end ? { start, end } : { start: end, end: start };
+    };
+    const map = {};
+    const visit = id => {
+      if (Object.prototype.hasOwnProperty.call(map, id)) return map[id];
+      const node = tree.find(entry => entry.id === id);
+      if (!node) return null;
+      const childIds = childrenByParent[id] || [];
+      if (!childIds.length) {
+        const actual = node.status === 'done'
+          ? makeWindow(node.completedStart || node.completedAt, node.completedAt || node.completedEnd || node.completedStart)
+          : null;
+        const scheduledWindow = sMap[id]?.startD && sMap[id]?.endD
+          ? makeWindow(sMap[id].startD, sMap[id].endD)
+          : null;
+        map[id] = actual || scheduledWindow;
+        return map[id];
+      }
+      const childWindows = childIds.map(visit).filter(Boolean);
+      if (!childWindows.length) {
+        map[id] = null;
+        return null;
+      }
+      map[id] = {
+        start: new Date(Math.min(...childWindows.map(window => window.start.getTime()))),
+        end: new Date(Math.max(...childWindows.map(window => window.end.getTime()))),
+      };
+      return map[id];
+    };
+    (childrenByParent[''] || []).forEach(visit);
+    return map;
+  }, [tree, sMap]);
 
   const hasSelection = multiSel && multiSel.size > 0;
   // Compute position of `selected` within its sibling group — drives first/last button disabled state.
@@ -296,7 +340,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
 
             {/* Schedule range — start to end */}
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
-              {s._startD && s._endD && <>{fmtDate(s._startD)} → {fmtDate(s._endD)}</>}
+              {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && <>{fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}</>}
             </td>
 
             {/* Actions — only quick-add stays as a per-row affordance. Reorder and delete

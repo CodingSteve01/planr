@@ -87,10 +87,14 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
   const actualEnd = timeline?.actual?.end || (item.status === 'done'
     ? (node?.completedAt ? localDate(node.completedAt) : (item.endD || (node?.completedEnd ? localDate(node.completedEnd) : actualStart)))
     : null);
-  const plannedStart = timeline?.planned?.start || (node?.plannedStart ? localDate(node.plannedStart) : (item.status === 'done' ? null : item.startD));
-  const plannedEnd = timeline?.planned?.end || (node?.plannedEnd ? localDate(node.plannedEnd) : (item.status === 'done' ? null : item.endD));
-  const displayStart = actualStart || item.startD;
-  const displayEnd = actualEnd || item.endD;
+  const periodStart = timeline?.period?.start || (item.status === 'done' ? null : item.startD);
+  const periodEnd = timeline?.period?.end || (item.status === 'done' ? null : item.endD);
+  const plannedStart = actualStart ? (timeline?.planned?.start || null) : null;
+  const plannedEnd = actualEnd ? (timeline?.planned?.end || null) : null;
+  const hasDistinctPlanned = !!(actualStart && actualEnd && plannedStart && plannedEnd
+    && (plannedStart.getTime() !== actualStart.getTime() || plannedEnd.getTime() !== actualEnd.getTime()));
+  const displayStart = actualStart || periodStart;
+  const displayEnd = actualEnd || periodEnd;
   const calDays = displayStart && displayEnd
     ? Math.max(1, Math.round((displayEnd - displayStart) / 864e5) + 1)
     : item.calDays || 0;
@@ -118,7 +122,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         {teamName && <span style={{ color: 'var(--tx3)', fontSize: 10 }}>· {teamName}</span>}
       </div>
 
-      {(displayStart || displayEnd || plannedStart || plannedEnd || timeline?.deadline || item.pinnedStart || node?.decideBy) && (
+      {(displayStart || displayEnd || hasDistinctPlanned || timeline?.deadline || item.pinnedStart || node?.decideBy) && (
         <>
           <SectionTitle label={t('ins.timing')} />
           {actualStart && actualEnd && (
@@ -127,11 +131,17 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(actualStart)} → {iso(actualEnd)}</span>
             </div>
           )}
-          {plannedStart && plannedEnd && (
+          {!actualStart && periodStart && periodEnd && (
             <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
-              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{actualStart ? t('ins.planned') : t('ins.period')}</span>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.period')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{iso(periodStart)} → {iso(periodEnd)}</span>
+              {calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
+            </div>
+          )}
+          {hasDistinctPlanned && (
+            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+              <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.planned')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(plannedStart)} → {iso(plannedEnd)}</span>
-              {!actualStart && calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
             </div>
           )}
           {timeline?.deadline && (

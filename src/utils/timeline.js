@@ -24,30 +24,50 @@ function aggregateWindows(windows) {
   };
 }
 
-function leafWindows(node, scheduledMap) {
+function makeWindow(startValue, endValue) {
+  const start = toDate(startValue);
+  const end = toDate(endValue ?? startValue);
+  if (!start && !end) return null;
+  const safeStart = start || end;
+  const safeEnd = end || start;
+  if (!safeStart || !safeEnd) return null;
+  return safeStart <= safeEnd
+    ? { start: safeStart, end: safeEnd }
+    : { start: safeEnd, end: safeStart };
+}
+
+function leafScheduledWindow(node, scheduledMap) {
   const scheduled = scheduledMap.get(node.id);
-  const plannedStart = toDate(
-    node.plannedStart
-    || scheduled?.startD
-    || node.pinnedStart
-    || node.completedStart
-    || node.completedAt
+  if (!scheduled?.startD || !scheduled?.endD) return null;
+  return makeWindow(scheduled.startD, scheduled.endD);
+}
+
+function leafActualWindow(node) {
+  if (node.status !== 'done') return null;
+  return makeWindow(
+    node.completedStart || node.completedAt,
+    node.completedAt || node.completedEnd || node.completedStart,
   );
-  const plannedEnd = toDate(
-    node.plannedEnd
-    || scheduled?.endD
-    || node.completedEnd
-    || node.completedAt
-  );
-  const actualStart = node.status === 'done'
-    ? toDate(node.completedStart || node.completedAt)
-    : null;
-  const actualEnd = node.status === 'done'
-    ? toDate(node.completedAt || node.completedEnd || node.completedStart)
-    : null;
+}
+
+function leafPlannedWindow(node, scheduledMap) {
+  const scheduled = scheduledMap.get(node.id);
+  if (node.status === 'done') {
+    return makeWindow(
+      node.plannedStart || scheduled?.startD || node.pinnedStart || node.completedStart || node.completedAt,
+      node.plannedEnd || scheduled?.endD || node.completedEnd || node.completedAt || node.completedStart,
+    );
+  }
+  return leafScheduledWindow(node, scheduledMap);
+}
+
+function leafWindows(node, scheduledMap) {
+  const actual = leafActualWindow(node);
+  const planned = leafPlannedWindow(node, scheduledMap);
   return {
-    planned: plannedStart && plannedEnd ? { start: plannedStart, end: plannedEnd } : null,
-    actual: actualStart && actualEnd ? { start: actualStart, end: actualEnd } : null,
+    period: actual || leafScheduledWindow(node, scheduledMap) || planned,
+    planned,
+    actual,
   };
 }
 
@@ -61,16 +81,20 @@ export function summarizeNodeTimeline(tree, scheduled, nodeOrId) {
     .map(id => (tree || []).find(item => item.id === id))
     .filter(Boolean);
   const windows = leaves.map(leaf => ({ leaf, ...leafWindows(leaf, scheduledMap) }));
+  const windowByLeafId = new Map(windows.map(entry => [entry.leaf.id, entry]));
 
+  const allDone = leaves.length > 0 && leaves.every(leaf => leaf.status === 'done');
+  const period = aggregateWindows(windows.map(entry => entry.period));
   const planned = aggregateWindows(windows.map(entry => entry.planned));
-  const actualLeaves = windows.filter(entry => entry.actual);
-  const actual = aggregateWindows(actualLeaves.map(entry => entry.actual));
+  const actual = allDone
+    ? aggregateWindows(windows.map(entry => entry.actual || entry.period))
+    : null;
 
   const deadlineRootId = deadlineRootIdForNode(tree, node.id);
   const deadlineScopedLeaves = deadlineRootId
     ? leaves.filter(leaf => isDeadlineRelevantForRoot(tree, deadlineRootId, leaf.id))
     : [];
-  const deadlineWindows = deadlineScopedLeaves.map(leaf => leafWindows(leaf, scheduledMap).planned);
+  const deadlineWindows = deadlineScopedLeaves.map(leaf => windowByLeafId.get(leaf.id)?.period);
   const deadline = deadlineScopedLeaves.length > 0
     ? aggregateWindows(deadlineWindows)
     : null;
@@ -83,6 +107,8 @@ export function summarizeNodeTimeline(tree, scheduled, nodeOrId) {
     isLeaf: leafIds.length === 1 && leafIds[0] === node.id,
     leafCount: leafIds.length,
     doneLeafCount: leaves.filter(leaf => leaf.status === 'done').length,
+    allDone,
+    period,
     planned,
     actual,
     deadline: hasDeadlineSubset ? {

@@ -122,17 +122,23 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   ].filter(Boolean);
 
   // Schedule
-  const plannedStartDate = timeline?.planned?.start || (node.plannedStart ? localDate(node.plannedStart) : (sc?.startD || (node.pinnedStart ? localDate(node.pinnedStart) : null)));
-  const plannedEndDate = timeline?.planned?.end || (node.plannedEnd ? localDate(node.plannedEnd) : (sc?.endD || null));
+  const periodStartDate = timeline?.period?.start || (node.status === 'done'
+    ? null
+    : (sc?.startD || null));
+  const periodEndDate = timeline?.period?.end || (node.status === 'done'
+    ? null
+    : (sc?.endD || null));
   const actualStartDate = timeline?.actual?.start || (node.status === 'done'
     ? (node.completedStart ? localDate(node.completedStart) : (node.completedAt ? localDate(node.completedAt) : null))
     : null);
   const actualEndDate = timeline?.actual?.end || (node.status === 'done'
     ? (node.completedAt ? localDate(node.completedAt) : (node.completedEnd ? localDate(node.completedEnd) : actualStartDate))
     : null);
-  const startDate = actualStartDate || plannedStartDate;
-  const endDate = actualEndDate || plannedEndDate;
-  const calDays = (startDate && endDate) ? diffDays(startDate, endDate) : null;
+  const plannedStartDate = actualStartDate ? (timeline?.planned?.start || null) : null;
+  const plannedEndDate = actualEndDate ? (timeline?.planned?.end || null) : null;
+  const hasDistinctPlanned = !!(actualStartDate && actualEndDate && plannedStartDate && plannedEndDate
+    && (plannedStartDate.getTime() !== actualStartDate.getTime() || plannedEndDate.getTime() !== actualEndDate.getTime()));
+  const calDays = (periodStartDate && periodEndDate) ? diffDays(periodStartDate, periodEndDate) : null;
 
   // Team
   const team = teams?.find(tm => tm.id === node.team);
@@ -220,7 +226,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Sections */}
 
       {/* Timing section */}
-      {(startDate || endDate || timeline?.deadline) && (
+      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {actualStartDate && actualEndDate && (
             <KVRow label={t('ins.actual')}>
@@ -234,16 +240,23 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               )}
             </KVRow>
           )}
-          {plannedStartDate && plannedEndDate && (
-            <KVRow label={actualStartDate ? t('ins.planned') : t('ins.period')}>
+          {!actualStartDate && periodStartDate && periodEndDate && (
+            <KVRow label={t('ins.period')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
-                {iso(plannedStartDate)} → {iso(plannedEndDate)}
+                {iso(periodStartDate)} → {iso(periodEndDate)}
               </span>
-              {!actualStartDate && calDays != null && (
+              {calDays != null && (
                 <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
                   ({calDays} {t('ins.calDays')})
                 </span>
               )}
+            </KVRow>
+          )}
+          {hasDistinctPlanned && (
+            <KVRow label={t('ins.planned')}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                {iso(plannedStartDate)} → {iso(plannedEndDate)}
+              </span>
             </KVRow>
           )}
           {timeline?.deadline && (

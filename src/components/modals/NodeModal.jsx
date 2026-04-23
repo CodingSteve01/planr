@@ -283,11 +283,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
         </>}
 
-        {(timeline?.planned || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
+        {(timeline?.period || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
           <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{t('ins.timing')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
             {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} → {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
-            {timeline?.planned && <><span style={{ color: 'var(--tx3)' }}>{timeline.actual ? t('ins.planned') : t('ins.period')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} → {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
+            {!timeline?.actual && timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} → {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
+            {timeline?.actual && timeline?.planned && (timeline.planned.start.getTime() !== timeline.actual.start.getTime() || timeline.planned.end.getTime() !== timeline.actual.end.getTime()) && <><span style={{ color: 'var(--tx3)' }}>{t('ins.planned')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} → {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
             {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} → {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
           </div>
         </div>}
@@ -299,7 +300,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div style={{ color: 'var(--tx3)' }}>
             {stat._r > 0 && <span style={{ color: 'var(--am)' }}>{stat._r.toFixed(0)}d {t('qe.realisticSuffix')} · </span>}
             {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
-            {timeline?.planned && <span> · {timeline.planned.start.toLocaleDateString('de-DE')} → {timeline.planned.end.toLocaleDateString('de-DE')}</span>}
+            {timeline?.period && <span> · {timeline.period.start.toLocaleDateString('de-DE')} → {timeline.period.end.toLocaleDateString('de-DE')}</span>}
             {timeline?.deadline && <span> · {t('qe.affectsDeadline')}: {timeline.deadline.start.toLocaleDateString('de-DE')} → {timeline.deadline.end.toLocaleDateString('de-DE')}</span>}
           </div>
         </div>}

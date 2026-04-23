@@ -582,6 +582,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     });
     return bands;
   }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
+  const searchableItems = useMemo(
+    () => displayItems.map(item => ({ id: item.id, text: `${item.id} ${(item.name || '')}`.toLowerCase() })),
+    [displayItems],
+  );
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   // When a dep targets a parent node, draw ONE line from the latest-finishing child
@@ -730,8 +734,8 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const searchMatches = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
     if (!q) return null;
-    return new Set(displayItems.filter(s => (s.name || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map(s => s.id));
-  }, [search, displayItems]);
+    return new Set(searchableItems.filter(item => item.text.includes(q)).map(item => item.id));
+  }, [search, searchableItems]);
   // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
   const searchMatchList = useMemo(() => {
     if (!searchMatches?.size) return [];
