@@ -121,8 +121,8 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
       <span className={`badge b${derived.status[0]}`} style={{ fontSize: 10 }}>
         {derived.status === 'done' ? t('done') : derived.status === 'wip' ? t('wip') : t('open')}
       </span>
-      <div style={{ flex: 1, height: 4, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ width: derived.progress + '%', height: '100%', background: 'var(--ac)', borderRadius: 2, transition: 'width .2s' }} />
+      <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: derived.progress + '%', height: '100%', background: derived.progress >= 100 ? 'var(--gr)' : 'var(--am)', borderRadius: 3, transition: 'width .2s' }} />
       </div>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{derived.progress}%</span>
     </div>}
@@ -130,12 +130,12 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
     {/* ── Compact phase rows ── */}
     {phases.map((ph, i) => {
       const dot = ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○';
-      const dotColor = ph.status === 'done' ? 'var(--gr)' : ph.status === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+      const dotColor = ph.status === 'done' ? 'var(--gr)' : ph.status === 'wip' ? 'var(--am)' : 'var(--tx3)';
       const tIds = phaseTeamIds(ph);
       const mIds = phaseAssigneeIds(ph);
       const isCurrent = showStatus && i === currentIdx;
 
-      return <div key={ph.id || i} style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '3px 0 3px 6px', borderLeft: isCurrent ? '2px solid var(--ac)' : '2px solid transparent', marginLeft: -8 }}>
+      return <div key={ph.id || i} style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '3px 0 3px 6px', borderLeft: isCurrent ? '2px solid var(--am)' : '2px solid transparent', marginLeft: -8 }}>
         {showStatus && <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 16, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
           onClick={() => advance(i)}>{dot}</span>}
         <span style={{ fontSize: 12, color: ph.status === 'done' && showStatus ? 'var(--tx3)' : 'var(--tx)', textDecoration: ph.status === 'done' && showStatus ? 'line-through' : 'none', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 30, cursor: 'pointer', flex: '0 1 auto', maxWidth: 140 }}

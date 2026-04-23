@@ -3,6 +3,7 @@ import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
+import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 
@@ -108,7 +109,7 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       });
       const deadlinesAtRisk = goals.filter(g => {
         if (g.type !== 'deadline' || !g.date) return false;
-        const linked = scheduled.filter(s => s.id.startsWith(g.id + '.'));
+        const linked = deadlineScopedScheduledItems(tree, scheduled, g.id);
         const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
         return maxEnd && new Date(g.date) < maxEnd;
       });
@@ -147,7 +148,9 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
-        const linked = scheduled.filter(s => s.id.startsWith(dl.id + '.'));
+        const linked = dl.type === 'deadline'
+          ? deadlineScopedScheduledItems(tree, scheduled, dl.id)
+          : scheduled.filter(s => s.id.startsWith(dl.id + '.'));
         const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
         const dlDate = dl.date ? new Date(dl.date) : null;
         const isLate = maxEnd && dlDate && dlDate < maxEnd;

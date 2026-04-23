@@ -1,11 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { nextChildId } from '../../utils/scheduler.js';
 import { instantiateTemplatePhases } from '../../utils/phases.js';
+import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { GT, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
+import { useT } from '../../i18n.jsx';
 
 export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, selected, onAdd, onClose }) {
+  const { t } = useT();
   const defParent = useMemo(() => selected?.id || '', [selected]);
 
   const parents = useMemo(() => {
@@ -19,6 +22,13 @@ export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, sele
   const autoLvl = pid ? pid.split('.').length + 1 : 1;
   const parentNode = useMemo(() => tree.find(r => r.id === pid) || null, [tree, pid]);
   const isTopLevel = !pid;
+  const deadlineRootId = useMemo(() => deadlineRootIdForNode(tree, pid), [tree, pid]);
+  const deadlineRoot = useMemo(() => deadlineRootId ? tree.find(entry => entry.id === deadlineRootId) : null, [tree, deadlineRootId]);
+  const showDeadlineRelevant = !!deadlineRootId && !!pid;
+  const deadlineParentExcluded = useMemo(() => {
+    if (!deadlineRootId || !pid) return false;
+    return !isDeadlineRelevantForRoot(tree, deadlineRootId, pid);
+  }, [tree, pid, deadlineRootId]);
 
   const [f, setF] = useState({ name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [], type: '', severity: 'high', date: '', description: '' });
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
@@ -73,6 +83,26 @@ export function AddModal({ tree, teams, taskTemplates, sizes: projectSizes, sele
             <SearchSelect value={f.status} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />
           </div>
         </div>
+        {showDeadlineRelevant && <div className="field">
+          <label>{t('qe.affectsDeadline')}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={f.deadlineRelevant !== false}
+                disabled={deadlineParentExcluded}
+                onChange={e => s('deadlineRelevant', e.target.checked ? undefined : false)}
+              />
+              <span className="slider" />
+            </label>
+            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+              {f.deadlineRelevant === false ? t('no') : t('yes')}
+            </span>
+          </div>
+          <p className="helper">
+            {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
+          </p>
+        </div>}
         {(taskTemplates || []).length > 0 && <div className="field"><label>Workflow template</label>
           <SearchSelect value={f.templateId || ''} options={[{ id: '', label: '— None —' }, ...(taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))]}
             onSelect={tplId => {

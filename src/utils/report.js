@@ -3,6 +3,7 @@
 import { iso } from './date.js';
 import { leafNodes, re, resolveToLeafIds } from './scheduler.js';
 import { renderRoadmapSvg } from './roadmap.js';
+import { deadlineScopedScheduledItems } from './deadlines.js';
 
 function parseHexColor(color) {
   const hex = String(color || '').trim();
@@ -89,10 +90,11 @@ export function generateReport({ tree, members, teams, scheduled, weeks, cpSet, 
   const risks = [];
   // 1. Deadlines at risk
   roots.filter(r => r.type === 'deadline' && r.date).forEach(dl => {
-    const rd = rootData.find(x => x.id === dl.id);
-    if (rd?.endD && new Date(dl.date) < rd.endD) {
-      const daysLate = Math.round((rd.endD - new Date(dl.date)) / 86400000);
-      risks.push({ severity: 'critical', text: t(`Deadline "${dl.name}" (${dl.date}) is projected to be ${daysLate} days late (scheduled end: ${iso(rd.endD)})`, `Deadline „${dl.name}" (${dl.date}) wird voraussichtlich ${daysLate} Tage verspätet (geplantes Ende: ${iso(rd.endD)})`) });
+    const deadlineScheduled = deadlineScopedScheduledItems(tree, scheduled, dl.id);
+    const deadlineEnd = deadlineScheduled.length ? deadlineScheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+    if (deadlineEnd && new Date(dl.date) < deadlineEnd) {
+      const daysLate = Math.round((deadlineEnd - new Date(dl.date)) / 86400000);
+      risks.push({ severity: 'critical', text: t(`Deadline "${dl.name}" (${dl.date}) is projected to be ${daysLate} days late (scheduled end: ${iso(deadlineEnd)})`, `Deadline „${dl.name}" (${dl.date}) wird voraussichtlich ${daysLate} Tage verspätet (geplantes Ende: ${iso(deadlineEnd)})`) });
     }
   });
   // 2. Exploratory items on critical path

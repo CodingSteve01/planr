@@ -7,6 +7,7 @@ import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
+import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
@@ -999,7 +1000,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>
             {!isSummary && (s._unestimated
               ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
-              : <span style={{ background: s.autoAssigned ? 'transparent' : 'var(--bg4)', color: s.autoAssigned ? 'var(--am)' : 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', border: s.autoAssigned ? '1px dashed var(--am)' : 'none', opacity: s.autoAssigned ? 0.7 : 1 }} data-htip={s.autoAssigned ? `Auto: ${s.person}` : (s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
+              : s.autoAssigned
+                ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)' }}>{snAll(s)}</AutoAssignBadge>
+                : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
           </div>;
         })}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}

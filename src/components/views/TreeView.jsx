@@ -4,6 +4,7 @@ import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
+import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
@@ -244,7 +245,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Assignees — initials */}
               {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} data-htip={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
               {/* Auto-assigned suggestion from scheduler */}
-              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <span style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--am)', border: '1px dashed var(--am)', borderRadius: 3, padding: '0 3px', opacity: .7 }} data-htip={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`}>{memberShort(sMap[r.id].personId)}</span>}
+              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <AutoAssignBadge title={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`} style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px' }}>{memberShort(sMap[r.id].personId)}</AutoAssignBadge>}
 
               {/* Priority — chevron icon for all leaves */}
               {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}

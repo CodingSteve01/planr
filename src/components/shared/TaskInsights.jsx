@@ -3,6 +3,7 @@ import { isLeafNode, leafNodes, re } from '../../utils/scheduler.js';
 import { iso, diffDays, localDate } from '../../utils/date.js';
 import { resolveUri } from '../../utils/customFields.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
+import { AutoAssignBadge } from './AutoAssignBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '✓' };
@@ -317,16 +318,9 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                 <span>{assignees.length > 0 ? assignees.map(m => m.name).join(', ') : sc?.person}</span>
               )}
               {sc?.autoAssigned && (
-                <span
-                  data-htip={t('ins.autoAssignedTip')}
-                  style={{
-                    background: 'var(--bg3)', color: 'var(--am)',
-                    border: '1px dashed var(--am)', fontSize: 10,
-                    padding: '1px 6px', borderRadius: 4,
-                  }}
-                >
-                  🤖 {t('ins.autoAssigned')}
-                </span>
+                <AutoAssignBadge title={t('ins.autoAssignedTip')}>
+                  {t('ins.autoAssigned')}
+                </AutoAssignBadge>
               )}
               {team && (
                 <>

@@ -1,4 +1,5 @@
 import { leafNodes, resolveToLeafIds } from './scheduler.js';
+import { deadlineScopedLeafIds } from './deadlines.js';
 
 // Global critical path (longest path to project end)
 export function cpm(tree) {
@@ -42,7 +43,10 @@ export function goalCpm(tree) {
 
   goals.forEach(dl => {
     // All leaf descendants of this root = targets
-    const targets = leafNodes(tree).filter(l => l.id.startsWith(dl.id + '.')).map(l => l.id).filter(id => lv[id]);
+    const targets = (dl.type === 'deadline'
+      ? deadlineScopedLeafIds(tree, dl.id)
+      : leafNodes(tree).filter(l => l.id.startsWith(dl.id + '.')).map(l => l.id))
+      .filter(id => lv[id]);
     if (!targets.length) return;
 
     // Trace backward from targets: find ALL tasks that are ancestors (transitively needed)

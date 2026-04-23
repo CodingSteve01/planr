@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { iso, localDate, diffDays } from '../../utils/date.js';
 import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
+import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { useT } from '../../i18n.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '✓' };
@@ -170,11 +171,13 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
     // Root items whose projected end exceeds their deadline
     tree.filter(r => !r.id.includes('.') && r.date).forEach(r => {
       if (r.status === 'done') return;
-      const st = stats?.[r.id];
-      if (!st?._endD) return;
       const dl = localDate(r.date);
-      if (st._endD > dl) {
-        items.push({ id: r.id, name: r.name, reason: 'late', date: r.date, projEnd: st._endD, status: r.status || 'open' });
+      const linked = r.type === 'deadline'
+        ? deadlineScopedScheduledItems(tree, filteredScheduled, r.id)
+        : filteredScheduled.filter(s => s.id.startsWith(r.id + '.'));
+      const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+      if (maxEnd && maxEnd > dl) {
+        items.push({ id: r.id, name: r.name, reason: 'late', date: r.date, projEnd: maxEnd, status: r.status || 'open' });
       }
     });
     return items;

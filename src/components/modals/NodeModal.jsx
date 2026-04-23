@@ -6,9 +6,10 @@ import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
-import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
+import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -105,6 +106,14 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
+  const deadlineRootId = useMemo(() => deadlineRootIdForNode(tree, node.id), [tree, node.id]);
+  const deadlineRoot = useMemo(() => deadlineRootId ? tree.find(entry => entry.id === deadlineRootId) : null, [tree, deadlineRootId]);
+  const deadlineParentExcluded = useMemo(() => {
+    if (!deadlineRootId || node.id === deadlineRootId) return false;
+    const parent = parentId(node.id);
+    return !!parent && !isDeadlineRelevantForRoot(tree, deadlineRootId, parent);
+  }, [tree, node.id, deadlineRootId]);
+  const showDeadlineRelevant = !!deadlineRootId && node.id !== deadlineRootId;
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   const findById = id => tree.find(r => r.id === id);
@@ -255,6 +264,26 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       {activeNmTab === 'overview' && <>
         <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus /></div>
         <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} /></div>
+        {showDeadlineRelevant && <div className="field">
+          <label>{t('qe.affectsDeadline')}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={f.deadlineRelevant !== false}
+                disabled={deadlineParentExcluded}
+                onChange={e => s('deadlineRelevant', e.target.checked ? undefined : false)}
+              />
+              <span className="slider" />
+            </label>
+            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+              {f.deadlineRelevant === false ? t('no') : t('yes')}
+            </span>
+          </div>
+          <div className="helper">
+            {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
+          </div>
+        </div>}
         {isRoot && <>
           <div className="frow">
             <div className="field"><label>{t('nm.focusType')}</label>

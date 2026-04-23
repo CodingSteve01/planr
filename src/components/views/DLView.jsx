@@ -1,5 +1,6 @@
 import { fmtDate, diffDays, iso } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
+import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 
@@ -18,7 +19,9 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
         {g.items.map(r=>{
           const s = stats[r.id];
           const prog = s?._progress || 0;
-          const childSch = scheduled.filter(sc => sc.id.startsWith(r.id + '.'));
+          const childSch = r.type === 'deadline'
+            ? deadlineScopedScheduledItems(tree, scheduled, r.id)
+            : scheduled.filter(sc => sc.id.startsWith(r.id + '.'));
           const maxEnd = childSch.length > 0 ? childSch.reduce((m,sc)=>sc.endD>m?sc.endD:m,new Date(0)) : null;
           const dlDate = r.date ? new Date(r.date) : null;
           const isLate = maxEnd && dlDate && maxEnd > dlDate;
