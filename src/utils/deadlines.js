@@ -1,4 +1,4 @@
-import { leafNodes, parentId } from './scheduler.js';
+import { leafNodes, parentId, resolveToLeafIds } from './scheduler.js';
 
 function asId(nodeOrId) {
   return typeof nodeOrId === 'string' ? nodeOrId : nodeOrId?.id;
@@ -42,9 +42,8 @@ export function isDeadlineRelevantNode(tree, nodeOrId) {
 
 export function deadlineScopedLeafIds(tree, rootId) {
   if (!rootId) return [];
-  return leafNodes(tree)
-    .filter(node => node.id.startsWith(rootId + '.') && isDeadlineRelevantForRoot(tree, rootId, node.id))
-    .map(node => node.id);
+  return resolveToLeafIds(tree, rootId)
+    .filter(id => isDeadlineRelevantForRoot(tree, rootId, id));
 }
 
 export function deadlineScopedScheduledItems(tree, scheduled, rootId) {

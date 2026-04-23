@@ -33,7 +33,7 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+export function GanttView({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -504,6 +504,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     return m;
   }, [rows]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
+  const cpEdgeSet = useMemo(() => cpEdges || new Set(), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
   const vacByPerson = useMemo(() => {
     const m = {};
@@ -567,20 +568,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
   function resD(id) { return resolveToLeafIds(tree || [], id); }
   const cpLines = useMemo(() => {
-    if (!cpSet?.size || !tree) return [];
+    if (!cpEdgeSet.size || !tree) return [];
     const lines = [];
     scheduled.forEach(s => {
-      if (!cpSet.has(s.id)) return;
       const node = iMap[s.id]; if (!node) return;
       (node.deps || []).forEach(rawDep => {
         const leafIds = resD(rawDep);
         let latestId = null, latestEnd = null;
         leafIds.forEach(depId => {
-          if (!cpSet.has(depId)) return;
           const dep = sMap[depId]; if (!dep) return;
           if (!latestEnd || dep.endD > latestEnd) { latestEnd = dep.endD; latestId = depId; }
         });
         if (!latestId) return;
+        if (!cpEdgeSet.has(`${latestId}->${s.id}`)) return;
         const dep = sMap[latestId];
         const srcRows = rowIdx[latestId], tgtRows = rowIdx[s.id];
         if (!srcRows?.length || !tgtRows?.length) return;
@@ -592,7 +592,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       });
     });
     return lines;
-  }, [scheduled, cpSet, tree, rows, rowIdx, WPX, showDays, groupBy, dDelta, drag]);
+  }, [scheduled, cpEdgeSet, tree, rows, rowIdx, WPX, showDays, groupBy, dDelta, drag]);
 
   // ALL dep lines (always rendered, faint by default; hovered ones highlight)
   // When a dep targets a parent node, draw ONE line from the latest-finishing child
@@ -622,14 +622,14 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
               x2: depX2(s), y2: rowCenterY(tgtRow),
               removeFromId: s.id, removeDepId: rawDep,
               srcId: latestId, tgtId: s.id,
-              isCp: cpSet?.has(latestId) && cpSet?.has(s.id),
+              isCp: cpEdgeSet.has(`${latestId}->${s.id}`),
             });
           });
         });
       });
     });
     return lines;
-  }, [scheduled, tree, rows, rowIdx, cpSet, WPX, showDays, groupBy, dDelta, drag]);
+  }, [scheduled, tree, rows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
@@ -682,18 +682,36 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
-  const cpNodeSet = useMemo(() => {
-    const set = new Set(cpSet || []);
-    (cpSet || []).forEach(id => {
-      let pid = parentId(id);
-      while (pid) {
-        set.add(pid);
-        pid = parentId(pid);
-      }
-    });
-    return set;
-  }, [cpSet]);
-  const rowIsCp = row => cpNodeSet.has(row.s.id);
+  const cpNodeSet = useMemo(() => new Set(cpSet || []), [cpSet]);
+  const cpRowMeta = useMemo(() => {
+    const containsMemo = new Map();
+    const containsCritical = row => {
+      if (!row) return false;
+      if (containsMemo.has(row.key)) return containsMemo.get(row.key);
+      const result = row.type === 'task'
+        ? cpNodeSet.has(row.s.id)
+        : (row.children || EMPTY_ARR).some(child => containsCritical(child));
+      containsMemo.set(row.key, result);
+      return result;
+    };
+    const highlightMemo = new Map();
+    const highlightCritical = row => {
+      if (!row) return false;
+      if (highlightMemo.has(row.key)) return highlightMemo.get(row.key);
+      const result = row.type === 'task'
+        ? cpNodeSet.has(row.s.id)
+        : !!row.collapseKey && collapsed.has(row.collapseKey) && containsCritical(row);
+      highlightMemo.set(row.key, result);
+      return result;
+    };
+    return { containsCritical, highlightCritical };
+  }, [cpNodeSet, collapsed]);
+  const rowIsCp = row => cpRowMeta.highlightCritical(row);
+  const rowRelevantToCp = row => cpRowMeta.containsCritical(row);
+  const visibleCriticalCount = useMemo(() => {
+    if (!cpSet?.size) return 0;
+    return new Set(rows.filter(row => row.type === 'task' && cpSet.has(row.s.id)).map(row => row.s.id)).size;
+  }, [rows, cpSet]);
   const rowTooltipItem = row => row.type === 'group'
     ? null
     : { ...row.node, ...row.s, isCp: rowIsCp(row) };
@@ -961,13 +979,16 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         {rows.map(row => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
-            return <div key={row.key} className="gteam" style={{ color: row.color, borderLeft: `3px solid ${row.color}`, background: 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            const isCp = rowIsCp(row);
+            const dim = cpOnly && !rowRelevantToCp(row);
+            return <div key={row.key} className="gteam" style={{ color: isCp ? 'var(--re)' : row.color, borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`, background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', opacity: dim ? .25 : 1 }}>
               <button
                 type="button"
                 aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
                 onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey || row.key); }}
                 style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', cursor: 'pointer' }}
               >{isCol ? '▶' : '▼'}</button>
+              {isCp && <span style={{ fontSize: 10, color: 'var(--re)', lineHeight: 1 }}>⚡</span>}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
               <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
             </div>;
@@ -975,7 +996,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const s = row.s;
           const isSummary = row.type === 'summary';
           const isCp = rowIsCp(row);
-          const dim = cpOnly && !isCp;
+          const dim = cpOnly && !rowRelevantToCp(row);
           const indent = row.level * 14;
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
@@ -986,7 +1007,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
           const confDot = isSummary ? null : (confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null);
           const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
-          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => openRowItem(row)}>
             {isSummary && <button
               type="button"
@@ -1096,8 +1117,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 ? { background: 'var(--bg4)', border: '1px solid var(--b2)', color: 'var(--tx2)', textShadow: 'none' }
                 : { background: 'var(--bg3)', border: '1px solid var(--b2)', color: 'var(--tx)', textShadow: 'none' };
               const groupProgress = s?.progress ?? (s?.status === 'done' ? 100 : s?.status === 'wip' ? 50 : 0);
+              const isCp = rowIsCp(row);
+              const dim = cpOnly && !rowRelevantToCp(row);
               return <div key={row.key} style={{ height: RH, position: 'relative', background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }}>
-                {hasWindow && <div className="gbar"
+                {hasWindow && <div className={`gbar${isCp ? ' cp-bar' : ''}`}
                   style={{
                     left: barLeft,
                     width: barWidth,
@@ -1106,6 +1129,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     borderRadius: 5,
                     cursor: 'default',
                     boxShadow: 'none',
+                    opacity: dim ? .25 : 1,
                     ...groupStyle,
                   }}>
                   {groupProgress > 0 && groupProgress < 100 && <div style={{
@@ -1153,7 +1177,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             const dragPxOffset = isDrag ? dDelta * (showDays ? DPX : WPX) : 0;
             const barLeft = Math.max(0, baseLeft + dragPxOffset);
             const bW = baseWidth;
-            const dim = cpOnly && !isCp;
+            const dim = cpOnly && !rowRelevantToCp(row);
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
@@ -1401,7 +1425,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
         {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ` ${t('s.atRisk')}` : dl.maxEnd ? ` ${t('s.onTrack')}` : ''}
       </span>)}
-      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items' : 'Click to highlight only critical path. Critical path = chain of tasks that determines the earliest possible end date — any delay here delays the whole project.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {cpSet.size}</button>}
+      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items' : 'Click to highlight the critical chains of the visible root items. Multiple red paths are possible when there is no slack.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
       {unestimatedCount > 0 && <span className="badge bw" data-htip="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}
       {(() => {

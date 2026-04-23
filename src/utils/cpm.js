@@ -1,108 +1,172 @@
-import { leafNodes, resolveToLeafIds } from './scheduler.js';
+import { leafNodes, parentId, resolveToLeafIds } from './scheduler.js';
 import { deadlineScopedLeafIds } from './deadlines.js';
 
-// Global critical path (longest path to project end)
-export function cpm(tree) {
-  const lv = Object.fromEntries(leafNodes(tree).map(r => [r.id, r]));
-  const eff = r => r.status === 'done' ? 0 : Math.max((r.best || 0) * (r.factor || 1.5), 0.01);
-  function resD(id) { return resolveToLeafIds(tree, id).filter(d => lv[d]); }
-  const rd = Object.fromEntries(Object.keys(lv).map(id => [id, new Set((lv[id].deps || []).flatMap(resD).filter(d => lv[d]))]));
-  const vis = new Set(), order = [];
-  const visit = id => { if (vis.has(id)) return; vis.add(id); rd[id].forEach(d => visit(d)); order.push(id); };
-  Object.keys(lv).sort().forEach(visit);
-  const ef = {};
-  order.forEach(id => { const df = rd[id].size ? Math.max(...[...rd[id]].map(d => ef[d] || 0)) : 0; ef[id] = df + eff(lv[id]); });
-  const pe = Math.max(0, ...Object.values(ef)); if (!pe) return { critical: new Set(), goalPaths: {} };
-  const ls = {};
-  [...order].reverse().forEach(id => {
-    const succs = Object.keys(lv).filter(s => [...rd[s]].includes(id));
-    const lf = succs.length ? Math.min(...succs.map(s => ls[s] || pe)) : pe;
-    ls[id] = lf - eff(lv[id]);
-  });
-  const critical = new Set(Object.keys(lv).filter(id => Math.abs(ls[id] - (ef[id] - eff(lv[id]))) < 0.1));
-  return { critical, goalPaths: {} };
-}
+const EPS = 0.1;
 
-// Goal-based critical path: per goal (tree root with type), trace all leaf descendants
-// Returns { [goalId]: { critical: Set<taskId>, chainLength: number, ... } }
-export function goalCpm(tree) {
-  const lv = Object.fromEntries(leafNodes(tree).map(r => [r.id, r]));
-  const eff = r => r.status === 'done' ? 0 : Math.max((r.best || 0) * (r.factor || 1.5), 0.01);
+const effortOf = node => node.status === 'done'
+  ? 0
+  : Math.max((node.best || 0) * (node.factor || 1.5), 0.01);
 
-  function resolveTo(id) {
-    return resolveToLeafIds(tree, id).filter(id2 => lv[id2]);
-  }
+function buildLeafContext(tree) {
+  const leaves = leafNodes(tree);
+  const leafMap = Object.fromEntries(leaves.map(node => [node.id, node]));
+  const nodeMap = Object.fromEntries((tree || []).map(node => [node.id, node]));
+  const resolveLeafIds = id => resolveToLeafIds(tree, id).filter(leafId => leafMap[leafId]);
 
   const deps = {};
-  Object.keys(lv).forEach(id => {
-    deps[id] = new Set((lv[id].deps || []).flatMap(d => resolveTo(d)).filter(d => lv[d]));
+  Object.keys(leafMap).forEach(id => {
+    const inherited = [];
+    let current = id;
+    while (current) {
+      const node = nodeMap[current];
+      if (node?.deps?.length) inherited.push(...node.deps);
+      current = parentId(current);
+    }
+    deps[id] = new Set(inherited.flatMap(depId => resolveLeafIds(depId)).filter(depId => depId !== id && leafMap[depId]));
   });
 
-  const goalPaths = {};
-  const goals = tree.filter(r => !r.id.includes('.') && r.type);
+  return { leafMap, deps, resolveLeafIds };
+}
 
-  goals.forEach(dl => {
-    // All leaf descendants of this root = targets
-    const targets = (dl.type === 'deadline'
-      ? deadlineScopedLeafIds(tree, dl.id)
-      : leafNodes(tree).filter(l => l.id.startsWith(dl.id + '.')).map(l => l.id))
-      .filter(id => lv[id]);
+function analyzeScopes(tree, scopes) {
+  const { leafMap, deps } = buildLeafContext(tree);
+  const allLeafIds = Object.keys(leafMap);
+  const pathMap = {};
+  const unionCritical = new Set();
+  const unionEdges = new Set();
+
+  scopes.forEach(scope => {
+    const targets = [...new Set((scope.targets || []).filter(id => leafMap[id]))];
     if (!targets.length) return;
 
-    // Trace backward from targets: find ALL tasks that are ancestors (transitively needed)
     const needed = new Set();
     const queue = [...targets];
     while (queue.length) {
       const id = queue.shift();
       if (needed.has(id)) continue;
       needed.add(id);
-      // Add all dependencies of this task
-      if (deps[id]) deps[id].forEach(d => { if (!needed.has(d)) queue.push(d); });
+      deps[id]?.forEach(depId => {
+        if (!needed.has(depId)) queue.push(depId);
+      });
     }
-
     if (!needed.size) return;
 
-    // Forward pass: earliest finish within the needed subgraph
     const topo = [];
-    const vis = new Set();
-    const visit = id => { if (vis.has(id) || !needed.has(id)) return; vis.add(id); if (deps[id]) deps[id].forEach(d => { if (needed.has(d)) visit(d); }); topo.push(id); };
+    const visited = new Set();
+    const visit = id => {
+      if (visited.has(id) || !needed.has(id)) return;
+      visited.add(id);
+      deps[id]?.forEach(depId => visit(depId));
+      topo.push(id);
+    };
     [...needed].sort().forEach(visit);
 
     const ef = {};
     topo.forEach(id => {
-      const depFinish = deps[id]?.size ? Math.max(...[...deps[id]].filter(d => needed.has(d)).map(d => ef[d] || 0)) : 0;
-      ef[id] = depFinish + eff(lv[id]);
+      const depFinish = deps[id]?.size
+        ? Math.max(0, ...[...deps[id]].filter(depId => needed.has(depId)).map(depId => ef[depId] || 0))
+        : 0;
+      ef[id] = depFinish + effortOf(leafMap[id]);
     });
 
-    // Project end for this goal = max finish of target tasks
-    const goalEnd = Math.max(...targets.map(t => ef[t] || 0));
-    if (!goalEnd) return;
+    const scopeEnd = Math.max(0, ...targets.map(id => ef[id] || 0));
+    if (!scopeEnd) return;
 
-    // Backward pass: latest start
     const ls = {};
     [...topo].reverse().forEach(id => {
-      // Successors within the needed subgraph
-      const succs = [...needed].filter(s => deps[s]?.has(id));
-      const lf = succs.length ? Math.min(...succs.map(s => ls[s] ?? goalEnd)) : goalEnd;
-      ls[id] = lf - eff(lv[id]);
+      const successors = [...needed].filter(successorId => deps[successorId]?.has(id));
+      const lf = successors.length
+        ? Math.min(...successors.map(successorId => ls[successorId] ?? scopeEnd))
+        : scopeEnd;
+      ls[id] = lf - effortOf(leafMap[id]);
     });
 
-    // Critical = zero slack
     const critical = new Set([...needed].filter(id => {
-      const es = (ef[id] || 0) - eff(lv[id]);
-      return Math.abs((ls[id] ?? 0) - es) < 0.1;
+      const es = (ef[id] || 0) - effortOf(leafMap[id]);
+      return Math.abs((ls[id] ?? 0) - es) < EPS;
     }));
 
-    goalPaths[dl.id] = {
+    const criticalEdges = new Set();
+    critical.forEach(id => {
+      const es = (ef[id] || 0) - effortOf(leafMap[id]);
+      deps[id]?.forEach(depId => {
+        if (!needed.has(depId) || !critical.has(depId)) return;
+        if (Math.abs((ef[depId] || 0) - es) < EPS) criticalEdges.add(`${depId}->${id}`);
+      });
+    });
+
+    critical.forEach(id => unionCritical.add(id));
+    criticalEdges.forEach(edge => unionEdges.add(edge));
+    pathMap[scope.id] = {
+      ...scope.meta,
       critical,
-      targets,
+      criticalEdges,
       needed: [...needed],
-      chainLength: goalEnd,
-      name: dl.name,
-      date: dl.date,
-      severity: dl.severity,
+      targets,
+      chainLength: scopeEnd,
     };
   });
 
-  return goalPaths;
+  return { critical: unionCritical, edges: unionEdges, paths: pathMap, leafIds: allLeafIds };
+}
+
+// Root-based CPM: one critical-path analysis per top-level item.
+// The union across roots is what the UI highlights by default.
+export function rootCpm(tree) {
+  const roots = (tree || []).filter(node => !node.id.includes('.'));
+  const scopes = roots.map(root => ({
+    id: root.id,
+    targets: root.type === 'deadline'
+      ? deadlineScopedLeafIds(tree, root.id)
+      : resolveToLeafIds(tree, root.id),
+    meta: {
+      name: root.name,
+      type: root.type,
+      date: root.date,
+      severity: root.severity,
+    },
+  }));
+  const result = analyzeScopes(tree, scopes);
+  return {
+    critical: result.critical,
+    edges: result.edges,
+    rootPaths: result.paths,
+  };
+}
+
+// Global CPM across the entire graph. Kept for comparison/export use cases.
+export function cpm(tree) {
+  const { leafIds } = analyzeScopes(tree, [{
+    id: '__global__',
+    targets: leafNodes(tree).map(node => node.id),
+    meta: {},
+  }]);
+  const result = analyzeScopes(tree, [{
+    id: '__global__',
+    targets: leafIds,
+    meta: {},
+  }]);
+  return {
+    critical: result.critical,
+    edges: result.edges,
+    goalPaths: {},
+  };
+}
+
+// Goal/deadline CPM for typed root items shown in Focus views.
+export function goalCpm(tree) {
+  const goals = (tree || []).filter(node => !node.id.includes('.') && node.type);
+  const scopes = goals.map(goal => ({
+    id: goal.id,
+    targets: goal.type === 'deadline'
+      ? deadlineScopedLeafIds(tree, goal.id)
+      : resolveToLeafIds(tree, goal.id),
+    meta: {
+      name: goal.name,
+      date: goal.date,
+      severity: goal.severity,
+      type: goal.type,
+    },
+  }));
+  return analyzeScopes(tree, scopes).paths;
 }

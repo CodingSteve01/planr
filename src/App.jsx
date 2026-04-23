@@ -10,7 +10,7 @@ import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
-import { cpm, goalCpm } from './utils/cpm.js';
+import { rootCpm, goalCpm } from './utils/cpm.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
@@ -1017,7 +1017,9 @@ export default function App() {
   }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
-  const cpSet = useMemo(() => cpm(tree).critical, [tree]);
+  const cpData = useMemo(() => rootCpm(tree), [tree]);
+  const cpSet = cpData.critical;
+  const cpEdges = cpData.edges;
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   const viewScheduled = useMemo(() => scheduled.filter(s => visibleIdSet.has(s.id)), [scheduled, visibleIdSet]);
   const viewGoals = useMemo(() => visibleTree.filter(r => !r.id.includes('.') && r.type), [visibleTree]);
@@ -1027,7 +1029,9 @@ export default function App() {
     enrichParentSchedules(s, visibleTree, viewScheduled);
     return s;
   }, [hideDone, stats, visibleTree, viewScheduled]);
-  const viewCpSet = useMemo(() => hideDone ? cpm(visibleTree).critical : cpSet, [hideDone, visibleTree, cpSet]);
+  const viewCpData = useMemo(() => hideDone ? rootCpm(visibleTree) : cpData, [hideDone, visibleTree, cpData]);
+  const viewCpSet = viewCpData.critical;
+  const viewCpEdges = viewCpData.edges;
   const viewGoalPaths = useMemo(() => hideDone ? goalCpm(visibleTree) : goalPaths, [hideDone, visibleTree, goalPaths]);
   const leaves = useMemo(() => leafNodes(tree), [tree]);
   const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
@@ -1923,7 +1927,7 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} tree={tree} hideDone={hideDone} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} onReorderSibling={reorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={search} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} onReorderSibling={reorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} stats={viewStats} search={search} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         onNodeClick={r => onBarClick(r)}
         onAddNode={() => setModal('add')}
