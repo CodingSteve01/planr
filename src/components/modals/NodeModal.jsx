@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
@@ -373,6 +374,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
+        {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams}
+          onChange={plan => s('handoffPlan', plan)} />}
       </>}
 
       {/* ══════ EFFORT TAB ══════ */}

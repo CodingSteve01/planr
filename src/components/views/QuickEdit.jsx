@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { SBadge } from '../shared/Badges.jsx';
 import { SL, GT } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
@@ -331,6 +332,8 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           />
         </div>
       </div>
+      {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams}
+        onChange={plan => patchNode({ handoffPlan: plan })} />}
     </>}
 
     {/* ══════ EFFORT TAB ══════ */}

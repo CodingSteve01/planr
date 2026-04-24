@@ -183,6 +183,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .rf input:focus,.rf select:focus{border-color:var(--ac);}
 .rf > *:last-child{flex-shrink:0;width:150px;}
 .rf > *:last-child input,.rf > *:last-child select,.rf > *:last-child > div{width:100%!important;box-sizing:border-box;}
+/* Capacity card inputs: same visuals as .rf but the card lives outside its
+   scope (full-width break-out from the 2-col grid). */
+.cap-card input,.cap-card select,.cap-card textarea{background:var(--bg2);border:1px solid var(--b2);border-radius:4px;color:var(--tx);font-size:11px;padding:4px 7px;outline:none;font-family:var(--mono);box-sizing:border-box;width:100%;}
+.cap-card input:focus,.cap-card select:focus{border-color:var(--ac);}
 .vac-tbl{width:100%;border-collapse:collapse;}
 .vac-tbl th{padding:5px 8px;font-size:10px;color:var(--tx3);text-transform:uppercase;border-bottom:1px solid var(--b);text-align:left;}
 .vac-tbl td{padding:4px 8px;border-bottom:1px solid var(--b);}

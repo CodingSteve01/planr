@@ -401,25 +401,69 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const runCascade = () => {
             if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             const usedIds = new Set([bp.id]);
-            const primary = cascadeHandoff({ rem, lastOffboard: endDate, usedIds, tM, isPinned: !!r.pinnedStart });
-            if (primary.remaining <= 0) return primary;
+            // Honor r.handoffPlan first: each plan entry pins a specific team/
+            // assign for its stage. Fall through to auto-cascade for anything
+            // beyond the plan.
+            const planSegs = [];
+            let planState = { remaining: rem, lastOffboard: endDate, lastWD: null, finalWi: -1 };
+            const plan = Array.isArray(r.handoffPlan) ? r.handoffPlan : [];
+            for (const stage of plan) {
+              if (planState.remaining <= 0 || !planState.lastOffboard) break;
+              const stageAssign = Array.isArray(stage?.assign) ? stage.assign : [];
+              let pool = members;
+              if (stageAssign.length) pool = members.filter(m2 => stageAssign.includes(m2.id));
+              else if (stage?.team) pool = members.filter(m2 => pt(m2.team) === pt(stage.team));
+              if (!pool.length) break;
+              const chunk = cascadeHandoff({
+                rem: planState.remaining,
+                lastOffboard: planState.lastOffboard,
+                usedIds,
+                tM: pool,
+                isPinned: !!r.pinnedStart,
+              });
+              if (!chunk.segments.length) break; // plan entry unusable, fall through to auto
+              chunk.segments.forEach(seg => { seg.planned = true; });
+              planSegs.push(...chunk.segments);
+              planState = {
+                remaining: chunk.remaining,
+                lastOffboard: chunk.lastOffboard || planState.lastOffboard,
+                lastWD: chunk.lastWD || planState.lastWD,
+                finalWi: chunk.finalWi >= 0 ? chunk.finalWi : planState.finalWi,
+              };
+            }
+            // Auto-cascade same team first (semantic preference).
+            const primary = cascadeHandoff({
+              rem: planState.remaining,
+              lastOffboard: planState.lastOffboard,
+              usedIds,
+              tM,
+              isPinned: !!r.pinnedStart,
+            });
+            let combined = {
+              segments: [...planSegs, ...primary.segments],
+              remaining: primary.remaining,
+              lastWD: primary.lastWD || planState.lastWD,
+              finalWi: primary.finalWi >= 0 ? primary.finalWi : planState.finalWi,
+              lastOffboard: primary.remaining > 0 ? (primary.lastOffboard || planState.lastOffboard) : null,
+            };
+            if (combined.remaining <= 0) return combined;
             const others = members
               .filter(m2 => pt(m2.team) !== team && !usedIds.has(m2.id))
               .map(m2 => Object.assign({}, m2, { _crossTeam: true }));
-            if (!others.length) return primary;
+            if (!others.length) return combined;
             const secondary = cascadeHandoff({
-              rem: primary.remaining,
-              lastOffboard: primary.lastOffboard || endDate,
+              rem: combined.remaining,
+              lastOffboard: combined.lastOffboard || endDate,
               usedIds,
               tM: others,
               isPinned: !!r.pinnedStart,
             });
             return {
-              segments: [...primary.segments, ...secondary.segments],
+              segments: [...combined.segments, ...secondary.segments],
               remaining: secondary.remaining,
-              lastWD: secondary.lastWD || primary.lastWD,
-              finalWi: secondary.finalWi >= 0 ? secondary.finalWi : primary.finalWi,
-              lastOffboard: secondary.remaining > 0 ? (secondary.lastOffboard || primary.lastOffboard) : null,
+              lastWD: secondary.lastWD || combined.lastWD,
+              finalWi: secondary.finalWi >= 0 ? secondary.finalWi : combined.finalWi,
+              lastOffboard: secondary.remaining > 0 ? (secondary.lastOffboard || combined.lastOffboard) : null,
             };
           };
           const cascade = runCascade();

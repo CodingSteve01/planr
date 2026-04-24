@@ -518,15 +518,16 @@ export default function App() {
           mems.push(m);
           lastItem = m;
         }
-        // Sub-bullet for meetings: *Meetings: Name 1.25h/w, Retro 1h/2w, Allhands 1h/mo*
+        // Sub-bullet for meetings: *Meetings: Name 1.25h/d, Retro 0.5h/2w, Allhands 1h/mo*
         const mt = line.match(/^\s*\*Meetings:\s*(.+?)\*\s*$/);
         if (mt && lastItem && mems[mems.length - 1] === lastItem) {
           const items = mt[1].split(',').map(s => s.trim()).filter(Boolean);
           lastItem.meetings = items.map((raw, i) => {
-            // "Standup 1.25h/w"  |  "Retro 0.5h/2w"  |  "Allhands 1h/mo"
-            const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(w|2w|mo)\s*$/i);
+            // "Standup 0.25h/d" | "Standup 1.25h/w" | "Retro 0.5h/2w" | "Allhands 1h/mo"
+            const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
             if (!hm) return { id: 'mt_' + i, name: raw, hours: 0, frequency: 'weekly' };
-            const freq = hm[3].toLowerCase() === '2w' ? 'biweekly' : hm[3].toLowerCase() === 'mo' ? 'monthly' : 'weekly';
+            const fk = hm[3].toLowerCase();
+            const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
             return { id: 'mt_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq };
           });
           lastItem.capMode = 'derived';
@@ -607,6 +608,21 @@ export default function App() {
           if (phaseM) {
             const phaseItems = phaseM[1].split(',').map(s => s.trim());
             lastItem.phases = phaseItems.map(pi => parsePhaseToken(pi));
+            return;
+          }
+          // Parse handoff plan: *Handoff: → Max, Anna (Frontend); → Chris*
+          const handM = trimmed.match(/^\*Handoff:\s*(.+?)\*$/);
+          if (handM) {
+            const stages = handM[1].split(';').map(s => s.trim()).filter(Boolean);
+            lastItem.handoffPlan = stages.map(raw0 => {
+              const raw = raw0.replace(/^→\s*/, '').trim();
+              // "Names (Team)" split
+              const tm2 = raw.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+              const namesPart = (tm2 ? tm2[1] : raw).trim();
+              const teamPart = tm2 ? tm2[2].trim() : '';
+              const shorts = namesPart ? namesPart.split(',').map(s => s.trim()).filter(Boolean) : [];
+              return { _parsedShorts: shorts, _parsedTeam: teamPart };
+            });
             return;
           }
           if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
@@ -784,6 +800,17 @@ export default function App() {
       if (r.phases?.length) {
         r.phases.forEach(phase => {
           if (phase.assign?.length) phase.assign = phase.assign.map(resolveMember);
+        });
+      }
+      // Resolve handoff plan stages: short-codes → member IDs, team name → team ID.
+      if (Array.isArray(r.handoffPlan)) {
+        r.handoffPlan = r.handoffPlan.map(stage => {
+          const shorts = stage._parsedShorts || [];
+          const teamName = stage._parsedTeam || '';
+          const out = {};
+          if (shorts.length) out.assign = shorts.map(resolveMember);
+          if (teamName) out.team = teamLookup[teamName] || teamName;
+          return out;
         });
       }
     });

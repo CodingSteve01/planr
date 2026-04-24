@@ -137,22 +137,23 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
   );
 }
 
-/* ─── Capacity field: switches between Manual % and Derived (hours − meetings) ── */
+/* ─── Capacity field: switches between Manual % and Derived (40h − meetings) ── */
+// Baseline is always 40h/week FTE. Members with reduced workload should model
+// it as a "Teilzeit" meeting-equivalent, or switch to Manual %.
 function CapacityField({ member, onUpd, t }) {
   const mode = member.capMode === 'derived' ? 'derived' : 'manual';
   const setMode = newMode => {
     if (newMode === mode) return;
     if (newMode === 'derived') {
-      const manualPct = Math.round((member.cap ?? 1) * 100);
-      const seededHours = member.weeklyHours ?? Math.round(FTE_HOURS * manualPct / 100);
-      onUpd({ ...member, capMode: 'derived', weeklyHours: seededHours, meetings: member.meetings || [] });
+      onUpd({ ...member, capMode: 'derived', meetings: member.meetings || [] });
     } else {
       onUpd({ ...member, capMode: 'manual', cap: deriveCap({ ...member, capMode: 'derived' }) });
     }
   };
   const derivedPct = Math.round(deriveCap(member) * 100);
+  const tone = derivedPct > 100 ? 'var(--re)' : derivedPct >= 80 ? 'var(--gr)' : 'var(--am)';
   return (
-    <div style={{
+    <div className="cap-card" style={{
       marginTop: 10, padding: 12, background: 'var(--bg3)',
       border: '1px solid var(--b)', borderRadius: 'var(--r)',
     }}>
@@ -162,7 +163,7 @@ function CapacityField({ member, onUpd, t }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{t('rv.capacityPct')}</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: derivedPct > 100 ? 'var(--re)' : derivedPct >= 80 ? 'var(--gr)' : 'var(--am)' }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: tone }}>
             {derivedPct}%
           </span>
         </div>
@@ -170,15 +171,15 @@ function CapacityField({ member, onUpd, t }) {
           <button className={`btn btn-xs ${mode === 'manual' ? 'btn-pri' : 'btn-sec'}`}
             onClick={() => setMode('manual')}>Manuell</button>
           <button className={`btn btn-xs ${mode === 'derived' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setMode('derived')}>Aus Std/Woche</button>
+            onClick={() => setMode('derived')}>Aus Meetings</button>
         </div>
       </div>
       {mode === 'manual' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="rf" style={{ marginBottom: 0 }}>
+          <label>%</label>
           <LazyInput type="number" min="0" max="100" step="5"
             value={Math.round((member.cap || 1) * 100)}
             onCommit={v => onUpd({ ...member, cap: v / 100 })} />
-          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>%</span>
         </div>
       ) : (
         <DerivedCapacity member={member} onUpd={onUpd} />
@@ -188,40 +189,32 @@ function CapacityField({ member, onUpd, t }) {
 }
 
 function DerivedCapacity({ member, onUpd }) {
-  const wh = member.weeklyHours ?? FTE_HOURS;
   const meetings = member.meetings || [];
   const meetingH = sumMeetingHours(meetings);
+  const avail = Math.max(0, FTE_HOURS - meetingH);
   const addMeeting = () => {
     const id = 'mt_' + Math.random().toString(36).slice(2, 8);
-    onUpd({ ...member, meetings: [...meetings, { id, name: '', hours: 1, frequency: 'weekly' }] });
+    onUpd({ ...member, meetings: [...meetings, { id, name: '', hours: 0.5, frequency: 'weekly' }] });
   };
   const updMeeting = (id, patch) => {
     onUpd({ ...member, meetings: meetings.map(m => m.id === id ? { ...m, ...patch } : m) });
   };
-  const delMeeting = (id) => {
-    onUpd({ ...member, meetings: meetings.filter(m => m.id !== id) });
-  };
-  const COLS = '1fr 80px 110px 28px';
+  const delMeeting = id => onUpd({ ...member, meetings: meetings.filter(m => m.id !== id) });
+  const COLS = '1fr 90px 130px 28px';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Weekly hours */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, color: 'var(--tx3)', width: 100 }}>Std / Woche</span>
-        <div style={{ width: 80 }}>
-          <LazyInput type="number" min="0" max="80" step="1" value={wh}
-            onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>h</span>
+      <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
+        Basis: <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{FTE_HOURS} h / Woche</span>
+        <span style={{ marginLeft: 6 }}>(FTE-Standard)</span>
       </div>
-
-      {/* Meetings table */}
       <div>
-        <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6,
+        <div style={{
+          display: 'grid', gridTemplateColumns: COLS, gap: 6,
           fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase',
           letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
         }}>
           <span>Meeting</span>
-          <span style={{ textAlign: 'right' }}>Stunden</span>
+          <span>Stunden</span>
           <span>Rhythmus</span>
           <span />
         </div>
@@ -236,8 +229,8 @@ function DerivedCapacity({ member, onUpd }) {
             <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
               onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
             <select value={mt.frequency || 'weekly'}
-              onChange={e => updMeeting(mt.id, { frequency: e.target.value })}
-              style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontFamily: 'var(--mono)' }}>
+              onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
+              <option value="daily">täglich</option>
               <option value="weekly">wöchentl.</option>
               <option value="biweekly">14-tägl.</option>
               <option value="monthly">monatl.</option>
@@ -246,23 +239,18 @@ function DerivedCapacity({ member, onUpd }) {
               style={{ padding: '2px 6px', color: 'var(--re)' }} title="Meeting entfernen">×</button>
           </div>
         ))}
-        <button className="btn btn-sec btn-xs" onClick={addMeeting}
-          style={{ marginTop: 4, alignSelf: 'flex-start' }}>+ Meeting</button>
+        <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
       </div>
-
-      {/* Breakdown */}
       <div style={{
         fontSize: 11, color: 'var(--tx2)', borderTop: '1px solid var(--b)',
         paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6,
         alignItems: 'baseline',
       }}>
-        <span style={{ fontFamily: 'var(--mono)' }}>{wh} h</span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{FTE_HOURS} h</span>
         <span style={{ color: 'var(--tx3)' }}>−</span>
         <span style={{ fontFamily: 'var(--mono)' }}>{meetingH.toFixed(2)} h Meetings</span>
         <span style={{ color: 'var(--tx3)' }}>=</span>
-        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--tx)' }}>
-          {Math.max(0, wh - meetingH).toFixed(2)} h
-        </span>
+        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--tx)' }}>{avail.toFixed(2)} h</span>
         <span style={{ color: 'var(--tx3)', marginLeft: 'auto' }}>verfügbar</span>
       </div>
     </div>

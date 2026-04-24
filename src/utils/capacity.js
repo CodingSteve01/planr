@@ -9,7 +9,9 @@
 
 export const FTE_HOURS = 40;
 
-const FREQ_MULT = { weekly: 1, biweekly: 0.5, monthly: 12 / 52 };
+// Weekly-equivalent multipliers. Daily meetings assume a 5-day work week; the
+// scheduler already excludes weekends from capacity, so 5× is correct.
+const FREQ_MULT = { daily: 5, weekly: 1, biweekly: 0.5, monthly: 12 / 52 };
 
 export function meetingWeeklyHours(meeting) {
   if (!meeting || !meeting.hours) return 0;

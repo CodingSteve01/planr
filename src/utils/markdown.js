@@ -41,7 +41,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
       md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${hours}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
       if (isDerived && (m.meetings || []).length) {
-        md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${mt.frequency && mt.frequency !== 'weekly' ? `/${mt.frequency === 'biweekly' ? '2w' : 'mo'}` : '/w'}`).join(', ')}*\n`;
+        const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+        md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ')}*\n`;
       }
     });
     md += '\n';
@@ -102,6 +103,18 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       teamName,
       memberLabel: memberShort,
     })).join(', ')}*` : '';
+    // Handoff plan: `*Handoff: → Max (FE); → Anna*` — one chevron per stage.
+    // Each stage emits team in parens (if set) and assignee short codes.
+    const handoffPlan = Array.isArray(r.handoffPlan) ? r.handoffPlan.filter(st => st && (st.team || (st.assign || []).length)) : [];
+    const handoff = handoffPlan.length
+      ? `\n${indent}  *Handoff: ${handoffPlan.map(st => {
+          const names = (st.assign || []).map(memberShort).join(', ');
+          const tn = st.team ? teamName(st.team) : '';
+          if (names && tn) return `→ ${names} (${tn})`;
+          if (names) return `→ ${names}`;
+          return `→ (${tn})`;
+        }).join('; ')}*`
+      : '';
     const note = r.note ? `\n${indent}  *${r.note}*` : '';
     const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
     const date = r.date ? ` (${r.date})` : '';
@@ -109,7 +122,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const pinned = r.pinnedStart ? ` 📌${r.pinnedStart}` : '';
     const parallel = r.parallel ? ` ≡` : '';
     const desc = r.description ? `\n${indent}  ${r.description}` : '';
-    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${phases}${note}${desc}\n`;
+    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${phases}${handoff}${note}${desc}\n`;
   });
 
   // Task Templates section
