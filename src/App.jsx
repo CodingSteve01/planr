@@ -692,7 +692,21 @@ export default function App() {
       let id = '';
       const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
       if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
-      // Extract metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
+      // Strip order matters: writer appends these in a fixed sequence
+      //   [team][assign][tagStr][decideBy][pinned][parallel]
+      // so we peel them off back-to-front. Earlier versions tried to grab
+      // the tag block first with an `$` anchor and missed it whenever a
+      // decideBy/pinned marker trailed — which silently dropped `assign`
+      // because the later assign-regex is also `$`-anchored.
+      let parallel = false;
+      if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
+      let pinnedStart = '';
+      const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
+      if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
+      let decideBy = '';
+      const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+      if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
+      // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
       let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true;
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
@@ -713,16 +727,7 @@ export default function App() {
         });
         raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
       }
-      // Decide-by deadline + Pinned start + Parallel marker — extract FIRST so they're not swallowed by team/type regexes
-      let decideBy = '';
-      const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
-      if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
-      let pinnedStart = '';
-      const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
-      if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
-      let parallel = false;
-      if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
-      // Assigned: [Name1, Name2] at end — extract before team regex so it doesn't get eaten
+      // Assigned: [Name1, Name2] — now genuinely at the end after tags stripped
       let assign = [];
       const assignM = raw.match(/\s*\[(.+?)\]\s*$/);
       if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.lastIndexOf(assignM[0])).trim(); }
@@ -1093,12 +1098,17 @@ export default function App() {
           ? todayIso
           : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart, completedPersonId, members, vacations, hm });
         if (!completedAt) return;
-        const shouldRefreshWindow = prev?.status !== 'done'
-          || prev?.completedAt !== completedAt
-          || prev?.completedPersonId !== completedPersonId
-          || !r.completedStart
-          || !r.completedEnd
-          || r.completedAt !== completedAt;
+        // Persisted done-window takes precedence over re-inference: when the
+        // user has already saved done-start/done-end we must not overwrite
+        // them on the next load just because `prev` is empty (first effect
+        // pass). Only refresh when the window is missing OR the completedAt
+        // changed OR the assignee changed — i.e. when the cached data is
+        // actually stale relative to the current task state.
+        const hasExistingWindow = !!r.completedStart && !!r.completedEnd && r.completedAt === completedAt;
+        const shouldRefreshWindow = !hasExistingWindow
+          || (prev && prev.status !== 'done')
+          || (prev && prev.completedAt !== completedAt)
+          || (prev && prev.completedPersonId !== completedPersonId);
         const window = shouldRefreshWindow
           ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
           : { completedStart: r.completedStart, completedEnd: r.completedEnd };
