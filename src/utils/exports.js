@@ -482,32 +482,33 @@ export async function exportReportDocx(ctx) {
                   (data.lineName ? ` <span style="font-size:11px;font-weight:600;color:#1a1e2a">${escapeHtml(data.lineName)}</span>` : '') +
                 `</div>`
               );
-              // Single font stack throughout the legend; literal &nbsp; runs
-              // for spacing so Word preserves the indent (CSS margin alone
-              // is inconsistent in html-to-docx block flow).
+              // Single font stack throughout. Indentation for cluster items
+              // uses <p> with margin-left — html-to-docx maps paragraph margins
+              // onto Word's w:ind indent (plain div margin-left is ignored).
+              // Abbrev ↔ name gap + indent icons use fixed-width inline-block
+              // spacer spans so html-to-docx preserves them as literal runs.
               const FONT = "'Inter','Segoe UI',system-ui,sans-serif";
-              const NBSP = ' ';
-              const SPACE_4 = NBSP.repeat(4);     // abbrev ↔ name
-              const SPACE_10 = NBSP.repeat(10);   // cluster indent
+              const INDENT_PX = 60; // cluster indent ≈ 10 chars Inter 10pt
               data.stationLines.forEach(s => {
                 const iconColor = data.color;
                 const strike = s.done ? 'text-decoration:line-through;opacity:0.6;' : '';
                 if (s.kind === 'station') {
                   parts.push(
-                    `<div style="font-family:${FONT};font-size:10.5px;margin:2px 0;${strike}">` +
-                      `<span style="color:${iconColor};font-weight:700">${statusGlyph(s.status)}${NBSP}${NBSP}</span>` +
+                    `<p style="font-family:${FONT};font-size:10.5px;margin:2px 0;${strike}">` +
+                      `<span style="color:${iconColor};font-weight:700">${statusGlyph(s.status)}</span>` +
+                      `<span style="display:inline-block;width:14px"></span>` +
                       `<span style="color:${iconColor};font-weight:700">${escapeHtml(s.abbrev)}</span>` +
-                      (s.name ? `${SPACE_4}<span style="color:${iconColor};font-weight:700">${escapeHtml(s.name)}</span>` : '') +
-                      (s.count ? `${NBSP}<span style="color:#7a839a;font-weight:400;font-size:9.5px">${escapeHtml(s.count)}</span>` : '') +
-                    `</div>`
+                      (s.name ? `<span style="display:inline-block;width:28px"></span><span style="color:${iconColor};font-weight:700">${escapeHtml(s.name)}</span>` : '') +
+                      (s.count ? ` <span style="color:#7a839a;font-weight:400;font-size:9.5px">${escapeHtml(s.count)}</span>` : '') +
+                    `</p>`
                   );
                 } else {
                   parts.push(
-                    `<div style="font-family:${FONT};font-size:10px;margin:1px 0;${strike}">` +
-                      `${SPACE_10}` +
-                      `<span style="color:${iconColor}">${statusGlyph(s.status)}${NBSP}${NBSP}</span>` +
+                    `<p style="font-family:${FONT};font-size:10px;margin:1px 0 1px ${INDENT_PX}px;${strike}">` +
+                      `<span style="color:${iconColor}">${statusGlyph(s.status)}</span>` +
+                      `<span style="display:inline-block;width:10px"></span>` +
                       `<span style="color:#4a5268;font-weight:400">${escapeHtml(s.name)}</span>` +
-                    `</div>`
+                    `</p>`
                   );
                 }
               });
