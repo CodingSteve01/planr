@@ -1922,7 +1922,7 @@ export default function App() {
                   setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
                   if (!selected) setSel(node);
                 } else { setSel(node); setMultiSel(new Set()); }
-              }} search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={viewStats} teams={teams} members={members} scheduled={viewScheduled} cpSet={viewCpSet} cpLabels={cpLabels}
+              }} search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview'); }}
               onDelete={deleteNode} onReorder={reorderSibling} />

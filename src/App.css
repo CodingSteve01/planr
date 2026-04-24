@@ -164,10 +164,14 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .prog-fill{height:100%;border-radius:2px;background:var(--gr);}
 .res-section{margin-bottom:4px;}
 .res-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
-/* Grid columns align the same info vertically across a list — Avatar, Name,
-   Team, Plans, Cap/Vac, Dates. Teams list uses a slimmer variant. */
-.res-row{display:grid;grid-template-columns:22px 1fr 140px 1fr 110px 180px;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;border-bottom:1px solid var(--b);user-select:none;}
-.res-row-team{grid-template-columns:22px 1fr 1fr 110px;}
+/* Rows in a section align the same info vertically — each section has its
+   own grid variant so column widths match between header and body rows. */
+.res-row{display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;border-bottom:1px solid var(--b);user-select:none;}
+.res-row-member{display:grid;grid-template-columns:22px 1fr 140px 1fr 110px 180px;align-items:center;gap:8px;padding:5px 8px;}
+.res-row-team{display:grid;grid-template-columns:22px 1fr 1fr 110px;align-items:center;gap:8px;padding:5px 8px;}
+.res-row-plan{display:grid;grid-template-columns:22px 1fr 1fr 170px;align-items:center;gap:8px;padding:5px 8px;}
+.res-row-vac{display:grid;grid-template-columns:22px 1fr 160px 1fr 30px;align-items:center;gap:8px;padding:5px 8px;}
+.res-row-hol{display:grid;grid-template-columns:30px 110px 1fr 90px 30px;align-items:center;gap:8px;padding:5px 8px;}
 .res-row:hover{background:var(--bg2);}
 .res-row-open{background:var(--bg2);border-bottom:1px solid var(--b);cursor:default;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:8px 10px;}
 .res-row-open:hover{background:var(--bg2);}

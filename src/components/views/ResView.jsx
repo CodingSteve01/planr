@@ -148,7 +148,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
 /* ─── Meeting-Plan: row + popout edit modal ──────────────────────────────── */
 function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick }) {
   return (
-    <li className="res-row res-row-team" onClick={onClick} style={{ gridTemplateColumns: '22px 1fr 1fr 110px' }}>
+    <li className="res-row res-row-plan" onClick={onClick}>
       <span className="res-dot" style={{ background: 'var(--ac)' }} />
       <span className="res-row-name">{plan.name || 'Unbenannter Plan'}</span>
       <span className="res-row-meta">
@@ -451,7 +451,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
   const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
   const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
-    <li className="res-row" onClick={onClick}>
+    <li className="res-row res-row-member" onClick={onClick}>
       <Avatar member={member} teams={teams} />
       <span className="res-row-name">
         {member.name || member.id}
@@ -543,7 +543,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
               Noch keine Meeting-Pläne definiert. Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und werden Teams oder Personen zugewiesen.
             </div>
           : <>
-              <div className="res-row res-row-header" style={{ gridTemplateColumns: '22px 1fr 1fr 110px' }}>
+              <div className="res-row res-row-plan res-row-header">
                 <span />
                 <span>Name</span>
                 <span>Termine</span>
@@ -609,7 +609,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
                 {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
               </div>
-              <div className="res-row res-row-header">
+              <div className="res-row res-row-member res-row-header">
                 <span />
                 <span>Name</span>
                 <span>Team</span>
@@ -646,6 +646,13 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                   <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{year}</span>
                   <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
                 </div>
+                <div className="res-row res-row-vac res-row-header">
+                  <span />
+                  <span>Person</span>
+                  <span>Zeitraum</span>
+                  <span>Notiz</span>
+                  <span />
+                </div>
                 <ul className="res-list">
                   {vacsByYear[year].map(v => {
                     const origIdx = vacations.indexOf(v);
@@ -653,13 +660,14 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                     const team = mem ? teams.find(tm => tm.id === mem.team) : null;
                     const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
                     return (
-                      <li key={origIdx} className="res-row" onClick={() => setEditingVacIdx(origIdx)}>
+                      <li key={origIdx} className="res-row res-row-vac" onClick={() => setEditingVacIdx(origIdx)}>
                         <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>
                           {initials(mem?.name || v.person || '?')}
                         </span>
                         <span className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</span>
                         <span className="res-row-meta">{range}</span>
-                        {v.note && <span className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note}</span>}
+                        <span className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note || ''}</span>
+                        <span />
                       </li>
                     );
                   })}

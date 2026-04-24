@@ -69,29 +69,36 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
             <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{y}</span>
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{byYear[y].length}</span>
           </div>
+          <div className="res-row res-row-hol res-row-header">
+            <span>Tag</span>
+            <span>Datum</span>
+            <span>Name</span>
+            <span>Quelle</span>
+            <span />
+          </div>
           <ul className="res-list">
             {byYear[y].map(h => {
               const gi = list.indexOf(h);
               const dt = new Date(h.date);
               const dow = DOW_DE[dt.getDay()];
               return (
-                <li key={h.date + gi} className="res-row" style={{ cursor: 'default' }}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', width: 24, flexShrink: 0 }}>{dow}</span>
+                <li key={h.date + gi} className="res-row res-row-hol" style={{ cursor: 'default' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{dow}</span>
                   {h.auto
-                    ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, width: 90, flexShrink: 0 }}>{h.date}</span>
+                    ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{h.date}</span>
                     : <LazyInput type="date" value={h.date} onCommit={v => upd(gi, 'date', v)}
-                        style={{ ...smallInput, width: 110, flexShrink: 0 }} />
+                        style={smallInput} />
                   }
                   {h.auto
                     ? <span className="res-row-name">{h.name}</span>
                     : <LazyInput value={h.name} onCommit={v => upd(gi, 'name', v)}
-                        style={{ ...smallInput, flex: 1, fontFamily: 'var(--font)', fontSize: 12 }}
+                        style={{ ...smallInput, fontFamily: 'var(--font)', fontSize: 12 }}
                         placeholder={t('hv.name')} />
                   }
-                  <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 9, flexShrink: 0 }}>
+                  <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 9, justifySelf: 'start' }}>
                     {h.auto ? t('hv.srcNRW') : t('hv.srcCustom')}
                   </span>
-                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', flexShrink: 0 }} onClick={() => del(gi)}>×</button>
+                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)}>×</button>
                 </li>
               );
             })}
