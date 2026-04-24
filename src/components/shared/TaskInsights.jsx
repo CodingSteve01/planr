@@ -438,7 +438,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             return (
               <KVRow key={cf.id} label={cf.name}>
                 {url
-                  ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ac)', fontSize: 11 }}>{val}</a>
+                  ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ color: 'var(--ac)', fontSize: 11 }}>{val}</a>
                   : <span style={{ fontSize: 11 }}>{val}</span>
                 }
               </KVRow>

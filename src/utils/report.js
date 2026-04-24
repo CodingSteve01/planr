@@ -32,7 +32,7 @@ function mixWithWhite(color, amount = 0) {
   return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
 }
 
-export function generateReport({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang }) {
+export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang }) {
   const de = lang === 'de';
   const t = (en, deTxt) => de ? deTxt : en;
   const tn = id => teams.find(x => x.id === id)?.name || id || '';
@@ -109,6 +109,98 @@ export function generateReport({ tree, members, teams, scheduled, weeks, cpSet, 
     const capDays = (m.cap || 1) * 220; // ~220 working days/year
     if (personPt > capDays * 0.8) risks.push({ severity: 'medium', text: t(`${m.name} has ${personPt.toFixed(0)} PT committed (${Math.round(personPt/capDays*100)}% of annual capacity)`, `${m.name} hat ${personPt.toFixed(0)} PT zugewiesen (${Math.round(personPt/capDays*100)}% der Jahreskapazität)`) });
   });
+  // 5. Offboard-truncated tasks — primary assignee offboards mid-task and no
+  //    other team member has capacity to absorb the remainder.
+  const truncatedTasks = scheduled.filter(s => s.truncatedByOffboard);
+  truncatedTasks.forEach(s => {
+    const tr = s.truncatedByOffboard;
+    risks.push({
+      severity: 'critical',
+      text: t(
+        `"${s.name}" (${s.id}): ${tr.remainingEffort.toFixed(1)} PT unscheduled — ${tr.personName} offboards ${tr.offboardDate} before the task completes, no replacement in team`,
+        `„${s.name}" (${s.id}): ${tr.remainingEffort.toFixed(1)} PT nicht eingeplant — ${tr.personName} verlässt Team am ${tr.offboardDate} vor Fertigstellung, keine Nachbesetzung im Team`,
+      ),
+    });
+  });
+  // 6. Offboard-handoff tasks — auto-reassigned remainder to another member.
+  const handoffTasks = scheduled.filter(s => s.handoff);
+  handoffTasks.forEach(s => {
+    const h = s.handoff;
+    risks.push({
+      severity: 'high',
+      text: t(
+        `"${s.name}" (${s.id}): ${h.effort.toFixed(1)} PT auto-handed off from ${h.fromPersonName} → ${h.toPersonName} on ${h.date} (offboarding) — verify this is intended`,
+        `„${s.name}" (${s.id}): ${h.effort.toFixed(1)} PT automatisch übergeben von ${h.fromPersonName} → ${h.toPersonName} zum ${h.date} (Offboarding) — bitte prüfen`,
+      ),
+    });
+  });
+
+  return {
+    de,
+    t,
+    tn,
+    mn,
+    lvs,
+    now,
+    dateStr,
+    GT,
+    done,
+    wip,
+    open,
+    totalPt,
+    prog,
+    projectEnd,
+    roots,
+    rootData,
+    cc,
+    ccPt,
+    ccTotal,
+    teamCap,
+    cpItems,
+    risks,
+    tree,
+    members,
+    teams,
+    scheduled,
+    weeks,
+    cpSet,
+    goalPaths,
+    stats,
+    confidence,
+    meta,
+  };
+}
+
+export function generateReport(ctx) {
+  const {
+    de,
+    t,
+    tn,
+    lvs,
+    dateStr,
+    GT,
+    done,
+    wip,
+    open,
+    totalPt,
+    prog,
+    projectEnd,
+    roots,
+    rootData,
+    cc,
+    ccPt,
+    ccTotal,
+    teamCap,
+    cpItems,
+    risks,
+    tree,
+    members,
+    teams,
+    scheduled,
+    stats,
+    confidence,
+    meta,
+  } = buildReportModel(ctx);
 
   // ── BUILD HTML ─────────────────────────────────────────────────────────────
   const css = `@page{margin:18mm 14mm;size:A4 landscape}

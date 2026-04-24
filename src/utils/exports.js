@@ -3,11 +3,43 @@
 import { iso } from './date.js';
 import { generateReport } from './report.js';
 import { formatPhaseToken } from './phases.js';
+// @turbodocx browser build is a classic UMD: `var HTMLToDOCX=function(){…}()`
+// — relies on the `var` hoisting onto `window` when executed as a <script>.
+// Vite's ESM pipeline breaks that because esm.js drags node-only deps (Buffer
+// classes extending undefined globals). Load the browser file via <script>
+// injection using Vite's `?url` asset import so it runs at global scope.
+import turboBrowserUrl from '@turbodocx/html-to-docx/dist/html-to-docx.browser.js?url';
 
 function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
 }
 function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
+
+let _turboDocxPromise = null;
+async function loadTurboDocx() {
+  // turbodocx's image pipeline uses Node's Buffer internally. In the browser
+  // build it's not polyfilled — so we inject one before the script runs.
+  if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
+    const bufMod = await import('buffer');
+    window.Buffer = bufMod.Buffer || bufMod.default?.Buffer;
+  }
+  if (typeof window !== 'undefined' && typeof window.HTMLToDOCX === 'function') {
+    return window.HTMLToDOCX;
+  }
+  if (_turboDocxPromise) return _turboDocxPromise;
+  _turboDocxPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = turboBrowserUrl;
+    s.async = true;
+    s.onload = () => {
+      if (typeof window.HTMLToDOCX === 'function') resolve(window.HTMLToDOCX);
+      else reject(new Error('turbodocx browser build did not expose HTMLToDOCX'));
+    };
+    s.onerror = () => reject(new Error('Failed to load turbodocx browser build'));
+    document.head.appendChild(s);
+  }).catch(e => { _turboDocxPromise = null; throw e; });
+  return _turboDocxPromise;
+}
 
 export function exportJSON({ data, meta }) {
   download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `${slug(meta.name)}-${iso(new Date())}.json`);
@@ -16,7 +48,7 @@ export function exportJSON({ data, meta }) {
 export function exportPDF() { window.print(); }
 
 // ── SVG/PNG helpers ──────────────────────────────────────────────────────────
-function buildNetworkSvg({ meta }) {
+export function buildNetworkSvg({ meta }) {
   const svg = document.querySelector('.netgraph-wrap svg');
   if (!svg) return null;
   const clone = svg.cloneNode(true);
@@ -38,8 +70,8 @@ function buildNetworkSvg({ meta }) {
   return { svg: clone, width: w, height: h };
 }
 
-async function svgToPng(svgEl, width, height, scale = 2) {
-  const xml = new XMLSerializer().serializeToString(svgEl);
+async function svgToPng(svgEl, width, height, scale = 2, bg = '#f8f9fc') {
+  const xml = typeof svgEl === 'string' ? svgEl : new XMLSerializer().serializeToString(svgEl);
   const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -47,10 +79,29 @@ async function svgToPng(svgEl, width, height, scale = 2) {
       const canvas = document.createElement('canvas');
       canvas.width = width * scale; canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#f8f9fc'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height); }
       ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
       canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas to blob failed')), 'image/png');
+    };
+    img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+export async function svgToDataUrl(svgEl, width, height, scale = 3, bg = '#ffffff') {
+  const xml = typeof svgEl === 'string' ? svgEl : new XMLSerializer().serializeToString(svgEl);
+  const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+      ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      try { resolve(canvas.toDataURL('image/png')); } catch (e) { reject(e); }
     };
     img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
     img.src = url;
@@ -73,7 +124,7 @@ export async function exportNetworkPNG(ctx) {
 }
 
 // ── Gantt SVG ────────────────────────────────────────────────────────────────
-function buildGanttSvg({ scheduled, weeks, teams, meta }) {
+export function buildGanttSvg({ scheduled, weeks, teams, meta }) {
   if (!scheduled?.length || !weeks?.length) return null;
   const WPX = 22, RH = 24, GH = 28, HH = 50, LW = 280;
   const NO_TEAM = '__no_team__';
@@ -265,14 +316,79 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
   download(new Blob(['\uFEFF' + [hdr.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-jira-${iso(new Date())}.csv`);
 }
 
-// ── Report (HTML → new tab → print as PDF) ───────────────────────────────────
-export function exportReport(ctx) {
-  const html = generateReport(ctx);
-  const win = window.open('', '_blank');
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-    // Auto-trigger print dialog after content renders
-    win.onload = () => setTimeout(() => win.print(), 300);
+// ── Report (DOCX for Confluence / Word) — HTML → DOCX via @turbodocx ─────
+// The `docx` lib approach required hand-building every paragraph/table and
+// fighting percentage-width rendering; Word collapsed columns and Mac users
+// saw "missing font" warnings. Routing the existing HTML report through
+// html-to-docx yields pixel-equivalent output to the Summary PDF with zero
+// width-math and uses only system-available fonts.
+export async function exportReportDocx(ctx) {
+  try {
+    const htmlRaw = generateReport(ctx);
+    const { meta, lang } = ctx;
+    const de = lang === 'de';
+    const dateStr = new Date().toLocaleDateString(de ? 'de-DE' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Rasterize the inline roadmap SVG into a PNG data URL so Word renders it
+    // exactly the same as the PDF (html-to-docx accepts <img src="data:...">).
+    const roadmapSvgMatch = htmlRaw.match(/<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1400 800"[\s\S]*?<\/svg>/);
+    let html = htmlRaw;
+    if (roadmapSvgMatch) {
+      const W = 1400, H = 800;
+      const patched = roadmapSvgMatch[0].replace(
+        /^<svg [^>]*>/,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
+      );
+      const inlined = patched
+        .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
+        .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
+        .replace(/var\(--tx3,([^)]*)\)/g, '#7a839a')
+        .replace(/var\(--bg,([^)]*)\)/g, '#ffffff')
+        .replace(/var\(--bg2,([^)]*)\)/g, '#f8f9fc')
+        .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
+        .replace(/var\(--re,([^)]*)\)/g, '#ef4444')
+        .replace(/var\(--tx[^)]*\)/g, '#1a1e2a')
+        .replace(/var\(--tx2[^)]*\)/g, '#4a5268')
+        .replace(/var\(--tx3[^)]*\)/g, '#7a839a')
+        .replace(/var\(--bg[^)]*\)/g, '#ffffff');
+      try {
+        const dataUrl = await svgToDataUrl(inlined, W, H, 3, '#ffffff');
+        html = html.replace(roadmapSvgMatch[0], `<div style="text-align:center;margin:8px 0"><img src="${dataUrl}" width="900" alt="Roadmap" /></div>`);
+      } catch {
+        // If rasterization fails, drop the SVG to avoid breaking the document.
+        html = html.replace(roadmapSvgMatch[0], '');
+      }
+    }
+
+    // Use system-available fonts. JetBrains Mono triggers Mac's "missing font"
+    // warning; Consolas/Courier New are universal.
+    html = html.replace(/'JetBrains Mono','Cascadia Code',monospace/g, "Consolas,'Courier New',monospace");
+
+    const HTMLtoDOCX = await loadTurboDocx();
+    const header = `<div style="font-size:9px;color:#7a839a">${(meta.name || 'Project')} — ${de ? 'Projektbericht' : 'Project Report'}</div>`;
+    const footer = `<div style="font-size:8px;color:#7a839a;text-align:center">${dateStr} · Planr</div>`;
+    const out = await HTMLtoDOCX(html, header, {
+      orientation: 'landscape',
+      margins: { top: 720, right: 720, bottom: 720, left: 720, header: 360, footer: 360 },
+      title: `${meta.name || 'Project'} — ${de ? 'Projektbericht' : 'Project Report'}`,
+      creator: 'Planr',
+      font: 'Calibri',
+      fontSize: 20, // half-points — 20 = 10pt
+      header: true,
+      footer: true,
+      pageNumber: true,
+      table: { row: { cantSplit: true } },
+    }, footer);
+
+    const blob = out instanceof Blob ? out : new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    download(blob, `${slug(meta.name)}-summary-${iso(new Date())}.docx`);
+  } catch (e) {
+    console.error(e);
+    alert('Word export failed: ' + (e.message || e));
   }
 }
+
+
+// Re-export PDF exports so App.jsx keeps a single import source.
+export { exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './pdfExports.js';
+

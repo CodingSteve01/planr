@@ -1,6 +1,8 @@
 # Import / Export
 
-Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (CSV, Sprint MD, Mermaid, SVG, PNG, Print).
+Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (PDF, DOCX, CSV, Sprint MD, Mermaid, SVG, PNG).
+
+All export operations are reached through a single **Export…** dialog in the topbar (`src/components/modals/ExportModal.jsx`). Every PDF carries the project name, export kind and generation date in the footer.
 
 ## Persistent formats
 
@@ -151,26 +153,35 @@ Both use `XMLSerializer` to dump the live SVG DOM.
 
 - `exportNetworkPNG()` and `exportGanttPNG()` — rasterize the SVG via a canvas and download as PNG
 
-### HTML Report
+### PDF exports (`src/utils/pdfExports.js`)
 
-`generateReport()` in `src/utils/report.js` — comprehensive bilingual HTML report accessible via the Export menu. Opens in a new browser tab and auto-triggers the print dialog.
+All PDFs are generated client-side via [`pdfmake`](https://pdfmake.github.io/) (dynamically imported, so the ~500 kB payload is only fetched on first use). Text is fully selectable, images are embedded as high-resolution PNGs (3× scale) so small labels stay readable.
 
-**Sections:**
+Four PDF variants:
 
-- KPIs — key project indicators
-- Risks — flagged risk items
-- Confidence — breakdown by confidence level (committed/estimated/exploratory)
-- Roadmap — high-level timeline
-- Goals / Deadlines — status per root item
-- Team Capacity — per-team member load
-- Critical Path — the critical chain with slack values
-- Detailed Schedule — full task-level schedule
+| Export | Purpose | Content |
+|---|---|---|
+| `exportSummaryPDF` | Management summary, shareable | KPIs, risks, planning confidence, roadmap image, goals/deadlines, team-capacity cards, critical path |
+| `exportGanttPDF` | Full schedule handoff | Hi-res Gantt image (page size picked automatically: A4 / A3 / A2 landscape based on native width) + schedule table grouped by team |
+| `exportWhatWhenPDF` | "What comes when" — horizon-aware | Items grouped into buckets (week / month / quarter). Near-term items show exact dates, far-term or uncertain items collapse to coarser granularity |
+| `exportTodoPDF` | Sprint / TODO list for a chosen horizon | Tasks per person within N days, with horizon-adjusted date labels and confidence badges (●/◐/○) |
 
-The report respects the current language setting (EN or DE).
+**Horizon-aware date labels** (`horizonLabel`, `horizonBucket` in `pdfExports.js`): the label granularity is the *fuzzier* of (distance from today) and (planning confidence). Rules:
 
-### Print / PDF
+- `committed` and ≤14 days away → exact `YYYY-MM-DD`
+- `committed` and 15–60 days → `KW 17, Apr 2026` / `Week 17, Apr 2026`
+- `estimated` or 60–180 days → `April 2026`
+- `exploratory` or >180 days → `Q2 2026`
 
-`exportPDF()` — triggers the browser print dialog with a Planr-tuned print CSS. Save as PDF from there.
+This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
+
+### Word Report (`src/utils/exports.js` → `exportReportDocx`)
+
+Runs the same `generateReport()` HTML through [`@turbodocx/html-to-docx`](https://github.com/TurboDocx/html-to-docx). Output is one-to-one with the Management Summary PDF: key figures, risks, planning confidence, roadmap (rasterized to a hi-res PNG and embedded as `<img>`), goals/deadlines, team capacity cards, critical path, detailed schedule per team.
+
+Fonts are scrubbed to the universally-available `Inter → system-ui` for text and `Consolas / Courier New` for monospace cells — Mac's Office will no longer show a "missing font" warning.
+
+Why HTML → DOCX instead of hand-rolling `docx` paragraphs? Writing every paragraph/table by hand required DXA width arithmetic that Word interpreted inconsistently — tables collapsed to one-character columns, shredding the layout. Routing through HTML gives Word natural table autosizing and eliminates the width math entirely.
 
 ## Data location (local)
 

@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { SK } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReport } from './utils/exports.js';
+import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
@@ -30,6 +30,7 @@ import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
+import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
@@ -1681,16 +1682,7 @@ export default function App() {
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
-      <select className="btn btn-sec btn-sm" style={{ padding: '4px 8px' }} value="" onChange={e => { const v = e.target.value; e.target.value = ''; const ctx = { ..._exportCtx(), selectedIds: multiSel.size > 0 ? multiSel : null }; if (v === 'jira') { setModal('jira'); } else if (v === 'report') exportReport(ctx); else if (v === 'sprint') exportSprintMarkdown(ctx); else if (v === 'png-net') exportNetworkPNG(ctx); else if (v === 'png-gantt') exportGanttPNG(ctx); else if (v === 'mermaid') exportMermaid(ctx); else if (v === 'json') exportJSON(ctx); }}>
-        <option value="">Export ▾</option>
-        <option value="jira">Jira…</option>
-        <option value="report">Summary (PDF)</option>
-        <option value="sprint">Sprint TODO (Markdown)</option>
-        {tab === 'net' && <option value="png-net">Netzwerk (PNG)</option>}
-        {tab === 'gantt' && <option value="png-gantt">Gantt (PNG)</option>}
-        <option value="mermaid">Mermaid (Confluence)</option>
-        <option value="json">Backup (JSON)</option>
-      </select>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
@@ -2014,6 +2006,21 @@ export default function App() {
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
     {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
+    {modal === 'export' && <ExportModal
+      tab={tab}
+      onClose={() => setModal(null)}
+      onOpenJira={() => setModal('jira')}
+      onSummaryPDF={() => exportSummaryPDF(_exportCtx())}
+      onGanttPDF={() => exportGanttPDF(_exportCtx())}
+      onWhatWhenPDF={() => exportWhatWhenPDF(_exportCtx())}
+      onTodoPDF={horizonDays => exportTodoPDF(_exportCtx(), horizonDays)}
+      onReportDocx={() => exportReportDocx(_exportCtx())}
+      onSprintMarkdown={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })}
+      onMermaid={() => exportMermaid(_exportCtx())}
+      onNetworkPNG={() => exportNetworkPNG(_exportCtx())}
+      onGanttPNG={() => exportGanttPNG(_exportCtx())}
+      onJSON={() => exportJSON(_exportCtx())}
+    />}
 
     {/* ── Onboarding tour ── */}
     {tourStep !== null && (
