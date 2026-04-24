@@ -146,15 +146,15 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
 }
 
 /* ─── Meeting-Plan: row + popout edit modal ──────────────────────────────── */
-function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick }) {
+function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick, t }) {
   return (
     <tr onClick={onClick}>
       <td className="res-td-avatar"><span className="res-dot" style={{ background: 'var(--ac)' }} /></td>
-      <td className="res-row-name">{plan.name || 'Unbenannter Plan'}</td>
+      <td className="res-row-name">{plan.name || t('rv.planUnnamed')}</td>
       <td className="res-row-meta">
-        {(plan.meetings || []).length} Termin(e) · {totalHours.toFixed(2)} h/Woche
+        {t('rv.planTermCount', (plan.meetings || []).length, totalHours.toFixed(2))}
       </td>
-      <td className="res-row-meta" style={{ textAlign: 'right' }}>{teamCount} Team(s) · {memberCount} Person(en)</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>{t('rv.planAssignCount', teamCount, memberCount)}</td>
     </tr>
   );
 }
@@ -462,17 +462,17 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
       <td className="res-row-name">
         {member.name || member.id}
         {shortMap[member.id] && (
-          <span className="res-row-short" data-htip="Auto-generated short name (used in Markdown)">
+          <span className="res-row-short" data-htip={t('rv.shortHint')}>
             {shortMap[member.id]}
           </span>
         )}
         {offboarded && (
           <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--re)', color: '#fff' }}
-            data-htip={`Offboarded am ${member.end}`}>OFFBOARDED</span>
+            data-htip={t('rv.offboardedOn', member.end)}>{t('rv.offboarded')}</span>
         )}
         {offboardingSoon && (
           <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
-            data-htip={`Offboarded zum ${member.end}`}>BALD RAUS</span>
+            data-htip={t('rv.leavingOn', member.end)}>{t('rv.leavingSoon')}</span>
         )}
       </td>
       <td>
@@ -486,8 +486,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
         <span className="res-plan-tags">
           {planObjs.map(p => (
             <span key={p.id}
-              className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}
-              title={teamPlanIds.has(p.id) ? 'Meeting-Plan (vom Team geerbt)' : 'Meeting-Plan (individuell)'}>
+              className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}>
               {p.name}
             </span>
           ))}
@@ -537,7 +536,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
       {/* Section pills */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
         {[
-          ['plans', `Meeting-Pläne (${meetingPlans.length})`],
+          ['plans', `${t('rv.plans')} (${meetingPlans.length})`],
           ['teams', `${t('rv.teams')} (${teams.length})`],
           ['members', `${t('rv.members')} (${members.length})`],
           ['vacations', `${t('rv.vacations')} (${vacations.length})`],
@@ -549,16 +548,16 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
         {section === 'vacations' && <button className="btn btn-sec btn-sm" onClick={addVacation}>{t('rv.addVacation')}</button>}
         {section === 'plans' && <button className="btn btn-sec btn-sm" onClick={() => {
           const id = 'mp_' + Math.random().toString(36).slice(2, 8);
-          onMeetingPlansUpd([...meetingPlans, { id, name: 'Neuer Plan', meetings: [] }]);
+          onMeetingPlansUpd([...meetingPlans, { id, name: t('rv.newPlan'), meetings: [] }]);
           setEditingPlanId(id);
-        }}>+ Plan</button>}
+        }}>{t('rv.addPlan')}</button>}
       </div>
 
       {/* ═══════════════ MEETING-PLÄNE ═══════════════ */}
       {section === 'plans' && (
         meetingPlans.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
-              Noch keine Meeting-Pläne definiert. Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und werden Teams oder Personen zugewiesen.
+              {t('rv.plansEmpty')}
             </div>
           : (
               <table className="res-table">
@@ -571,9 +570,9 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <thead>
                   <tr>
                     <th />
-                    <th>Name</th>
-                    <th>Termine</th>
-                    <th style={{ textAlign: 'right' }}>Zuweisungen</th>
+                    <th>{t('rv.name')}</th>
+                    <th>{t('rv.appointments')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('rv.assigns')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -584,7 +583,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                     return (
                       <MeetingPlanReadRow key={pl.id} plan={pl}
                         teamCount={teamCount} memberCount={memberCount} totalHours={totalH}
-                        onClick={() => setEditingPlanId(pl.id)} />
+                        onClick={() => setEditingPlanId(pl.id)} t={t} />
                     );
                   })}
                 </tbody>
@@ -607,9 +606,9 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <thead>
                   <tr>
                     <th />
-                    <th>Name</th>
-                    <th>Meeting-Pläne</th>
-                    <th style={{ textAlign: 'right' }}>Mitglieder</th>
+                    <th>{t('rv.name')}</th>
+                    <th>{t('rv.plans')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('rv.members')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -659,11 +658,11 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <thead>
                   <tr>
                     <th />
-                    <th>Name</th>
-                    <th>Team</th>
-                    <th>Meeting-Pläne</th>
-                    <th style={{ textAlign: 'right' }} data-htip="Kapazität in % (derived) · Urlaubstage pro Jahr">Cap · Urlaub</th>
-                    <th style={{ textAlign: 'right' }} data-htip="Onboarding – Offboarding (Mitgliedschaftsfenster). Leer = unbegrenzt.">Ein-/Austritt</th>
+                    <th>{t('rv.name')}</th>
+                    <th>{t('rv.team')}</th>
+                    <th>{t('rv.plans')}</th>
+                    <th style={{ textAlign: 'right' }} data-htip={t('rv.capVacTip')}>{t('rv.capVac')}</th>
+                    <th style={{ textAlign: 'right' }} data-htip={t('rv.windowTip')}>{t('rv.window')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -706,9 +705,9 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                   <thead>
                     <tr>
                       <th />
-                      <th>Person</th>
-                      <th>Zeitraum</th>
-                      <th>Notiz</th>
+                      <th>{t('rv.person')}</th>
+                      <th>{t('rv.period')}</th>
+                      <th>{t('rv.note')}</th>
                     </tr>
                   </thead>
                   <tbody>

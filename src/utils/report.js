@@ -317,6 +317,8 @@ tr:nth-child(even) td{background:#fafbfd}
   h += renderRoadmapSvg({ tree, scheduled, stats });
 
   // ── 5b. FAHRPLAN ──
+  // Plain linear stack of tables — no nested flex/grid wrappers so
+  // html-to-docx renders every row correctly (it collapses nested tables).
   try {
     const rmModel = computeRoadmapModel({ tree, scheduled, stats });
     if (rmModel?.lines?.length) {
@@ -325,9 +327,9 @@ tr:nth-child(even) td{background:#fafbfd}
       const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
       h += `<h2>${t('Timetable','Fahrplan')}</h2>`;
       h += `<p style="font-size:9px;color:#7a839a;margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.','Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
-      h += `<div class="grid2">`;
       rmModel.lines.forEach(line => {
         const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
+        if (!allStations.length) return;
         const rows = allStations.map(st => {
           const items = st.clusterItems || [];
           const allSegs = items.flatMap(it => segsByTree[it.id] || []);
@@ -339,9 +341,8 @@ tr:nth-child(even) td{background:#fafbfd}
           const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
           return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
         }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
-        h += `<div style="border:1px solid #e0e4ea;border-left:3px solid ${line.color};border-radius:5px;padding:6px 8px;margin-bottom:6px">`;
-        h += `<div style="font-weight:700;font-size:11px;color:${line.color};margin-bottom:3px">${line.root.id} · <span style="color:#1a1e2a">${line.root.name}</span></div>`;
-        h += `<table style="font-size:9px"><tr><th>Stn</th><th>Start</th><th>Dauer</th><th>St</th></tr>`;
+        h += `<h3 style="color:${line.color};margin-top:10px">${line.root.id} — ${line.root.name}</h3>`;
+        h += `<table><tr><th>${t('Station','Station')}</th><th>${t('Start','Start')}</th><th>${t('Duration','Dauer')}</th><th>${t('St.','St.')}</th></tr>`;
         rows.forEach(r => {
           h += `<tr>`;
           h += `<td class="mono" style="color:${line.color};font-weight:700">${r.abbrev}</td>`;
@@ -350,9 +351,8 @@ tr:nth-child(even) td{background:#fafbfd}
           h += `<td style="text-align:center">${r.status}</td>`;
           h += `</tr>`;
         });
-        h += `</table></div>`;
+        h += `</table>`;
       });
-      h += `</div>`;
     }
   } catch (e) {
     console.warn('[report] timetable generation failed', e);

@@ -7,7 +7,7 @@ import { useT } from '../../i18n.jsx';
 // 2-col line grid. Single-line rows: abbrev · KW/YY+date · dur · status.
 // Team resolved via scheduled segments + tree fallback; shown in tooltip only.
 export function TimetableView({ tree, scheduled, stats, teams, members }) {
-  useT();
+  const { t } = useT();
   const model = useMemo(() => computeRoadmapModel({ tree, scheduled, stats }), [tree, scheduled, stats]);
 
   const teamById = useMemo(() => Object.fromEntries((teams || []).map(tm => [tm.id, tm])), [teams]);
@@ -28,7 +28,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
   if (!model?.lines?.length) {
     return (
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 20px', textAlign: 'center', color: 'var(--tx3)' }}>
-        <div style={{ fontSize: 14 }}>Kein Fahrplan verfügbar — benötigt eingeplante Projekt-Items.</div>
+        <div style={{ fontSize: 14 }}>{t('tt.empty')}</div>
       </div>
     );
   }
@@ -50,7 +50,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
   return (
     <div>
       <div style={{ fontSize: 10.5, color: 'var(--tx3)', marginBottom: 8 }}>
-        Chronologische Stationen je Linie · Hover für Team/Personen/Item-Liste. Grün hinterlegt = aktuelle Position.
+        {t('tt.hint')}
       </div>
 
       <div style={{
@@ -91,8 +91,8 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
             const current = line.currentId === st.id && !st.allDone;
 
             const tipLines = [st.name + (items.length > 1 ? ` (${items.length} Items)` : '')];
-            if (teamLabel !== '—') tipLines.push(`Team: ${teamLabel}`);
-            if (personLabel) tipLines.push(`Personen: ${personLabel}`);
+            if (teamLabel !== '—') tipLines.push(`${t('rv.team')}: ${teamLabel}`);
+            if (personLabel) tipLines.push(`${t('g.person')}: ${personLabel}`);
             tipLines.push('');
             items.forEach(it => {
               const tr = treeById[it.id];
@@ -129,7 +129,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
                 )}
                 {!trainRow && line.progress >= 1 && (
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--gr)', fontWeight: 600 }}>
-                    ✓ komplett
+                    {t('tt.complete')}
                   </span>
                 )}
               </div>

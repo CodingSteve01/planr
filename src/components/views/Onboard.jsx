@@ -4,24 +4,23 @@ import { FeatureCarousel } from '../shared/FeatureCarousel.jsx';
 export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   const { t } = useT();
 
-  // Ordering: unique-selling first, then standard planner features. Each chip
-  // surfaces a tooltip (htip) explaining why it matters.
-  const FEATURES = [
-    ['⇄', 'Offboard-Cascade', 'Mid-task Personalwechsel automatisch',
-      'html:<div><b>⇄ Offboard-Cascade</b><br/>Scheduler erkennt End-Datum einer Ressource mitten in einem Task und übergibt die Restarbeit automatisch an nächst-freies Team-Mitglied — optional cross-team. Jede Etappe (Offcut) wird eigene Gantt-Row + Handoff-Plan pro Etappe manuell übersteuerbar.</div>'],
-    ['🧮', 'Kapazität aus Meetings', 'FTE-ehrlich statt %-Pi-mal-Daumen',
-      'html:<div><b>🧮 Transparente Kapazität</b><br/>Cap ergibt sich aus Wochenstunden minus wiederkehrende Meetings (daily/weekly/biweekly/monthly). Team-Meeting-Pläne werden an alle Mitglieder vererbt — egal ob manuell oder derived. Jede Minute ist nachvollziehbar.</div>'],
-    ['📅', t('ob.feat.auto'), t('ob.feat.auto.desc'), t('ob.feat.auto.htip')],
-    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc'), t('ob.feat.tree.htip')],
+  // 4 unique-selling features promoted to hero tiles (below the hero row).
+  // Less visual noise than 10 chips, emphasizes what sets Planr apart.
+  const HERO_FEATURES = [
+    ['⇄', t('ob.feat.offboard'), t('ob.feat.offboard.desc'), t('ob.feat.offboard.htip')],
+    ['🧮', t('ob.feat.cap'), t('ob.feat.cap.desc'), t('ob.feat.cap.htip')],
     ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc'), t('ob.feat.metro.htip')],
     ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc'), t('ob.feat.cp.htip')],
-    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc'), t('ob.feat.horizons.htip')],
-    ['📄', 'Export für Management', 'PDF + DOCX mit Subway-Chart, Critical Path, Risk-Report',
-      'html:<div><b>📄 Shareable PDFs + DOCX</b><br/>Management-Summary als echtes vektorgrafik-PDF mit Kennzahlen, Subway-Roadmap, Critical Path, Team-Capacity, Risikoliste. Zusätzlich Gantt-PDF (hochauflösend), Was-kommt-wann (horizontgerecht), TODO-Sprint je Person, Word-Export für Confluence-Import.</div>'],
-    ['🕸', t('ob.feat.net'), t('ob.feat.net.desc'), t('ob.feat.net.htip')],
-    ['🎯', t('ob.feat.focus'), t('ob.feat.focus.desc'), t('ob.feat.focus.htip')],
-    ['💾', 'Offline + File-Mount', 'Kein Backend, kein Login, volle Kontrolle',
-      'html:<div><b>💾 Lokal & offline</b><br/>Alle Daten liegen lokal oder in einer gemounteten .md/.json-Datei. File System Access API → kein Copy-Paste-Workflow, automatisches Speichern. Keine Cloud-Abhängigkeit.</div>'],
+  ];
+  // Supporting features as a compact chip row under the hero tiles.
+  const CHIPS = [
+    ['📅', t('ob.feat.auto'), t('ob.feat.auto.htip')],
+    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.htip')],
+    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.htip')],
+    ['📄', t('ob.feat.export'), t('ob.feat.export.htip')],
+    ['🕸', t('ob.feat.net'), t('ob.feat.net.htip')],
+    ['🎯', t('ob.feat.focus'), t('ob.feat.focus.htip')],
+    ['💾', t('ob.feat.offline'), t('ob.feat.offline.htip')],
   ];
 
   return (
@@ -52,10 +51,21 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
           <FeatureCarousel />
         </div>
 
-        {/* ── Feature chips ── */}
+        {/* ── Hero feature tiles (4 unique-selling) ── */}
+        <div className="ob-tiles">
+          {HERO_FEATURES.map(([icon, title, desc, htip]) => (
+            <div key={title} className="ob-tile" data-htip={htip}>
+              <div className="ob-tile-icon">{icon}</div>
+              <div className="ob-tile-title">{title}</div>
+              <div className="ob-tile-desc">{desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Supporting feature chips ── */}
         <div className="ob-feat-row">
-          {FEATURES.map(([icon, title, desc, htip]) => (
-            <div key={title} className="ob-chip" data-htip={htip || desc}>
+          {CHIPS.map(([icon, title, htip]) => (
+            <div key={title} className="ob-chip" data-htip={htip}>
               <span className="ob-chip-icon">{icon}</span>
               <span className="ob-chip-label">{title}</span>
             </div>

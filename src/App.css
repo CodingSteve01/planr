@@ -300,7 +300,15 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .ob-pr-status-open{color:var(--tx3);}
 
 /* ── Feature chips ── */
-.ob-feat-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding-top:18px;border-top:1px solid var(--b);}
+.ob-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px;padding-top:18px;border-top:1px solid var(--b);}
+.ob-tile{position:relative;background:var(--bg3);border:1px solid var(--b);border-radius:var(--r);padding:14px 16px;cursor:help;transition:all .15s ease;overflow:hidden;}
+.ob-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--ac),var(--gr));opacity:.5;transition:opacity .15s;}
+.ob-tile:hover{background:var(--bg4);border-color:var(--b2);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.18);}
+.ob-tile:hover::before{opacity:1;}
+.ob-tile-icon{font-size:22px;line-height:1;margin-bottom:6px;}
+.ob-tile-title{font-size:12px;font-weight:700;color:var(--tx);margin-bottom:3px;letter-spacing:-.1px;}
+.ob-tile-desc{font-size:10.5px;color:var(--tx3);line-height:1.35;}
+.ob-feat-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;}
 .ob-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;background:var(--bg3);border:1px solid var(--b);border-radius:999px;font-size:11px;color:var(--tx2);cursor:help;transition:all .12s;}
 .ob-chip:hover{background:var(--bg4);color:var(--tx);border-color:var(--b2);}
 .ob-chip-icon{font-size:13px;line-height:1;}
