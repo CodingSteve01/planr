@@ -25,8 +25,13 @@ function escapeHtml(s) {
 
 let _turboDocxPromise = null;
 async function loadTurboDocx() {
-  // turbodocx's image pipeline uses Node's Buffer internally. In the browser
-  // build it's not polyfilled — so we inject one before the script runs.
+  // turbodocx browser bundle references `global` (and `Buffer`) at runtime.
+  // Script-tag injection runs the code at window scope, so Vite's
+  // `define: { global: 'globalThis' }` does NOT apply (asset file, not an
+  // authored module). Shim both before the <script> tag loads.
+  if (typeof window !== 'undefined' && typeof window.global === 'undefined') {
+    window.global = window;
+  }
   if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
     const bufMod = await import('buffer');
     window.Buffer = bufMod.Buffer || bufMod.default?.Buffer;
