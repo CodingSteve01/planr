@@ -58,7 +58,8 @@ export function ExportModal({
   onGanttPNG,
   onJSON,
 }) {
-  const { t: _t } = useT();
+  const { t } = useT();
+  const _t = t;
   const [todoH, setTodoH] = useState(30);
   const [sprintH, setSprintH] = useState(30);
   const [includeTimetable, setIncludeTimetable] = useState(true);
@@ -108,10 +109,10 @@ export function ExportModal({
             desc="Kennzahlen, Risiken, Subway-Map + optional Fahrplan, Critical Path, Team-Capacity."
             action={<>
               <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
-                data-htip="Chronologische Stations-Tabelle je Linie unter der Subway-Map">
+                data-htip={t('tt.plusTimetableTip')}>
                 <input type="checkbox" checked={includeTimetable}
                   onChange={e => setIncludeTimetable(e.target.checked)} />
-                +Fahrplan
+                {t('tt.plusTimetable')}
               </label>
               {B('sum', 'PDF', () => onSummaryPDF({ includeTimetable }))}
             </>} />

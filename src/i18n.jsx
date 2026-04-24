@@ -415,6 +415,10 @@ const en = {
   'rv.hoursWeek': 'Hrs / week', 'rv.hoursDefault': 'Default: {0} h (FTE). Adjust here for part-time/overtime.',
   'rv.available': 'available',
   // ── TimetableView ──
+  'tt.title': 'Timetable',
+  'tt.map': 'Subway Map',
+  'tt.plusTimetable': '+Timetable',
+  'tt.plusTimetableTip': 'Chronological station table per line under the Subway Map',
   'tt.empty': 'No timetable available — requires scheduled items.',
   'tt.hint': 'Chronological stations per line · hover for team/people/item list. Green highlight = current position.',
   'tt.complete': '✓ complete',
@@ -921,6 +925,10 @@ const de = {
   'rv.hoursWeek': 'Std / Woche', 'rv.hoursDefault': 'Default: {0} h (FTE). Teilzeit/Überstunden hier anpassen.',
   'rv.available': 'verfügbar',
   // ── TimetableView ──
+  'tt.title': 'Fahrplan',
+  'tt.map': 'Subway-Map',
+  'tt.plusTimetable': '+Fahrplan',
+  'tt.plusTimetableTip': 'Chronologische Stations-Tabelle je Linie unter der Subway-Map',
   'tt.empty': 'Kein Fahrplan verfügbar — benötigt eingeplante Projekt-Items.',
   'tt.hint': 'Chronologische Stationen je Linie · Hover für Team/Personen/Item-Liste. Grün hinterlegt = aktuelle Position.',
   'tt.complete': '✓ komplett',
