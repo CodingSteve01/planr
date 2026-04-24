@@ -24,32 +24,51 @@ export function sumMeetingHours(meetings) {
   return meetings.reduce((s, m) => s + meetingWeeklyHours(m), 0);
 }
 
-export function deriveCap(member) {
+// Collect the full set of meetings that apply to a member: any plans they
+// belong to (shared templates from data.meetingPlans) plus their individual
+// meetings. Plan meetings carry a `_plan` marker for the UI.
+export function resolveMemberMeetings(member, allPlans) {
+  if (!member) return [];
+  const planMeetings = [];
+  const planIds = Array.isArray(member.meetingPlans) ? member.meetingPlans : [];
+  if (planIds.length && Array.isArray(allPlans)) {
+    planIds.forEach(pid => {
+      const plan = allPlans.find(p => p.id === pid);
+      if (!plan || !Array.isArray(plan.meetings)) return;
+      plan.meetings.forEach(m => planMeetings.push({ ...m, _plan: plan.id, _planName: plan.name }));
+    });
+  }
+  const own = Array.isArray(member.meetings) ? member.meetings : [];
+  return [...planMeetings, ...own];
+}
+
+export function deriveCap(member, allPlans) {
   if (!member) return 1;
   if (member.capMode !== 'derived') return member.cap ?? 1;
   const wh = typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS;
-  const meetingHours = sumMeetingHours(member.meetings);
+  const allMeetings = resolveMemberMeetings(member, allPlans);
+  const meetingHours = sumMeetingHours(allMeetings);
   const avail = Math.max(0, wh - meetingHours);
   return avail / FTE_HOURS;
 }
 
 // Human-readable breakdown for tooltips / insights.
-// Returns lines like:
-//   ["40 h/week", "- 1.25 h  Standup (5×15min)", "= 38.75 h → 97%"]
-export function capBreakdown(member) {
+export function capBreakdown(member, allPlans) {
   if (!member || member.capMode !== 'derived') {
     const pct = Math.round((member?.cap ?? 1) * 100);
     return [{ kind: 'manual', text: `Manual: ${pct} %` }];
   }
   const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const lines = [{ kind: 'base', text: `${wh} h / Woche` }];
-  for (const m of (member.meetings || [])) {
+  const all = resolveMemberMeetings(member, allPlans);
+  for (const m of all) {
     const weeklyH = meetingWeeklyHours(m);
     if (weeklyH <= 0) continue;
+    const src = m._planName ? ` [Plan: ${m._planName}]` : '';
     const freqLabel = m.frequency && m.frequency !== 'weekly' ? ` (${m.frequency})` : '';
-    lines.push({ kind: 'meeting', text: `− ${weeklyH.toFixed(2)} h  ${m.name || 'Meeting'}${freqLabel}` });
+    lines.push({ kind: 'meeting', text: `− ${weeklyH.toFixed(2)} h  ${m.name || 'Meeting'}${freqLabel}${src}` });
   }
-  const avail = Math.max(0, wh - sumMeetingHours(member.meetings));
+  const avail = Math.max(0, wh - sumMeetingHours(all));
   const pct = Math.round(avail / FTE_HOURS * 100);
   lines.push({ kind: 'result', text: `= ${avail.toFixed(2)} h  →  ${pct} % FTE` });
   return lines;

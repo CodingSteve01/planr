@@ -49,6 +49,20 @@ function buildDemoTree() {
     { id: 'D1.2', name: 'Run penetration tests', status: 'open', best: 8, factor: 1.5, prio: 1, seq: 42, deps: ['D1.1'], assign: ['M1'], team: 'T2' },
     { id: 'D1.3', name: 'Fix findings', status: 'open', best: 10, factor: 1.6, prio: 1, seq: 43, deps: ['D1.2'], assign: ['M1', 'M2'], team: 'T2', confidence: 'exploratory' },
     { id: 'D1.4', name: 'Audit sign-off', status: 'open', best: 2, factor: 1.3, prio: 1, seq: 44, deps: ['D1.3'], assign: ['M3'], team: 'T2', decideBy: relDate(60) },
+
+    // ── Handoff showcase: long-running task where the primary assignee's
+    //    contract ends mid-task. Demonstrates offboard-cascade, segments in
+    //    Gantt, unscheduled-tail hatch, and a manual handoffPlan override.
+    { id: 'H1', name: 'Legacy migration epic', type: 'goal', severity: 'high', status: 'wip', best: 0, factor: 1.5, prio: 2, seq: 50, deps: [], assign: [], team: '', description: 'Multi-quarter migration with known staff changes mid-way — showcases handoff cascade.' },
+    { id: 'H1.1', name: 'Data migration (auto-handoff)', status: 'wip', progress: 10, best: 60, factor: 1.5, prio: 2, seq: 51, deps: [], assign: ['M4'], team: 'T2', customValues: { jira: 'DEMO-H1' } },
+    { id: 'H1.2', name: 'API rewrite (planned handoff)', status: 'open', best: 40, factor: 1.5, prio: 2, seq: 52, deps: ['H1.1'], assign: ['M4'], team: 'T2', customValues: { jira: 'DEMO-H2' },
+      // After M4 offboards, the remainder goes explicitly to M1 + fall back
+      // to T1 if M1 is also busy.
+      handoffPlan: [
+        { assign: ['M1'], team: 'T2' },
+        { team: 'T1' },
+      ] },
+    { id: 'H1.3', name: 'Cutover & validation', status: 'open', best: 8, factor: 1.4, prio: 2, seq: 53, deps: ['H1.2'], assign: ['M3'], team: 'T2' },
   ];
 }
 
@@ -78,9 +92,25 @@ export function buildDemoProject(t) {
       { id: 'T2', name: 'Backend & Platform', color: '#10b981' },
     ],
     members: [
+      // Manual-cap member (legacy default)
       { id: 'M1', name: 'Alex Kim',   team: 'T2', cap: 1, vac: 25 },
-      { id: 'M2', name: 'Sam Rivera', team: 'T1', cap: 1, vac: 25 },
+      // Derived-cap member with meetings: full-time, daily standup + weekly
+      // retro → shows the transparent capacity calculation in ResView.
+      {
+        id: 'M2', name: 'Sam Rivera', team: 'T1', vac: 25,
+        capMode: 'derived', weeklyHours: 40,
+        meetings: [
+          { id: 'm2_1', name: 'Daily Standup', hours: 0.25, frequency: 'daily' },
+          { id: 'm2_2', name: 'Retro', hours: 1, frequency: 'biweekly' },
+          { id: 'm2_3', name: 'Sprint Planning', hours: 2, frequency: 'weekly' },
+        ],
+      },
+      // Part-time with manual cap (the scheduler halves the available days).
       { id: 'M3', name: 'Jordan Lee', team: 'T2', cap: 0.5, vac: 25 },
+      // Offboarded mid-project: primary on H1.1/H1.2. When their contract
+      // end hits, Cascade kicks in (auto → then handoffPlan on H1.2).
+      { id: 'M4', name: 'Riley Park', team: 'T2', cap: 1, vac: 25,
+        start: relDate(-30), end: relDate(75) },
     ],
     vacations: [
       { person: 'M1', from: relDate(20), to: relDate(34), note: 'Summer vacation' },

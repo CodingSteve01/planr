@@ -40,7 +40,14 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
     const esc = v => `"${String(v || '').replace(/"/g, '""')}"`;
     const tMap = Object.fromEntries((teams || []).map(tm => [tm.id, tm]));
 
-    const hdr = ['Summary', 'Issue Type', 'Priority', 'Description', 'Component', 'Original Estimate', 'Assignee', 'Epic Name', 'Epic Link', 'Labels', 'Planr ID'];
+    // Detect a custom field that stores the Jira ticket key (jira/issueKey/
+    // ticket). Its value is exported as `Issue Key` so re-imports update the
+    // existing ticket rather than creating a duplicate.
+    const jiraFieldId = (() => {
+      const pool = tree.flatMap(r2 => r2.customValues ? Object.keys(r2.customValues) : []);
+      return [...new Set(pool)].find(k => /jira|issue[_-]?key|ticket/i.test(k)) || '';
+    })();
+    const hdr = ['Summary', 'Issue Type', 'Priority', 'Description', 'Component', 'Original Estimate', 'Assignee', 'Epic Name', 'Epic Link', 'Labels', 'Issue Key', 'Planr ID'];
     const rows = preview.map(r => {
       const teamName = tMap[r.team]?.name || r.team || '';
       const rootId = r.id.split('.')[0];
@@ -50,7 +57,8 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       const desc = [r.note, phases ? `Phasen: ${phases}` : ''].filter(Boolean).join('\n');
       const epicName = r.jiraType === 'Epic' ? r.name : '';
       const epicLink = r.jiraType !== 'Epic' ? (root?.name || rootId) : '';
-      return [esc(r.name), r.jiraType, PRIO[r.prio] || 'Medium', esc(desc), esc(teamName), estimate, esc(r.assigneeName), esc(epicName), esc(epicLink), esc(teamName), r.id].join(',');
+      const issueKey = jiraFieldId && r.customValues?.[jiraFieldId] ? String(r.customValues[jiraFieldId]) : '';
+      return [esc(r.name), r.jiraType, PRIO[r.prio] || 'Medium', esc(desc), esc(teamName), estimate, esc(r.assigneeName), esc(epicName), esc(epicLink), esc(teamName), esc(issueKey), r.id].join(',');
     });
 
     const blob = new Blob(['\uFEFF' + [hdr.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });

@@ -300,7 +300,14 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
   });
 
   const esc = v => `"${String(v || '').replace(/"/g, '""')}"`;
-  const hdr = ['Summary', 'Description', 'Issue Type', 'Priority', 'Labels', 'Component', 'Original Estimate', 'Assignee', 'Epic Name', 'Parent ID'];
+  // Jira Issue Key column lets re-imports *update* existing tickets instead of
+  // creating duplicates. Detect a custom field that stores the ticket key
+  // (`jira`, `issueKey`, `ticket` …) and emit its value alongside the Planr ID.
+  const jiraFieldId = (() => {
+    const pool = tree.flatMap(r => r.customValues ? Object.keys(r.customValues) : []);
+    return [...new Set(pool)].find(k => /jira|issue[_-]?key|ticket/i.test(k)) || '';
+  })();
+  const hdr = ['Summary', 'Description', 'Issue Type', 'Priority', 'Labels', 'Component', 'Original Estimate', 'Assignee', 'Epic Name', 'Issue Key', 'Planr ID'];
   const rows = items.map(r => {
     const sc = sMap[r.id];
     const assignee = (r.assign || [])[0] ? (mMap[(r.assign || [])[0]]?.name || '') : (sc?.autoAssigned && sc.personId ? mMap[sc.personId]?.name || '' : '');
@@ -310,7 +317,8 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
     const estimate = r.best ? `${Math.round(r.best * (r.factor || 1.5))}d` : '';
     const phases = r.phases?.length ? r.phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ') : '';
     const desc = [r.note, phases ? `Phasen: ${phases}` : ''].filter(Boolean).join('\n');
-    return [esc(r.name), esc(desc), 'Task', PRIO[r.prio] || 'Medium', esc(teamName), esc(teamName), estimate, esc(assignee), esc(root?.name || rootId), r.id].join(',');
+    const issueKey = jiraFieldId && r.customValues?.[jiraFieldId] ? String(r.customValues[jiraFieldId]) : '';
+    return [esc(r.name), esc(desc), 'Task', PRIO[r.prio] || 'Medium', esc(teamName), esc(teamName), estimate, esc(assignee), esc(root?.name || rootId), esc(issueKey), r.id].join(',');
   });
 
   download(new Blob(['\uFEFF' + [hdr.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-jira-${iso(new Date())}.csv`);
@@ -364,6 +372,7 @@ export async function exportReportDocx(ctx) {
     // warning; Consolas/Courier New are universal.
     html = html.replace(/'JetBrains Mono','Cascadia Code',monospace/g, "Consolas,'Courier New',monospace");
 
+
     // html-to-docx collapses flexbox to block flow, so KPI rows and two-column
     // grids stack vertically (value/label on separate lines). Rewrite those
     // structures as proper <table>s so Word sees intended columns.
@@ -391,6 +400,32 @@ export async function exportReportDocx(ctx) {
         table.appendChild(tr);
         row.replaceWith(table);
       });
+
+      // Roadmap legend (flex container with line-columns) → multi-column
+      // table so station lists render side-by-side under the subway chart
+      // instead of stacking vertically in Word.
+      doc.querySelectorAll('div[style*="margin-top:16px"][style*="display:flex"][style*="flex-wrap:wrap"]').forEach(legend => {
+        const cols = [...legend.children];
+        if (!cols.length) return;
+        const table = doc.createElement('table');
+        table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:12px 0 16px 0');
+        // Render up to 3 columns per row so legend keeps a readable width.
+        const perRow = Math.min(3, cols.length);
+        for (let i = 0; i < cols.length; i += perRow) {
+          const tr = doc.createElement('tr');
+          for (let j = 0; j < perRow; j++) {
+            const td = doc.createElement('td');
+            td.setAttribute('style', `width:${Math.floor(100 / perRow)}%;padding:6px 10px;vertical-align:top;border:1px solid #e0e4ea`);
+            if (cols[i + j]) td.appendChild(cols[i + j].cloneNode(true));
+            tr.appendChild(td);
+          }
+          table.appendChild(tr);
+        }
+        legend.replaceWith(table);
+      });
+      // Line headers within the legend use inline flex too; expose the color
+      // swatch as a small coloured square by stripping inline `display:flex`
+      // which html-to-docx ignores anyway — block flow renders acceptably.
 
       // Two-column grid (.grid2 → table with 2 tds per row)
       doc.querySelectorAll('.grid2').forEach(grid => {

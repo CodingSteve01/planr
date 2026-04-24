@@ -189,9 +189,10 @@ function CapacityField({ member, onUpd, t }) {
 }
 
 function DerivedCapacity({ member, onUpd }) {
+  const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const meetings = member.meetings || [];
   const meetingH = sumMeetingHours(meetings);
-  const avail = Math.max(0, FTE_HOURS - meetingH);
+  const avail = Math.max(0, wh - meetingH);
   const addMeeting = () => {
     const id = 'mt_' + Math.random().toString(36).slice(2, 8);
     onUpd({ ...member, meetings: [...meetings, { id, name: '', hours: 0.5, frequency: 'weekly' }] });
@@ -203,9 +204,16 @@ function DerivedCapacity({ member, onUpd }) {
   const COLS = '1fr 90px 130px 28px';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
-        Basis: <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{FTE_HOURS} h / Woche</span>
-        <span style={{ marginLeft: 6 }}>(FTE-Standard)</span>
+      <div className="rf" style={{ marginBottom: 0 }}>
+        <label>Std / Woche</label>
+        <div style={{ width: 150, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <LazyInput type="number" min="0" max="80" step="0.5" value={wh}
+            onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>h</span>
+        </div>
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: -4 }}>
+        Default: {FTE_HOURS} h (FTE). Teilzeit/Überstunden hier anpassen.
       </div>
       <div>
         <div style={{
@@ -246,7 +254,7 @@ function DerivedCapacity({ member, onUpd }) {
         paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6,
         alignItems: 'baseline',
       }}>
-        <span style={{ fontFamily: 'var(--mono)' }}>{FTE_HOURS} h</span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{wh} h</span>
         <span style={{ color: 'var(--tx3)' }}>−</span>
         <span style={{ fontFamily: 'var(--mono)' }}>{meetingH.toFixed(2)} h Meetings</span>
         <span style={{ color: 'var(--tx3)' }}>=</span>

@@ -136,8 +136,32 @@ For each **parent**:
 
 Returns a map: `{ [itemId]: "committed" | "estimated" | "exploratory" }`. This is memoized in `App.jsx` alongside the other derived values.
 
+## Offboard cascade & handoff
+
+When a member's `end` date is set and their primary run on a task would need to extend past that day, the scheduler doesn't silently truncate the work. It runs a cascade:
+
+1. **Primary segment** — the initially-picked member works up to and **including** their end date (end-dates are inclusive).
+2. **`r.handoffPlan` overrides (optional)** — for each configured stage, the scheduler picks from the specified `assign[]` / `team`. Used when the user wants to name the successor explicitly.
+3. **Auto-cascade, same team** — next available member from the same team, sorted by earliest-free date.
+4. **Auto-cascade, cross-team** — any other team's members, tagged `crossTeam: true` so views can colour-code the step.
+5. **Unscheduled tail** — if nobody absorbs the remainder, a synthetic segment with `personId: null` extends the bar past the last offboard at unit capacity. Renders as a red hatched stripe in the Gantt and surfaces as a `critical` risk in the report.
+
+### Output
+
+Each cascaded task has a `segments[]` array on the primary `scheduled` row:
+
+```js
+segments: [
+  { personId, personName, startD, endD, effort, offboarded, handoff, crossTeam?, planned?, unscheduled? },
+  ...
+]
+```
+
+**Segments are also emitted as independent scheduled rows** (`id: "${origId}#2"`, `treeId: origId`, `isHandoff: true`) so every downstream consumer — person filters, TODO lists, ResView workload, Gantt rows, critical path — treats each offcut as its own schedulable item belonging to the same tree node. The primary row's `effort` / `endD` are clamped to its own segment; sums across `scheduled` no longer double-count.
+
 ## Known limitations
 
 - **No cycle detection** — a cyclic dep graph will behave unpredictably
 - **One member = one team** — can't split a person across teams with different capacities; workaround is multiple resource entries
 - **Weekly granularity only** — the scheduler reasons in weeks, not days. Sub-week precision is a future upgrade
+- **Handoff on pair-programming tasks** — multi-assign (`isMulti`) tasks are not cascaded. The scheduler flags the remainder as `truncatedByOffboard` instead.

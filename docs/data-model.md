@@ -60,7 +60,12 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   templateId,    // string — informational: which TaskTemplate was used (snapshot, not live ref)
 
   // Custom field values (any item):
-  customValues   // { [fieldId]: string|number } — keyed by CustomField.id; absent = no values set
+  customValues,  // { [fieldId]: string|number } — keyed by CustomField.id; absent = no values set
+
+  // Handoff plan (leaf only): per-stage override for the scheduler's
+  // offboard-cascade. Each stage represents one link in the chain *after*
+  // the primary assignee offboards. Empty array / unset → pure auto-cascade.
+  handoffPlan    // [{ assign?: [memberId], team?: teamId }] | undefined
 }
 ```
 
@@ -96,13 +101,24 @@ A node is a leaf iff no other node has it as a prefix-parent. `isLeafNode(tree, 
   name,   // shown everywhere
   team,   // team ID
   role,   // free-form role text
-  cap,    // capacity fraction: 1.0 = full-time, 0.5 = half-time
+  cap,    // capacity fraction: 1.0 = full-time, 0.5 = half-time (used when capMode === 'manual')
   vac,    // total vacation days per year (default 25)
-  start   // availability start date, YYYY-MM-DD
+  start,  // availability start date, YYYY-MM-DD (onboard)
+  end,    // availability end date, YYYY-MM-DD inclusive (offboard)
+
+  // Derived capacity (optional — defaults to manual `cap` if unset):
+  capMode,        // 'manual' | 'derived'
+  weeklyHours,    // number — default 40 (FTE). Only honored when capMode === 'derived'
+  meetings,       // [{ id, name, hours, frequency }] — recurring meetings subtracted from weeklyHours
+                  // frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' (normalized to weekly-equivalent hours)
 }
 ```
 
 **Capacity** — `cap` scales the whole weekly budget. `vac` splits into explicit vacation weeks (zero-capacity) + a blanket deduction across the horizon. See [scheduler.md](scheduler.md#vacation-model).
+
+**Derived capacity** (`capMode === 'derived'`) — computed by [`deriveCap()`](../src/utils/capacity.js) as `(weeklyHours − Σ meetingHoursPerWeek) / 40`. Meeting frequencies normalize to weekly equivalents: `daily ×5`, `weekly ×1`, `biweekly ×0.5`, `monthly ×12/52`. A 40h engineer with a 15-min daily standup (1.25h), biweekly retro (0.5h) and weekly planning (2h) ends up at `(40 − 3.75)/40 = 91%`. The scheduler sees the raw 0..1 number; ResView shows the breakdown for auditability.
+
+**Offboarding** — if `end` is set, the scheduler stops booking work days strictly *after* that date (inclusive: the end-date itself is still a productive day). When a task in progress on that day has remaining effort, the offboard-cascade kicks in — see [scheduler.md handoff](scheduler.md#offboard-cascade--handoff).
 
 **Short name** — derived automatically for MD export (`buildMemberShortMap`). When the derived base collides, ALL occurrences get a numeric suffix so no one gets the bare base.
 

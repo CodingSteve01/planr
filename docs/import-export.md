@@ -24,7 +24,11 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `# Project Name` — becomes `meta.name`
 - `## Plan` — `Start` / `End` key-value table → `meta.planStart` / `meta.planEnd`
 - `## Teams` — `Name | Color` table
-- `## Resources` — bulleted list: `- **Full Name** \`SHORT\` — Team, Role (cap%), 25d/y, ab YYYY-MM-DD`
+- `## Resources` — bulleted list: `- **Full Name** \`SHORT\` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD, bis YYYY-MM-DD`
+  - `(cap%)` is omitted when the member is in derived-capacity mode (see next field)
+  - `40h/w` appears only when `capMode === 'derived'` — signals the weekly-hours baseline
+  - `bis DATE` is the offboarding date (inclusive)
+  - Sub-bullet `*Meetings: Standup 0.25h/d, Retro 0.5h/2w, Allhands 1h/mo*` lists recurring meetings (frequency shorthand: `d` daily · `w` weekly · `2w` biweekly · `mo` monthly)
 - `## Vacation Weeks` — `Person | Week (Mon) | Note` table
 - `## Holidays` — `Date | Name | Source` table
 - `## Work Tree` — nested bullet list with inline metadata
@@ -44,7 +48,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `[assignees]`: short names, comma-separated
 - `{tags}`: `prio:N`, `seq:N`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
-- Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*Phasen: ...*` for phases, `*…*` for notes
+- Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*Phasen: ...*` for phases, `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
 
 **Phases line format:**
 

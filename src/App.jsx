@@ -114,8 +114,18 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [modalFocus, setModalFocus] = useState(null);
+  // Typed query (immediate) vs. propagated search (debounced). Typing into
+  // the input must never stall — especially on large projects where TreeView
+  // and GanttView do O(n) filter work on every change. We propagate the query
+  // ~180 ms after the last keystroke so the input stays responsive.
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
+  useEffect(() => {
+    if (searchInput === search) return;
+    const id = setTimeout(() => setSearch(searchInput), 180);
+    return () => clearTimeout(id);
+  }, [searchInput, search]);
   const deferredSearch = useDeferredValue(search);
   const [teamFilter, setTeamFilter] = useState(() => { try { return localStorage.getItem('planr_team_filter') || ''; } catch { return ''; } });
   const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
@@ -1763,17 +1773,17 @@ export default function App() {
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <input ref={searchRef} className="btn btn-sec" style={{ padding: '5px 10px', width: 220 }}
         placeholder={`Search… (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+F)`}
-        value={search} onChange={e => { setSearch(e.target.value); setSearchIdx(0); }}
+        value={searchInput} onChange={e => { setSearchInput(e.target.value); setSearchIdx(0); }}
         onKeyDown={e => {
-          if (e.key === 'Escape') { setSearch(''); e.target.blur(); return; }
-          if (e.key === 'Enter') { e.preventDefault(); setSearchIdx(i => e.shiftKey ? i - 1 : i + 1); }
+          if (e.key === 'Escape') { setSearchInput(''); setSearch(''); e.target.blur(); return; }
+          if (e.key === 'Enter') { e.preventDefault(); setSearch(searchInput); setSearchIdx(i => e.shiftKey ? i - 1 : i + 1); }
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx(i => i + 1); }
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx(i => i - 1); }
         }} />}
-      {tab !== 'plan' && search && <>
+      {tab !== 'plan' && searchInput && <>
         <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i - 1)} data-htip={`Previous match (Shift+Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↑)`} style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
         <button className="btn btn-ghost btn-xs" onClick={() => setSearchIdx(i => i + 1)} data-htip={`Next match (Enter / ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+↓)`} style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
-        <button className="btn btn-ghost btn-xs" onClick={() => { setSearch(''); setSearchIdx(0); }} data-htip="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => { setSearchInput(''); setSearch(''); setSearchIdx(0); }} data-htip="Clear search (Esc)" style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
       </>}
     </div>}
     <div className="main">
