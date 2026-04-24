@@ -410,11 +410,19 @@ function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
 }
 
 /* ─── Teams ───────────────────────────────────────────────────────────── */
-function TeamReadRow({ team, memberCount, onClick, t }) {
+function TeamReadRow({ team, memberCount, meetingPlans = [], onClick, t }) {
+  const plans = (team.meetingPlanIds || [])
+    .map(id => meetingPlans.find(p => p.id === id))
+    .filter(Boolean);
   return (
-    <li className="res-row" onClick={onClick}>
+    <li className="res-row res-row-team" onClick={onClick}>
       <span className="res-dot" style={{ background: team.color || 'var(--ac)' }} />
       <span className="res-row-name">{team.name || team.id}</span>
+      <span className="res-plan-tags">
+        {plans.map(p => (
+          <span key={p.id} className="res-plan-tag res-plan-tag-team" title="Meeting-Plan (Team-weit)">{p.name}</span>
+        ))}
+      </span>
       <span className="res-row-meta">{memberCount} {t('rv.members')}</span>
     </li>
   );
@@ -436,6 +444,11 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
+  // Build plan tag list: team-inherited plans flagged, member plans plain.
+  const teamPlanIds = new Set((team?.meetingPlanIds) || []);
+  const memberPlanIds = new Set((member.meetingPlanIds) || []);
+  const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
+  const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
     <li className="res-row" onClick={onClick}>
       <Avatar member={member} teams={teams} />
@@ -447,13 +460,22 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
           </span>
         )}
       </span>
-      {team && (
+      {team ? (
         <span className="res-team-badge" style={{ borderColor: team.color, color: team.color }}>
           {team.name}
         </span>
-      )}
+      ) : <span />}
+      <span className="res-plan-tags">
+        {planObjs.map(p => (
+          <span key={p.id}
+            className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}
+            title={teamPlanIds.has(p.id) ? 'Meeting-Plan (vom Team geerbt)' : 'Meeting-Plan (individuell)'}>
+            {p.name}
+          </span>
+        ))}
+      </span>
       <span className="res-row-meta">{cap}% · {vac}d</span>
-      {dates && <span className="res-row-meta">{dates}</span>}
+      <span className="res-row-meta">{dates || ''}</span>
     </li>
   );
 }
@@ -524,6 +546,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                   key={tm.id}
                   team={tm}
                   memberCount={memberCountForTeam(tm.id)}
+                  meetingPlans={meetingPlans}
                   onClick={() => setEditingTeamId(tm.id)}
                   t={t}
                 />
