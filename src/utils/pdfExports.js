@@ -175,6 +175,62 @@ function buildRoadmapSvgForPdf(ctx) {
   return prepareRoadmapSvg(svgStr, 1400, 800);
 }
 
+// ── Roadmap legend for pdfmake ──────────────────────────────────────────────
+// Same structure as the HTML legend beneath the Subway-Map in Overview:
+// per-line column with station rows + cluster items. Rendered via pdfmake
+// `columns` so multiple lines sit side-by-side on the page.
+function truncateStr(s, n) { return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || ''); }
+function buildRoadmapLegendPdf(model) {
+  if (!model?.lines?.length) return null;
+  const statusGlyph = (s) => s === 'done' ? '●' : s === 'wip' ? '◐' : '○';
+  const columns = model.lines.map(line => {
+    const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
+    if (!allStations.length) return { text: '', width: '*' };
+    const stack = [
+      {
+        columns: [
+          { canvas: [{ type: 'rect', x: 0, y: 3, w: 20, h: 10, r: 2, color: line.color }], width: 24 },
+          { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', margin: [2, 2, 4, 0] },
+          { text: truncateStr(line.root.name, 22), color: '#4a5268', fontSize: 8, margin: [0, 2, 0, 0] },
+        ],
+        columnGap: 3,
+        margin: [0, 0, 0, 3],
+      },
+    ];
+    allStations.forEach(st => {
+      const stStatus = st.allDone ? 'done' : st.done > 0 ? 'wip' : 'open';
+      const badge = st.allDone ? '' : ` ${st.done}/${st.total}`;
+      const decor = st.allDone ? '#7a839a' : '#1a1e2a';
+      stack.push({
+        columns: [
+          { text: statusGlyph(stStatus), color: line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
+          { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
+          { text: truncateStr(st.name, 24) + badge, color: decor, fontSize: 7.5, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
+        ],
+        columnGap: 2,
+        margin: [0, 0, 0, 1],
+      });
+      if (st.clusterSize > 1) {
+        const extras = st.clusterItems.filter(c => c.id !== st.id);
+        extras.forEach(c => {
+          stack.push({
+            text: '    · ' + truncateStr(c.name || c.id, 26),
+            fontSize: 7, color: '#7a839a', margin: [0, 0, 0, 0.5],
+          });
+        });
+      }
+    });
+    return { stack, width: '*' };
+  });
+  // pdfmake columns wrap on a single row; fit max 4 per row for legibility.
+  const rowsOf = 4;
+  const rows = [];
+  for (let i = 0; i < columns.length; i += rowsOf) {
+    rows.push({ columns: columns.slice(i, i + rowsOf), columnGap: 12, margin: [0, 0, 0, 6] });
+  }
+  return rows;
+}
+
 async function rasterizeGantt(ctx, scale = 3) {
   const r = buildGanttSvg(ctx);
   if (!r) return null;
@@ -269,6 +325,11 @@ export async function exportSummaryPDF(ctx, options = {}) {
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
     content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
+    // Legend mirrors the Overview-tab block: per-line column with station rows.
+    const { computeRoadmapModel } = await import('./roadmap.js');
+    const rmModel = computeRoadmapModel({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats });
+    const legendRows = buildRoadmapLegendPdf(rmModel);
+    if (legendRows) legendRows.forEach(r => content.push(r));
   }
 
   // Optional Fahrplan section — chronological station timetable for each line.
