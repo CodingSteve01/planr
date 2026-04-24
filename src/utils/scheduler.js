@@ -212,67 +212,81 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const remainingVac = Math.max(0, entitledVacation - explicitDays);
     vacInfo[m.id] = Math.max(0, 1 - remainingVac / activeWorkDays);
   });
-  // ── Offboard-handoff helper ──────────────────────────────────────────────
-  // Attempts to consume the leftover effort of an offboard-truncated task on
-  // other members of the same team, starting the day after the offboarded
-  // person's end date. Returns null if no candidate can absorb the remainder
-  // entirely; otherwise returns the handoff metadata + new end day.
-  // Why "absorb entirely"? A cascade of partial handoffs quickly becomes
-  // meaningless; we only hand off when the task can definitely finish with
-  // one more member. Anything else is flagged as `truncatedByOffboard`.
-  const tryOffboardHandoff = (remainingEff, offboardDate, fromPersonId, teamMembers, isPinned) => {
-    if (remainingEff <= 0 || !offboardDate) return null;
-    const handoffStart = addD(offboardDate, 1);
-    const candidates = teamMembers
-      .filter(m2 => m2.id !== fromPersonId)
-      .filter(m2 => {
-        const mStart = localDate(m2.start || ps);
-        const mEnd = m2.end ? localDate(m2.end) : null;
-        if (mStart > handoffStart) return false;         // not yet onboarded
-        if (mEnd && mEnd <= handoffStart) return false;  // already offboarded
-        return true;
-      })
-      .sort((a, b) => {
-        const af = pF[a.id]?.nextDate || handoffStart;
-        const bf = pF[b.id]?.nextDate || handoffStart;
-        return af - bf;
-      });
-    for (const bp2 of candidates) {
-      const cap2 = (bp2.cap || 1) * (vacInfo[bp2.id] ?? 1);
-      const pf2 = pF[bp2.id]?.nextDate;
-      const skipBefore2 = pf2 && pf2 > handoffStart ? pf2 : handoffStart;
-      const end2 = bp2.end ? localDate(bp2.end) : null;
+  // ── Offboard-cascade helper ──────────────────────────────────────────────
+  // Chains segments across multiple team members when the primary assignee
+  // (and subsequent stand-ins) offboard mid-task. Each segment records its
+  // own person/start/end/effort so consumers can render, filter and report
+  // on the remainder separately. A task may be interrupted multiple times;
+  // the cascade stops when either (a) the remainder is fully consumed, or
+  // (b) no eligible team member remains.
+  //
+  // Returns the chained segments + the leftover effort flag. Callers insert
+  // the first segment themselves (for the primary run) and pass state in.
+  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned }) => {
+    const segments = [];
+    let lastWD = null, finalWi = -1;
+    while (rem > 0 && lastOffboard) {
+      const nextStart = addD(lastOffboard, 1);
+      const nextBp = teamMembers
+        .filter(m2 => !usedIds.has(m2.id))
+        .filter(m2 => {
+          const mStart = localDate(m2.start || ps);
+          const mEnd = m2.end ? localDate(m2.end) : null;
+          if (mStart > nextStart) return false;         // not yet onboarded
+          if (mEnd && mEnd <= nextStart) return false;  // already offboarded
+          return true;
+        })
+        .sort((a, b) => {
+          const af = pF[a.id]?.nextDate || nextStart;
+          const bf = pF[b.id]?.nextDate || nextStart;
+          return af - bf;
+        })[0];
+      if (!nextBp) break;
+
+      const cap2 = (nextBp.cap || 1) * (vacInfo[nextBp.id] ?? 1);
+      const pf2 = pF[nextBp.id]?.nextDate;
+      const skipBefore2 = pf2 && pf2 > nextStart ? pf2 : nextStart;
+      const end2 = nextBp.end ? localDate(nextBp.end) : null;
       let wi2 = wks.findIndex(w => w.wds.some(d => d >= skipBefore2));
-      if (wi2 < 0) continue;
-      let rem2 = remainingEff, lastWD2 = null;
-      while (rem2 > 0 && wi2 < wks.length) {
+      if (wi2 < 0) break;
+      let segRem = rem, segFirst = null, segLast = null;
+      while (segRem > 0 && wi2 < wks.length) {
         const w = wks[wi2];
         if (end2 && w.mon > end2) break;
         for (const d of w.wds) {
           if (d < skipBefore2) continue;
           if (end2 && d > end2) break;
           const dIso = iso(d);
-          if (anyAssigneeOnVacation(dIso, [bp2.id], vs)) continue;
-          if (!isPinned && anyAssigneePinnedBusy(dIso, [bp2.id])) continue;
-          rem2 -= cap2; lastWD2 = d;
-          if (rem2 <= 0) break;
+          if (anyAssigneeOnVacation(dIso, [nextBp.id], vs)) continue;
+          if (!isPinned && anyAssigneePinnedBusy(dIso, [nextBp.id])) continue;
+          if (!segFirst) segFirst = d;
+          segRem -= cap2; segLast = d;
+          if (segRem <= 0) break;
         }
-        if (rem2 <= 0) break; wi2++;
+        if (segRem <= 0) break; wi2++;
       }
-      if (rem2 <= 0 && lastWD2) {
-        const nd2 = addWorkDays(lastWD2, 1, wdSet);
-        if (!isPinned) pF[bp2.id] = { wi: Math.min(wi2, wks.length - 1), nextDate: nd2 };
-        return {
-          toPersonId: bp2.id,
-          toPersonName: bp2.name || bp2.id,
-          handoffDate: iso(handoffStart),
-          remainingEffort: remainingEff,
-          newLastWorkDay: lastWD2,
-          newWi: Math.min(wi2, wks.length - 1),
-        };
+      const consumed = rem - Math.max(0, segRem);
+      if (consumed <= 0) { usedIds.add(nextBp.id); continue; }  // this member unavailable for any work; skip
+      const segOffboarded = segRem > 0 && !!end2;
+      segments.push({
+        personId: nextBp.id,
+        personName: nextBp.name || nextBp.id,
+        startD: segFirst || nextStart,
+        endD: segLast || (end2 || nextStart),
+        effort: consumed,
+        offboarded: segOffboarded,
+        handoff: true,
+      });
+      if (!isPinned && segLast) {
+        pF[nextBp.id] = { wi: Math.min(wi2, wks.length - 1), nextDate: addWorkDays(segLast, 1, wdSet) };
       }
+      usedIds.add(nextBp.id);
+      rem = Math.max(0, segRem);
+      lastOffboard = segOffboarded ? end2 : null;
+      if (segLast) lastWD = segLast;
+      finalWi = Math.min(wi2, wks.length - 1);
     }
-    return null;
+    return { segments, remaining: rem, lastWD, finalWi, lastOffboard };
   };
 
   const res = [];
@@ -368,19 +382,29 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             }
             if (rem <= 0) break; wi++;
           }
-          // Offboard handoff: primary person's end date hit while rem > 0.
-          let handoff = null, truncated = null;
-          if (rem > 0 && endDate) {
-            const h = tryOffboardHandoff(rem, endDate, bp.id, tM, !!r.pinnedStart);
-            if (h) {
-              handoff = { fromPersonId: bp.id, fromPersonName: bp.name || bp.id, toPersonId: h.toPersonId, toPersonName: h.toPersonName, date: h.handoffDate, effort: rem };
-              lastWorkDay = h.newLastWorkDay;
-              wi = h.newWi;
-              rem = 0;
-            } else {
-              truncated = { remainingEffort: rem, personId: bp.id, personName: bp.name || bp.id, offboardDate: iso(endDate) };
-            }
-          }
+          // Initial segment (primary assignee).
+          const primarySegment = {
+            personId: bp.id,
+            personName: bp.name || bp.id,
+            startD: firstWorkDay || wks[bs]?.mon || wks[0].mon,
+            endD: lastWorkDay || (endDate && rem > 0 ? endDate : addD(wks[Math.min(wi, wks.length - 1)].mon, 4)),
+            effort: eff - Math.max(0, rem),
+            offboarded: rem > 0 && !!endDate,
+            handoff: false,
+          };
+          // Cascade handoff across offboarding members as long as effort remains.
+          const cascade = (rem > 0 && endDate)
+            ? cascadeHandoff({ rem, lastOffboard: endDate, usedIds: new Set([bp.id]), tM, isPinned: !!r.pinnedStart })
+            : { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+          const segments = [primarySegment, ...cascade.segments];
+          const truncated = cascade.remaining > 0 ? {
+            remainingEffort: cascade.remaining,
+            personId: segments[segments.length - 1].personId,
+            personName: segments[segments.length - 1].personName,
+            offboardDate: iso(cascade.lastOffboard || endDate),
+          } : null;
+          if (cascade.lastWD) lastWorkDay = cascade.lastWD;
+          if (cascade.finalWi >= 0) wi = cascade.finalWi;
           const eW = Math.min(wi, wks.length - 1);
           const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
           tEW[id] = { wi: eW, nextDate: nd };
@@ -400,7 +424,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
             vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
             deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
-            handoff, truncatedByOffboard: truncated });
+            segments, truncatedByOffboard: truncated });
           return;
         }
       }
@@ -490,24 +514,30 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       }
       if (rem <= 0) break; wi++;
     }
-    // Offboard handoff for explicit-assign path. Only attempt when the task
-    // has a single primary assignee (multi-assign / parallel pair handoff is
-    // out of scope).
-    let handoff = null, truncated = null;
-    if (rem > 0 && endDate && !isMulti) {
-      const h = tryOffboardHandoff(rem, endDate, bp.id, tM, !!r.pinnedStart);
-      if (h) {
-        handoff = { fromPersonId: bp.id, fromPersonName: bp.name || bp.id, toPersonId: h.toPersonId, toPersonName: h.toPersonName, date: h.handoffDate, effort: rem };
-        lastWorkDay = h.newLastWorkDay;
-        wi = h.newWi;
-        rem = 0;
-      } else {
-        truncated = { remainingEffort: rem, personId: bp.id, personName: bp.name || bp.id, offboardDate: iso(endDate) };
-      }
-    } else if (rem > 0 && endDate && isMulti) {
-      // Multi-assign fallback: just flag, don't try to hand off across a pair.
-      truncated = { remainingEffort: rem, personId: bp.id, personName: bp.name || bp.id, offboardDate: iso(endDate) };
-    }
+    // Primary segment for explicit-assign path.
+    const primarySegment = {
+      personId: bp.id,
+      personName: bp.name || bp.id,
+      startD: firstWorkDay || wks[bs].mon,
+      endD: lastWorkDay || (endDate && rem > 0 ? endDate : addD(wks[Math.min(wi, wks.length - 1)].mon, 4)),
+      effort: eff - Math.max(0, rem),
+      offboarded: rem > 0 && !!endDate,
+      handoff: false,
+    };
+    // Cascade handoff for single-assignee tasks. Multi-assign pairs are out
+    // of scope (pair programming is co-working, not a sequential chain).
+    const cascade = (rem > 0 && endDate && !isMulti)
+      ? cascadeHandoff({ rem, lastOffboard: endDate, usedIds: new Set([bp.id]), tM, isPinned: !!r.pinnedStart })
+      : { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+    const segments = [primarySegment, ...cascade.segments];
+    const truncated = cascade.remaining > 0 ? {
+      remainingEffort: cascade.remaining,
+      personId: segments[segments.length - 1].personId,
+      personName: segments[segments.length - 1].personName,
+      offboardDate: iso(cascade.lastOffboard || endDate),
+    } : null;
+    if (cascade.lastWD) lastWorkDay = cascade.lastWD;
+    if (cascade.finalWi >= 0) wi = cascade.finalWi;
     const eW = Math.min(wi, wks.length - 1);
     const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
     tEW[id] = { wi: eW, nextDate: nd };
@@ -545,7 +575,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
-      handoff, truncatedByOffboard: truncated });
+      segments, truncatedByOffboard: truncated });
   });
   return { results: res, weeks: wks };
 }

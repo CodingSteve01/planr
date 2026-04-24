@@ -139,13 +139,13 @@ function headerTable(headers, rows, widths) {
   };
 }
 
-// ── Rasterize roadmap SVG to high-res PNG ───────────────────────────────────
+// ── Prepare roadmap SVG for pdfmake's native SVG embed ─────────────────────
+// pdfmake renders vector SVG directly via `{svg: <string>}`. Zero canvas
+// rasterization, zero Image-loading drama with <style>/var() blocks. Only
+// requirements: explicit width/height on the root <svg>, no CSS custom
+// properties unresolved, and no external references.
 function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
   if (!svgStr || !svgStr.startsWith('<svg')) return null;
-  // `renderRoadmapSvg` emits the opening tag without width/height attributes
-  // (only viewBox + responsive style). Browsers then load it at 0×0 inside an
-  // <img>, so canvas.drawImage produces a blank PNG. Force explicit pixel
-  // dimensions and drop the responsive style before rasterization.
   const patched = svgStr.replace(
     /^<svg [^>]*>/,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
@@ -156,22 +156,23 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     .replace(/var\(--tx3,([^)]*)\)/g, '#7a839a')
     .replace(/var\(--bg,([^)]*)\)/g, '#ffffff')
     .replace(/var\(--bg2,([^)]*)\)/g, '#f8f9fc')
+    .replace(/var\(--b,([^)]*)\)/g, '#e0e4ea')
     .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
     .replace(/var\(--re,([^)]*)\)/g, '#ef4444')
+    .replace(/var\(--ac,([^)]*)\)/g, '#2563eb')
     .replace(/var\(--tx[^)]*\)/g, '#1a1e2a')
     .replace(/var\(--tx2[^)]*\)/g, '#4a5268')
     .replace(/var\(--tx3[^)]*\)/g, '#7a839a')
-    .replace(/var\(--bg[^)]*\)/g, '#ffffff');
+    .replace(/var\(--bg[^)]*\)/g, '#ffffff')
+    .replace(/var\(--b[^)]*\)/g, '#e0e4ea')
+    .replace(/var\(--re[^)]*\)/g, '#ef4444')
+    .replace(/var\(--ac[^)]*\)/g, '#2563eb');
 }
 
-async function rasterizeRoadmap(ctx, scale = 3) {
+function buildRoadmapSvgForPdf(ctx) {
   const { tree, scheduled, stats } = ctx;
   const svgStr = renderRoadmapSvg({ tree, scheduled, stats });
-  const prepared = prepareRoadmapSvg(svgStr, 1400, 800);
-  if (!prepared) return null;
-  try {
-    return await svgToDataUrl(prepared, 1400, 800, scale, '#ffffff');
-  } catch { return null; }
+  return prepareRoadmapSvg(svgStr, 1400, 800);
 }
 
 async function rasterizeGantt(ctx, scale = 3) {
@@ -187,7 +188,7 @@ async function rasterizeGantt(ctx, scale = 3) {
 export async function exportSummaryPDF(ctx) {
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
-  const roadmapPng = await rasterizeRoadmap(ctx, 3);
+  const roadmapSvg = buildRoadmapSvgForPdf(ctx);
   const { meta, t, dateStr, done, wip, open, totalPt, prog, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, confidence, members, lvs, scheduled, teams } = m;
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
@@ -264,9 +265,9 @@ export async function exportSummaryPDF(ctx) {
     [90, 50, 50, '*'],
   ));
 
-  if (roadmapPng) {
+  if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
-    content.push({ image: roadmapPng, width: 760, margin: [0, 0, 0, 8] });
+    content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
   }
 
   const goals = roots.filter(r => r.type);

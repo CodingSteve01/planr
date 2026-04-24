@@ -73,14 +73,17 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   });
   const ccTotal = cc.committed + cc.estimated + cc.exploratory;
 
-  // Team capacity
+  // Team capacity. Parallel tasks are tracked separately since they run
+  // alongside the primary queue and would otherwise double-count load.
   const teamCap = {};
-  teams.forEach(tm => { teamCap[tm.id] = { name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
+  teams.forEach(tm => { teamCap[tm.id] = { name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, parallel: 0, count: 0 }; });
   members.forEach(m => { if (teamCap[m.team]) teamCap[m.team].members.push(m); });
   lvs.filter(r => r.status !== 'done').forEach(r => {
     if (!teamCap[r.team]) return;
     const pt = re(r.best || 0, r.factor || 1.5);
-    if ((r.assign || []).length > 0) teamCap[r.team].committed += pt; else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
+    if (r.parallel) { teamCap[r.team].parallel += pt; return; }
+    if ((r.assign || []).length > 0) teamCap[r.team].committed += pt;
+    else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
   });
 
   // Critical path
@@ -103,14 +106,44 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   // 3. Unassigned work blocking progress
   const unassignedPt = ccPt.estimated + ccPt.exploratory;
   if (unassignedPt > 100) risks.push({ severity: 'medium', text: t(`${(cc.estimated + cc.exploratory)} items (${unassignedPt.toFixed(0)} PT) have no person assigned`, `${(cc.estimated + cc.exploratory)} Items (${unassignedPt.toFixed(0)} PT) haben keine zugewiesene Person`) });
-  // 4. Overloaded team members
+  // 4. Overloaded team members. Capacity scales with actual project span
+  //    (not a fixed year) and excludes `parallel` tasks since those run
+  //    alongside the primary queue rather than consuming it linearly.
+  const planStart = meta.planStart ? new Date(meta.planStart) : null;
+  const projectSpanDays = planStart && projectEnd && projectEnd > planStart
+    ? Math.max(1, Math.round((projectEnd - planStart) / 86400000))
+    : 365;
+  const projectSpanYears = projectSpanDays / 365;
   members.forEach(m => {
-    const personPt = lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)).reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-    const capDays = (m.cap || 1) * 220; // ~220 working days/year
-    if (personPt > capDays * 0.8) risks.push({ severity: 'medium', text: t(`${m.name} has ${personPt.toFixed(0)} PT committed (${Math.round(personPt/capDays*100)}% of annual capacity)`, `${m.name} hat ${personPt.toFixed(0)} PT zugewiesen (${Math.round(personPt/capDays*100)}% der Jahreskapazität)`) });
+    const primaryPt = lvs
+      .filter(r => r.status !== 'done' && !r.parallel && (r.assign || []).includes(m.id))
+      .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+    const parallelPt = lvs
+      .filter(r => r.status !== 'done' && r.parallel && (r.assign || []).includes(m.id))
+      .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+    const capDays = (m.cap || 1) * 220 * projectSpanYears;
+    const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
+    if (util > 100) {
+      risks.push({
+        severity: 'critical',
+        text: t(
+          `${m.name} is ${util}% loaded (${primaryPt.toFixed(0)} PT committed vs. ${capDays.toFixed(0)} PT capacity over ${projectSpanDays} days)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''} — overbooked, something will slip`,
+          `${m.name} zu ${util}% ausgelastet (${primaryPt.toFixed(0)} PT zugewiesen vs. ${capDays.toFixed(0)} PT Kapazität über ${projectSpanDays} Tage)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''} — überbucht, etwas wird verrutschen`,
+        ),
+      });
+    } else if (util > 80) {
+      risks.push({
+        severity: 'medium',
+        text: t(
+          `${m.name} is ${util}% loaded (${primaryPt.toFixed(0)} PT committed vs. ${capDays.toFixed(0)} PT capacity)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''}`,
+          `${m.name} zu ${util}% ausgelastet (${primaryPt.toFixed(0)} PT zugewiesen vs. ${capDays.toFixed(0)} PT Kapazität)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''}`,
+        ),
+      });
+    }
   });
-  // 5. Offboard-truncated tasks — primary assignee offboards mid-task and no
-  //    other team member has capacity to absorb the remainder.
+  // 5. Offboard-truncated tasks — last segment's assignee offboards and no
+  //    further team member can absorb the remainder. Critical — work will
+  //    silently go undone without intervention.
   const truncatedTasks = scheduled.filter(s => s.truncatedByOffboard);
   truncatedTasks.forEach(s => {
     const tr = s.truncatedByOffboard;
@@ -122,15 +155,18 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
       ),
     });
   });
-  // 6. Offboard-handoff tasks — auto-reassigned remainder to another member.
-  const handoffTasks = scheduled.filter(s => s.handoff);
-  handoffTasks.forEach(s => {
-    const h = s.handoff;
+  // 6. Offboard-handoff tasks — task was split into multiple person-segments
+  //    to work around offboarding. Surface so user can verify the handoff.
+  scheduled.forEach(s => {
+    const segs = s.segments || [];
+    if (segs.length < 2) return;
+    const chain = segs.map(seg => seg.personName).join(' → ');
+    const effortChain = segs.slice(1).map(seg => seg.effort.toFixed(1) + ' PT').join(' + ');
     risks.push({
       severity: 'high',
       text: t(
-        `"${s.name}" (${s.id}): ${h.effort.toFixed(1)} PT auto-handed off from ${h.fromPersonName} → ${h.toPersonName} on ${h.date} (offboarding) — verify this is intended`,
-        `„${s.name}" (${s.id}): ${h.effort.toFixed(1)} PT automatisch übergeben von ${h.fromPersonName} → ${h.toPersonName} zum ${h.date} (Offboarding) — bitte prüfen`,
+        `"${s.name}" (${s.id}): split across ${segs.length} people due to offboarding (${chain}); handed-off effort: ${effortChain} — verify intent`,
+        `„${s.name}" (${s.id}): aufgeteilt auf ${segs.length} Personen wegen Offboarding (${chain}); übergebene Aufwände: ${effortChain} — bitte prüfen`,
       ),
     });
   });

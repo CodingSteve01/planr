@@ -117,9 +117,9 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0); // current match index for prev/next cycling
   const deferredSearch = useDeferredValue(search);
-  const [teamFilter, setTeamFilter] = useState('');
-  const [rootFilter, setRootFilter] = useState('');
-  const [personFilter, setPersonFilter] = useState('');
+  const [teamFilter, setTeamFilter] = useState(() => { try { return localStorage.getItem('planr_team_filter') || ''; } catch { return ''; } });
+  const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
+  const [personFilter, setPersonFilter] = useState(() => { try { return localStorage.getItem('planr_person_filter') || ''; } catch { return ''; } });
   const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
@@ -131,6 +131,9 @@ export default function App() {
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
   useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
+  useEffect(() => { try { localStorage.setItem('planr_team_filter', teamFilter); } catch {} }, [teamFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_root_filter', rootFilter); } catch {} }, [rootFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_person_filter', personFilter); } catch {} }, [personFilter]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
