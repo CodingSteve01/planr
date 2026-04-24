@@ -61,6 +61,7 @@ export function ExportModal({
   const { t: _t } = useT();
   const [todoH, setTodoH] = useState(30);
   const [sprintH, setSprintH] = useState(30);
+  const [includeTimetable, setIncludeTimetable] = useState(true);
   const [busy, setBusy] = useState(null);
   const [done, setDone] = useState({});  // key → ts of last success
 
@@ -104,8 +105,16 @@ export function ExportModal({
           marginBottom: 4,
         }}>
           <Card cat="pdf" title="Management Summary"
-            desc="Kennzahlen, Risiken, Roadmap, Critical Path, Team-Capacity. Weitergabe-tauglich."
-            action={B('sum', 'PDF', onSummaryPDF)} />
+            desc="Kennzahlen, Risiken, Subway-Map + optional Fahrplan, Critical Path, Team-Capacity."
+            action={<>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
+                data-htip="Chronologische Stations-Tabelle je Linie unter der Subway-Map">
+                <input type="checkbox" checked={includeTimetable}
+                  onChange={e => setIncludeTimetable(e.target.checked)} />
+                +Fahrplan
+              </label>
+              {B('sum', 'PDF', () => onSummaryPDF({ includeTimetable }))}
+            </>} />
 
           <Card cat="pdf" title="Gantt / Zeitplan"
             desc="Hochauflösendes Timeline-Bild + vollständige Terminübersicht je Team."

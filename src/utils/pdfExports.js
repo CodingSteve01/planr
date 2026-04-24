@@ -185,7 +185,8 @@ async function rasterizeGantt(ctx, scale = 3) {
 }
 
 // ── Summary (Management) PDF ────────────────────────────────────────────────
-export async function exportSummaryPDF(ctx) {
+export async function exportSummaryPDF(ctx, options = {}) {
+  const { includeTimetable = true } = options;
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
@@ -268,6 +269,58 @@ export async function exportSummaryPDF(ctx) {
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
     content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
+  }
+
+  // Optional Fahrplan section — chronological station timetable for each line.
+  // Uses the same computeRoadmapModel data as the Subway-Map.
+  if (includeTimetable) {
+    try {
+      const { computeRoadmapModel } = await import('./roadmap.js');
+      const rmModel = computeRoadmapModel({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats });
+      if (rmModel?.lines?.length) {
+        content.push({ text: t('Timetable', 'Fahrplan'), style: 'h2' });
+        content.push({ text: t('Station abbreviations reference the Subway-Map legend above.', 'Stations-Kürzel verweisen auf die Legende der Subway-Map oben.'), style: 'cap', margin: [0, 0, 0, 8] });
+        const scheduledById = Object.fromEntries((ctx.scheduled || []).map(s => [s.id, s]));
+        const teamName = id => ctx.teams.find(x => x.id === id)?.name || id || '—';
+        rmModel.lines.forEach(line => {
+          const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
+          const rows = allStations.map(st => {
+            const items = st.clusterItems || [];
+            const dated = items.map(it => scheduledById[it.id]).filter(s => s && s.startD && s.endD);
+            const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
+            const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
+            const teamIds = [...new Set(items.map(it => it.team).filter(Boolean))];
+            const teamLbl = teamIds.map(teamName).join(' · ') || '—';
+            const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
+            const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
+            const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
+            return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, teamLbl, status };
+          }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
+
+          content.push({
+            text: [
+              { text: line.root.id + '  ', color: line.color, bold: true },
+              { text: line.root.name, color: '#1a1e2a', bold: true },
+            ],
+            fontSize: 11, margin: [0, 10, 0, 4],
+          });
+          content.push(headerTable(
+            [t('Station', 'Station'), t('Start', 'Start'), t('End', 'Ende'), t('Duration', 'Dauer'), t('Team', 'Team'), t('St.', 'St.')],
+            rows.map(r => [
+              { text: r.abbrev, color: line.color, bold: true },
+              r.startD ? iso(r.startD) : '—',
+              r.endD ? iso(r.endD) : '—',
+              r.calDays ? `${r.calDays}d / ${r.workDays.toFixed(0)}PT` : '—',
+              r.teamLbl,
+              { text: r.status, alignment: 'center' },
+            ]),
+            [70, 70, 70, 90, '*', 30],
+          ));
+        });
+      }
+    } catch (e) {
+      console.warn('[summary-pdf] timetable generation failed', e);
+    }
   }
 
   const goals = roots.filter(r => r.type);

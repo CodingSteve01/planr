@@ -627,8 +627,8 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <span>Name</span>
                 <span>Team</span>
                 <span>Meeting-Pläne</span>
-                <span style={{ textAlign: 'right' }}>Cap · Urlaub</span>
-                <span style={{ textAlign: 'right' }}>Verfügbar</span>
+                <span style={{ textAlign: 'right' }} data-htip="Kapazität in % (derived) · Urlaubstage pro Jahr">Cap · Urlaub</span>
+                <span style={{ textAlign: 'right' }} data-htip="Onboarding – Offboarding (Mitgliedschaftsfenster). Leer = unbegrenzt.">Ein-/Austritt</span>
               </div>
               <ul className="res-list">
                 {teamMembers.map(m => (

@@ -7,6 +7,7 @@ import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
+import { TimetableView } from './TimetableView.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
@@ -66,8 +67,9 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
     </div>
     <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
 
-    {/* Roadmap bus-line */}
-    <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} />
+    {/* Roadmap + Fahrplan — switchable sub-views sharing the same data. */}
+    <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
+      teams={teams} members={members} onOpenItem={onOpenItem} />
 
     {/* Planning confidence */}
     {(() => {
@@ -238,4 +240,28 @@ export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPat
       </table>
     </>}
   </div>;
+}
+
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem }) {
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
+  });
+  const setAndPersist = v => {
+    setView(v);
+    try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
+  };
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+        <button className={`btn btn-xs ${view === 'map' ? 'btn-pri' : 'btn-sec'}`}
+          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>Subway-Map</button>
+        <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
+          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>Fahrplan</button>
+      </div>
+      {view === 'map'
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} />
+        : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members} />
+      }
+    </div>
+  );
 }
