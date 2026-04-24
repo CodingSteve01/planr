@@ -332,7 +332,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           />
         </div>
       </div>
-      {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams}
+      {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}
         onChange={plan => patchNode({ handoffPlan: plan })} />}
     </>}
 

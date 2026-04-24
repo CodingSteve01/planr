@@ -1,69 +1,114 @@
 import { SearchSelect } from './SearchSelect.jsx';
 
-// Per-segment handoff override editor. Stage 0 = primary (r.team + r.assign).
-// Stages 1..N are explicit targets — when the scheduler hits an offboarding
-// it consults the plan; the plan's team restricts the candidate pool, the
-// plan's assign pins a specific member (cascading auto-pick otherwise).
+// Per-cutoff override editor. Cutoffs are not created here — the scheduler
+// derives them from member offboarding dates. This UI surfaces each derived
+// cutoff and lets the user override *who* picks up after it. Empty override
+// = scheduler decides automatically.
 //
 // Stored on the tree node as:
 //   r.handoffPlan?: Array<{ team?: string, assign?: string[] }>
 //
-// Left unset = pure auto-cascade (current default). Any explicit entry is
-// honored in order; empty trailing entries are ignored.
-export function HandoffPlanEditor({ node, members, teams, onChange }) {
+// Index N of handoffPlan overrides the Nth cutoff (0-based). Anything beyond
+// the observed cutoffs is shown as "future cutoff" so the user can pre-plan.
+export function HandoffPlanEditor({ node, members, teams, scheduled, onChange }) {
   const plan = Array.isArray(node.handoffPlan) ? node.handoffPlan : [];
   const memberName = id => members.find(m => m.id === id)?.name || id;
-  const setPlan = next => {
-    // Drop completely-empty trailing entries so JSON stays clean.
-    const trimmed = [...next];
-    while (trimmed.length && !trimmed[trimmed.length - 1]?.team && !(trimmed[trimmed.length - 1]?.assign?.length)) {
-      trimmed.pop();
-    }
-    onChange(trimmed);
+  const teamName = id => teams.find(tm => tm.id === id)?.name || id;
+
+  // Pull the forecasted segment chain from the scheduler. Primary segment
+  // (index 0) is the original assignee; subsequent segments are cutoffs.
+  const sc = Array.isArray(scheduled)
+    ? scheduled.find(s => (s.treeId || s.id) === node.id && !s.isHandoff)
+    : null;
+  const allSegs = sc?.segments || [];
+  const cutoffs = allSegs.slice(1); // entries after the primary
+
+  const setStage = (idx, patch) => {
+    const next = [...plan];
+    while (next.length <= idx) next.push({});
+    next[idx] = { ...next[idx], ...patch };
+    onChange(next);
   };
-  const addStage = () => setPlan([...plan, { team: '', assign: [] }]);
-  const updStage = (idx, patch) => setPlan(plan.map((p, i) => i === idx ? { ...p, ...patch } : p));
-  const delStage = idx => setPlan(plan.filter((_, i) => i !== idx));
+  const clearStage = idx => {
+    const next = [...plan];
+    if (idx >= next.length) return;
+    next[idx] = {};
+    // Strip trailing empties only — never the stage the user is editing.
+    while (next.length && !next[next.length - 1]?.team && !(next[next.length - 1]?.assign?.length)) {
+      next.pop();
+    }
+    onChange(next);
+  };
+  const addExtraStage = () => {
+    // Seed a fresh empty stage at the end of the plan so the user sees a row.
+    onChange([...plan, { team: '', assign: [] }]);
+  };
+
+  // Stages to render: union of derived cutoffs and any extra overrides the
+  // user has already typed beyond the observed chain (pre-planning).
+  const totalStages = Math.max(cutoffs.length, plan.length);
+  const stages = Array.from({ length: totalStages }, (_, i) => ({
+    idx: i,
+    predicted: cutoffs[i] || null,
+    override: plan[i] || null,
+  }));
 
   return (
     <div style={{
       marginTop: 10, padding: 10, background: 'var(--bg3)',
       border: '1px solid var(--b)', borderRadius: 'var(--r)',
-      display: 'flex', flexDirection: 'column', gap: 10,
+      display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>Handoff-Plan</div>
         <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
-          {plan.length === 0 ? 'Leer → Auto-Cascade' : `${plan.length} Etappe${plan.length > 1 ? 'n' : ''} vorgegeben`}
+          {cutoffs.length === 0 && plan.length === 0
+            ? 'Kein Cutoff erwartet'
+            : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'}${plan.length > 0 ? ` · ${plan.length} Override${plan.length === 1 ? '' : 's'}` : ''}`}
         </div>
       </div>
       <div style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>
-        Beim Offboarding wechselt der Task an die hier hinterlegte Person/Team. Jede Etappe = ein Ressourcen-Block nach einem Offcut. Leere Felder → Scheduler sucht automatisch.
+        Cutoffs werden vom Scheduler automatisch aus Offboarding-Datums berechnet. Für jede Etappe kann hier optional ein Team oder eine Person fest vorgegeben werden — sonst sucht der Scheduler.
       </div>
 
-      {plan.map((stage, idx) => {
+      {stages.length === 0 && (
+        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
+          Aktuell kein Handoff nötig. Trage trotzdem eine Etappe ein, falls du Vorgaben für künftige Offboardings setzen willst.
+        </div>
+      )}
+
+      {stages.map(({ idx, predicted, override }) => {
+        const stage = override || {};
         const stageMembers = stage.team
           ? members.filter(m => m.team === stage.team)
           : members;
+        const predictedLabel = predicted
+          ? `Scheduler wählt: ${predicted.personName || '(unassigned)'}${predicted.unscheduled ? ' ⚠' : ''}`
+          : 'Vorgeplant (noch kein Cutoff erwartet)';
+        const predictedAfter = predicted?.handoff && allSegs[idx]?.personName
+          ? ` nach Offboarding von ${allSegs[idx].personName}`
+          : '';
         return (
           <div key={idx} style={{
             padding: 8, background: 'var(--bg2)', border: '1px solid var(--b)',
-            borderLeft: '3px solid var(--ac)', borderRadius: 4,
+            borderLeft: `3px solid ${predicted?.unscheduled ? 'var(--re)' : 'var(--ac)'}`,
+            borderRadius: 4,
             display: 'flex', flexDirection: 'column', gap: 6,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                Etappe {idx + 1}  ·  nach {idx === 0 ? 'primärem Offboarding' : `Offboarding Etappe ${idx}`}
+                Etappe {idx + 1}{predictedAfter}
               </span>
-              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--re)' }}
-                onClick={() => delStage(idx)} title="Etappe entfernen">×</button>
+              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--re)', padding: '0 6px' }}
+                onClick={() => clearStage(idx)} title="Override entfernen (zurück zu Auto)">×</button>
             </div>
+            <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{predictedLabel}</div>
             <div className="rf" style={{ marginBottom: 0 }}>
               <label>Team</label>
               <SearchSelect value={stage.team || ''}
                 options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
-                onSelect={v => updStage(idx, { team: v, assign: [] /* reset on team change */ })}
-                placeholder="(beliebiges Team)" allowEmpty emptyLabel="(beliebig)" />
+                onSelect={v => setStage(idx, { team: v })}
+                placeholder="(Auto)" allowEmpty emptyLabel="(Auto)" />
             </div>
             <div className="rf" style={{ marginBottom: 0, alignItems: 'flex-start' }}>
               <label>Person(en)</label>
@@ -72,7 +117,7 @@ export function HandoffPlanEditor({ node, members, teams, onChange }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {stage.assign.map(id => (
                       <span key={id} className="tag">{memberName(id)}
-                        <span className="tag-x" onClick={() => updStage(idx, {
+                        <span className="tag-x" onClick={() => setStage(idx, {
                           assign: (stage.assign || []).filter(a => a !== id),
                         })}>×</span>
                       </span>
@@ -85,12 +130,12 @@ export function HandoffPlanEditor({ node, members, teams, onChange }) {
                     .map(m => ({ id: m.id, label: m.name || m.id }))}
                   onSelect={id => {
                     const m = members.find(x => x.id === id);
-                    updStage(idx, {
+                    setStage(idx, {
                       assign: [...new Set([...(stage.assign || []), id])],
                       team: stage.team || m?.team || '',
                     });
                   }}
-                  placeholder="+ Person hinzufügen..."
+                  placeholder="+ Override-Person..."
                 />
               </div>
             </div>
@@ -98,8 +143,8 @@ export function HandoffPlanEditor({ node, members, teams, onChange }) {
         );
       })}
 
-      <button className="btn btn-sec btn-xs" onClick={addStage} style={{ alignSelf: 'flex-start' }}>
-        + {plan.length === 0 ? 'Erste Handoff-Etappe' : 'Weitere Etappe'}
+      <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }}>
+        + Zusätzliche Etappe vorbelegen
       </button>
     </div>
   );

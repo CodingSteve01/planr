@@ -374,7 +374,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
-        {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams}
+        {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}
           onChange={plan => s('handoffPlan', plan)} />}
       </>}
 

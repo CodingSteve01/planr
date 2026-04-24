@@ -15,6 +15,14 @@ function download(blob, name) {
 }
 function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 let _turboDocxPromise = null;
 async function loadTurboDocx() {
   // turbodocx's image pipeline uses Node's Buffer internally. In the browser
@@ -401,31 +409,65 @@ export async function exportReportDocx(ctx) {
         row.replaceWith(table);
       });
 
-      // Roadmap legend (flex container with line-columns) → multi-column
-      // table so station lists render side-by-side under the subway chart
-      // instead of stacking vertically in Word.
+      // Roadmap legend → flat block HTML inside a multi-column table. The
+      // generated legend uses nested flex containers (line column → line
+      // header row → station row), which html-to-docx collapses into empty
+      // cells. Extract the useful bits (line id, line name, station list)
+      // and emit plain divs so Word renders it as a readable agenda.
       doc.querySelectorAll('div[style*="margin-top:16px"][style*="display:flex"][style*="flex-wrap:wrap"]').forEach(legend => {
         const cols = [...legend.children];
         if (!cols.length) return;
+        const flatCols = cols.map(col => {
+          // The first child is the line header; remaining are station rows
+          // (plus optional indented cluster rows).
+          const lineHeader = col.children[0];
+          const color = lineHeader?.querySelector('span[style*="background:"]')
+            ?.getAttribute('style')
+            ?.match(/background:([^;]+)/i)?.[1]?.trim() || '#1a1e2a';
+          const lineIdSpan = lineHeader?.querySelectorAll('span')?.[1];
+          const lineNameSpan = lineHeader?.querySelectorAll('span')?.[2];
+          const lineId = lineIdSpan?.textContent?.trim() || '';
+          const lineName = lineNameSpan?.textContent?.trim() || '';
+          const rest = [...col.children].slice(1);
+          const stationLines = rest.map(row => {
+            const spans = [...row.querySelectorAll('span')];
+            const textParts = spans.map(s => s.textContent?.trim()).filter(Boolean);
+            const indent = /padding-left:\d/.test(row.getAttribute('style') || '') ? true : false;
+            const done = /line-through/.test(row.getAttribute('style') || '') ? true : false;
+            return { text: textParts.join(' ').trim(), indent, done };
+          }).filter(s => s.text);
+          return { color, lineId, lineName, stationLines };
+        });
         const table = doc.createElement('table');
         table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:12px 0 16px 0');
-        // Render up to 3 columns per row so legend keeps a readable width.
-        const perRow = Math.min(3, cols.length);
-        for (let i = 0; i < cols.length; i += perRow) {
+        const perRow = Math.min(3, flatCols.length);
+        for (let i = 0; i < flatCols.length; i += perRow) {
           const tr = doc.createElement('tr');
           for (let j = 0; j < perRow; j++) {
             const td = doc.createElement('td');
-            td.setAttribute('style', `width:${Math.floor(100 / perRow)}%;padding:6px 10px;vertical-align:top;border:1px solid #e0e4ea`);
-            if (cols[i + j]) td.appendChild(cols[i + j].cloneNode(true));
+            td.setAttribute('style', `width:${Math.floor(100 / perRow)}%;padding:8px 10px;vertical-align:top;border:1px solid #e0e4ea;background:#fafbfd`);
+            const data = flatCols[i + j];
+            if (data) {
+              const parts = [];
+              parts.push(
+                `<div style="margin-bottom:4px">` +
+                  `<span style="display:inline-block;background:${data.color};color:#fff;font-weight:700;padding:1px 6px;border-radius:3px;font-size:10px;font-family:'Courier New',monospace">${data.lineId}</span>` +
+                  (data.lineName ? ` <span style="font-size:10px;color:#4a5268">${data.lineName}</span>` : '') +
+                `</div>`
+              );
+              data.stationLines.forEach(s => {
+                parts.push(
+                  `<div style="font-size:10px;color:#4a5268;${s.done ? 'text-decoration:line-through;opacity:0.6;' : ''}${s.indent ? 'padding-left:14px;' : ''}margin-bottom:2px">${escapeHtml(s.text)}</div>`
+                );
+              });
+              td.innerHTML = parts.join('');
+            }
             tr.appendChild(td);
           }
           table.appendChild(tr);
         }
         legend.replaceWith(table);
       });
-      // Line headers within the legend use inline flex too; expose the color
-      // swatch as a small coloured square by stripping inline `display:flex`
-      // which html-to-docx ignores anyway — block flow renders acceptably.
 
       // Two-column grid (.grid2 → table with 2 tds per row)
       doc.querySelectorAll('.grid2').forEach(grid => {
