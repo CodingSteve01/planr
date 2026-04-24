@@ -482,7 +482,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // visually past offboarding and the downstream project-end calc
           // reflects the real workload. Rendered as a hatched "(unassigned)"
           // segment — not pinned to any real person's queue.
-          if (cascade.remaining > 0) {
+          // Guard: only emit ghost + truncation when an offboarding actually
+          // triggered the shortfall. Without endDate, rem>0 means the primary
+          // simply ran out of horizon — not a handoff situation.
+          if (cascade.remaining > 0 && endDate) {
             const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
             const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
             const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
@@ -504,7 +507,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             if (cascade.lastWD) lastWorkDay = cascade.lastWD;
             if (cascade.finalWi >= 0) wi = cascade.finalWi;
           }
-          const truncated = cascade.remaining > 0 ? {
+          const truncated = (cascade.remaining > 0 && endDate) ? {
             remainingEffort: cascade.remaining,
             personId: segments[segments.length - 2]?.personId,
             personName: segments[segments.length - 2]?.personName,
