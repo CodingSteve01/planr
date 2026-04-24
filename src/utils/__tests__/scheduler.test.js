@@ -296,6 +296,112 @@ describe('schedule(): cross-team + planned handoff layered', () => {
   });
 });
 
+describe('schedule(): cyclic deps', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('cycle does not throw; both nodes appear', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 2, factor: 1, assign: ['M1'], deps: ['P1.2'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 2, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const run = () => runSchedule({ tree, members: [alex] });
+    expect(run).not.toThrow();
+    const { results } = run();
+    expect(results.find(s => s.id === 'P1.1')).toBeDefined();
+    expect(results.find(s => s.id === 'P1.2')).toBeDefined();
+  });
+});
+
+describe('schedule(): cascade respects dep earliest-start', () => {
+  // Regression: Primary offboarded BEFORE the task's dep was ready.
+  // Cascade used to start at primary.end + 1, ignoring dep.end → successor
+  // reported "Dep violation" in console. Fix: cascade clamps nextStart to
+  // max(primary.end + 1, dep.nextDate).
+  test('handoff does not start before its dep is free', () => {
+    const warn = [];
+    const origWarn = console.warn;
+    console.warn = (...args) => { warn.push(args.join(' ')); };
+    try {
+      const members = [
+        // M1 offboards very early; assigned to the LATE task. Pool member M2
+        // takes over via cascade.
+        { id: 'M1', name: 'Early-Out', team: 'T1', cap: 1, vac: 0,
+          start: '2026-01-01', end: '2026-01-16' },
+        { id: 'M2', name: 'Stayer', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        // M3 runs the long predecessor.
+        { id: 'M3', name: 'Blocker', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      ];
+      const tree = [
+        { id: 'P1', name: 'Root', team: '', best: 0 },
+        // Predecessor: 40 work days; ends late March/April.
+        { id: 'P1.1', name: 'Long', team: 'T1', best: 40, factor: 1,
+          assign: ['M3'], status: 'open' },
+        // Successor assigned to M1 who is already offboarded by then. Without
+        // the fix, the cascade would start at Jan 17 (M1.end + 1) instead of
+        // after P1.1 finishes.
+        { id: 'P1.2', name: 'After', team: 'T1', best: 5, factor: 1,
+          assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      ];
+      const { results } = runSchedule({ tree, members });
+      // No dep-violation warning emitted.
+      expect(warn.find(m => /Dep violation/.test(m))).toBeUndefined();
+      // Successor actually starts >= predecessor end.
+      const pre = results.find(s => s.id === 'P1.1');
+      const suc = results.find(s => s.id === 'P1.2');
+      expect(suc.startD >= pre.endD).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+});
+
+describe('schedule(): pinned + offboard cascade', () => {
+  test('pinned task whose assignee offboards still hands off', () => {
+    const members = [
+      { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-03-13' },
+      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+    ];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pinned+long', team: 'T1', best: 50, factor: 1,
+        assign: ['M1'], pinnedStart: '2026-02-02', status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members });
+    const primary = results.find(s => s.id === 'P1.1');
+    const handoff = results.find(s => s.isHandoff && !s.unscheduled);
+    // Primary starts no earlier than pin.
+    expect(primary.startD >= new Date(2026, 1, 2)).toBe(true);
+    // Handoff triggers on M1 offboard and falls to M2.
+    expect(handoff?.personId).toBe('M2');
+  });
+});
+
+describe('schedule(): meeting-plan capacity reduction end-to-end', () => {
+  test('team-inherited plan reduces scheduled throughput', () => {
+    // Same task scheduled twice: once with a heavy team plan, once without.
+    // The one with plans should take more calendar days.
+    const makeMembers = (withPlan) => ([{
+      id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01',
+      capMode: 'derived', weeklyHours: 40,
+      // Manual enrichment (scheduler reads member.meetings directly; App.jsx
+      // does this via resolveMemberMeetings at call-site).
+      meetings: withPlan
+        ? [{ id: 'm', name: 'Heavy', hours: 20, frequency: 'weekly' }]
+        : [],
+    }]);
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Task', team: 'T1', best: 10, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const withPlan = runSchedule({ tree, members: makeMembers(true) });
+    const withoutPlan = runSchedule({ tree, members: makeMembers(false) });
+    const a = withPlan.results.find(s => s.id === 'P1.1');
+    const b = withoutPlan.results.find(s => s.id === 'P1.1');
+    expect(a.calDays).toBeGreaterThan(b.calDays);
+  });
+});
+
 describe('schedule(): segment sums are conservative', () => {
   // Primary + handoff effort should sum to original task effort.
   test('segments sum equals eff', () => {

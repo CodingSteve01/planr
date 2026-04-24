@@ -444,6 +444,10 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
   const team = teams.find(t => t.id === member.team);
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
+  const today = new Date();
+  const endD = member.end ? new Date(member.end) : null;
+  const offboarded = endD && endD < today;
+  const offboardingSoon = endD && endD >= today && (endD - today) / 86400000 <= 60;
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
   // Build plan tag list: team-inherited plans flagged, member plans plain.
   const teamPlanIds = new Set((team?.meetingPlanIds) || []);
@@ -451,7 +455,8 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
   const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
   const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
-    <li className="res-row res-row-member" onClick={onClick}>
+    <li className="res-row res-row-member" onClick={onClick}
+      style={{ opacity: offboarded ? 0.5 : 1 }}>
       <Avatar member={member} teams={teams} />
       <span className="res-row-name">
         {member.name || member.id}
@@ -459,6 +464,14 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
           <span className="res-row-short" data-htip="Auto-generated short name (used in Markdown)">
             {shortMap[member.id]}
           </span>
+        )}
+        {offboarded && (
+          <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--re)', color: '#fff' }}
+            data-htip={`Offboarded am ${member.end}`}>OFFBOARDED</span>
+        )}
+        {offboardingSoon && (
+          <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
+            data-htip={`Offboarded zum ${member.end}`}>BALD RAUS</span>
         )}
       </span>
       {team ? (

@@ -4,14 +4,24 @@ import { FeatureCarousel } from '../shared/FeatureCarousel.jsx';
 export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   const { t } = useT();
 
+  // Ordering: unique-selling first, then standard planner features. Each chip
+  // surfaces a tooltip (htip) explaining why it matters.
   const FEATURES = [
-    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc'), t('ob.feat.tree.htip')],
+    ['⇄', 'Offboard-Cascade', 'Mid-task Personalwechsel automatisch',
+      'html:<div><b>⇄ Offboard-Cascade</b><br/>Scheduler erkennt End-Datum einer Ressource mitten in einem Task und übergibt die Restarbeit automatisch an nächst-freies Team-Mitglied — optional cross-team. Jede Etappe (Offcut) wird eigene Gantt-Row + Handoff-Plan pro Etappe manuell übersteuerbar.</div>'],
+    ['🧮', 'Kapazität aus Meetings', 'FTE-ehrlich statt %-Pi-mal-Daumen',
+      'html:<div><b>🧮 Transparente Kapazität</b><br/>Cap ergibt sich aus Wochenstunden minus wiederkehrende Meetings (daily/weekly/biweekly/monthly). Team-Meeting-Pläne werden an alle Mitglieder vererbt — egal ob manuell oder derived. Jede Minute ist nachvollziehbar.</div>'],
     ['📅', t('ob.feat.auto'), t('ob.feat.auto.desc'), t('ob.feat.auto.htip')],
+    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.desc'), t('ob.feat.tree.htip')],
     ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc'), t('ob.feat.metro.htip')],
-    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc'), t('ob.feat.horizons.htip')],
     ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc'), t('ob.feat.cp.htip')],
+    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.desc'), t('ob.feat.horizons.htip')],
+    ['📄', 'Export für Management', 'PDF + DOCX mit Subway-Chart, Critical Path, Risk-Report',
+      'html:<div><b>📄 Shareable PDFs + DOCX</b><br/>Management-Summary als echtes vektorgrafik-PDF mit Kennzahlen, Subway-Roadmap, Critical Path, Team-Capacity, Risikoliste. Zusätzlich Gantt-PDF (hochauflösend), Was-kommt-wann (horizontgerecht), TODO-Sprint je Person, Word-Export für Confluence-Import.</div>'],
     ['🕸', t('ob.feat.net'), t('ob.feat.net.desc'), t('ob.feat.net.htip')],
     ['🎯', t('ob.feat.focus'), t('ob.feat.focus.desc'), t('ob.feat.focus.htip')],
+    ['💾', 'Offline + File-Mount', 'Kein Backend, kein Login, volle Kontrolle',
+      'html:<div><b>💾 Lokal & offline</b><br/>Alle Daten liegen lokal oder in einer gemounteten .md/.json-Datei. File System Access API → kein Copy-Paste-Workflow, automatisches Speichern. Keine Cloud-Abhängigkeit.</div>'],
   ];
 
   return (

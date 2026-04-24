@@ -223,11 +223,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   //
   // Returns the chained segments + the leftover effort flag. Callers insert
   // the first segment themselves (for the primary run) and pass state in.
-  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned }) => {
+  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned, earliestStart = null }) => {
     const segments = [];
     let lastWD = null, finalWi = -1;
     while (rem > 0 && lastOffboard) {
-      const nextStart = addD(lastOffboard, 1);
+      // Handoff starts the day after the previous person's offboard — unless
+      // an external constraint (dep predecessor's end) pushes it later.
+      // Without this, a primary that offboarded BEFORE a dep became free
+      // would send the cascade into pre-dep dates, producing silent dep
+      // violations (console warn at schedule time).
+      let nextStart = addD(lastOffboard, 1);
+      if (earliestStart && earliestStart > nextStart) nextStart = earliestStart;
       const nextBp = teamMembers
         .filter(m2 => !usedIds.has(m2.id))
         .filter(m2 => {
@@ -420,7 +426,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
                 usedIds,
                 tM: pool,
                 isPinned: !!r.pinnedStart,
-              });
+              earliestStart: earlyDate,
+            });
               if (!chunk.segments.length) break; // plan entry unusable, fall through to auto
               chunk.segments.forEach(seg => { seg.planned = true; });
               planSegs.push(...chunk.segments);
@@ -438,6 +445,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               usedIds,
               tM,
               isPinned: !!r.pinnedStart,
+              earliestStart: earlyDate,
             });
             let combined = {
               segments: [...planSegs, ...primary.segments],
@@ -457,6 +465,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               usedIds,
               tM: others,
               isPinned: !!r.pinnedStart,
+              earliestStart: earlyDate,
             });
             return {
               segments: [...combined.segments, ...secondary.segments],
@@ -511,7 +520,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           } else {
             reservePinnedDays([bp.id], workedDays);
           }
-          const actualStartD = firstWorkDay || wks[bs]?.mon || wks[0].mon;
+          // If the primary did zero work (already offboarded before the task
+          // was ready), take the first cascade segment's start so the task's
+          // reported window reflects when it ACTUALLY ran.
+          const firstCascadeSeg = cascade.segments[0];
+          const actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
           const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
           res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
@@ -638,7 +651,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         if (stageAssign.length) pool = members.filter(mm => stageAssign.includes(mm.id));
         else if (stage?.team) pool = members.filter(mm => pt(mm.team) === pt(stage.team));
         if (!pool.length) break;
-        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart });
+        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
         if (!chunk.segments.length) break;
         chunk.segments.forEach(seg => { seg.planned = true; });
         planSegs.push(...chunk.segments);
@@ -649,21 +662,21 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti && state.remaining > 0) {
         const coAssignees = cands.filter(m => !usedIds.has(m.id));
         if (coAssignees.length) {
-          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart });
+          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
           state = { remaining: coChunk.remaining, lastOffboard: coChunk.lastOffboard || state.lastOffboard, lastWD: coChunk.lastWD || state.lastWD, finalWi: coChunk.finalWi >= 0 ? coChunk.finalWi : state.finalWi };
           planSegs.push(...coChunk.segments);
         }
       }
       if (state.remaining <= 0) return { segments: planSegs, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 3) Same team auto-cascade
-      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart });
+      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
       state = { remaining: primaryChunk.remaining, lastOffboard: primaryChunk.lastOffboard || state.lastOffboard, lastWD: primaryChunk.lastWD || state.lastWD, finalWi: primaryChunk.finalWi >= 0 ? primaryChunk.finalWi : state.finalWi };
       const combined = [...planSegs, ...primaryChunk.segments];
       if (state.remaining <= 0) return { segments: combined, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 4) Cross-team fallback
       const others = members.filter(mm => pt(mm.team) !== team && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
       if (!others.length) return { segments: combined, remaining: state.remaining, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: state.lastOffboard };
-      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart });
+      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
       return {
         segments: [...combined, ...secondary.segments],
         remaining: secondary.remaining,
@@ -719,7 +732,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       }
     }
     if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
-    const actualStartD = firstWorkDay || wks[bs].mon;
+    const firstCascadeSegExplicit = cascade.segments[0];
+    const actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
     // Dep violation diagnostic: warn if this task starts before any of its deps finish.
     allD.forEach(depId => {

@@ -59,24 +59,33 @@ The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/
 
 ## Feature highlights
 
+### What makes Planr different
+
+- **Offboard-Cascade (unique)** — when a person's contract ends mid-task, the scheduler automatically hands the remainder to the next free same-team member, falling back to cross-team and finally to a hatched unscheduled tail. Each offcut is an independent scheduled row: filterable, editable, exportable. Override per stage via `handoffPlan` on the task.
+- **Transparent capacity from meetings (unique)** — cap isn't a made-up percentage. Define a team-level or member-level meeting plan (daily standup, biweekly retro, monthly all-hands…) and the scheduler subtracts their weekly-equivalent hours from the 40 h FTE baseline. Auditable, honest, and inherits through team assignment.
+- **Real-vector PDF + DOCX exports** — management summary, hi-res Gantt, horizon-aware "What comes when", and per-person TODO PDFs, generated via pdfmake (selectable text, real tables). Word export via html-to-docx for Confluence import — keeps the subway chart, team capacity cards, critical path.
+- **Horizon-aware dates** — near-term items render exact dates, mid-term compress to weeks, far-term to months, exploratory to quarters. Honest granularity — don't pretend precision that isn't there.
+- **Metro-style Roadmap** — SVG subway map: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress. Exports vector-clean into PDF.
+
+### Standard planner features
+
 - **N-level work breakdown** — unlimited nesting, goals / painpoints / deadlines as tree roots
-- **Auto-scheduler** — capacity-aware, vacation-aware, holiday-aware (NRW preset built in)
+- **Auto-scheduler** — capacity-aware, vacation-aware, holiday-aware (NRW preset built in), dep-ordered, pinned-aware
 - **Critical path analysis** — global and per-goal, with slack calculation
-- **Planning confidence model** — three levels (committed / estimated / exploratory) with auto-derivation, manual override, and visual differentiation in the Gantt chart
-- **Planning review tab** — guided workflow for assigning people, spotting open phases, checking team capacity, and working per-person TODO lists
-- **Metro-style Roadmap** — SVG subway map in the Summary/Overview tab: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress; hover for tooltips, click legend items to open tasks
-- **Gantt chart** — drag-to-pin (day accuracy), draggable dependency links, bezier arrows, click-to-remove, deadline flags with backfill, horizon lines, confidence-based bar styling, day-level zoom, weighted phase overlays
+- **Planning confidence model** — committed / estimated / exploratory with auto-derivation, manual override, visual differentiation in Gantt
+- **Planning review tab** — assign people, spot open phases, check team capacity, per-person TODO lists
+- **Gantt chart** — drag-to-pin (day accuracy), draggable dependency links, bezier arrows, deadline flags with backfill, horizon lines, confidence-based bar styling, weighted phase overlays, multi-segment handoff bars
 - **Network graph** — bin-packed layout, obstacle-aware edge routing, fit-to-selection
-- **QuickEdit sidebar + NodeModal** — tabbed quick edit, visible "Estimate now" CTA, searchable dropdowns
-- **Markdown + JSON** — fully functional round-trip for both formats
-- **Auto-save** — File System Access API, external change polling, mounts either format
-- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range, batch confidence assignment
-- **Multi-assignee tasks** — assign multiple people to a task; each shows up in person-grouped views
-- **PERT Estimation Wizard** — 3-point (optimistic, likely, pessimistic) with workflow template selection directly in the wizard
-- **Global search** — Ctrl/Cmd+F searches across tasks with cycling and auto-scroll in all views
-- **Bilingual (EN/DE)** — full i18n with language selector in settings, ~350 translated strings
-- **Dark / light mode** — manual toggle (Auto / Dark / Light) in settings
-- **Project report export** — comprehensive HTML report (PDF via print) with executive summary, roadmap, team capacity, critical path, and open decisions
+- **QuickEdit sidebar + NodeModal** — tabbed quick edit, "Estimate now" CTA, searchable dropdowns with full keyboard nav, handoff-plan editor that deep-links from handoff bars
+- **Markdown + JSON round-trip** — meeting plans, handoff plans, offboarding dates, all persisted
+- **Auto-save** — File System Access API, external change polling, auto-mount of `.md`/`.json`
+- **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click range
+- **Multi-assignee tasks** — pair programming; scheduler rescues remainder via co-assignee on offboarding
+- **PERT Estimation Wizard** — 3-point with workflow template selection
+- **Global search** — Ctrl/Cmd+F with cycling, debounced propagation, keyboard-nav in all SearchSelects
+- **Bilingual (EN/DE)** — full i18n with language selector
+- **Dark / light mode** — manual toggle (Auto / Dark / Light)
+- **Unit tests** — `npm test` runs vitest suites covering capacity, scheduler (cascade, cross-team, cycles, pinned, parallel, multi-assign, dep regressions), handoff chain rendering, and date helpers
 
 Full list in [docs/features.md](docs/features.md).
 

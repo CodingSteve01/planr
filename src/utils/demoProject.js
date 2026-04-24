@@ -127,10 +127,13 @@ export function buildDemoProject(t) {
       },
       // Part-time with manual cap (the scheduler halves the available days).
       { id: 'M3', name: 'Jordan Lee', team: 'T2', cap: 0.5, vac: 25 },
-      // Offboarded mid-project: primary on H1.1/H1.2. When their contract
-      // end hits, Cascade kicks in (auto → then handoffPlan on H1.2).
+      // Offboards in ~3 weeks — triggers visible cutoffs on H1.1 / H1.2 in
+      // the default Gantt window.
       { id: 'M4', name: 'Riley Park', team: 'T2', cap: 1, vac: 25,
-        start: relDate(-30), end: relDate(75) },
+        start: relDate(-30), end: relDate(21) },
+      // Offboards in ~6 weeks — shows cross-team fallback on H1.2 after M4.
+      { id: 'M5', name: 'Dakota Vo', team: 'T1', cap: 1, vac: 25,
+        start: relDate(-30), end: relDate(42) },
     ],
     vacations: [
       { person: 'M1', from: relDate(20), to: relDate(34), note: 'Summer vacation' },
