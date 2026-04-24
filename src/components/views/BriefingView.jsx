@@ -159,7 +159,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
       if (s.status === 'done') return;
       const conf = confidence[s.id];
       if (conf !== 'exploratory') return;
-      const node = tree.find(r => r.id === s.id);
+      const node = tree.find(r => r.id === (s.treeId || s.id));
       if (node?.decideBy) {
         const days = diffDays(now, localDate(node.decideBy));
         if (days >= 0 && days <= 7) {
@@ -298,7 +298,7 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
                     {card.items.map(s => {
                       const isWip = s.status === 'wip';
                       const isStartingSoon = s.startD && diffDays(now, s.startD) <= 3 && s.startD >= now;
-                      const nodeItem = tree.find(r => r.id === s.id);
+                      const nodeItem = tree.find(r => r.id === (s.treeId || s.id));
 
                       // Co-assignees
                       const allAssign = nodeItem?.assign || [];

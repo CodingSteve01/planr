@@ -246,7 +246,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       let totalWeight = 0;
       let totalProgress = 0;
       scopeItems.forEach(item => {
-        const node = iMap[item.id];
+        const node = iMap[item.treeId || item.id];
         const progress = node?.progress != null ? node.progress : item.status === 'done' ? 100 : item.status === 'wip' ? 50 : 0;
         const weight = item.effort || Math.max(item.best || 0, 1);
         totalWeight += weight;
@@ -264,7 +264,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
         mix[confidence[item.id] || 'committed']++;
       });
       const best = scopeItems.reduce((sum, item) => sum + (item.best || 0), 0);
-      const effort = scopeItems.reduce((sum, item) => sum + (item.effort || ((item.best || 0) * ((iMap[item.id]?.factor) || 1.5))), 0);
+      const effort = scopeItems.reduce((sum, item) => sum + (item.effort || ((item.best || 0) * ((iMap[item.treeId || item.id]?.factor) || 1.5))), 0);
       const startD = dated.length ? new Date(Math.min(...dated.map(item => +item.startD))) : null;
       const endD = dated.length ? new Date(Math.max(...dated.map(item => +item.endD))) : null;
       const status = doneCount === scopeItems.length
@@ -600,7 +600,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     if (!tree) return [];
     const lines = [];
     scheduled.forEach(s => {
-      const node = iMap[s.id]; if (!node) return;
+      const node = iMap[s.treeId || s.id]; if (!node) return;
       (node.deps || []).forEach(rawDep => {
         const leafIds = resD(rawDep);
         // Find the latest-finishing scheduled leaf — that's the real blocker
@@ -671,7 +671,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
     }
     // Incoming: which tasks depend on this one (this must finish before they start)
     scheduled.forEach(s => {
-      const sNode = iMap[s.id]; if (!sNode) return;
+      const sNode = iMap[s.treeId || s.id]; if (!sNode) return;
       (sNode.deps || []).forEach(rawDep => {
         const resolved = resD(rawDep);
         if (!resolved.includes(hoverDepId)) return;
@@ -1183,7 +1183,7 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
-            const node = row.node || iMap[s.id];
+            const node = row.node || iMap[s.treeId || s.id];
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
@@ -1319,42 +1319,44 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
-                {/* Offboard segments: each person-slice of the task. Unscheduled
-                    tail segments (no assignee available) render with a diagonal
-                    hatch; real handoffs get a dashed white divider. Full chain
-                    details live in the main row tooltip / TaskInsights — no
-                    per-segment hover to avoid a second tooltip stacking up. */}
-                {!isSummary && s.segments && s.segments.length > 1 && (() => {
-                  const total = (s.endD - s.startD) || 1;
-                  const hasGhost = s.segments.some(seg => seg.unscheduled);
-                  const realCount = s.segments.filter(seg => !seg.unscheduled).length;
-                  return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                    {s.segments.map((seg, si) => {
-                      const off = (seg.startD - s.startD) / total * 100;
-                      const w = (seg.endD - seg.startD) / total * 100;
-                      const isGhost = !!seg.unscheduled;
-                      return <div key={si} style={{
-                        position: 'absolute',
-                        left: `${off}%`,
-                        width: `${w}%`,
-                        top: 0,
-                        bottom: 0,
-                        borderLeft: si > 0 && !isGhost ? '2px dashed rgba(255,255,255,.9)' : si > 0 && isGhost ? '2px solid rgba(220,38,38,.95)' : 'none',
-                        background: isGhost ? 'repeating-linear-gradient(45deg, rgba(220,38,38,.7) 0 6px, rgba(220,38,38,.25) 6px 12px)' : 'transparent',
-                        pointerEvents: 'none',
-                      }} />;
-                    })}
-                    <div style={{
-                      position: 'absolute', top: -1, right: -1,
-                      fontSize: 9, fontWeight: 700, color: '#fff',
-                      background: hasGhost ? 'rgba(220,38,38,.95)' : 'rgba(168,85,247,.95)',
-                      padding: '1px 5px', borderRadius: '0 4px 0 4px',
-                      pointerEvents: 'none',
-                    }}>
-                      {hasGhost ? `⚠ ${realCount}+?` : `⇄ ${realCount}`}
-                    </div>
-                  </div>;
-                })()}
+                {/* Handoff indicator badge. Primary bars of chained tasks
+                    carry `hasHandoffSegments`; shadow rows carry `isHandoff`
+                    with hatched styling when unscheduled. Full chain details
+                    live in the main row tooltip / TaskInsights. */}
+                {!isSummary && s.hasHandoffSegments && (
+                  <div style={{
+                    position: 'absolute', top: -1, right: -1,
+                    fontSize: 9, fontWeight: 700, color: '#fff',
+                    background: 'rgba(168,85,247,.95)',
+                    padding: '1px 5px', borderRadius: '0 4px 0 4px',
+                    pointerEvents: 'none',
+                  }}>⇄ Handoff</div>
+                )}
+                {!isSummary && s.isHandoff && (
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    background: s.unscheduled
+                      ? 'repeating-linear-gradient(45deg, rgba(220,38,38,.7) 0 6px, rgba(220,38,38,.25) 6px 12px)'
+                      : s.crossTeam
+                        ? 'repeating-linear-gradient(135deg, rgba(255,255,255,.15) 0 4px, transparent 4px 10px)'
+                        : 'transparent',
+                    pointerEvents: 'none',
+                  }} />
+                )}
+                {!isSummary && s.isHandoff && (
+                  <div style={{
+                    position: 'absolute', top: -1, right: -1,
+                    fontSize: 9, fontWeight: 700, color: '#fff',
+                    background: s.unscheduled ? 'rgba(220,38,38,.95)'
+                      : s.plannedHandoff ? 'rgba(34,197,94,.95)'
+                      : s.crossTeam ? 'rgba(245,158,11,.95)'
+                      : 'rgba(168,85,247,.95)',
+                    padding: '1px 5px', borderRadius: '0 4px 0 4px',
+                    pointerEvents: 'none',
+                  }}>
+                    {s.unscheduled ? '⚠ Offen' : s.plannedHandoff ? '✓ Plan' : s.crossTeam ? '↗ Cross' : '↳ Handoff'}
+                  </div>
+                )}
                 {s.status === 'done' && <div style={{
                   position: 'absolute',
                   inset: 0,

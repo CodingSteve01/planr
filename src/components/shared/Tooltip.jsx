@@ -74,7 +74,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
       })
     : null;
 
-  const node = tree ? tree.find(r => r.id === item.id) : null;
+  const node = tree ? tree.find(r => r.id === (item.treeId || item.id)) : null;
   const timeline = tree ? summarizeNodeTimeline(tree, scheduled, node || item.id) : null;
   const factor = node?.factor || item.factor || 1.5;
   const effort = item.effort ?? (item.best > 0 ? item.best * factor : 0);

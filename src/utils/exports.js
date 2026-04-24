@@ -249,7 +249,7 @@ export function exportSprintMarkdown({ scheduled, tree, teams, meta, horizonDays
   let md = `# ${meta.name || 'Project'} — Sprint Plan\n\n_Horizon: ${horizon} days (${iso(now)} → ${iso(end)})_\n_${up.length} tasks, ${sorted.length} lanes_\n\n`;
   sorted.forEach(g => {
     md += `## ${g.label}\n\n| Start | Task | Team | Effort | Status |\n|---|---|---|---|---|\n`;
-    g.items.forEach(s => { const node = tree.find(r => r.id === s.id); md += `| ${iso(s.startD)} | ${s.id} ${s.name.replace(/\|/g, '\\|')}${node?.decideBy ? ` ⏰ ${node.decideBy}` : ''} | ${tn(s.team)} | ${s.effort?.toFixed(1)}d | ${s.status === 'wip' ? '🟡 WIP' : 'Open'} |\n`; });
+    g.items.forEach(s => { const node = tree.find(r => r.id === (s.treeId || s.id)); md += `| ${iso(s.startD)} | ${s.id} ${s.name.replace(/\|/g, '\\|')}${node?.decideBy ? ` ⏰ ${node.decideBy}` : ''} | ${tn(s.team)} | ${s.effort?.toFixed(1)}d | ${s.status === 'wip' ? '🟡 WIP' : 'Open'} |\n`; });
     md += '\n';
   });
   download(new Blob([md], { type: 'text/markdown;charset=utf-8' }), `${slug(meta.name)}-sprint-${horizon}d.md`);

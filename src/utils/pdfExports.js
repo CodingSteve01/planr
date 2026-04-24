@@ -440,7 +440,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     content.push(headerTable(
       [t('Start', 'Start'), t('End', 'Ende'), 'ID', t('Task', 'Task'), t('Team', 'Team'), t('Effort', 'Aufw.'), t('Status', 'Status'), 'Conf.'],
       g.items.map(s => {
-        const node = tree.find(r => r.id === s.id);
+        const node = tree.find(r => r.id === (s.treeId || s.id));
         const conf = confidence[s.id] || 'committed';
         const label = horizonLabel(s.startD, conf, m.de, now);
         const endLabel = horizonLabel(s.endD, conf, m.de, now);

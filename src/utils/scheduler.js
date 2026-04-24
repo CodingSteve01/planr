@@ -693,7 +693,74 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
       segments, truncatedByOffboard: truncated });
   });
-  return { results: res, weeks: wks };
+  // Post-process: split handoff segments into independent scheduled entries.
+  // Each secondary segment becomes its own row so downstream consumers
+  // (person filter, Gantt rows, TODO lists, ResView workload) naturally see
+  // the offcut as work done by its actual assignee. Primary stays intact for
+  // tree-lookup compatibility, but its effort and end date are clamped to
+  // its own segment so sums across `res` no longer double-count.
+  const expanded = [];
+  for (const s of res) {
+    if (!Array.isArray(s.segments) || s.segments.length <= 1) { expanded.push(s); continue; }
+    const primarySeg = s.segments[0];
+    const primaryEnd = primarySeg.endD || s.endD;
+    const primaryCalDays = primarySeg.startD && primaryEnd
+      ? Math.max(1, Math.round((primaryEnd - primarySeg.startD) / 864e5) + 1)
+      : s.calDays;
+    expanded.push({
+      ...s,
+      effort: primarySeg.effort != null ? primarySeg.effort : s.effort,
+      endD: primaryEnd,
+      calDays: primaryCalDays,
+      hasHandoffSegments: true,
+    });
+    s.segments.slice(1).forEach((seg, idx) => {
+      const segIdx = idx + 1;
+      const memberObj = seg.personId ? members.find(mm => mm.id === seg.personId) : null;
+      const calDays = seg.startD && seg.endD
+        ? Math.max(1, Math.round((seg.endD - seg.startD) / 864e5) + 1)
+        : 0;
+      expanded.push({
+        id: `${s.id}#${segIdx + 1}`,
+        treeId: s.id,
+        segmentIdx: segIdx,
+        isHandoff: true,
+        handoffReason: seg.unscheduled ? 'unscheduled' : seg.crossTeam ? 'cross-team' : 'offboard',
+        name: s.name,
+        team: seg.team || s.team,
+        person: seg.personName,
+        personId: seg.personId,
+        personShort: seg.personId ? (mShort[seg.personId] || seg.personId) : '?',
+        assign: seg.personId ? [seg.personId] : [],
+        autoAssigned: !seg.planned && !!seg.personId,
+        plannedHandoff: !!seg.planned,
+        crossTeam: !!seg.crossTeam,
+        unscheduled: !!seg.unscheduled,
+        prio: s.prio,
+        seq: s.seq,
+        best: s.best,
+        factor: s.factor,
+        effort: seg.effort || 0,
+        startWi: -1,
+        endWi: -1,
+        startD: seg.startD,
+        endD: seg.endD,
+        calDays,
+        capPct: memberObj ? Math.round(deriveCap(memberObj) * 100) : 100,
+        vacDed: 0,
+        weeks: 0,
+        vacDays: 0,
+        holidaysInWindow: 0,
+        workingDaysInWindow: calDays,
+        deps: '',
+        status: s.status,
+        note: s.note || '',
+        parallel: false,
+        pinOverridden: false,
+      });
+    });
+  }
+  return { results: expanded, weeks: wks };
 }
 
 // ── Planning confidence ───────────────────────────────────────────────────────

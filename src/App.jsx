@@ -1561,7 +1561,7 @@ export default function App() {
     r.readAsText(f); e.target.value = '';
   }
   function onBarClick(s, focusRequest = null) {
-    const node = tree.find(r => r.id === s.id);
+    const node = tree.find(r => r.id === (s.treeId || s.id));
     if (!node) return;
     flushSync(() => {
       setModalFocus(focusRequest);
