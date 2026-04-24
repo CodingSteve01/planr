@@ -3,6 +3,7 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { LazyInput } from '../shared/LazyInput.jsx';
 import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
+import { deriveCap, capBreakdown, FTE_HOURS, sumMeetingHours } from '../../utils/capacity.js';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function initials(name) {
@@ -98,7 +99,6 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
             [t('rv.fullName'),    <LazyInput value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
             [t('qe.team'),       <SearchSelect value={member.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name }))} onSelect={v => onUpd({ ...member, team: v })} placeholder={t('rv.chooseTeam')} allowEmpty />],
             [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder="e.g. Senior Dev" />],
-            [t('rv.capacityPct'), <LazyInput type="number" min="0" max="100" step="5" value={Math.round((member.cap || 1) * 100)} onCommit={v => onUpd({ ...member, cap: v / 100 })} />],
             [t('rv.vacDays'),    <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />],
             [t('rv.startDate'),  <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />],
             [t('rv.endDate'),    <LazyInput type="date" value={member.end || ''} onCommit={v => onUpd({ ...member, end: v })} />],
@@ -108,6 +108,9 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
             </div>
           ))}
         </div>
+        {/* Capacity is a compound field — breaks out of the narrow 150px
+            label/value grid so the meetings list and breakdown have room. */}
+        <CapacityField member={member} onUpd={onUpd} t={t} />
 
         {/* Footer */}
         <div className="modal-footer">
@@ -129,6 +132,138 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
           <div style={{ flex: 1 }} />
           <button className="btn btn-sec" onClick={onClose}>{t('rv.close')}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Capacity field: switches between Manual % and Derived (hours − meetings) ── */
+function CapacityField({ member, onUpd, t }) {
+  const mode = member.capMode === 'derived' ? 'derived' : 'manual';
+  const setMode = newMode => {
+    if (newMode === mode) return;
+    if (newMode === 'derived') {
+      const manualPct = Math.round((member.cap ?? 1) * 100);
+      const seededHours = member.weeklyHours ?? Math.round(FTE_HOURS * manualPct / 100);
+      onUpd({ ...member, capMode: 'derived', weeklyHours: seededHours, meetings: member.meetings || [] });
+    } else {
+      onUpd({ ...member, capMode: 'manual', cap: deriveCap({ ...member, capMode: 'derived' }) });
+    }
+  };
+  const derivedPct = Math.round(deriveCap(member) * 100);
+  return (
+    <div style={{
+      marginTop: 10, padding: 12, background: 'var(--bg3)',
+      border: '1px solid var(--b)', borderRadius: 'var(--r)',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 8, marginBottom: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{t('rv.capacityPct')}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: derivedPct > 100 ? 'var(--re)' : derivedPct >= 80 ? 'var(--gr)' : 'var(--am)' }}>
+            {derivedPct}%
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className={`btn btn-xs ${mode === 'manual' ? 'btn-pri' : 'btn-sec'}`}
+            onClick={() => setMode('manual')}>Manuell</button>
+          <button className={`btn btn-xs ${mode === 'derived' ? 'btn-pri' : 'btn-sec'}`}
+            onClick={() => setMode('derived')}>Aus Std/Woche</button>
+        </div>
+      </div>
+      {mode === 'manual' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <LazyInput type="number" min="0" max="100" step="5"
+            value={Math.round((member.cap || 1) * 100)}
+            onCommit={v => onUpd({ ...member, cap: v / 100 })} />
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>%</span>
+        </div>
+      ) : (
+        <DerivedCapacity member={member} onUpd={onUpd} />
+      )}
+    </div>
+  );
+}
+
+function DerivedCapacity({ member, onUpd }) {
+  const wh = member.weeklyHours ?? FTE_HOURS;
+  const meetings = member.meetings || [];
+  const meetingH = sumMeetingHours(meetings);
+  const addMeeting = () => {
+    const id = 'mt_' + Math.random().toString(36).slice(2, 8);
+    onUpd({ ...member, meetings: [...meetings, { id, name: '', hours: 1, frequency: 'weekly' }] });
+  };
+  const updMeeting = (id, patch) => {
+    onUpd({ ...member, meetings: meetings.map(m => m.id === id ? { ...m, ...patch } : m) });
+  };
+  const delMeeting = (id) => {
+    onUpd({ ...member, meetings: meetings.filter(m => m.id !== id) });
+  };
+  const COLS = '1fr 80px 110px 28px';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Weekly hours */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', width: 100 }}>Std / Woche</span>
+        <div style={{ width: 80 }}>
+          <LazyInput type="number" min="0" max="80" step="1" value={wh}
+            onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>h</span>
+      </div>
+
+      {/* Meetings table */}
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6,
+          fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase',
+          letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
+        }}>
+          <span>Meeting</span>
+          <span style={{ textAlign: 'right' }}>Stunden</span>
+          <span>Rhythmus</span>
+          <span />
+        </div>
+        {meetings.length === 0 && (
+          <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 0' }}>
+            Noch keine Meetings erfasst.
+          </div>
+        )}
+        {meetings.map(mt => (
+          <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center', marginBottom: 4 }}>
+            <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder="z. B. Standup" />
+            <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
+              onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
+            <select value={mt.frequency || 'weekly'}
+              onChange={e => updMeeting(mt.id, { frequency: e.target.value })}
+              style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontFamily: 'var(--mono)' }}>
+              <option value="weekly">wöchentl.</option>
+              <option value="biweekly">14-tägl.</option>
+              <option value="monthly">monatl.</option>
+            </select>
+            <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)}
+              style={{ padding: '2px 6px', color: 'var(--re)' }} title="Meeting entfernen">×</button>
+          </div>
+        ))}
+        <button className="btn btn-sec btn-xs" onClick={addMeeting}
+          style={{ marginTop: 4, alignSelf: 'flex-start' }}>+ Meeting</button>
+      </div>
+
+      {/* Breakdown */}
+      <div style={{
+        fontSize: 11, color: 'var(--tx2)', borderTop: '1px solid var(--b)',
+        paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6,
+        alignItems: 'baseline',
+      }}>
+        <span style={{ fontFamily: 'var(--mono)' }}>{wh} h</span>
+        <span style={{ color: 'var(--tx3)' }}>−</span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{meetingH.toFixed(2)} h Meetings</span>
+        <span style={{ color: 'var(--tx3)' }}>=</span>
+        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--tx)' }}>
+          {Math.max(0, wh - meetingH).toFixed(2)} h
+        </span>
+        <span style={{ color: 'var(--tx3)', marginLeft: 'auto' }}>verfügbar</span>
       </div>
     </div>
   );
@@ -158,7 +293,7 @@ function Avatar({ member, teams }) {
 
 function MemberReadRow({ member, teams, shortMap, onClick, t }) {
   const team = teams.find(t => t.id === member.team);
-  const cap = Math.round((member.cap || 1) * 100);
+  const cap = Math.round(deriveCap(member) * 100);
   const vac = member.vac ?? 25;
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
   return (

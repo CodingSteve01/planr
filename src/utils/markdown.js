@@ -35,9 +35,14 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   if (members.length) {
     md += `## Resources\n`;
     members.forEach(m => {
-      const cap = m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : '';
+      const isDerived = m.capMode === 'derived';
+      const cap = (!isDerived && m.cap < 1) ? ` (${Math.round(m.cap * 100)}%)` : '';
+      const hours = isDerived && typeof m.weeklyHours === 'number' ? `, ${m.weeklyHours}h/w` : '';
       const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
-      md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
+      md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${hours}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
+      if (isDerived && (m.meetings || []).length) {
+        md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${mt.frequency && mt.frequency !== 'weekly' ? `/${mt.frequency === 'biweekly' ? '2w' : 'mo'}` : '/w'}`).join(', ')}*\n`;
+      }
     });
     md += '\n';
   }

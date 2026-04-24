@@ -1,6 +1,7 @@
 import { addD, iso, addWorkDays, localDate, eachDayInclusive, normalizeVacation } from './date.js';
 import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
+import { deriveCap } from './capacity.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
@@ -243,7 +244,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         })[0];
       if (!nextBp) break;
 
-      const cap2 = (nextBp.cap || 1) * (vacInfo[nextBp.id] ?? 1);
+      const cap2 = deriveCap(nextBp) * (vacInfo[nextBp.id] ?? 1);
       const pf2 = pF[nextBp.id]?.nextDate;
       const skipBefore2 = pf2 && pf2 > nextStart ? pf2 : nextStart;
       const end2 = nextBp.end ? localDate(nextBp.end) : null;
@@ -276,6 +277,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         effort: consumed,
         offboarded: segOffboarded,
         handoff: true,
+        crossTeam: !!nextBp._crossTeam,
+        team: nextBp.team,
       });
       if (!isPinned && segLast) {
         pF[nextBp.id] = { wi: Math.min(wi2, wks.length - 1), nextDate: addWorkDays(segLast, 1, wdSet) };
@@ -363,7 +366,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
           if (personFree && personFree > skipBefore) skipBefore = personFree;
           if (parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
-          const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
+          const dailyBaseCap = deriveCap(bp) * vacInfo[bp.id];
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
           const workedDays = [];
@@ -392,19 +395,68 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             offboarded: rem > 0 && !!endDate,
             handoff: false,
           };
-          // Cascade handoff across offboarding members as long as effort remains.
-          const cascade = (rem > 0 && endDate)
-            ? cascadeHandoff({ rem, lastOffboard: endDate, usedIds: new Set([bp.id]), tM, isPinned: !!r.pinnedStart })
-            : { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+          // Cascade handoff across offboarding members. First pass: stay within
+          // the same team (semantic preference). Second pass: fall back to any
+          // team in the project — tagged crossTeam for visibility.
+          const runCascade = () => {
+            if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+            const usedIds = new Set([bp.id]);
+            const primary = cascadeHandoff({ rem, lastOffboard: endDate, usedIds, tM, isPinned: !!r.pinnedStart });
+            if (primary.remaining <= 0) return primary;
+            const others = members
+              .filter(m2 => pt(m2.team) !== team && !usedIds.has(m2.id))
+              .map(m2 => Object.assign({}, m2, { _crossTeam: true }));
+            if (!others.length) return primary;
+            const secondary = cascadeHandoff({
+              rem: primary.remaining,
+              lastOffboard: primary.lastOffboard || endDate,
+              usedIds,
+              tM: others,
+              isPinned: !!r.pinnedStart,
+            });
+            return {
+              segments: [...primary.segments, ...secondary.segments],
+              remaining: secondary.remaining,
+              lastWD: secondary.lastWD || primary.lastWD,
+              finalWi: secondary.finalWi >= 0 ? secondary.finalWi : primary.finalWi,
+              lastOffboard: secondary.remaining > 0 ? (secondary.lastOffboard || primary.lastOffboard) : null,
+            };
+          };
+          const cascade = runCascade();
           const segments = [primarySegment, ...cascade.segments];
+          // Unscheduled remainder: nobody in team can absorb. Project the
+          // needed calendar span at unit capacity so the Gantt bar extends
+          // visually past offboarding and the downstream project-end calc
+          // reflects the real workload. Rendered as a hatched "(unassigned)"
+          // segment — not pinned to any real person's queue.
+          if (cascade.remaining > 0) {
+            const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
+            const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
+            const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
+            const ghostEnd = addWorkDays(ghostStart, Math.max(0, daysNeeded - 1), wdSet);
+            segments.push({
+              personId: null,
+              personName: '(unassigned)',
+              startD: ghostStart,
+              endD: ghostEnd,
+              effort: cascade.remaining,
+              offboarded: false,
+              handoff: true,
+              unscheduled: true,
+            });
+            lastWorkDay = ghostEnd;
+            wi = wks.findIndex(w => w.wds.some(d => d >= ghostEnd));
+            if (wi < 0) wi = wks.length - 1;
+          } else {
+            if (cascade.lastWD) lastWorkDay = cascade.lastWD;
+            if (cascade.finalWi >= 0) wi = cascade.finalWi;
+          }
           const truncated = cascade.remaining > 0 ? {
             remainingEffort: cascade.remaining,
-            personId: segments[segments.length - 1].personId,
-            personName: segments[segments.length - 1].personName,
+            personId: segments[segments.length - 2]?.personId,
+            personName: segments[segments.length - 2]?.personName,
             offboardDate: iso(cascade.lastOffboard || endDate),
           } : null;
-          if (cascade.lastWD) lastWorkDay = cascade.lastWD;
-          if (cascade.finalWi >= 0) wi = cascade.finalWi;
           const eW = Math.min(wi, wks.length - 1);
           const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
           tEW[id] = { wi: eW, nextDate: nd };
@@ -421,7 +473,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
             best: r.best, effort: eff, startWi: bs, endWi: eW,
             startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-            capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
+            capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
             vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
             deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
             segments, truncatedByOffboard: truncated });
@@ -494,7 +546,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       }
     }
     if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
-    const dailyBaseCap = (bp.cap || 1) * vacInfo[bp.id];
+    const dailyBaseCap = deriveCap(bp) * vacInfo[bp.id];
     const endDate = bp.end ? localDate(bp.end) : null;
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
     const workedDays = [];
@@ -530,14 +582,34 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       ? cascadeHandoff({ rem, lastOffboard: endDate, usedIds: new Set([bp.id]), tM, isPinned: !!r.pinnedStart })
       : { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
     const segments = [primarySegment, ...cascade.segments];
+    if (cascade.remaining > 0) {
+      const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
+      const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
+      const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
+      const ghostEnd = addWorkDays(ghostStart, Math.max(0, daysNeeded - 1), wdSet);
+      segments.push({
+        personId: null,
+        personName: '(unassigned)',
+        startD: ghostStart,
+        endD: ghostEnd,
+        effort: cascade.remaining,
+        offboarded: false,
+        handoff: true,
+        unscheduled: true,
+      });
+      lastWorkDay = ghostEnd;
+      wi = wks.findIndex(w => w.wds.some(d => d >= ghostEnd));
+      if (wi < 0) wi = wks.length - 1;
+    } else {
+      if (cascade.lastWD) lastWorkDay = cascade.lastWD;
+      if (cascade.finalWi >= 0) wi = cascade.finalWi;
+    }
     const truncated = cascade.remaining > 0 ? {
       remainingEffort: cascade.remaining,
-      personId: segments[segments.length - 1].personId,
-      personName: segments[segments.length - 1].personName,
+      personId: segments[segments.length - 2]?.personId,
+      personName: segments[segments.length - 2]?.personName,
       offboardDate: iso(cascade.lastOffboard || endDate),
     } : null;
-    if (cascade.lastWD) lastWorkDay = cascade.lastWD;
-    if (cascade.finalWi >= 0) wi = cascade.finalWi;
     const eW = Math.min(wi, wks.length - 1);
     const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
     tEW[id] = { wi: eW, nextDate: nd };
@@ -571,7 +643,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-      capPct: Math.round((bp.cap || 1) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
+      capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',

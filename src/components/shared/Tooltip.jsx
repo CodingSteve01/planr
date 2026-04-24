@@ -191,6 +191,31 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         </>
       )}
 
+      {item.segments && item.segments.length > 1 && (
+        <>
+          <hr className="tt-sep" />
+          <SectionTitle label="Handoff-Kette" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
+            {item.segments.map((seg, si) => (
+              <div key={si} style={{ color: seg.unscheduled ? 'var(--re)' : seg.handoff ? 'var(--tx2)' : 'var(--tx)' }}>
+                {seg.unscheduled ? '⚠' : seg.handoff ? '↳' : '●'}{' '}
+                <span style={{ fontWeight: 600 }}>{seg.personName}</span>
+                {' · '}
+                <span style={{ fontFamily: 'var(--mono)' }}>{seg.effort.toFixed(1)}d</span>
+                {' · '}
+                <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{iso(seg.startD)} → {iso(seg.endD)}</span>
+                {seg.offboarded && <span style={{ color: 'var(--am)', marginLeft: 4 }}>offboarded</span>}
+              </div>
+            ))}
+          </div>
+          {item.truncatedByOffboard && (
+            <div style={{ fontSize: 10, color: 'var(--re)', marginTop: 4, fontWeight: 600 }}>
+              ⚠ {item.truncatedByOffboard.remainingEffort.toFixed(1)} PT offen — Nachbesetzung nötig nach {item.truncatedByOffboard.offboardDate}
+            </div>
+          )}
+        </>
+      )}
+
       {item.phases?.length > 0 && (
         <>
           <hr className="tt-sep" />

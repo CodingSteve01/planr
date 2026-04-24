@@ -364,6 +364,35 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         </Section>
       )}
 
+      {/* Handoff / offboarding cascade — leaf only when the scheduler had to
+          split work across multiple people (or gave up and flagged the tail). */}
+      {isLeaf && sc?.segments && (sc.segments.length > 1 || sc.truncatedByOffboard) && (
+        <Section label="Handoff-Kette">
+          {sc.segments.map((seg, i) => {
+            const isGhost = !!seg.unscheduled;
+            const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';
+            return (
+              <KVRow key={i} label={isGhost ? '⚠' : seg.handoff ? '↳' : '●'}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: isGhost ? 'var(--re)' : 'var(--tx)' }}>{seg.personName}</span>
+                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{seg.effort.toFixed(1)}d</span>
+                  <span style={{ color: 'var(--tx3)', fontSize: 10 }}>·</span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{fmt(seg.startD)} → {fmt(seg.endD)}</span>
+                  {seg.offboarded && <span style={{ fontSize: 10, color: 'var(--am)' }}>offboarded</span>}
+                </span>
+              </KVRow>
+            );
+          })}
+          {sc.truncatedByOffboard && (
+            <KVRow label="">
+              <span style={{ fontSize: 11, color: 'var(--re)', fontWeight: 600 }}>
+                ⚠ {sc.truncatedByOffboard.remainingEffort.toFixed(1)} PT ohne Nachbesetzung nach {sc.truncatedByOffboard.offboardDate}
+              </span>
+            </KVRow>
+          )}
+        </Section>
+      )}
+
       {/* Phases section — leaf only, if phases exist */}
       {isLeaf && node.phases?.length > 0 && (() => {
         const currentPhaseIdx = node.phases.findIndex(p => p.status !== 'done');

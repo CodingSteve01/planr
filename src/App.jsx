@@ -495,7 +495,7 @@ export default function App() {
 
       // Resources section: bulleted list
       if (section === 'resources') {
-        // Format: - **Full Name** `SHORT` — Team, Role (cap%), 25d/y, ab YYYY-MM-DD
+        // Format: - **Full Name** `SHORT` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD
         const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*(?:\s+`([^`]+)`)?\s*—?\s*(.*)/);
         if (rm) {
           const shortName = rm[2] || '';
@@ -503,17 +503,34 @@ export default function App() {
           const parts = meta.split(',').map(s => s.trim());
           const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
           const roleParts = parts.slice(1)
-            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+d\/y$/.test(p))
+            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+(?:\.\d+)?d\/y$/.test(p) && !/^\d+(?:\.\d+)?h\/w$/.test(p))
             .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
             .filter(Boolean);
           const capM = meta.match(/\((\d+)%\)/);
-          const vacM = meta.match(/(\d+)d\/y/);
+          const hoursM = meta.match(/(\d+(?:\.\d+)?)h\/w/);
+          const vacM = meta.match(/(\d+(?:\.\d+)?)d\/y/);
           const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
           const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
           if (teamPart) teamSet.add(teamPart);
           const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '', end: endM?.[1] || '' };
+          if (hoursM) { m.weeklyHours = parseFloat(hoursM[1]); m.capMode = 'derived'; m.meetings = []; }
           if (shortName) m._parsedShort = shortName;
           mems.push(m);
+          lastItem = m;
+        }
+        // Sub-bullet for meetings: *Meetings: Name 1.25h/w, Retro 1h/2w, Allhands 1h/mo*
+        const mt = line.match(/^\s*\*Meetings:\s*(.+?)\*\s*$/);
+        if (mt && lastItem && mems[mems.length - 1] === lastItem) {
+          const items = mt[1].split(',').map(s => s.trim()).filter(Boolean);
+          lastItem.meetings = items.map((raw, i) => {
+            // "Standup 1.25h/w"  |  "Retro 0.5h/2w"  |  "Allhands 1h/mo"
+            const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(w|2w|mo)\s*$/i);
+            if (!hm) return { id: 'mt_' + i, name: raw, hours: 0, frequency: 'weekly' };
+            const freq = hm[3].toLowerCase() === '2w' ? 'biweekly' : hm[3].toLowerCase() === 'mo' ? 'monthly' : 'weekly';
+            return { id: 'mt_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq };
+          });
+          lastItem.capMode = 'derived';
+          if (lastItem.weeklyHours == null) lastItem.weeklyHours = 40;
         }
         return;
       }

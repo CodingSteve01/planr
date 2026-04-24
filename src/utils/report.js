@@ -4,6 +4,7 @@ import { iso } from './date.js';
 import { leafNodes, re, resolveToLeafIds } from './scheduler.js';
 import { renderRoadmapSvg } from './roadmap.js';
 import { deadlineScopedScheduledItems } from './deadlines.js';
+import { deriveCap } from './capacity.js';
 
 function parseHexColor(color) {
   const hex = String(color || '').trim();
@@ -121,7 +122,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     const parallelPt = lvs
       .filter(r => r.status !== 'done' && r.parallel && (r.assign || []).includes(m.id))
       .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-    const capDays = (m.cap || 1) * 220 * projectSpanYears;
+    const capDays = deriveCap(m) * 220 * projectSpanYears;
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
     if (util > 100) {
       risks.push({

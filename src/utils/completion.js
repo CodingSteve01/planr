@@ -1,5 +1,6 @@
 import { addD, addWorkDays, eachDayInclusive, iso, localDate, normalizeVacation } from './date.js';
 import { isLeafNode, parentId, pt, re, resolveToLeafIds } from './scheduler.js';
+import { deriveCap } from './capacity.js';
 
 const DEFAULT_WORK_DAYS = [1, 2, 3, 4, 5];
 
@@ -55,7 +56,7 @@ function estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, 
   const vacationSets = buildVacationSets(vacations);
   const member = completedPersonId ? (members || []).find(m => m.id === completedPersonId) : null;
   const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
-  const dailyCap = Math.max(0.1, member?.cap || 1);
+  const dailyCap = Math.max(0.1, deriveCap(member));
   let remainingEffort = re(item?.best || 0, item?.factor || 1.5);
   let cursor = localDate(item.pinnedStart);
   let lastWorkDay = new Date(cursor);
@@ -113,7 +114,7 @@ export function deriveCompletedWindow({ item, completedAt, completedPersonId, me
   const vacationSets = buildVacationSets(vacations);
   const member = completedPersonId ? (members || []).find(m => m.id === completedPersonId) : null;
   const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
-  const dailyCap = Math.max(0.1, member?.cap || 1);
+  const dailyCap = Math.max(0.1, deriveCap(member));
 
   const endDate = localDate(clampCompletedDate(completedAt || item?.completedAt || item?.completedEnd || new Date()));
 
