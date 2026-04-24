@@ -720,6 +720,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const calDays = seg.startD && seg.endD
         ? Math.max(1, Math.round((seg.endD - seg.startD) / 864e5) + 1)
         : 0;
+      // Locate week indices for the segment's range so the Gantt can position
+      // the bar as a normal row (without this, startWi = -1 and the bar would
+      // be skipped or placed at week 0).
+      const wiForDate = d => {
+        if (!d) return -1;
+        let idx = wks.findIndex(w => w.mon > d);
+        if (idx === -1) idx = wks.length; // date after last week
+        return Math.max(0, idx - 1);
+      };
+      const startWi = wiForDate(seg.startD);
+      const endWi = wiForDate(seg.endD);
       expanded.push({
         id: `${s.id}#${segIdx + 1}`,
         treeId: s.id,
@@ -741,14 +752,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         best: s.best,
         factor: s.factor,
         effort: seg.effort || 0,
-        startWi: -1,
-        endWi: -1,
+        startWi,
+        endWi,
         startD: seg.startD,
         endD: seg.endD,
         calDays,
         capPct: memberObj ? Math.round(deriveCap(memberObj) * 100) : 100,
         vacDed: 0,
-        weeks: 0,
+        weeks: Math.max(1, endWi - startWi + 1),
         vacDays: 0,
         holidaysInWindow: 0,
         workingDaysInWindow: calDays,

@@ -233,7 +233,9 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       const itemById = {};
       scopeItems.forEach(item => {
         itemById[item.id] = item;
-        let cid = item.id;
+        // Start the walk from the tree-facing id so handoff-shadow rows
+        // (`orig#N`) register under their primary's tree node.
+        let cid = item.treeId || item.id;
         while (cid) {
           if (!byNode[cid]) byNode[cid] = [];
           byNode[cid].push(item);
@@ -303,9 +305,38 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
       if (!node || !scopeItems.length || !visibleScopeItems.length) return null;
       const childIds = (childrenByParent[nodeId] || EMPTY_ARR).filter(cid => (visibleMeta.byNode[cid] || EMPTY_ARR).length > 0);
       if (isLeafNode(tree || [], nodeId) || !childIds.length) {
-        const item = visibleMeta.itemById[nodeId];
-        if (!item) return null;
-        return { type: 'task', key: `${namespace}::task:${nodeId}`, s: item, node, level, groupKey: namespace };
+        // Handoff-shadow rows share a tree node with their primary. Emit
+        // primary as a normal task row and each shadow as its own sibling row
+        // so filters/person-grouping see them as distinct work items.
+        const items = visibleScopeItems.filter(it => (it.treeId || it.id) === nodeId);
+        if (!items.length) return null;
+        const primary = items.find(it => !it.isHandoff) || items[0];
+        const handoffs = items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0));
+        if (!handoffs.length) {
+          return { type: 'task', key: `${namespace}::task:${nodeId}`, s: primary, node, level, groupKey: namespace };
+        }
+        // Multiple rows → wrap as a synthetic summary with the primary + each
+        // shadow as children so the Gantt renders one row per segment.
+        const allChildren = [primary, ...handoffs].map((item) => ({
+          type: 'task',
+          key: `${namespace}::task:${item.id}`,
+          s: item,
+          node,
+          level: level + 1,
+          groupKey: namespace,
+        }));
+        const collapseKey = `${namespace}::collapse:${nodeId}`;
+        defaultCollapsed.add(collapseKey);
+        return {
+          type: 'summary',
+          key: `${namespace}::summary:${nodeId}`,
+          collapseKey,
+          s: buildSummaryItem(node, scopeItems, scopeCtx),
+          node,
+          level,
+          groupKey: namespace,
+          children: allChildren,
+        };
       }
       const children = childIds.map(cid => buildNode(cid, meta, visibleMeta, namespace, level + 1, scopeCtx)).filter(Boolean);
       const collapseKey = `${namespace}::collapse:${nodeId}`;
@@ -1319,19 +1350,10 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
-                {/* Handoff indicator badge. Primary bars of chained tasks
-                    carry `hasHandoffSegments`; shadow rows carry `isHandoff`
-                    with hatched styling when unscheduled. Full chain details
-                    live in the main row tooltip / TaskInsights. */}
-                {!isSummary && s.hasHandoffSegments && (
-                  <div style={{
-                    position: 'absolute', top: -1, right: -1,
-                    fontSize: 9, fontWeight: 700, color: '#fff',
-                    background: 'rgba(168,85,247,.95)',
-                    padding: '1px 5px', borderRadius: '0 4px 0 4px',
-                    pointerEvents: 'none',
-                  }}>⇄ Handoff</div>
-                )}
+                {/* Primary rows of chained tasks carry `hasHandoffSegments`
+                    only as metadata — the handoff-shadow rows render their
+                    own bars beneath and carry the visual badges. No overlay
+                    on the primary bar. */}
                 {!isSummary && s.isHandoff && (
                   <div style={{
                     position: 'absolute', inset: 0,

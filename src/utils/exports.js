@@ -412,32 +412,59 @@ export async function exportReportDocx(ctx) {
       // Roadmap legend → flat block HTML inside a multi-column table. The
       // generated legend uses nested flex containers (line column → line
       // header row → station row), which html-to-docx collapses into empty
-      // cells. Extract the useful bits (line id, line name, station list)
-      // and emit plain divs so Word renders it as a readable agenda.
+      // cells. Extract structured bits (line id, stations, cluster items with
+      // status + abbrev) and emit clean HTML so Word shows:
+      //   P2  Performance / Blocks                                     ← line header
+      //   ● PL  Preisfindung Logik 3/4                                 ← station (bold abbrev in line color)
+      //     ◐ Preisfindung API                                         ← indented cluster item
+      //     ○ Preisfindung Cache
       doc.querySelectorAll('div[style*="margin-top:16px"][style*="display:flex"][style*="flex-wrap:wrap"]').forEach(legend => {
         const cols = [...legend.children];
         if (!cols.length) return;
+        // Helpers scoped to the legend parse.
+        const isIndented = row => /padding-left:\s*(?:1[4-9]|[2-9]\d|\d{3,})/.test(row.getAttribute('style') || '');
+        const isDone = row => /line-through/.test(row.getAttribute('style') || '');
+        const guessStatus = row => {
+          const txt = row.textContent || '';
+          if (isDone(row)) return 'done';
+          // "x/y" badge with x === y → done (shouldn't hit because of line-through above);
+          // otherwise current-progress uses wip; plain unstarted stays open.
+          if (/◐/.test(txt)) return 'wip';
+          return /\b([1-9]\d*)\s*\/\s*([1-9]\d*)\b/.test(txt) ? 'wip' : 'open';
+        };
+        const statusGlyph = st => st === 'done' ? '●' : st === 'wip' ? '◐' : '○';
+
         const flatCols = cols.map(col => {
-          // The first child is the line header; remaining are station rows
-          // (plus optional indented cluster rows).
           const lineHeader = col.children[0];
           const color = lineHeader?.querySelector('span[style*="background:"]')
             ?.getAttribute('style')
             ?.match(/background:([^;]+)/i)?.[1]?.trim() || '#1a1e2a';
-          const lineIdSpan = lineHeader?.querySelectorAll('span')?.[1];
-          const lineNameSpan = lineHeader?.querySelectorAll('span')?.[2];
-          const lineId = lineIdSpan?.textContent?.trim() || '';
-          const lineName = lineNameSpan?.textContent?.trim() || '';
+          const headerSpans = lineHeader ? [...lineHeader.querySelectorAll('span')] : [];
+          const lineId = headerSpans[1]?.textContent?.trim() || '';
+          const lineName = headerSpans[2]?.textContent?.trim() || '';
           const rest = [...col.children].slice(1);
           const stationLines = rest.map(row => {
-            const spans = [...row.querySelectorAll('span')];
-            const textParts = spans.map(s => s.textContent?.trim()).filter(Boolean);
-            const indent = /padding-left:\d/.test(row.getAttribute('style') || '') ? true : false;
-            const done = /line-through/.test(row.getAttribute('style') || '') ? true : false;
-            return { text: textParts.join(' ').trim(), indent, done };
-          }).filter(s => s.text);
+            const spans = [...row.querySelectorAll('span')].filter(s => s.textContent?.trim());
+            const indent = isIndented(row);
+            const done = isDone(row);
+            const status = guessStatus(row);
+            if (indent) {
+              // Cluster item: one text span (name)
+              return { kind: 'cluster', name: spans[0]?.textContent?.trim() || '', status, done };
+            }
+            // Station row: [abbrev, "Name x/y"]
+            const abbrev = spans[0]?.textContent?.trim() || '';
+            // Trailing count like " 3/5" lives at the end of the name span;
+            // split it off so we can format it separately.
+            const nameRaw = spans[1]?.textContent?.trim() || '';
+            const countMatch = nameRaw.match(/\s*(\d+\/\d+|✓)\s*$/);
+            const count = countMatch ? countMatch[1] : '';
+            const name = count ? nameRaw.slice(0, nameRaw.length - countMatch[0].length).trim() : nameRaw;
+            return { kind: 'station', abbrev, name, count, status, done };
+          }).filter(s => s.name || s.abbrev);
           return { color, lineId, lineName, stationLines };
         });
+
         const table = doc.createElement('table');
         table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:12px 0 16px 0');
         const perRow = Math.min(3, flatCols.length);
@@ -450,15 +477,31 @@ export async function exportReportDocx(ctx) {
             if (data) {
               const parts = [];
               parts.push(
-                `<div style="margin-bottom:4px">` +
-                  `<span style="display:inline-block;background:${data.color};color:#fff;font-weight:700;padding:1px 6px;border-radius:3px;font-size:10px;font-family:'Courier New',monospace">${data.lineId}</span>` +
-                  (data.lineName ? ` <span style="font-size:10px;color:#4a5268">${data.lineName}</span>` : '') +
+                `<div style="margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid ${data.color}44">` +
+                  `<span style="display:inline-block;background:${data.color};color:#fff;font-weight:700;padding:1px 6px;border-radius:3px;font-size:10px;font-family:'Courier New',monospace">${escapeHtml(data.lineId)}</span>` +
+                  (data.lineName ? ` <span style="font-size:11px;font-weight:600;color:#1a1e2a">${escapeHtml(data.lineName)}</span>` : '') +
                 `</div>`
               );
               data.stationLines.forEach(s => {
-                parts.push(
-                  `<div style="font-size:10px;color:#4a5268;${s.done ? 'text-decoration:line-through;opacity:0.6;' : ''}${s.indent ? 'padding-left:14px;' : ''}margin-bottom:2px">${escapeHtml(s.text)}</div>`
-                );
+                const iconColor = data.color;
+                const strike = s.done ? 'text-decoration:line-through;opacity:0.6;' : '';
+                if (s.kind === 'station') {
+                  parts.push(
+                    `<div style="font-size:10px;margin-bottom:3px;${strike}">` +
+                      `<span style="color:${iconColor};font-weight:700;margin-right:4px">${statusGlyph(s.status)}</span>` +
+                      `<span style="font-family:'Courier New',monospace;font-weight:700;color:${iconColor};margin-right:5px">${escapeHtml(s.abbrev)}</span>` +
+                      `<span style="color:#1a1e2a;font-weight:600">${escapeHtml(s.name)}</span>` +
+                      (s.count ? ` <span style="color:#7a839a;font-size:9px;font-family:'Courier New',monospace">${escapeHtml(s.count)}</span>` : '') +
+                    `</div>`
+                  );
+                } else {
+                  parts.push(
+                    `<div style="font-size:9.5px;padding-left:16px;margin-bottom:2px;${strike}">` +
+                      `<span style="color:${iconColor};margin-right:4px">${statusGlyph(s.status)}</span>` +
+                      `<span style="color:#4a5268">${escapeHtml(s.name)}</span>` +
+                    `</div>`
+                  );
+                }
               });
               td.innerHTML = parts.join('');
             }
