@@ -38,6 +38,14 @@ export const isoWeek = d => {
   sw.setDate(j4.getDate() - ((j4.getDay() + 6) % 7));
   return Math.round((monOf(d) - sw) / (7 * 864e5)) + 1;
 };
+// ISO week-year: the year that the Thursday of this week belongs to.
+// Differs from getFullYear() around Jan 1 (e.g. 2026-01-01 is in KW1 of 2026,
+// but 2025-12-29 is also in KW1 of 2026).
+export const isoWeekYear = d => {
+  const t = new Date(d);
+  t.setDate(t.getDate() + 4 - ((t.getDay() + 6) % 7));
+  return t.getFullYear();
+};
 export const fmtDate = s => {
   if (!s) return '—';
   return new Date(s).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });

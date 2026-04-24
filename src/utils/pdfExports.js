@@ -1,6 +1,6 @@
 // High-quality PDF exports via pdfmake (dynamic import to keep initial bundle small).
 // All PDFs carry: project name, kind, generation date in footer.
-import { iso, isoWeek } from './date.js';
+import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
 import { renderRoadmapSvg } from './roadmap.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
@@ -280,43 +280,59 @@ export async function exportSummaryPDF(ctx, options = {}) {
       if (rmModel?.lines?.length) {
         content.push({ text: t('Timetable', 'Fahrplan'), style: 'h2' });
         content.push({ text: t('Station abbreviations reference the Subway-Map legend above.', 'Stations-Kürzel verweisen auf die Legende der Subway-Map oben.'), style: 'cap', margin: [0, 0, 0, 8] });
-        const scheduledById = Object.fromEntries((ctx.scheduled || []).map(s => [s.id, s]));
-        const teamName = id => ctx.teams.find(x => x.id === id)?.name || id || '—';
-        rmModel.lines.forEach(line => {
+        // Aggregate all handoff segments for a tree item so cross-team chains show up.
+        const segsByTree = {};
+        (ctx.scheduled || []).forEach(s => {
+          const k = s.treeId || s.id;
+          (segsByTree[k] ||= []).push(s);
+        });
+        const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
+
+        // 2-col layout: split the lines down the middle per page.
+        const buildLineBlock = (line) => {
           const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
           const rows = allStations.map(st => {
             const items = st.clusterItems || [];
-            const dated = items.map(it => scheduledById[it.id]).filter(s => s && s.startD && s.endD);
+            const allSegs = items.flatMap(it => segsByTree[it.id] || []);
+            const dated = allSegs.filter(s => s && s.startD && s.endD);
             const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
             const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
-            const teamIds = [...new Set(items.map(it => it.team).filter(Boolean))];
-            const teamLbl = teamIds.map(teamName).join(' · ') || '—';
             const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
             const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
             const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
-            return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, teamLbl, status };
+            return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
           }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
-          content.push({
-            text: [
-              { text: line.root.id + '  ', color: line.color, bold: true },
-              { text: line.root.name, color: '#1a1e2a', bold: true },
+          return {
+            stack: [
+              {
+                text: [
+                  { text: line.root.id + '  ', color: line.color, bold: true },
+                  { text: line.root.name, color: '#1a1e2a', bold: true },
+                ],
+                fontSize: 10, margin: [0, 0, 0, 3],
+              },
+              headerTable(
+                [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
+                rows.map(r => [
+                  { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
+                  { text: r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—', fontSize: 8 },
+                  { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
+                  { text: r.status, alignment: 'center', fontSize: 9 },
+                ]),
+                [45, 80, 60, 20],
+              ),
             ],
-            fontSize: 11, margin: [0, 10, 0, 4],
-          });
-          content.push(headerTable(
-            [t('Station', 'Station'), t('Start', 'Start'), t('End', 'Ende'), t('Duration', 'Dauer'), t('Team', 'Team'), t('St.', 'St.')],
-            rows.map(r => [
-              { text: r.abbrev, color: line.color, bold: true },
-              r.startD ? iso(r.startD) : '—',
-              r.endD ? iso(r.endD) : '—',
-              r.calDays ? `${r.calDays}d / ${r.workDays.toFixed(0)}PT` : '—',
-              r.teamLbl,
-              { text: r.status, alignment: 'center' },
-            ]),
-            [70, 70, 70, 90, '*', 30],
-          ));
-        });
+            margin: [0, 0, 0, 10],
+          };
+        };
+
+        // Pair lines 2-per-row via pdfmake columns.
+        for (let i = 0; i < rmModel.lines.length; i += 2) {
+          const left = buildLineBlock(rmModel.lines[i]);
+          const right = rmModel.lines[i + 1] ? buildLineBlock(rmModel.lines[i + 1]) : { text: '' };
+          content.push({ columns: [left, right], columnGap: 14 });
+        }
       }
     } catch (e) {
       console.warn('[summary-pdf] timetable generation failed', e);

@@ -1,8 +1,8 @@
 // Generates a self-contained HTML project report.
 // Opens in a new tab and auto-triggers the print dialog (→ save as PDF).
-import { iso } from './date.js';
+import { iso, isoWeek, isoWeekYear } from './date.js';
 import { leafNodes, re, resolveToLeafIds } from './scheduler.js';
-import { renderRoadmapSvg } from './roadmap.js';
+import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineScopedScheduledItems } from './deadlines.js';
 import { deriveCap } from './capacity.js';
 
@@ -315,6 +315,48 @@ tr:nth-child(even) td{background:#fafbfd}
   // ── 5. ROADMAP ──
   h += `<h2>${t('Roadmap','Roadmap')}</h2>`;
   h += renderRoadmapSvg({ tree, scheduled, stats });
+
+  // ── 5b. FAHRPLAN ──
+  try {
+    const rmModel = computeRoadmapModel({ tree, scheduled, stats });
+    if (rmModel?.lines?.length) {
+      const segsByTree = {};
+      scheduled.forEach(s => { const k = s.treeId || s.id; (segsByTree[k] ||= []).push(s); });
+      const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
+      h += `<h2>${t('Timetable','Fahrplan')}</h2>`;
+      h += `<p style="font-size:9px;color:#7a839a;margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.','Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
+      h += `<div class="grid2">`;
+      rmModel.lines.forEach(line => {
+        const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
+        const rows = allStations.map(st => {
+          const items = st.clusterItems || [];
+          const allSegs = items.flatMap(it => segsByTree[it.id] || []);
+          const dated = allSegs.filter(s => s && s.startD && s.endD);
+          const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
+          const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
+          const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
+          const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
+          const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
+          return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
+        }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
+        h += `<div style="border:1px solid #e0e4ea;border-left:3px solid ${line.color};border-radius:5px;padding:6px 8px;margin-bottom:6px">`;
+        h += `<div style="font-weight:700;font-size:11px;color:${line.color};margin-bottom:3px">${line.root.id} · <span style="color:#1a1e2a">${line.root.name}</span></div>`;
+        h += `<table style="font-size:9px"><tr><th>Stn</th><th>Start</th><th>Dauer</th><th>St</th></tr>`;
+        rows.forEach(r => {
+          h += `<tr>`;
+          h += `<td class="mono" style="color:${line.color};font-weight:700">${r.abbrev}</td>`;
+          h += `<td class="mono">${r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—'}</td>`;
+          h += `<td class="mono">${r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—'}</td>`;
+          h += `<td style="text-align:center">${r.status}</td>`;
+          h += `</tr>`;
+        });
+        h += `</table></div>`;
+      });
+      h += `</div>`;
+    }
+  } catch (e) {
+    console.warn('[report] timetable generation failed', e);
+  }
 
   // ── 6. GOALS & DEADLINES ──
   const goals = roots.filter(r => r.type);

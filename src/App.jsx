@@ -2134,7 +2134,30 @@ export default function App() {
         onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
         onTeamUpd={(i, k, v) => setD('teams', teams.map((t, j) => j === i ? { ...t, [k]: v } : t))}
         onTeamAdd={() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }])}
-        onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}
+        onTeamDel={i => {
+          const deleted = teams[i];
+          if (!deleted) return;
+          setData(d => {
+            const nextTeams = d.teams.filter((_, j) => j !== i);
+            const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
+            const nextTree = d.tree.map(r => {
+              let out = r;
+              if (r.team === deleted.id) out = { ...out, team: '' };
+              if (r.phases?.length) {
+                const phases = r.phases.map(p => {
+                  const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
+                  if (!hasMatch) return p;
+                  const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
+                  return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
+                });
+                if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
+              }
+              return out;
+            });
+            return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
+          });
+          setSaved(false);
+        }} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}

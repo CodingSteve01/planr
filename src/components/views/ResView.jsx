@@ -148,14 +148,14 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
 /* ─── Meeting-Plan: row + popout edit modal ──────────────────────────────── */
 function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick }) {
   return (
-    <li className="res-row res-row-plan" onClick={onClick}>
-      <span className="res-dot" style={{ background: 'var(--ac)' }} />
-      <span className="res-row-name">{plan.name || 'Unbenannter Plan'}</span>
-      <span className="res-row-meta">
+    <tr onClick={onClick}>
+      <td className="res-td-avatar"><span className="res-dot" style={{ background: 'var(--ac)' }} /></td>
+      <td className="res-row-name">{plan.name || 'Unbenannter Plan'}</td>
+      <td className="res-row-meta">
         {(plan.meetings || []).length} Termin(e) · {totalHours.toFixed(2)} h/Woche
-      </span>
-      <span className="res-row-meta">{teamCount} Team(s) · {memberCount} Person(en)</span>
-    </li>
+      </td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>{teamCount} Team(s) · {memberCount} Person(en)</td>
+    </tr>
   );
 }
 
@@ -416,16 +416,18 @@ function TeamReadRow({ team, memberCount, meetingPlans = [], onClick, t }) {
     .map(id => meetingPlans.find(p => p.id === id))
     .filter(Boolean);
   return (
-    <li className="res-row res-row-team" onClick={onClick}>
-      <span className="res-dot" style={{ background: team.color || 'var(--ac)' }} />
-      <span className="res-row-name">{team.name || team.id}</span>
-      <span className="res-plan-tags">
-        {plans.map(p => (
-          <span key={p.id} className="res-plan-tag res-plan-tag-team" title="Meeting-Plan (Team-weit)">{p.name}</span>
-        ))}
-      </span>
-      <span className="res-row-meta">{memberCount} {t('rv.members')}</span>
-    </li>
+    <tr onClick={onClick}>
+      <td className="res-td-avatar"><span className="res-dot" style={{ background: team.color || 'var(--ac)' }} /></td>
+      <td className="res-row-name">{team.name || team.id}</td>
+      <td>
+        <span className="res-plan-tags">
+          {plans.map(p => (
+            <span key={p.id} className="res-plan-tag res-plan-tag-team" title="Meeting-Plan (Team-weit)">{p.name}</span>
+          ))}
+        </span>
+      </td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>{memberCount} {t('rv.members')}</td>
+    </tr>
   );
 }
 
@@ -455,10 +457,9 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
   const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
   const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
-    <li className="res-row res-row-member" onClick={onClick}
-      style={{ opacity: offboarded ? 0.5 : 1 }}>
-      <Avatar member={member} teams={teams} />
-      <span className="res-row-name">
+    <tr onClick={onClick} style={{ opacity: offboarded ? 0.5 : 1 }}>
+      <td className="res-td-avatar"><Avatar member={member} teams={teams} /></td>
+      <td className="res-row-name">
         {member.name || member.id}
         {shortMap[member.id] && (
           <span className="res-row-short" data-htip="Auto-generated short name (used in Markdown)">
@@ -473,24 +474,28 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
           <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
             data-htip={`Offboarded zum ${member.end}`}>BALD RAUS</span>
         )}
-      </span>
-      {team ? (
-        <span className="res-team-badge" style={{ borderColor: team.color, color: team.color }}>
-          {team.name}
-        </span>
-      ) : <span />}
-      <span className="res-plan-tags">
-        {planObjs.map(p => (
-          <span key={p.id}
-            className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}
-            title={teamPlanIds.has(p.id) ? 'Meeting-Plan (vom Team geerbt)' : 'Meeting-Plan (individuell)'}>
-            {p.name}
+      </td>
+      <td>
+        {team ? (
+          <span className="res-team-badge" style={{ borderColor: team.color, color: team.color }}>
+            {team.name}
           </span>
-        ))}
-      </span>
-      <span className="res-row-meta">{cap}% · {vac}d</span>
-      <span className="res-row-meta">{dates || ''}</span>
-    </li>
+        ) : null}
+      </td>
+      <td>
+        <span className="res-plan-tags">
+          {planObjs.map(p => (
+            <span key={p.id}
+              className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}
+              title={teamPlanIds.has(p.id) ? 'Meeting-Plan (vom Team geerbt)' : 'Meeting-Plan (individuell)'}>
+              {p.name}
+            </span>
+          ))}
+        </span>
+      </td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>{cap}% · {vac}d</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>{dates || ''}</td>
+    </tr>
   );
 }
 
@@ -555,52 +560,72 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
               Noch keine Meeting-Pläne definiert. Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und werden Teams oder Personen zugewiesen.
             </div>
-          : <>
-              <div className="res-row res-row-plan res-row-header">
-                <span />
-                <span>Name</span>
-                <span>Termine</span>
-                <span style={{ textAlign: 'right' }}>Zuweisungen</span>
-              </div>
-              <ul className="res-list">
-                {meetingPlans.map(pl => {
-                  const teamCount = teams.filter(t => (t.meetingPlanIds || []).includes(pl.id)).length;
-                  const memberCount = members.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
-                  const totalH = sumMeetingHours(pl.meetings || []);
-                  return (
-                    <MeetingPlanReadRow key={pl.id} plan={pl}
-                      teamCount={teamCount} memberCount={memberCount} totalHours={totalH}
-                      onClick={() => setEditingPlanId(pl.id)} />
-                  );
-                })}
-              </ul>
-            </>
+          : (
+              <table className="res-table">
+                <colgroup>
+                  <col style={{ width: 30 }} />
+                  <col />
+                  <col style={{ width: '40%' }} />
+                  <col style={{ width: 200 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Name</th>
+                    <th>Termine</th>
+                    <th style={{ textAlign: 'right' }}>Zuweisungen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meetingPlans.map(pl => {
+                    const teamCount = teams.filter(t => (t.meetingPlanIds || []).includes(pl.id)).length;
+                    const memberCount = members.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
+                    const totalH = sumMeetingHours(pl.meetings || []);
+                    return (
+                      <MeetingPlanReadRow key={pl.id} plan={pl}
+                        teamCount={teamCount} memberCount={memberCount} totalHours={totalH}
+                        onClick={() => setEditingPlanId(pl.id)} />
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
       )}
 
       {/* ═══════════════ TEAMS ═══════════════ */}
       {section === 'teams' && (
         teams.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
-          : <>
-              <div className="res-row res-row-header res-row-team">
-                <span />
-                <span>Name</span>
-                <span>Meeting-Pläne</span>
-                <span style={{ textAlign: 'right' }}>Mitglieder</span>
-              </div>
-              <ul className="res-list">
-                {teams.map(tm => (
-                  <TeamReadRow
-                    key={tm.id}
-                    team={tm}
-                    memberCount={memberCountForTeam(tm.id)}
-                    meetingPlans={meetingPlans}
-                    onClick={() => setEditingTeamId(tm.id)}
-                    t={t}
-                  />
-                ))}
-              </ul>
-            </>
+          : (
+              <table className="res-table">
+                <colgroup>
+                  <col style={{ width: 30 }} />
+                  <col style={{ width: 220 }} />
+                  <col />
+                  <col style={{ width: 120 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Name</th>
+                    <th>Meeting-Pläne</th>
+                    <th style={{ textAlign: 'right' }}>Mitglieder</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map(tm => (
+                    <TeamReadRow
+                      key={tm.id}
+                      team={tm}
+                      memberCount={memberCountForTeam(tm.id)}
+                      meetingPlans={meetingPlans}
+                      onClick={() => setEditingTeamId(tm.id)}
+                      t={t}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )
       )}
 
       {/* ═══════════════ MEMBERS ═══════════════ */}
@@ -622,27 +647,39 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
                 {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
               </div>
-              <div className="res-row res-row-member res-row-header">
-                <span />
-                <span>Name</span>
-                <span>Team</span>
-                <span>Meeting-Pläne</span>
-                <span style={{ textAlign: 'right' }} data-htip="Kapazität in % (derived) · Urlaubstage pro Jahr">Cap · Urlaub</span>
-                <span style={{ textAlign: 'right' }} data-htip="Onboarding – Offboarding (Mitgliedschaftsfenster). Leer = unbegrenzt.">Ein-/Austritt</span>
-              </div>
-              <ul className="res-list">
-                {teamMembers.map(m => (
-                  <MemberReadRow
-                    key={m.id}
-                    member={m}
-                    teams={teams}
-                    shortMap={shortMap}
-                    meetingPlans={meetingPlans}
-                    onClick={() => setEditingMemberId(m.id)}
-                    t={t}
-                  />
-                ))}
-              </ul>
+              <table className="res-table">
+                <colgroup>
+                  <col style={{ width: 30 }} />
+                  <col style={{ width: '32%' }} />
+                  <col style={{ width: 120 }} />
+                  <col />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 140 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Name</th>
+                    <th>Team</th>
+                    <th>Meeting-Pläne</th>
+                    <th style={{ textAlign: 'right' }} data-htip="Kapazität in % (derived) · Urlaubstage pro Jahr">Cap · Urlaub</th>
+                    <th style={{ textAlign: 'right' }} data-htip="Onboarding – Offboarding (Mitgliedschaftsfenster). Leer = unbegrenzt.">Ein-/Austritt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamMembers.map(m => (
+                    <MemberReadRow
+                      key={m.id}
+                      member={m}
+                      teams={teams}
+                      shortMap={shortMap}
+                      meetingPlans={meetingPlans}
+                      onClick={() => setEditingMemberId(m.id)}
+                      t={t}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           );
         })}
@@ -659,32 +696,42 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                   <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{year}</span>
                   <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
                 </div>
-                <div className="res-row res-row-vac res-row-header">
-                  <span />
-                  <span>Person</span>
-                  <span>Zeitraum</span>
-                  <span>Notiz</span>
-                  <span />
-                </div>
-                <ul className="res-list">
-                  {vacsByYear[year].map(v => {
-                    const origIdx = vacations.indexOf(v);
-                    const mem = members.find(m => m.id === v.person);
-                    const team = mem ? teams.find(tm => tm.id === mem.team) : null;
-                    const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
-                    return (
-                      <li key={origIdx} className="res-row res-row-vac" onClick={() => setEditingVacIdx(origIdx)}>
-                        <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>
-                          {initials(mem?.name || v.person || '?')}
-                        </span>
-                        <span className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</span>
-                        <span className="res-row-meta">{range}</span>
-                        <span className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note || ''}</span>
-                        <span />
-                      </li>
-                    );
-                  })}
-                </ul>
+                <table className="res-table">
+                  <colgroup>
+                    <col style={{ width: 30 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 180 }} />
+                    <col />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th />
+                      <th>Person</th>
+                      <th>Zeitraum</th>
+                      <th>Notiz</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vacsByYear[year].map(v => {
+                      const origIdx = vacations.indexOf(v);
+                      const mem = members.find(m => m.id === v.person);
+                      const team = mem ? teams.find(tm => tm.id === mem.team) : null;
+                      const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
+                      return (
+                        <tr key={origIdx} onClick={() => setEditingVacIdx(origIdx)}>
+                          <td className="res-td-avatar">
+                            <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>
+                              {initials(mem?.name || v.person || '?')}
+                            </span>
+                          </td>
+                          <td className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</td>
+                          <td className="res-row-meta">{range}</td>
+                          <td className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note || ''}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ))}
       </>)}
