@@ -24,47 +24,60 @@ export function sumMeetingHours(meetings) {
   return meetings.reduce((s, m) => s + meetingWeeklyHours(m), 0);
 }
 
-// Collect the full set of meetings that apply to a member: any plans they
-// belong to (shared templates from data.meetingPlans) plus their individual
-// meetings. Plan meetings carry a `_plan` marker for the UI.
-export function resolveMemberMeetings(member, allPlans) {
+// Collect the full set of meetings that apply to a member, in order:
+//   1. Team-level plans (team.meetingPlanIds) — inherited by every team member
+//   2. Member-level plans (member.meetingPlanIds) — additional individual plans
+//   3. Member.meetings — one-off individual meetings
+// Each plan meeting carries `_plan` / `_planName` for the UI breakdown.
+//
+// Pass `ctx = { plans, teams }` (both optional). Accepts also the legacy
+// single-argument form `resolveMemberMeetings(member, allPlans)` so older
+// call-sites keep working.
+export function resolveMemberMeetings(member, ctxOrPlans) {
   if (!member) return [];
-  const planMeetings = [];
-  const planIds = Array.isArray(member.meetingPlans) ? member.meetingPlans : [];
-  if (planIds.length && Array.isArray(allPlans)) {
-    planIds.forEach(pid => {
-      const plan = allPlans.find(p => p.id === pid);
-      if (!plan || !Array.isArray(plan.meetings)) return;
-      plan.meetings.forEach(m => planMeetings.push({ ...m, _plan: plan.id, _planName: plan.name }));
-    });
-  }
-  const own = Array.isArray(member.meetings) ? member.meetings : [];
-  return [...planMeetings, ...own];
+  const ctx = Array.isArray(ctxOrPlans) ? { plans: ctxOrPlans, teams: [] } : (ctxOrPlans || {});
+  const plans = Array.isArray(ctx.plans) ? ctx.plans : [];
+  const teams = Array.isArray(ctx.teams) ? ctx.teams : [];
+  const planById = Object.fromEntries(plans.map(p => [p.id, p]));
+  const emitPlan = (pid, out, via) => {
+    const plan = planById[pid];
+    if (!plan || !Array.isArray(plan.meetings)) return;
+    plan.meetings.forEach(m => out.push({ ...m, _plan: plan.id, _planName: plan.name, _planSource: via }));
+  };
+  const out = [];
+  // Team-inherited plans
+  const team = member.team ? teams.find(t => t.id === member.team) : null;
+  (team?.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'team'));
+  // Member-attached plans
+  (member.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'member'));
+  // Individual ad-hoc meetings
+  (Array.isArray(member.meetings) ? member.meetings : []).forEach(m => out.push(m));
+  return out;
 }
 
-export function deriveCap(member, allPlans) {
+export function deriveCap(member, ctxOrPlans) {
   if (!member) return 1;
   if (member.capMode !== 'derived') return member.cap ?? 1;
   const wh = typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS;
-  const allMeetings = resolveMemberMeetings(member, allPlans);
+  const allMeetings = resolveMemberMeetings(member, ctxOrPlans);
   const meetingHours = sumMeetingHours(allMeetings);
   const avail = Math.max(0, wh - meetingHours);
   return avail / FTE_HOURS;
 }
 
 // Human-readable breakdown for tooltips / insights.
-export function capBreakdown(member, allPlans) {
+export function capBreakdown(member, ctxOrPlans) {
   if (!member || member.capMode !== 'derived') {
     const pct = Math.round((member?.cap ?? 1) * 100);
     return [{ kind: 'manual', text: `Manual: ${pct} %` }];
   }
   const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const lines = [{ kind: 'base', text: `${wh} h / Woche` }];
-  const all = resolveMemberMeetings(member, allPlans);
+  const all = resolveMemberMeetings(member, ctxOrPlans);
   for (const m of all) {
     const weeklyH = meetingWeeklyHours(m);
     if (weeklyH <= 0) continue;
-    const src = m._planName ? ` [Plan: ${m._planName}]` : '';
+    const src = m._planName ? ` [Plan: ${m._planName}${m._planSource === 'team' ? ' · via Team' : ''}]` : '';
     const freqLabel = m.frequency && m.frequency !== 'weekly' ? ` (${m.frequency})` : '';
     lines.push({ kind: 'meeting', text: `− ${weeklyH.toFixed(2)} h  ${m.name || 'Meeting'}${freqLabel}${src}` });
   }

@@ -28,10 +28,35 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     md += '\n';
   }
   if (teams.length) {
-    md += `## Teams\n\n| Name | Color |\n|---|---|\n`;
-    teams.forEach(t => { md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` |\n`; });
+    const anyTeamPlans = teams.some(t => (t.meetingPlanIds || []).length);
+    const planNameById = Object.fromEntries((data?.meetingPlans || []).map(p => [p.id, p.name]));
+    if (anyTeamPlans) {
+      md += `## Teams\n\n| Name | Color | Meeting Plans |\n|---|---|---|\n`;
+      teams.forEach(t => {
+        const planNames = (t.meetingPlanIds || []).map(id => planNameById[id] || id).join(', ');
+        md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` | ${esc(planNames)} |\n`;
+      });
+    } else {
+      md += `## Teams\n\n| Name | Color |\n|---|---|\n`;
+      teams.forEach(t => { md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` |\n`; });
+    }
     md += '\n';
   }
+
+  // Meeting Plans catalogue — before Resources so plans are defined when
+  // resources reference them.
+  if ((data?.meetingPlans || []).length) {
+    md += `## Meeting Plans\n\n`;
+    const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+    data.meetingPlans.forEach(plan => {
+      md += `### ${esc(plan.name)}\n`;
+      (plan.meetings || []).forEach(mt => {
+        md += `- ${esc(mt.name || 'Meeting')} ${mt.hours != null ? `${mt.hours}h` : ''}${freqSuffix(mt.frequency)}\n`;
+      });
+      md += '\n';
+    });
+  }
+
   if (members.length) {
     md += `## Resources\n`;
     members.forEach(m => {
@@ -43,6 +68,12 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       if (isDerived && (m.meetings || []).length) {
         const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
         md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ')}*\n`;
+      }
+      if ((m.meetingPlanIds || []).length) {
+        const planNames = m.meetingPlanIds
+          .map(pid => (data?.meetingPlans || []).find(p => p.id === pid)?.name || pid)
+          .join(', ');
+        md += `  *Plans: ${planNames}*\n`;
       }
     });
     md += '\n';

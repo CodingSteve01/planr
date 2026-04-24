@@ -15,7 +15,7 @@ function initials(name) {
 }
 
 /* ─── TeamEditModal ───────────────────────────────────────────────────── */
-function TeamEditModal({ team, idx, onUpd, onDel, onClose, t }) {
+function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t }) {
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -50,6 +50,14 @@ function TeamEditModal({ team, idx, onUpd, onDel, onClose, t }) {
           />
         </div>
 
+        {/* Meeting-Plans für das Team (werden allen Mitgliedern zugewiesen). */}
+        <PlanPicker
+          label="Meeting-Pläne (Team)"
+          hint="Wirken auf alle Team-Mitglieder mit derived-Cap."
+          plans={meetingPlans}
+          selected={team.meetingPlanIds || []}
+          onChange={ids => onUpd(idx, 'meetingPlanIds', ids)} />
+
         {/* Footer */}
         <div className="modal-footer">
           <button
@@ -67,7 +75,7 @@ function TeamEditModal({ team, idx, onUpd, onDel, onClose, t }) {
 }
 
 /* ─── MemberEditModal ─────────────────────────────────────────────────── */
-function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClose, t }) {
+function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, onClone, onDel, onClose, t }) {
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -110,7 +118,7 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
         </div>
         {/* Capacity is a compound field — breaks out of the narrow 150px
             label/value grid so the meetings list and breakdown have room. */}
-        <CapacityField member={member} onUpd={onUpd} t={t} />
+        <CapacityField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
 
         {/* Footer */}
         <div className="modal-footer">
@@ -137,10 +145,114 @@ function MemberEditModal({ member, teams, shortMap, onUpd, onClone, onDel, onClo
   );
 }
 
+/* ─── Meeting-Plans CRUD panel ───────────────────────────────────────────── */
+function MeetingPlansSection({ plans, onChange, teams, members }) {
+  const updPlan = (pid, patch) => onChange(plans.map(p => p.id === pid ? { ...p, ...patch } : p));
+  const delPlan = pid => {
+    if (!confirm('Plan löschen? Zuweisungen bleiben als tote Referenz zurück.')) return;
+    onChange(plans.filter(p => p.id !== pid));
+  };
+  const addMeeting = pid => updPlan(pid, {
+    meetings: [...(plans.find(p => p.id === pid)?.meetings || []), { id: 'mt_' + Math.random().toString(36).slice(2, 8), name: '', hours: 0.5, frequency: 'weekly' }],
+  });
+  const updMeeting = (pid, mid, patch) => {
+    const p = plans.find(x => x.id === pid);
+    if (!p) return;
+    updPlan(pid, { meetings: (p.meetings || []).map(m => m.id === mid ? { ...m, ...patch } : m) });
+  };
+  const delMeeting = (pid, mid) => {
+    const p = plans.find(x => x.id === pid);
+    if (!p) return;
+    updPlan(pid, { meetings: (p.meetings || []).filter(m => m.id !== mid) });
+  };
+  if (!plans.length) {
+    return (
+      <div style={{ padding: '30px 0', color: 'var(--tx3)', fontSize: 12, textAlign: 'center' }}>
+        Noch keine Meeting-Pläne definiert.<br />
+        Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und können Teams oder einzelnen Personen zugewiesen werden.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {plans.map(plan => {
+        const teamUsage = teams.filter(t => (t.meetingPlanIds || []).includes(plan.id));
+        const memberUsage = members.filter(m => (m.meetingPlanIds || []).includes(plan.id));
+        return (
+          <div key={plan.id} className="cap-card" style={{ padding: 12, background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <LazyInput value={plan.name || ''} onCommit={v => updPlan(plan.id, { name: v })} placeholder="Plan-Name" />
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={() => delPlan(plan.id)} style={{ color: 'var(--re)' }}>Plan löschen</button>
+            </div>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6,
+              fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
+            }}>
+              <span>Meeting</span><span>Stunden</span><span>Rhythmus</span><span />
+            </div>
+            {(plan.meetings || []).map(mt => (
+              <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <LazyInput value={mt.name || ''} onCommit={v => updMeeting(plan.id, mt.id, { name: v })} placeholder="z. B. Standup" />
+                <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
+                  onCommit={v => updMeeting(plan.id, mt.id, { hours: Number(v) })} />
+                <select value={mt.frequency || 'weekly'}
+                  onChange={e => updMeeting(plan.id, mt.id, { frequency: e.target.value })}>
+                  <option value="daily">täglich</option>
+                  <option value="weekly">wöchentl.</option>
+                  <option value="biweekly">14-tägl.</option>
+                  <option value="monthly">monatl.</option>
+                </select>
+                <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(plan.id, mt.id)} style={{ color: 'var(--re)', padding: '2px 6px' }}>×</button>
+              </div>
+            ))}
+            <button className="btn btn-sec btn-xs" onClick={() => addMeeting(plan.id)} style={{ marginTop: 4 }}>+ Meeting</button>
+            {(teamUsage.length + memberUsage.length > 0) && (
+              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--tx3)' }}>
+                Zugewiesen: {[
+                  ...teamUsage.map(t => `Team „${t.name}"`),
+                  ...memberUsage.map(m => `Person „${m.name}"`),
+                ].join(' · ')}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── Capacity field: switches between Manual % and Derived (40h − meetings) ── */
 // Baseline is always 40h/week FTE. Members with reduced workload should model
 // it as a "Teilzeit" meeting-equivalent, or switch to Manual %.
-function CapacityField({ member, onUpd, t }) {
+// Simple plan picker: toggle chips for each plan. Used for Team + Member.
+function PlanPicker({ label, hint, plans, selected, onChange }) {
+  if (!plans.length) return null;
+  const toggle = id => {
+    const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
+    onChange(next);
+  };
+  return (
+    <div className="field" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+      <label style={{ marginBottom: 4 }}>{label}</label>
+      {hint && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>{hint}</div>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {plans.map(p => {
+          const on = selected.includes(p.id);
+          return (
+            <button key={p.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
+              onClick={() => toggle(p.id)} style={{ fontSize: 10 }}>
+              {on ? '✓ ' : ''}{p.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
   const mode = member.capMode === 'derived' ? 'derived' : 'manual';
   const setMode = newMode => {
     if (newMode === mode) return;
@@ -150,7 +262,8 @@ function CapacityField({ member, onUpd, t }) {
       onUpd({ ...member, capMode: 'manual', cap: deriveCap({ ...member, capMode: 'derived' }) });
     }
   };
-  const derivedPct = Math.round(deriveCap(member) * 100);
+  const capCtx = { plans: meetingPlans, teams };
+  const derivedPct = Math.round(deriveCap(member, capCtx) * 100);
   const tone = derivedPct > 100 ? 'var(--re)' : derivedPct >= 80 ? 'var(--gr)' : 'var(--am)';
   return (
     <div className="cap-card" style={{
@@ -182,16 +295,25 @@ function CapacityField({ member, onUpd, t }) {
             onCommit={v => onUpd({ ...member, cap: v / 100 })} />
         </div>
       ) : (
-        <DerivedCapacity member={member} onUpd={onUpd} />
+        <DerivedCapacity member={member} onUpd={onUpd} meetingPlans={meetingPlans} teams={teams} />
       )}
     </div>
   );
 }
 
-function DerivedCapacity({ member, onUpd }) {
+function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
   const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const meetings = member.meetings || [];
-  const meetingH = sumMeetingHours(meetings);
+  // Inherited meetings: from team-level + member-level plans.
+  const team = member.team ? teams.find(t => t.id === member.team) : null;
+  const planIdSet = new Set([
+    ...((team?.meetingPlanIds) || []),
+    ...((member.meetingPlanIds) || []),
+  ]);
+  const inheritedPlans = meetingPlans.filter(p => planIdSet.has(p.id));
+  const inheritedMeetings = inheritedPlans.flatMap(p => (p.meetings || []).map(m => ({ ...m, _planName: p.name, _fromTeam: (team?.meetingPlanIds || []).includes(p.id) })));
+  const allMeetingsWeekly = sumMeetingHours([...inheritedMeetings, ...meetings]);
+  const meetingH = allMeetingsWeekly; // keep legacy name for display
   const avail = Math.max(0, wh - meetingH);
   const addMeeting = () => {
     const id = 'mt_' + Math.random().toString(36).slice(2, 8);
@@ -215,6 +337,28 @@ function DerivedCapacity({ member, onUpd }) {
       <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: -4 }}>
         Default: {FTE_HOURS} h (FTE). Teilzeit/Überstunden hier anpassen.
       </div>
+
+      {/* Plan-Picker für Member (zusätzlich zu Team-geerbten Plänen). */}
+      <PlanPicker
+        label="Meeting-Pläne (zusätzlich)"
+        hint={team?.meetingPlanIds?.length
+          ? `${team.meetingPlanIds.length} Plan(e) automatisch vom Team „${team.name}" geerbt.`
+          : 'Pläne bündeln wiederkehrende Termine — verwalten unter „Meeting-Pläne".'}
+        plans={meetingPlans}
+        selected={member.meetingPlanIds || []}
+        onChange={ids => onUpd({ ...member, meetingPlanIds: ids })} />
+
+      {inheritedMeetings.length > 0 && (
+        <div style={{ fontSize: 10, color: 'var(--tx3)', padding: '6px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>Aus Plänen:</div>
+          {inheritedMeetings.map((m, i) => (
+            <div key={i} style={{ fontFamily: 'var(--mono)' }}>
+              − {(m.hours ?? 0)} h{m.frequency && m.frequency !== 'weekly' ? `/${m.frequency}` : ''} {m.name}
+              <span style={{ opacity: 0.6 }}> [{m._planName}{m._fromTeam ? ' · Team' : ''}]</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div>
         <div style={{
           display: 'grid', gridTemplateColumns: COLS, gap: 6,
@@ -315,7 +459,7 @@ function MemberReadRow({ member, teams, shortMap, onClick, t }) {
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
-export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+export function ResView({ members, teams, vacations, meetingPlans = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -353,13 +497,22 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
           ['teams', `${t('rv.teams')} (${teams.length})`],
           ['members', `${t('rv.members')} (${members.length})`],
           ['vacations', `${t('rv.vacations')} (${vacations.length})`],
+          ['plans', `Meeting-Pläne (${meetingPlans.length})`],
         ].map(([k, l]) =>
           <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
         <div style={{ flex: 1 }} />
         {section === 'teams' && <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>{t('rv.addTeam')}</button>}
         {section === 'vacations' && <button className="btn btn-sec btn-sm" onClick={addVacation}>{t('rv.addVacation')}</button>}
+        {section === 'plans' && <button className="btn btn-sec btn-sm" onClick={() => {
+          const id = 'mp_' + Math.random().toString(36).slice(2, 8);
+          onMeetingPlansUpd([...meetingPlans, { id, name: 'Neuer Plan', meetings: [] }]);
+        }}>+ Plan</button>}
       </div>
+
+      {section === 'plans' && (
+        <MeetingPlansSection plans={meetingPlans} onChange={onMeetingPlansUpd} teams={teams} members={members} />
+      )}
 
       {/* ═══════════════ TEAMS ═══════════════ */}
       {section === 'teams' && (
@@ -452,6 +605,7 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
         <TeamEditModal
           team={editingTeam}
           idx={editingTeamIdx}
+          meetingPlans={meetingPlans}
           onUpd={onTeamUpd}
           onDel={onTeamDel}
           onClose={() => setEditingTeamId(null)}
@@ -463,6 +617,7 @@ export function ResView({ members, teams, vacations, onUpd, onAdd, onClone, onDe
           member={editingMember}
           teams={teams}
           shortMap={shortMap}
+          meetingPlans={meetingPlans}
           onUpd={onUpd}
           onClone={onClone}
           onDel={id => { onDel(id); setEditingMemberId(null); }}

@@ -9,6 +9,7 @@ import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
+import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
@@ -447,7 +448,9 @@ export default function App() {
     let projName = null;
     let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
     const idStack = [];
-    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | 'customfields' | null
+    const parsedMeetingPlans = []; // meeting plan definitions from ## Meeting Plans
+    let currentMeetingPlan = null; // being parsed
+    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | 'customfields' | 'meetingplans' | null
     let lastItem = null;
 
     lines.forEach(line => {
@@ -464,7 +467,13 @@ export default function App() {
         else if (lower === 'holidays') section = 'holidays';
         else if (lower === 'custom fields') section = 'customfields';
         else if (lower === 'work tree') section = 'tree';
+        else if (lower === 'meeting plans') { section = 'meetingplans'; currentMeetingPlan = null; }
         else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
+        else if (section === 'meetingplans' && hm[0].startsWith('###')) {
+          currentMeetingPlan = { id: 'mp_' + Date.now() + parsedMeetingPlans.length, name: h, meetings: [] };
+          parsedMeetingPlans.push(currentMeetingPlan);
+          return;
+        }
         else if (section === 'templates' && hm[0].startsWith('###')) {
           // ### Template Name — start a new template
           currentTpl = { id: 'tpl_' + Date.now() + taskTemplates.length, name: h, phases: [] };
@@ -491,14 +500,42 @@ export default function App() {
         return;
       }
 
-      // Teams section: table rows | Name | Color |
+      // Teams section: | Name | Color | [Meeting Plans] |
       if (section === 'teams') {
-        const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*`?(#?[0-9a-fA-F]+)`?\s*\|\s*$/);
-        if (m && !/^Name$/i.test(m[1])) {
-          const name = m[1].trim();
-          const color = m[2].startsWith('#') ? m[2] : '#' + m[2];
+        // 3-col form with Meeting Plans column
+        const m3 = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*`?(#?[0-9a-fA-F]+)`?\s*\|\s*([^|]*?)\s*\|\s*$/);
+        if (m3 && !/^Name$/i.test(m3[1])) {
+          const name = m3[1].trim();
+          const color = m3[2].startsWith('#') ? m3[2] : '#' + m3[2];
+          const planNames = m3[3].trim() ? m3[3].split(',').map(s => s.trim()).filter(Boolean) : [];
+          explicitTeams.push({ name, color, _parsedPlans: planNames });
+          teamSet.add(name);
+          return;
+        }
+        // Legacy 2-col
+        const m2 = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*`?(#?[0-9a-fA-F]+)`?\s*\|\s*$/);
+        if (m2 && !/^Name$/i.test(m2[1])) {
+          const name = m2[1].trim();
+          const color = m2[2].startsWith('#') ? m2[2] : '#' + m2[2];
           explicitTeams.push({ name, color });
           teamSet.add(name);
+        }
+        return;
+      }
+
+      // Meeting Plans section: bullet list of "- Name Xh/freq" under the
+      // current `### PlanName` heading.
+      if (section === 'meetingplans' && currentMeetingPlan) {
+        const bm = line.match(/^\s*[-*]\s+(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
+        if (bm) {
+          const fk = bm[3].toLowerCase();
+          const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
+          currentMeetingPlan.meetings.push({
+            id: 'mt_' + Date.now() + currentMeetingPlan.meetings.length,
+            name: bm[1].trim(),
+            hours: parseFloat(bm[2]),
+            frequency: freq,
+          });
         }
         return;
       }
@@ -527,6 +564,12 @@ export default function App() {
           if (shortName) m._parsedShort = shortName;
           mems.push(m);
           lastItem = m;
+        }
+        // Sub-bullet for plan references: *Plans: Name 1, Name 2*
+        const pm = line.match(/^\s*\*Plans:\s*(.+?)\*\s*$/);
+        if (pm && lastItem && mems[mems.length - 1] === lastItem) {
+          lastItem._parsedPlanNames = pm[1].split(',').map(s => s.trim()).filter(Boolean);
+          return;
         }
         // Sub-bullet for meetings: *Meetings: Name 1.25h/d, Retro 0.5h/2w, Allhands 1h/mo*
         const mt = line.match(/^\s*\*Meetings:\s*(.+?)\*\s*$/);
@@ -827,6 +870,18 @@ export default function App() {
     vacationsArr.forEach(v => { v.person = resolveMember(v.person); });
     // Normalize to {person, from, to, note} — converts legacy week format on load
     const normalizedVacations = vacationsArr.map(normalizeVacation);
+    // Resolve meeting-plan name refs → ids on teams + members.
+    const planByName = Object.fromEntries(parsedMeetingPlans.map(p => [p.name, p.id]));
+    teamsArr.forEach(tm => {
+      const parsed = explicitTeams.find(et => et.name === tm.name)?._parsedPlans;
+      if (parsed?.length) tm.meetingPlanIds = parsed.map(n => planByName[n] || n).filter(Boolean);
+    });
+    mems.forEach(m => {
+      if (m._parsedPlanNames) {
+        m.meetingPlanIds = m._parsedPlanNames.map(n => planByName[n] || n).filter(Boolean);
+        delete m._parsedPlanNames;
+      }
+    });
     // Strip transient _parsedShort field from members
     mems.forEach(m => { delete m._parsedShort; });
 
@@ -835,7 +890,13 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
-    return { meta: metaObj, teams: teamsArr, members: mems, tree, vacations: normalizedVacations, holidays: holidaysArr, ...(taskTemplates.length ? { taskTemplates } : {}), ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}) };
+    return {
+      meta: metaObj, teams: teamsArr, members: mems, tree,
+      vacations: normalizedVacations, holidays: holidaysArr,
+      ...(taskTemplates.length ? { taskTemplates } : {}),
+      ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}),
+      ...(parsedMeetingPlans.length ? { meetingPlans: parsedMeetingPlans } : {}),
+    };
   }
 
   async function loadFromFile() {
@@ -995,7 +1056,20 @@ export default function App() {
   const viewStart = meta.viewStart && meta.viewStart < planStart ? meta.viewStart : planStart;
   const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
-  const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, members, vacations, viewStart, planEnd, hm, workDays, planStart) : { results: [], weeks: [] }, [tree, members, vacations, viewStart, planStart, planEnd, hm, workDays]);
+  // Enrich members with effective meetings (team-inherited plans + member
+  // plans + individual) so the scheduler's deriveCap() sees the full picture
+  // without having to know about data.meetingPlans directly.
+  const enrichedMembers = useMemo(() => {
+    const plans = data?.meetingPlans || [];
+    const currentTeams = data?.teams || [];
+    if (!plans.length && !currentTeams.some(tm => (tm.meetingPlanIds || []).length)) return members;
+    return members.map(m => {
+      if (m.capMode !== 'derived') return m;
+      const effective = resolveMemberMeetings(m, { plans, teams: currentTeams });
+      return { ...m, meetings: effective };
+    });
+  }, [members, data?.meetingPlans, data?.teams]);
+  const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart) : { results: [], weeks: [] }, [tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -1573,9 +1647,27 @@ export default function App() {
   function onBarClick(s, focusRequest = null) {
     const node = tree.find(r => r.id === (s.treeId || s.id));
     if (!node) return;
+    let effectiveFocus = focusRequest;
+    let modalNodeValue;
+    if (s.isHandoff && typeof s.segmentIdx === 'number') {
+      // Handoff-shadow click: open the PRIMARY's modal (not the shadow), jump
+      // the user straight into the handoff editor on the right stage. We do
+      // NOT spread the shadow over the node — that would put `#N` in the
+      // title and make the top-level Team/Assign fields look like they edit
+      // the shadow (they don't; they edit the primary tree item).
+      effectiveFocus = {
+        ...(focusRequest || {}),
+        section: 'handoff',
+        handoffStage: s.segmentIdx - 1,
+        handoffShadowId: s.id,
+      };
+      modalNodeValue = node;
+    } else {
+      modalNodeValue = { ...node, ...s };
+    }
     flushSync(() => {
-      setModalFocus(focusRequest);
-      setMN({ ...node, ...s });
+      setModalFocus(effectiveFocus);
+      setMN(modalNodeValue);
       setModal('node');
     });
   }
@@ -2038,7 +2130,10 @@ export default function App() {
         onAddNode={() => setModal('add')}
         onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
         onDeleteNode={id => deleteNode(id)} /></div>}
-      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations} onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
+      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
+        meetingPlans={data.meetingPlans || []}
+        onMeetingPlansUpd={v => setD('meetingPlans', v)}
+        onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
         onTeamUpd={(i, k, v) => setD('teams', teams.map((t, j) => j === i ? { ...t, [k]: v } : t))}
         onTeamAdd={() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }])}
         onTeamDel={i => setD('teams', teams.filter((_, j) => j !== i))} /></div>}

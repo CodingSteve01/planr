@@ -60,7 +60,9 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       setHighlightedDepId(null);
       return;
     }
-    const requestedTab = focusRequest.tab || (focusRequest.focusHint === 'deps' ? 'timing' : null);
+    const requestedTab = focusRequest.tab
+      || (focusRequest.focusHint === 'deps' ? 'timing' : null)
+      || (focusRequest.section === 'handoff' ? 'details' : null);
     if (requestedTab) setNmTab(requestedTab);
     if (focusRequest.focusHint) setFocusHint(focusRequest.focusHint);
     setHighlightedDepId(focusRequest.depId || null);
@@ -374,7 +376,24 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
+        {isLeaf && focusRequest?.section === 'handoff' && (
+          <div style={{
+            margin: '10px 0 0', padding: '8px 10px',
+            background: 'rgba(168,85,247,.12)',
+            border: '1px solid rgba(168,85,247,.35)',
+            borderRadius: 'var(--r)',
+            fontSize: 11, color: 'var(--tx)',
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>
+              ⇄ Du bearbeitest Handoff-Etappe {(focusRequest.handoffStage ?? 0) + 1} von {f.name}
+            </div>
+            <div style={{ color: 'var(--tx2)', fontSize: 10 }}>
+              Die Felder oben (Team / Person) gehören zum Primär-Assignee. Änderungen für diese Etappe unten im Handoff-Plan-Abschnitt vornehmen.
+            </div>
+          </div>
+        )}
         {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}
+          focusStage={focusRequest?.section === 'handoff' ? focusRequest.handoffStage : null}
           onChange={plan => s('handoffPlan', plan)} />}
       </>}
 

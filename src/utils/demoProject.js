@@ -88,8 +88,27 @@ export function buildDemoProject(t) {
       version: '2',
     },
     teams: [
-      { id: 'T1', name: 'Design & Frontend', color: '#3b82f6' },
-      { id: 'T2', name: 'Backend & Platform', color: '#10b981' },
+      // Frontend team gets the shared "Engineering Standard" meeting plan.
+      { id: 'T1', name: 'Design & Frontend', color: '#3b82f6', meetingPlanIds: ['plan_eng'] },
+      // Backend team inherits the same plan too — shows team-level reuse.
+      { id: 'T2', name: 'Backend & Platform', color: '#10b981', meetingPlanIds: ['plan_eng'] },
+    ],
+    meetingPlans: [
+      {
+        id: 'plan_eng', name: 'Engineering Standard',
+        meetings: [
+          { id: 'pe_1', name: 'Daily Standup', hours: 0.25, frequency: 'daily' },
+          { id: 'pe_2', name: 'Sprint Planning', hours: 2, frequency: 'biweekly' },
+          { id: 'pe_3', name: 'Retro', hours: 1, frequency: 'biweekly' },
+        ],
+      },
+      {
+        id: 'plan_lead', name: 'Leitungsrunden',
+        meetings: [
+          { id: 'pl_1', name: 'Team-Leads Sync', hours: 1, frequency: 'weekly' },
+          { id: 'pl_2', name: 'All-Hands', hours: 1, frequency: 'monthly' },
+        ],
+      },
     ],
     members: [
       // Manual-cap member (legacy default)
@@ -99,10 +118,11 @@ export function buildDemoProject(t) {
       {
         id: 'M2', name: 'Sam Rivera', team: 'T1', vac: 25,
         capMode: 'derived', weeklyHours: 40,
+        // Team inherits `plan_eng` automatically. Sam additionally carries the
+        // Leitungsrunden plan + one individual ad-hoc meeting.
+        meetingPlanIds: ['plan_lead'],
         meetings: [
-          { id: 'm2_1', name: 'Daily Standup', hours: 0.25, frequency: 'daily' },
-          { id: 'm2_2', name: 'Retro', hours: 1, frequency: 'biweekly' },
-          { id: 'm2_3', name: 'Sprint Planning', hours: 2, frequency: 'weekly' },
+          { id: 'm2_x', name: '1:1 Reviews', hours: 0.5, frequency: 'weekly' },
         ],
       },
       // Part-time with manual cap (the scheduler halves the available days).

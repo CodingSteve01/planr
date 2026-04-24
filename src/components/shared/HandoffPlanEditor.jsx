@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { SearchSelect } from './SearchSelect.jsx';
 
 // Per-cutoff override editor. Cutoffs are not created here — the scheduler
@@ -10,7 +11,21 @@ import { SearchSelect } from './SearchSelect.jsx';
 //
 // Index N of handoffPlan overrides the Nth cutoff (0-based). Anything beyond
 // the observed cutoffs is shown as "future cutoff" so the user can pre-plan.
-export function HandoffPlanEditor({ node, members, teams, scheduled, onChange }) {
+export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, focusStage = null }) {
+  const stageRefs = useRef({});
+  // Expand automatically when focused (offcut-click) or when the user has
+  // already added plan entries / scheduler produced cutoffs; otherwise keep
+  // collapsed so the editor isn't visual noise on every task.
+  const hasContent = Array.isArray(node.handoffPlan) && node.handoffPlan.some(p => p?.team || p?.assign?.length);
+  const [expanded, setExpanded] = useState(focusStage != null || hasContent);
+  useEffect(() => {
+    if (focusStage == null) return;
+    setExpanded(true);
+    const el = stageRefs.current[focusStage];
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusStage]);
   const plan = Array.isArray(node.handoffPlan) ? node.handoffPlan : [];
   const memberName = id => members.find(m => m.id === id)?.name || id;
   const teamName = id => teams.find(tm => tm.id === id)?.name || id;
@@ -53,6 +68,30 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange })
     override: plan[i] || null,
   }));
 
+  // Collapsed summary: one-liner only. User opens on demand.
+  if (!expanded) {
+    return (
+      <div style={{
+        marginTop: 10, padding: '6px 10px', background: 'var(--bg3)',
+        border: '1px solid var(--b)', borderRadius: 'var(--r)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 11,
+      }}>
+        <div style={{ color: 'var(--tx3)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--tx2)' }}>Handoff-Plan</span>
+          <span style={{ marginLeft: 6 }}>
+            {cutoffs.length === 0
+              ? 'Kein Cutoff erwartet — Auto-Cascade übernimmt, falls später nötig.'
+              : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'} (Scheduler entscheidet)`}
+          </span>
+        </div>
+        <button className="btn btn-sec btn-xs" onClick={() => setExpanded(true)}>
+          Override…
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       marginTop: 10, padding: 10, background: 'var(--bg3)',
@@ -61,10 +100,15 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange })
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>Handoff-Plan</div>
-        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
-          {cutoffs.length === 0 && plan.length === 0
-            ? 'Kein Cutoff erwartet'
-            : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'}${plan.length > 0 ? ` · ${plan.length} Override${plan.length === 1 ? '' : 's'}` : ''}`}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
+            {cutoffs.length === 0 && plan.length === 0
+              ? 'Kein Cutoff erwartet'
+              : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'}${plan.length > 0 ? ` · ${plan.length} Override${plan.length === 1 ? '' : 's'}` : ''}`}
+          </div>
+          {focusStage == null && (
+            <button className="btn btn-ghost btn-xs" onClick={() => setExpanded(false)} style={{ padding: '0 6px', color: 'var(--tx3)' }}>ein­klappen</button>
+          )}
         </div>
       </div>
       <div style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>
@@ -73,7 +117,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange })
 
       {stages.length === 0 && (
         <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
-          Aktuell kein Handoff nötig. Trage trotzdem eine Etappe ein, falls du Vorgaben für künftige Offboardings setzen willst.
+          Aktuell kein Handoff nötig. Falls du Vorgaben für künftige Offboardings setzen willst, "+ Etappe" anlegen.
         </div>
       )}
 
@@ -88,12 +132,16 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange })
         const predictedAfter = predicted?.handoff && allSegs[idx]?.personName
           ? ` nach Offboarding von ${allSegs[idx].personName}`
           : '';
+        const isFocused = focusStage === idx;
         return (
-          <div key={idx} style={{
-            padding: 8, background: 'var(--bg2)', border: '1px solid var(--b)',
+          <div key={idx} ref={el => { stageRefs.current[idx] = el; }} style={{
+            padding: 8,
+            background: isFocused ? 'rgba(59,130,246,.12)' : 'var(--bg2)',
+            border: '1px solid var(--b)',
             borderLeft: `3px solid ${predicted?.unscheduled ? 'var(--re)' : 'var(--ac)'}`,
             borderRadius: 4,
             display: 'flex', flexDirection: 'column', gap: 6,
+            outline: isFocused ? '2px solid var(--ac)' : 'none',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
@@ -143,8 +191,9 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange })
         );
       })}
 
-      <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }}>
-        + Zusätzliche Etappe vorbelegen
+      <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }}
+        data-htip="Fügt eine zusätzliche Etappe hinzu — für Offboardings die noch nicht im Ressourcen-Datum erfasst sind">
+        + {plan.length === 0 ? 'Etappe vorbelegen' : 'Weitere Etappe'}
       </button>
     </div>
   );

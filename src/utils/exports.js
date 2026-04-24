@@ -482,23 +482,28 @@ export async function exportReportDocx(ctx) {
                   (data.lineName ? ` <span style="font-size:11px;font-weight:600;color:#1a1e2a">${escapeHtml(data.lineName)}</span>` : '') +
                 `</div>`
               );
+              // Single font stack (Inter / system) throughout the legend so
+              // Word doesn't mix monospace abbrevs with sans text; indent
+              // cluster items via a <blockquote>-style margin so the nesting
+              // is obvious even in Word's limited block-flow layout.
+              const FONT = "'Inter','Segoe UI',system-ui,sans-serif";
               data.stationLines.forEach(s => {
                 const iconColor = data.color;
                 const strike = s.done ? 'text-decoration:line-through;opacity:0.6;' : '';
                 if (s.kind === 'station') {
                   parts.push(
-                    `<div style="font-size:10px;margin-bottom:3px;${strike}">` +
-                      `<span style="color:${iconColor};font-weight:700;margin-right:4px">${statusGlyph(s.status)}</span>` +
-                      `<span style="font-family:'Courier New',monospace;font-weight:700;color:${iconColor};margin-right:5px">${escapeHtml(s.abbrev)}</span>` +
-                      `<span style="color:#1a1e2a;font-weight:600">${escapeHtml(s.name)}</span>` +
-                      (s.count ? ` <span style="color:#7a839a;font-size:9px;font-family:'Courier New',monospace">${escapeHtml(s.count)}</span>` : '') +
+                    `<div style="font-family:${FONT};font-size:10.5px;margin:2px 0;${strike}">` +
+                      `<span style="color:${iconColor};font-weight:700;margin-right:6px">${statusGlyph(s.status)}</span>` +
+                      `<span style="color:${iconColor};font-weight:700">${escapeHtml(s.abbrev)}</span>` +
+                      (s.name ? ` <span style="color:${iconColor};font-weight:700">${escapeHtml(s.name)}</span>` : '') +
+                      (s.count ? ` <span style="color:#7a839a;font-weight:400;font-size:9.5px">${escapeHtml(s.count)}</span>` : '') +
                     `</div>`
                   );
                 } else {
                   parts.push(
-                    `<div style="font-size:9.5px;padding-left:16px;margin-bottom:2px;${strike}">` +
-                      `<span style="color:${iconColor};margin-right:4px">${statusGlyph(s.status)}</span>` +
-                      `<span style="color:#4a5268">${escapeHtml(s.name)}</span>` +
+                    `<div style="font-family:${FONT};font-size:10px;margin:1px 0 1px 22px;${strike}">` +
+                      `<span style="color:${iconColor};margin-right:6px">${statusGlyph(s.status)}</span>` +
+                      `<span style="color:#4a5268;font-weight:400">${escapeHtml(s.name)}</span>` +
                     `</div>`
                   );
                 }
