@@ -1313,6 +1313,50 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                     }} data-htip={`${ph.name}: ${ph.status}${ph.effortPct ? ` · ${ph.effortPct}%` : ''}`} />)}
                   </div>;
                 })()}
+                {/* Offboard-handoff segments: multi-person chain rendered as
+                    vertical dividers + per-segment tooltip. Each dashed line
+                    marks the date where work transitions to the next person. */}
+                {!isSummary && s.segments && s.segments.length > 1 && (() => {
+                  const total = (s.endD - s.startD) || 1;
+                  return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                    {s.segments.map((seg, si) => {
+                      const off = (seg.startD - s.startD) / total * 100;
+                      const w = (seg.endD - seg.startD) / total * 100;
+                      return <div key={si} style={{
+                        position: 'absolute',
+                        left: `${off}%`,
+                        width: `${w}%`,
+                        top: 0,
+                        bottom: 0,
+                        borderLeft: si > 0 ? '2px dashed rgba(255,255,255,.9)' : 'none',
+                        pointerEvents: 'auto',
+                      }} data-htip={`${seg.personName} · ${seg.effort.toFixed(1)} PT · ${iso(seg.startD)} → ${iso(seg.endD)}${seg.handoff ? ' · Handoff nach Offboarding' : ''}`} />;
+                    })}
+                    {/* Handoff badge in top-right */}
+                    <div style={{
+                      position: 'absolute', top: -1, right: -1,
+                      fontSize: 9, fontWeight: 700, color: '#fff',
+                      background: 'rgba(168,85,247,.95)',
+                      padding: '1px 5px', borderRadius: '0 4px 0 4px',
+                      pointerEvents: 'auto',
+                    }} data-htip={`Handoff-Kette: ${s.segments.map(seg => seg.personName).join(' → ')}`}>
+                      ⇄ {s.segments.length}
+                    </div>
+                  </div>;
+                })()}
+                {/* Truncation warning: task has remaining effort that no one
+                    can absorb — rendered as red diagonal stripes over the
+                    rightmost portion so user sees the work will not complete. */}
+                {!isSummary && s.truncatedByOffboard && (() => {
+                  const tr = s.truncatedByOffboard;
+                  return <div style={{
+                    position: 'absolute', top: 0, bottom: 0, right: 0,
+                    width: 10,
+                    background: 'repeating-linear-gradient(45deg, rgba(220,38,38,.95) 0 3px, transparent 3px 6px)',
+                    borderRight: '2px solid rgba(220,38,38,.95)',
+                    pointerEvents: 'auto',
+                  }} data-htip={`⚠ ${tr.remainingEffort.toFixed(1)} PT offen — ${tr.personName} offboarded ${tr.offboardDate}, kein Nachfolger im Team`} />;
+                })()}
                 {s.status === 'done' && <div style={{
                   position: 'absolute',
                   inset: 0,

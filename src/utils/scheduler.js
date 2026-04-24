@@ -233,7 +233,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const mStart = localDate(m2.start || ps);
           const mEnd = m2.end ? localDate(m2.end) : null;
           if (mStart > nextStart) return false;         // not yet onboarded
-          if (mEnd && mEnd <= nextStart) return false;  // already offboarded
+          if (mEnd && mEnd < nextStart) return false;   // offboarded strictly before handoff day (end-date is inclusive)
           return true;
         })
         .sort((a, b) => {

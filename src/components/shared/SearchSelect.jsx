@@ -89,6 +89,13 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
   // Reset to top on every re-open.
   useEffect(() => { if (open) setActiveIdx(0); }, [open]);
 
+  // When the user is typing a query, jump the highlight past the "— None —"
+  // row onto the first actual match — Enter should confirm a match, not clear.
+  useEffect(() => {
+    if (!open || !q) return;
+    if (hasEmptyRow && activeIdx === 0 && filtered.length > 0) setActiveIdx(1);
+  }, [q, open, hasEmptyRow, filtered.length, activeIdx]);
+
   // Keep active row scrolled into view inside the popup.
   useEffect(() => {
     if (!open || !popupRef.current) return;
@@ -127,7 +134,14 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
   return <div ref={ref} style={{ position: 'relative' }}>
     <input
       value={open ? q : currentLabel}
-      onChange={e => { setQ(e.target.value); if (!open) setOpen(true); setActiveIdx(0); }}
+      onChange={e => {
+        const next = e.target.value;
+        setQ(next);
+        if (!open) setOpen(true);
+        // With a query, highlight the first real match (past the "— None —"
+        // row); without one, start at the top.
+        setActiveIdx(next && hasEmptyRow ? 1 : 0);
+      }}
       onKeyDown={onKeyDown}
       onFocus={() => { setOpen(true); setQ(''); setActiveIdx(0); }}
       onClick={() => { if (!open) { setOpen(true); setQ(''); setActiveIdx(0); } }}
