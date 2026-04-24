@@ -607,7 +607,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
     if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
     const dailyBaseCap = deriveCap(bp) * vacInfo[bp.id];
-    const endDate = bp.end ? localDate(bp.end) : null;
+    // For multi-assign (pair programming), the task blocks when ANY assignee
+    // offboards, so the effective endDate is the MIN of all assignees' end
+    // dates. Using only bp.end would let a co-assignee silently offboard
+    // mid-task, attributing their gap to the primary.
+    const endDate = isMulti
+      ? cands.reduce((min, m) => {
+          if (!m.end) return min;
+          const d = localDate(m.end);
+          return min && min < d ? min : d;
+        }, null)
+      : (bp.end ? localDate(bp.end) : null);
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
     const workedDays = [];
     while (rem > 0 && wi < wks.length) {
@@ -690,7 +700,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     };
     const cascade = runAssignedCascade();
     const segments = [primarySegment, ...cascade.segments];
-    if (cascade.remaining > 0) {
+    // Ghost + truncated only fire when an actual offboard caused the shortfall.
+    // Without endDate, rem>0 means horizon exhaustion — not a handoff.
+    if (cascade.remaining > 0 && endDate) {
       const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
       const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
       const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
@@ -712,7 +724,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (cascade.lastWD) lastWorkDay = cascade.lastWD;
       if (cascade.finalWi >= 0) wi = cascade.finalWi;
     }
-    const truncated = cascade.remaining > 0 ? {
+    const truncated = (cascade.remaining > 0 && endDate) ? {
       remainingEffort: cascade.remaining,
       personId: segments[segments.length - 2]?.personId,
       personName: segments[segments.length - 2]?.personName,

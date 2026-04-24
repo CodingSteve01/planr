@@ -293,9 +293,13 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {assignees.length > 0 && (() => {
                 const sc = sMap[r.id];
                 const primary = assignees.map(memberShort).join(' ');
-                const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
-                const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
-                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} data-htip={tip}>{label}</span>;
+                const chain = hasChain(sc);
+                const label = chain ? chainShorts(sc, shortMap, primary) : primary;
+                const tip = chain ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
+                return <span style={{ marginLeft: 8, fontSize: 10, color: chain ? 'var(--am)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: chain ? 600 : 400 }} data-htip={tip}>
+                  {chain && <span style={{ marginRight: 3 }}>⇄</span>}
+                  {label}
+                </span>;
               })()}
               {/* Auto-assigned suggestion from scheduler */}
               {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && (() => {

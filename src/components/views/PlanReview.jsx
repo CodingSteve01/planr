@@ -4,6 +4,8 @@ import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
+import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
+import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
@@ -38,6 +40,8 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
   const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';
   const memberName = id => members.find(m => m.id === id)?.name || id;
   const memberShort = id => { const m = members.find(x => x.id === id); if (!m) return '?'; const w = (m.name || '').trim().split(/\s+/); return w.length === 1 ? w[0].slice(0, 2).toUpperCase() : w.map(x => x[0]).join('').toUpperCase(); };
+  const memberFullName = id => members.find(x => x.id === id)?.name || id || '?';
+  const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
   const matchesFilter = node => {
     if (!node) return false;
     if (rootFilter && !(node.id === rootFilter || node.id.startsWith(rootFilter + '.'))) return false;
@@ -190,6 +194,11 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
                 {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
                 <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
+                {hasChain(sc) && (() => {
+                  const primary = (node?.assign || []).map(memberShort).join('/') || memberShort(sc.personId);
+                  return <span style={{ fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0, padding: '1px 5px', border: '1px solid var(--am)', borderRadius: 3 }}
+                    data-htip={chainTooltip(sc, memberFullName)}>⇄ {chainShorts(sc, shortMap, primary)}</span>;
+                })()}
                 {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
                   onClick={e => { e.stopPropagation(); acceptAuto(node); }}
                   data-htip={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`}>{memberShort(sc.personId)}</button>}
