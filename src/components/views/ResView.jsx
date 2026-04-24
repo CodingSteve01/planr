@@ -145,80 +145,81 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
   );
 }
 
-/* ─── Meeting-Plans CRUD panel ───────────────────────────────────────────── */
-function MeetingPlansSection({ plans, onChange, teams, members }) {
-  const updPlan = (pid, patch) => onChange(plans.map(p => p.id === pid ? { ...p, ...patch } : p));
-  const delPlan = pid => {
-    if (!confirm('Plan löschen? Zuweisungen bleiben als tote Referenz zurück.')) return;
-    onChange(plans.filter(p => p.id !== pid));
-  };
-  const addMeeting = pid => updPlan(pid, {
-    meetings: [...(plans.find(p => p.id === pid)?.meetings || []), { id: 'mt_' + Math.random().toString(36).slice(2, 8), name: '', hours: 0.5, frequency: 'weekly' }],
-  });
-  const updMeeting = (pid, mid, patch) => {
-    const p = plans.find(x => x.id === pid);
-    if (!p) return;
-    updPlan(pid, { meetings: (p.meetings || []).map(m => m.id === mid ? { ...m, ...patch } : m) });
-  };
-  const delMeeting = (pid, mid) => {
-    const p = plans.find(x => x.id === pid);
-    if (!p) return;
-    updPlan(pid, { meetings: (p.meetings || []).filter(m => m.id !== mid) });
-  };
-  if (!plans.length) {
-    return (
-      <div style={{ padding: '30px 0', color: 'var(--tx3)', fontSize: 12, textAlign: 'center' }}>
-        Noch keine Meeting-Pläne definiert.<br />
-        Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und können Teams oder einzelnen Personen zugewiesen werden.
-      </div>
-    );
-  }
+/* ─── Meeting-Plan: row + popout edit modal ──────────────────────────────── */
+function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {plans.map(plan => {
-        const teamUsage = teams.filter(t => (t.meetingPlanIds || []).includes(plan.id));
-        const memberUsage = members.filter(m => (m.meetingPlanIds || []).includes(plan.id));
-        return (
-          <div key={plan.id} className="cap-card" style={{ padding: 12, background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ flex: 1 }}>
-                <LazyInput value={plan.name || ''} onCommit={v => updPlan(plan.id, { name: v })} placeholder="Plan-Name" />
-              </div>
-              <button className="btn btn-ghost btn-xs" onClick={() => delPlan(plan.id)} style={{ color: 'var(--re)' }}>Plan löschen</button>
-            </div>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6,
-              fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
-            }}>
-              <span>Meeting</span><span>Stunden</span><span>Rhythmus</span><span />
-            </div>
-            {(plan.meetings || []).map(mt => (
-              <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                <LazyInput value={mt.name || ''} onCommit={v => updMeeting(plan.id, mt.id, { name: v })} placeholder="z. B. Standup" />
-                <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
-                  onCommit={v => updMeeting(plan.id, mt.id, { hours: Number(v) })} />
-                <select value={mt.frequency || 'weekly'}
-                  onChange={e => updMeeting(plan.id, mt.id, { frequency: e.target.value })}>
-                  <option value="daily">täglich</option>
-                  <option value="weekly">wöchentl.</option>
-                  <option value="biweekly">14-tägl.</option>
-                  <option value="monthly">monatl.</option>
-                </select>
-                <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(plan.id, mt.id)} style={{ color: 'var(--re)', padding: '2px 6px' }}>×</button>
-              </div>
-            ))}
-            <button className="btn btn-sec btn-xs" onClick={() => addMeeting(plan.id)} style={{ marginTop: 4 }}>+ Meeting</button>
-            {(teamUsage.length + memberUsage.length > 0) && (
-              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--tx3)' }}>
-                Zugewiesen: {[
-                  ...teamUsage.map(t => `Team „${t.name}"`),
-                  ...memberUsage.map(m => `Person „${m.name}"`),
-                ].join(' · ')}
-              </div>
-            )}
+    <li className="res-row res-row-team" onClick={onClick} style={{ gridTemplateColumns: '22px 1fr 1fr 110px' }}>
+      <span className="res-dot" style={{ background: 'var(--ac)' }} />
+      <span className="res-row-name">{plan.name || 'Unbenannter Plan'}</span>
+      <span className="res-row-meta">
+        {(plan.meetings || []).length} Termin(e) · {totalHours.toFixed(2)} h/Woche
+      </span>
+      <span className="res-row-meta">{teamCount} Team(s) · {memberCount} Person(en)</span>
+    </li>
+  );
+}
+
+function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  const addMeeting = () => onUpd({
+    ...plan,
+    meetings: [...(plan.meetings || []), { id: 'mt_' + Math.random().toString(36).slice(2, 8), name: '', hours: 0.5, frequency: 'weekly' }],
+  });
+  const updMeeting = (mid, patch) => onUpd({
+    ...plan,
+    meetings: (plan.meetings || []).map(m => m.id === mid ? { ...m, ...patch } : m),
+  });
+  const delMeeting = (mid) => onUpd({
+    ...plan,
+    meetings: (plan.meetings || []).filter(m => m.id !== mid),
+  });
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal cap-card" onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>Meeting-Plan</span>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title="Schließen">×</button>
+        </div>
+        <div className="field">
+          <label>Name</label>
+          <LazyInput value={plan.name || ''} onCommit={v => onUpd({ ...plan, name: v })} placeholder="z. B. Engineering Standard" />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6,
+            fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
+          }}>
+            <span>Meeting</span><span>Stunden</span><span>Rhythmus</span><span />
           </div>
-        );
-      })}
+          {(plan.meetings || []).map(mt => (
+            <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+              <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder="z. B. Standup" />
+              <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
+                onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
+              <select value={mt.frequency || 'weekly'}
+                onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
+                <option value="daily">täglich</option>
+                <option value="weekly">wöchentl.</option>
+                <option value="biweekly">14-tägl.</option>
+                <option value="monthly">monatl.</option>
+              </select>
+              <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)} style={{ color: 'var(--re)', padding: '2px 6px' }}>×</button>
+            </div>
+          ))}
+          <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-danger" onClick={() => { if (confirm('Plan löschen? Zuweisungen bleiben als tote Referenz zurück.')) { onDel(plan.id); onClose(); } }}>
+            Entfernen
+          </button>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-sec" onClick={onClose}>Schließen</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -489,6 +490,8 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
   const [editingTeamId, setEditingTeamId]     = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [editingVacIdx, setEditingVacIdx]     = useState(null);
+  const [editingPlanId, setEditingPlanId]     = useState(null);
+  const editingPlan = editingPlanId != null ? meetingPlans.find(p => p.id === editingPlanId) : null;
 
   const memberCountForTeam = tid => members.filter(m => m.team === tid).length;
 
@@ -516,10 +519,10 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
       {/* Section pills */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
         {[
+          ['plans', `Meeting-Pläne (${meetingPlans.length})`],
           ['teams', `${t('rv.teams')} (${teams.length})`],
           ['members', `${t('rv.members')} (${members.length})`],
           ['vacations', `${t('rv.vacations')} (${vacations.length})`],
-          ['plans', `Meeting-Pläne (${meetingPlans.length})`],
         ].map(([k, l]) =>
           <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
@@ -529,29 +532,62 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
         {section === 'plans' && <button className="btn btn-sec btn-sm" onClick={() => {
           const id = 'mp_' + Math.random().toString(36).slice(2, 8);
           onMeetingPlansUpd([...meetingPlans, { id, name: 'Neuer Plan', meetings: [] }]);
+          setEditingPlanId(id);
         }}>+ Plan</button>}
       </div>
 
+      {/* ═══════════════ MEETING-PLÄNE ═══════════════ */}
       {section === 'plans' && (
-        <MeetingPlansSection plans={meetingPlans} onChange={onMeetingPlansUpd} teams={teams} members={members} />
+        meetingPlans.length === 0
+          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
+              Noch keine Meeting-Pläne definiert. Pläne bündeln wiederkehrende Termine (z. B. "Engineering Standard") und werden Teams oder Personen zugewiesen.
+            </div>
+          : <>
+              <div className="res-row res-row-header" style={{ gridTemplateColumns: '22px 1fr 1fr 110px' }}>
+                <span />
+                <span>Name</span>
+                <span>Termine</span>
+                <span style={{ textAlign: 'right' }}>Zuweisungen</span>
+              </div>
+              <ul className="res-list">
+                {meetingPlans.map(pl => {
+                  const teamCount = teams.filter(t => (t.meetingPlanIds || []).includes(pl.id)).length;
+                  const memberCount = members.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
+                  const totalH = sumMeetingHours(pl.meetings || []);
+                  return (
+                    <MeetingPlanReadRow key={pl.id} plan={pl}
+                      teamCount={teamCount} memberCount={memberCount} totalHours={totalH}
+                      onClick={() => setEditingPlanId(pl.id)} />
+                  );
+                })}
+              </ul>
+            </>
       )}
 
       {/* ═══════════════ TEAMS ═══════════════ */}
       {section === 'teams' && (
         teams.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
-          : <ul className="res-list">
-              {teams.map(tm => (
-                <TeamReadRow
-                  key={tm.id}
-                  team={tm}
-                  memberCount={memberCountForTeam(tm.id)}
-                  meetingPlans={meetingPlans}
-                  onClick={() => setEditingTeamId(tm.id)}
-                  t={t}
-                />
-              ))}
-            </ul>
+          : <>
+              <div className="res-row res-row-header res-row-team">
+                <span />
+                <span>Name</span>
+                <span>Meeting-Pläne</span>
+                <span style={{ textAlign: 'right' }}>Mitglieder</span>
+              </div>
+              <ul className="res-list">
+                {teams.map(tm => (
+                  <TeamReadRow
+                    key={tm.id}
+                    team={tm}
+                    memberCount={memberCountForTeam(tm.id)}
+                    meetingPlans={meetingPlans}
+                    onClick={() => setEditingTeamId(tm.id)}
+                    t={t}
+                  />
+                ))}
+              </ul>
+            </>
       )}
 
       {/* ═══════════════ MEMBERS ═══════════════ */}
@@ -572,6 +608,14 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                 <span style={{ fontSize: 12, fontWeight: 600, color: tm.color || 'var(--tx2)' }}>{tm.name}</span>
                 <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
                 {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
+              </div>
+              <div className="res-row res-row-header">
+                <span />
+                <span>Name</span>
+                <span>Team</span>
+                <span>Meeting-Pläne</span>
+                <span style={{ textAlign: 'right' }}>Cap · Urlaub</span>
+                <span style={{ textAlign: 'right' }}>Verfügbar</span>
               </div>
               <ul className="res-list">
                 {teamMembers.map(m => (
@@ -657,6 +701,14 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
           onDel={() => { onVac(vacations.filter((_, j) => j !== editingVacIdx)); setEditingVacIdx(null); }}
           onClose={() => setEditingVacIdx(null)}
           t={t}
+        />
+      )}
+      {editingPlan && (
+        <MeetingPlanEditModal
+          plan={editingPlan}
+          onUpd={p => onMeetingPlansUpd(meetingPlans.map(x => x.id === p.id ? p : x))}
+          onDel={pid => onMeetingPlansUpd(meetingPlans.filter(x => x.id !== pid))}
+          onClose={() => setEditingPlanId(null)}
         />
       )}
     </div>

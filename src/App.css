@@ -179,6 +179,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .res-plan-tags{display:flex;flex-wrap:wrap;gap:3px;overflow:hidden;min-width:0;}
 .res-plan-tag{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);white-space:nowrap;}
 .res-plan-tag-team{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:var(--ac);}
+.res-row-header{font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;padding:4px 8px;border-bottom:1px solid var(--b2);cursor:default;background:var(--bg2);user-select:none;}
+.res-row-header:hover{background:var(--bg2);}
 .res-avatar{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;flex-shrink:0;font-size:8px;font-weight:700;color:#fff;letter-spacing:.02em;justify-self:center;}
 .res-color-pick{width:24px;height:24px;padding:0;border:none;cursor:pointer;background:transparent;flex-shrink:0;border-radius:3px;}
 .res-edit-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}

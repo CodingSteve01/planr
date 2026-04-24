@@ -55,10 +55,16 @@ export function resolveMemberMeetings(member, ctxOrPlans) {
   return out;
 }
 
+// Baseline hours: derived-mode → weeklyHours (default 40); manual-mode →
+// cap × 40 so a part-time member with cap=0.5 starts from 20h. Meetings
+// (team plans + member plans + individual) reduce that baseline regardless
+// of capMode — team-inherited plans always count, matching the user's
+// expectation that "Team-Plans gelten egal auf was die Ressource steht".
 export function deriveCap(member, ctxOrPlans) {
   if (!member) return 1;
-  if (member.capMode !== 'derived') return member.cap ?? 1;
-  const wh = typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS;
+  const wh = member.capMode === 'derived'
+    ? (typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS)
+    : (typeof member.cap === 'number' ? Math.max(0, member.cap) * FTE_HOURS : FTE_HOURS);
   const allMeetings = resolveMemberMeetings(member, ctxOrPlans);
   const meetingHours = sumMeetingHours(allMeetings);
   const avail = Math.max(0, wh - meetingHours);
