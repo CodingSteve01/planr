@@ -7,6 +7,7 @@ import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
+import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
@@ -287,10 +288,23 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Team — small colored dot + name (subtle) */}
               {tName && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`Team: ${tName}`}>● {tName}</span>}
 
-              {/* Assignees — initials */}
-              {assignees.length > 0 && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} data-htip={assignees.map(memberFullName).join(', ')}>{assignees.map(memberShort).join(' ')}</span>}
+              {/* Assignees — initials, with handoff chain appended when the
+                  scheduler split work across multiple people. */}
+              {assignees.length > 0 && (() => {
+                const sc = sMap[r.id];
+                const primary = assignees.map(memberShort).join(' ');
+                const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
+                const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
+                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx2)', fontFamily: 'var(--mono)' }} data-htip={tip}>{label}</span>;
+              })()}
               {/* Auto-assigned suggestion from scheduler */}
-              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && <AutoAssignBadge title={`${t('aa.suggestion')} ${memberFullName(sMap[r.id].personId)}`} style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px' }}>{memberShort(sMap[r.id].personId)}</AutoAssignBadge>}
+              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && (() => {
+                const sc = sMap[r.id];
+                const primary = memberShort(sc.personId);
+                const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
+                const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : `${t('aa.suggestion')} ${memberFullName(sc.personId)}`;
+                return <AutoAssignBadge title={tip} style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px' }}>{label}</AutoAssignBadge>;
+              })()}
 
               {/* Priority — chevron icon for all leaves */}
               {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}

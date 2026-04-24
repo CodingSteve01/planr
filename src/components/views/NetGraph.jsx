@@ -3,6 +3,7 @@ import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
+import { chainShorts } from '../../utils/handoff.js';
 
 const NODE_W = 130;
 const NODE_H = 44;
@@ -357,13 +358,17 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, cpLabels
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const hasChildrenSet = useMemo(() => { const s = new Set(); tree.forEach(r => { const p = r.id.split('.').slice(0, -1).join('.'); if (p) s.add(p); }); return s; }, [tree]);
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
-  // Render all assignees of a node compactly — "KK+MB" or "KK+MB+1" for 3+
+  // Render all assignees of a node compactly — "KK+MB" or "KK+MB+1" for 3+.
+  // Handoff cascades appear as "KK+MB→AB→⚠" so the chain is visible here too.
   const assignLabel = (r, sc) => {
     const ids = (r.assign || []).length > 0 ? r.assign : (sc?.personId ? [sc.personId] : []);
-    if (!ids.length) return sc?.personShort || sc?.person?.split(' ')[0] || '';
-    const shorts = ids.map(id => shortMap[id] || '?');
-    if (shorts.length <= 2) return shorts.join('+');
-    return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+    const primary = (() => {
+      if (!ids.length) return sc?.personShort || sc?.person?.split(' ')[0] || '';
+      const shorts = ids.map(id => shortMap[id] || '?');
+      if (shorts.length <= 2) return shorts.join('+');
+      return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+    })();
+    return chainShorts(sc, shortMap, primary);
   };
 
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';

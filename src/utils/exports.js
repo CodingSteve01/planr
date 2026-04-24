@@ -364,6 +364,81 @@ export async function exportReportDocx(ctx) {
     // warning; Consolas/Courier New are universal.
     html = html.replace(/'JetBrains Mono','Cascadia Code',monospace/g, "Consolas,'Courier New',monospace");
 
+    // html-to-docx collapses flexbox to block flow, so KPI rows and two-column
+    // grids stack vertically (value/label on separate lines). Rewrite those
+    // structures as proper <table>s so Word sees intended columns.
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+
+      // KPI row (.kpi-row → one-row table, each .kpi becomes a <td>)
+      doc.querySelectorAll('.kpi-row').forEach(row => {
+        const kpis = [...row.querySelectorAll('.kpi')];
+        if (!kpis.length) return;
+        const table = doc.createElement('table');
+        table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:0 0 10px 0');
+        const tr = doc.createElement('tr');
+        kpis.forEach(k => {
+          const v = k.querySelector('.kpi-v');
+          const l = k.querySelector('.kpi-l');
+          const valueColor = v?.getAttribute('style')?.match(/color:\s*([^;]+)/i)?.[1] || '#1a1e2a';
+          const td = doc.createElement('td');
+          td.setAttribute('style', 'padding:8px 10px;border:1px solid #e0e4ea;background:#f7f9fc;text-align:center;vertical-align:top;font-family:Inter,system-ui,sans-serif');
+          td.innerHTML =
+            (v ? `<div style="font-size:14pt;font-weight:700;color:${valueColor};line-height:1.1;margin-bottom:2px">${v.innerHTML}</div>` : '') +
+            (l ? `<div style="font-size:8pt;color:#7a839a;text-transform:uppercase;letter-spacing:0.04em">${l.innerHTML}</div>` : '');
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+        row.replaceWith(table);
+      });
+
+      // Two-column grid (.grid2 → table with 2 tds per row)
+      doc.querySelectorAll('.grid2').forEach(grid => {
+        const cards = [...grid.children];
+        if (!cards.length) return;
+        const table = doc.createElement('table');
+        table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:0 0 10px 0');
+        for (let i = 0; i < cards.length; i += 2) {
+          const tr = doc.createElement('tr');
+          [cards[i], cards[i + 1]].forEach(card => {
+            const td = doc.createElement('td');
+            td.setAttribute('style', 'width:50%;padding:4px;vertical-align:top');
+            if (card) td.appendChild(card.cloneNode(true));
+            tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        }
+        grid.replaceWith(table);
+      });
+
+      // Progress/confidence bar strips (.bar, .conf-bar) — <div> with flex
+      // children. Replace with a 1-row table so segment widths render side by
+      // side in Word. Skip if no children have explicit width.
+      doc.querySelectorAll('.bar, .conf-bar').forEach(bar => {
+        const segs = [...bar.children].filter(c => c.style?.width);
+        if (!segs.length) return;
+        const table = doc.createElement('table');
+        table.setAttribute('style', 'width:100%;border-collapse:collapse;height:8px;margin:4px 0 8px 0');
+        const tr = doc.createElement('tr');
+        segs.forEach(seg => {
+          const td = doc.createElement('td');
+          const bg = seg.getAttribute('style')?.match(/background:\s*([^;]+)/i)?.[1] || '#e5e8ee';
+          const w = seg.getAttribute('style')?.match(/width:\s*([^;]+)/i)?.[1] || '0';
+          td.setAttribute('style', `background:${bg};width:${w};height:8px;padding:0;line-height:8px;font-size:1px`);
+          td.innerHTML = '&nbsp;';
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+        bar.replaceWith(table);
+      });
+
+      html = '<!DOCTYPE html>' + doc.documentElement.outerHTML;
+    } catch (e) {
+      // Non-fatal: if DOMParser or replacement fails, we still hand the raw
+      // HTML to html-to-docx which produces the previous (block-stacked) output.
+      console.warn('[exportReportDocx] HTML pre-processing failed; falling back to raw report HTML', e);
+    }
+
     const HTMLtoDOCX = await loadTurboDocx();
     const header = `<div style="font-size:9px;color:#7a839a">${(meta.name || 'Project')} — ${de ? 'Projektbericht' : 'Project Report'}</div>`;
     const footer = `<div style="font-size:8px;color:#7a839a;text-align:center">${dateStr} · Planr</div>`;

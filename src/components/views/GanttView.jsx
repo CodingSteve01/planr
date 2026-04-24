@@ -4,6 +4,7 @@ import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate } from '../../utils/completion.js';
 import { resolveToLeafIds, isLeafNode, parentId } from '../../utils/scheduler.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
+import { chainShorts, hasChain, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
@@ -50,14 +51,19 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
   const teamById = useMemo(() => Object.fromEntries(teams.map(t => [t.id, t])), [teams]);
   const leafIdSet = useMemo(() => new Set((tree || []).filter(r => isLeafNode(tree || [], r.id)).map(r => r.id)), [tree]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
-  // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+
+  // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+.
+  // When the task has a handoff cascade, append the chain: "KK+MB→AB→⚠".
   const snAll = (s) => {
     const ids = (s.assign || []).length > 0 ? s.assign : (s.personId ? [s.personId] : []);
-    if (!ids.length) return sn(s.personId, s.person);
-    const shorts = ids.map(id => shortMap[id] || sn(id, ''));
-    if (shorts.length <= 2) return shorts.join('+');
-    return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+    const primary = (() => {
+      if (!ids.length) return sn(s.personId, s.person);
+      const shorts = ids.map(id => shortMap[id] || sn(id, ''));
+      if (shorts.length <= 2) return shorts.join('+');
+      return shorts.slice(0, 2).join('+') + '+' + (shorts.length - 2);
+    })();
+    return chainShorts(s, shortMap, primary);
   };
+  const memberNameOf = id => (members.find(m => m.id === id)?.name) || id;
   const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -1315,17 +1321,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                 })()}
                 {/* Offboard segments: each person-slice of the task. Unscheduled
                     tail segments (no assignee available) render with a diagonal
-                    hatch; real handoffs get a dashed white divider. */}
+                    hatch; real handoffs get a dashed white divider. Full chain
+                    details live in the main row tooltip / TaskInsights — no
+                    per-segment hover to avoid a second tooltip stacking up. */}
                 {!isSummary && s.segments && s.segments.length > 1 && (() => {
                   const total = (s.endD - s.startD) || 1;
+                  const hasGhost = s.segments.some(seg => seg.unscheduled);
+                  const realCount = s.segments.filter(seg => !seg.unscheduled).length;
                   return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                     {s.segments.map((seg, si) => {
                       const off = (seg.startD - s.startD) / total * 100;
                       const w = (seg.endD - seg.startD) / total * 100;
                       const isGhost = !!seg.unscheduled;
-                      const segTip = isGhost
-                        ? `⚠ Unscheduled — ${seg.effort.toFixed(1)} PT offen ab ${iso(seg.startD)} · kein Nachfolger im Team`
-                        : `${seg.personName} · ${seg.effort.toFixed(1)} PT · ${iso(seg.startD)} → ${iso(seg.endD)}${seg.handoff ? ' · Handoff nach Offboarding' : ''}`;
                       return <div key={si} style={{
                         position: 'absolute',
                         left: `${off}%`,
@@ -1334,24 +1341,18 @@ export function GanttView({ scheduled, weeks, goals, teams, members = [], vacati
                         bottom: 0,
                         borderLeft: si > 0 && !isGhost ? '2px dashed rgba(255,255,255,.9)' : si > 0 && isGhost ? '2px solid rgba(220,38,38,.95)' : 'none',
                         background: isGhost ? 'repeating-linear-gradient(45deg, rgba(220,38,38,.7) 0 6px, rgba(220,38,38,.25) 6px 12px)' : 'transparent',
-                        pointerEvents: 'auto',
-                      }} data-htip={segTip} />;
+                        pointerEvents: 'none',
+                      }} />;
                     })}
-                    {/* Handoff badge: show ⇄N for real chain, ⚠ for unassigned tail */}
-                    {(() => {
-                      const hasGhost = s.segments.some(seg => seg.unscheduled);
-                      const realCount = s.segments.filter(seg => !seg.unscheduled).length;
-                      const tipChain = s.segments.map(seg => seg.unscheduled ? `⚠ unassigned (${seg.effort.toFixed(1)} PT)` : seg.personName).join(' → ');
-                      return <div style={{
-                        position: 'absolute', top: -1, right: -1,
-                        fontSize: 9, fontWeight: 700, color: '#fff',
-                        background: hasGhost ? 'rgba(220,38,38,.95)' : 'rgba(168,85,247,.95)',
-                        padding: '1px 5px', borderRadius: '0 4px 0 4px',
-                        pointerEvents: 'auto',
-                      }} data-htip={`Handoff-Kette: ${tipChain}`}>
-                        {hasGhost ? `⚠ ${realCount}+?` : `⇄ ${realCount}`}
-                      </div>;
-                    })()}
+                    <div style={{
+                      position: 'absolute', top: -1, right: -1,
+                      fontSize: 9, fontWeight: 700, color: '#fff',
+                      background: hasGhost ? 'rgba(220,38,38,.95)' : 'rgba(168,85,247,.95)',
+                      padding: '1px 5px', borderRadius: '0 4px 0 4px',
+                      pointerEvents: 'none',
+                    }}>
+                      {hasGhost ? `⚠ ${realCount}+?` : `⇄ ${realCount}`}
+                    </div>
                   </div>;
                 })()}
                 {s.status === 'done' && <div style={{
