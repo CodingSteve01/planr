@@ -378,18 +378,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
         {isLeaf && focusRequest?.section === 'handoff' && (
           <div style={{
-            margin: '10px 0 0', padding: '8px 10px',
-            background: 'rgba(168,85,247,.12)',
-            border: '1px solid rgba(168,85,247,.35)',
-            borderRadius: 'var(--r)',
-            fontSize: 11, color: 'var(--tx)',
+            margin: '8px 0 0', padding: '4px 8px',
+            background: 'rgba(168,85,247,.10)',
+            borderLeft: '2px solid rgba(168,85,247,.6)',
+            fontSize: 10.5, color: 'var(--tx2)', lineHeight: 1.4,
           }}>
-            <div style={{ fontWeight: 600, marginBottom: 2 }}>
-              ⇄ Du bearbeitest Handoff-Etappe {(focusRequest.handoffStage ?? 0) + 1} von {f.name}
-            </div>
-            <div style={{ color: 'var(--tx2)', fontSize: 10 }}>
-              Die Felder oben (Team / Person) gehören zum Primär-Assignee. Änderungen für diese Etappe unten im Handoff-Plan-Abschnitt vornehmen.
-            </div>
+            ⇄ Etappe {(focusRequest.handoffStage ?? 0) + 1} · Team/Person unten im Handoff-Abschnitt editieren.
           </div>
         )}
         {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}

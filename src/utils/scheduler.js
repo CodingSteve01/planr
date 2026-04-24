@@ -620,11 +620,59 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       offboarded: rem > 0 && !!endDate,
       handoff: false,
     };
-    // Cascade handoff for single-assignee tasks. Multi-assign pairs are out
-    // of scope (pair programming is co-working, not a sequential chain).
-    const cascade = (rem > 0 && endDate && !isMulti)
-      ? cascadeHandoff({ rem, lastOffboard: endDate, usedIds: new Set([bp.id]), tM, isPinned: !!r.pinnedStart })
-      : { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+    // Cascade handoff for offboard-truncated assigned tasks. For multi-
+    // assign (pair-programming) we try the OTHER named assignees first so
+    // the task continues with a collaborator instead of falling through to
+    // auto-cascade. Remainder still cascades to team + cross-team afterwards.
+    const runAssignedCascade = () => {
+      if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
+      const usedIds = new Set([bp.id]);
+      // 1) r.handoffPlan overrides (explicit user choices)
+      const planSegs = [];
+      let planState = { remaining: rem, lastOffboard: endDate, lastWD: null, finalWi: -1 };
+      const plan = Array.isArray(r.handoffPlan) ? r.handoffPlan : [];
+      for (const stage of plan) {
+        if (planState.remaining <= 0 || !planState.lastOffboard) break;
+        const stageAssign = Array.isArray(stage?.assign) ? stage.assign : [];
+        let pool = members;
+        if (stageAssign.length) pool = members.filter(mm => stageAssign.includes(mm.id));
+        else if (stage?.team) pool = members.filter(mm => pt(mm.team) === pt(stage.team));
+        if (!pool.length) break;
+        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart });
+        if (!chunk.segments.length) break;
+        chunk.segments.forEach(seg => { seg.planned = true; });
+        planSegs.push(...chunk.segments);
+        planState = { remaining: chunk.remaining, lastOffboard: chunk.lastOffboard || planState.lastOffboard, lastWD: chunk.lastWD || planState.lastWD, finalWi: chunk.finalWi >= 0 ? chunk.finalWi : planState.finalWi };
+      }
+      // 2) Co-assignees (multi-assign rescue)
+      let state = planState;
+      if (isMulti && state.remaining > 0) {
+        const coAssignees = cands.filter(m => !usedIds.has(m.id));
+        if (coAssignees.length) {
+          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart });
+          state = { remaining: coChunk.remaining, lastOffboard: coChunk.lastOffboard || state.lastOffboard, lastWD: coChunk.lastWD || state.lastWD, finalWi: coChunk.finalWi >= 0 ? coChunk.finalWi : state.finalWi };
+          planSegs.push(...coChunk.segments);
+        }
+      }
+      if (state.remaining <= 0) return { segments: planSegs, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
+      // 3) Same team auto-cascade
+      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart });
+      state = { remaining: primaryChunk.remaining, lastOffboard: primaryChunk.lastOffboard || state.lastOffboard, lastWD: primaryChunk.lastWD || state.lastWD, finalWi: primaryChunk.finalWi >= 0 ? primaryChunk.finalWi : state.finalWi };
+      const combined = [...planSegs, ...primaryChunk.segments];
+      if (state.remaining <= 0) return { segments: combined, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
+      // 4) Cross-team fallback
+      const others = members.filter(mm => pt(mm.team) !== team && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
+      if (!others.length) return { segments: combined, remaining: state.remaining, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: state.lastOffboard };
+      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart });
+      return {
+        segments: [...combined, ...secondary.segments],
+        remaining: secondary.remaining,
+        lastWD: secondary.lastWD || state.lastWD,
+        finalWi: secondary.finalWi >= 0 ? secondary.finalWi : state.finalWi,
+        lastOffboard: secondary.remaining > 0 ? (secondary.lastOffboard || state.lastOffboard) : null,
+      };
+    };
+    const cascade = runAssignedCascade();
     const segments = [primarySegment, ...cascade.segments];
     if (cascade.remaining > 0) {
       const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);

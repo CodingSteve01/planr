@@ -431,9 +431,9 @@ function Avatar({ member, teams }) {
   );
 }
 
-function MemberReadRow({ member, teams, shortMap, onClick, t }) {
+function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t }) {
   const team = teams.find(t => t.id === member.team);
-  const cap = Math.round(deriveCap(member) * 100);
+  const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
   return (
@@ -557,6 +557,7 @@ export function ResView({ members, teams, vacations, meetingPlans = [], onMeetin
                     member={m}
                     teams={teams}
                     shortMap={shortMap}
+                    meetingPlans={meetingPlans}
                     onClick={() => setEditingMemberId(m.id)}
                     t={t}
                   />

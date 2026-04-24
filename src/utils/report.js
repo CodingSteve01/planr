@@ -33,7 +33,7 @@ function mixWithWhite(color, amount = 0) {
   return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
 }
 
-export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang }) {
+export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data }) {
   const de = lang === 'de';
   const t = (en, deTxt) => de ? deTxt : en;
   const tn = id => teams.find(x => x.id === id)?.name || id || '';
@@ -122,7 +122,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     const parallelPt = lvs
       .filter(r => r.status !== 'done' && r.parallel && (r.assign || []).includes(m.id))
       .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-    const capDays = deriveCap(m) * 220 * projectSpanYears;
+    const capDays = deriveCap(m, { plans: data?.meetingPlans || [], teams }) * 220 * projectSpanYears;
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
     if (util > 100) {
       risks.push({

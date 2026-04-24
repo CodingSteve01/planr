@@ -111,13 +111,9 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
           )}
         </div>
       </div>
-      <div style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>
-        Cutoffs werden vom Scheduler automatisch aus Offboarding-Datums berechnet. Für jede Etappe kann hier optional ein Team oder eine Person fest vorgegeben werden — sonst sucht der Scheduler.
-      </div>
-
       {stages.length === 0 && (
         <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
-          Aktuell kein Handoff nötig. Falls du Vorgaben für künftige Offboardings setzen willst, "+ Etappe" anlegen.
+          Kein Cutoff erwartet — Auto-Cascade übernimmt falls nötig.
         </div>
       )}
 
@@ -133,60 +129,50 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
           ? ` nach Offboarding von ${allSegs[idx].personName}`
           : '';
         const isFocused = focusStage === idx;
+        const predictedShort = predicted
+          ? (predicted.unscheduled ? '⚠ keiner gefunden' : `Auto: ${predicted.personName}`)
+          : 'vorbelegt';
+        const afterPerson = allSegs[idx]?.personName;
         return (
           <div key={idx} ref={el => { stageRefs.current[idx] = el; }} style={{
-            padding: 8,
-            background: isFocused ? 'rgba(59,130,246,.12)' : 'var(--bg2)',
+            padding: '6px 8px',
+            background: isFocused ? 'rgba(59,130,246,.10)' : 'var(--bg2)',
             border: '1px solid var(--b)',
             borderLeft: `3px solid ${predicted?.unscheduled ? 'var(--re)' : 'var(--ac)'}`,
             borderRadius: 4,
-            display: 'flex', flexDirection: 'column', gap: 6,
-            outline: isFocused ? '2px solid var(--ac)' : 'none',
+            display: 'flex', flexDirection: 'column', gap: 4,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                Etappe {idx + 1}{predictedAfter}
-              </span>
-              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--re)', padding: '0 6px' }}
-                onClick={() => clearStage(idx)} title="Override entfernen (zurück zu Auto)">×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--tx2)' }}>
+              <span style={{ fontWeight: 700, color: 'var(--ac)' }}>#{idx + 1}</span>
+              {afterPerson && <span style={{ color: 'var(--tx3)' }}>nach {afterPerson}</span>}
+              <span style={{ flex: 1, textAlign: 'right', color: 'var(--tx3)' }}>{predictedShort}</span>
+              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--tx3)', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
+                onClick={() => clearStage(idx)} title="Override leeren (zurück zu Auto)">×</button>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{predictedLabel}</div>
-            <div className="rf" style={{ marginBottom: 0 }}>
-              <label>Team</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <SearchSelect value={stage.team || ''}
                 options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
                 onSelect={v => setStage(idx, { team: v })}
-                placeholder="(Auto)" allowEmpty emptyLabel="(Auto)" />
+                placeholder="Team (Auto)" allowEmpty emptyLabel="(Auto)" />
+              <SearchSelect
+                value={(stage.assign || [])[0] || ''}
+                options={stageMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
+                onSelect={id => {
+                  const m = members.find(x => x.id === id);
+                  setStage(idx, { assign: id ? [id] : [], team: stage.team || m?.team || '' });
+                }}
+                placeholder="Person (Auto)" allowEmpty emptyLabel="(Auto)" />
             </div>
-            <div className="rf" style={{ marginBottom: 0, alignItems: 'flex-start' }}>
-              <label>Person(en)</label>
-              <div style={{ width: 150, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {(stage.assign || []).length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {stage.assign.map(id => (
-                      <span key={id} className="tag">{memberName(id)}
-                        <span className="tag-x" onClick={() => setStage(idx, {
-                          assign: (stage.assign || []).filter(a => a !== id),
-                        })}>×</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <SearchSelect
-                  options={stageMembers
-                    .filter(m => !(stage.assign || []).includes(m.id))
-                    .map(m => ({ id: m.id, label: m.name || m.id }))}
-                  onSelect={id => {
-                    const m = members.find(x => x.id === id);
-                    setStage(idx, {
-                      assign: [...new Set([...(stage.assign || []), id])],
-                      team: stage.team || m?.team || '',
-                    });
-                  }}
-                  placeholder="+ Override-Person..."
-                />
+            {(stage.assign || []).length > 1 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {stage.assign.slice(1).map(id => (
+                  <span key={id} className="tag" style={{ fontSize: 9 }}>
+                    + {memberName(id)}
+                    <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}>×</span>
+                  </span>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         );
       })}
