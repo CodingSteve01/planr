@@ -103,8 +103,12 @@ export default function App() {
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
-  useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
+  // visitedTabs previously kept every visited tab mounted (display:none) so
+  // switching back was instant. Cost: every App re-render (e.g. each search
+  // keystroke after debounce) cascaded reconciliation through all mounted
+  // panes, causing input lag. Render only the active tab; first-switch
+  // re-mount is quick enough that the perf trade is worth it.
+  const visitedTabs = { has: t => t === tab };
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,

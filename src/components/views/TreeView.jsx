@@ -267,12 +267,15 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
             {/* ID column */}
             <td><span className="tid">{r.id}</span></td>
 
-            {/* Name column — everything inline: collapse + status + type + name + team + assignees + severity + prio + note */}
+            {/* Name column — flex container so badges wrap as a single trailing
+                group instead of breaking individually under the name when the row
+                runs out of horizontal space. */}
             <td style={{ whiteSpace: 'normal' }}>
-              <span style={{ display: 'inline-block', width: (d - 1) * 14 }} />
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
+              <span style={{ display: 'inline-block', width: (d - 1) * 14, flexShrink: 0 }} />
               {childNodes
-                ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center' }} onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
-                : <span style={{ display: 'inline-block', width: 14 }} />}
+                ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }} onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
+                : <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />}
 
               {/* Status icon — SVG matching the network graph's symbology */}
               <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} data-htip={statusLbl[effStatus]}>
@@ -344,6 +347,7 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
               {/* Collapsed children count */}
               {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
 
+              </div>
               {/* Description (root only) */}
               {d === 1 && r.description && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2, marginLeft: 32 }}>{r.description}</div>}
 
