@@ -848,6 +848,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       });
     });
   }
+  // Sanity check: no duplicate ids in scheduled output. A duplicate would
+  // make the Gantt render two rows with the same label and break per-id
+  // lookups elsewhere (e.g. pdf detail-plan group, person filter).
+  const idCount = {};
+  for (const s of expanded) idCount[s.id] = (idCount[s.id] || 0) + 1;
+  const dups = Object.entries(idCount).filter(([, n]) => n > 1);
+  if (dups.length) {
+    console.warn('[scheduler] duplicate scheduled ids:', dups.map(([id, n]) => `${id}×${n}`).join(', '));
+  }
   return { results: expanded, weeks: wks };
 }
 

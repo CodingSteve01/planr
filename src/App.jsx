@@ -1160,7 +1160,10 @@ export default function App() {
   const cpEdges = cpData.edges;
   const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
-  const viewScheduled = useMemo(() => scheduled.filter(s => visibleIdSet.has(s.id)), [scheduled, visibleIdSet]);
+  // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
+  // their primary in scheduled[]. Match either id or treeId so all segments
+  // pass through view-filters together with their tree node.
+  const viewScheduled = useMemo(() => scheduled.filter(s => visibleIdSet.has(s.id) || (s.treeId && visibleIdSet.has(s.treeId))), [scheduled, visibleIdSet]);
   const viewGoals = useMemo(() => visibleTree.filter(r => !r.id.includes('.') && r.type), [visibleTree]);
   const viewStats = useMemo(() => {
     if (!hideDone) return stats;
