@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
@@ -14,7 +14,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -379,3 +379,5 @@ export function TreeView({ tree, selected, multiSel, onSelect, search, teamFilte
     </table>
   </div>;
 }
+
+export const TreeView = memo(TreeViewImpl);

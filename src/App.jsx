@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
+import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { SK } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
@@ -36,6 +36,17 @@ import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
+
+// useEvent shim — stable callback ref that always invokes the latest closure.
+// Lets us pass App-defined functions to React.memo'd children without busting
+// memoization on every render, while keeping the function's captured state
+// fresh. Safe for callbacks invoked imperatively (event handlers, etc.) — do
+// NOT use during render.
+function useStableCallback(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args) => ref.current(...args), []);
+}
 
 function loadLocalProject() {
   try {
@@ -103,12 +114,12 @@ export default function App() {
   const [data, setData] = useState(() => loadLocalProject());
   const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
-  // visitedTabs previously kept every visited tab mounted (display:none) so
-  // switching back was instant. Cost: every App re-render (e.g. each search
-  // keystroke after debounce) cascaded reconciliation through all mounted
-  // panes, causing input lag. Render only the active tab; first-switch
-  // re-mount is quick enough that the perf trade is worth it.
-  const visitedTabs = { has: t => t === tab };
+  // Keep every visited tab mounted (display:none for inactive) so switching
+  // back is instant. Each view is wrapped in React.memo and its callbacks
+  // are useCallback'd, so an App re-render that doesn't touch a view's data
+  // skips its reconciliation entirely — no input-lag cascade.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
+  useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -1779,6 +1790,87 @@ export default function App() {
     // TODO: add Network Graph improvements once documented
   ];
 
+  // Stable callback wrappers for memo'd children. Identity stays the same
+  // across renders, but each invocation reads the latest closure (so they
+  // see fresh state). Only callbacks passed to React.memo'd views need this.
+  const onTreeSelect = useStableCallback((node, e, visibleIds) => {
+    if (e?.shiftKey && selected && visibleIds) {
+      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+      if (ai >= 0 && bi >= 0) {
+        const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
+        setMultiSel(new Set(range));
+      }
+    } else if (e?.ctrlKey || e?.metaKey) {
+      setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
+      if (!selected) setSel(node);
+    } else { setSel(node); setMultiSel(new Set()); }
+  });
+  const onTreeQuickAdd = useStableCallback(parent => {
+    const id = nextChildId(tree, parent.id);
+    const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] };
+    addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview');
+  });
+  const onTreeDelete = useStableCallback(deleteNode);
+  const onTreeReorder = useStableCallback(reorderSibling);
+  const onGanttBarClick = useStableCallback(onBarClick);
+  const onGanttSeqUpdate = useStableCallback(onSeqUpdate);
+  const onGanttExtendViewStart = useStableCallback(extendViewStart);
+  const onGanttTaskUpdate = useStableCallback(updateNode);
+  const onGanttRemoveDep = useStableCallback(removeDep);
+  const onGanttAddDep = useStableCallback(addDep);
+  const onGanttReorderInQueue = useStableCallback(reorderInQueue);
+  const onGanttReorderSibling = useStableCallback(reorderSibling);
+  const onNetNodeClick = useStableCallback(r => onBarClick(r));
+  const onNetAddNode = useStableCallback(() => setModal('add'));
+  const onNetAddDep = useStableCallback((fromId, toId) => {
+    const node = tree.find(r => r.id === fromId);
+    if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); }
+  });
+  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
+  const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
+  const onPlanReviewUpdate = useStableCallback(updateNode);
+  const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
+  const onSumOpenItem = useStableCallback(id => {
+    const node = tree.find(r => r.id === id); if (!node) return;
+    if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
+    else { setMN(node); setModal('node'); }
+  });
+  const onBriefingOpenItem = onSumOpenItem;
+  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
+  const onResMeetingPlansUpd = useStableCallback(v => setD('meetingPlans', v));
+  const onResMemberUpd = useStableCallback(updateMember);
+  const onResMemberAdd = useStableCallback(addMember);
+  const onResMemberClone = useStableCallback(cloneMember);
+  const onResMemberDel = useStableCallback(deleteMember);
+  const onResVacUpd = useStableCallback(v => setD('vacations', v));
+  const onResTeamUpd = useStableCallback((i, k, v) => setD('teams', teams.map((tm, j) => j === i ? { ...tm, [k]: v } : tm)));
+  const onResTeamAdd = useStableCallback(() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]));
+  const onResTeamDel = useStableCallback(i => {
+    const deleted = teams[i];
+    if (!deleted) return;
+    setData(d => {
+      const nextTeams = d.teams.filter((_, j) => j !== i);
+      const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
+      const nextTree = d.tree.map(r => {
+        let out = r;
+        if (r.team === deleted.id) out = { ...out, team: '' };
+        if (r.phases?.length) {
+          const phases = r.phases.map(p => {
+            const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
+            if (!hasMatch) return p;
+            const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
+            return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
+          });
+          if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
+        }
+        return out;
+      });
+      return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
+    });
+    setSaved(false);
+  });
+  const onHolUpdate = useStableCallback(v => setD('holidays', v));
+
   return <>
     <HoverTipProvider />
     <div className="app">
@@ -1885,52 +1977,29 @@ export default function App() {
     </div>}
     <div className="main">
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
-        onNavigate={(id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); }}
-        onOpenItem={id => {
-          const node = tree.find(r => r.id === id); if (!node) return;
-          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-          else { setMN(node); setModal('node'); }
-        }}
-        onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })} /></div>}
+        onNavigate={onSumNavigate}
+        onOpenItem={onSumOpenItem}
+        onExportTodo={onSumExportTodo} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
         tree={visibleTree} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
-        onOpenItem={id => {
-          const node = tree.find(r => r.id === id); if (!node) return;
-          // Parent with children → filter Tree view to that subtree instead of opening modal
-          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-          else { setMN(node); setModal('node'); }
-        }}
-        onExportTodo={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })}
+        onOpenItem={onBriefingOpenItem}
+        onExportTodo={onSumExportTodo}
       /></div>}
       {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
-        onOpenItem={id => {
-          const node = tree.find(r => r.id === id); if (!node) return;
-          if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-          else { setMN(node); setModal('node'); }
-        }}
-        onUpdate={updateNode} /></div>}
+        onOpenItem={onPlanReviewOpenItem}
+        onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
           {!visibleTree.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView tree={visibleTree} selected={selected} multiSel={multiSel} onSelect={(node, e, visibleIds) => {
-                if (e?.shiftKey && selected && visibleIds) {
-                  // Shift-click: range select from last selected to this
-                  const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
-                  if (ai >= 0 && bi >= 0) {
-                    const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-                    setMultiSel(new Set(range));
-                  }
-                } else if (e?.ctrlKey || e?.metaKey) {
-                  setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
-                  if (!selected) setSel(node);
-                } else { setSel(node); setMultiSel(new Set()); }
-              }} search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
+            : <TreeView tree={visibleTree} selected={selected} multiSel={multiSel}
+              onSelect={onTreeSelect}
+              search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-              onQuickAdd={parent => { const id = nextChildId(tree, parent.id); const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] }; addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview'); }}
-              onDelete={deleteNode} onReorder={reorderSibling} />
+              onQuickAdd={onTreeQuickAdd}
+              onDelete={onTreeDelete} onReorder={onTreeReorder} />
           }
         </div>
         {selected && <div className="side fade">
@@ -2129,43 +2198,20 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onBarClick} onSeqUpdate={onSeqUpdate} onExtendViewStart={extendViewStart} onTaskUpdate={updateNode} onRemoveDep={removeDep} onAddDep={addDep} onReorderInQueue={reorderInQueue} onReorderSibling={reorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
-        onNodeClick={r => onBarClick(r)}
-        onAddNode={() => setModal('add')}
-        onAddDep={(fromId, toId) => { const node = tree.find(r => r.id === fromId); if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); } }}
-        onDeleteNode={id => deleteNode(id)} /></div>}
+        onNodeClick={onNetNodeClick}
+        onAddNode={onNetAddNode}
+        onAddDep={onNetAddDep}
+        onDeleteNode={onNetDeleteNode} /></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
-        onMeetingPlansUpd={v => setD('meetingPlans', v)}
-        onUpd={updateMember} onAdd={addMember} onClone={cloneMember} onDel={deleteMember} onVac={v => setD('vacations', v)}
-        onTeamUpd={(i, k, v) => setD('teams', teams.map((t, j) => j === i ? { ...t, [k]: v } : t))}
-        onTeamAdd={() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }])}
-        onTeamDel={i => {
-          const deleted = teams[i];
-          if (!deleted) return;
-          setData(d => {
-            const nextTeams = d.teams.filter((_, j) => j !== i);
-            const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
-            const nextTree = d.tree.map(r => {
-              let out = r;
-              if (r.team === deleted.id) out = { ...out, team: '' };
-              if (r.phases?.length) {
-                const phases = r.phases.map(p => {
-                  const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
-                  if (!hasMatch) return p;
-                  const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
-                  return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
-                });
-                if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
-              }
-              return out;
-            });
-            return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
-          });
-          setSaved(false);
-        }} /></div>}
-      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={v => setD('holidays', v)} /></div>}
+        onMeetingPlansUpd={onResMeetingPlansUpd}
+        onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}
+        onTeamUpd={onResTeamUpd}
+        onTeamAdd={onResTeamAdd}
+        onTeamDel={onResTeamDel} /></div>}
+      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}

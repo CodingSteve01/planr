@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
@@ -335,7 +335,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function NetGraph({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -657,3 +657,5 @@ export function NetGraph({ tree, scheduled, teams, members = [], cpSet, cpLabels
     {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
   </div>;
 }
+
+export const NetGraph = memo(NetGraphImpl);

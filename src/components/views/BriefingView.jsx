@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from "react";
 import { iso, localDate, diffDays } from '../../utils/date.js';
 import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
@@ -37,7 +37,7 @@ function weeksBetween(a, b) {
   return Math.round(days / 7);
 }
 
-export function BriefingView({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
+function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
   const { t } = useT();
 
   const HORIZON_OPTS = [
@@ -401,3 +401,5 @@ export function BriefingView({ tree, scheduled, vacations, members, teams, stats
     </div>
   );
 }
+
+export const BriefingView = memo(BriefingViewImpl);

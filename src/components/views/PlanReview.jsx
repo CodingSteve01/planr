@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus } from '../../utils/scheduler.js';
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
@@ -12,7 +12,7 @@ const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-export function PlanReview({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', onOpenItem, onUpdate }) {
+function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -363,3 +363,5 @@ export function PlanReview({ tree, scheduled, members, teams, confidence, confRe
     </>}
   </div>;
 }
+
+export const PlanReview = memo(PlanReviewImpl);

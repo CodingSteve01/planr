@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from "react";
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { LazyInput } from '../shared/LazyInput.jsx';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -499,7 +499,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
-export function ResView({ members, teams, vacations, meetingPlans = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -829,3 +829,5 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
     </div>
   );
 }
+
+export const ResView = memo(ResViewImpl);

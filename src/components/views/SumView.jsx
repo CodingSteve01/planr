@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from "react";
 import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
@@ -12,7 +12,7 @@ import { TimetableView } from './TimetableView.jsx';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-export function SumView({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onOpenItem, onExportTodo }) {
   const { t } = useT();
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
@@ -266,3 +266,5 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     </div>
   );
 }
+
+export const SumView = memo(SumViewImpl);
