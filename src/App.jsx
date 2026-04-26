@@ -1722,6 +1722,90 @@ export default function App() {
     }
   }
 
+  // Stable callback wrappers for memo'd children. MUST run unconditionally
+  // every render — placed BEFORE any early-return so React sees the same
+  // hook order whether `data` is null (Onboard splash) or loaded.
+  // Each callback's body resolves identifiers at invocation time, so the
+  // closures still see fresh `tree`, `selected`, etc. via the latest-closure
+  // ref pattern inside useStableCallback.
+  const onTreeSelect = useStableCallback((node, e, visibleIds) => {
+    if (e?.shiftKey && selected && visibleIds) {
+      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+      if (ai >= 0 && bi >= 0) {
+        const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
+        setMultiSel(new Set(range));
+      }
+    } else if (e?.ctrlKey || e?.metaKey) {
+      setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
+      if (!selected) setSel(node);
+    } else { setSel(node); setMultiSel(new Set()); }
+  });
+  const onTreeQuickAdd = useStableCallback(parent => {
+    const id = nextChildId(tree, parent.id);
+    const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] };
+    addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview');
+  });
+  const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
+  const onTreeReorder = useStableCallback((...a) => reorderSibling(...a));
+  const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
+  const onGanttSeqUpdate = useStableCallback((...a) => onSeqUpdate(...a));
+  const onGanttExtendViewStart = useStableCallback((...a) => extendViewStart(...a));
+  const onGanttTaskUpdate = useStableCallback((...a) => updateNode(...a));
+  const onGanttRemoveDep = useStableCallback((...a) => removeDep(...a));
+  const onGanttAddDep = useStableCallback((...a) => addDep(...a));
+  const onGanttReorderInQueue = useStableCallback((...a) => reorderInQueue(...a));
+  const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
+  const onNetNodeClick = useStableCallback(r => onBarClick(r));
+  const onNetAddNode = useStableCallback(() => setModal('add'));
+  const onNetAddDep = useStableCallback((fromId, toId) => {
+    const node = tree.find(r => r.id === fromId);
+    if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); }
+  });
+  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
+  const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
+  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
+  const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
+  const onSumOpenItem = useStableCallback(id => {
+    const node = tree.find(r => r.id === id); if (!node) return;
+    if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
+    else { setMN(node); setModal('node'); }
+  });
+  const onBriefingOpenItem = onSumOpenItem;
+  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
+  const onResMeetingPlansUpd = useStableCallback(v => setD('meetingPlans', v));
+  const onResMemberUpd = useStableCallback((...a) => updateMember(...a));
+  const onResMemberAdd = useStableCallback((...a) => addMember(...a));
+  const onResMemberClone = useStableCallback((...a) => cloneMember(...a));
+  const onResMemberDel = useStableCallback((...a) => deleteMember(...a));
+  const onResVacUpd = useStableCallback(v => setD('vacations', v));
+  const onResTeamUpd = useStableCallback((i, k, v) => setD('teams', teams.map((tm, j) => j === i ? { ...tm, [k]: v } : tm)));
+  const onResTeamAdd = useStableCallback(() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]));
+  const onResTeamDel = useStableCallback(i => {
+    const deleted = teams[i];
+    if (!deleted) return;
+    setData(d => {
+      const nextTeams = d.teams.filter((_, j) => j !== i);
+      const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
+      const nextTree = d.tree.map(r => {
+        let out = r;
+        if (r.team === deleted.id) out = { ...out, team: '' };
+        if (r.phases?.length) {
+          const phases = r.phases.map(p => {
+            const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
+            if (!hasMatch) return p;
+            const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
+            return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
+          });
+          if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
+        }
+        return out;
+      });
+      return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
+    });
+    setSaved(false);
+  });
+  const onHolUpdate = useStableCallback(v => setD('holidays', v));
+
   if (!bootstrapped) return <div className="onboard">
     <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
       <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
@@ -1789,87 +1873,6 @@ export default function App() {
     _t('new.planReview'),
     // TODO: add Network Graph improvements once documented
   ];
-
-  // Stable callback wrappers for memo'd children. Identity stays the same
-  // across renders, but each invocation reads the latest closure (so they
-  // see fresh state). Only callbacks passed to React.memo'd views need this.
-  const onTreeSelect = useStableCallback((node, e, visibleIds) => {
-    if (e?.shiftKey && selected && visibleIds) {
-      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
-      if (ai >= 0 && bi >= 0) {
-        const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-        setMultiSel(new Set(range));
-      }
-    } else if (e?.ctrlKey || e?.metaKey) {
-      setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
-      if (!selected) setSel(node);
-    } else { setSel(node); setMultiSel(new Set()); }
-  });
-  const onTreeQuickAdd = useStableCallback(parent => {
-    const id = nextChildId(tree, parent.id);
-    const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] };
-    addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview');
-  });
-  const onTreeDelete = useStableCallback(deleteNode);
-  const onTreeReorder = useStableCallback(reorderSibling);
-  const onGanttBarClick = useStableCallback(onBarClick);
-  const onGanttSeqUpdate = useStableCallback(onSeqUpdate);
-  const onGanttExtendViewStart = useStableCallback(extendViewStart);
-  const onGanttTaskUpdate = useStableCallback(updateNode);
-  const onGanttRemoveDep = useStableCallback(removeDep);
-  const onGanttAddDep = useStableCallback(addDep);
-  const onGanttReorderInQueue = useStableCallback(reorderInQueue);
-  const onGanttReorderSibling = useStableCallback(reorderSibling);
-  const onNetNodeClick = useStableCallback(r => onBarClick(r));
-  const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onNetAddDep = useStableCallback((fromId, toId) => {
-    const node = tree.find(r => r.id === fromId);
-    if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); }
-  });
-  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
-  const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
-  const onPlanReviewUpdate = useStableCallback(updateNode);
-  const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
-  const onSumOpenItem = useStableCallback(id => {
-    const node = tree.find(r => r.id === id); if (!node) return;
-    if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-    else { setMN(node); setModal('node'); }
-  });
-  const onBriefingOpenItem = onSumOpenItem;
-  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
-  const onResMeetingPlansUpd = useStableCallback(v => setD('meetingPlans', v));
-  const onResMemberUpd = useStableCallback(updateMember);
-  const onResMemberAdd = useStableCallback(addMember);
-  const onResMemberClone = useStableCallback(cloneMember);
-  const onResMemberDel = useStableCallback(deleteMember);
-  const onResVacUpd = useStableCallback(v => setD('vacations', v));
-  const onResTeamUpd = useStableCallback((i, k, v) => setD('teams', teams.map((tm, j) => j === i ? { ...tm, [k]: v } : tm)));
-  const onResTeamAdd = useStableCallback(() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]));
-  const onResTeamDel = useStableCallback(i => {
-    const deleted = teams[i];
-    if (!deleted) return;
-    setData(d => {
-      const nextTeams = d.teams.filter((_, j) => j !== i);
-      const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
-      const nextTree = d.tree.map(r => {
-        let out = r;
-        if (r.team === deleted.id) out = { ...out, team: '' };
-        if (r.phases?.length) {
-          const phases = r.phases.map(p => {
-            const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
-            if (!hasMatch) return p;
-            const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
-            return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
-          });
-          if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
-        }
-        return out;
-      });
-      return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
-    });
-    setSaved(false);
-  });
-  const onHolUpdate = useStableCallback(v => setD('holidays', v));
 
   return <>
     <HoverTipProvider />
