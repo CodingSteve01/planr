@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { isoWeek, isoWeekYear } from '../../utils/date.js';
+import { iso, isoWeek, isoWeekYear } from '../../utils/date.js';
+import { horizonLabel } from '../../utils/horizon.js';
 import { computeRoadmapModel } from '../../utils/roadmap.js';
 import { useT } from '../../i18n.jsx';
 
@@ -7,7 +8,8 @@ import { useT } from '../../i18n.jsx';
 // 2-col line grid. Single-line rows: abbrev · KW/YY+date · dur · status.
 // Team resolved via scheduled segments + tree fallback; shown in tooltip only.
 export function TimetableView({ tree, scheduled, stats, teams, members }) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const isDe = lang === 'de';
   const model = useMemo(() => computeRoadmapModel({ tree, scheduled, stats }), [tree, scheduled, stats]);
 
   const teamById = useMemo(() => Object.fromEntries((teams || []).map(tm => [tm.id, tm])), [teams]);
@@ -163,9 +165,17 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
                           <span style={{ marginLeft: 3, fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
                         )}
                       </span>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        data-htip={r.startD && r.endD ? `${iso(r.startD)} → ${iso(r.endD)}` : undefined}>
                         {r.startD && r.endD
-                          ? <>{kwTag(r.startD)} · {shortDate(r.startD)}–{shortDate(r.endD)}</>
+                          ? (
+                              // Near-term (≤ 60d to start) keeps the precise KW + day-range
+                              // notation. Mid- and far-term collapse to month/quarter via
+                              // horizonLabel — honest granularity for distant scheduled work.
+                              ((r.startD - today) / 86400000) <= 60
+                                ? <>{kwTag(r.startD)} · {shortDate(r.startD)}–{shortDate(r.endD)}</>
+                                : <>{horizonLabel(r.startD, null, isDe, today)} → {horizonLabel(r.endD, null, isDe, today)}</>
+                            )
                           : '—'}
                       </span>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>

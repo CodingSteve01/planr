@@ -2,6 +2,7 @@ import { useMemo, useState, memo } from "react";
 import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
+import { horizonLabel } from '../../utils/horizon.js';
 import { GT, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
@@ -13,7 +14,8 @@ const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onOpenItem, onExportTodo }) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const isDe = lang === 'de';
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -63,7 +65,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
-      {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }}>{t('s.projected')}: {iso(latE)}</span>}
+      {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }} data-htip={iso(latE)}>{t('s.projected')}: {horizonLabel(latE, null, isDe, now)}</span>}
     </div>
     <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
 
@@ -196,8 +198,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           {dl.description && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
           {timeline?.period?.end && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
-              <span>{t('ins.period')}: {iso(timeline.period.start)} → {iso(timeline.period.end)}</span>
-              {timeline.deadline && <span>{t('qe.affectsDeadline')}: {iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}</span>}
+              <span data-htip={iso(timeline.period.start) + ' → ' + iso(timeline.period.end)}>{t('ins.period')}: {horizonLabel(timeline.period.start, null, isDe, now)} → {horizonLabel(timeline.period.end, null, isDe, now)}</span>
+              {timeline.deadline && <span data-htip={iso(timeline.deadline.start) + ' → ' + iso(timeline.deadline.end)}>{t('qe.affectsDeadline')}: {horizonLabel(timeline.deadline.start, null, isDe, now)} → {horizonLabel(timeline.deadline.end, null, isDe, now)}</span>}
             </div>
           )}
           {gp && <>

@@ -1,5 +1,6 @@
 import { useMemo, useState, memo } from "react";
 import { iso, localDate, diffDays } from '../../utils/date.js';
+import { horizonLabel } from '../../utils/horizon.js';
 import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
@@ -38,7 +39,8 @@ function weeksBetween(a, b) {
 }
 
 function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const isDe = lang === 'de';
 
   const HORIZON_OPTS = [
     { id: '7', label: t('bv.thisWeek') },
@@ -392,7 +394,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                   {r.reason === 'exploratory-close' && t('bv.exploratoryDeadline')}
                 </span>
                 {r.date && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{r.date}</span>}
-                {r.projEnd && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--re)', flexShrink: 0 }}>→ {iso(r.projEnd)}</span>}
+                {r.projEnd && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--re)', flexShrink: 0 }} data-htip={iso(r.projEnd)}>→ {horizonLabel(r.projEnd, null, isDe, now)}</span>}
               </div>
             ))}
           </div>

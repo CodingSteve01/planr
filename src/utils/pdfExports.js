@@ -30,50 +30,10 @@ async function loadPdfMake() {
   return pdfMake;
 }
 
-// ── Horizon-aware date labelling ────────────────────────────────────────────
-// Combines (a) distance from today and (b) planning confidence.
-// Takes the fuzzier of the two so uncertain work isn't pinned down.
-export function horizonLabel(date, confidence, de = false, now = new Date()) {
-  if (!date) return de ? 'später' : 'later';
-  const d = date instanceof Date ? date : new Date(date);
-  const days = Math.round((d - now) / 86400000);
-  const conf = confidence || 'committed';
-  let gran;
-  if (conf === 'exploratory' || days > 180) gran = 'q';
-  else if (conf === 'estimated' || days > 60) gran = 'm';
-  else if (days > 14) gran = 'w';
-  else gran = 'd';
-  if (gran === 'd') return iso(d);
-  if (gran === 'w') {
-    const mon = d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'short', year: 'numeric' });
-    return (de ? 'KW ' : 'Week ') + isoWeek(d) + ', ' + mon;
-  }
-  if (gran === 'm') return d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'long', year: 'numeric' });
-  return 'Q' + (Math.floor(d.getMonth() / 3) + 1) + ' ' + d.getFullYear();
-}
-
-// Bucket label for grouped views (e.g. "Q2 2026", "Mai 2026", "KW 17").
-export function horizonBucket(date, confidence, de = false, now = new Date()) {
-  if (!date) return { key: 'zzz_later', label: de ? 'Später / TBD' : 'Later / TBD', order: 99999 };
-  const d = date instanceof Date ? date : new Date(date);
-  const days = Math.round((d - now) / 86400000);
-  const conf = confidence || 'committed';
-  let gran;
-  if (conf === 'exploratory' || days > 180) gran = 'q';
-  else if (conf === 'estimated' || days > 60) gran = 'm';
-  else if (days > 28) gran = 'm';
-  else gran = 'w';
-  if (gran === 'w') {
-    const w = isoWeek(d), y = d.getFullYear();
-    return { key: y + '-w' + String(w).padStart(2, '0'), label: (de ? 'KW ' : 'Week ') + w + ' · ' + d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'short', year: 'numeric' }), order: y * 100 + w };
-  }
-  if (gran === 'm') {
-    const m = d.getMonth(), y = d.getFullYear();
-    return { key: y + '-m' + String(m + 1).padStart(2, '0'), label: d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'long', year: 'numeric' }), order: y * 100 + m + 50 };
-  }
-  const q = Math.floor(d.getMonth() / 3) + 1, y = d.getFullYear();
-  return { key: y + '-q' + q, label: 'Q' + q + ' ' + y, order: y * 100 + q * 3 + 80 };
-}
+// Horizon-aware date helpers live in utils/horizon.js so the app UI
+// can share them. Re-export keeps existing callers working.
+export { horizonLabel, horizonBucket } from './horizon.js';
+import { horizonLabel, horizonBucket } from './horizon.js';
 
 // ── Shared footer / header builders ─────────────────────────────────────────
 function footerBuilder({ meta, kind, dateStr }) {
