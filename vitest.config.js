@@ -5,6 +5,14 @@ import react from '@vitejs/plugin-react';
 // transform as the app build. Tests opt into a DOM environment per file
 // via the `/** @vitest-environment happy-dom */` pragma; pure-logic tests
 // stay on the default node environment.
+//
+// Force NODE_ENV=test BEFORE Vite reads it so React resolves to its dev
+// build. With the user's shell having NODE_ENV=production exported, the
+// production React build would otherwise load and refuse act() from
+// @testing-library/react ("act(...) is not supported in production
+// builds of React").
+process.env.NODE_ENV = 'test';
+
 export default defineConfig({
   plugins: [react()],
 });

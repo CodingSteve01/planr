@@ -499,7 +499,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
-function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -510,14 +510,40 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
   const [editingPlanId, setEditingPlanId]     = useState(null);
   const editingPlan = editingPlanId != null ? meetingPlans.find(p => p.id === editingPlanId) : null;
 
-  const memberCountForTeam = tid => members.filter(m => m.team === tid).length;
+  // Apply the global topbar filters. personFilter pins to one member; the
+  // visible team set narrows to that member's team. teamFilter pins the team
+  // and the member set narrows to that team. Filters intersect.
+  const fMembers = members.filter(m => {
+    if (personFilter && m.id !== personFilter) return false;
+    if (teamFilter && (m.team || '') !== teamFilter) return false;
+    return true;
+  });
+  const visibleMemberIds = new Set(fMembers.map(m => m.id));
+  const fTeams = teams.filter(tm => {
+    if (teamFilter && tm.id !== teamFilter) return false;
+    if (personFilter) {
+      const p = members.find(x => x.id === personFilter);
+      if (p && p.team !== tm.id) return false;
+    }
+    return true;
+  });
+  const fVacations = vacations.filter(v => !personFilter && !teamFilter ? true : visibleMemberIds.has(v.person));
+  const fMeetingPlans = (personFilter || teamFilter)
+    ? meetingPlans.filter(p => {
+        const onTeam = fTeams.some(tm => (tm.meetingPlanIds || []).includes(p.id));
+        const onMember = fMembers.some(m => (m.meetingPlanIds || []).includes(p.id));
+        return onTeam || onMember;
+      })
+    : meetingPlans;
+
+  const memberCountForTeam = tid => fMembers.filter(m => m.team === tid).length;
 
   const editingTeam   = editingTeamId   != null ? teams.find(tm => tm.id === editingTeamId)   : null;
   const editingTeamIdx = editingTeam    != null ? teams.indexOf(editingTeam)                   : -1;
   const editingMember = editingMemberId != null ? members.find(m => m.id === editingMemberId)  : null;
 
   /* sort vacations: latest first within year */
-  const sortedVacs = [...vacations].sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
+  const sortedVacs = [...fVacations].sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
   const vacsByYear = sortedVacs.reduce((acc, v) => {
     const y = (v.from || '').slice(0, 4) || '—';
     (acc[y] ||= []).push(v);
@@ -536,10 +562,10 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
       {/* Section pills */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
         {[
-          ['plans', `${t('rv.plans')} (${meetingPlans.length})`],
-          ['teams', `${t('rv.teams')} (${teams.length})`],
-          ['members', `${t('rv.members')} (${members.length})`],
-          ['vacations', `${t('rv.vacations')} (${vacations.length})`],
+          ['plans', `${t('rv.plans')} (${fMeetingPlans.length})`],
+          ['teams', `${t('rv.teams')} (${fTeams.length})`],
+          ['members', `${t('rv.members')} (${fMembers.length})`],
+          ['vacations', `${t('rv.vacations')} (${fVacations.length})`],
         ].map(([k, l]) =>
           <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
@@ -555,7 +581,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
 
       {/* ═══════════════ MEETING-PLÄNE ═══════════════ */}
       {section === 'plans' && (
-        meetingPlans.length === 0
+        fMeetingPlans.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
               {t('rv.plansEmpty')}
             </div>
@@ -576,9 +602,9 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
                   </tr>
                 </thead>
                 <tbody>
-                  {meetingPlans.map(pl => {
-                    const teamCount = teams.filter(t => (t.meetingPlanIds || []).includes(pl.id)).length;
-                    const memberCount = members.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
+                  {fMeetingPlans.map(pl => {
+                    const teamCount = fTeams.filter(tm => (tm.meetingPlanIds || []).includes(pl.id)).length;
+                    const memberCount = fMembers.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
                     const totalH = sumMeetingHours(pl.meetings || []);
                     return (
                       <MeetingPlanReadRow key={pl.id} plan={pl}
@@ -593,7 +619,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
 
       {/* ═══════════════ TEAMS ═══════════════ */}
       {section === 'teams' && (
-        teams.length === 0
+        fTeams.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
           : (
               <table className="res-table">
@@ -612,7 +638,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
                   </tr>
                 </thead>
                 <tbody>
-                  {teams.map(tm => (
+                  {fTeams.map(tm => (
                     <TeamReadRow
                       key={tm.id}
                       team={tm}
@@ -629,16 +655,17 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
 
       {/* ═══════════════ MEMBERS ═══════════════ */}
       {section === 'members' && (<>
-        {!members.length && !teams.length && (
+        {!fMembers.length && !fTeams.length && (
           <div className="empty">
             <div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>
             {t('rv.noMembers')}
             <p>{t('rv.noMembersHint')}</p>
           </div>
         )}
-        {[...teams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
-          const teamMembers = members.filter(m => (m.team || '') === tm.id);
+        {[...fTeams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
+          const teamMembers = fMembers.filter(m => (m.team || '') === tm.id);
           if (!teamMembers.length && tm.id === '') return null;
+          if (teamFilter && tm.id && tm.id !== teamFilter) return null;
           return (
             <div key={tm.id || '__none__'} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${tm.color || 'var(--b)'}` }}>
@@ -687,7 +714,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], onMeetingPl
       {/* ═══════════════ VACATIONS ═══════════════ */}
       {section === 'vacations' && (<>
         <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
-        {vacations.length === 0
+        {fVacations.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>
           : vacYears.map(year => (
               <div key={year} style={{ marginBottom: 14 }}>
