@@ -265,7 +265,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (end2 && d > end2) break;
           const dIso = iso(d);
           if (anyAssigneeOnVacation(dIso, [nextBp.id], vs)) continue;
-          if (!isPinned && anyAssigneePinnedBusy(dIso, [nextBp.id])) continue;
+          // Cascade segments also respect other pinned tasks' reserved days.
+          if (anyAssigneePinnedBusy(dIso, [nextBp.id])) continue;
           if (!segFirst) segFirst = d;
           segRem -= cap2; segLast = d;
           if (segRem <= 0) break;
@@ -384,7 +385,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               if (endDate && d > endDate) break;
               const dIso = iso(d);
               if (anyAssigneeOnVacation(dIso, [bp.id], vs)) continue; // skip vacation day
-              if (!r.pinnedStart && anyAssigneePinnedBusy(dIso, [bp.id])) continue;
+              // Always respect days reserved by OTHER pinned tasks. The own
+              // task's days haven't been added to pinnedBusy yet (reservation
+              // happens after the primary loop), so this never blocks self.
+              if (anyAssigneePinnedBusy(dIso, [bp.id])) continue;
               if (!firstWorkDay) firstWorkDay = d;
               rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
               if (rem <= 0) break;
@@ -530,13 +534,18 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
           const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
+          let pinOverridden0 = false;
+          if (r.pinnedStart && actualStartD) {
+            const pinD = localDate(r.pinnedStart);
+            if (actualStartD > pinD) pinOverridden0 = true;
+          }
           res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
             best: r.best, effort: eff, startWi: bs, endWi: eW,
             startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
             capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
             vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
             deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
-            segments, truncatedByOffboard: truncated });
+            segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0 });
           return;
         }
       }
@@ -584,14 +593,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
     });
     if (!bp || bs >= wks.length) { tEW[id] = { wi: Math.min(early, wks.length - 1), nextDate: null }; return; }
-    let pinOverridden = false;
-    if (r.pinnedStart && !r.parallel) {
-      const pinDate = localDate(r.pinnedStart);
-      const pinWi = wks.findIndex(w => w.wds.some(d => d >= pinDate));
-      const mStartDate = localDate(bp.start || ps);
-      const mStartWi = wks.findIndex(w => w.wds.some(d => d >= mStartDate));
-      if (pinWi >= 0 && mStartWi >= 0 && mStartWi > pinWi) pinOverridden = true;
-    }
+    // pinOverridden is finalised AFTER scheduling using the actual start —
+    // catches every reason the pin couldn't be honoured (member-start, dep,
+    // person busy, vacation, etc.) instead of just member-start.
     // skipBefore: latest constraint across ALL assigned people (not just primary).
     // For multi-assign, everyone must be free before the task can start.
     let skipBefore = null;
@@ -629,7 +633,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         const dIso = iso(d);
         const activeAssignees = isMulti ? asgn : [bp.id];
         if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
-        if (!r.pinnedStart && anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
+        // Always respect days reserved by OTHER pinned tasks (own task's
+        // reservation happens after this loop, so no self-collision).
+        if (anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
         if (rem <= 0) break;
@@ -761,6 +767,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     });
     // For multi-assign: union of all assignees' vacation sets (any day any assignee is on vacation counts once).
     const ws2 = computeWindowStats(actualStartD, actualEndD, isMulti ? asgn : [bp.id]);
+    // Final pinOverridden: any pin couldn't land because actual start ended
+    // up later than the pinned date. Reasons collapsed into one flag:
+    // dep-block, person busy, member start, vacation overlap.
+    let pinOverridden = false;
+    if (r.pinnedStart && actualStartD) {
+      const pinD = localDate(r.pinnedStart);
+      if (actualStartD > pinD) pinOverridden = true;
+    }
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
