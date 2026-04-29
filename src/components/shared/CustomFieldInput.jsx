@@ -1,13 +1,20 @@
-// Reusable custom-field input — renders the right input type for each field definition.
-// Used by NodeModal and QuickEdit.
+// Reusable custom-field input — renders the right input type for each field
+// definition. Used by NodeModal and QuickEdit.
+//
+// Text / URI / number variants buffer locally and commit via LazyInput
+// (blur or Enter). NodeModal-side this is redundant since NodeModal already
+// holds a local form draft, but QuickEdit pipes onChange straight to App's
+// updateNode → scheduler re-run — so a per-keystroke commit there means a
+// full reschedule on every typed character. LazyInput debounces that.
 import { SearchSelect } from './SearchSelect.jsx';
+import { LazyInput } from './LazyInput.jsx';
 import { resolveUri } from '../../utils/customFields.js';
 import { useT } from '../../i18n.jsx';
 
 /**
  * @param {object} field — custom field definition { id, name, type, uriTemplate?, options? }
  * @param {string|number} value — current raw value
- * @param {function} onChange — called with new value
+ * @param {function} onChange — called with new value (on blur/Enter for text-like types)
  */
 export function CustomFieldInput({ field, value, onChange }) {
   const { t } = useT();
@@ -21,11 +28,11 @@ export function CustomFieldInput({ field, value, onChange }) {
   if (field.type === 'uri') {
     const url = resolveUri(field, v);
     return <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      <input
+      <LazyInput
         style={{ flex: 1 }}
         value={v}
         placeholder={field.uriTemplate ? 'e.g. PROJ-123' : 'https://…'}
-        onChange={e => onChange(e.target.value)}
+        onCommit={onChange}
       />
       {url && <a
         href={url}
@@ -39,14 +46,14 @@ export function CustomFieldInput({ field, value, onChange }) {
   }
 
   if (field.type === 'number') {
-    return <input
+    return <LazyInput
       type="number"
       value={v}
-      onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
+      onCommit={val => onChange(val === '' ? '' : +val)}
       style={{ fontFamily: 'var(--mono)' }}
     />;
   }
 
   // default: text
-  return <input value={v} onChange={e => onChange(e.target.value)} />;
+  return <LazyInput value={v} onCommit={onChange} />;
 }

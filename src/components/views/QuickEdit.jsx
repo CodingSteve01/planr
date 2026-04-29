@@ -287,6 +287,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
           }} />
         </div>
+        {/* Slider buffers locally on every onChange (so the thumb tracks) but
+            only commits to the parent — and re-runs the scheduler — when the
+            user releases the pointer or blurs. Without this every drag step
+            triggered a full setData → reschedule loop. */}
         <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
           onChange={e => {
             const value = +e.target.value;
@@ -294,8 +298,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             if (value >= 100 && f.status !== 'done') { next.status = 'done'; next.completedAt = f.completedAt || iso(new Date()); }
             else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
             else if (value === 0 && f.status !== 'open') next.status = 'open';
-            commitNode(next);
+            bufferNode(next);
           }}
+          onPointerUp={() => flushNode()}
+          onKeyUp={() => flushNode()}
+          onBlur={() => flushNode()}
           style={{ flex: 1, accentColor: 'var(--ac)' }} />
         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
       </div>}
