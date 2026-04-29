@@ -414,6 +414,8 @@ const en = {
   'rv.manualCap': 'Manual', 'rv.derivedCap': 'From meetings',
   'rv.hoursWeek': 'Hrs / week', 'rv.hoursDefault': 'Default: {0} h (FTE). Adjust here for part-time/overtime.',
   'rv.available': 'available',
+  'rv.allYears': '— all years —',
+  'rv.clearFilters': 'Clear filters',
   // ── TimetableView ──
   'tt.title': 'Timetable',
   'tt.map': 'Subway Map',
@@ -924,6 +926,8 @@ const de = {
   'rv.manualCap': 'Manuell', 'rv.derivedCap': 'Aus Meetings',
   'rv.hoursWeek': 'Std / Woche', 'rv.hoursDefault': 'Default: {0} h (FTE). Teilzeit/Überstunden hier anpassen.',
   'rv.available': 'verfügbar',
+  'rv.allYears': '— alle Jahre —',
+  'rv.clearFilters': 'Filter zurücksetzen',
   // ── TimetableView ──
   'tt.title': 'Fahrplan',
   'tt.map': 'Subway-Map',

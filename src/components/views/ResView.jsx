@@ -542,14 +542,31 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   const editingTeamIdx = editingTeam    != null ? teams.indexOf(editingTeam)                   : -1;
   const editingMember = editingMemberId != null ? members.find(m => m.id === editingMemberId)  : null;
 
+  // Local vacation filters — narrow on top of the global topbar filters.
+  // Persisted across tab switches so a long vacation list stays focused on
+  // the slice the user is currently triaging.
+  const [vacMember, setVacMember] = useState(() => { try { return localStorage.getItem('planr_vac_member') || ''; } catch { return ''; } });
+  const [vacYear, setVacYear] = useState(() => { try { return localStorage.getItem('planr_vac_year') || ''; } catch { return ''; } });
+  useEffect(() => { try { localStorage.setItem('planr_vac_member', vacMember); } catch { /* ignore */ } }, [vacMember]);
+  useEffect(() => { try { localStorage.setItem('planr_vac_year', vacYear); } catch { /* ignore */ } }, [vacYear]);
+
   /* sort vacations: latest first within year */
-  const sortedVacs = [...fVacations].sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
+  const sortedVacs = [...fVacations]
+    .filter(v => !vacMember || v.person === vacMember)
+    .filter(v => !vacYear || (v.from || '').slice(0, 4) === vacYear)
+    .sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
   const vacsByYear = sortedVacs.reduce((acc, v) => {
     const y = (v.from || '').slice(0, 4) || '—';
     (acc[y] ||= []).push(v);
     return acc;
   }, {});
   const vacYears = Object.keys(vacsByYear).sort((a, b) => b.localeCompare(a));
+  // All available years across the unfiltered set so the year dropdown
+  // doesn't shrink as the user narrows the list.
+  const allVacYears = [...new Set(fVacations.map(v => (v.from || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+  // Drop stale filter values when the underlying option is gone.
+  useEffect(() => { if (vacMember && !fMembers.some(m => m.id === vacMember)) setVacMember(''); }, [fMembers, vacMember]);
+  useEffect(() => { if (vacYear && !allVacYears.includes(vacYear)) setVacYear(''); }, [allVacYears, vacYear]);
 
   const addVacation = () => {
     const newVacs = [...vacations, { person: members[0]?.id || '', from: '', to: '', note: '' }];
@@ -714,7 +731,29 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
       {/* ═══════════════ VACATIONS ═══════════════ */}
       {section === 'vacations' && (<>
         <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
-        {fVacations.length === 0
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+          <div style={{ width: 200 }}>
+            <SearchSelect value={vacMember}
+              options={fMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
+              onSelect={setVacMember}
+              placeholder={t('tv.allPeople')}
+              allowEmpty emptyLabel={t('tv.allPeople')} />
+          </div>
+          <select value={vacYear} onChange={e => setVacYear(e.target.value)}
+            style={{ padding: '5px 8px', fontSize: 11, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
+            <option value="">{t('rv.allYears')}</option>
+            {allVacYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {(vacMember || vacYear) && (
+            <button className="btn btn-ghost btn-xs" onClick={() => { setVacMember(''); setVacYear(''); }}
+              data-htip={t('rv.clearFilters')}
+              style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+            {sortedVacs.length} / {fVacations.length}
+          </span>
+        </div>
+        {sortedVacs.length === 0
           ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>
           : vacYears.map(year => (
               <div key={year} style={{ marginBottom: 14 }}>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
 import { DOW_DE } from '../../constants.js';
@@ -13,7 +14,16 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
     planYears.push(y);
 
   const list = holidays || [];
-  const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
+  // Year filter — persisted across tab switches. Default to current year so
+  // imports of multiple NRW years don't bury the page in scroll.
+  const [yearFilter, setYearFilter] = useState(() => {
+    try { return localStorage.getItem('planr_hol_year') ?? String(nowY); } catch { return String(nowY); }
+  });
+  useEffect(() => { try { localStorage.setItem('planr_hol_year', yearFilter); } catch { /* ignore */ } }, [yearFilter]);
+  const allYears = [...new Set(list.map(h => (h.date || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+  useEffect(() => { if (yearFilter && !allYears.includes(yearFilter)) setYearFilter(''); }, [allYears, yearFilter]);
+  const filtered = yearFilter ? list.filter(h => (h.date || '').slice(0, 4) === yearFilter) : list;
+  const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
   const byYear = sorted.reduce((acc, h) => {
     const y = (h.date || '').slice(0, 4) || '—';
     (acc[y] ||= []).push(h);
@@ -54,6 +64,22 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
       </div>
 
       <p className="helper" style={{ marginBottom: 10 }}>{t('hv.desc')}</p>
+
+      {list.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
+            style={{ padding: '5px 8px', fontSize: 11, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
+            <option value="">{t('rv.allYears')}</option>
+            {allYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {yearFilter && (
+            <button className="btn btn-ghost btn-xs" onClick={() => setYearFilter('')}
+              data-htip={t('rv.clearFilters')}
+              style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{filtered.length} / {list.length}</span>
+        </div>
+      )}
 
       {!list.length && (
         <div className="empty">
