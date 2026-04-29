@@ -66,33 +66,55 @@ function loadLocalProject() {
 // last known-good JSON snapshot via Help → "Restore snapshot…".
 const SNAPSHOT_KEY = 'planr_v2_snapshots';
 const SNAPSHOT_MAX = 20;
+const SNAPSHOT_THROTTLE_MS = 60_000; // at most one snapshot per minute
+// Module-scoped cache: avoids re-parsing the entire ring (up to ~2 MB JSON)
+// on every idle write — that double-parse + double-stringify was the
+// dominant cost during typing.
+let _snapCache = null; // [{ ts, data }, …] | null = not yet loaded
+let _lastSnapAt = 0;
 function loadSnapshots() {
+  if (_snapCache) return _snapCache;
   try {
     const arr = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
-    return Array.isArray(arr) ? arr : [];
-  } catch { return []; }
+    _snapCache = Array.isArray(arr) ? arr : [];
+  } catch { _snapCache = []; }
+  if (_snapCache.length) _lastSnapAt = _snapCache[0].ts || 0;
+  return _snapCache;
 }
 function pushSnapshot(data) {
   if (!data || !Array.isArray(data.tree)) return;
+  const now = Date.now();
+  // Time-throttle: only one snapshot per minute. Survives bursts of typing
+  // without thrashing localStorage on every keystroke-induced auto-save.
+  if (now - _lastSnapAt < SNAPSHOT_THROTTLE_MS) return;
   try {
     const arr = loadSnapshots();
-    const last = arr[0];
-    const next = JSON.stringify(data);
-    // Skip if identical to most recent — avoids ring churn on no-op saves.
-    if (last && JSON.stringify(last.data) === next) return;
-    arr.unshift({ ts: Date.now(), data });
+    arr.unshift({ ts: now, data });
     if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
-  } catch (e) {
-    // Quota exhaustion: drop oldest until it fits, or wipe if still failing.
-    try {
-      const arr = loadSnapshots().slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
-      arr.unshift({ ts: Date.now(), data });
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
-    } catch {
-      try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+    _snapCache = arr;
+    _lastSnapAt = now;
+    // Defer the actual localStorage write to the next idle window so the
+    // synchronous setItem (which serializes ~2 MB) doesn't block the
+    // current input-handler frame.
+    const persist = () => {
+      try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr)); }
+      catch {
+        try {
+          const half = arr.slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
+          localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(half));
+          _snapCache = half;
+        } catch {
+          try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+          _snapCache = [];
+        }
+      }
+    };
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(persist, { timeout: 2000 });
+    } else {
+      setTimeout(persist, 0);
     }
-  }
+  } catch { /* swallow — snapshot is best-effort */ }
 }
 
 function isValidProjectData(value) {
