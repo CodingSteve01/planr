@@ -836,6 +836,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       seq: s.seq,
       team: s.team,
       prio: s.prio,
+      // Assignees needed for vacation-aware snap on drop.
+      assign: s.assign || [],
+      personId: s.personId,
       rowType: row.type,
       canPin: row.type === 'task' && s.status !== 'done' && !s._unestimated,
       reorderMode: groupBy === 'project' && onReorderSibling
@@ -886,9 +889,47 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         // Week mode: offset from the start week's Monday (bar is week-aligned).
         const baseDate = showDays && d.startD ? new Date(d.startD) : new Date(weeks[d.startWi].mon);
         let targetDate = showDays ? addD(baseDate, dDelta) : addD(baseDate, dDelta * 7);
-        // Snap to nearest work day (forward for rightward drag, backward for leftward)
+        // Snap to nearest valid pin date: skip weekends, holidays, and any
+        // vacation day for this task's assignees. Direction follows the drag.
+        // Fall back to opposite direction if we walk off the planning horizon.
         if (showDays) {
-          while (!wdSet.has(targetDate.getDay())) targetDate = addD(targetDate, dDelta > 0 ? 1 : -1);
+          const dir = dDelta > 0 ? 1 : -1;
+          const horizonStart = weeks[0]?.mon;
+          const horizonEnd = weeks[weeks.length - 1]?.mon;
+          // Build vacation-day set for this bar's assignees so the pin doesn't
+          // land on a known vacation. Holidays already drop out of wdsByTime.
+          const assignees = [...new Set([...(d.assign || []), ...(d.personId ? [d.personId] : [])])];
+          const vacBlocks = assignees.flatMap(id => vacByPerson[id] || []);
+          const isVacation = (date) => {
+            const t = date.getTime();
+            return vacBlocks.some(v => {
+              const f = new Date(v.from).getTime();
+              const u = new Date(v.to).getTime();
+              return t >= f && t <= u;
+            });
+          };
+          const isWorkable = (date) => {
+            if (!wdSet.has(date.getDay())) return false;
+            // Holiday check via global workable-day set built from weeks[].wds.
+            const ws = weeks.find(w => date >= w.mon && date <= addD(w.mon, 6));
+            if (!ws) return wdSet.has(date.getDay()); // outside horizon: weekday-only
+            return ws.wds.some(d2 => d2.getTime() === date.getTime());
+          };
+          let steps = 0;
+          while ((!isWorkable(targetDate) || isVacation(targetDate)) && steps < 60) {
+            targetDate = addD(targetDate, dir);
+            steps++;
+          }
+          // If we walked off-horizon trying primary direction, try the other.
+          if (steps >= 60 || (horizonStart && targetDate < addD(horizonStart, -30)) || (horizonEnd && targetDate > addD(horizonEnd, 30))) {
+            targetDate = showDays ? addD(baseDate, dDelta) : addD(baseDate, dDelta * 7);
+            const opp = -dir;
+            steps = 0;
+            while ((!isWorkable(targetDate) || isVacation(targetDate)) && steps < 60) {
+              targetDate = addD(targetDate, opp);
+              steps++;
+            }
+          }
         }
         const planStartDate = weeks[0]?.mon;
         if (planStartDate && targetDate < planStartDate) {
