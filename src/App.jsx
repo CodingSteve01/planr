@@ -32,6 +32,7 @@ import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
+import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -54,6 +55,43 @@ function loadLocalProject() {
     return s ? JSON.parse(s) : null;
   } catch {
     return null;
+  }
+}
+
+// ── Rolling JSON snapshot ring ────────────────────────────────────────────
+// Survives the markdown writer touching the on-disk file: every successful
+// save also drops the current data into a 20-slot ring in localStorage,
+// keyed by timestamp. If the .md file ever gets corrupted by an external
+// editor (Obsidian rendering, iCloud merge), the user can restore from the
+// last known-good JSON snapshot via Help → "Restore snapshot…".
+const SNAPSHOT_KEY = 'planr_v2_snapshots';
+const SNAPSHOT_MAX = 20;
+function loadSnapshots() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function pushSnapshot(data) {
+  if (!data || !Array.isArray(data.tree)) return;
+  try {
+    const arr = loadSnapshots();
+    const last = arr[0];
+    const next = JSON.stringify(data);
+    // Skip if identical to most recent — avoids ring churn on no-op saves.
+    if (last && JSON.stringify(last.data) === next) return;
+    arr.unshift({ ts: Date.now(), data });
+    if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
+  } catch (e) {
+    // Quota exhaustion: drop oldest until it fits, or wipe if still failing.
+    try {
+      const arr = loadSnapshots().slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
+      arr.unshift({ ts: Date.now(), data });
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
+    } catch {
+      try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -263,6 +301,10 @@ export default function App() {
     const t = setTimeout(() => {
       idleId = scheduleIdleWrite(() => {
         localStorage.setItem(SK, JSON.stringify(data));
+        // Drop a rolling JSON snapshot. Cheap insurance against the
+        // markdown writer ever producing a corrupted file (Obsidian
+        // re-render, iCloud merge conflict, etc).
+        pushSnapshot(data);
         // localStorage save is always successful → data is "saved" (just maybe not to file yet)
         setSaved(true);
         setLastSavedAt(new Date());
@@ -1936,6 +1978,8 @@ export default function App() {
         onClick={startTour}>{_t('tour.help')}</button>
       <div className="vsep" />
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('snapshots')}
+        data-htip="Recover from a rolling JSON snapshot — last 20 saves are kept locally as a safety net.">↶ Snapshots</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
@@ -2230,6 +2274,22 @@ export default function App() {
         setSel(target);
       }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'snapshots' && <SnapshotModal
+      onClose={() => setModal(null)}
+      onRestore={snap => {
+        if (!confirm(`Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`)) return;
+        // Take a defensive snapshot of current state before restoring.
+        if (data) pushSnapshot(data);
+        setData(snap.data); setSaved(false); setModal(null);
+      }}
+      onExportJson={snap => {
+        const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+        a.click();
+      }}
+    />}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
