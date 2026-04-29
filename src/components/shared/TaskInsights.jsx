@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { isLeafNode, leafNodes, re } from '../../utils/scheduler.js';
+import { isLeafNode, leafNodes, parentId, re } from '../../utils/scheduler.js';
 import { iso, diffDays, localDate } from '../../utils/date.js';
 import { resolveUri } from '../../utils/customFields.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -163,6 +163,30 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
     tree.filter(r => (r.deps || []).includes(node.id)).map(r => ({ id: r.id, name: r.name, status: r.status || 'open' })),
     [tree, node.id]
   );
+
+  // Inherited predecessors: deps declared on any ancestor block this node too
+  // (the scheduler walks the ancestor chain in `effectiveDeps`). Surface them
+  // separately so the user can tell why a child can't start before a
+  // parent-level dep is done.
+  const inheritedPreds = useMemo(() => {
+    const ancestors = [];
+    let pid = parentId(node.id);
+    while (pid) { ancestors.push(pid); pid = parentId(pid); }
+    const ownDepSet = new Set(node.deps || []);
+    const seen = new Set();
+    const out = [];
+    ancestors.forEach(aid => {
+      const anc = tree.find(r => r.id === aid);
+      if (!anc) return;
+      (anc.deps || []).forEach(depId => {
+        if (ownDepSet.has(depId) || seen.has(depId)) return;
+        seen.add(depId);
+        const n = tree.find(r => r.id === depId);
+        out.push({ id: depId, name: n?.name || depId, status: n?.status || 'open', via: anc.id });
+      });
+    });
+    return out;
+  }, [node.id, node.deps, tree]);
 
   // Custom fields with values
   const filledCustomFields = useMemo(() =>
@@ -425,7 +449,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       })()}
 
       {/* Dependencies section */}
-      {(preds.length > 0 || succs.length > 0) && (
+      {(preds.length > 0 || succs.length > 0 || inheritedPreds.length > 0) && (
         <Section label={t('ins.deps')} onClick={sec('dependencies')} editLabel={editLabel}>
           {preds.length > 0 && (
             <KVRow label={t('qe.predecessors')}>
@@ -436,6 +460,22 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)' }}>{p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{p.name}</span>
+                  </span>
+                ))}
+              </div>
+            </KVRow>
+          )}
+          {inheritedPreds.length > 0 && (
+            <KVRow label={t('ins.inheritedDeps')}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {inheritedPreds.map(p => (
+                  <span key={p.id + ':' + p.via} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
+                    data-htip={`Geerbt von ${p.via} — entferne dort \`Benötigt: ${p.id}\` wenn diese Aufgabe nicht warten soll.`}
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)' }}>↰ {p.id}</span>
+                    <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
+                    <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{p.name}</span>
+                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>via {p.via}</span>
                   </span>
                 ))}
               </div>

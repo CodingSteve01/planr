@@ -223,7 +223,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   //
   // Returns the chained segments + the leftover effort flag. Callers insert
   // the first segment themselves (for the primary run) and pass state in.
-  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned, earliestStart = null }) => {
+  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned, isParallel = false, earliestStart = null }) => {
     const segments = [];
     let lastWD = null, finalWi = -1;
     while (rem > 0 && lastOffboard) {
@@ -265,8 +265,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (end2 && d > end2) break;
           const dIso = iso(d);
           if (anyAssigneeOnVacation(dIso, [nextBp.id], vs)) continue;
-          // Cascade segments also respect other pinned tasks' reserved days.
-          if (anyAssigneePinnedBusy(dIso, [nextBp.id])) continue;
+          // Cascade segments respect other pinned reservations unless the
+          // parent task is parallel (then overlapping is intentional).
+          if (!isParallel && anyAssigneePinnedBusy(dIso, [nextBp.id])) continue;
           if (!segFirst) segFirst = d;
           segRem -= cap2; segLast = d;
           if (segRem <= 0) break;
@@ -385,10 +386,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               if (endDate && d > endDate) break;
               const dIso = iso(d);
               if (anyAssigneeOnVacation(dIso, [bp.id], vs)) continue; // skip vacation day
-              // Always respect days reserved by OTHER pinned tasks. The own
-              // task's days haven't been added to pinnedBusy yet (reservation
-              // happens after the primary loop), so this never blocks self.
-              if (anyAssigneePinnedBusy(dIso, [bp.id])) continue;
+              // Non-parallel tasks respect days reserved by OTHER pinned
+              // (non-parallel) tasks. Parallel tasks deliberately skip this
+              // check — that's the whole point of `r.parallel`. Own task's
+              // reservation happens after the loop, so no self-collision.
+              if (!r.parallel && anyAssigneePinnedBusy(dIso, [bp.id])) continue;
               if (!firstWorkDay) firstWorkDay = d;
               rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
               if (rem <= 0) break;
@@ -429,7 +431,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
                 lastOffboard: planState.lastOffboard,
                 usedIds,
                 tM: pool,
-                isPinned: !!r.pinnedStart,
+                isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
               earliestStart: earlyDate,
             });
               if (!chunk.segments.length) break; // plan entry unusable, fall through to auto
@@ -448,7 +450,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               lastOffboard: planState.lastOffboard,
               usedIds,
               tM,
-              isPinned: !!r.pinnedStart,
+              isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
               earliestStart: earlyDate,
             });
             let combined = {
@@ -468,7 +470,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               lastOffboard: combined.lastOffboard || endDate,
               usedIds,
               tM: others,
-              isPinned: !!r.pinnedStart,
+              isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
               earliestStart: earlyDate,
             });
             return {
@@ -524,7 +526,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             // Non-pinned work consumes the queue directly. Pinned work blocks via
             // pinnedBusy instead so earlier gaps remain usable.
             pF[bp.id] = { wi: eW, nextDate: nd };
-          } else {
+          } else if (!r.parallel) {
+            // Non-parallel pinned task: reserve days so other non-parallel
+            // pinned tasks for the same person don't overlap. Parallel pinned
+            // tasks deliberately skip both pF and the reservation set.
             reservePinnedDays([bp.id], workedDays);
           }
           // If the primary did zero work (already offboarded before the task
@@ -633,9 +638,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         const dIso = iso(d);
         const activeAssignees = isMulti ? asgn : [bp.id];
         if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
-        // Always respect days reserved by OTHER pinned tasks (own task's
-        // reservation happens after this loop, so no self-collision).
-        if (anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
+        // Non-parallel tasks respect days reserved by OTHER pinned tasks.
+        // Parallel tasks skip this — that's the explicit point of r.parallel.
+        if (!r.parallel && anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
         if (rem <= 0) break;
@@ -670,7 +675,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         if (stageAssign.length) pool = members.filter(mm => stageAssign.includes(mm.id));
         else if (stage?.team) pool = members.filter(mm => pt(mm.team) === pt(stage.team));
         if (!pool.length) break;
-        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
+        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
         if (!chunk.segments.length) break;
         chunk.segments.forEach(seg => { seg.planned = true; });
         planSegs.push(...chunk.segments);
@@ -681,21 +686,21 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti && state.remaining > 0) {
         const coAssignees = cands.filter(m => !usedIds.has(m.id));
         if (coAssignees.length) {
-          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
+          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
           state = { remaining: coChunk.remaining, lastOffboard: coChunk.lastOffboard || state.lastOffboard, lastWD: coChunk.lastWD || state.lastWD, finalWi: coChunk.finalWi >= 0 ? coChunk.finalWi : state.finalWi };
           planSegs.push(...coChunk.segments);
         }
       }
       if (state.remaining <= 0) return { segments: planSegs, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 3) Same team auto-cascade
-      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
+      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
       state = { remaining: primaryChunk.remaining, lastOffboard: primaryChunk.lastOffboard || state.lastOffboard, lastWD: primaryChunk.lastWD || state.lastWD, finalWi: primaryChunk.finalWi >= 0 ? primaryChunk.finalWi : state.finalWi };
       const combined = [...planSegs, ...primaryChunk.segments];
       if (state.remaining <= 0) return { segments: combined, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 4) Cross-team fallback
       const others = members.filter(mm => pt(mm.team) !== team && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
       if (!others.length) return { segments: combined, remaining: state.remaining, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: state.lastOffboard };
-      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart , earliestStart: earlyDate });
+      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
       return {
         segments: [...combined, ...secondary.segments],
         remaining: secondary.remaining,
@@ -752,7 +757,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         }
       }
     }
-    if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
+    // Only NON-parallel pinned tasks reserve their days. A parallel pinned
+    // task is allowed to overlap with anything else on the same person, so
+    // it must not block other pinned tasks either.
+    if (r.pinnedStart && !r.parallel) reservePinnedDays(asgn, workedDays);
     const firstCascadeSegExplicit = cascade.segments[0];
     const actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
