@@ -447,6 +447,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('qe.decideBy')}</label>
               <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
             </div>
+            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>⏳</span>}</label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
+                {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')}>×</button>}
+              </div>
+            </div>
             <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />

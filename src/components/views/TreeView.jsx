@@ -325,6 +325,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Decide-by date — overdue check */}
               {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
 
+              {/* Due date — overdue when scheduler reports dueOverdue */}
+              {r.due && (() => {
+                const sc = sMap[r.id];
+                const overdue = !!sc?.dueOverdue;
+                const endIso = sc?.endD ? (sc.endD instanceof Date ? sc.endD.toISOString().slice(0, 10) : String(sc.endD).slice(0, 10)) : '';
+                return <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)', fontWeight: overdue ? 700 : 400 }}
+                  data-htip={overdue ? `Fällig ${r.due} — geplantes Ende ${endIso} (überfällig)` : `Fällig bis ${r.due}`}>⏳ {r.due}</span>;
+              })()}
+
               {/* Critical path indicator */}
               {isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ marginLeft: 8 }} />}
 

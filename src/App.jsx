@@ -792,7 +792,7 @@ export default function App() {
       const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true;
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '';
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -807,6 +807,7 @@ export default function App() {
           const psm = t.match(/^plan-start:(\d{4}-\d{2}-\d{2})$/i); if (psm) { plannedStart = psm[1]; return; }
           const pem = t.match(/^plan-end:(\d{4}-\d{2}-\d{2})$/i); if (pem) { plannedEnd = pem[1]; return; }
           const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
+          const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
@@ -860,6 +861,7 @@ export default function App() {
       if (plannedStart) item.plannedStart = plannedStart;
       if (plannedEnd) item.plannedEnd = plannedEnd;
       if (deadlineRelevant === false) item.deadlineRelevant = false;
+      if (due) item.due = due;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;

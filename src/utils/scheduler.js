@@ -550,7 +550,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
             vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
             deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
-            segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0 });
+            segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0,
+            due: r.due || '', dueOverdue: !!(r.due && actualEndD && actualEndD > localDate(r.due)) });
           return;
         }
       }
@@ -783,11 +784,18 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const pinD = localDate(r.pinnedStart);
       if (actualStartD > pinD) pinOverridden = true;
     }
+    // Per-task soft ultimatum: flag if scheduled end blows past r.due.
+    let dueOverdue = false;
+    if (r.due && actualEndD) {
+      const dueD = localDate(r.due);
+      if (actualEndD > dueD) dueOverdue = true;
+    }
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
+      due: r.due || '', dueOverdue,
       vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
       segments, truncatedByOffboard: truncated });
