@@ -1483,7 +1483,11 @@ export default function App() {
 
     const factor = node.factor || 1.5;
     const primaryEff = sc.segments[0]?.effort || 0;
-    const newPrimaryBest = Math.max(1, Math.ceil(primaryEff / factor));
+    // Round (not ceil) so the trimmed primary fits inside the consumed
+    // portion. ceil gave a 0.5–1d slop that pushed the primary past the
+    // offboard date and re-triggered a cascade — exactly the synthetic
+    // `#N` row the split was supposed to eliminate.
+    const newPrimaryBest = Math.max(1, Math.round(primaryEff / factor));
 
     const updatedPrimary = { ...node, best: newPrimaryBest };
     delete updatedPrimary.handoffPlan;

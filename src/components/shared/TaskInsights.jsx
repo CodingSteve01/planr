@@ -426,6 +426,14 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               </span>
             </KVRow>
           )}
+          {onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) && (
+            <KVRow label="">
+              <span style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
+                Diese Etappen sind virtuelle Scheduler-Segmente — kein eigener Status / Progress / Jira-ID.
+                Mit <b>↳ Split</b> oben rechts wird jede Etappe zu einer echten Aufgabe.
+              </span>
+            </KVRow>
+          )}
         </Section>
       )}
 
