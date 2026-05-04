@@ -443,6 +443,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // the same team (semantic preference). Second pass: fall back to any
           // team in the project — tagged crossTeam for visibility.
           const runCascade = () => {
+            // `noCascade`: split-handoff drops the cascade machinery for the
+            // trimmed primary so we don't re-create the synthetic `#N` row
+            // the user just split out. Any leftover `rem > 0` is intentional
+            // and is meant to be picked up by the next sibling task.
+            if (r.noCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             const usedIds = new Set([bp.id]);
             // Honor r.handoffPlan first: each plan entry pins a specific team/
@@ -703,6 +708,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // the task continues with a collaborator instead of falling through to
     // auto-cascade. Remainder still cascades to team + cross-team afterwards.
     const runAssignedCascade = () => {
+      // See note on `r.noCascade` in the team-slot path.
+      if (r.noCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
       if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
       const usedIds = new Set([bp.id]);
       // 1) r.handoffPlan overrides (explicit user choices)

@@ -1489,7 +1489,12 @@ export default function App() {
     // `#N` row the split was supposed to eliminate.
     const newPrimaryBest = Math.max(1, Math.round(primaryEff / factor));
 
-    const updatedPrimary = { ...node, best: newPrimaryBest };
+    // noCascade: the scheduler still re-cascades on offboard even after we
+    // dropped handoffPlan, because cascading is triggered by the assignee's
+    // end-date alone. Mark the trimmed primary as opt-out so the synthetic
+    // `#N` row doesn't reappear after the split — the new sibling tasks own
+    // that work now.
+    const updatedPrimary = { ...node, best: newPrimaryBest, noCascade: true };
     delete updatedPrimary.handoffPlan;
 
     // Find next free sibling slot under the same parent.
