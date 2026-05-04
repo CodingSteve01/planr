@@ -388,9 +388,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             ⇄ Etappe {(focusRequest.handoffStage ?? 0) + 1} · Team/Person unten im Handoff-Abschnitt editieren.
           </div>
         )}
-        {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}
-          focusStage={focusRequest?.section === 'handoff' ? focusRequest.handoffStage : null}
-          onChange={plan => s('handoffPlan', plan)} />}
+        {/* HandoffPlanEditor disabled (see QuickEdit comment) */}
       </>}
 
       {/* ══════ EFFORT TAB ══════ */}

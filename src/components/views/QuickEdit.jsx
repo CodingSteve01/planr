@@ -341,8 +341,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           />
         </div>
       </div>
-      {isLeaf && <HandoffPlanEditor node={f} members={members} teams={teams} scheduled={scheduled}
-        onChange={plan => patchNode({ handoffPlan: plan })} />}
+      {/* HandoffPlanEditor disabled — auto-cascade is off by default;
+          users handle offboard truncation via the explicit ↳ Split flow.
+          Re-enable here only if pre-planned multi-stage handoffs become
+          a real workflow again. */}
     </>}
 
     {/* ══════ EFFORT TAB ══════ */}
