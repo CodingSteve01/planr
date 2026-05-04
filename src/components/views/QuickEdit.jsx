@@ -22,7 +22,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, onSplitHandoff, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, onSplitHandoff, onSplitTaskAtProgress, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -501,12 +501,30 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     </>}
 
     <hr className="divider" />
-    <div style={{ display: 'flex', gap: 6 }}>
-      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1 }} onClick={() => {
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => {
         const subTreeSize = tree.filter(entry => entry.id === node.id || entry.id.startsWith(node.id + '.')).length;
         if (confirm(subTreeSize > 1 ? t('qe.confirmDuplicateN', node.name, subTreeSize - 1) : t('qe.confirmDuplicate', node.name))) onDuplicate(node.id);
       }}>⧉ {t('qe.duplicate')}</button>}
-      {onDelete && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => {
+      {/* Split — only when wip with progress > 0. The button asks for the
+          consumed % (defaults to current progress) and creates a new
+          sibling task with the remaining effort + dep on the original. */}
+      {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
+        && !hasChildren(tree, node.id) && (
+        <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }}
+          data-htip="Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe."
+          onClick={() => {
+            const raw = prompt(`Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: ${f.progress}%)`, String(f.progress));
+            if (raw == null) return;
+            const p = parseInt(raw, 10);
+            if (!Number.isFinite(p) || p <= 0 || p >= 100) {
+              alert('Bitte eine Zahl zwischen 1 und 99 angeben.');
+              return;
+            }
+            onSplitTaskAtProgress(node.id, p);
+          }}>↳ Split</button>
+      )}
+      {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => {
         if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) onDelete(node.id);
       }}>{t('delete')}</button>}
     </div>

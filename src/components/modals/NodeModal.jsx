@@ -22,7 +22,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate, onSplitHandoff }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate, onSplitHandoff, onSplitTaskAtProgress }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -554,6 +554,22 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
           if (confirm(sub > 1 ? t('qe.confirmDuplicateN', node.name, sub - 1) : t('qe.confirmDuplicate', node.name))) onDuplicate(node.id);
         }}>⧉ {t('qe.duplicate')}</button>}
+        {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
+          && !hasChildren(tree, node.id) && (
+          <button className="btn btn-sec"
+            data-htip="Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe."
+            onClick={() => {
+              if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
+              const raw = prompt(`Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: ${f.progress}%)`, String(f.progress));
+              if (raw == null) return;
+              const p = parseInt(raw, 10);
+              if (!Number.isFinite(p) || p <= 0 || p >= 100) {
+                alert('Bitte eine Zahl zwischen 1 und 99 angeben.'); return;
+              }
+              onSplitTaskAtProgress(node.id, p);
+              onClose();
+            }}>↳ Split</button>
+        )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
         <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>

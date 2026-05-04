@@ -1550,6 +1550,71 @@ export default function App() {
     next.splice(insertAt, 0, ...newTasks);
     setD('tree', next);
   }
+  // Split an interrupted task. The original is closed at its current
+  // progress (clamped `best`, status=done) and a new sibling carries the
+  // remaining effort with a dep on the original. Useful when work paused
+  // mid-task and the rest will be picked up later — possibly by someone
+  // else, possibly after blocking work resolves. progressPct overrides
+  // node.progress for explicit control.
+  function splitTaskAtProgress(nodeId, progressPct) {
+    const node = tree.find(r => r.id === nodeId);
+    if (!node || !node.best) return;
+    const factor = node.factor || 1.5;
+    const totalEff = node.best * factor;
+    const prog = Number.isFinite(progressPct) ? progressPct : (node.progress ?? 0);
+    if (prog <= 0 || prog >= 100) return; // nothing to split
+    const consumedEff = totalEff * (prog / 100);
+    const remEff = totalEff - consumedEff;
+    if (remEff <= 0) return;
+
+    const today = iso(new Date());
+    const newDoneBest = Math.max(1, Math.round(consumedEff / factor));
+    const newRemBest = Math.max(1, Math.round(remEff / factor));
+
+    const updated = {
+      ...node,
+      best: newDoneBest,
+      status: 'done',
+      progress: 100,
+      completedAt: node.completedAt || today,
+      completedEnd: node.completedEnd || today,
+    };
+    delete updated.handoffPlan;
+
+    const parent = nodeId.split('.').slice(0, -1).join('.');
+    const sibIds = tree
+      .filter(r => {
+        const p = r.id.split('.').slice(0, -1).join('.');
+        return p === parent;
+      })
+      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
+    const nextNum = (sibIds.length ? Math.max(...sibIds) : 0) + 1;
+    const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
+
+    const newTask = {
+      id: newId,
+      name: `${node.name} (Fortsetzung)`,
+      status: 'open',
+      team: node.team || '',
+      best: newRemBest,
+      factor,
+      prio: node.prio || 2,
+      deps: [nodeId],
+      note: `Restaufwand aus unterbrochener Aufgabe ${node.id}`,
+      assign: node.assign || [],
+    };
+    if (node.confidence) newTask.confidence = node.confidence;
+
+    const next = tree.map(r => r.id === nodeId ? updated : r);
+    let insertAt = next.length;
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
+        insertAt = i + 1; break;
+      }
+    }
+    next.splice(insertAt, 0, newTask);
+    setD('tree', next);
+  }
   function addNode(node) {
     const pid = node.id.split('.').slice(0, -1).join('.');
     const nt = [...tree];
@@ -2378,7 +2443,8 @@ export default function App() {
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onReorderInQueue={reorderInQueue}
-              onSplitHandoff={splitHandoff} /></div>
+              onSplitHandoff={splitHandoff}
+              onSplitTaskAtProgress={splitTaskAtProgress} /></div>
           </>}
         </div>}
       </div>}
@@ -2404,6 +2470,7 @@ export default function App() {
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue}
       onSplitHandoff={splitHandoff}
+      onSplitTaskAtProgress={splitTaskAtProgress}
       onNavigate={id => {
         const target = tree.find(r => r.id === id);
         if (!target) return;
