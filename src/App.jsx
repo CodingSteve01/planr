@@ -20,6 +20,7 @@ import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView } from './components/views/ResView.jsx';
+import { QueuesView } from './components/views/QueuesView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
 import { BriefingView } from './components/views/BriefingView.jsx';
@@ -2097,6 +2098,7 @@ export default function App() {
     { id: 'gantt', label: _t('tab.gantt'), isNew: showNewBadge },
     { id: 'net', label: _t('tab.net') },
     { id: 'resources', label: _t('tab.resources') },
+    { id: 'queues', label: _t('tab.queues'), isNew: showNewBadge },
     { id: 'holidays', label: _t('tab.holidays') },
   ];
 
@@ -2462,6 +2464,11 @@ export default function App() {
         onTeamUpd={onResTeamUpd}
         onTeamAdd={onResTeamAdd}
         onTeamDel={onResTeamDel} /></div>}
+      {visitedTabs.has('queues') && <div className="pane" style={{ display: tab === 'queues' ? undefined : 'none' }}><QueuesView
+        tree={tree} members={members} teams={teams} scheduled={scheduled}
+        teamFilter={teamFilter} personFilter={personFilter}
+        onOpenItem={onSumOpenItem}
+        onReorderInQueue={reorderInQueue} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}

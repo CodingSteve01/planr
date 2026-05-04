@@ -22,6 +22,16 @@ const en = {
   // ── Tabs ──
   'tab.summary': 'Overview', 'tab.briefing': 'Briefing', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
+  'tab.queues': 'Queues',
+  'q.intro': 'Per-person task queue. Drag a row or use ▲▼ buttons to reorder — the scheduler runs work in this order within each priority level. Assignment stays intact.',
+  'q.empty': 'No queues match the current filters.',
+  'q.queueEmpty': 'No pending tasks.',
+  'q.first': 'Move to top',
+  'q.earlier': 'Move earlier',
+  'q.later': 'Move later',
+  'q.last': 'Move to bottom',
+  'q.dragTip': 'Drag to reorder',
+  'rv.unassigned': 'team queue',
 
   // ── HolView ──
   'hv.title': 'Holidays', 'hv.importNRW': '↓ Import NRW', 'hv.addManual': '+ Add manually',
@@ -548,6 +558,16 @@ const de = {
   // ── Tabs ──
   'tab.summary': 'Übersicht', 'tab.briefing': 'Briefing', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
+  'tab.queues': 'Queues',
+  'q.intro': 'Aufgaben-Queue je Person. Per Drag oder ▲▼-Buttons sortieren — Scheduler arbeitet sie genau in dieser Reihenfolge ab (innerhalb der Priorität). Zuweisung bleibt erhalten.',
+  'q.empty': 'Keine Queues passen zum aktuellen Filter.',
+  'q.queueEmpty': 'Keine offenen Aufgaben.',
+  'q.first': 'Ganz nach oben',
+  'q.earlier': 'Früher',
+  'q.later': 'Später',
+  'q.last': 'Ganz nach unten',
+  'q.dragTip': 'Zum Verschieben ziehen',
+  'rv.unassigned': 'Team-Queue',
 
   // ── HolView ──
   'hv.title': 'Feiertage', 'hv.importNRW': '↓ NRW importieren', 'hv.addManual': '+ Manuell hinzufügen',
