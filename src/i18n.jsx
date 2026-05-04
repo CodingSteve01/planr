@@ -59,6 +59,18 @@ const en = {
   'qe.confirmDelete': 'Delete {0}?', 'qe.confirmDeleteChildren': 'Delete {0} and all children?',
   'qe.confirmDuplicate': 'Duplicate "{0}"?', 'qe.confirmDuplicateN': 'Duplicate "{0}" with {1} descendants?',
 
+  // ── Split (interrupted task + handoff cascade) ──
+  'split.btn': '↳ Split',
+  'split.task.tip': 'Split task at current progress — original is closed, the remaining effort moves into a follow-up task.',
+  'split.task.prompt': 'How many percent of this task is done?\n(Currently: {0}%)',
+  'split.task.invalid': 'Please enter a number between 1 and 99.',
+  'split.task.suffix': '(continued)',
+  'split.task.note': 'Remaining effort from interrupted task {0}',
+  'split.handoff.tip': 'Create follow-up tasks for the remaining effort — every handoff leg becomes its own task with a dep on the previous one. Primary task is trimmed to its own share.',
+  'split.handoff.confirm': 'Split handoff into standalone follow-up tasks?\n\nPrimary task keeps only its own share, every handoff stage becomes a new sibling with a dep on the previous one.',
+  'split.handoff.hint': 'These legs are virtual scheduler segments — no own status / progress / Jira ID. Use {0} above right to turn each leg into a real task.',
+  'split.handoff.note': 'Remaining effort from handoff of {0}',
+
   // ── NodeModal ──
   'nm.focusType': 'Focus type', 'nm.severity': 'Severity',
   'nm.appliesToAllLeaves': '(applies to all leaves)',
@@ -571,6 +583,18 @@ const de = {
   'qe.confirmRelease': '„{0}" wartet nicht mehr auf dieses Item?',
   'qe.confirmDelete': '{0} löschen?', 'qe.confirmDeleteChildren': '{0} und alle Unterelemente löschen?',
   'qe.confirmDuplicate': '„{0}" duplizieren?', 'qe.confirmDuplicateN': '„{0}" mit {1} Unterelementen duplizieren?',
+
+  // ── Split (unterbrochene Aufgabe + Handoff-Cascade) ──
+  'split.btn': '↳ Split',
+  'split.task.tip': 'Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe.',
+  'split.task.prompt': 'Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: {0}%)',
+  'split.task.invalid': 'Bitte eine Zahl zwischen 1 und 99 angeben.',
+  'split.task.suffix': '(Fortsetzung)',
+  'split.task.note': 'Restaufwand aus unterbrochener Aufgabe {0}',
+  'split.handoff.tip': 'Folgetasks mit Restaufwand anlegen — jeder Handoff wird zu einer eigenen Aufgabe mit Dep auf den Vorgänger. Primary-Task wird auf eigenen Anteil gekürzt.',
+  'split.handoff.confirm': 'Handoff in eigenständige Folge-Tasks aufsplitten?\n\nPrimary-Task behält nur seinen Anteil, jede Handoff-Stage wird ein neuer Sibling mit Dep auf den vorigen.',
+  'split.handoff.hint': 'Diese Etappen sind virtuelle Scheduler-Segmente — kein eigener Status / Progress / Jira-ID. Mit {0} oben rechts wird jede Etappe zu einer echten Aufgabe.',
+  'split.handoff.note': 'Restaufwand aus Handoff von {0}',
 
   // ── NodeModal ──
   'nm.focusType': 'Fokus-Typ', 'nm.severity': 'Schweregrad',

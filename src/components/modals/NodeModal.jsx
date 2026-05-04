@@ -557,18 +557,18 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
           && !hasChildren(tree, node.id) && (
           <button className="btn btn-sec"
-            data-htip="Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe."
+            data-htip={t('split.task.tip')}
             onClick={() => {
               if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-              const raw = prompt(`Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: ${f.progress}%)`, String(f.progress));
+              const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
               if (raw == null) return;
               const p = parseInt(raw, 10);
               if (!Number.isFinite(p) || p <= 0 || p >= 100) {
-                alert('Bitte eine Zahl zwischen 1 und 99 angeben.'); return;
+                alert(t('split.task.invalid')); return;
               }
               onSplitTaskAtProgress(node.id, p);
               onClose();
-            }}>↳ Split</button>
+            }}>{t('split.btn')}</button>
         )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>

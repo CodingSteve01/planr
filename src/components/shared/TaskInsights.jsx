@@ -395,13 +395,13 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         <Section label="Handoff-Kette" extra={
           onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) ? (
             <button className="btn btn-sec btn-xs"
-              data-htip="Folgetasks mit Restaufwand anlegen — jeder Handoff wird zu einer eigenen Aufgabe mit Dep auf den Vorgänger. Primary-Task wird auf eigenen Anteil gekürzt."
+              data-htip={t('split.handoff.tip')}
               onClick={() => {
-                if (confirm('Handoff in eigenständige Folge-Tasks aufsplitten?\n\nPrimary-Task behält nur seinen Anteil, jede Handoff-Stage wird ein neuer Sibling mit Dep auf den vorigen.')) {
+                if (confirm(t('split.handoff.confirm'))) {
                   onSplitHandoff(node.id);
                 }
               }}
-              style={{ padding: '2px 7px', fontSize: 10 }}>↳ Split</button>
+              style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>
           ) : null
         }>
           {sc.segments.map((seg, i) => {
@@ -429,8 +429,18 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           {onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) && (
             <KVRow label="">
               <span style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
-                Diese Etappen sind virtuelle Scheduler-Segmente — kein eigener Status / Progress / Jira-ID.
-                Mit <b>↳ Split</b> oben rechts wird jede Etappe zu einer echten Aufgabe.
+                {(() => {
+                  const txt = t('split.handoff.hint', t('split.btn'));
+                  // The {0} placeholder is the button label — bold-render
+                  // the slot when locating it by literal match.
+                  const idx = txt.indexOf(t('split.btn'));
+                  if (idx < 0) return txt;
+                  return <>
+                    {txt.slice(0, idx)}
+                    <b>{t('split.btn')}</b>
+                    {txt.slice(idx + t('split.btn').length)}
+                  </>;
+                })()}
               </span>
             </KVRow>
           )}

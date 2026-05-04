@@ -512,17 +512,17 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
         && !hasChildren(tree, node.id) && (
         <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }}
-          data-htip="Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe."
+          data-htip={t('split.task.tip')}
           onClick={() => {
-            const raw = prompt(`Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: ${f.progress}%)`, String(f.progress));
+            const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
             if (raw == null) return;
             const p = parseInt(raw, 10);
             if (!Number.isFinite(p) || p <= 0 || p >= 100) {
-              alert('Bitte eine Zahl zwischen 1 und 99 angeben.');
+              alert(t('split.task.invalid'));
               return;
             }
             onSplitTaskAtProgress(node.id, p);
-          }}>↳ Split</button>
+          }}>{t('split.btn')}</button>
       )}
       {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => {
         if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) onDelete(node.id);

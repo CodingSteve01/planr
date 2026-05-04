@@ -1521,7 +1521,7 @@ export default function App() {
         factor,
         prio: node.prio || 2,
         deps: [prevId],
-        note: 'Restaufwand aus Handoff von ' + node.id,
+        note: _t('split.handoff.note', node.id),
         assign: seg.personId ? [seg.personId] : [],
       };
       if (node.confidence) t.confidence = node.confidence;
@@ -1593,14 +1593,14 @@ export default function App() {
 
     const newTask = {
       id: newId,
-      name: `${node.name} (Fortsetzung)`,
+      name: `${node.name} ${_t('split.task.suffix')}`,
       status: 'open',
       team: node.team || '',
       best: newRemBest,
       factor,
       prio: node.prio || 2,
       deps: [nodeId],
-      note: `Restaufwand aus unterbrochener Aufgabe ${node.id}`,
+      note: _t('split.task.note', node.id),
       assign: node.assign || [],
     };
     if (node.confidence) newTask.confidence = node.confidence;
