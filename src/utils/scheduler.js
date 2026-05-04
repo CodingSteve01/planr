@@ -56,10 +56,17 @@ export function resolveToLeafIds(tree, id) {
 //   discountProgress:  When true (default), wip leaves with a numeric progress
 //                      get their effort scaled by `(1 - progress/100)` so the
 //                      already-done portion isn't replanned again.
+//   autoCascade:       When true, the scheduler hands truncated work off to
+//                      next-free team mates / cross-team automatically and
+//                      emits synthetic `#N` cascade rows. Default false: a
+//                      task that runs past its assignee's offboard date is
+//                      simply flagged via `truncatedByOffboard` so the user
+//                      can split it manually (TaskInsights → ↳ Split).
 export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, planStartStr, options = {}) {
   const _now = options.now ? localDate(options.now) : localDate(new Date());
   const _anchorToToday = options.anchorToToday !== false;
   const _discountProgress = options.discountProgress !== false;
+  const _autoCascade = options.autoCascade === true;
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
@@ -443,10 +450,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // the same team (semantic preference). Second pass: fall back to any
           // team in the project — tagged crossTeam for visibility.
           const runCascade = () => {
-            // `noCascade`: split-handoff drops the cascade machinery for the
-            // trimmed primary so we don't re-create the synthetic `#N` row
-            // the user just split out. Any leftover `rem > 0` is intentional
-            // and is meant to be picked up by the next sibling task.
+            // Cascade is opt-in (options.autoCascade) and per-task overridable
+            // (r.noCascade). Default off — rather than silently re-shuffling
+            // work to the next free body, surface a `truncatedByOffboard`
+            // warning and let the user split the task manually.
+            if (!_autoCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             if (r.noCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
             const usedIds = new Set([bp.id]);
@@ -708,7 +716,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // the task continues with a collaborator instead of falling through to
     // auto-cascade. Remainder still cascades to team + cross-team afterwards.
     const runAssignedCascade = () => {
-      // See note on `r.noCascade` in the team-slot path.
+      // See note on `_autoCascade` / `r.noCascade` in the team-slot path.
+      if (!_autoCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
       if (r.noCascade) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
       if (!(rem > 0 && endDate)) return { segments: [], remaining: rem, lastWD: null, finalWi: -1, lastOffboard: null };
       const usedIds = new Set([bp.id]);

@@ -256,6 +256,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         onPhaseToggle={handlePhaseToggle}
         onOpenItem={handleNavigate}
         onSplitHandoff={onSplitHandoff}
+        onSplitTaskAtProgress={onSplitTaskAtProgress}
         onEditSection={sectionId => {
           const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
           const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };

@@ -76,7 +76,7 @@ function Section({ label, onClick, editLabel, children, extra }) {
   );
 }
 
-export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle, onSplitHandoff }) {
+export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle, onSplitHandoff, onSplitTaskAtProgress }) {
   const { t } = useT();
   const editLabel = t('ins.editSection');
   const phaseToggleTip = t('ins.phaseToggle');
@@ -390,19 +390,32 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       )}
 
       {/* Handoff / offboarding cascade — leaf only when the scheduler had to
-          split work across multiple people (or gave up and flagged the tail). */}
+          split work across multiple people (or flagged a truncation). */}
       {isLeaf && sc?.segments && (sc.segments.length > 1 || sc.truncatedByOffboard) && (
-        <Section label="Handoff-Kette" extra={
-          onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) ? (
-            <button className="btn btn-sec btn-xs"
-              data-htip={t('split.handoff.tip')}
-              onClick={() => {
-                if (confirm(t('split.handoff.confirm'))) {
-                  onSplitHandoff(node.id);
-                }
-              }}
-              style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>
-          ) : null
+        <Section label={sc.segments.length > 1 ? 'Handoff-Kette' : t('ins.offboardWarn')} extra={
+          // Cascade chain present → splitHandoff. Cascade-free truncation →
+          // splitTaskAtProgress at the consumed/total ratio so the split
+          // produces a "done" original (consumed in the past) plus a
+          // follow-up for the unassigned tail.
+          (() => {
+            const hasChain = sc.segments.slice(1).some(s => !s.unscheduled);
+            if (hasChain && onSplitHandoff) {
+              return <button className="btn btn-sec btn-xs"
+                data-htip={t('split.handoff.tip')}
+                onClick={() => { if (confirm(t('split.handoff.confirm'))) onSplitHandoff(node.id); }}
+                style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>;
+            }
+            if (sc.truncatedByOffboard && onSplitTaskAtProgress) {
+              const consumed = sc.segments[0]?.effort || 0;
+              const total = consumed + sc.truncatedByOffboard.remainingEffort;
+              const pct = total > 0 ? Math.max(1, Math.min(99, Math.round(consumed / total * 100))) : 50;
+              return <button className="btn btn-sec btn-xs"
+                data-htip={t('split.task.tip')}
+                onClick={() => onSplitTaskAtProgress(node.id, pct)}
+                style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>;
+            }
+            return null;
+          })()
         }>
           {sc.segments.map((seg, i) => {
             const isGhost = !!seg.unscheduled;

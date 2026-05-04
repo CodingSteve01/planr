@@ -17,7 +17,10 @@ function runSchedule({
   // Pin `now` to planStart so tests stay deterministic regardless of when
   // they run. Auto-advance + WIP-discount are still exercised — tests that
   // need to verify those pass `now` / `discountProgress` through `options`.
-  const opts = { now: planStart, anchorToToday: false, discountProgress: false, ...options };
+  // autoCascade defaults true here so the existing handoff suite stays
+  // valid — those tests exercise cascade mechanics. App-side default is
+  // false (user explicitly splits via the Insights ↳ Split button).
+  const opts = { now: planStart, anchorToToday: false, discountProgress: false, autoCascade: true, ...options };
   return schedule(tree, members, vacations, planStart, planEnd, holidays, workDays, planStart, opts);
 }
 
