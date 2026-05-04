@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { schedule, re } from '../scheduler.js';
+import { iso } from '../date.js';
 
 // Minimal project builder — returns the canonical `schedule()` invocation so
 // tests can focus on scenario state, not boilerplate.
@@ -11,8 +12,13 @@ function runSchedule({
   planEnd = '2026-12-31',
   holidays = {},
   workDays = [1, 2, 3, 4, 5],
+  options = {},
 }) {
-  return schedule(tree, members, vacations, planStart, planEnd, holidays, workDays, planStart);
+  // Pin `now` to planStart so tests stay deterministic regardless of when
+  // they run. Auto-advance + WIP-discount are still exercised — tests that
+  // need to verify those pass `now` / `discountProgress` through `options`.
+  const opts = { now: planStart, anchorToToday: false, discountProgress: false, ...options };
+  return schedule(tree, members, vacations, planStart, planEnd, holidays, workDays, planStart, opts);
 }
 
 describe('re() effort calculation', () => {
@@ -418,5 +424,66 @@ describe('schedule(): segment sums are conservative', () => {
     const sumEffort = all.reduce((s, r) => s + (r.effort || 0), 0);
     // Effort = best*factor = 40*1.5 = 60
     expect(sumEffort).toBeCloseTo(60, 1);
+  });
+});
+
+describe('schedule(): anchor to today', () => {
+  test('non-pinned tasks slide forward when today > planStart', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 5, factor: 1, status: 'open' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    // planStart way in the past, "today" 60 days later. Without anchorToToday,
+    // task would start on planStart. With it, task starts on or after today.
+    const r = runSchedule({
+      tree, members,
+      planStart: '2026-01-05',
+      planEnd: '2026-12-31',
+      options: { now: '2026-03-09', anchorToToday: true },
+    });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item).toBeTruthy();
+    expect(item.startD).toBeInstanceOf(Date);
+    // Should start no earlier than the synthetic "today" (compare via the
+    // local-TZ iso() helper so we don't hit UTC-midnight skew).
+    expect(iso(item.startD) >= '2026-03-09').toBe(true);
+  });
+
+  test('pinned tasks ignore the today-floor', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 5, factor: 1, status: 'open', pinnedStart: '2026-02-01' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({
+      tree, members,
+      planStart: '2026-01-05',
+      planEnd: '2026-12-31',
+      options: { now: '2026-03-09', anchorToToday: true },
+    });
+    const item = r.results.find(x => x.id === 'A');
+    // Pinned start kept even though "today" is later.
+    expect(iso(item.startD) < '2026-03-09').toBe(true);
+  });
+});
+
+describe('schedule(): WIP progress discount', () => {
+  test('half-done WIP task uses half the effort', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'wip', progress: 50 }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: true } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(5, 1);
+  });
+
+  test('open task is unaffected by progress discount', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'open' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: true } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(10, 1);
+  });
+
+  test('disabled discount keeps full effort even on wip', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'wip', progress: 50 }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: false } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(10, 1);
   });
 });

@@ -45,7 +45,21 @@ export function resolveToLeafIds(tree, id) {
 
 // ps = viewStart (rendering start, may be before planStart for pre-started tasks)
 // planStartStr = scheduling start (new/unstarted tasks begin here)
-export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, planStartStr) {
+// options:
+//   now:               Date used as "today". Defaults to current Date. Tests pass
+//                      a synthetic `now` matching their planStart so they stay
+//                      independent of the wall clock.
+//   anchorToToday:     When true (default), non-pinned tasks may not start before
+//                      max(planStart, today). Stops the schedule from drifting
+//                      into the past as days roll on. Pinned tasks keep their
+//                      explicit start date regardless.
+//   discountProgress:  When true (default), wip leaves with a numeric progress
+//                      get their effort scaled by `(1 - progress/100)` so the
+//                      already-done portion isn't replanned again.
+export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, planStartStr, options = {}) {
+  const _now = options.now ? localDate(options.now) : localDate(new Date());
+  const _anchorToToday = options.anchorToToday !== false;
+  const _discountProgress = options.discountProgress !== false;
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
@@ -73,8 +87,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // planStartWi = week index where actual scheduling begins (non-pinned tasks start here).
   // Weeks before this exist for rendering only.
   const planStartDate = localDate(planStartStr || ps);
+  // Effective floor for non-pinned work. When auto-advance is on and today
+  // has moved past the configured planStart, shift the floor forward so
+  // unstarted tasks pile up at "today" instead of in the past.
+  const effectiveFloor = (_anchorToToday && _now > planStartDate) ? _now : planStartDate;
   const planEndDate = localDate(pe);
-  const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > planStartDate));
+  const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > effectiveFloor));
   const vis = new Set(), ord = [];
   const sv = [...lvs].sort((a, b) => {
     // Pinned tasks schedule FIRST so their person-capacity (pF) consumption is visible
@@ -306,7 +324,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     if (r?.status === 'done') return;
     if (tEW[id]?.wi === -1) return;
     if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = { wi: -1, nextDate: null }; return; }
-    const eff = re(r.best, r.factor);
+    let eff = re(r.best, r.factor);
+    // WIP tasks: subtract the already-done portion so the scheduler only
+    // places the remaining effort. Without this a 90%-done 10d task still
+    // takes 10d on the Gantt and slides every successor by 9d of phantom
+    // work. Gated on opt-in flag so tests can keep deterministic effort.
+    if (_discountProgress && eff > 0 && r.status === 'wip'
+        && typeof r.progress === 'number' && r.progress > 0 && r.progress < 100) {
+      eff = eff * (1 - r.progress / 100);
+    }
     const team = pt(r.team);
     const tM = members.filter(m => pt(m.team) === team);
     // Inherit deps from all ancestors so a parent dep blocks every leaf underneath
@@ -330,7 +356,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     let earlyDate = depNextDate;
     // If no dep constrains the date and the task isn't pinned, don't start before planStartDate
     // (fixes off-by-one where tasks started on the Monday before the Tuesday planning horizon).
-    if (!earlyDate && depWi < 0 && !r.pinnedStart) earlyDate = planStartDate;
+    if (!earlyDate && depWi < 0 && !r.pinnedStart) earlyDate = effectiveFloor;
     // Pinned start: user manually pinned this task to a specific date.
     if (r.pinnedStart) {
       const pinDate = localDate(r.pinnedStart);
