@@ -116,8 +116,16 @@ function _runSnapshot() {
     }
   }
 }
+// Min seconds between two snapshot writes. The localStorage value can grow
+// to ~2MB (20 × ~100KB project) — stringify+write on every save jankers the
+// main thread. Throttle so the ring catches edits at human cadence, not at
+// every keystroke-debounced auto-save.
+const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
+let _lastSnapAt = 0;
 function pushSnapshot(data) {
   if (!data || !Array.isArray(data.tree)) return;
+  if (Date.now() - _lastSnapAt < SNAPSHOT_MIN_INTERVAL_MS) return;
+  _lastSnapAt = Date.now();
   // Coalesce rapid pushes: keep only the latest pending data, run once
   // when the browser goes idle. Avoids stringifying on every keystroke.
   _pendingData = data;
@@ -329,16 +337,19 @@ export default function App() {
   const [fileWriteOk, setFileWriteOk] = useState(true);
   const [fileSynced, setFileSynced] = useState(true); // whether the file on disk matches current data
   const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
+  const lastWrittenDataRef = useRef(null);
   useEffect(() => {
     if (!data) return;
+    // Bail early if `data` is the exact same reference we last wrote — saves
+    // a JSON.stringify on the main thread for a project that may be ~100KB.
+    // Reference equality is enough because every mutating helper produces a
+    // fresh top-level object.
+    if (data === lastWrittenDataRef.current) return;
     let idleId = null;
     const t = setTimeout(() => {
       idleId = scheduleIdleWrite(() => {
         localStorage.setItem(SK, JSON.stringify(data));
-        // Drop a rolling JSON snapshot. Cheap insurance against the
-        // markdown writer ever producing a corrupted file (Obsidian
-        // re-render, iCloud merge conflict, etc).
-        pushSnapshot(data);
+        lastWrittenDataRef.current = data;
         // localStorage save is always successful → data is "saved" (just maybe not to file yet)
         setSaved(true);
         setLastSavedAt(new Date());
@@ -376,6 +387,8 @@ export default function App() {
         setFileSynced(true);
         lastOwnWriteRef.current = Date.now();
         setLastSavedAt(new Date());
+        // Snapshot ring tracks file-save events, throttled internally.
+        pushSnapshot(data);
       } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
       finally { setSaving(false); }
     }, SAVE_DEBOUNCE_MS);
@@ -492,6 +505,10 @@ export default function App() {
       setFileSynced(true);
       setSaved(true);
       setLastSavedAt(new Date());
+      // Persist a JSON snapshot tied to a real file write — recovery scenarios
+      // care about state that landed on disk, not every keystroke. Throttled
+      // internally to ≥60s so manual rapid saves don't churn the ring.
+      pushSnapshot(data);
     } catch (e) {
       if (e.name === 'AbortError') return; // user cancelled file picker
       console.error('Save failed:', e);

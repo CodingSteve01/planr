@@ -329,9 +329,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // places the remaining effort. Without this a 90%-done 10d task still
     // takes 10d on the Gantt and slides every successor by 9d of phantom
     // work. Gated on opt-in flag so tests can keep deterministic effort.
+    // We also remember the consumed effort so the bar's `startD` can be
+    // shifted backward later — the visual then spans both portions and
+    // the existing left-side progress overlay (see GanttView) lands on
+    // real calendar days in the past.
+    let consumedEff = 0;
     if (_discountProgress && eff > 0 && r.status === 'wip'
         && typeof r.progress === 'number' && r.progress > 0 && r.progress < 100) {
-      eff = eff * (1 - r.progress / 100);
+      consumedEff = eff * (r.progress / 100);
+      eff = eff - consumedEff;
     }
     const team = pt(r.team);
     const tM = members.filter(m => pt(m.team) === team);
@@ -562,8 +568,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // was ready), take the first cascade segment's start so the task's
           // reported window reflects when it ACTUALLY ran.
           const firstCascadeSeg = cascade.segments[0];
-          const actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
+          let actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
           const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+          // WIP-progress: extend the bar's visible start backward by the days
+          // already consumed at this person's daily capacity. Done portion sits
+          // in the past where it actually happened; remaining portion stays on
+          // the freshly placed dates from today onward.
+          if (consumedEff > 0 && dailyBaseCap > 0) {
+            const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
+            actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
+          }
           const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
           let pinOverridden0 = false;
           if (r.pinnedStart && actualStartD) {
@@ -789,8 +803,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // it must not block other pinned tasks either.
     if (r.pinnedStart && !r.parallel) reservePinnedDays(asgn, workedDays);
     const firstCascadeSegExplicit = cascade.segments[0];
-    const actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
+    let actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+    // Same WIP-progress backward shift as the team-slot path (see comment there).
+    if (consumedEff > 0 && dailyBaseCap > 0) {
+      const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
+      actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
+    }
     // Dep violation diagnostic: warn if this task starts before any of its deps finish.
     allD.forEach(depId => {
       const dEnd = tEW[depId];
