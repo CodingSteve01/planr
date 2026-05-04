@@ -47,7 +47,7 @@ function StatChip({ label, value, tone = 'default' }) {
   );
 }
 
-function Section({ label, onClick, editLabel, children }) {
+function Section({ label, onClick, editLabel, children, extra }) {
   const clickable = !!onClick;
   return (
     <div
@@ -67,7 +67,8 @@ function Section({ label, onClick, editLabel, children }) {
         fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
         color: clickable ? 'var(--tx2)' : 'var(--tx3)', marginBottom: 4,
         borderBottom: '1px solid var(--b)', paddingBottom: 3, userSelect: 'none',
-      }}>{label}</div>
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+      }}><span>{label}</span>{extra && <span onClick={e => e.stopPropagation()}>{extra}</span>}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '4px 8px' }}>
         {children}
       </div>
@@ -75,7 +76,7 @@ function Section({ label, onClick, editLabel, children }) {
   );
 }
 
-export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle }) {
+export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle, onSplitHandoff }) {
   const { t } = useT();
   const editLabel = t('ins.editSection');
   const phaseToggleTip = t('ins.phaseToggle');
@@ -391,7 +392,18 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Handoff / offboarding cascade — leaf only when the scheduler had to
           split work across multiple people (or gave up and flagged the tail). */}
       {isLeaf && sc?.segments && (sc.segments.length > 1 || sc.truncatedByOffboard) && (
-        <Section label="Handoff-Kette">
+        <Section label="Handoff-Kette" extra={
+          onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) ? (
+            <button className="btn btn-sec btn-xs"
+              data-htip="Folgetasks mit Restaufwand anlegen — jeder Handoff wird zu einer eigenen Aufgabe mit Dep auf den Vorgänger. Primary-Task wird auf eigenen Anteil gekürzt."
+              onClick={() => {
+                if (confirm('Handoff in eigenständige Folge-Tasks aufsplitten?\n\nPrimary-Task behält nur seinen Anteil, jede Handoff-Stage wird ein neuer Sibling mit Dep auf den vorigen.')) {
+                  onSplitHandoff(node.id);
+                }
+              }}
+              style={{ padding: '2px 7px', fontSize: 10 }}>↳ Split</button>
+          ) : null
+        }>
           {sc.segments.map((seg, i) => {
             const isGhost = !!seg.unscheduled;
             const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';

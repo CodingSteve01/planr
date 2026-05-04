@@ -1467,6 +1467,80 @@ export default function App() {
     setSaved(false);
   }
   function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
+  // Materialize handoff segments as standalone tree tasks, chained by deps.
+  // The primary task stays in place but is trimmed to its own consumed
+  // effort (so the schedule no longer includes the handoff portion in its
+  // best estimate). Each cascade leg becomes a sibling with the next
+  // assignee, the segment's remaining effort, and a dep on the previous
+  // leg. Drops the source task's handoffPlan so the scheduler doesn't
+  // re-cascade into the freshly created tasks.
+  function splitHandoff(nodeId) {
+    const sc = scheduled.find(s => s.id === nodeId);
+    const node = tree.find(r => r.id === nodeId);
+    if (!node || !sc?.segments || sc.segments.length <= 1) return;
+    const handoffSegs = sc.segments.slice(1).filter(s => !s.unscheduled);
+    if (!handoffSegs.length) return;
+
+    const factor = node.factor || 1.5;
+    const primaryEff = sc.segments[0]?.effort || 0;
+    const newPrimaryBest = Math.max(1, Math.ceil(primaryEff / factor));
+
+    const updatedPrimary = { ...node, best: newPrimaryBest };
+    delete updatedPrimary.handoffPlan;
+
+    // Find next free sibling slot under the same parent.
+    const parent = nodeId.split('.').slice(0, -1).join('.');
+    const sibIds = tree
+      .filter(r => {
+        const p = r.id.split('.').slice(0, -1).join('.');
+        return p === parent;
+      })
+      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
+    let nextNum = sibIds.length ? Math.max(...sibIds) : 0;
+
+    let prevId = node.id;
+    const newTasks = handoffSegs.map(seg => {
+      nextNum += 1;
+      const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
+      const remBest = Math.max(1, Math.ceil((seg.effort || 0) / factor));
+      const t = {
+        id: newId,
+        name: `${node.name} → ${seg.personName || '?'}`,
+        status: 'open',
+        team: seg.team || node.team || '',
+        best: remBest,
+        factor,
+        prio: node.prio || 2,
+        deps: [prevId],
+        note: 'Restaufwand aus Handoff von ' + node.id,
+        assign: seg.personId ? [seg.personId] : [],
+      };
+      if (node.confidence) t.confidence = node.confidence;
+      prevId = newId;
+      return t;
+    });
+
+    // Insert new tasks right after the primary's tree slot so the order
+    // matches the Gantt's left-to-right reading.
+    const next = [];
+    for (const r of tree) {
+      if (r.id === nodeId) {
+        next.push(updatedPrimary);
+      } else {
+        next.push(r);
+      }
+    }
+    // Splice new tasks in after the primary's last descendant (same logic
+    // as addNode for nested IDs).
+    let insertAt = next.length;
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
+        insertAt = i + 1; break;
+      }
+    }
+    next.splice(insertAt, 0, ...newTasks);
+    setD('tree', next);
+  }
   function addNode(node) {
     const pid = node.id.split('.').slice(0, -1).join('.');
     const nt = [...tree];
@@ -2294,7 +2368,8 @@ export default function App() {
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
-              onReorderInQueue={reorderInQueue} /></div>
+              onReorderInQueue={reorderInQueue}
+              onSplitHandoff={splitHandoff} /></div>
           </>}
         </div>}
       </div>}
@@ -2319,6 +2394,7 @@ export default function App() {
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onReorderInQueue={reorderInQueue}
+      onSplitHandoff={splitHandoff}
       onNavigate={id => {
         const target = tree.find(r => r.id === id);
         if (!target) return;

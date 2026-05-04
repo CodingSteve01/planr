@@ -22,7 +22,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate, onSplitHandoff }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -255,6 +255,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         customFields={projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS}
         onPhaseToggle={handlePhaseToggle}
         onOpenItem={handleNavigate}
+        onSplitHandoff={onSplitHandoff}
         onEditSection={sectionId => {
           const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
           const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
