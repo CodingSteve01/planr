@@ -283,8 +283,14 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       {isLeaf && phases.length === 0 && <div ref={focusRefs.status} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         <div style={{ flex: '0 0 100px' }}>
           <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
-            // Sync progress when status changes manually
-            if (value === 'done') patchNode({ status: 'done', progress: 100, completedAt: f.completedAt || iso(new Date()) });
+            // Sync progress when status changes manually. Done → completedAt
+            // clamps to today: a task marked done now is finished now, never
+            // in the future (would otherwise inherit a stale planned-end).
+            if (value === 'done') {
+              const today = iso(new Date());
+              const ca = (f.completedAt && f.completedAt <= today) ? f.completedAt : today;
+              patchNode({ status: 'done', progress: 100, completedAt: ca });
+            }
             else if (value === 'open') patchNode({ status: 'open', progress: 0 });
             else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
           }} />
@@ -297,7 +303,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           onChange={e => {
             const value = +e.target.value;
             const next = { ...f, progress: value };
-            if (value >= 100 && f.status !== 'done') { next.status = 'done'; next.completedAt = f.completedAt || iso(new Date()); }
+            if (value >= 100 && f.status !== 'done') {
+              next.status = 'done';
+              const today = iso(new Date());
+              next.completedAt = (f.completedAt && f.completedAt <= today) ? f.completedAt : today;
+            }
             else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
             else if (value === 0 && f.status !== 'open') next.status = 'open';
             bufferNode(next);
@@ -424,6 +434,40 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => patchNode({ completedAt: e.target.value })} />
           <div className="helper">{t('qe.completedHint')}</div>
         </div>
+        {/* Soll/Ist: planned window (Soll) vs actual completion (Ist).
+            Renders for done tasks AND for in-flight tasks where the user
+            captured plan-start/end before the task slipped. Diff in working
+            days exposed so the user sees overrun/underrun at a glance. */}
+        {(f.plannedStart || f.plannedEnd || f.completedStart || f.completedEnd) && (
+          <div className="frow">
+            <div className="field"><label>{t('qe.plannedStart') || 'Soll Start'}</label>
+              <input type="date" value={f.plannedStart || ''} onChange={e => patchNode({ plannedStart: e.target.value })} />
+            </div>
+            <div className="field"><label>{t('qe.plannedEnd') || 'Soll Ende'}</label>
+              <input type="date" value={f.plannedEnd || ''} onChange={e => patchNode({ plannedEnd: e.target.value })} />
+            </div>
+          </div>
+        )}
+        {f.status === 'done' && (f.completedStart || f.completedEnd) && (() => {
+          const sollEnd = f.plannedEnd ? new Date(f.plannedEnd) : null;
+          const istEnd = f.completedEnd ? new Date(f.completedEnd) : (f.completedAt ? new Date(f.completedAt) : null);
+          const diffDays = sollEnd && istEnd ? Math.round((istEnd - sollEnd) / 864e5) : null;
+          const tone = diffDays == null ? 'var(--tx3)' : diffDays > 0 ? 'var(--re)' : diffDays < 0 ? 'var(--gr)' : 'var(--tx2)';
+          const sign = diffDays == null ? '' : diffDays > 0 ? `+${diffDays}d` : `${diffDays}d`;
+          return (
+            <div style={{ display: 'flex', gap: 14, fontSize: 11, marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6 }}>
+              <span style={{ color: 'var(--tx3)' }}>Ist:</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>
+                {f.completedStart || '?'} → {f.completedEnd || f.completedAt || '?'}
+              </span>
+              {diffDays != null && (
+                <span style={{ marginLeft: 'auto', color: tone, fontWeight: 600 }}>
+                  Δ {sign}
+                </span>
+              )}
+            </div>
+          );
+        })()}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
           <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked })} /><span className="slider" /></label>

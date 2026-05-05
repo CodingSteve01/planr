@@ -328,7 +328,11 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
             <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
-              if (v === 'done') setF(x => ({ ...x, status: 'done', progress: 100, completedAt: x.completedAt || iso(new Date()) }));
+              if (v === 'done') setF(x => {
+                const today = iso(new Date());
+                const ca = (x.completedAt && x.completedAt <= today) ? x.completedAt : today;
+                return ({ ...x, status: 'done', progress: 100, completedAt: ca });
+              });
               else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
               else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
             }} />
@@ -339,7 +343,11 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 const v = +e.target.value;
                 setF(x => {
                   const next = { ...x, progress: v };
-                  if (v >= 100 && x.status !== 'done') { next.status = 'done'; next.completedAt = x.completedAt || iso(new Date()); }
+                  if (v >= 100 && x.status !== 'done') {
+                    next.status = 'done';
+                    const today = iso(new Date());
+                    next.completedAt = (x.completedAt && x.completedAt <= today) ? x.completedAt : today;
+                  }
                   else if (v > 0 && v < 100 && x.status !== 'wip') next.status = 'wip';
                   else if (v === 0 && x.status !== 'open') next.status = 'open';
                   return next;
