@@ -123,13 +123,30 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // capacity (pF) is consumed by committed work before speculative tasks are placed.
     const aHasPerson = (a.assign?.length > 0) ? 0 : 1;
     const bHasPerson = (b.assign?.length > 0) ? 0 : 1;
-    // Within the same priority + same assignment-state, earlier due dates
-    // schedule first. Tasks without a due date sort after dated ones at the
-    // same level. Soft only — `seq` still wins between two tasks that share
-    // a due, and `r.deps` are still hard.
+    // Effective priority: tasks with a near-term due date (≤ 90d from now)
+    // are promoted toward critical so they jump in front of priority-driven
+    // backlog work. The closer the due, the stronger the bump:
+    //   ≤ 14d → effectivePrio = 1 (critical)
+    //   ≤ 30d → max(prio - 2, 1)
+    //   ≤ 90d → max(prio - 1, 1)
+    // Without this, low-prio dated work stays buried behind high-prio
+    // undated work and silently slips past its due date.
+    const dueBump = (r) => {
+      if (!r.due) return r.prio || 4;
+      const daysToDue = Math.round((localDate(r.due) - _now) / 86400000);
+      const base = r.prio || 4;
+      if (daysToDue <= 14) return 1;
+      if (daysToDue <= 30) return Math.max(1, base - 2);
+      if (daysToDue <= 90) return Math.max(1, base - 1);
+      return base;
+    };
+    const aPrio = dueBump(a);
+    const bPrio = dueBump(b);
+    // Within the same effective priority + same assignment-state, earlier
+    // due dates schedule first. Tasks without due sort after dated ones.
     const aDue = a.due ? a.due : '9999-99-99';
     const bDue = b.due ? b.due : '9999-99-99';
-    return (a.prio || 4) - (b.prio || 4) || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
