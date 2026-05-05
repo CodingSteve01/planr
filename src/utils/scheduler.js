@@ -409,11 +409,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).
-    let depWi = -1, depNextDate = null;
+    let depWi = -1, depNextDate = null, depBlockerId = null;
     allD.forEach(d => {
       const fw = tEW[d]; if (!fw || fw.wi < 0) return;
       if (fw.wi > depWi || (fw.wi === depWi && fw.nextDate && (!depNextDate || fw.nextDate > depNextDate))) {
-        depWi = fw.wi; depNextDate = fw.nextDate;
+        depWi = fw.wi; depNextDate = fw.nextDate; depBlockerId = d;
       }
     });
     // Non-pinned tasks default to planStartWi. Pinned tasks can start earlier
@@ -656,6 +656,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           } : null;
           const eW = Math.min(wi, wks.length - 1);
           const nd = lastWorkDay ? addWorkDays(lastWorkDay, 1, wdSet) : null;
+          // Capture the person's previous free date BEFORE pF is overwritten
+          // so blockedBy/idle-gap calculation later in this block can tell
+          // whether the dep (vs the person's own queue) was the limiting
+          // factor.
+          const teamSlotPrevFree = pF[bp.id]?.nextDate || null;
           tEW[id] = { wi: eW, nextDate: nd };
           if (!r.pinnedStart) {
             // Non-pinned work consumes the queue directly. Pinned work blocks via
@@ -690,6 +695,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           {
             const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
             const dueInfeasible = !!(latestStart && latestStart < _now);
+            // blockedBy: surface the latest dep so UI can show "this row sits
+            // in 2027 because it was waiting for X (finished 2026-12-30)".
+            // We always include when a dep exists with a future end — UI
+            // decides whether to render based on the actual visible gap. The
+            // strict "dep pushed past chosen person's prior free" check
+            // hid blockedBy in the common case where the picked person was
+            // busy until exactly the dep end (busier-tiebreak path).
+            const depBlocked = !!(depBlockerId && depNextDate);
             res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
               best: r.best, effort: eff, startWi: bs, endWi: eW,
               startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
@@ -698,7 +711,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
               segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0,
               due: r.due || '', dueOverdue: !!(r.due && actualEndD && actualEndD > localDate(r.due)),
-              latestStart, dueInfeasible });
+              latestStart, dueInfeasible,
+              blockedBy: depBlocked ? { id: depBlockerId, endD: depNextDate } : null,
+              personPrevFree: teamSlotPrevFree });
           }
           return;
         }
@@ -733,6 +748,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // ── Per-person assigned path ───────────────────────────────────────────────
     const cands = members.filter(m => asgn.includes(m.id));
     const isMulti = cands.length > 1; // pair programming / multi-assign
+    // Capture per-person prior free state BEFORE selection so blockedBy can
+    // tell whether the dep (vs person's own queue) was the limiting factor.
+    const priorPF = {};
+    cands.forEach(m => { priorPF[m.id] = pF[m.id]?.nextDate || null; });
     // For multi-assign: ALL people must be free → use the LATEST free week (max).
     // For single-assign: use the EARLIEST free week (min) among candidates.
     let bp = null, bs = isMulti ? 0 : 9999;
@@ -954,12 +973,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
     const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
     const dueInfeasible = !!(latestStart && latestStart < _now);
+    const personPrevFreeAsg = priorPF[bp.id];
+    const depBlockedAsg = !!(depBlockerId && depNextDate);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
       due: r.due || '', dueOverdue, latestStart, dueInfeasible,
+      blockedBy: depBlockedAsg ? { id: depBlockerId, endD: depNextDate } : null,
+      personPrevFree: personPrevFreeAsg,
       vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
       segments, truncatedByOffboard: truncated });

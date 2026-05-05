@@ -1286,6 +1286,30 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   textShadow: 'none',
                 };
             return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
+              {/* Idle-wait gap: hatched amber band from when the assignee was
+                  prev free → this task's start. Visualises why the bar sits
+                  far in the future (waiting for a dep). Only when gap > ~5d
+                  to avoid noise. */}
+              {!isSummary && s.blockedBy && s.personPrevFree && s.startD && (() => {
+                const prevFreeD = s.personPrevFree instanceof Date ? s.personPrevFree : new Date(s.personPrevFree);
+                const startD = s.startD instanceof Date ? s.startD : new Date(s.startD);
+                const gapDays = Math.round((startD - prevFreeD) / 864e5);
+                if (gapDays < 5) return null;
+                const x1 = showDays ? dateToX(prevFreeD) : Math.floor(weeks.findIndex(w => { const nxt = weeks[weeks.indexOf(w)+1]; return w.mon <= prevFreeD && (!nxt || nxt.mon > prevFreeD); }) * WPX);
+                const x2 = barLeft;
+                if (!(x2 > x1)) return null;
+                const blocker = scheduled.find(x => x.id === s.blockedBy.id);
+                const blockerName = blocker?.name || s.blockedBy.id;
+                const blockerPerson = blocker?.person || blocker?.personShort || '?';
+                const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
+                return <div data-htip={`⏳ Wartet ${gapDays}d auf ${s.blockedBy.id} – ${blockerName} (${blockerPerson}, endet ${endIso})`}
+                  style={{
+                    position: 'absolute', left: x1, top: 8, width: x2 - x1, height: 12, borderRadius: 3,
+                    background: 'repeating-linear-gradient(45deg, rgba(245,158,11,.35) 0 4px, rgba(245,158,11,.10) 4px 8px)',
+                    border: '1px dashed rgba(245,158,11,.65)',
+                    pointerEvents: 'auto', zIndex: 1,
+                  }} />;
+              })()}
               {/* Vacation overlays — per-assignee on every task row regardless of grouping */}
               {!isSummary && (() => {
                 const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
@@ -1439,6 +1463,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                   data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
+                {!isSummary && s.blockedBy && (() => {
+                  const blocker = scheduled.find(x => x.id === s.blockedBy.id);
+                  const blockerName = blocker?.name || s.blockedBy.id;
+                  const blockerPerson = blocker?.person || blocker?.personShort || '?';
+                  const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
+                  return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
+                    data-htip={`Wartet auf ${s.blockedBy.id} – ${blockerName} (${blockerPerson}, endet ${endIso})`}>⏳</span>;
+                })()}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>
                 {/* Right-edge link handle: drag from here to another bar to add a dependency */}

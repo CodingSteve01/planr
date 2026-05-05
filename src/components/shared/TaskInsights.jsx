@@ -251,7 +251,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Sections */}
 
       {/* Timing section */}
-      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy || node.due) && (
+      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy || node.due || sc?.blockedBy) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {actualStartDate && actualEndDate && (
             <KVRow label={t('ins.actual')}>
@@ -340,6 +340,29 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                   </KVRow>
                 )}
               </>
+            );
+          })()}
+          {/* Why does this row sit so far in the future? blockedBy surfaces the
+              dep that pushed startD past the assignee's prior free date. Click
+              the blocker to jump to it. */}
+          {sc?.blockedBy && (() => {
+            const blocker = scheduled?.find(x => x.id === sc.blockedBy.id);
+            const blockerName = blocker?.name || sc.blockedBy.id;
+            const blockerPerson = blocker?.person || blocker?.personShort || '?';
+            const endIso = sc.blockedBy.endD instanceof Date
+              ? sc.blockedBy.endD.toISOString().slice(0, 10)
+              : String(sc.blockedBy.endD);
+            return (
+              <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>
+                  ⏳{' '}
+                  <a href="#" style={{ color: 'var(--ac)', textDecoration: 'none' }} onClick={e => { e.preventDefault(); blocker && onOpenItem?.(blocker); }}>
+                    {sc.blockedBy.id}
+                  </a>{' '}
+                  <span style={{ color: 'var(--tx3)' }}>{blockerName}</span>
+                  <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>· {blockerPerson} · {endIso}</span>
+                </span>
+              </KVRow>
             );
           })()}
         </Section>

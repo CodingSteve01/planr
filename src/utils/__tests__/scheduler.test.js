@@ -548,6 +548,26 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     expect(aTask.personId).toBe('SL');
   });
 
+  test('dep-blocked task carries blockedBy so UI can explain the gap', () => {
+    const SLfull = { id: 'SLf', name: 'Steffen', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const JFfree = { id: 'JFf', name: 'Jonas',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.SL', name: 'long', team: 'TT', best: 30, factor: 1, assign: ['SLf'], prio: 4, seq: 5 },
+      { id: 'P.D', name: 'dep-blocked', team: 'TT', best: 5, factor: 1, prio: 4, seq: 10, deps: ['P.SL'] },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [SLfull, JFfree],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const dep = r.results.find(x => x.id === 'P.D');
+    expect(dep.blockedBy).toBeTruthy();
+    expect(dep.blockedBy.id).toBe('P.SL');
+    expect(dep.blockedBy.endD).toBeInstanceOf(Date);
+  });
+
   test('dep-blocked task picks busier candidate so freer body keeps no-dep slot', () => {
     // Forward-pass scheduler can't gap-fill. If a dep-blocked task lands on
     // the freest body, that body's pF jumps past the dep — wasting weeks of
