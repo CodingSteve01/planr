@@ -31,6 +31,9 @@ const en = {
   'q.later': 'Move later',
   'q.last': 'Move to bottom',
   'q.dragTip': 'Drag to reorder',
+  'q.queueCount': 'queues',
+  'q.includeOffboarded': 'incl. offboarded',
+  'q.includeOffboardedTip': 'Show queues for already-offboarded members (work that still needs to land somewhere).',
   'rv.unassigned': 'team queue',
 
   // ── HolView ──
@@ -359,6 +362,8 @@ const en = {
   'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
   'ins.due': 'Due',
   'ins.dueOverdueByPlan': 'projected end past due',
+  'ins.latestStart': 'Latest start',
+  'ins.latestStartPast': 'must reassign or descope',
   'ins.effort': 'Effort', 'ins.effortBest': 'Best × factor',
   'ins.capacity': 'Capacity',
   'ins.subtasks': 'Subtasks', 'ins.breakdown': 'Breakdown', 'ins.leaves': 'leaves',
@@ -574,6 +579,9 @@ const de = {
   'q.later': 'Später',
   'q.last': 'Ganz nach unten',
   'q.dragTip': 'Zum Verschieben ziehen',
+  'q.queueCount': 'Queues',
+  'q.includeOffboarded': 'inkl. Offboarded',
+  'q.includeOffboardedTip': 'Queues für bereits offboarded Personen anzeigen (Arbeit muss trotzdem irgendwo landen).',
   'rv.unassigned': 'Team-Queue',
 
   // ── HolView ──
@@ -902,6 +910,8 @@ const de = {
   'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',
   'ins.due': 'Fällig bis',
   'ins.dueOverdueByPlan': 'Plan-Ende nach Fälligkeit',
+  'ins.latestStart': 'Spätester Start',
+  'ins.latestStartPast': 'reassign oder descope nötig',
   'ins.effort': 'Aufwand', 'ins.effortBest': 'Best × Faktor',
   'ins.capacity': 'Kapazität',
   'ins.subtasks': 'Unteraufgaben', 'ins.breakdown': 'Aufschlüsselung', 'ins.leaves': 'Leaves',

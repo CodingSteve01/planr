@@ -70,6 +70,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
+  // Backward-routing helper. Given a due date and the effort that still needs
+  // to land, returns the latest working day at which the task could start
+  // and still hit the due. Capacity is a rough proxy — the scheduler doesn't
+  // simulate the entire reverse pass (vacations, capacity holes, etc.); the
+  // result is therefore a soft "must start by ~X" hint, not a guarantee.
+  function calcLatestStart(dueLike, effRem, dailyCap) {
+    if (!dueLike || !(effRem > 0) || !(dailyCap > 0)) return null;
+    const dueD = dueLike instanceof Date ? dueLike : localDate(dueLike);
+    const wdNeeded = Math.max(1, Math.ceil(effRem / dailyCap));
+    return addWorkDays(dueD, -wdNeeded, wdSet);
+  }
   const clampCompletedDate = (dateLike) => {
     if (!dateLike) return '';
     const date = localDate(dateLike);
@@ -605,14 +616,19 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             const pinD = localDate(r.pinnedStart);
             if (actualStartD > pinD) pinOverridden0 = true;
           }
-          res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
-            best: r.best, effort: eff, startWi: bs, endWi: eW,
-            startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-            capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
-            vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
-            deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
-            segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0,
-            due: r.due || '', dueOverdue: !!(r.due && actualEndD && actualEndD > localDate(r.due)) });
+          {
+            const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
+            const dueInfeasible = !!(latestStart && latestStart < _now);
+            res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
+              best: r.best, effort: eff, startWi: bs, endWi: eW,
+              startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+              capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
+              vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
+              deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
+              segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0,
+              due: r.due || '', dueOverdue: !!(r.due && actualEndD && actualEndD > localDate(r.due)),
+              latestStart, dueInfeasible });
+          }
           return;
         }
       }
@@ -859,12 +875,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const dueD = localDate(r.due);
       if (actualEndD > dueD) dueOverdue = true;
     }
+    const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
+    const dueInfeasible = !!(latestStart && latestStart < _now);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
-      due: r.due || '', dueOverdue,
+      due: r.due || '', dueOverdue, latestStart, dueInfeasible,
       vacDays: ws2.vacDays, holidaysInWindow: ws2.holidaysInWindow, workingDaysInWindow: ws2.workingDaysInWindow,
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
       segments, truncatedByOffboard: truncated });

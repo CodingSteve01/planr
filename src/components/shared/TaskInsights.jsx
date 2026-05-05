@@ -312,17 +312,34 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             const overdueByPlan = !!sc?.dueOverdue;
             const pastNow = new Date(node.due) < new Date() && node.status !== 'done';
             const bad = overdueByPlan || pastNow;
+            const latest = sc?.latestStart;
+            const infeasible = !!sc?.dueInfeasible;
+            const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';
             return (
-              <KVRow label={t('ins.due')}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
-                  ⏳ {node.due}
-                  {overdueByPlan && (
-                    <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
-                      ⚠ {t('ins.dueOverdueByPlan')}
+              <>
+                <KVRow label={t('ins.due')}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
+                    ⏳ {node.due}
+                    {overdueByPlan && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
+                        ⚠ {t('ins.dueOverdueByPlan')}
+                      </span>
+                    )}
+                  </span>
+                </KVRow>
+                {latest && node.status !== 'done' && (
+                  <KVRow label={t('ins.latestStart')}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: infeasible ? 'var(--re)' : 'var(--tx2)', fontWeight: infeasible ? 600 : 400 }}>
+                      ↶ {fmt(latest)}
+                      {infeasible && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
+                          ⚠ {t('ins.latestStartPast')}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </KVRow>
+                  </KVRow>
+                )}
+              </>
             );
           })()}
         </Section>

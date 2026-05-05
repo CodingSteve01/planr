@@ -329,12 +329,17 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
           {dueViolations.map(s => {
             const node = iMap[s.treeId || s.id];
             const projEnd = s.endD ? iso(s.endD) : '—';
+            const latest = s.latestStart ? (s.latestStart instanceof Date ? iso(s.latestStart) : s.latestStart) : null;
             return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
               onClick={() => onOpenItem?.(s.treeId || s.id)}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>⏳ {s.due}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
+              {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
+                data-htip={t(s.dueInfeasible ? 'ins.latestStartPast' : 'ins.latestStart')}>
+                ↶ {latest}{s.dueInfeasible ? ' ⚠' : ''}
+              </span>}
             </div>;
           })}
         </div>}
