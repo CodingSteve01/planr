@@ -871,6 +871,28 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // its own segment so sums across `res` no longer double-count.
   const expanded = [];
   for (const s of res) {
+    // Hard guard: when autoCascade is off, no `#N` shadow rows ever leak —
+    // even if some upstream path produced multi-segment data (legacy plan,
+    // pre-existing state, etc.). The primary row carries everything; the
+    // user splits via TaskInsights ↳ Split when needed.
+    if (!_autoCascade) {
+      if (Array.isArray(s.segments) && s.segments.length > 1) {
+        const ps = s.segments[0];
+        const pe = ps.endD || s.endD;
+        expanded.push({
+          ...s,
+          effort: ps.effort != null ? ps.effort : s.effort,
+          endD: pe,
+          calDays: ps.startD && pe ? Math.max(1, Math.round((pe - ps.startD) / 864e5) + 1) : s.calDays,
+          // Drop multi-segment metadata so consumers don't render chains.
+          segments: [ps],
+          hasHandoffSegments: false,
+        });
+      } else {
+        expanded.push(s);
+      }
+      continue;
+    }
     if (!Array.isArray(s.segments) || s.segments.length <= 1) { expanded.push(s); continue; }
     const primarySeg = s.segments[0];
     const primaryEnd = primarySeg.endD || s.endD;
