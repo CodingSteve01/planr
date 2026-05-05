@@ -490,3 +490,61 @@ describe('schedule(): WIP progress discount', () => {
     expect(item.effort).toBeCloseTo(10, 1);
   });
 });
+
+describe('schedule(): auto-assign respects committed assigned work', () => {
+  // Regression — venneker dataset 2026-05-05. SL has a heavy explicit-assign
+  // queue (cap=0.5, ~50 effort committed). MZ and JF are full-cap and free.
+  // A due-bumped UNASSIGNED task sorted before SL's queue used to land on SL
+  // because pF[SL] was still empty at sort time → unassigned starved on the
+  // slowest body. Fix: virtual fd/fw floor from committedRem so SL looks as
+  // loaded as he actually is.
+  const SL = { id: 'SL', name: 'Steffen', team: 'T', cap: 0.5, vac: 0, start: '2026-01-01' };
+  const MZ = { id: 'MZ', name: 'Marco',   team: 'T', cap: 1,   vac: 0, start: '2026-01-01' };
+  const JF = { id: 'JF', name: 'Jonas',   team: 'T', cap: 1,   vac: 0, start: '2026-01-05' };
+
+  test('due-bumped unassigned task lands on free body, not slow committed assignee', () => {
+    // SL: 5 explicit assigned tasks of 10d each = 50d committed → ~100 work
+    // days at cap 0.5. MZ and JF: zero committed work. A small unassigned
+    // task with a near-term due gets dueBumped (effectivePrio < default 4)
+    // so it sorts before SL's prio=4 stack.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.A', name: 'SL-1', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 10 },
+      { id: 'P.B', name: 'SL-2', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 20 },
+      { id: 'P.C', name: 'SL-3', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 30 },
+      { id: 'P.D', name: 'SL-4', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 40 },
+      { id: 'P.E', name: 'SL-5', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 50 },
+      // Unassigned, due in 60 days → bumped to prio 3, sorts BEFORE SL stack.
+      { id: 'P.U', name: 'urgent', team: 'T', best: 5, factor: 1, prio: 4, seq: 5, due: '2026-03-06' },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [SL, MZ, JF],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const urgent = r.results.find(x => x.id === 'P.U');
+    expect(urgent).toBeDefined();
+    // The unassigned urgent task MUST go to a full-cap body (MZ or JF), not
+    // SL whose committed queue would push the urgent task past its due.
+    expect(['MZ', 'JF']).toContain(urgent.personId);
+    // And it must finish before its due date.
+    expect(iso(urgent.endD) <= '2026-03-06').toBe(true);
+  });
+
+  test('all SL committed work still lands on SL (auto-assign does not steal)', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.A', name: 'SL-1', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 10 },
+      { id: 'P.U', name: 'fill', team: 'T', best: 5, factor: 1, prio: 4, seq: 20 },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [SL, MZ, JF],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const aTask = r.results.find(x => x.id === 'P.A');
+    expect(aTask.personId).toBe('SL');
+  });
+});
