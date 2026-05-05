@@ -6,7 +6,6 @@ import { resolveUri } from '../../utils/customFields.js';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
-import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 
 function depth(id) { return id.split('.').length; }
@@ -132,6 +131,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   }, [members]);
   const memberShort = (id) => shortMap[id] || '?';
   const sMap = useMemo(() => scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}, [scheduled]);
+  // Effective team per node — own team falls back to nearest ancestor team.
+  // Used to suppress the "● Team" pill when it is the same as the inherited
+  // parent team (kills repeated "Backend" labels on every descendant row).
+  const effTeam = useMemo(() => {
+    const m = {};
+    sorted.forEach(node => {
+      const pid = node.id.split('.').slice(0, -1).join('.');
+      const parentEff = pid ? (m[pid] || '') : '';
+      m[node.id] = node.team || parentEff;
+    });
+    return m;
+  }, [sorted]);
   const memberFullName = (id) => (members || []).find(x => x.id === id)?.name || id;
   const teamColor = (tid) => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
   const teamName = (tid) => teams?.find(x => x.id === pt(tid))?.name || tid || '';
@@ -206,17 +217,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
       <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
       <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} data-htip="Status icons">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="open" /> {t('tv.statusOpen').toLowerCase()}</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="wip" progress={50} /> {t('wip').toLowerCase()}</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><StatusIcon status="done" /> {t('tv.statusDone').toLowerCase()}</span>
-      </span>
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }} data-htip="Priority icons">
-        <span style={{ color: 'var(--re)' }}>⏫</span>{t('tv.prioCrit')}
-        <span style={{ color: 'var(--am)' }}>▲</span>{t('tv.prioHigh')}
-        <span style={{ color: 'var(--ac)' }}>▬</span>{t('tv.prioMed')}
-        <span style={{ color: 'var(--tx3)' }}>▼</span>{t('tv.prioLow')}
-      </span>
+      {/* Legend collapsed into a single hover hint — keeps the toolbar quiet */}
+      <span data-htip={`${t('tv.statusOpen')} ○  ${t('wip')} ◐  ${t('tv.statusDone')} ●     ⏫ ${t('tv.prioCrit')}  ▲ ${t('tv.prioHigh')}  ▬ ${t('tv.prioMed')}  ▼ ${t('tv.prioLow')}`}
+        style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', cursor: 'help', userSelect: 'none', border: '1px solid var(--b)', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>?</span>
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}
@@ -261,18 +264,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           const tName = r.team ? teamName(r.team) : '';
           const prog = s._progress || 0;
           const effortDays = isLeaf ? (s._r > 0 ? s._r.toFixed(1) : '') : (s._r > 0 ? s._r.toFixed(0) + 'd' : '');
+          const parentId = r.id.split('.').slice(0, -1).join('.');
+          const parentTeam = parentId ? (effTeam[parentId] || '') : '';
+          const showTeam = !!r.team && r.team !== parentTeam;
+          const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
-            className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
+            className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             onClick={e => onSelect(r, e, filt.map(x => x.id))}>
-            {/* ID column */}
-            <td><span className="tid">{r.id}</span></td>
+            {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
+            <td {...(cpTip ? { 'data-htip': `Critical path: ${cpTip}` } : {})}><span className="tid">{r.id}</span></td>
 
             {/* Name column — flex container so badges wrap as a single trailing
                 group instead of breaking individually under the name when the row
                 runs out of horizontal space. */}
             <td style={{ whiteSpace: 'normal' }}>
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
-              <span style={{ display: 'inline-block', width: (d - 1) * 14, flexShrink: 0 }} />
+              <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
                 ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }} onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
                 : <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />}
@@ -288,8 +295,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Name */}
               <span className={`tn${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}>{r.name}</span>
 
-              {/* Team — small colored dot + name (subtle) */}
-              {tName && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`Team: ${tName}`}>● {tName}</span>}
+              {/* Team — small colored dot + name (subtle). Suppressed when team equals
+                  the inherited parent team to avoid repeating the same label down a subtree. */}
+              {tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`Team: ${tName}`}>● {tName}</span>}
 
               {/* Assignees — initials, with handoff chain appended when the
                   scheduler split work across multiple people. */}
@@ -319,23 +327,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Severity for roots */}
               {d === 1 && r.severity && r.severity !== 'high' && <span style={{ marginLeft: 8, fontSize: 10, color: r.severity === 'critical' ? 'var(--re)' : 'var(--am)', fontWeight: 600, textTransform: 'uppercase' }}>{r.severity}</span>}
 
-              {/* Date for deadlines */}
-              {d === 1 && r.date && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>📅 {r.date}</span>}
+              {/* Deadline / decide-by / due dates — color carries semantics
+                  (red = overdue, amber = warn, dim = informational). No leading
+                  emoji; tooltip explains the kind. */}
+              {d === 1 && r.date && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} data-htip={`Date: ${r.date}`}>{r.date}</span>}
 
-              {/* Decide-by date — overdue check */}
-              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={`Decide/start by ${r.decideBy}`}>⏰ {r.decideBy}</span>}
+              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={`Decide/start by ${r.decideBy}`}>{r.decideBy}</span>}
 
-              {/* Due date — overdue when scheduler reports dueOverdue */}
               {r.due && (() => {
                 const sc = sMap[r.id];
                 const overdue = !!sc?.dueOverdue;
                 const endIso = sc?.endD ? (sc.endD instanceof Date ? sc.endD.toISOString().slice(0, 10) : String(sc.endD).slice(0, 10)) : '';
                 return <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)', fontWeight: overdue ? 700 : 400 }}
-                  data-htip={overdue ? `Fällig ${r.due} — geplantes Ende ${endIso} (überfällig)` : `Fällig bis ${r.due}`}>⏳ {r.due}</span>;
+                  data-htip={overdue ? `Fällig ${r.due} — geplantes Ende ${endIso} (überfällig)` : `Fällig bis ${r.due}`}>{r.due}</span>;
               })()}
-
-              {/* Critical path indicator */}
-              {isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ marginLeft: 8 }} />}
 
               {/* Custom field indicator — show link icon if any uri field has a value */}
               {customFields?.length > 0 && (() => {
@@ -357,10 +362,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
 
               </div>
-              {/* Description (root only) */}
-              {d === 1 && r.description && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2, marginLeft: 32 }}>{r.description}</div>}
-
-              {/* Note removed from tree — visible in QuickEdit/NodeModal only */}
+              {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             </td>
 
             {/* Effort: single number (realistic days) */}
