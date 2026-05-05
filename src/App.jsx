@@ -1812,9 +1812,16 @@ export default function App() {
   // produce the SAME key so reordering works identically for both.
   function queueKeyOf(r) {
     if ((r.assign || []).length) return [...r.assign].sort().join(',');
+    // Honour the scheduler's auto-assignment so a task it routed to a single
+    // person shares that person's queue with explicitly-assigned work.
+    // Without this, dragging an auto-assigned task across the same person's
+    // backlog in the Queues view silently failed because reorderInQueue
+    // saw it as part of a separate `team:` queue.
+    const sc = scheduled?.find(s => (s.treeId || s.id) === r.id && !s.isHandoff);
+    if (sc?.personId) return sc.personId;
     const tm = pt(r.team);
     const tM = members.filter(m => pt(m.team) === tm);
-    if (tM.length === 1) return tM[0].id; // same queue as directly-assigned
+    if (tM.length === 1) return tM[0].id;
     return `team:${r.team || ''}`;
   }
   function reorderInQueue(taskId, target, stepsArg) {

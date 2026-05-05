@@ -19,6 +19,10 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', onOpenItem, onReorderInQueue }) {
   const { t } = useT();
   const [hoverId, setHoverId] = useState(null);
+  // {id, position}: drop indicator. position = 'before' or 'after' relative
+  // to the row id. Updated on dragOver, cleared on dragLeave / dragEnd.
+  const [drop, setDrop] = useState(null);
+  const [dragId, setDragId] = useState(null);
   const [localMember, setLocalMember] = useState(() => {
     try { return localStorage.getItem('planr_q_member') || ''; } catch { return ''; }
   });
@@ -103,15 +107,32 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
   const onDragStart = (e, taskId) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', taskId);
+    setDragId(taskId);
   };
-  const onDragOver = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  const onDragEnd = () => { setDragId(null); setDrop(null); };
+  const onDragOver = (e, targetTaskId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Decide above/below by the cursor's relative position inside the row.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const above = (e.clientY - rect.top) < rect.height / 2;
+    setDrop(prev => (prev?.id === targetTaskId && prev.position === (above ? 'before' : 'after'))
+      ? prev : { id: targetTaskId, position: above ? 'before' : 'after' });
+  };
   const onDrop = (e, targetTaskId, queueTasks) => {
     e.preventDefault();
     const sourceId = e.dataTransfer.getData('text/plain');
+    setDrop(null); setDragId(null);
     if (!sourceId || sourceId === targetTaskId) return;
     const tgtIdx = queueTasks.findIndex(x => x.node.id === targetTaskId);
     if (tgtIdx < 0) return;
-    onReorderInQueue?.(sourceId, tgtIdx);
+    // The user dragged "after" the target row → drop below it. Account for
+    // the source moving into the gap above when source comes from above.
+    const above = drop?.id === targetTaskId && drop.position === 'before';
+    const srcIdx = queueTasks.findIndex(x => x.node.id === sourceId);
+    let newIdx = above ? tgtIdx : tgtIdx + 1;
+    if (srcIdx >= 0 && srcIdx < newIdx) newIdx -= 1;
+    onReorderInQueue?.(sourceId, newIdx);
   };
 
   const offboardedCount = (members || []).filter(m => m.end && m.end < todayIso).length;
@@ -174,11 +195,14 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
                     <li key={node.id}
                       draggable
                       onDragStart={e => onDragStart(e, node.id)}
-                      onDragOver={onDragOver}
+                      onDragEnd={onDragEnd}
+                      onDragOver={e => onDragOver(e, node.id)}
+                      onDragLeave={() => setDrop(prev => prev?.id === node.id ? null : prev)}
                       onDrop={e => onDrop(e, node.id, q.tasks)}
                       onMouseEnter={() => setHoverId(node.id)}
                       onMouseLeave={() => setHoverId(prev => (prev === node.id ? null : prev))}
                       style={{
+                        position: 'relative',
                         display: 'grid',
                         gridTemplateColumns: '14px 70px 1fr 140px 90px 60px 30px 30px 30px 30px',
                         alignItems: 'center', gap: 6,
@@ -186,8 +210,23 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
                         borderBottom: '1px solid var(--b)',
                         background: hoverId === node.id ? 'var(--bg2)' : 'transparent',
                         cursor: 'grab',
+                        opacity: dragId === node.id ? 0.4 : 1,
                         fontSize: 11,
                       }}>
+                      {/* Drop indicator: 2px accent line above or below this
+                          row depending on the cursor's vertical position. */}
+                      {drop?.id === node.id && (
+                        <div style={{
+                          position: 'absolute',
+                          left: 0, right: 0,
+                          [drop.position === 'before' ? 'top' : 'bottom']: -1,
+                          height: 2,
+                          background: 'var(--ac)',
+                          boxShadow: '0 0 6px var(--ac)',
+                          pointerEvents: 'none',
+                          zIndex: 2,
+                        }} />
+                      )}
                       <span style={{ color: 'var(--tx3)', cursor: 'grab', userSelect: 'none' }} data-htip={t('q.dragTip')}>≡</span>
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(node.id)}>{node.id}</span>
