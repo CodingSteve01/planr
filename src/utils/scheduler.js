@@ -440,7 +440,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     if (!asgn.length) {
       if (tM.length > 0) {
         // Find the team member who is free earliest (considering deps, on/offboarding, assigned work)
-        let bp = null, bs = Infinity, bDate = null;
+        let bp = null, bs = Infinity, bDate = null, bestPF = null;
         for (const m of tM) {
           const mStart = localDate(m.start || ps);
           const mEnd = m.end ? localDate(m.end) : null;
@@ -463,11 +463,34 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             const projDays = Math.ceil(committedRem[m.id] / cap);
             const projDate = addWorkDays(effectiveFloor, projDays, wdSet);
             if (projDate > fd) fd = projDate;
-            const projWi = wks.findIndex(w => w.wds.some(d => d >= projDate));
-            if (projWi >= 0 && projWi > fw) fw = projWi;
+            // Map projDate to a week index. If it lands past the horizon end,
+            // findIndex returns -1 — clamp to wks.length so the candidate
+            // doesn't appear "earlier" than someone whose committed work fits
+            // inside the horizon. Without this clamp, an over-committed
+            // member's fw stayed at planStartWi and it stole every unassigned
+            // task on fw (week index) tiebreak.
+            let projWi = wks.findIndex(w => w.wds.some(d => d >= projDate));
+            if (projWi < 0) projWi = wks.length;
+            if (projWi > fw) fw = projWi;
           }
           if (mEnd && fd > mEnd) continue; // this member would already be offboarded
-          if (fw < bs || (fw === bs && fd && (!bDate || fd < bDate))) { bs = fw; bp = m; bDate = fd; }
+          // Tiebreak when fw + fd are equal: prefer the BUSIER candidate
+          // (highest personFree.nextDate). For a dep-blocked task all
+          // candidates' fd equals the dep-end. Picking a barely-loaded body
+          // wastes its earlier free slot — pick the body that was already
+          // busy until close to the dep so the freer body stays available
+          // for later no-dep work (forward-pass can't otherwise gap-fill).
+          const candPF = personFree.nextDate || mStart;
+          const better = !bp
+            ? true
+            : (fw < bs)
+              ? true
+              : (fw === bs && fd && bDate && fd < bDate)
+                ? true
+                : (fw === bs && fd && bDate && +fd === +bDate && bestPF && candPF > bestPF)
+                  ? true
+                  : false;
+          if (better) { bs = fw; bp = m; bDate = fd; bestPF = candPF; }
         }
         if (bp) {
           // Schedule on this member's real timeline (same logic as assigned path)

@@ -547,4 +547,40 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     const aTask = r.results.find(x => x.id === 'P.A');
     expect(aTask.personId).toBe('SL');
   });
+
+  test('dep-blocked task picks busier candidate so freer body keeps no-dep slot', () => {
+    // Forward-pass scheduler can't gap-fill. If a dep-blocked task lands on
+    // the freest body, that body's pF jumps past the dep — wasting weeks of
+    // pre-dep idle time. Tiebreak fix: when fw + fd are equal, pick the
+    // BUSIER candidate (highest personFree.nextDate). The dep-blocked task
+    // goes to whoever is barely free in time, leaving the genuinely-free
+    // body for later no-dep tasks.
+    const SLfull = { id: 'SLf', name: 'Steffen', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const MZmid  = { id: 'MZm', name: 'Marco',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const JFfree = { id: 'JFf', name: 'Jonas',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      // SL: 40-day task → finishes ~Mar 2 (40 working days from Jan 5).
+      { id: 'P.SL', name: 'long', team: 'TT', best: 40, factor: 1, assign: ['SLf'], prio: 4, seq: 5 },
+      // MZ: 15-day task → finishes ~Jan 23.
+      { id: 'P.MZ', name: 'mid',  team: 'TT', best: 15, factor: 1, assign: ['MZm'], prio: 4, seq: 6 },
+      // Dep-blocked: depends on P.SL, can't start before P.SL ends (~Mar 2).
+      { id: 'P.D', name: 'dep-blocked', team: 'TT', best: 5, factor: 1, prio: 4, seq: 10, deps: ['P.SL'] },
+      // No-dep task — should fill JF's earlier free slot, not be pushed late.
+      { id: 'P.U', name: 'no-dep', team: 'TT', best: 5, factor: 1, prio: 4, seq: 20 },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [SLfull, MZmid, JFfree],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const noDep = r.results.find(x => x.id === 'P.U');
+    const depBlocked = r.results.find(x => x.id === 'P.D');
+    // No-dep must land on JF (freest) and start in mid-January.
+    expect(noDep.personId).toBe('JFf');
+    expect(iso(noDep.startD) < '2026-02-01').toBe(true);
+    // Dep-blocked must NOT land on JF — JF's pre-dep slot stays available.
+    expect(depBlocked.personId).not.toBe('JFf');
+  });
 });
