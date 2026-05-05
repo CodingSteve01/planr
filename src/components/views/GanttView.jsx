@@ -1049,7 +1049,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     <div className="gantt-body">
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
         <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
-        {visibleRows.map(row => {
+        {(() => { let _taskIdx = 0; return visibleRows.map(row => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
             const isCp = rowIsCp(row);
@@ -1079,7 +1079,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const confDot = isSummary ? null : (confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null);
           const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
-          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          const _alt = (_taskIdx++ % 2) === 1;
+          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onClick={() => openRowItem(row)}>
             {isSummary && <button
               type="button"
@@ -1098,7 +1099,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)' }}>{snAll(s)}</AutoAssignBadge>
                 : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
           </div>;
-        })}
+        }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
       </div>
       <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
