@@ -164,6 +164,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
   const tEW = {};
   const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
+  // Per-person remaining committed effort (sum of effort of their assigned
+  // leaves not yet scheduled). Auto-assignment uses this as a virtual fd
+  // floor so a busy assignee does NOT look "free" just because their tasks
+  // happen to schedule later in ord. Without it, an unassigned due-bumped
+  // task lands on a slow/loaded body whose pF is still at planStartWi.
+  // Decremented as each assigned task actually runs.
+  const committedRem = Object.fromEntries(members.map(m => [m.id, 0]));
   lvs.forEach(r => {
     if (r.status === 'done') {
       const completedAt = clampCompletedDate(r.completedAt || r.completedEnd);
@@ -179,6 +186,18 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       return;
     }
     if (!r.best || r.best === 0) tEW[r.id] = { wi: -1, nextDate: null };
+    // Sum remaining committed effort per assignee for not-yet-done leaves.
+    if (r.status !== 'done' && r.best > 0) {
+      const assigns = (r.assign || []).filter(a => committedRem[a] != null);
+      if (assigns.length) {
+        let eff = re(r.best, r.factor);
+        if (_discountProgress && r.status === 'wip' && typeof r.progress === 'number'
+            && r.progress > 0 && r.progress < 100) {
+          eff *= (1 - r.progress / 100);
+        }
+        for (const aId of assigns) committedRem[aId] += eff;
+      }
+    }
   });
   // Vacation: precompute per-person Set of blocked day ISO strings from date ranges.
   // Accepts both new {from, to} format and legacy {week} format (via normalizeVacation).
@@ -430,11 +449,23 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (mEnd && mEnd < (earlyDate || planStartDate)) continue; // already offboarded
           const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
           const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-          const fw = Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
+          let fw = Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
           let fd = mStart;
           if (earlyDate && earlyDate > fd) fd = earlyDate;
           if (personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
           if (parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
+          // Virtual fd floor from committed-but-not-yet-scheduled assigned work.
+          // Without this, an unassigned task picks a body whose explicit-assign
+          // queue hasn't run yet but is heavy — landing speculative work on a
+          // de facto loaded person and starving the actually-free body.
+          const cap = deriveCap(m) * (vacInfo[m.id] || 1);
+          if (cap > 0 && committedRem[m.id] > 0) {
+            const projDays = Math.ceil(committedRem[m.id] / cap);
+            const projDate = addWorkDays(effectiveFloor, projDays, wdSet);
+            if (projDate > fd) fd = projDate;
+            const projWi = wks.findIndex(w => w.wds.some(d => d >= projDate));
+            if (projWi >= 0 && projWi > fw) fw = projWi;
+          }
           if (mEnd && fd > mEnd) continue; // this member would already be offboarded
           if (fw < bs || (fw === bs && fd && (!bDate || fd < bDate))) { bs = fw; bp = m; bDate = fd; }
         }
@@ -853,6 +884,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
           pPE[m.id] = { wi: eW, nextDate: nd };
         }
+      }
+      // Drain this assignee's committed-effort tracker — the auto-assign
+      // virtual fd floor must shrink as real work consumes it, otherwise
+      // late unassigned tasks see stale committed and steer away forever.
+      if (committedRem[m.id] != null) {
+        committedRem[m.id] = Math.max(0, committedRem[m.id] - eff);
       }
     }
     // Only NON-parallel pinned tasks reserve their days. A parallel pinned
