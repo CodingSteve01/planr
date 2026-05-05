@@ -2209,7 +2209,7 @@ export default function App() {
       ))}
       <div style={{ flex: 1 }} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing') && <div className="subtoolbar">
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'queues') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>

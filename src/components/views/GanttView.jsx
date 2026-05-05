@@ -1300,7 +1300,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />;
                 });
               })()}
-              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}`} data-link-from={s.id}
+              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,
                   // Vertical reorder feedback: bar visually follows the mouse vertically,
