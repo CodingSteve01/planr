@@ -251,7 +251,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Sections */}
 
       {/* Timing section */}
-      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy) && (
+      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy || node.due) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {actualStartDate && actualEndDate && (
             <KVRow label={t('ins.actual')}>
@@ -306,6 +306,25 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               </span>
             </KVRow>
           )}
+          {/* Due date — hard deadline. Red when scheduler's projected end blows
+              past it (sc.dueOverdue) or already in the past for unfinished work. */}
+          {node.due && (() => {
+            const overdueByPlan = !!sc?.dueOverdue;
+            const pastNow = new Date(node.due) < new Date() && node.status !== 'done';
+            const bad = overdueByPlan || pastNow;
+            return (
+              <KVRow label={t('ins.due')}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
+                  ⏳ {node.due}
+                  {overdueByPlan && (
+                    <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
+                      ⚠ {t('ins.dueOverdueByPlan')}
+                    </span>
+                  )}
+                </span>
+              </KVRow>
+            );
+          })()}
         </Section>
       )}
 

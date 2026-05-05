@@ -112,7 +112,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // capacity (pF) is consumed by committed work before speculative tasks are placed.
     const aHasPerson = (a.assign?.length > 0) ? 0 : 1;
     const bHasPerson = (b.assign?.length > 0) ? 0 : 1;
-    return (a.prio || 4) - (b.prio || 4) || aHasPerson - bHasPerson || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    // Within the same priority + same assignment-state, earlier due dates
+    // schedule first. Tasks without a due date sort after dated ones at the
+    // same level. Soft only — `seq` still wins between two tasks that share
+    // a due, and `r.deps` are still hard.
+    const aDue = a.due ? a.due : '9999-99-99';
+    const bDue = b.due ? b.due : '9999-99-99';
+    return (a.prio || 4) - (b.prio || 4) || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {

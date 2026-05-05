@@ -157,13 +157,19 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
 
     {/* Section tabs */}
     <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-      {[
-        ['decide', `${t('p.decisions')} (${readyItems.length})`],
-        ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
-        ['capacity', t('p.teamCapacity')],
-        ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
-        ['critical', `${t('pr.criticalPaths')} (${criticalScopes.reduce((sum, scope) => sum + scope.chains.length, 0)})`],
-      ].map(([k, l]) =>
+      {(() => {
+        const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
+        const truncated = scheduled.filter(s => s.truncatedByOffboard);
+        const warnCount = dueViolations.length + truncated.length;
+        return [
+          ['decide', `${t('p.decisions')} (${readyItems.length})`],
+          ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
+          ['capacity', t('p.teamCapacity')],
+          ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
+          ['warnings', `${t('pr.warnings')}${warnCount > 0 ? ' (' + warnCount + ')' : ''}`],
+          ['critical', `${t('pr.criticalPaths')} (${criticalScopes.reduce((sum, scope) => sum + scope.chains.length, 0)})`],
+        ];
+      })().map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
     </div>
@@ -303,6 +309,55 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
         </div>;
       })}
     </>}
+
+    {section === 'warnings' && (() => {
+      const dueViolations = scheduled
+        .filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'))
+        .sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+      const truncated = scheduled
+        .filter(s => s.truncatedByOffboard)
+        .sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+      if (!dueViolations.length && !truncated.length) {
+        return <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.warningsNone')}</div>;
+      }
+      return <>
+        {dueViolations.length > 0 && <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--re)' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>⏳ {t('pr.warnDueOverdue')}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{dueViolations.length}</span>
+          </div>
+          {dueViolations.map(s => {
+            const node = iMap[s.treeId || s.id];
+            const projEnd = s.endD ? iso(s.endD) : '—';
+            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+              onClick={() => onOpenItem?.(s.treeId || s.id)}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>⏳ {s.due}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
+            </div>;
+          })}
+        </div>}
+        {truncated.length > 0 && <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--am)' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>⚠ {t('pr.warnTruncated')}</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{truncated.length}</span>
+          </div>
+          {truncated.map(s => {
+            const node = iMap[s.treeId || s.id];
+            const tr = s.truncatedByOffboard;
+            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+              onClick={() => onOpenItem?.(s.treeId || s.id)}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--am)', flexShrink: 0 }}>{tr.remainingEffort.toFixed(1)} PT</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>nach {tr.offboardDate}</span>
+              <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>↳ {t('pr.warnSplitHint')}</span>
+            </div>;
+          })}
+        </div>}
+      </>;
+    })()}
 
     {section === 'critical' && <>
       {criticalScopes.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.noCriticalPaths')}</div>}

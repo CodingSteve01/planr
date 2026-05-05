@@ -1260,6 +1260,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
             const isDecideOverdue = decideBy && new Date(decideBy) < now;
+            // Due-date marker: solid red bar at due-week. Red when overdue
+            // (due < today and unfinished) OR scheduler's projected end blows
+            // past due (sc.dueOverdue).
+            const dueDate = isSummary ? null : node?.due;
+            const dueWi = dueDate ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(dueDate); return w.mon <= d && (!next || next.mon > d); }) : -1;
+            const isDueOverdue = dueDate && (s.dueOverdue || (new Date(dueDate) < now && s.status !== 'done'));
             // Confidence-based bar styling
             const confStyle = conf === 'exploratory'
               ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
@@ -1444,6 +1450,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {/* Decision-by marker: diamond on the row at the decideBy week */}
               {decideWi >= 0 && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
                 style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
+              {/* Due-date marker: vertical bar at the due-week. Solid red
+                  when scheduler projects end past due or due is already in
+                  the past + task unfinished. Otherwise dim red. */}
+              {dueWi >= 0 && !isSummary && s.status !== 'done' && <div
+                data-htip={`Due ${dueDate}${isDueOverdue ? ' — OVERDUE / projected end past due' : ''}`}
+                style={{ position: 'absolute', left: dueWi * WPX + WPX - 2, top: 2, width: 4, bottom: 2, background: isDueOverdue ? 'var(--re)' : 'rgba(220,38,38,0.55)', borderRadius: 2, zIndex: 4, pointerEvents: 'auto', boxShadow: isDueOverdue ? '0 0 8px rgba(220,38,38,0.7)' : 'none' }} />}
             </div>;
           })}
           {renderedDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: FLAG_ROW_H + visibleRows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
