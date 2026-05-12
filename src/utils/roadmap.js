@@ -777,9 +777,20 @@ export function renderRoadmapSvg(args) {
       const tooltip = headerHtml + itemsHtml;
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
+      // Did this station gain any newly-done item within the diff window?
+      const reachedInWindow = doneInWindow.size > 0
+        && (station.clusterItems || []).some(c => doneInWindow.has(c.id));
       out.push(`<g class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(tooltip)}">`);
       // Invisible larger hit area for tooltip
       out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
+      // Amber halo for stations reached in the diff window. Drawn before the
+      // station glyph so it sits behind it.
+      if (reachedInWindow) {
+        out.push(`<circle cx="${cx}" cy="${cy}" r="11" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.95">`);
+        out.push(`<animate attributeName="r" values="10;13;10" dur="2.4s" repeatCount="indefinite"/>`);
+        out.push(`<animate attributeName="opacity" values="0.95;0.55;0.95" dur="2.4s" repeatCount="indefinite"/>`);
+        out.push(`</circle>`);
+      }
       if (isDone) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="${color}"/>`);
       } else if (isCurrent) {
@@ -799,7 +810,15 @@ export function renderRoadmapSvg(args) {
     minorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === currentId && !isDone;
+      const reachedInWindow = doneInWindow.size > 0
+        && (station.clusterItems || []).some(c => doneInWindow.has(c.id));
 
+      if (reachedInWindow) {
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.85">`);
+        out.push(`<animate attributeName="r" values="6;9;6" dur="2.4s" repeatCount="indefinite"/>`);
+        out.push(`<animate attributeName="opacity" values="0.85;0.4;0.85" dur="2.4s" repeatCount="indefinite"/>`);
+        out.push(`</circle>`);
+      }
       if (isDone) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="${color}" opacity="0.8"/>`);
       } else {

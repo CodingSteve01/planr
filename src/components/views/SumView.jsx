@@ -61,19 +61,76 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
   const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
+  // ── Shared "since" cutoff: lives at this level so both the top-line %
+  // delta and the Roadmap's overlay react to a single picker. Persisted via
+  // localStorage so the choice survives reload.
+  const [sinceDays, setSinceDays] = useState(() => {
+    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
+  });
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
+  const sinceDate = useMemo(() => {
+    if (!sinceDays) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
+    const n = parseInt(sinceDays, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
+  }, [sinceDays]);
+
+  // Effort-weighted overall progress AT the cutoff. Mirrors the live
+  // `prog` calculation (`done / totalLeaves * 100`) but with each leaf's
+  // status replaced by its state at the cutoff. New leaves count as 0%.
+  const pastOverallProg = useMemo(() => {
+    if (!sinceDate || !historyEvents.length) return null;
+    const past = stateAsOf(historyEvents, sinceDate);
+    let total = 0, doneCount = 0;
+    for (const lf of lvs) {
+      total++;
+      const p = past.get(lf.id);
+      if (p?.status === 'done') doneCount++;
+    }
+    return total > 0 ? (doneCount / total) * 100 : 0;
+  }, [historyEvents, sinceDate, lvs]);
+  const overallDelta = pastOverallProg != null ? prog - pastOverallProg : null;
+
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Progress header */}
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>
+      {overallDelta != null && overallDelta > 0.05 && (
+        <span data-htip={`${pastOverallProg.toFixed(1)}% am ${iso(sinceDate)} → ${prog.toFixed(1)}% heute`}
+          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#f59e0b',
+            background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)',
+            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
+          +{overallDelta.toFixed(1)}%
+        </span>
+      )}
+      {overallDelta != null && overallDelta <= 0.05 && overallDelta >= -0.05 && (
+        <span data-htip={`Keine Bewegung seit ${iso(sinceDate)}`}
+          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--tx3)',
+            background: 'var(--bg3)', border: '1px solid var(--b)',
+            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
+          ±0%
+        </span>
+      )}
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
       {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }} data-htip={iso(latE)}>{t('s.projected')}: {horizonLabel(latE, null, isDe, now)}</span>}
     </div>
-    <div className="prog-wrap" style={{ height: 6, marginBottom: 16 }}><div className="prog-fill" style={{ width: `${prog}%` }} /></div>
+    <div className="prog-wrap" style={{ height: 6, marginBottom: 16, position: 'relative' }}>
+      <div className="prog-fill" style={{ width: `${prog}%` }} />
+      {/* Past-progress marker: thin vertical line on the bar showing where
+          progress sat at the cutoff. Makes the gained delta tangible. */}
+      {pastOverallProg != null && pastOverallProg < prog - 0.05 && (
+        <div data-htip={`Stand ${iso(sinceDate)}: ${pastOverallProg.toFixed(1)}%`}
+          style={{ position: 'absolute', left: `${pastOverallProg}%`, top: -2, bottom: -2,
+            width: 2, background: '#f59e0b', opacity: 0.85, cursor: 'help' }} />
+      )}
+    </div>
 
     {/* Roadmap + Fahrplan — switchable sub-views sharing the same data. */}
     <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
       teams={teams} members={members} onOpenItem={onOpenItem}
-      historyEvents={historyEvents} />
+      historyEvents={historyEvents}
+      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
 
     {/* Planning confidence */}
     {(() => {
@@ -246,7 +303,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [] }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -255,22 +312,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     setView(v);
     try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
   };
-
-  // ── Diff controls ──────────────────────────────────────────────────────────
-  // Selectable cutoff "since when": presets in days, or a custom ISO date.
-  // The Roadmap renders a ghost-train + amber trail showing what moved in the
-  // window. Defaults to "off" so the regular view stays familiar.
-  const [sinceDays, setSinceDays] = useState(() => {
-    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
-  });
-  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
-  const sinceDate = useMemo(() => {
-    if (!sinceDays) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
-    const n = parseInt(sinceDays, 10);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
-  }, [sinceDays]);
+  // sinceDays / persistSince / sinceDate are now owned by SumView so the
+  // top-line %-delta and the Roadmap respond to a single picker.
 
   // Replay events up to the cutoff and project the resulting leaf state back
   // onto current roots → percentage-progress per root at the cutoff. New
