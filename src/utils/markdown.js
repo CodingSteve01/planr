@@ -6,6 +6,7 @@ import { buildMemberShortMap } from '../App.jsx';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
 import { DEFAULT_SIZES } from './sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from './customFields.js';
+import { formatHistoryBlock } from './history.js';
 
 // ── Export: data → Markdown ──────────────────────────────────────────────────
 export function buildMarkdownText({ tree, members, teams, vacations, data, meta }) {
@@ -167,6 +168,15 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     });
     md += '\n';
   });
+  }
+
+  // History — append-only event log for "what changed since <date>" reviews.
+  // Skipped when empty so untouched files stay identical.
+  if (Array.isArray(data?.historyEvents) && data.historyEvents.length) {
+    md += `\n## History\n\n<!-- Auto-generated. App appends events on save; do not edit by hand. -->\n\n`;
+    md += '```planr-history\n';
+    md += formatHistoryBlock(data.historyEvents);
+    md += '\n```\n';
   }
 
   return md;

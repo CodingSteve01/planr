@@ -6,6 +6,7 @@ import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
+import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
@@ -228,6 +229,11 @@ export default function App() {
   const fileHandleRef = useRef(null);
   const prevTreeRef = useRef([]);
   const prevScheduledRef = useRef([]);
+  // Leaf-state snapshot at the moment of the last successful persist (load or
+  // save). Drives the history-event diff: every save compares the current tree
+  // to this snapshot and appends only the changes. Reseeded on file load so
+  // we don't emit fake "added" events for the whole tree.
+  const lastSavedLeavesRef = useRef(null);
   const [fileName, setFileName] = useState(null);
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
@@ -370,6 +376,10 @@ export default function App() {
   const SAVE_DEBOUNCE_MS = 5000;
   const lastChangeTimeRef = useRef(Date.now());
   useEffect(() => { if (data) lastChangeTimeRef.current = Date.now(); }, [data]);
+  // Reseed the leaf-state baseline whenever a different file is loaded so the
+  // first save after load only emits real edits made in this session, not the
+  // entire tree as "added".
+  useEffect(() => { lastSavedLeavesRef.current = Array.isArray(tree) ? leafSnapshot(tree) : null; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fileName]);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!data || !autoSave || !fileHandleRef.current || fileSynced) return;
@@ -380,7 +390,7 @@ export default function App() {
       if (!canWrite) { setFileWriteOk(false); return; }
       setSaving(true);
       try {
-        const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
+        const { content, newEvents, snapshot } = composeFileForSave();
         const wr = await handle.createWritable();
         await wr.write(content);
         await wr.close();
@@ -390,6 +400,7 @@ export default function App() {
         setLastSavedAt(new Date());
         // Snapshot ring tracks file-save events, throttled internally.
         pushSnapshot(data);
+        commitSaveSideEffects({ newEvents, snapshot });
       } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
       finally { setSaving(false); }
     }, SAVE_DEBOUNCE_MS);
@@ -497,7 +508,7 @@ export default function App() {
           if (!handle) { setFileWriteOk(false); return; }
         }
       }
-      const content = handle.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
+      const { content, newEvents, snapshot } = composeFileForSave();
       await writeToHandle(handle, content);
       lastOwnWriteRef.current = Date.now();
       await rememberHandle(handle);
@@ -510,6 +521,7 @@ export default function App() {
       // care about state that landed on disk, not every keystroke. Throttled
       // internally to ≥60s so manual rapid saves don't churn the ring.
       pushSnapshot(data);
+      commitSaveSideEffects({ newEvents, snapshot });
     } catch (e) {
       if (e.name === 'AbortError') return; // user cancelled file picker
       console.error('Save failed:', e);
@@ -521,7 +533,7 @@ export default function App() {
           try {
             const handle2 = await pickSaveHandle(previousFileName);
             if (!handle2) return;
-            const content = handle2.name?.endsWith('.md') ? buildMarkdownText() : JSON.stringify(data, null, 2);
+            const { content, newEvents, snapshot } = composeFileForSave();
             await writeToHandle(handle2, content);
             await rememberHandle(handle2);
             setAutoSave(true);
@@ -529,6 +541,7 @@ export default function App() {
             setFileSynced(true);
             setSaved(true);
             setLastSavedAt(new Date());
+            commitSaveSideEffects({ newEvents, snapshot });
             return;
           } catch (e2) {
             if (e2.name !== 'AbortError') alert('Save still failed: ' + (e2.message || e2.name));
@@ -553,8 +566,10 @@ export default function App() {
     const idStack = [];
     const parsedMeetingPlans = []; // meeting plan definitions from ## Meeting Plans
     let currentMeetingPlan = null; // being parsed
-    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | 'customfields' | 'meetingplans' | null
+    let section = null; // 'plan' | 'teams' | 'resources' | 'vacations' | 'holidays' | 'tree' | 'templates' | 'customfields' | 'meetingplans' | 'history' | null
     let lastItem = null;
+    // History fenced-block accumulator: lines between ```planr-history and ```
+    let historyBlockLines = null;
 
     lines.forEach(line => {
       // Heading switches section
@@ -572,6 +587,7 @@ export default function App() {
         else if (lower === 'work tree') section = 'tree';
         else if (lower === 'meeting plans') { section = 'meetingplans'; currentMeetingPlan = null; }
         else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
+        else if (lower === 'history') { section = 'history'; historyBlockLines = null; }
         else if (section === 'meetingplans' && hm[0].startsWith('###')) {
           currentMeetingPlan = { id: 'mp_' + Date.now() + parsedMeetingPlans.length, name: h, meetings: [] };
           parsedMeetingPlans.push(currentMeetingPlan);
@@ -585,6 +601,18 @@ export default function App() {
         }
         else section = null;
         lastItem = null;
+        return;
+      }
+
+      // History section: capture lines inside the ```planr-history``` fenced block
+      if (section === 'history') {
+        const fenceOpen = /^\s*```planr-history\s*$/i.test(line);
+        const fenceClose = /^\s*```\s*$/.test(line);
+        if (fenceOpen) { historyBlockLines = []; return; }
+        if (fenceClose && historyBlockLines != null) { /* end of block; keep array as-is */ historyBlockLines.push(null); return; }
+        if (historyBlockLines != null && historyBlockLines[historyBlockLines.length - 1] !== null) {
+          historyBlockLines.push(line);
+        }
         return;
       }
 
@@ -1000,12 +1028,19 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
+    // History events — parsed out of the ```planr-history``` fenced block
+    let historyEvents = [];
+    if (historyBlockLines && historyBlockLines.length) {
+      const blockText = historyBlockLines.filter(l => l !== null).join('\n');
+      historyEvents = parseHistoryBlock(blockText);
+    }
     return {
       meta: metaObj, teams: teamsArr, members: mems, tree,
       vacations: normalizedVacations, holidays: holidaysArr,
       ...(taskTemplates.length ? { taskTemplates } : {}),
       ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}),
       ...(parsedMeetingPlans.length ? { meetingPlans: parsedMeetingPlans } : {}),
+      ...(historyEvents.length ? { historyEvents } : {}),
     };
   }
 
@@ -1890,8 +1925,36 @@ export default function App() {
   // Export context — shared data bag for all export functions in utils/exports.js
   const _exportCtx = () => ({ data, tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang: _lang });
   const isMdFile = fileName?.endsWith('.md');
+  // Build the file content together with any new history events. The events
+  // capture the delta between the leaf state at the last successful persist
+  // (`lastSavedLeavesRef`) and the current tree. Returns { content, newEvents,
+  // snapshot } so the caller can commit the ref+state after a successful write.
+  function composeFileForSave() {
+    const currSnapshot = leafSnapshot(tree);
+    let newEvents = [];
+    if (lastSavedLeavesRef.current) {
+      newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString());
+    }
+    const eventsForFile = newEvents.length
+      ? [...(data?.historyEvents || []), ...newEvents]
+      : (data?.historyEvents || []);
+    const dataForFile = eventsForFile.length ? { ...data, historyEvents: eventsForFile } : data;
+    const content = isMdFile
+      ? _buildMd({ tree, members, teams, vacations, data: dataForFile, meta })
+      : JSON.stringify(dataForFile, null, 2);
+    return { content, newEvents, snapshot: currSnapshot };
+  }
+  function commitSaveSideEffects({ newEvents, snapshot }) {
+    lastSavedLeavesRef.current = snapshot;
+    if (newEvents && newEvents.length) {
+      setData(d => ({ ...d, historyEvents: [...(d?.historyEvents || []), ...newEvents] }));
+    }
+  }
   function buildMarkdownText() { return _buildMd({ tree, members, teams, vacations, data, meta }); }
   function serializeForSave() {
+    // Legacy entrypoint kept for callers that don't care about history (e.g.
+    // export-as-JSON, copy-to-clipboard). All save paths that write the file
+    // should use composeFileForSave + commitSaveSideEffects instead.
     return isMdFile ? buildMarkdownText() : JSON.stringify(data, null, 2);
   }
   function loadFile(e) {
@@ -2234,6 +2297,7 @@ export default function App() {
     </div>}
     <div className="main">
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+        historyEvents={data?.historyEvents || []}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}

@@ -226,10 +226,44 @@ function waypointsToPath(waypoints) {
  * Build an SVG path `d` for the portion of a route from t=0 to t=fraction.
  * Splits at the exact fractional point and returns only the traveled portion.
  */
-function partialPath(waypoints, fraction) {
-  if (fraction <= 0) return null;
+function partialPath(waypoints, fraction, startFraction = 0) {
+  if (fraction <= startFraction) return null;
   const total = routeLength(waypoints);
   const target = clamp(fraction, 0, 1) * total;
+  const startTarget = clamp(startFraction, 0, 1) * total;
+
+  // Two-pass: when startFraction > 0, find the start point on the route, emit
+  // an `M` at that point, then accumulate intermediate vertices and the end
+  // point.
+  if (startFraction > 0) {
+    const startPt = pointAtFraction(waypoints, startFraction);
+    const parts = [`M ${startPt.x} ${startPt.y}`];
+    let traveled = 0;
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i].x - waypoints[i - 1].x;
+      const dy = waypoints[i].y - waypoints[i - 1].y;
+      const segLen = Math.sqrt(dx * dx + dy * dy);
+      const segStart = traveled;
+      const segEnd = traveled + segLen;
+      // Skip segments that lie entirely before start
+      if (segEnd <= startTarget) { traveled = segEnd; continue; }
+      // Final segment containing the target — emit and stop
+      if (segEnd >= target) {
+        const rem = target - traveled;
+        const frac = segLen > 0 ? rem / segLen : 0;
+        const ex = waypoints[i - 1].x + dx * frac;
+        const ey = waypoints[i - 1].y + dy * frac;
+        parts.push(`L ${ex} ${ey}`);
+        return parts.join(' ');
+      }
+      // Mid segment, fully traversed in window — emit endpoint
+      // (segStart may be < startTarget but we already emitted M at start)
+      void segStart;
+      parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
+      traveled = segEnd;
+    }
+    return parts.join(' ');
+  }
 
   const parts = [`M ${waypoints[0].x} ${waypoints[0].y}`];
   let traveled = 0;
@@ -606,6 +640,12 @@ export function renderRoadmapSvg(args) {
   if (!model?.lines.length) return '';
 
   const { lines, nodeMap } = model;
+  // Optional diff overlay: { pastProgressByRootId: Record<rootId,0..1>,
+  // newRootIds: string[]|Set, doneInWindowIds: string[]|Set, sinceLabel:string }
+  const diff = args.diff || null;
+  const pastProgress = diff?.pastProgressByRootId || {};
+  const newSet = new Set(diff?.newRootIds || []);
+  const doneInWindow = new Set(diff?.doneInWindowIds || []);
   const out = [];
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
@@ -637,6 +677,33 @@ export function renderRoadmapSvg(args) {
       out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
+    // ── Diff overlay: ghost-train + progress trail since selected date ───────
+    // Renders the line segment between past-progress and current-progress in
+    // amber so the eye sees exactly what was traveled in the window. Lines that
+    // are entirely new since the cutoff get a dashed-amber outline plus an "⊕
+    // NEU" badge below the start.
+    const isNewLine = newSet.has(line.root.id);
+    let pastT = null;
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !isNewLine) {
+      // Floor past-progress at 0 and cap at current trainT so the overlay
+      // never overshoots the live train marker.
+      pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
+    }
+    if (isNewLine) {
+      // Dashed outline overlay so the whole line reads as "added since cutoff"
+      out.push(`<path d="${esc(pathD)}" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6,4" opacity="0.85"/>`);
+    } else if (pastT != null && trainT - pastT > 0.005) {
+      const trailD = partialPath(route, trainT, pastT);
+      if (trailD) {
+        // Bright amber segment marking the "moved since" portion
+        out.push(`<path d="${esc(trailD)}" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`);
+        // Animated dot tracing the same segment so the eye locks onto motion
+        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5">`);
+        out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
+        out.push(`</circle>`);
+      }
+    }
+
     // ── Line badges at start and end ─────────────────────────────────────────
     const startPt = route[0];
     const endPt = route[route.length - 1];
@@ -652,6 +719,12 @@ export function renderRoadmapSvg(args) {
     const sby = startPt.y - badgeH / 2;
     out.push(`<rect x="${sbx}" y="${sby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
     out.push(`<text x="${sbx + badgeW / 2}" y="${sby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+    // "NEU" sub-badge for lines that didn't exist at the cutoff
+    if (isNewLine) {
+      const nby = sby + badgeH + 2;
+      out.push(`<rect x="${sbx}" y="${nby}" width="${badgeW}" height="14" rx="3" fill="#f59e0b"/>`);
+      out.push(`<text x="${sbx + badgeW / 2}" y="${nby + 10.5}" text-anchor="middle" font="700 9px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="9" font-weight="700">⊕ NEU</text>`);
+    }
 
     // End badge (right of end point, unless near edge — then left)
     const ebx = endPt.x + 10;
@@ -772,6 +845,33 @@ export function renderRoadmapSvg(args) {
     out.push(`<rect x="${(+tx - 7).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
     out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
     out.push(`</g>`);
+    // Delta pill: shows "+ΔN%" above the train when the diff overlay is on
+    // and progress actually moved in the window. Below the train if there's
+    // no headroom.
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
+      const past = Math.max(0, pastProgress[line.root.id] || 0);
+      const delta = Math.round((line.progress - past) * 100);
+      if (delta > 0) {
+        const pillW = Math.max(34, 12 + String(delta).length * 8);
+        const px = +tx - pillW / 2;
+        const py = +ty - 28;
+        out.push(`<g pointer-events="none">`);
+        out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#f59e0b" opacity="0.95"/>`);
+        out.push(`<text x="${+tx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="10" font-weight="700">+${delta}%</text>`);
+        out.push(`</g>`);
+      }
+    }
+    // Ghost train marker at the past position — only when there's a real gap
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
+      const pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
+      if (trainT - pastT > 0.005) {
+        const gp = pointAtFraction(line.route, pastT);
+        const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
+        out.push(`<g pointer-events="none" data-tip="${esc('Vorherige Position')}">`);
+        out.push(`<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`);
+        out.push(`</g>`);
+      }
+    }
   });
 
   out.push(`</svg>`);

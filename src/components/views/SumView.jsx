@@ -9,11 +9,12 @@ import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 import { TimetableView } from './TimetableView.jsx';
+import { stateAsOf } from '../../utils/history.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const lvs = leafNodes(tree);
@@ -71,7 +72,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
     {/* Roadmap + Fahrplan — switchable sub-views sharing the same data. */}
     <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
-      teams={teams} members={members} onOpenItem={onOpenItem} />
+      teams={teams} members={members} onOpenItem={onOpenItem}
+      historyEvents={historyEvents} />
 
     {/* Planning confidence */}
     {(() => {
@@ -244,7 +246,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [] }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -253,16 +255,117 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     setView(v);
     try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
   };
+
+  // ── Diff controls ──────────────────────────────────────────────────────────
+  // Selectable cutoff "since when": presets in days, or a custom ISO date.
+  // The Roadmap renders a ghost-train + amber trail showing what moved in the
+  // window. Defaults to "off" so the regular view stays familiar.
+  const [sinceDays, setSinceDays] = useState(() => {
+    try { return localStorage.getItem('planr_roadmap_since') || ''; } catch { return ''; }
+  });
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_roadmap_since', val); } catch { /* noop */ } };
+  const sinceDate = useMemo(() => {
+    if (!sinceDays) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
+    const n = parseInt(sinceDays, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
+  }, [sinceDays]);
+
+  // Replay events up to the cutoff and project the resulting leaf state back
+  // onto current roots → percentage-progress per root at the cutoff. New
+  // leaves count as `progress = 0`. Effort-weighted, mirroring treeStats.
+  const diff = useMemo(() => {
+    if (!sinceDate || !historyEvents.length) return null;
+    const pastLeafState = stateAsOf(historyEvents, sinceDate);
+    const roots = tree.filter(r => !r.id.includes('.'));
+    const pastProgressByRootId = {};
+    const newRootIds = [];
+    const doneInWindowIds = new Set();
+    // Walk events strictly after the cutoff to collect leaves whose status
+    // became "done" inside the window. Used both for the doneInWindowIds set
+    // and to drive the summary banner.
+    const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
+    for (const ev of historyEvents) {
+      if (ev.ts <= cutoffIso) continue;
+      if (ev.status === 'done') doneInWindowIds.add(ev.id);
+    }
+    let doneCount = 0, effortInWindow = 0;
+    for (const root of roots) {
+      const subtreeLeaves = tree.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
+        .filter(n => {
+          // leaf check: no descendant exists for this id in the tree
+          return !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.'));
+        });
+      let totalEff = 0, doneEff = 0;
+      let anyPastLeaf = false;
+      for (const lf of subtreeLeaves) {
+        const eff = re(lf.best || 0, lf.factor || 1.5) || 1;
+        totalEff += eff;
+        const past = pastLeafState.get(lf.id);
+        if (past) anyPastLeaf = true;
+        const pastDone = past?.status === 'done';
+        const pastProg = past ? (past.progress || 0) / 100 : 0;
+        doneEff += eff * (pastDone ? 1 : pastProg);
+      }
+      pastProgressByRootId[root.id] = totalEff > 0 ? doneEff / totalEff : 0;
+      if (!anyPastLeaf && subtreeLeaves.length > 0) newRootIds.push(root.id);
+    }
+    // Summary banner counts
+    for (const id of doneInWindowIds) {
+      const node = tree.find(r => r.id === id);
+      if (!node) continue;
+      doneCount++;
+      effortInWindow += re(node.best || 0, node.factor || 1.5) || 0;
+    }
+    return { pastProgressByRootId, newRootIds, doneInWindowIds: [...doneInWindowIds],
+      sinceDate, doneCount, effortInWindow };
+  }, [historyEvents, sinceDate, tree]);
+
+  const presetBtn = (val, label) => (
+    <button key={val} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
+      style={{ padding: '3px 8px', fontSize: 10 }} onClick={() => persistSince(val)}>{label}</button>
+  );
+
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
         <button className={`btn btn-xs ${view === 'map' ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
         <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
+        {view === 'map' && historyEvents.length > 0 && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>Fortschritt seit</span>
+            {presetBtn('', 'Aus')}
+            {presetBtn('7', '7 T')}
+            {presetBtn('14', '14 T')}
+            {presetBtn('30', '30 T')}
+            <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
+              onChange={e => persistSince(e.target.value)}
+              style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11, marginLeft: 4 }} />
+          </span>
+        )}
       </div>
+      {view === 'map' && diff && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', marginBottom: 8,
+            background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>Stand {iso(sinceDate)} → heute</span>
+          <span style={{ color: 'var(--tx2)' }}>·</span>
+          <span><strong style={{ color: 'var(--tx)' }}>{diff.doneCount}</strong> Tasks erledigt</span>
+          <span style={{ color: 'var(--tx2)' }}>·</span>
+          <span><strong style={{ color: 'var(--tx)' }}>{Math.round(diff.effortInWindow)}d</strong> Aufwand</span>
+          {diff.newRootIds.length > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span><strong style={{ color: 'var(--tx)' }}>{diff.newRootIds.length}</strong> neue Linie{diff.newRootIds.length === 1 ? '' : 'n'}</span>
+          </>}
+          {diff.doneCount === 0 && diff.newRootIds.length === 0 && (
+            <span style={{ color: 'var(--tx3)', fontStyle: 'italic', marginLeft: 'auto' }}>Keine Bewegung im Fenster.</span>
+          )}
+        </div>
+      )}
       {view === 'map'
-        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} />
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff} />
         : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members} />
       }
     </div>
