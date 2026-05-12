@@ -7,19 +7,36 @@ import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
+import { stateAsOf } from '../../utils/history.js';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
   const [collapsed, setCollapsed] = useState(new Set());
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
+
+  // ── Diff overlay: same "since" picker as the Roadmap, shared via the
+  // `planr_diff_since` localStorage key. When set, leaf rows pick up badges
+  // showing what changed in the window (newly done, progress up, brand new).
+  const [sinceDays, setSinceDays] = useState(() => {
+    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
+  });
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
+  const sinceDate = useMemo(() => {
+    if (!sinceDays) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
+    const n = parseInt(sinceDays, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
+  }, [sinceDays]);
+  const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null, [historyEvents, sinceDate]);
 
   const sorted = useMemo(() => {
     const byParent = {};
@@ -220,6 +237,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       {/* Legend collapsed into a single hover hint — keeps the toolbar quiet */}
       <span data-htip={`${t('tv.statusOpen')} ○  ${t('wip')} ◐  ${t('tv.statusDone')} ●     ⏫ ${t('tv.prioCrit')}  ▲ ${t('tv.prioHigh')}  ▬ ${t('tv.prioMed')}  ▼ ${t('tv.prioLow')}`}
         style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', cursor: 'help', userSelect: 'none', border: '1px solid var(--b)', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>?</span>
+      {/* Diff-since picker — same control as the Roadmap, lights up amber
+          badges on leaves that changed in the chosen window. */}
+      {historyEvents.length > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>Diff seit</span>
+        {[['', 'Aus'], ['7', '7 T'], ['14', '14 T'], ['30', '30 T']].map(([val, lbl]) => (
+          <button key={val || 'off'} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
+            style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => persistSince(val)}>{lbl}</button>
+        ))}
+        <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
+          onChange={e => persistSince(e.target.value)}
+          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '1px 3px', fontSize: 10, marginLeft: 2 }} />
+      </span>}
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}
@@ -268,6 +297,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           const parentTeam = parentId ? (effTeam[parentId] || '') : '';
           const showTeam = !!r.team && r.team !== parentTeam;
           const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
+          // Diff-since badges: compare past state at the cutoff with the
+          // current row. Only render for leaves so parent rows stay quiet.
+          let diffBadge = null;
+          if (pastLeafState && isLeaf) {
+            const past = pastLeafState.get(r.id);
+            const nowStatus = r.status || 'open';
+            const nowProg = typeof r.progress === 'number' ? r.progress : (nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0);
+            if (!past) {
+              diffBadge = { kind: 'new', label: '⊕ NEU', tip: `Seit ${sinceDays === '' ? '?' : sinceDays + (sinceDays.length <= 2 ? ' Tagen' : '')} hinzugefügt` };
+            } else if (past.status !== 'done' && nowStatus === 'done') {
+              diffBadge = { kind: 'done', label: '✓ erledigt', tip: r.completedAt ? `Erledigt ${r.completedAt}` : 'Erledigt im Fenster' };
+            } else if (nowProg > (past.progress || 0)) {
+              const delta = Math.round(nowProg - (past.progress || 0));
+              if (delta >= 1) diffBadge = { kind: 'progress', label: `+${delta}%`, tip: `Fortschritt ${past.progress || 0}% → ${nowProg}%` };
+            }
+          }
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             onClick={e => onSelect(r, e, filt.map(x => x.id))}>
@@ -341,6 +386,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 return <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)', fontWeight: overdue ? 700 : 400 }}
                   data-htip={overdue ? `Fällig ${r.due} — geplantes Ende ${endIso} (überfällig)` : `Fällig bis ${r.due}`}>{r.due}</span>;
               })()}
+
+              {/* Diff-since badge (newly done / new leaf / progress jump) */}
+              {diffBadge && <span data-htip={diffBadge.tip}
+                style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
+                  background: diffBadge.kind === 'new' ? '#f59e0b'
+                    : diffBadge.kind === 'done' ? 'rgba(16,185,129,.85)'
+                    : 'rgba(245,158,11,.85)',
+                  color: '#1a1a1a',
+                  fontFamily: 'var(--mono)' }}>{diffBadge.label}</span>}
 
               {/* Custom field indicator — show link icon if any uri field has a value */}
               {customFields?.length > 0 && (() => {

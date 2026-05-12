@@ -261,9 +261,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
   // The Roadmap renders a ghost-train + amber trail showing what moved in the
   // window. Defaults to "off" so the regular view stays familiar.
   const [sinceDays, setSinceDays] = useState(() => {
-    try { return localStorage.getItem('planr_roadmap_since') || ''; } catch { return ''; }
+    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
   });
-  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_roadmap_since', val); } catch { /* noop */ } };
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
   const sinceDate = useMemo(() => {
     if (!sinceDays) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
@@ -281,22 +281,33 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     const roots = tree.filter(r => !r.id.includes('.'));
     const pastProgressByRootId = {};
     const newRootIds = [];
-    const doneInWindowIds = new Set();
-    // Walk events strictly after the cutoff to collect leaves whose status
-    // became "done" inside the window. Used both for the doneInWindowIds set
-    // and to drive the summary banner.
+    // "Done in window" must be a real transition: status was NOT done at the
+    // cutoff and is done now. Sources of the "now" flag (in priority order):
+    //   1. The post-cutoff event stream itself records a status=done event
+    //   2. The current tree row has status=done (catches edits not yet saved
+    //      and tasks where the in-window event only recorded completedAt).
+    // Both gates require pastLeafState to say "not done at the cutoff".
     const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
+    const doneInWindowIds = new Set();
     for (const ev of historyEvents) {
       if (ev.ts <= cutoffIso) continue;
-      if (ev.status === 'done') doneInWindowIds.add(ev.id);
+      if (ev.status !== 'done') continue;
+      if (pastLeafState.get(ev.id)?.status === 'done') continue;
+      doneInWindowIds.add(ev.id);
+    }
+    // Also cover the case where the current tree shows done but no post-cutoff
+    // event has yet been written (e.g. user just toggled and hasn't saved).
+    for (const r of tree) {
+      if (r.status === 'done' && pastLeafState.get(r.id)?.status !== 'done') {
+        // Only leaves count — parent rows derive their done flag from children.
+        const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
+        if (isLeaf) doneInWindowIds.add(r.id);
+      }
     }
     let doneCount = 0, effortInWindow = 0;
     for (const root of roots) {
       const subtreeLeaves = tree.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
-        .filter(n => {
-          // leaf check: no descendant exists for this id in the tree
-          return !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.'));
-        });
+        .filter(n => !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.')));
       let totalEff = 0, doneEff = 0;
       let anyPastLeaf = false;
       for (const lf of subtreeLeaves) {
@@ -311,7 +322,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
       pastProgressByRootId[root.id] = totalEff > 0 ? doneEff / totalEff : 0;
       if (!anyPastLeaf && subtreeLeaves.length > 0) newRootIds.push(root.id);
     }
-    // Summary banner counts
+    // Summary banner counts (deduplicated by id, drives "X Tasks erledigt"
+    // and "Xd Aufwand" pills).
     for (const id of doneInWindowIds) {
       const node = tree.find(r => r.id === id);
       if (!node) continue;
