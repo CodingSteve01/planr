@@ -347,20 +347,23 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               the blocker to jump to it. */}
           {sc?.blockedBy && (() => {
             const blocker = scheduled?.find(x => x.id === sc.blockedBy.id);
-            const blockerName = blocker?.name || sc.blockedBy.id;
-            const blockerPerson = blocker?.person || blocker?.personShort || '?';
+            // Only treat as a real label when it differs from the ID — `scheduled`
+            // doesn't include done tasks, so the fallback would just echo the ID.
+            const blockerName = blocker?.name && blocker.name !== sc.blockedBy.id ? blocker.name : '';
+            const blockerPerson = blocker?.person || blocker?.personShort || '';
             const endIso = sc.blockedBy.endD instanceof Date
               ? sc.blockedBy.endD.toISOString().slice(0, 10)
               : String(sc.blockedBy.endD);
+            const meta = [blockerPerson, endIso].filter(Boolean).join(' · ');
             return (
               <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>
                   ⏳{' '}
                   <a href="#" style={{ color: 'var(--ac)', textDecoration: 'none' }} onClick={e => { e.preventDefault(); blocker && onOpenItem?.(blocker); }}>
                     {sc.blockedBy.id}
-                  </a>{' '}
-                  <span style={{ color: 'var(--tx3)' }}>{blockerName}</span>
-                  <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>· {blockerPerson} · {endIso}</span>
+                  </a>
+                  {blockerName && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>{blockerName}</span>}
+                  {meta && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>· {meta}</span>}
                 </span>
               </KVRow>
             );

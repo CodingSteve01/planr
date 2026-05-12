@@ -568,6 +568,34 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     expect(dep.blockedBy.endD).toBeInstanceOf(Date);
   });
 
+  test('done dep does NOT flag blockedBy when the assignee queue is the real binder', () => {
+    // Regression: P.T depends on a long-completed predecessor (P.D). The actual
+    // reason P.T sits far in the future is that its assignee is buried under an
+    // earlier long task. Surfacing blockedBy here would lie ("Waiting for P.D")
+    // when P.D finished months ago. Rule: blockedBy fires only when the dep was
+    // the binding floor (bs === depWi).
+    const SLfull = { id: 'SLf', name: 'Steffen', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      // Done predecessor — finished well before plan start.
+      { id: 'P.D', name: 'done predecessor', team: 'TT', best: 5, factor: 1, status: 'done', completedAt: '2025-12-01' },
+      // Assignee's long earlier task — eats their queue until well past P.D's end.
+      { id: 'P.LONG', name: 'long earlier', team: 'TT', best: 60, factor: 1, assign: ['SLf'], prio: 4, seq: 5 },
+      // Target task: depends on the done predecessor, same assignee as the long task.
+      { id: 'P.T', name: 'target', team: 'TT', best: 5, factor: 1, assign: ['SLf'], prio: 4, seq: 10, deps: ['P.D'] },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [SLfull],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const target = r.results.find(x => x.id === 'P.T');
+    expect(target).toBeTruthy();
+    // Assignee queue is the binder — done predecessor must not be flagged.
+    expect(target.blockedBy).toBeNull();
+  });
+
   test('dep-blocked task picks busier candidate so freer body keeps no-dep slot', () => {
     // Forward-pass scheduler can't gap-fill. If a dep-blocked task lands on
     // the freest body, that body's pF jumps past the dep — wasting weeks of

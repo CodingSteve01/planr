@@ -14,7 +14,9 @@ The auto-scheduler lives in [src/utils/scheduler.js](../src/utils/scheduler.js) 
 
 ## Output
 
-For each scheduled leaf: `{ id, name, team, person, personId, startWi, endWi, startD, endD, calDays, capPct, vacDed, weeks, pinOverridden, deps, status, note, ... }`.
+For each scheduled leaf: `{ id, name, team, person, personId, startWi, endWi, startD, endD, calDays, capPct, vacDed, weeks, pinOverridden, deps, status, note, blockedBy, personPrevFree, ... }`.
+
+`blockedBy` is populated **only** when the dep was the actual binding floor for this row's start — i.e. the chosen `bs` equals `depWi`. If the assignee's prior queue (or member start) pushed the start past the dep's end, `blockedBy` stays `null` so the UI doesn't blame a long-finished/done predecessor when the real reason is the person being busy.
 
 Week indices (`startWi`, `endWi`) reference the precomputed week grid.
 

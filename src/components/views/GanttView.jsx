@@ -1300,10 +1300,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const x2 = barLeft;
                 if (!(x2 > x1)) return null;
                 const blocker = scheduled.find(x => x.id === s.blockedBy.id);
-                const blockerName = blocker?.name || s.blockedBy.id;
-                const blockerPerson = blocker?.person || blocker?.personShort || '?';
+                const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
+                const blockerPerson = blocker?.person || blocker?.personShort || '';
                 const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
-                return <div data-htip={`⏳ Wartet ${gapDays}d auf ${s.blockedBy.id} – ${blockerName} (${blockerPerson}, endet ${endIso})`}
+                const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
+                const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
+                return <div data-htip={`⏳ Wartet ${gapDays}d auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}
                   style={{
                     position: 'absolute', left: x1, top: 8, width: x2 - x1, height: 12, borderRadius: 3,
                     background: 'repeating-linear-gradient(45deg, rgba(245,158,11,.35) 0 4px, rgba(245,158,11,.10) 4px 8px)',
@@ -1466,11 +1468,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                 {!isSummary && s.blockedBy && (() => {
                   const blocker = scheduled.find(x => x.id === s.blockedBy.id);
-                  const blockerName = blocker?.name || s.blockedBy.id;
-                  const blockerPerson = blocker?.person || blocker?.personShort || '?';
+                  const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
+                  const blockerPerson = blocker?.person || blocker?.personShort || '';
                   const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
+                  const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
+                  const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
                   return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
-                    data-htip={`Wartet auf ${s.blockedBy.id} – ${blockerName} (${blockerPerson}, endet ${endIso})`}>⏳</span>;
+                    data-htip={`Wartet auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
                 })()}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>

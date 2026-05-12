@@ -702,7 +702,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             // strict "dep pushed past chosen person's prior free" check
             // hid blockedBy in the common case where the picked person was
             // busy until exactly the dep end (busier-tiebreak path).
-            const depBlocked = !!(depBlockerId && depNextDate);
+            // Surface blockedBy only when the dep was actually the binding floor —
+            // i.e. the chosen start week equals depWi. If bs > depWi, the team-slot
+            // queue (or member start) was the real limiter and the dep is stale
+            // (typically a long-finished or done predecessor).
+            const depBlocked = !!(depBlockerId && depNextDate && bs === depWi);
             res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
               best: r.best, effort: eff, startWi: bs, endWi: eW,
               startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
@@ -974,7 +978,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
     const dueInfeasible = !!(latestStart && latestStart < _now);
     const personPrevFreeAsg = priorPF[bp.id];
-    const depBlockedAsg = !!(depBlockerId && depNextDate);
+    // Same gating as the team-fallback path: only surface blockedBy when the
+    // dep was the binding floor (bs === depWi). Prevents stale/done deps from
+    // appearing as the blocker when the real reason this row sits in the future
+    // is the assignee's prior queue.
+    const depBlockedAsg = !!(depBlockerId && depNextDate && bs === depWi);
     res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
