@@ -904,10 +904,19 @@ export function renderRoadmapSvg(args) {
   // ── Legend (HTML below SVG) ────────────────────────────────────────────────
   // CSS multi-column layout — packs blocks top-down within each column so
   // short lines tuck under tall ones instead of wasting horizontal lanes.
-  // `break-inside: avoid` keeps each project's stations together.
+  // `break-inside: avoid` keeps each project's stations together. Lines are
+  // emitted largest-first so the balancer puts giants in their own columns
+  // and the short blocks can slot in beside them instead of leaving gaps.
   out.push(`<div style="margin-top:16px;column-width:200px;column-gap:20px;padding:0 4px">`);
 
-  lines.forEach(line => {
+  const linesForLegend = [...lines]
+    .filter(l => (l.majorStations.length + l.minorStations.length) > 0)
+    .sort((a, b) => {
+      const ha = a.majorStations.length + a.minorStations.length;
+      const hb = b.majorStations.length + b.minorStations.length;
+      return hb - ha;
+    });
+  linesForLegend.forEach(line => {
     const allStations = [...line.majorStations, ...line.minorStations]
       .sort((a, b) => a.t - b.t);
     if (!allStations.length) return;
