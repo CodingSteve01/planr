@@ -903,12 +903,20 @@ export function renderRoadmapSvg(args) {
       .sort((a, b) => a.t - b.t);
     if (!allStations.length) return;
 
+    // Line-level diff: count items in this line's stations that went done
+    // in the window. Surfaces as a small amber pill in the header.
+    const lineReachedCount = doneInWindow.size > 0
+      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => doneInWindow.has(c.id)).length), 0)
+      : 0;
     out.push(`<div style="min-width:160px;max-width:220px">`);
     // Line header
     out.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
     out.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
     out.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
     out.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(line.root.name, 22))}</span>`);
+    if (lineReachedCount > 0) {
+      out.push(`<span style="margin-left:auto;font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px" title="Im Fenster erledigt">✓ ${lineReachedCount}</span>`);
+    }
     out.push(`</div>`);
 
     // Station rows
@@ -918,13 +926,24 @@ export function renderRoadmapSvg(args) {
       const stIcon = statusIcon(stStatus, line.color, stProg, 13);
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
       const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
+      // Did this station have any item reach "done" inside the diff window?
+      // Show an amber "✓ +N" pill in the row and a subtle row background so
+      // the legend reads as a sprint scoreboard alongside the regular state.
+      const reachedItems = doneInWindow.size > 0
+        ? (station.clusterItems || []).filter(c => doneInWindow.has(c.id))
+        : [];
+      const stationDeltaPill = reachedItems.length
+        ? `<span style="margin-left:auto;font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">✓ +${reachedItems.length}</span>`
+        : '';
+      const rowBg = reachedItems.length ? ';background:rgba(245,158,11,.10)' : '';
 
       // Main station row: icon + abbrev + name — single line, vertically centered.
       // Clickable → opens the representative item's dialog.
-      out.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px">`);
+      out.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}">`);
       out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
       out.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
       out.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
+      out.push(stationDeltaPill);
       out.push(`</div>`);
 
       // Cluster details — indented rows below, each with own icon+text centered, clickable
@@ -937,9 +956,17 @@ export function renderRoadmapSvg(args) {
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
           const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
             : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
-          out.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}">`);
+          // Per-item diff badge: amber "✓ im Fenster" when this item went to
+          // done inside the window. Sits right of the name to keep alignment.
+          const reachedThis = doneInWindow.has(c.id);
+          const itemDiffPill = reachedThis
+            ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">✓</span>`
+            : '';
+          const itemRowBg = reachedThis ? ';background:rgba(245,158,11,.10)' : '';
+          out.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}">`);
           out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
           out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
+          out.push(itemDiffPill);
           out.push(`</div>`);
         });
       }
