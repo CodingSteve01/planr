@@ -8,14 +8,13 @@ import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
-import { DiffPicker } from '../shared/DiffPicker.jsx';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -28,13 +27,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // resolve the per-leaf past state locally — used by the per-row diff badge
   // and the "Only changed" filter below.
   const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : (diff?.pastLeafState || null), [historyEvents, sinceDate, diff]);
-  // "Only with changes" filter — when on, hide every leaf whose state matches
-  // the cutoff (no new, done-in-window, or progress jump). Parents are kept
-  // when they have at least one matching descendant so the tree shape reads.
-  const [onlyChanged, setOnlyChanged] = useState(() => {
-    try { return localStorage.getItem('planr_tree_only_changed') === 'true'; } catch { return false; }
-  });
-  const persistOnlyChanged = (v) => { setOnlyChanged(v); try { localStorage.setItem('planr_tree_only_changed', String(v)); } catch { /* noop */ } };
+  // "Only with changes" filter — global state, set inside the DiffPicker
+  // popup. When on, hide every leaf whose state matches the cutoff (no new,
+  // done-in-window, or progress jump). Parents kept when they have at least
+  // one matching descendant so the tree shape reads.
   // Per-row diff: returns null when no change, else badge descriptor.
   const computeDiffBadge = (r) => {
     if (!pastLeafState) return null;
@@ -269,13 +265,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       {/* Legend collapsed into a single hover hint — keeps the toolbar quiet */}
       <span data-htip={`${t('tv.statusOpen')} ○  ${t('wip')} ◐  ${t('tv.statusDone')} ●     ⏫ ${t('tv.prioCrit')}  ▲ ${t('tv.prioHigh')}  ▬ ${t('tv.prioMed')}  ▼ ${t('tv.prioLow')}`}
         style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', cursor: 'help', userSelect: 'none', border: '1px solid var(--b)', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>?</span>
-      {/* Diff-since picker — popup with presets + custom date + "only
-          changed" toggle. Same control as the Roadmap and the sub-toolbar
-          so the cutoff stays consistent across all views. */}
-      {historyEvents.length > 0 && <span style={{ marginLeft: 12 }}>
-        <DiffPicker compact sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
-          onlyChanged={onlyChanged} persistOnlyChanged={persistOnlyChanged} />
-      </span>}
+      {/* Diff picker lives in the App-level sub-toolbar so it stays
+          available next to the root/team/person filters. Toggling the
+          "Only changed" checkbox there reaches this view via the
+          `onlyChanged` prop. */}
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}

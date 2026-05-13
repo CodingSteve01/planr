@@ -1310,6 +1310,13 @@ export default function App() {
   const [sinceDays, setSinceDays] = useState(() => { try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; } });
   const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
   const sinceDate = useMemo(() => parseSinceValue(sinceDays), [sinceDays]);
+  // "Only with changes" filter — currently consumed by TreeView. Lives at app
+  // level so the toggle inside the global DiffPicker popup stays the only
+  // place to flip it.
+  const [diffOnlyChanged, setDiffOnlyChanged] = useState(() => {
+    try { return localStorage.getItem('planr_diff_only_changed') === 'true'; } catch { return false; }
+  });
+  const persistDiffOnlyChanged = (v) => { setDiffOnlyChanged(v); try { localStorage.setItem('planr_diff_only_changed', String(v)); } catch { /* noop */ } };
   const diff = useMemo(() => computeDiff({
     tree,
     historyEvents: data?.historyEvents || [],
@@ -2310,7 +2317,10 @@ export default function App() {
           can actually show something (tree/gantt/net). Tab-shared state in
           App.jsx keeps all surfaces in sync. */}
       {(tab === 'tree' || tab === 'gantt' || tab === 'net') && (data?.historyEvents || []).length > 0 && (
-        <DiffPicker sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
+        <DiffPicker
+          sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
+          onlyChanged={diffOnlyChanged} persistOnlyChanged={persistDiffOnlyChanged}
+        />
       )}
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
@@ -2349,6 +2359,7 @@ export default function App() {
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               historyEvents={data?.historyEvents || []}
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+              onlyChanged={diffOnlyChanged}
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder} />
           }
