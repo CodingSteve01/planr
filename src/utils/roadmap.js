@@ -902,7 +902,10 @@ export function renderRoadmapSvg(args) {
   out.push(`</svg>`);
 
   // ── Legend (HTML below SVG) ────────────────────────────────────────────────
-  out.push(`<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:20px;padding:0 4px">`);
+  // CSS multi-column layout — packs blocks top-down within each column so
+  // short lines tuck under tall ones instead of wasting horizontal lanes.
+  // `break-inside: avoid` keeps each project's stations together.
+  out.push(`<div style="margin-top:16px;column-width:200px;column-gap:20px;padding:0 4px">`);
 
   lines.forEach(line => {
     const allStations = [...line.majorStations, ...line.minorStations]
@@ -918,7 +921,7 @@ export function renderRoadmapSvg(args) {
     const lineProgCount = changedInWindow.size > 0
       ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)).length), 0)
       : 0;
-    out.push(`<div style="min-width:160px;max-width:220px">`);
+    out.push(`<div style="break-inside:avoid;page-break-inside:avoid;-webkit-column-break-inside:avoid;display:inline-block;width:100%;margin-bottom:14px">`);
     // Line header
     out.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
     out.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
