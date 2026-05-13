@@ -335,7 +335,11 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+  // Sets of leaf ids that completed / progressed in the diff window. Used to
+  // ring matching nodes in the SVG so the graph reflects sprint movement.
+  const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
+  const _diffProgSet = diffProgressedIds instanceof Set ? diffProgressedIds : new Set(diffProgressedIds || []);
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -603,7 +607,17 @@ function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = 
           const isActiveMatch = r.id === activeMatchId;
           const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
           const finalOpacity = subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
+          const diffDoneHere = _diffDoneSet.has(r.id);
+          const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
+          const diffStroke = diffDoneHere ? '#10b981' : diffProgHere ? '#f59e0b' : null;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
+            {diffStroke && (
+              <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={7}
+                fill="none" stroke={diffStroke} strokeWidth={2}
+                style={{ pointerEvents: 'none', filter: `drop-shadow(0 0 4px ${diffStroke})` }}>
+                <animate attributeName="opacity" values="1;.55;1" dur="2.4s" repeatCount="indefinite"/>
+              </rect>
+            )}
             <rect width={NODE_W} height={NODE_H} rx={5} fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
               stroke={isActiveMatch ? 'var(--ac)' : isMatch ? 'var(--am)' : isSel ? 'var(--ac)' : isCp ? 'var(--re)' : isConn ? tc : isRoot ? tc : tc + '44'}
               strokeWidth={isMatch ? 2.5 : isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : .7}

@@ -7,6 +7,7 @@ import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exp
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
+import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
@@ -1301,6 +1302,17 @@ export default function App() {
   }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
   const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
+  // ── Diff overlay (project-wide "since" window) ─────────────────────────────
+  // Lives at app level so every view (Roadmap, TreeView, Timetable, Gantt,
+  // Network) reads the same cutoff and the same precomputed event-based diff
+  // bag. Persists in localStorage.
+  const [sinceDays, setSinceDays] = useState(() => { try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; } });
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
+  const sinceDate = useMemo(() => parseSinceValue(sinceDays), [sinceDays]);
+  const diff = useMemo(() => computeDiff({ tree, historyEvents: data?.historyEvents || [], sinceDate }), [tree, data?.historyEvents, sinceDate]);
+  const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
+  const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
+  const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
   const cpData = useMemo(() => rootCpm(tree), [tree]);
   const cpSet = cpData.critical;
   const cpEdges = cpData.edges;
@@ -2298,6 +2310,7 @@ export default function App() {
     <div className="main">
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         historyEvents={data?.historyEvents || []}
+        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}
@@ -2320,6 +2333,7 @@ export default function App() {
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               historyEvents={data?.historyEvents || []}
+              sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder} />
           }
@@ -2522,8 +2536,9 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} sinceDate={sinceDate} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
+        diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet}
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
         onAddDep={onNetAddDep}

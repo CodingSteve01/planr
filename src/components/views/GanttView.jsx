@@ -35,7 +35,11 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+  // Diff-overlay sets (project-wide "since" window). Highlight bars that
+  // completed or progressed in the chosen window.
+  const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
+  const _diffProgSet = diffProgressedIds instanceof Set ? diffProgressedIds : new Set(diffProgressedIds || []);
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -1327,6 +1331,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />;
                 });
               })()}
+              {bW > 0 && sinceDate && (_diffDoneSet.has(s.id) || _diffProgSet.has(s.id)) && (
+                <div data-htip={_diffDoneSet.has(s.id) ? t('diff.tipDone') : t('diff.tipNew')}
+                  style={{ position: 'absolute', left: barLeft - 2, top: (isSummary ? 6 : 4) - 2,
+                    width: Math.max(bW, 6) + 4, height: (isSummary ? 16 : 20) + 4,
+                    borderRadius: isSummary ? 6 : 5, pointerEvents: 'none', zIndex: 1,
+                    border: `2px solid ${_diffDoneSet.has(s.id) ? '#10b981' : '#f59e0b'}`,
+                    boxShadow: `0 0 0 1px var(--bg,#111318), 0 0 10px ${_diffDoneSet.has(s.id) ? 'rgba(16,185,129,.6)' : 'rgba(245,158,11,.6)'}` }} />
+              )}
               {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,

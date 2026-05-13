@@ -14,7 +14,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -22,21 +22,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
 
-  // ── Diff overlay: same "since" picker as the Roadmap, shared via the
-  // `planr_diff_since` localStorage key. When set, leaf rows pick up badges
-  // showing what changed in the window (newly done, progress up, brand new).
-  const [sinceDays, setSinceDays] = useState(() => {
-    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
-  });
-  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
-  const sinceDate = useMemo(() => {
-    if (!sinceDays) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
-    const n = parseInt(sinceDays, 10);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
-  }, [sinceDays]);
-  const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null, [historyEvents, sinceDate]);
+  // The diff cutoff (sinceDays/persistSince/sinceDate) and the precomputed
+  // diff bag flow in from App.jsx so every view stays in sync. We still
+  // resolve the per-leaf past state locally — used by the per-row diff badge
+  // and the "Only changed" filter below.
+  const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : (diff?.pastLeafState || null), [historyEvents, sinceDate, diff]);
   // "Only with changes" filter — when on, hide every leaf whose state matches
   // the cutoff (no new, done-in-window, or progress jump). Parents are kept
   // when they have at least one matching descendant so the tree shape reads.

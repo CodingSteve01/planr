@@ -7,7 +7,9 @@ import { useT } from '../../i18n.jsx';
 // "Zugfahrplan" — compact chronological station timetable per subway line.
 // 2-col line grid. Single-line rows: abbrev · KW/YY+date · dur · status.
 // Team resolved via scheduled segments + tree fallback; shown in tooltip only.
-export function TimetableView({ tree, scheduled, stats, teams, members }) {
+export function TimetableView({ tree, scheduled, stats, teams, members, diffDoneIds = [], diffProgressedIds = [], sinceDate = null }) {
+  const diffDoneSet = useMemo(() => new Set(diffDoneIds), [diffDoneIds]);
+  const diffProgSet = useMemo(() => new Set(diffProgressedIds), [diffProgressedIds]);
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const model = useMemo(() => computeRoadmapModel({ tree, scheduled, stats }), [tree, scheduled, stats]);
@@ -106,7 +108,9 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
             });
             const tip = tipLines.join('\n');
 
-            return { station: st, items, startD, endD, status, workDays, totalCalDays, current, tip };
+            const doneInWindow = items.filter(it => diffDoneSet.has(it.id)).length;
+            const progressedInWindow = items.filter(it => diffProgSet.has(it.id)).length;
+            return { station: st, items, startD, endD, status, workDays, totalCalDays, current, tip, doneInWindow, progressedInWindow };
           }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
           const trainRow = rows.find(r => r.current);
@@ -140,8 +144,14 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
                 {rows.map((r) => {
                   const g = statusGlyph(r.status);
                   const isPast = r.endD && r.endD < today;
-                  const rowBg = r.current ? 'rgba(34,197,94,.10)' : (isPast && r.status === 'done' ? 'transparent' : 'var(--bg2)');
-                  const rowOpacity = r.status === 'done' && !r.current ? 0.55 : 1;
+                  // Sprint-window highlight: amber border + tinted background when
+                  // any constituent item moved in the diff window. Pulls focus to
+                  // recently-touched stations during a review.
+                  const movedInWindow = sinceDate && (r.doneInWindow > 0 || r.progressedInWindow > 0);
+                  const rowBg = movedInWindow
+                    ? 'rgba(245,158,11,.10)'
+                    : (r.current ? 'rgba(34,197,94,.10)' : (isPast && r.status === 'done' ? 'transparent' : 'var(--bg2)'));
+                  const rowOpacity = r.status === 'done' && !r.current && !movedInWindow ? 0.55 : 1;
                   return (
                     <div
                       key={r.station.id}
@@ -154,15 +164,21 @@ export function TimetableView({ tree, scheduled, stats, teams, members }) {
                         padding: '3px 6px',
                         background: rowBg,
                         opacity: rowOpacity,
-                        borderLeft: r.current ? `3px solid ${color}` : '3px solid transparent',
+                        borderLeft: movedInWindow ? '3px solid #f59e0b' : (r.current ? `3px solid ${color}` : '3px solid transparent'),
                         borderRadius: 3,
                         fontSize: 11,
                         minHeight: 22,
                       }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color, fontSize: 11 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         {r.station.abbrev}
                         {r.items.length > 1 && (
-                          <span style={{ marginLeft: 3, fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
+                          <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
+                        )}
+                        {r.doneInWindow > 0 && (
+                          <span style={{ fontSize: 8, fontWeight: 700, background: '#10b981', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>✓{r.doneInWindow}</span>
+                        )}
+                        {r.progressedInWindow > 0 && (
+                          <span style={{ fontSize: 8, fontWeight: 700, background: '#f59e0b', color: '#1a1a1a', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
                         )}
                       </span>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

@@ -14,7 +14,7 @@ import { stateAsOf } from '../../utils/history.js';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const lvs = leafNodes(tree);
@@ -61,20 +61,9 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
   const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
-  // ── Shared "since" cutoff: lives at this level so both the top-line %
-  // delta and the Roadmap's overlay react to a single picker. Persisted via
-  // localStorage so the choice survives reload.
-  const [sinceDays, setSinceDays] = useState(() => {
-    try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; }
-  });
-  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
-  const sinceDate = useMemo(() => {
-    if (!sinceDays) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(sinceDays)) return new Date(sinceDays + 'T23:59:59');
-    const n = parseInt(sinceDays, 10);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
-  }, [sinceDays]);
+  // `sinceDays`, `persistSince`, `sinceDate` now flow in from App.jsx so the
+  // diff state is shared across all views (Roadmap, Tree, Timetable, Gantt,
+  // Network). The picker UI lives in RoadmapSwitcher / TreeView toolbars.
 
   // Effort-weighted overall progress AT the cutoff. Mirrors the live
   // `prog` calculation (`done / totalLeaves * 100`) but with each leaf's
@@ -130,7 +119,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
       teams={teams} members={members} onOpenItem={onOpenItem}
       historyEvents={historyEvents}
-      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
+      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff} />
 
     {/* Planning confidence */}
     {(() => {
@@ -303,7 +292,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -312,95 +301,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     setView(v);
     try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
   };
-  // sinceDays / persistSince / sinceDate are now owned by SumView so the
-  // top-line %-delta and the Roadmap respond to a single picker.
-
-  // Replay events up to the cutoff and project the resulting leaf state back
-  // onto current roots → percentage-progress per root at the cutoff. New
-  // leaves count as `progress = 0`. Effort-weighted, mirroring treeStats.
-  const diff = useMemo(() => {
-    if (!sinceDate || !historyEvents.length) return null;
-    const pastLeafState = stateAsOf(historyEvents, sinceDate);
-    const roots = tree.filter(r => !r.id.includes('.'));
-    const pastProgressByRootId = {};
-    const newRootIds = [];
-    // "Done in window" must be a real transition: status was NOT done at the
-    // cutoff and is done now. Sources of the "now" flag (in priority order):
-    //   1. The post-cutoff event stream itself records a status=done event
-    //   2. The current tree row has status=done (catches edits not yet saved
-    //      and tasks where the in-window event only recorded completedAt).
-    // Both gates require pastLeafState to say "not done at the cutoff".
-    const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
-    const doneInWindowIds = new Set();
-    // Items whose progress or status moved in the window but are NOT yet
-    // done. Drives the legend "reached in window" highlight so phase-only
-    // edits (e.g. RE box checked, Refinement checked) still surface.
-    const progressedInWindowIds = new Set();
-    for (const ev of historyEvents) {
-      if (ev.ts <= cutoffIso) continue;
-      const past = pastLeafState.get(ev.id);
-      if (ev.status === 'done' && past?.status !== 'done') {
-        doneInWindowIds.add(ev.id);
-      } else if (typeof ev.progress === 'number' && past && ev.progress > (past.progress || 0) && past.status !== 'done') {
-        // Progress went up while still not-done — sprint movement.
-        progressedInWindowIds.add(ev.id);
-      } else if (ev.kind === 'added' && !past) {
-        // Brand-new task within the window — counts as movement.
-        progressedInWindowIds.add(ev.id);
-      }
-    }
-    // Also cover the case where the current tree shows done but no post-cutoff
-    // event has yet been written (e.g. user just toggled and hasn't saved).
-    for (const r of tree) {
-      const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
-      if (!isLeaf) continue;
-      const past = pastLeafState.get(r.id);
-      if (r.status === 'done' && past?.status !== 'done') {
-        doneInWindowIds.add(r.id);
-      } else if (past && r.status !== 'done' && typeof r.progress === 'number' && r.progress > (past.progress || 0)) {
-        progressedInWindowIds.add(r.id);
-      } else if (!past) {
-        progressedInWindowIds.add(r.id);
-      }
-    }
-    // Anything that progressed AND is now done was already captured in
-    // doneInWindowIds — drop from progressed-only set to avoid double-count.
-    for (const id of doneInWindowIds) progressedInWindowIds.delete(id);
-    // changedInWindowIds is the union — legend/station highlight should react
-    // to any kind of movement, not only completions.
-    const changedInWindowIds = new Set([...doneInWindowIds, ...progressedInWindowIds]);
-    let doneCount = 0, effortInWindow = 0;
-    for (const root of roots) {
-      const subtreeLeaves = tree.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
-        .filter(n => !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.')));
-      let totalEff = 0, doneEff = 0;
-      let anyPastLeaf = false;
-      for (const lf of subtreeLeaves) {
-        const eff = re(lf.best || 0, lf.factor || 1.5) || 1;
-        totalEff += eff;
-        const past = pastLeafState.get(lf.id);
-        if (past) anyPastLeaf = true;
-        const pastDone = past?.status === 'done';
-        const pastProg = past ? (past.progress || 0) / 100 : 0;
-        doneEff += eff * (pastDone ? 1 : pastProg);
-      }
-      pastProgressByRootId[root.id] = totalEff > 0 ? doneEff / totalEff : 0;
-      if (!anyPastLeaf && subtreeLeaves.length > 0) newRootIds.push(root.id);
-    }
-    // Summary banner counts (deduplicated by id, drives "X Tasks erledigt"
-    // and "Xd Aufwand" pills).
-    for (const id of doneInWindowIds) {
-      const node = tree.find(r => r.id === id);
-      if (!node) continue;
-      doneCount++;
-      effortInWindow += re(node.best || 0, node.factor || 1.5) || 0;
-    }
-    return { pastProgressByRootId, newRootIds,
-      doneInWindowIds: [...doneInWindowIds],
-      progressedInWindowIds: [...progressedInWindowIds],
-      changedInWindowIds: [...changedInWindowIds],
-      sinceDate, doneCount, effortInWindow };
-  }, [historyEvents, sinceDate, tree]);
+  // diff comes in from App.jsx — same precomputed bag every view uses, so
+  // Roadmap, Timetable, Tree, Gantt and Network stay in sync.
 
   const presetBtn = (val, label) => (
     <button key={val} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
@@ -446,7 +348,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
       )}
       {view === 'map'
         ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff} />
-        : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members} />
+        : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members}
+            diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />
       }
     </div>
   );
