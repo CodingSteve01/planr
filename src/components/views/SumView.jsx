@@ -10,6 +10,7 @@ import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
+import { DiffPicker } from '../shared/DiffPicker.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
@@ -304,11 +305,6 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
   // diff comes in from App.jsx — same precomputed bag every view uses, so
   // Roadmap, Timetable, Tree, Gantt and Network stay in sync.
 
-  const presetBtn = (val, label) => (
-    <button key={val} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
-      style={{ padding: '3px 8px', fontSize: 10 }} onClick={() => persistSince(val)}>{label}</button>
-  );
-
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -316,32 +312,51 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
         <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
-        {view === 'map' && historyEvents.length > 0 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>{t('diff.progressSince')}</span>
-            {presetBtn('', t('diff.off'))}
-            {presetBtn('7', t('diff.days', 7))}
-            {presetBtn('14', t('diff.days', 14))}
-            {presetBtn('30', t('diff.days', 30))}
-            <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
-              onChange={e => persistSince(e.target.value)}
-              style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11, marginLeft: 4 }} />
+        {historyEvents.length > 0 && (
+          <span style={{ marginLeft: 12 }}>
+            <DiffPicker sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
           </span>
         )}
       </div>
       {view === 'map' && diff && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', marginBottom: 8,
-            background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11 }}>
+        <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
+            border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
           <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>{t('diff.stand', iso(sinceDate))}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
-          <span>{t('diff.tasksDone', diff.doneCount)}</span>
+          <span data-htip={t('diff.tipDone')}>{t('diff.tasksDone', diff.doneCount)}</span>
+          {diff.startedInWindowIds.length > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipStartedDetail')}>{t('diff.tasksStarted', diff.startedInWindowIds.length)}</span>
+          </>}
           <span style={{ color: 'var(--tx2)' }}>·</span>
-          <span>{t('diff.effort', Math.round(diff.effortInWindow))}</span>
+          <span data-htip={t('diff.tipEffortDetail')}>{t('diff.effort', Math.round(diff.effortInWindow))}</span>
+          {diff.availablePersonDays > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipCapacity', Math.round(diff.availablePersonDays), diff.grossWorkdays, diff.holidayCount)}>
+              {t('diff.capacity', Math.round(diff.availablePersonDays))}
+            </span>
+          </>}
+          {diff.vacationDaysInWindow > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span>{t('diff.vacation', Math.round(diff.vacationDaysInWindow))}</span>
+          </>}
+          {diff.holidayCount > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span>{t('diff.holidays', diff.holidayCount)}</span>
+          </>}
+          {typeof diff.utilisation === 'number' && diff.utilisation > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipUtilisation', Math.round(diff.effortInWindow), Math.max(1, Math.round(diff.availablePersonDays - diff.vacationDaysInWindow)))}
+              style={{ color: diff.utilisation >= 80 ? 'var(--gr)' : diff.utilisation >= 40 ? 'var(--am)' : 'var(--tx3)', fontWeight: 600 }}>
+              {t('diff.utilisation', diff.utilisation)}
+            </span>
+          </>}
           {diff.newRootIds.length > 0 && <>
             <span style={{ color: 'var(--tx2)' }}>·</span>
             <span>{t(diff.newRootIds.length === 1 ? 'diff.newLines' : 'diff.newLinesPlural', diff.newRootIds.length)}</span>
           </>}
-          {diff.doneCount === 0 && diff.newRootIds.length === 0 && diff.progressedInWindowIds.length === 0 && (
+          {diff.doneCount === 0 && diff.newRootIds.length === 0 && diff.progressedInWindowIds.length === 0 && diff.startedInWindowIds.length === 0 && (
             <span style={{ color: 'var(--tx3)', fontStyle: 'italic', marginLeft: 'auto' }}>{t('diff.noMovement')}</span>
           )}
         </div>

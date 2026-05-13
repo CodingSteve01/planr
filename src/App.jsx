@@ -17,6 +17,7 @@ import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
+import { DiffPicker } from './components/shared/DiffPicker.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -1309,7 +1310,15 @@ export default function App() {
   const [sinceDays, setSinceDays] = useState(() => { try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; } });
   const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
   const sinceDate = useMemo(() => parseSinceValue(sinceDays), [sinceDays]);
-  const diff = useMemo(() => computeDiff({ tree, historyEvents: data?.historyEvents || [], sinceDate }), [tree, data?.historyEvents, sinceDate]);
+  const diff = useMemo(() => computeDiff({
+    tree,
+    historyEvents: data?.historyEvents || [],
+    sinceDate,
+    members,
+    vacations,
+    holidays: hm,
+    workDays,
+  }), [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays]);
   const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
   const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
   const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
@@ -2297,6 +2306,12 @@ export default function App() {
         <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{_t('ui.hideDone')}</span>
       </div>
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
+      {/* Sprint-review diff picker — available wherever the diff overlay
+          can actually show something (tree/gantt/net). Tab-shared state in
+          App.jsx keeps all surfaces in sync. */}
+      {(tab === 'tree' || tab === 'gantt' || tab === 'net') && (data?.historyEvents || []).length > 0 && (
+        <DiffPicker sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
+      )}
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
         searchRef={searchRef}

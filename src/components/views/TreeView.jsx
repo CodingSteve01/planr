@@ -8,6 +8,7 @@ import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
+import { DiffPicker } from '../shared/DiffPicker.jsx';
 
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
@@ -268,22 +269,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       {/* Legend collapsed into a single hover hint — keeps the toolbar quiet */}
       <span data-htip={`${t('tv.statusOpen')} ○  ${t('wip')} ◐  ${t('tv.statusDone')} ●     ⏫ ${t('tv.prioCrit')}  ▲ ${t('tv.prioHigh')}  ▬ ${t('tv.prioMed')}  ▼ ${t('tv.prioLow')}`}
         style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', cursor: 'help', userSelect: 'none', border: '1px solid var(--b)', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>?</span>
-      {/* Diff-since picker — same control as the Roadmap, lights up amber
-          badges on leaves that changed in the chosen window. */}
-      {historyEvents.length > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
-        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>{t('diff.since')}</span>
-        {[['', t('diff.off')], ['7', t('diff.days', 7)], ['14', t('diff.days', 14)], ['30', t('diff.days', 30)]].map(([val, lbl]) => (
-          <button key={val || 'off'} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
-            style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => persistSince(val)}>{lbl}</button>
-        ))}
-        <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
-          onChange={e => persistSince(e.target.value)}
-          style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '1px 3px', fontSize: 10, marginLeft: 2 }} />
-        {sinceDate && (
-          <button className={`btn btn-xs ${onlyChanged ? 'btn-pri' : 'btn-sec'}`} data-htip={t('diff.onlyChangedTip')}
-            style={{ padding: '2px 6px', fontSize: 10, marginLeft: 6 }}
-            onClick={() => persistOnlyChanged(!onlyChanged)}>{t('diff.onlyChanged')}</button>
-        )}
+      {/* Diff-since picker — popup with presets + custom date + "only
+          changed" toggle. Same control as the Roadmap and the sub-toolbar
+          so the cutoff stays consistent across all views. */}
+      {historyEvents.length > 0 && <span style={{ marginLeft: 12 }}>
+        <DiffPicker compact sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
+          onlyChanged={onlyChanged} persistOnlyChanged={persistOnlyChanged} />
       </span>}
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
