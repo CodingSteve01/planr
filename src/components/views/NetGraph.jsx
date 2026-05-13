@@ -335,11 +335,13 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   // Sets of leaf ids that completed / progressed in the diff window. Used to
   // ring matching nodes in the SVG so the graph reflects sprint movement.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
   const _diffProgSet = diffProgressedIds instanceof Set ? diffProgressedIds : new Set(diffProgressedIds || []);
+  const _diffChangedSet = new Set([..._diffDoneSet, ..._diffProgSet]);
+  const _diffOnlyMode = onlyChanged && _diffChangedSet.size > 0;
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -606,7 +608,12 @@ function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = 
           const isMatch = searchMatches?.has(r.id);
           const isActiveMatch = r.id === activeMatchId;
           const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
-          const finalOpacity = subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
+          // "Only changed" mode: dim nodes that didn't move in the window so
+          // the eye locks onto the active sprint subset without rearranging
+          // the layout. Roots stay legible because their subtree may contain
+          // changed leaves even when the root id itself isn't in the set.
+          const diffDimmed = _diffOnlyMode && !_diffChangedSet.has(r.id);
+          const finalOpacity = diffDimmed ? .18 : subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
           const diffDoneHere = _diffDoneSet.has(r.id);
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
           const diffStroke = diffDoneHere ? '#10b981' : diffProgHere ? '#f59e0b' : null;

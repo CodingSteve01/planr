@@ -35,11 +35,13 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
   const _diffProgSet = diffProgressedIds instanceof Set ? diffProgressedIds : new Set(diffProgressedIds || []);
+  const _diffChangedSet = useMemo(() => new Set([..._diffDoneSet, ..._diffProgSet]), [_diffDoneSet, _diffProgSet]);
+  const _diffActive = !!sinceDate;
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -507,9 +509,28 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   }, [cpNodeSet, collapsed]);
   const rowIsCp = row => cpRowMeta.highlightCritical(row);
   const rowRelevantToCp = row => cpRowMeta.containsCritical(row);
+  // Optional "only changed" filter: drops every row whose task didn't move
+  // in the diff window. Summary rows survive when any of their descendants
+  // moved (so the tree shape stays legible during a sprint review).
+  const rowRelevantToDiff = (row) => {
+    if (!_diffActive || !onlyChanged || _diffChangedSet.size === 0) return true;
+    if (row?.type === 'task') return _diffChangedSet.has(row.s?.id);
+    const walk = (r) => {
+      if (r?.type === 'task') return _diffChangedSet.has(r.s?.id);
+      return (r?.children || []).some(walk);
+    };
+    return walk(row);
+  };
   const visibleRows = useMemo(
-    () => (cpOnly ? rows.filter(row => rowRelevantToCp(row)) : rows),
-    [rows, cpOnly, cpRowMeta],
+    () => {
+      let out = cpOnly ? rows.filter(row => rowRelevantToCp(row)) : rows;
+      if (_diffActive && onlyChanged && _diffChangedSet.size > 0) {
+        out = out.filter(rowRelevantToDiff);
+      }
+      return out;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, cpOnly, cpRowMeta, _diffActive, onlyChanged, _diffChangedSet],
   );
 
   const RH = 28, HH = 28, FLAG_ROW_H = 18;
@@ -1410,20 +1431,45 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   dismissTooltip(true);
                   setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id });
                 }}>
-                {/* Progress overlay: lighter strip on the left proportional to progress % */}
+                {/* Progress overlay: lighter strip on the left proportional to progress %.
+                    When the diff overlay is active the band is split: the part up to the
+                    past-progress percentage stays neutral, the slice between past and now
+                    is amber so the "gained in window" portion stands out. */}
                 {(() => { const prog = s.progress ?? node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
                   if (!(prog > 0 && prog < 100)) return null;
-                  return <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: `${prog}%`,
-                    background: isSummary ? 'rgba(127,127,127,.18)' : 'rgba(255,255,255,.18)',
-                    borderRadius: isSummary ? '5px 0 0 5px' : '4px 0 0 4px',
-                    pointerEvents: 'none',
-                  }} data-htip={`${prog}% done`} />;
+                  const past = _diffActive && !isSummary && diffPastLeafState?.get?.(s.id);
+                  const pastProg = past ? Math.max(0, Math.min(prog, past.progress || 0)) : null;
+                  const gained = pastProg != null && prog - pastProg > 0.5 ? prog - pastProg : 0;
+                  return <>
+                    <div style={{
+                      position: 'absolute', left: 0, top: 0, bottom: 0,
+                      width: `${pastProg != null ? pastProg : prog}%`,
+                      background: isSummary ? 'rgba(127,127,127,.18)' : 'rgba(255,255,255,.18)',
+                      borderRadius: isSummary ? '5px 0 0 5px' : '4px 0 0 4px',
+                      pointerEvents: 'none',
+                    }} data-htip={`${prog}% done${past ? ` · prev ${past.progress || 0}%` : ''}`} />
+                    {gained > 0 && (
+                      <>
+                        <div style={{
+                          position: 'absolute', left: `${pastProg}%`, top: 0, bottom: 0,
+                          width: `${gained}%`,
+                          background: 'rgba(245,158,11,.55)',
+                          pointerEvents: 'none',
+                        }} data-htip={`+${Math.round(gained)}% in window`} />
+                        {/* Sharp tick at the past-progress position so the eye locks onto
+                            "we started the window here". */}
+                        <div style={{ position: 'absolute', left: `${pastProg}%`, top: 0, bottom: 0,
+                          width: 2, background: '#f59e0b', pointerEvents: 'none' }} />
+                      </>
+                    )}
+                  </>;
                 })()}
+                {/* Newly-done bar in window: subtle green wash so completions read
+                    even though the live bar already shows status=done. */}
+                {_diffActive && _diffDoneSet.has(s.id) && !isSummary && (
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+                    background: 'rgba(16,185,129,.18)', pointerEvents: 'none', borderRadius: 4 }} />
+                )}
                 {/* Phase segments overlay */}
                 {!isSummary && node?.phases?.length > 1 && (() => {
                   const phases = normalizePhases(node.phases);
