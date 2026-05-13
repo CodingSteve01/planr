@@ -37,6 +37,44 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
   }, [sinceDays]);
   const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null, [historyEvents, sinceDate]);
+  // "Only with changes" filter — when on, hide every leaf whose state matches
+  // the cutoff (no new, done-in-window, or progress jump). Parents are kept
+  // when they have at least one matching descendant so the tree shape reads.
+  const [onlyChanged, setOnlyChanged] = useState(() => {
+    try { return localStorage.getItem('planr_tree_only_changed') === 'true'; } catch { return false; }
+  });
+  const persistOnlyChanged = (v) => { setOnlyChanged(v); try { localStorage.setItem('planr_tree_only_changed', String(v)); } catch { /* noop */ } };
+  // Per-row diff: returns null when no change, else badge descriptor.
+  const computeDiffBadge = (r) => {
+    if (!pastLeafState) return null;
+    const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
+    if (!isLeaf) return null;
+    const past = pastLeafState.get(r.id);
+    const nowStatus = r.status || 'open';
+    const nowProg = typeof r.progress === 'number' ? r.progress : (nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0);
+    if (!past) return { kind: 'new', label: t('diff.labelNew'), tip: t('diff.tipNew') };
+    if (past.status !== 'done' && nowStatus === 'done') return { kind: 'done', label: t('diff.labelDone'), tip: r.completedAt ? t('diff.tipDone') + ' (' + r.completedAt + ')' : t('diff.tipDone') };
+    if (nowProg > (past.progress || 0)) {
+      const delta = Math.round(nowProg - (past.progress || 0));
+      if (delta >= 1) return { kind: 'progress', label: `+${delta}%`, tip: t('diff.tipProgress', past.progress || 0, nowProg) };
+    }
+    return null;
+  };
+  // Set of ids the filter should keep visible: every leaf with a diff plus
+  // each of its ancestors. Computed once per change in pastLeafState/tree.
+  const diffKeepIds = useMemo(() => {
+    if (!onlyChanged || !pastLeafState) return null;
+    const keep = new Set();
+    for (const r of tree) {
+      if (computeDiffBadge(r)) {
+        keep.add(r.id);
+        const parts = r.id.split('.');
+        for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
+      }
+    }
+    return keep;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyChanged, pastLeafState, tree]);
 
   const sorted = useMemo(() => {
     const byParent = {};
@@ -119,6 +157,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       f = f.filter(r => matchIds.has(r.id));
     }
     if (search) { const q = search.toLowerCase(); f = f.filter(r => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.note || '').toLowerCase().includes(q)); }
+    if (diffKeepIds) {
+      f = f.filter(r => diffKeepIds.has(r.id));
+    }
     return f.filter(r => {
       const parts = r.id.split('.');
       for (let i = 1; i < parts.length; i++) {
@@ -127,7 +168,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       }
       return true;
     });
-  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed]);
+  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed, diffKeepIds]);
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {
@@ -240,14 +281,19 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       {/* Diff-since picker — same control as the Roadmap, lights up amber
           badges on leaves that changed in the chosen window. */}
       {historyEvents.length > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
-        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>Diff seit</span>
-        {[['', 'Aus'], ['7', '7 T'], ['14', '14 T'], ['30', '30 T']].map(([val, lbl]) => (
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>{t('diff.since')}</span>
+        {[['', t('diff.off')], ['7', t('diff.days', 7)], ['14', t('diff.days', 14)], ['30', t('diff.days', 30)]].map(([val, lbl]) => (
           <button key={val || 'off'} className={`btn btn-xs ${sinceDays === val ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => persistSince(val)}>{lbl}</button>
         ))}
         <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
           onChange={e => persistSince(e.target.value)}
           style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '1px 3px', fontSize: 10, marginLeft: 2 }} />
+        {sinceDate && (
+          <button className={`btn btn-xs ${onlyChanged ? 'btn-pri' : 'btn-sec'}`} data-htip={t('diff.onlyChangedTip')}
+            style={{ padding: '2px 6px', fontSize: 10, marginLeft: 6 }}
+            onClick={() => persistOnlyChanged(!onlyChanged)}>{t('diff.onlyChanged')}</button>
+        )}
       </span>}
       <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
@@ -297,22 +343,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           const parentTeam = parentId ? (effTeam[parentId] || '') : '';
           const showTeam = !!r.team && r.team !== parentTeam;
           const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
-          // Diff-since badges: compare past state at the cutoff with the
-          // current row. Only render for leaves so parent rows stay quiet.
-          let diffBadge = null;
-          if (pastLeafState && isLeaf) {
-            const past = pastLeafState.get(r.id);
-            const nowStatus = r.status || 'open';
-            const nowProg = typeof r.progress === 'number' ? r.progress : (nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0);
-            if (!past) {
-              diffBadge = { kind: 'new', label: '⊕ NEU', tip: `Seit ${sinceDays === '' ? '?' : sinceDays + (sinceDays.length <= 2 ? ' Tagen' : '')} hinzugefügt` };
-            } else if (past.status !== 'done' && nowStatus === 'done') {
-              diffBadge = { kind: 'done', label: '✓ erledigt', tip: r.completedAt ? `Erledigt ${r.completedAt}` : 'Erledigt im Fenster' };
-            } else if (nowProg > (past.progress || 0)) {
-              const delta = Math.round(nowProg - (past.progress || 0));
-              if (delta >= 1) diffBadge = { kind: 'progress', label: `+${delta}%`, tip: `Fortschritt ${past.progress || 0}% → ${nowProg}%` };
-            }
-          }
+          // Diff-since badge — shared helper keeps the same rule used by the
+          // "only with changes" filter so the two views stay in sync.
+          const diffBadge = computeDiffBadge(r);
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             onClick={e => onSelect(r, e, filt.map(x => x.id))}>

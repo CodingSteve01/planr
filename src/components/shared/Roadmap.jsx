@@ -10,6 +10,9 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff }) {
     train: t('rm.train'),
     currentPos: t('rm.currentPos'),  // keeps "{0}" placeholder — roadmap.js fills it
     atRisk: t('rm.atRisk'),
+    tipDone: t('diff.tipDone'),
+    tipProgress: t('diff.legendReachedTip'),
+    prevPos: t('diff.prevPos'),
   }), [t]);
   const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats, labels, diff }), [tree, scheduled, stats, labels, diff]);
   const [tip, setTip] = useState(null);

@@ -640,12 +640,17 @@ export function renderRoadmapSvg(args) {
   if (!model?.lines.length) return '';
 
   const { lines, nodeMap } = model;
-  // Optional diff overlay: { pastProgressByRootId: Record<rootId,0..1>,
-  // newRootIds: string[]|Set, doneInWindowIds: string[]|Set, sinceLabel:string }
+  // Optional diff overlay. Fields:
+  //   pastProgressByRootId — past line progress per root id (0..1)
+  //   newRootIds           — roots whose subtree had no leaf at the cutoff
+  //   doneInWindowIds      — leaves that transitioned to done (badge "✓ +N")
+  //   changedInWindowIds   — leaves with ANY movement (done OR progress-only),
+  //                          drives the legend/station "moved in window" mark
   const diff = args.diff || null;
   const pastProgress = diff?.pastProgressByRootId || {};
   const newSet = new Set(diff?.newRootIds || []);
   const doneInWindow = new Set(diff?.doneInWindowIds || []);
+  const changedInWindow = new Set(diff?.changedInWindowIds || doneInWindow);
   const out = [];
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
@@ -777,9 +782,10 @@ export function renderRoadmapSvg(args) {
       const tooltip = headerHtml + itemsHtml;
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
-      // Did this station gain any newly-done item within the diff window?
-      const reachedInWindow = doneInWindow.size > 0
-        && (station.clusterItems || []).some(c => doneInWindow.has(c.id));
+      // Did this station gain any movement in the diff window — either a
+      // completion or a progress jump on a still-open task?
+      const reachedInWindow = changedInWindow.size > 0
+        && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
       out.push(`<g class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(tooltip)}">`);
       // Invisible larger hit area for tooltip
       out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
@@ -810,8 +816,8 @@ export function renderRoadmapSvg(args) {
     minorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === currentId && !isDone;
-      const reachedInWindow = doneInWindow.size > 0
-        && (station.clusterItems || []).some(c => doneInWindow.has(c.id));
+      const reachedInWindow = changedInWindow.size > 0
+        && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
 
       if (reachedInWindow) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.85">`);
@@ -886,7 +892,7 @@ export function renderRoadmapSvg(args) {
       if (trainT - pastT > 0.005) {
         const gp = pointAtFraction(line.route, pastT);
         const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
-        out.push(`<g pointer-events="none" data-tip="${esc('Vorherige Position')}">`);
+        out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
         out.push(`<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`);
         out.push(`</g>`);
       }
@@ -903,10 +909,14 @@ export function renderRoadmapSvg(args) {
       .sort((a, b) => a.t - b.t);
     if (!allStations.length) return;
 
-    // Line-level diff: count items in this line's stations that went done
-    // in the window. Surfaces as a small amber pill in the header.
-    const lineReachedCount = doneInWindow.size > 0
+    // Line-level diff: two pills in the header — completions (✓) and
+    // progress-only movements (▲). Either can be zero; the row stays quiet
+    // when both are.
+    const lineDoneCount = doneInWindow.size > 0
       ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => doneInWindow.has(c.id)).length), 0)
+      : 0;
+    const lineProgCount = changedInWindow.size > 0
+      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)).length), 0)
       : 0;
     out.push(`<div style="min-width:160px;max-width:220px">`);
     // Line header
@@ -914,8 +924,15 @@ export function renderRoadmapSvg(args) {
     out.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
     out.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
     out.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(line.root.name, 22))}</span>`);
-    if (lineReachedCount > 0) {
-      out.push(`<span style="margin-left:auto;font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px" title="Im Fenster erledigt">✓ ${lineReachedCount}</span>`);
+    if (lineDoneCount > 0 || lineProgCount > 0) {
+      out.push(`<span style="margin-left:auto;display:inline-flex;gap:3px">`);
+      if (lineDoneCount > 0) {
+        out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:2px 5px" title="${esc(labels.tipDone || 'Done in window')}">✓ ${lineDoneCount}</span>`);
+      }
+      if (lineProgCount > 0) {
+        out.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px" title="${esc(labels.tipProgress || 'Progress in window')}">▲ ${lineProgCount}</span>`);
+      }
+      out.push(`</span>`);
     }
     out.push(`</div>`);
 
@@ -926,16 +943,22 @@ export function renderRoadmapSvg(args) {
       const stIcon = statusIcon(stStatus, line.color, stProg, 13);
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
       const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
-      // Did this station have any item reach "done" inside the diff window?
-      // Show an amber "✓ +N" pill in the row and a subtle row background so
-      // the legend reads as a sprint scoreboard alongside the regular state.
-      const reachedItems = doneInWindow.size > 0
+      // Same split per station: ✓-pill for done-in-window, ▲-pill for
+      // progress-only edits. Row background lights up when either is non-zero.
+      const stDoneItems = doneInWindow.size > 0
         ? (station.clusterItems || []).filter(c => doneInWindow.has(c.id))
         : [];
-      const stationDeltaPill = reachedItems.length
-        ? `<span style="margin-left:auto;font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">✓ +${reachedItems.length}</span>`
+      const stProgItems = changedInWindow.size > 0
+        ? (station.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id))
+        : [];
+      const stationDeltaPill = (stDoneItems.length || stProgItems.length)
+        ? `<span style="margin-left:auto;display:inline-flex;gap:3px">${
+            stDoneItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:1px 4px">✓ ${stDoneItems.length}</span>` : ''
+          }${
+            stProgItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">▲ ${stProgItems.length}</span>` : ''
+          }</span>`
         : '';
-      const rowBg = reachedItems.length ? ';background:rgba(245,158,11,.10)' : '';
+      const rowBg = (stDoneItems.length || stProgItems.length) ? ';background:rgba(245,158,11,.10)' : '';
 
       // Main station row: icon + abbrev + name — single line, vertically centered.
       // Clickable → opens the representative item's dialog.
@@ -956,13 +979,16 @@ export function renderRoadmapSvg(args) {
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
           const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
             : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
-          // Per-item diff badge: amber "✓ im Fenster" when this item went to
-          // done inside the window. Sits right of the name to keep alignment.
-          const reachedThis = doneInWindow.has(c.id);
-          const itemDiffPill = reachedThis
-            ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">✓</span>`
-            : '';
-          const itemRowBg = reachedThis ? ';background:rgba(245,158,11,.10)' : '';
+          // Per-item diff badge: green ✓ for newly-done in window, amber ▲
+          // for progress-only changes. Sits at the right edge.
+          const wentDone = doneInWindow.has(c.id);
+          const wentProg = !wentDone && changedInWindow.has(c.id);
+          const itemDiffPill = wentDone
+            ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:2px;padding:1px 3px">✓</span>`
+            : wentProg
+              ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">▲</span>`
+              : '';
+          const itemRowBg = (wentDone || wentProg) ? ';background:rgba(245,158,11,.10)' : '';
           out.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}">`);
           out.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
           out.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);

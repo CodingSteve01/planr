@@ -327,6 +327,26 @@ const en = {
   // ── Roadmap ──
   'rm.train': 'Train', 'rm.currentPos': 'Current position: {0}% of route', 'rm.atRisk': 'AT RISK',
 
+  // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
+  'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
+  'diff.off': 'Off',
+  'diff.days': '{0} d',
+  'diff.stand': 'As of {0} → today',
+  'diff.tasksDone': '{0} tasks done',
+  'diff.effort': '{0}d effort',
+  'diff.newLines': '{0} new line', 'diff.newLinesPlural': '{0} new lines',
+  'diff.noMovement': 'No movement in window.',
+  'diff.tipPastNow': '{0}% on {1} → {2}% today',
+  'diff.tipDone': 'Done in window',
+  'diff.tipNew': 'Added in window',
+  'diff.tipProgress': 'Progress {0}% → {1}%',
+  'diff.labelNew': '⊕ NEW', 'diff.labelDone': '✓ done',
+  'diff.legendDone': '✓ {0}',
+  'diff.legendReachedTip': 'Reached in window',
+  'diff.onlyChanged': 'Only changed',
+  'diff.onlyChangedTip': 'Hide leaves with no diff in the current window',
+  'diff.prevPos': 'Previous position',
+
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
   'pc.allClear': 'All clear — no open issues.',
@@ -877,6 +897,26 @@ const de = {
 
   // ── Roadmap ──
   'rm.train': 'Zug', 'rm.currentPos': 'Aktuelle Position: {0}% der Strecke', 'rm.atRisk': 'GEFÄHRDET',
+
+  // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
+  'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',
+  'diff.off': 'Aus',
+  'diff.days': '{0} T',
+  'diff.stand': 'Stand {0} → heute',
+  'diff.tasksDone': '{0} Tasks erledigt',
+  'diff.effort': '{0}d Aufwand',
+  'diff.newLines': '{0} neue Linie', 'diff.newLinesPlural': '{0} neue Linien',
+  'diff.noMovement': 'Keine Bewegung im Fenster.',
+  'diff.tipPastNow': '{0}% am {1} → {2}% heute',
+  'diff.tipDone': 'Im Fenster erledigt',
+  'diff.tipNew': 'Im Fenster hinzugefügt',
+  'diff.tipProgress': 'Fortschritt {0}% → {1}%',
+  'diff.labelNew': '⊕ NEU', 'diff.labelDone': '✓ erledigt',
+  'diff.legendDone': '✓ {0}',
+  'diff.legendReachedTip': 'Im Fenster erledigt',
+  'diff.onlyChanged': 'Nur mit Änderung',
+  'diff.onlyChangedTip': 'Leaves ohne Diff im aktuellen Fenster ausblenden',
+  'diff.prevPos': 'Vorherige Position',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',

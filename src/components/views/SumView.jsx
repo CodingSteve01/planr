@@ -97,7 +97,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>
       {overallDelta != null && overallDelta > 0.05 && (
-        <span data-htip={`${pastOverallProg.toFixed(1)}% am ${iso(sinceDate)} → ${prog.toFixed(1)}% heute`}
+        <span data-htip={t('diff.tipPastNow', pastOverallProg.toFixed(1), iso(sinceDate), prog.toFixed(1))}
           style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#f59e0b',
             background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)',
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
@@ -105,7 +105,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         </span>
       )}
       {overallDelta != null && overallDelta <= 0.05 && overallDelta >= -0.05 && (
-        <span data-htip={`Keine Bewegung seit ${iso(sinceDate)}`}
+        <span data-htip={t('diff.noMovement')}
           style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--tx3)',
             background: 'var(--bg3)', border: '1px solid var(--b)',
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
@@ -120,7 +120,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       {/* Past-progress marker: thin vertical line on the bar showing where
           progress sat at the cutoff. Makes the gained delta tangible. */}
       {pastOverallProg != null && pastOverallProg < prog - 0.05 && (
-        <div data-htip={`Stand ${iso(sinceDate)}: ${pastOverallProg.toFixed(1)}%`}
+        <div data-htip={t('diff.tipPastNow', pastOverallProg.toFixed(1), iso(sinceDate), prog.toFixed(1))}
           style={{ position: 'absolute', left: `${pastOverallProg}%`, top: -2, bottom: -2,
             width: 2, background: '#f59e0b', opacity: 0.85, cursor: 'help' }} />
       )}
@@ -332,21 +332,43 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     // Both gates require pastLeafState to say "not done at the cutoff".
     const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
     const doneInWindowIds = new Set();
+    // Items whose progress or status moved in the window but are NOT yet
+    // done. Drives the legend "reached in window" highlight so phase-only
+    // edits (e.g. RE box checked, Refinement checked) still surface.
+    const progressedInWindowIds = new Set();
     for (const ev of historyEvents) {
       if (ev.ts <= cutoffIso) continue;
-      if (ev.status !== 'done') continue;
-      if (pastLeafState.get(ev.id)?.status === 'done') continue;
-      doneInWindowIds.add(ev.id);
+      const past = pastLeafState.get(ev.id);
+      if (ev.status === 'done' && past?.status !== 'done') {
+        doneInWindowIds.add(ev.id);
+      } else if (typeof ev.progress === 'number' && past && ev.progress > (past.progress || 0) && past.status !== 'done') {
+        // Progress went up while still not-done — sprint movement.
+        progressedInWindowIds.add(ev.id);
+      } else if (ev.kind === 'added' && !past) {
+        // Brand-new task within the window — counts as movement.
+        progressedInWindowIds.add(ev.id);
+      }
     }
     // Also cover the case where the current tree shows done but no post-cutoff
     // event has yet been written (e.g. user just toggled and hasn't saved).
     for (const r of tree) {
-      if (r.status === 'done' && pastLeafState.get(r.id)?.status !== 'done') {
-        // Only leaves count — parent rows derive their done flag from children.
-        const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
-        if (isLeaf) doneInWindowIds.add(r.id);
+      const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
+      if (!isLeaf) continue;
+      const past = pastLeafState.get(r.id);
+      if (r.status === 'done' && past?.status !== 'done') {
+        doneInWindowIds.add(r.id);
+      } else if (past && r.status !== 'done' && typeof r.progress === 'number' && r.progress > (past.progress || 0)) {
+        progressedInWindowIds.add(r.id);
+      } else if (!past) {
+        progressedInWindowIds.add(r.id);
       }
     }
+    // Anything that progressed AND is now done was already captured in
+    // doneInWindowIds — drop from progressed-only set to avoid double-count.
+    for (const id of doneInWindowIds) progressedInWindowIds.delete(id);
+    // changedInWindowIds is the union — legend/station highlight should react
+    // to any kind of movement, not only completions.
+    const changedInWindowIds = new Set([...doneInWindowIds, ...progressedInWindowIds]);
     let doneCount = 0, effortInWindow = 0;
     for (const root of roots) {
       const subtreeLeaves = tree.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
@@ -373,7 +395,10 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
       doneCount++;
       effortInWindow += re(node.best || 0, node.factor || 1.5) || 0;
     }
-    return { pastProgressByRootId, newRootIds, doneInWindowIds: [...doneInWindowIds],
+    return { pastProgressByRootId, newRootIds,
+      doneInWindowIds: [...doneInWindowIds],
+      progressedInWindowIds: [...progressedInWindowIds],
+      changedInWindowIds: [...changedInWindowIds],
       sinceDate, doneCount, effortInWindow };
   }, [historyEvents, sinceDate, tree]);
 
@@ -391,11 +416,11 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
         {view === 'map' && historyEvents.length > 0 && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 12 }}>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>Fortschritt seit</span>
-            {presetBtn('', 'Aus')}
-            {presetBtn('7', '7 T')}
-            {presetBtn('14', '14 T')}
-            {presetBtn('30', '30 T')}
+            <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginRight: 4 }}>{t('diff.progressSince')}</span>
+            {presetBtn('', t('diff.off'))}
+            {presetBtn('7', t('diff.days', 7))}
+            {presetBtn('14', t('diff.days', 14))}
+            {presetBtn('30', t('diff.days', 30))}
             <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
               onChange={e => persistSince(e.target.value)}
               style={{ background: 'var(--bg2)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11, marginLeft: 4 }} />
@@ -405,17 +430,17 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
       {view === 'map' && diff && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px', marginBottom: 8,
             background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>Stand {iso(sinceDate)} → heute</span>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>{t('diff.stand', iso(sinceDate))}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
-          <span><strong style={{ color: 'var(--tx)' }}>{diff.doneCount}</strong> Tasks erledigt</span>
+          <span>{t('diff.tasksDone', diff.doneCount)}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
-          <span><strong style={{ color: 'var(--tx)' }}>{Math.round(diff.effortInWindow)}d</strong> Aufwand</span>
+          <span>{t('diff.effort', Math.round(diff.effortInWindow))}</span>
           {diff.newRootIds.length > 0 && <>
             <span style={{ color: 'var(--tx2)' }}>·</span>
-            <span><strong style={{ color: 'var(--tx)' }}>{diff.newRootIds.length}</strong> neue Linie{diff.newRootIds.length === 1 ? '' : 'n'}</span>
+            <span>{t(diff.newRootIds.length === 1 ? 'diff.newLines' : 'diff.newLinesPlural', diff.newRootIds.length)}</span>
           </>}
-          {diff.doneCount === 0 && diff.newRootIds.length === 0 && (
-            <span style={{ color: 'var(--tx3)', fontStyle: 'italic', marginLeft: 'auto' }}>Keine Bewegung im Fenster.</span>
+          {diff.doneCount === 0 && diff.newRootIds.length === 0 && diff.progressedInWindowIds.length === 0 && (
+            <span style={{ color: 'var(--tx3)', fontStyle: 'italic', marginLeft: 'auto' }}>{t('diff.noMovement')}</span>
           )}
         </div>
       )}
