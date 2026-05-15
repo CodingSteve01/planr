@@ -367,6 +367,17 @@ const en = {
   'horizon.onlyPlannedTip': 'Hide tasks scheduled outside the horizon window',
   'horizon.plannedPos': 'Planned position at horizon',
 
+  // ── Retro panel (Soll/Ist aggregate over the diff window) ──
+  'retro.title': 'Retro · Soll/Ist',
+  'retro.sum': 'Soll {0}d → Ist {1}d',
+  'retro.sumTip': 'Aggregated over {0} completed tasks in the window',
+  'retro.ratio': 'Ratio {0}',
+  'retro.ratioTip': 'Ist ÷ Soll: 1.00 = on target, > 1.20 = overrun, < 0.80 = under',
+  'retro.hitRate': 'Hit rate {0}% ({1}/{2})',
+  'retro.hitRateTip': 'Share of tasks landing within ±20% of the estimate',
+  'retro.topOver': 'Top overruns',
+  'retro.topUnder': 'Top underruns',
+
   // ── Unified view filter popup ──
   'vf.label': 'Filter',
   'vf.tip': 'Review diff and planning-horizon filters',
@@ -964,6 +975,17 @@ const de = {
   'horizon.onlyPlanned': 'Nur geplante anzeigen',
   'horizon.onlyPlannedTip': 'Tasks außerhalb des Horizonts ausblenden',
   'horizon.plannedPos': 'Geplante Position am Horizont',
+
+  // ── Retro-Panel (Soll/Ist-Aggregat über das Diff-Fenster) ──
+  'retro.title': 'Retro · Soll/Ist',
+  'retro.sum': 'Soll {0}d → Ist {1}d',
+  'retro.sumTip': 'Aggregiert über {0} im Fenster erledigte Tasks',
+  'retro.ratio': 'Verhältnis {0}',
+  'retro.ratioTip': 'Ist ÷ Soll: 1.00 = im Plan, > 1.20 = überzogen, < 0.80 = unterboten',
+  'retro.hitRate': 'Trefferquote {0}% ({1}/{2})',
+  'retro.hitRateTip': 'Anteil der Tasks innerhalb ±20% der Schätzung',
+  'retro.topOver': 'Top überzogen',
+  'retro.topUnder': 'Top unterboten',
 
   // ── Vereinheitlichter View-Filter-Popup ──
   'vf.label': 'Filter',

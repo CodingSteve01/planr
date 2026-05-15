@@ -2393,6 +2393,7 @@ export default function App() {
         horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
         horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
         futureProgressByRootId={futureProgressByRootId}
+        workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}
