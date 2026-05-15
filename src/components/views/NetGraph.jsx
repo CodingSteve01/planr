@@ -635,12 +635,11 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
           // the eye locks onto the active sprint subset without rearranging
           // the layout. Roots stay legible because their subtree may contain
           // changed leaves even when the root id itself isn't in the set.
-          const diffDimmed = _diffOnlyMode && !_diffChangedSet.has(r.id);
-          // Planning-horizon dimming: nodes outside the window fade to 18%
-          // (same intensity as the "Only changed" filter so the eye reads
-          // them as "muted" rather than "missing").
-          const horizonDimmed = horizonIds && !horizonIds.has(r.id) && !(r.id && !r.id.includes('.'));
-          const finalOpacity = (diffDimmed || horizonDimmed) ? .18 : subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
+          // Diff / Horizon do NOT dim the graph any more — the matching nodes
+          // already wear a ring (see the rect overlay below), so dimming the
+          // rest only made labels unreadable without adding signal. Hard
+          // filtering happens upstream via the "Only" toggles.
+          const finalOpacity = subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
           const diffDoneHere = _diffDoneSet.has(r.id);
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
           const diffStroke = diffDoneHere ? '#10b981' : diffProgHere ? '#f59e0b' : null;

@@ -7,9 +7,10 @@ import { useT } from '../../i18n.jsx';
 // "Zugfahrplan" — compact chronological station timetable per subway line.
 // 2-col line grid. Single-line rows: abbrev · KW/YY+date · dur · status.
 // Team resolved via scheduled segments + tree fallback; shown in tooltip only.
-export function TimetableView({ tree, scheduled, stats, teams, members, diffDoneIds = [], diffProgressedIds = [], sinceDate = null }) {
+export function TimetableView({ tree, scheduled, stats, teams, members, diffDoneIds = [], diffProgressedIds = [], sinceDate = null, horizonIds = null, horizonEnd = null }) {
   const diffDoneSet = useMemo(() => new Set(diffDoneIds), [diffDoneIds]);
   const diffProgSet = useMemo(() => new Set(diffProgressedIds), [diffProgressedIds]);
+  const horizonSet = useMemo(() => horizonIds instanceof Set ? horizonIds : (Array.isArray(horizonIds) ? new Set(horizonIds) : null), [horizonIds]);
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const model = useMemo(() => computeRoadmapModel({ tree, scheduled, stats }), [tree, scheduled, stats]);
@@ -110,8 +111,15 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
 
             const doneInWindow = items.filter(it => diffDoneSet.has(it.id)).length;
             const progressedInWindow = items.filter(it => diffProgSet.has(it.id)).length;
-            return { station: st, items, startD, endD, status, workDays, totalCalDays, current, tip, doneInWindow, progressedInWindow };
-          }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
+            // Horizon hit: at least one cluster item sits inside the global
+            // planning window (or its end is on/before horizonEnd).
+            const inHorizon = !horizonSet
+              ? true
+              : items.some(it => horizonSet.has(it.id))
+                || (horizonEnd && endD && endD <= horizonEnd && status !== 'done');
+            return { station: st, items, startD, endD, status, workDays, totalCalDays, current, tip, doneInWindow, progressedInWindow, inHorizon };
+          }).filter(r => r.inHorizon)
+            .sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
           const trainRow = rows.find(r => r.current);
 

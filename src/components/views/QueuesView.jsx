@@ -15,7 +15,7 @@ import { useMemo, memo, useState } from 'react';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 
-function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', onOpenItem, onReorderInQueue }) {
+function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', rootFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, sinceDate = null, onOpenItem, onReorderInQueue }) {
   const { t } = useT();
   const [hoverId, setHoverId] = useState(null);
   // {id, position}: drop indicator. position = 'before' or 'after' relative
@@ -46,12 +46,23 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
   // missing).
   const queues = useMemo(() => {
     const map = {};
+    const horizonSet = horizonIds instanceof Set ? horizonIds
+      : Array.isArray(horizonIds) ? new Set(horizonIds) : null;
+    const diffSet = diffChangedIds instanceof Set ? diffChangedIds
+      : Array.isArray(diffChangedIds) ? new Set(diffChangedIds) : null;
     (scheduled || []).forEach(s => {
       // Skip handoff-shadow rows (tree row already represents the work; the
       // shadow is a render artifact).
       if (s.isHandoff) return;
       const node = treeById[s.treeId || s.id];
-      if (!node || node.status === 'done' || !node.best) return;
+      if (!node || !node.best) return;
+      // Queues only ever surface pending work — done tasks have no slot.
+      if (node.status === 'done') return;
+      // Honour the global sub-toolbar filters so Queues respects the same
+      // scoping every other view does. Big projects become navigable.
+      if (rootFilter && !(node.id === rootFilter || node.id.startsWith(rootFilter + '.'))) return;
+      if (horizonSet && !horizonSet.has(node.id)) return;
+      if (diffSet && !diffSet.has(node.id)) return;
       // Prefer scheduler's chosen person, fall back to first explicit assign,
       // then to a team-slot key.
       let key;
@@ -69,7 +80,8 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
       return aStart - bStart || (a.node.prio || 4) - (b.node.prio || 4) || (a.node.seq || 0) - (b.node.seq || 0) || a.node.id.localeCompare(b.node.id);
     }));
     return map;
-  }, [scheduled, treeById]);
+  }, [scheduled, treeById, rootFilter, hideDone, horizonIds, diffChangedIds]);
+  void sinceDate; // sinceDate kept in the prop signature for future banner extension
 
   // Build the list the view renders. Sub-toolbar filters cascade:
   // personFilter pins one queue, teamFilter pins one team's members.

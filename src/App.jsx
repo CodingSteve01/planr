@@ -2399,11 +2399,15 @@ export default function App() {
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
         tree={visibleTree} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
-        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+        horizonIds={horizonOnlyPlanned ? horizonIds : null}
+        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
         onOpenItem={onBriefingOpenItem}
         onExportTodo={onSumExportTodo}
       /></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+        horizonIds={horizonOnlyPlanned ? horizonIds : null}
+        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
         onOpenItem={onPlanReviewOpenItem}
         onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
@@ -2638,7 +2642,10 @@ export default function App() {
         onTeamDel={onResTeamDel} /></div>}
       {visitedTabs.has('queues') && <div className="pane" style={{ display: tab === 'queues' ? undefined : 'none' }}><QueuesView
         tree={tree} members={members} teams={teams} scheduled={scheduled}
-        teamFilter={teamFilter} personFilter={personFilter}
+        teamFilter={teamFilter} personFilter={personFilter} rootFilter={rootFilter} hideDone={hideDone}
+        horizonIds={horizonOnlyPlanned ? horizonIds : null}
+        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
+        sinceDate={sinceDate}
         onOpenItem={onSumOpenItem}
         onReorderInQueue={reorderInQueue} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}

@@ -38,7 +38,7 @@ function weeksBetween(a, b) {
   return Math.round(days / 7);
 }
 
-function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, onOpenItem, onExportTodo }) {
+function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, hideDone = false, horizonIds = null, diffChangedIds = null, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
 
@@ -62,8 +62,14 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
     if (rootFilter) items = items.filter(s => s.id === rootFilter || s.id.startsWith(rootFilter + '.'));
     if (teamFilter) items = items.filter(s => s.team === teamFilter);
     if (personFilter) items = items.filter(s => (s.personId === personFilter) || (s.assign || []).includes(personFilter));
+    if (hideDone) items = items.filter(s => s.status !== 'done');
+    // Global "Plan" horizon and "Review" diff filters narrow the briefing pool
+    // so the daily/weekly card list reflects the same scope as the rest of
+    // the app.
+    if (horizonIds) items = items.filter(s => horizonIds.has(s.id) || horizonIds.has(s.treeId || ''));
+    if (diffChangedIds) items = items.filter(s => diffChangedIds.has(s.id) || diffChangedIds.has(s.treeId || ''));
     return items;
-  }, [scheduled, rootFilter, teamFilter, personFilter]);
+  }, [scheduled, rootFilter, teamFilter, personFilter, hideDone, horizonIds, diffChangedIds]);
 
   const filteredMembers = useMemo(() => {
     if (personFilter) return members.filter(m => m.id === personFilter);

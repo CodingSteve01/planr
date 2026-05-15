@@ -673,14 +673,20 @@ export function renderRoadmapSvg(args) {
   // the project palette might happen to use.
   // `paint-order: stroke fill` on the station abbrev so the text gets a dark
   // outline that survives whichever route colour sits underneath it.
+  // Cross-hatch construction-tape patterns: stripes in BOTH diagonals so the
+  // dark bars always cross the route line whatever angle the segment runs at.
+  // Same hue family for base + stripes (amber + dark-amber / blue + dark-blue)
+  // so the trail still reads as warm/cool without the harsh black flash.
   out.push(`<defs>
-    <pattern id="rm-past-stripe" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="10" height="10" fill="#f59e0b"/>
-      <rect x="5" width="5" height="10" fill="#3a2308"/>
+    <pattern id="rm-past-stripe" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f59e0b"/>
+      <path d="M-2,4 L4,-2 M0,14 L14,0 M10,16 L16,10" stroke="#92400e" stroke-width="3" stroke-linecap="square"/>
+      <path d="M-2,10 L10,-2 M0,16 L16,0" stroke="#92400e" stroke-width="3" stroke-linecap="square" transform="scale(1,-1) translate(0,-14)"/>
     </pattern>
-    <pattern id="rm-plan-stripe" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="10" height="10" fill="#3b82f6"/>
-      <rect x="5" width="5" height="10" fill="#0b1e3d"/>
+    <pattern id="rm-plan-stripe" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#3b82f6"/>
+      <path d="M-2,4 L4,-2 M0,14 L14,0 M10,16 L16,10" stroke="#1e3a8a" stroke-width="3" stroke-linecap="square"/>
+      <path d="M-2,10 L10,-2 M0,16 L16,0" stroke="#1e3a8a" stroke-width="3" stroke-linecap="square" transform="scale(1,-1) translate(0,-14)"/>
     </pattern>
   </defs>`);
   out.push(`<style>
