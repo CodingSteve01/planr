@@ -557,10 +557,20 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   });
 
   // Assign route and palette color by rank.
+  // Per-route deterministic micro-offset breaks up segments where two routes
+  // share long stretches of identical waypoints (e.g. a vertical line riding
+  // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
+  // axis based on the route's original index in ROUTES — stations move with
+  // the route so positioning stays consistent.
+  const OFFSET_STEP = 6;
   const assignedLines = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
     const color = PALETTE[rank % PALETTE.length];
-    return { ...line, color, route: routeEntry.wp, routeLen: routeEntry.len };
+    // Spread offsets so each route ends up with a unique (dx, dy) pair.
+    const offX = ((routeEntry.idx % 4) - 1.5) * OFFSET_STEP;
+    const offY = (Math.floor(routeEntry.idx / 4) - 0.5) * OFFSET_STEP;
+    const offsetRoute = routeEntry.wp.map(p => ({ x: p.x + offX, y: p.y + offY }));
+    return { ...line, color, route: offsetRoute, routeLen: routeEntry.len };
   });
 
   // ── Station placement on routes ───────────────────────────────────────────
