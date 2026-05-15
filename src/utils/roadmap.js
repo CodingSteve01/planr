@@ -651,6 +651,12 @@ export function renderRoadmapSvg(args) {
   const newSet = new Set(diff?.newRootIds || []);
   const doneInWindow = new Set(diff?.doneInWindowIds || []);
   const changedInWindow = new Set(diff?.changedInWindowIds || doneInWindow);
+  // Planning-horizon overlay. When `horizonIds` is set, items/stations whose
+  // ids aren't in the set get a muted treatment so the map still tells the
+  // full story but the eye locks onto what's planned in the window.
+  const horizonIdSet = args.horizonIds instanceof Set ? args.horizonIds
+    : Array.isArray(args.horizonIds) ? new Set(args.horizonIds) : null;
+  const horizonOn = !!horizonIdSet;
   const out = [];
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
@@ -786,7 +792,10 @@ export function renderRoadmapSvg(args) {
       // completion or a progress jump on a still-open task?
       const reachedInWindow = changedInWindow.size > 0
         && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
-      out.push(`<g class="rm-stop" style="cursor:pointer" pointer-events="all" data-tip="${esc(tooltip)}">`);
+      // Horizon mute: station has no items inside the planning window. Lets
+      // forward-looking presentations point at what's "in the next N months".
+      const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
+      out.push(`<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-tip="${esc(tooltip)}">`);
       // Invisible larger hit area for tooltip
       out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
       // Amber halo for stations reached in the diff window. Drawn before the
@@ -818,6 +827,8 @@ export function renderRoadmapSvg(args) {
       const isCurrent = station.id === currentId && !isDone;
       const reachedInWindow = changedInWindow.size > 0
         && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+      const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
+      if (!inHorizon) out.push(`<g opacity="0.22">`);
 
       if (reachedInWindow) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.85">`);
@@ -834,6 +845,7 @@ export function renderRoadmapSvg(args) {
       if (isCurrent) {
         out.push(`<text x="${(station.x + 5).toFixed(1)}" y="${(station.y - 5).toFixed(1)}" class="rm-abbrev rm-abbrev-active" fill="${color}">${esc(station.abbrev)}</text>`);
       }
+      if (!inHorizon) out.push(`</g>`);
     });
 
     out.push(`</g>`);
@@ -1023,7 +1035,9 @@ export function renderRoadmapSvg(args) {
         : '';
       const rowBg = (stDoneItems.length || stProgItems.length) ? ';background:rgba(245,158,11,.10)' : '';
 
-      block.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}">`);
+      const stInHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
+      const horizonDim = !stInHorizon ? ';opacity:.32' : '';
+      block.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}${horizonDim}">`);
       block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
       block.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
       block.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
@@ -1048,7 +1062,8 @@ export function renderRoadmapSvg(args) {
               ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">▲</span>`
               : '';
           const itemRowBg = (wentDone || wentProg) ? ';background:rgba(245,158,11,.10)' : '';
-          block.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}">`);
+          const itemHorizonDim = horizonOn && !horizonIdSet.has(c.id) ? ';opacity:.32' : '';
+          block.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}${itemHorizonDim}">`);
           block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
           block.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
           block.push(itemDiffPill);

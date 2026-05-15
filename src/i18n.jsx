@@ -363,6 +363,8 @@ const en = {
   'horizon.off': 'Off',
   'horizon.days': '+{0} d',
   'horizon.until': 'Until',
+  'horizon.onlyPlanned': 'Only planned in window',
+  'horizon.onlyPlannedTip': 'Hide tasks scheduled outside the horizon window',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
@@ -951,6 +953,8 @@ const de = {
   'horizon.off': 'Aus',
   'horizon.days': '+{0} T',
   'horizon.until': 'Bis',
+  'horizon.onlyPlanned': 'Nur geplante anzeigen',
+  'horizon.onlyPlannedTip': 'Tasks außerhalb des Horizonts ausblenden',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',

@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { renderRoadmapSvg } from '../../utils/roadmap.js';
 import { useT } from '../../i18n.jsx';
 
-export function Roadmap({ tree, scheduled, stats, onOpenItem, diff }) {
+export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null }) {
   const { t } = useT();
   // Pass raw template strings (with {0}) so roadmap.js can substitute the percentage itself.
   // t() without extra args leaves {0} intact, which roadmap.js replaces with the actual %.
@@ -14,7 +14,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff }) {
     tipProgress: t('diff.legendReachedTip'),
     prevPos: t('diff.prevPos'),
   }), [t]);
-  const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats, labels, diff }), [tree, scheduled, stats, labels, diff]);
+  const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats, labels, diff, horizonIds, horizonEnd }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd]);
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
   const tipRef = useRef(null);

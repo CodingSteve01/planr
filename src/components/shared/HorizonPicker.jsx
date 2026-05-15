@@ -4,7 +4,7 @@ import { useT } from '../../i18n.jsx';
 // Planning-horizon filter trigger. Same popup pattern as DiffPicker but with
 // forward-looking presets ("+7 d", "+14 d", "+30 d") and a custom end-date.
 // The underlying state lives in App.jsx so every consumer view stays in sync.
-export function HorizonPicker({ horizonDays, persistHorizon, horizonEnd, compact = false }) {
+export function HorizonPicker({ horizonDays, persistHorizon, horizonEnd, onlyPlanned, persistOnlyPlanned, compact = false }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -44,9 +44,16 @@ export function HorizonPicker({ horizonDays, persistHorizon, horizonEnd, compact
         className={`btn btn-xs ${active ? 'btn-pri' : 'btn-sec'}`}
         data-htip={t('horizon.tip')}
         onClick={() => setOpen(v => !v)}
-        style={{ padding: compact ? '2px 7px' : '4px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        style={{ padding: compact ? '2px 7px' : '3px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
-        <span style={{ fontSize: 10 }}>⏱</span>
+        {/* Forward-looking marker — distinct colour from the DiffPicker so
+            the two filter chips never collide visually in the sub-toolbar. */}
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+          padding: '1px 4px', borderRadius: 3,
+          background: active ? 'rgba(0,0,0,.22)' : 'rgba(59,130,246,.18)',
+          color: active ? '#fff' : '#3b82f6',
+        }}>▶ Plan</span>
         <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{triggerLabel}</span>
       </button>
       {open && (
@@ -69,7 +76,7 @@ export function HorizonPicker({ horizonDays, persistHorizon, horizonEnd, compact
             {presetBtn('30', t('horizon.days', 30))}
             {presetBtn('60', t('horizon.days', 60))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('horizon.until')}:</span>
             <input
               type="date"
@@ -78,6 +85,17 @@ export function HorizonPicker({ horizonDays, persistHorizon, horizonEnd, compact
               style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }}
             />
           </div>
+          {horizonEnd && persistOnlyPlanned && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}
+              data-htip={t('horizon.onlyPlannedTip')}>
+              <input
+                type="checkbox"
+                checked={!!onlyPlanned}
+                onChange={e => persistOnlyPlanned(e.target.checked)}
+              />
+              <span>{t('horizon.onlyPlanned')}</span>
+            </label>
+          )}
         </div>
       )}
     </span>

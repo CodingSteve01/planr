@@ -14,7 +14,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -147,9 +147,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (diffKeepIds) {
       f = f.filter(r => diffKeepIds.has(r.id));
     }
-    // Planning-horizon filter: keep tasks scheduled within the chosen window
-    // plus the ancestors needed to anchor them in the tree.
-    if (horizonIds) {
+    // Planning-horizon filter: only narrows the row list when the user has
+    // turned "Only planned in window" on. Without the toggle the rest of
+    // the UI (badges, dimming) still reacts to the horizon, but nothing
+    // is hidden from the tree.
+    if (horizonIds && horizonOnlyPlanned) {
       const keep = new Set();
       for (const r of f) {
         if (horizonIds.has(r.id)) {
@@ -168,7 +170,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       }
       return true;
     });
-  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed, diffKeepIds, horizonIds]);
+  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed, diffKeepIds, horizonIds, horizonOnlyPlanned]);
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {

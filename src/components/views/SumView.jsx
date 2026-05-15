@@ -11,11 +11,12 @@ import { Roadmap } from '../shared/Roadmap.jsx';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
 import { DiffPicker } from '../shared/DiffPicker.jsx';
+import { HorizonPicker } from '../shared/HorizonPicker.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const lvs = leafNodes(tree);
@@ -27,10 +28,12 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
-  // Sprint horizon (next-N-days) — for the "Up next" planning view
-  const [horizonDays, setHorizonDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
-  const setHd = v => { setHorizonDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
-  const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + horizonDays); return d; }, [horizonDays]);
+  // Sprint horizon (next-N-days) — for the "Up next" planning view.
+  // Distinct from the project-wide HorizonPicker; this is a local control
+  // for the upcoming-sprint table.
+  const [sprintDays, setSprintDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
+  const setHd = v => { setSprintDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
+  const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + sprintDays); return d; }, [sprintDays]);
   const now = new Date();
   const h1Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } }, []);
   const h2Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } }, []);
@@ -120,7 +123,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
       teams={teams} members={members} onOpenItem={onOpenItem}
       historyEvents={historyEvents}
-      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff} />
+      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+      horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds} />
 
     {/* Planning confidence */}
     {(() => {
@@ -293,7 +297,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -315,6 +319,11 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         {historyEvents.length > 0 && (
           <span style={{ marginLeft: 12 }}>
             <DiffPicker sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} />
+          </span>
+        )}
+        {persistHorizon && (
+          <span style={{ marginLeft: 8 }}>
+            <HorizonPicker horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} />
           </span>
         )}
       </div>
@@ -362,7 +371,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         </div>
       )}
       {view === 'map'
-        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff} />
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff} horizonIds={horizonIds} horizonEnd={horizonEnd} />
         : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />
       }

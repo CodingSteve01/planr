@@ -1327,6 +1327,14 @@ export default function App() {
   const persistHorizon = (val) => { setHorizonDays(val); try { localStorage.setItem('planr_horizon', val); } catch { /* noop */ } };
   const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
   const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
+  // "Only planned" — strict filter mode. Default on so the picker behaves
+  // like the diff "Only changed" toggle (filter is the obvious effect).
+  // When off, views fall back to soft hinting (dim/badge) without dropping
+  // rows, so the user can still see the full plan with the horizon marker.
+  const [horizonOnlyPlanned, setHorizonOnlyPlanned] = useState(() => {
+    try { const v = localStorage.getItem('planr_horizon_only'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const persistHorizonOnly = (v) => { setHorizonOnlyPlanned(v); try { localStorage.setItem('planr_horizon_only', String(v)); } catch { /* noop */ } };
   const diff = useMemo(() => computeDiff({
     tree,
     historyEvents: data?.historyEvents || [],
@@ -2333,7 +2341,10 @@ export default function App() {
         />
       )}
       {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan') && (
-        <HorizonPicker horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} />
+        <HorizonPicker
+          horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
+          onlyPlanned={horizonOnlyPlanned} persistOnlyPlanned={persistHorizonOnly}
+        />
       )}
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
@@ -2349,6 +2360,7 @@ export default function App() {
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         historyEvents={data?.historyEvents || []}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}
@@ -2373,7 +2385,7 @@ export default function App() {
               historyEvents={data?.historyEvents || []}
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onlyChanged={diffOnlyChanged}
-              horizonIds={horizonIds} horizonEnd={horizonEnd}
+              horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder} />
           }
@@ -2576,7 +2588,7 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds}

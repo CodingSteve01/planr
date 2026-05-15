@@ -47,9 +47,16 @@ export function DiffPicker({ sinceDays, persistSince, sinceDate, onlyChanged, pe
         className={`btn btn-xs ${active ? 'btn-pri' : 'btn-sec'}`}
         data-htip={t('diff.since')}
         onClick={() => setOpen(v => !v)}
-        style={{ padding: compact ? '2px 7px' : '4px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        style={{ padding: compact ? '2px 7px' : '3px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
-        <span style={{ fontSize: 10 }}>↻</span>
+        {/* Distinct prefix so the eye separates this trigger from the
+            HorizonPicker sitting next to it in the sub-toolbar. */}
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+          padding: '1px 4px', borderRadius: 3,
+          background: active ? 'rgba(0,0,0,.22)' : 'rgba(245,158,11,.18)',
+          color: active ? '#fff' : '#f59e0b',
+        }}>Δ Review</span>
         <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{triggerLabel}</span>
       </button>
       {open && (
