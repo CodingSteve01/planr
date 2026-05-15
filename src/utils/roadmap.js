@@ -673,20 +673,17 @@ export function renderRoadmapSvg(args) {
   // the project palette might happen to use.
   // `paint-order: stroke fill` on the station abbrev so the text gets a dark
   // outline that survives whichever route colour sits underneath it.
-  // Cross-hatch construction-tape patterns: stripes in BOTH diagonals so the
-  // dark bars always cross the route line whatever angle the segment runs at.
-  // Same hue family for base + stripes (amber + dark-amber / blue + dark-blue)
-  // so the trail still reads as warm/cool without the harsh black flash.
+  // Construction-tape stripes — simple alternating bands at 22° so they are
+  // never parallel to any common route segment (0°, 45°, 90°, 135°). Single
+  // direction, no cross-hatch giraffe, but always crosses the line.
   out.push(`<defs>
-    <pattern id="rm-past-stripe" width="14" height="14" patternUnits="userSpaceOnUse">
-      <rect width="14" height="14" fill="#f59e0b"/>
-      <path d="M-2,4 L4,-2 M0,14 L14,0 M10,16 L16,10" stroke="#92400e" stroke-width="3" stroke-linecap="square"/>
-      <path d="M-2,10 L10,-2 M0,16 L16,0" stroke="#92400e" stroke-width="3" stroke-linecap="square" transform="scale(1,-1) translate(0,-14)"/>
+    <pattern id="rm-past-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
+      <rect width="12" height="12" fill="#f59e0b"/>
+      <rect x="6" width="6" height="12" fill="#92400e"/>
     </pattern>
-    <pattern id="rm-plan-stripe" width="14" height="14" patternUnits="userSpaceOnUse">
-      <rect width="14" height="14" fill="#3b82f6"/>
-      <path d="M-2,4 L4,-2 M0,14 L14,0 M10,16 L16,10" stroke="#1e3a8a" stroke-width="3" stroke-linecap="square"/>
-      <path d="M-2,10 L10,-2 M0,16 L16,0" stroke="#1e3a8a" stroke-width="3" stroke-linecap="square" transform="scale(1,-1) translate(0,-14)"/>
+    <pattern id="rm-plan-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
+      <rect width="12" height="12" fill="#3b82f6"/>
+      <rect x="6" width="6" height="12" fill="#1e3a8a"/>
     </pattern>
   </defs>`);
   out.push(`<style>
