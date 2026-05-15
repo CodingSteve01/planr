@@ -562,13 +562,26 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
-  const OFFSET_STEP = 6;
+  // Per-route lateral nudge so lines that already run close to each other
+  // pull further apart. Native ROUTES design keeps adjacent rails ~40–80 px
+  // separated; layering an additional ±20 px offset per route turns "two
+  // rails next to each other" into "two rails with breathing room". Spread
+  // by rank so neighbouring ranks land on opposite sides of their native
+  // path rather than stacking.
+  const OFFSET_STEP = 20;
+  const offsetForRank = (rank) => {
+    // Symmetric spread around 0 — odd ranks go negative, even go positive,
+    // each pair stepping further outward.
+    const sign = rank % 2 === 0 ? 1 : -1;
+    const magnitude = Math.floor(rank / 2) + 1;
+    return sign * magnitude * OFFSET_STEP;
+  };
   const assignedLines = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
     const color = PALETTE[rank % PALETTE.length];
-    // Spread offsets so each route ends up with a unique (dx, dy) pair.
-    const offX = ((routeEntry.idx % 4) - 1.5) * OFFSET_STEP;
-    const offY = (Math.floor(routeEntry.idx / 4) - 0.5) * OFFSET_STEP;
+    const offX = offsetForRank(rank);
+    const offY = offsetForRank(rank + 1) * 0.4; // small y nudge so purely
+                                                  // horizontal collisions also separate
     const offsetRoute = routeEntry.wp.map(p => ({ x: p.x + offX, y: p.y + offY }));
     return { ...line, color, route: offsetRoute, routeLen: routeEntry.len };
   });
