@@ -156,6 +156,23 @@ The app also communicates the **three planning horizons** more explicitly now, b
 
 You see this in the Gantt footer and in the Summary view, so the application teaches the rule while you plan instead of expecting you to remember it.
 
+### Review and presentation filters (⚙ Filter)
+
+The sub-toolbar carries a single **⚙ Filter** chip that opens a popup with two sections; both are global, persisted in localStorage, and affect every view at once:
+
+- **Δ Review (Diff)** — pick a past cutoff (presets 7 / 14 / 30 days or a custom date). Planr replays the per-leaf history log embedded in the markdown (`## History` block, auto-maintained on save) up to that date and compares to the current tree. Result:
+  - Roadmap: amber trail + ghost-train at past position, "+ΔN%" pill on the live train, station/legend pills counting completions (`✓ N`) and progress-only edits (`▲ N`), pulsing halos on reached stations.
+  - Tree: per-leaf badge (`⊕ NEU` / `✓ erledigt` / `+N%`), optional **"Only changed"** filter that hides untouched leaves.
+  - Gantt: bars completed in window glow green, progress-changed bars glow amber, the progress band splits past/now with an amber tick.
+  - Network: nodes that moved get a pulsing green/amber ring; "Only changed" dims everything else to 18 %.
+  - Summary banner: tasks done, tasks started (`open → wip/done`), effort burnt, available person-days, vacation/holiday loss, utilisation, new lines.
+
+- **▶ Plan (Horizon)** — pick a forward window (presets +7 / +14 / +30 / +60 days or an until-date). Planr keeps tasks scheduled to fall inside the window and:
+  - Tree/Gantt hide non-matching rows (toggle **"Only planned in window"**, default on). NetGraph dims out-of-horizon nodes instead of dropping them.
+  - Roadmap fades out-of-window stations to ~22 % and draws a **blue dashed forward trail** + **planning ghost-train** ahead of the live train, plus a blue `+ΔN%` pill — Diff/Ist/Plan reads as one coherent palette (amber = past, white = now, blue = planned).
+
+Use the diff filter to drive a sprint review ("Stand 2026-04-28 → heute"); use the horizon filter to point at "everything we have scheduled for the next 6 months" during planning meetings.
+
 ## 9. Adjust
 
 Common moves:

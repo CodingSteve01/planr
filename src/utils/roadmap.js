@@ -657,6 +657,11 @@ export function renderRoadmapSvg(args) {
   const horizonIdSet = args.horizonIds instanceof Set ? args.horizonIds
     : Array.isArray(args.horizonIds) ? new Set(args.horizonIds) : null;
   const horizonOn = !!horizonIdSet;
+  // Forward-looking projection per root: where would the train sit at the
+  // horizon end? Drawn as a blue segment + ghost-train AHEAD of the live one
+  // so the map tells the Diff/Ist/Plan story in one glance.
+  const futureProgress = args.futureProgressByRootId || {};
+  const hasFuture = Object.keys(futureProgress).length > 0;
   const out = [];
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
@@ -712,6 +717,23 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5">`);
         out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
         out.push(`</circle>`);
+      }
+    }
+
+    // ── Forward "Plan" projection ─────────────────────────────────────────
+    // Draws the segment between the live train and where it would sit at the
+    // chosen planning horizon. Blue so the Diff/Ist/Plan colour story reads
+    // top-to-bottom: amber = past, white = now, blue = planned.
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
+      if (fT - trainT > 0.005) {
+        const planD = partialPath(route, fT, trainT);
+        if (planD) {
+          out.push(`<path d="${esc(planD)}" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" stroke-dasharray="8,4"/>`);
+          out.push(`<circle r="3.5" fill="#3b82f6" opacity="0.85">`);
+          out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
+          out.push(`</circle>`);
+        }
       }
     }
 
@@ -907,6 +929,29 @@ export function renderRoadmapSvg(args) {
         out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
         out.push(`<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`);
         out.push(`</g>`);
+      }
+    }
+    // Planned ghost-train + +ΔN% pill ahead of the live train. Blue colour
+    // intentionally mirrors the ▶ Plan filter chip so the Diff/Ist/Plan
+    // story reads as a coherent palette.
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
+      if (fT - trainT > 0.005) {
+        const fp = pointAtFraction(line.route, fT);
+        const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
+        const delta = Math.round((fT - line.progress) * 100);
+        out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
+        out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
+        out.push(`</g>`);
+        if (delta > 0) {
+          const pillW = Math.max(34, 12 + String(delta).length * 8);
+          const px = +fx - pillW / 2;
+          const py = +fy - 28;
+          out.push(`<g pointer-events="none">`);
+          out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#3b82f6" opacity="0.95"/>`);
+          out.push(`<text x="${+fx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#fff" font-size="10" font-weight="700">+${delta}%</text>`);
+          out.push(`</g>`);
+        }
       }
     }
   });

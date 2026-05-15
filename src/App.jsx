@@ -18,8 +18,7 @@ import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
-import { DiffPicker } from './components/shared/DiffPicker.jsx';
-import { HorizonPicker } from './components/shared/HorizonPicker.jsx';
+import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -1335,6 +1334,40 @@ export default function App() {
     try { const v = localStorage.getItem('planr_horizon_only'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const persistHorizonOnly = (v) => { setHorizonOnlyPlanned(v); try { localStorage.setItem('planr_horizon_only', String(v)); } catch { /* noop */ } };
+  // Forward-looking per-root progress: where would the train sit at horizonEnd
+  // if the current schedule plays out? Used by the Subway map to draw a "Plan"
+  // ghost-train ahead of the live one (Diff = past, Ist = now, Plan = future).
+  const futureProgressByRootId = useMemo(() => {
+    if (!horizonEnd) return null;
+    const sById = Object.fromEntries((scheduled || []).map(s => [s.id, s]));
+    const roots = tree.filter(r => !r.id.includes('.'));
+    const out = {};
+    for (const root of roots) {
+      const leaves = tree
+        .filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
+        .filter(n => !tree.some(o => o.id !== n.id && o.id.startsWith(n.id + '.')));
+      let total = 0, doneByHorizon = 0;
+      for (const lf of leaves) {
+        const eff = (lf.best || 0) * (lf.factor || 1.5) || 1;
+        total += eff;
+        if (lf.status === 'done') { doneByHorizon += eff; continue; }
+        const s = sById[lf.id];
+        if (!s?.endD) continue;
+        const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
+        const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
+        if (endD <= horizonEnd) { doneByHorizon += eff; continue; }
+        if (startD < horizonEnd) {
+          // Partial credit pro-rated across the bar's duration
+          const dur = +endD - +startD;
+          const elapsed = +horizonEnd - +startD;
+          const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
+          doneByHorizon += eff * frac;
+        }
+      }
+      out[root.id] = total > 0 ? doneByHorizon / total : 0;
+    }
+    return out;
+  }, [tree, scheduled, horizonEnd]);
   const diff = useMemo(() => computeDiff({
     tree,
     historyEvents: data?.historyEvents || [],
@@ -2334,18 +2367,18 @@ export default function App() {
       {/* Sprint-review diff picker — available wherever the diff overlay
           can actually show something (tree/gantt/net). Tab-shared state in
           App.jsx keeps all surfaces in sync. */}
-      {(tab === 'tree' || tab === 'gantt' || tab === 'net') && (data?.historyEvents || []).length > 0 && (
-        <DiffPicker
-          sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
-          onlyChanged={diffOnlyChanged} persistOnlyChanged={persistDiffOnlyChanged}
-        />
-      )}
-      {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan') && (
-        <HorizonPicker
-          horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
-          onlyPlanned={horizonOnlyPlanned} persistOnlyPlanned={persistHorizonOnly}
-        />
-      )}
+      {/* Unified view-filter popup — combines Sprint Review (diff) +
+          Planning Horizon under one trigger so the sub-toolbar stays
+          compact. Always rendered: the global state means horizon and
+          diff stay applied across every tab, not just the one that
+          showed the picker. */}
+      <ViewFilters
+        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
+        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
+        hasHistory={(data?.historyEvents || []).length > 0}
+        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
+        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+      />
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
         searchRef={searchRef}
@@ -2360,7 +2393,10 @@ export default function App() {
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         historyEvents={data?.historyEvents || []}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
         horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
+        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+        futureProgressByRootId={futureProgressByRootId}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}

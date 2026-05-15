@@ -365,6 +365,12 @@ const en = {
   'horizon.until': 'Until',
   'horizon.onlyPlanned': 'Only planned in window',
   'horizon.onlyPlannedTip': 'Hide tasks scheduled outside the horizon window',
+  'horizon.plannedPos': 'Planned position at horizon',
+
+  // ── Unified view filter popup ──
+  'vf.label': 'Filter',
+  'vf.tip': 'Review diff and planning-horizon filters',
+  'vf.off': 'none',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
@@ -955,6 +961,12 @@ const de = {
   'horizon.until': 'Bis',
   'horizon.onlyPlanned': 'Nur geplante anzeigen',
   'horizon.onlyPlannedTip': 'Tasks außerhalb des Horizonts ausblenden',
+  'horizon.plannedPos': 'Geplante Position am Horizont',
+
+  // ── Vereinheitlichter View-Filter-Popup ──
+  'vf.label': 'Filter',
+  'vf.tip': 'Review-Diff und Planungshorizont konfigurieren',
+  'vf.off': 'keine',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
