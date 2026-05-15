@@ -11,10 +11,9 @@
 // plus a local-only member dropdown for quick narrowing without
 // touching the topbar. Offboarded members (`member.end < today`) are
 // hidden by default — toggleable.
-import { useMemo, memo, useState, useEffect } from 'react';
+import { useMemo, memo, useState } from 'react';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
-import { SearchSelect } from '../shared/SearchSelect.jsx';
 
 function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', onOpenItem, onReorderInQueue }) {
   const { t } = useT();
@@ -23,11 +22,10 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
   // to the row id. Updated on dragOver, cleared on dragLeave / dragEnd.
   const [drop, setDrop] = useState(null);
   const [dragId, setDragId] = useState(null);
-  const [localMember, setLocalMember] = useState(() => {
-    try { return localStorage.getItem('planr_q_member') || ''; } catch { return ''; }
-  });
+  // Person filtering uses the global sub-toolbar control (`personFilter`);
+  // the duplicated local picker is gone. Offboarded toggle stays as an
+  // operational filter — different concern from "narrow to one person".
   const [showOffboarded, setShowOffboarded] = useState(false);
-  useEffect(() => { try { localStorage.setItem('planr_q_member', localMember); } catch { /* ignore */ } }, [localMember]);
 
   const treeById = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
   const teamById = useMemo(() => Object.fromEntries((teams || []).map(tm => [tm.id, tm])), [teams]);
@@ -73,21 +71,19 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
     return map;
   }, [scheduled, treeById]);
 
-  // Build the list the view renders. Topbar filters cascade: personFilter
-  // pins one queue (and one only); teamFilter pins one team's members.
-  // Local-only `localMember` further narrows when the topbar is unset.
+  // Build the list the view renders. Sub-toolbar filters cascade:
+  // personFilter pins one queue, teamFilter pins one team's members.
   const visibleQueues = useMemo(() => {
     const list = [];
-    const showPerson = personFilter || localMember;
     visibleMembers.forEach(m => {
-      if (showPerson && m.id !== showPerson) return;
+      if (personFilter && m.id !== personFilter) return;
       if (teamFilter && (m.team || '') !== teamFilter) return;
       const tasks = queues['p:' + m.id] || [];
       list.push({ kind: 'person', key: 'p:' + m.id, label: m.name, member: m, tasks });
     });
-    // Team slots: tasks without an assignee. Hidden when person filter is
+    // Team slots: tasks without an assignee. Hidden when a person filter is
     // pinned (the user's looking at one specific person).
-    if (!showPerson) {
+    if (!personFilter) {
       Object.keys(queues).filter(k => k.startsWith('t:')).forEach(k => {
         const teamId = k.slice(2);
         if (teamFilter && teamId !== teamFilter) return;
@@ -100,7 +96,7 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
       });
     }
     return list;
-  }, [queues, visibleMembers, personFilter, teamFilter, localMember, teamById, t]);
+  }, [queues, visibleMembers, personFilter, teamFilter, teamById, t]);
 
   const fmtDate = d => d ? (d instanceof Date ? iso(d) : d) : '—';
 
@@ -141,21 +137,12 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <p className="helper" style={{ marginBottom: 10 }}>{t('q.intro')}</p>
 
+      {/* No local person/team picker any more — those filters live in the
+          sub-toolbar so the same chip drives every view. Only the
+          offboarded-include toggle stays, since it's a Queues-specific
+          operational concern (operationally finished members shouldn't
+          clutter the run-down by default). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ width: 220 }}>
-          <SearchSelect
-            value={localMember}
-            options={visibleMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
-            onSelect={setLocalMember}
-            placeholder={t('tv.allPeople')}
-            allowEmpty emptyLabel={t('tv.allPeople')}
-          />
-        </div>
-        {localMember && (
-          <button className="btn btn-ghost btn-xs" onClick={() => setLocalMember('')}
-            data-htip={t('rv.clearFilters')}
-            style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
-        )}
         {offboardedCount > 0 && (
           <label className="toggle-mini" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
             data-htip={t('q.includeOffboardedTip')}>

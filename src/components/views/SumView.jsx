@@ -11,6 +11,7 @@ import { Roadmap } from '../shared/Roadmap.jsx';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
 import { ViewFilters } from '../shared/ViewFilters.jsx';
+import { aggregateSollIst } from '../../utils/sollIst.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
@@ -299,7 +300,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }

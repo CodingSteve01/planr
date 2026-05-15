@@ -10,6 +10,7 @@ import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
+import { computeSollIst } from '../../utils/sollIst.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
@@ -22,7 +23,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, onSplitHandoff, onSplitTaskAtProgress, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onReorderInQueue, onSplitHandoff, onSplitTaskAtProgress, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -449,21 +450,43 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
         )}
         {f.status === 'done' && (f.completedStart || f.completedEnd) && (() => {
-          const sollEnd = f.plannedEnd ? new Date(f.plannedEnd) : null;
-          const istEnd = f.completedEnd ? new Date(f.completedEnd) : (f.completedAt ? new Date(f.completedAt) : null);
-          const diffDays = sollEnd && istEnd ? Math.round((istEnd - sollEnd) / 864e5) : null;
-          const tone = diffDays == null ? 'var(--tx3)' : diffDays > 0 ? 'var(--re)' : diffDays < 0 ? 'var(--gr)' : 'var(--tx2)';
-          const sign = diffDays == null ? '' : diffDays > 0 ? `+${diffDays}d` : `${diffDays}d`;
+          // Workday-aware Soll/Ist: estimate (best × factor) vs actual workdays
+          // between completedStart and completedEnd, with weekends + holidays
+          // filtered out so the delta reflects real effort overrun rather
+          // than chronological gap.
+          const si = computeSollIst(f, { workDays, holidayIso });
+          if (!si) return null;
+          const tone = si.delta?.tone === 'over' ? 'var(--re)'
+            : si.delta?.tone === 'under' ? 'var(--gr)'
+            : si.delta?.tone === 'on' ? 'var(--am)' : 'var(--tx3)';
+          const sign = si.delta?.workDays > 0 ? `+${si.delta.workDays}d` : `${si.delta?.workDays ?? 0}d`;
+          const confTip = `Kalendertage: ${si.ist.calDays} · Wochenenden: ${si.confounders.weekends} · Feiertage: ${si.confounders.holidays}`;
           return (
-            <div style={{ display: 'flex', gap: 14, fontSize: 11, marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6 }}>
-              <span style={{ color: 'var(--tx3)' }}>Ist:</span>
-              <span style={{ fontFamily: 'var(--mono)' }}>
-                {f.completedStart || '?'} → {f.completedEnd || f.completedAt || '?'}
-              </span>
-              {diffDays != null && (
-                <span style={{ marginLeft: 'auto', color: tone, fontWeight: 600 }}>
-                  Δ {sign}
+            <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 11 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: si.delta ? 4 : 0 }}>
+                <span style={{ color: 'var(--tx3)' }}>Soll:</span>
+                <span style={{ fontFamily: 'var(--mono)' }} data-htip={`best ${si.soll.best}T × factor ${si.soll.factor}`}>
+                  {si.soll.realistic > 0 ? `${si.soll.realistic}d` : '—'}
                 </span>
+                <span style={{ color: 'var(--tx3)', marginLeft: 14 }}>Ist:</span>
+                <span style={{ fontFamily: 'var(--mono)' }} data-htip={confTip}>
+                  {si.ist.workDays}d
+                </span>
+                <span style={{ color: 'var(--tx3)', fontSize: 10 }}>
+                  ({si.ist.startD.toISOString().slice(0,10)} → {si.ist.endD.toISOString().slice(0,10)})
+                </span>
+                {si.delta && (
+                  <span style={{ marginLeft: 'auto', color: tone, fontWeight: 700 }}
+                    data-htip={`Schätzung ${si.soll.realistic}d → Ist ${si.ist.workDays}d. Faktor-Realität: ${(si.ist.workDays / Math.max(1, si.soll.best)).toFixed(2)}`}>
+                    Δ {sign} ({si.delta.percent > 0 ? '+' : ''}{si.delta.percent}%)
+                  </span>
+                )}
+              </div>
+              {si.planned && si.planned.workDays > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--tx3)', display: 'flex', gap: 6 }}>
+                  <span>Plan:</span>
+                  <span style={{ fontFamily: 'var(--mono)' }}>{si.planned.startD.toISOString().slice(0,10)} → {si.planned.endD.toISOString().slice(0,10)} ({si.planned.workDays}d)</span>
+                </div>
               )}
             </div>
           );

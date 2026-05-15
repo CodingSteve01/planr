@@ -32,6 +32,43 @@ export const addWorkDays = (d, n, workDays) => {
   }
   return r;
 };
+// Count workdays in [from, to] inclusive. Drops weekends + ISO-string holidays
+// passed via an iterable / Set of "YYYY-MM-DD" strings. Used for the
+// Soll/Ist workday-bereinigt delta so weekend gaps don't inflate "Ist".
+export const workDaysBetween = (from, to, workDays, holidayIso) => {
+  if (!from || !to) return 0;
+  const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;
+  const hol = holidayIso instanceof Set ? holidayIso : new Set(holidayIso || []);
+  const start = new Date(from); start.setHours(0, 0, 0, 0);
+  const end = new Date(to); end.setHours(23, 59, 59, 999);
+  if (start > end) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    if (wd.has(cur.getDay()) && !hol.has(iso(cur))) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+};
+// Same window but counts weekend + holiday days for the confounder tooltip.
+export const offDaysBetween = (from, to, workDays, holidayIso) => {
+  if (!from || !to) return { weekends: 0, holidays: 0 };
+  const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;
+  const hol = holidayIso instanceof Set ? holidayIso : new Set(holidayIso || []);
+  const start = new Date(from); start.setHours(0, 0, 0, 0);
+  const end = new Date(to); end.setHours(23, 59, 59, 999);
+  if (start > end) return { weekends: 0, holidays: 0 };
+  let weekends = 0, holidays = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    const isWeekend = !wd.has(cur.getDay());
+    const isHoliday = !isWeekend && hol.has(iso(cur));
+    if (isWeekend) weekends++;
+    if (isHoliday) holidays++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return { weekends, holidays };
+};
 export const monOf = d => { const r = new Date(d), w = r.getDay(); r.setDate(r.getDate() - (w === 0 ? 6 : w - 1)); return r; };
 export const isoWeek = d => {
   const j4 = new Date(d.getFullYear(), 0, 4), sw = new Date(j4);
