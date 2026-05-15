@@ -562,71 +562,17 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
-  // Build raw assigned routes first (no offset). The collision-aware pass
-  // below then walks each route's segments and pushes them perpendicular
-  // away from segments of any other route that runs in the same direction
-  // within a short distance — which is what was making the metro look
-  // glued. Whole-route offsets don't work because two routes that already
-  // run close-parallel will shift together if both pick the same bucket.
-  const baseAssigned = sortedLines.map((line, rank) => {
+  // Native ROUTES untouched — automatic spacing experiments (whole-route
+  // offset, per-segment collision push) both ended up pulling routes
+  // CLOSER instead of further apart on the user's actual data. Static
+  // route designs handle the common collisions; if a specific pair still
+  // bothers us, the right answer is to tweak the offending ROUTE waypoints
+  // directly rather than auto-correct at render time.
+  const assignedLines = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
     const color = PALETTE[rank % PALETTE.length];
-    return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len, _routeIdx: routeEntry.idx };
+    return { ...line, color, route: routeEntry.wp, routeLen: routeEntry.len };
   });
-
-  // ── Per-segment collision-aware spacing ─────────────────────────────────
-  // Walk every segment of every route. For each segment, find segments of
-  // OTHER routes that run in the same direction (horizontal or vertical)
-  // and are within `MIN_GAP` of this segment along the perpendicular axis.
-  // Push our waypoints away from the offending neighbour. Iterates a few
-  // passes so a route can move past several close neighbours.
-  const MIN_GAP = 22;     // px — segments closer than this are "glued"
-  const PUSH_STEP = 14;   // px per pass to add when too close
-  const TOLERANCE = 2;    // px — treat as horizontal/vertical within this slope
-  const isHorizSeg = (a, b) => Math.abs(a.y - b.y) <= TOLERANCE && Math.abs(b.x - a.x) > 8;
-  const isVertSeg  = (a, b) => Math.abs(a.x - b.x) <= TOLERANCE && Math.abs(b.y - a.y) > 8;
-
-  for (let pass = 0; pass < 3; pass++) {
-    // Rebuild a flat list of segments for fast lookup each pass.
-    const segs = [];
-    baseAssigned.forEach((line, li) => {
-      for (let i = 1; i < line.route.length; i++) {
-        const a = line.route[i - 1], b = line.route[i];
-        segs.push({ li, a, b, h: isHorizSeg(a, b), v: isVertSeg(a, b) });
-      }
-    });
-    const adjust = baseAssigned.map(() => ({ dy: 0, dx: 0 }));
-    segs.forEach(s => {
-      if (!s.h && !s.v) return;
-      segs.forEach(o => {
-        if (o.li === s.li) return;
-        if (s.h && o.h) {
-          // Horizontal vs horizontal: check overlap on x AND closeness on y.
-          const xOverlap = Math.min(Math.max(s.a.x, s.b.x), Math.max(o.a.x, o.b.x))
-                         - Math.max(Math.min(s.a.x, s.b.x), Math.min(o.a.x, o.b.x));
-          if (xOverlap <= 0) return;
-          const dy = s.a.y - o.a.y;
-          if (Math.abs(dy) === 0 || Math.abs(dy) > MIN_GAP) return;
-          adjust[s.li].dy += Math.sign(dy || 1) * PUSH_STEP * 0.5;
-        } else if (s.v && o.v) {
-          const yOverlap = Math.min(Math.max(s.a.y, s.b.y), Math.max(o.a.y, o.b.y))
-                         - Math.max(Math.min(s.a.y, s.b.y), Math.min(o.a.y, o.b.y));
-          if (yOverlap <= 0) return;
-          const dx = s.a.x - o.a.x;
-          if (Math.abs(dx) === 0 || Math.abs(dx) > MIN_GAP) return;
-          adjust[s.li].dx += Math.sign(dx || 1) * PUSH_STEP * 0.5;
-        }
-      });
-    });
-    let changed = false;
-    adjust.forEach((d, li) => {
-      if (!d.dx && !d.dy) return;
-      changed = true;
-      baseAssigned[li].route = baseAssigned[li].route.map(p => ({ x: p.x + d.dx, y: p.y + d.dy }));
-    });
-    if (!changed) break;
-  }
-  const assignedLines = baseAssigned;
 
   // ── Station placement on routes ───────────────────────────────────────────
   // Metro maps are SCHEMATIC: stations are evenly spaced, not time-proportional.
