@@ -335,7 +335,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   // Sets of leaf ids that completed / progressed in the diff window. Used to
   // ring matching nodes in the SVG so the graph reflects sprint movement.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -613,7 +613,11 @@ function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = 
           // the layout. Roots stay legible because their subtree may contain
           // changed leaves even when the root id itself isn't in the set.
           const diffDimmed = _diffOnlyMode && !_diffChangedSet.has(r.id);
-          const finalOpacity = diffDimmed ? .18 : subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
+          // Planning-horizon dimming: nodes outside the window fade to 18%
+          // (same intensity as the "Only changed" filter so the eye reads
+          // them as "muted" rather than "missing").
+          const horizonDimmed = horizonIds && !horizonIds.has(r.id) && !(r.id && !r.id.includes('.'));
+          const finalOpacity = (diffDimmed || horizonDimmed) ? .18 : subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
           const diffDoneHere = _diffDoneSet.has(r.id);
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
           const diffStroke = diffDoneHere ? '#10b981' : diffProgHere ? '#f59e0b' : null;

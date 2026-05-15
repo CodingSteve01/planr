@@ -35,7 +35,7 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -521,16 +521,31 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     };
     return walk(row);
   };
+  // Planning-horizon filter: when active, only keep rows whose task id (or
+  // any descendant for summary rows) sits inside the horizon set. Lets the
+  // user drop weeks of background noise from the chart in one click.
+  const rowRelevantToHorizon = (row) => {
+    if (!horizonIds) return true;
+    if (row?.type === 'task') return horizonIds.has(row.s?.id);
+    const walk = (r) => {
+      if (r?.type === 'task') return horizonIds.has(r.s?.id);
+      return (r?.children || []).some(walk);
+    };
+    return walk(row);
+  };
   const visibleRows = useMemo(
     () => {
       let out = cpOnly ? rows.filter(row => rowRelevantToCp(row)) : rows;
       if (_diffActive && onlyChanged && _diffChangedSet.size > 0) {
         out = out.filter(rowRelevantToDiff);
       }
+      if (horizonIds) {
+        out = out.filter(rowRelevantToHorizon);
+      }
       return out;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, cpOnly, cpRowMeta, _diffActive, onlyChanged, _diffChangedSet],
+    [rows, cpOnly, cpRowMeta, _diffActive, onlyChanged, _diffChangedSet, horizonIds],
   );
 
   const RH = 28, HH = 28, FLAG_ROW_H = 18;

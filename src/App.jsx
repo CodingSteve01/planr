@@ -9,6 +9,7 @@ import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
+import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
@@ -18,6 +19,7 @@ import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadli
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { DiffPicker } from './components/shared/DiffPicker.jsx';
+import { HorizonPicker } from './components/shared/HorizonPicker.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -1317,6 +1319,14 @@ export default function App() {
     try { return localStorage.getItem('planr_diff_only_changed') === 'true'; } catch { return false; }
   });
   const persistDiffOnlyChanged = (v) => { setDiffOnlyChanged(v); try { localStorage.setItem('planr_diff_only_changed', String(v)); } catch { /* noop */ } };
+  // ── Planning-horizon filter (project-wide) ─────────────────────────────────
+  // Mirrors the diff picker shape: presets in days (7/14/30) or an explicit
+  // date. When set, every view narrows to tasks scheduled within the window
+  // so the planner can focus on one horizon at a time.
+  const [horizonDays, setHorizonDays] = useState(() => { try { return localStorage.getItem('planr_horizon') || ''; } catch { return ''; } });
+  const persistHorizon = (val) => { setHorizonDays(val); try { localStorage.setItem('planr_horizon', val); } catch { /* noop */ } };
+  const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
+  const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
   const diff = useMemo(() => computeDiff({
     tree,
     historyEvents: data?.historyEvents || [],
@@ -2322,6 +2332,9 @@ export default function App() {
           onlyChanged={diffOnlyChanged} persistOnlyChanged={persistDiffOnlyChanged}
         />
       )}
+      {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan') && (
+        <HorizonPicker horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} />
+      )}
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
         searchRef={searchRef}
@@ -2360,6 +2373,7 @@ export default function App() {
               historyEvents={data?.historyEvents || []}
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onlyChanged={diffOnlyChanged}
+              horizonIds={horizonIds} horizonEnd={horizonEnd}
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder} />
           }
@@ -2562,9 +2576,10 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
+        horizonIds={horizonIds}
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
         onAddDep={onNetAddDep}

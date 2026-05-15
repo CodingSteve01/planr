@@ -17,6 +17,50 @@
 
 import { iso, isoWeek } from './date.js';
 
+// Planning-horizon filter: takes a localStorage-style value ("", "7", "14",
+// "30", or "YYYY-MM-DD") and returns a Date for "show everything up to this
+// day inclusive" or null when no horizon is set. Shared by the global
+// HorizonPicker so every view interprets the same value the same way.
+export function parseHorizonValue(val) {
+  if (!val) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T23:59:59');
+  const n = parseInt(val, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const d = new Date(); d.setDate(d.getDate() + n); d.setHours(23, 59, 59, 999); return d;
+}
+
+// Compute the set of scheduled-leaf ids whose work falls within
+// [now, horizonEnd]. A task is "in horizon" when:
+//   - its scheduled start is on or before horizonEnd AND
+//   - it isn't already finished (endD >= now) OR it has no schedule but is
+//     still open/in-progress (e.g. unscheduled deadlines or pinned items)
+// Done tasks drop out so the filter narrows attention to active future
+// work, not the rear-view mirror.
+export function horizonScopedIds({ tree, scheduled, horizonEnd, now = new Date() }) {
+  if (!horizonEnd) return null;
+  const ids = new Set();
+  const schedById = new Map((scheduled || []).map(s => [s.id, s]));
+  for (const r of tree || []) {
+    const s = schedById.get(r.id);
+    if (s && s.startD) {
+      const startD = s.startD instanceof Date ? s.startD : new Date(s.startD);
+      const endD = s.endD instanceof Date ? s.endD : (s.endD ? new Date(s.endD) : startD);
+      if (startD <= horizonEnd && endD >= now && r.status !== 'done') {
+        ids.add(r.id);
+      }
+      continue;
+    }
+    // Fallback: use the task's own pinnedStart/decideBy/date if no schedule
+    // exists yet (covers unestimated decision items the planner still tracks).
+    const own = r.pinnedStart || r.decideBy || r.date;
+    if (own) {
+      const d = new Date(own);
+      if (d <= horizonEnd && r.status !== 'done') ids.add(r.id);
+    }
+  }
+  return ids;
+}
+
 function granularity(distanceDays, confidence) {
   const conf = confidence || 'committed';
   if (conf === 'exploratory' || distanceDays > 180) return 'q';

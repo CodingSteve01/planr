@@ -357,6 +357,13 @@ const en = {
   'diff.prevPos': 'Previous position',
   'diff.customDate': 'Custom date',
 
+  // ── Planning horizon filter ──
+  'horizon.tip': 'Limit views to tasks scheduled within the chosen window',
+  'horizon.label': 'Planning horizon',
+  'horizon.off': 'Off',
+  'horizon.days': '+{0} d',
+  'horizon.until': 'Until',
+
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
   'pc.allClear': 'All clear — no open issues.',
@@ -937,6 +944,13 @@ const de = {
   'diff.onlyChangedTip': 'Leaves ohne Diff im aktuellen Fenster ausblenden',
   'diff.prevPos': 'Vorherige Position',
   'diff.customDate': 'Eigenes Datum',
+
+  // ── Planungshorizont-Filter ──
+  'horizon.tip': 'Views auf Tasks innerhalb des Zeitfensters einschränken',
+  'horizon.label': 'Planungshorizont',
+  'horizon.off': 'Aus',
+  'horizon.days': '+{0} T',
+  'horizon.until': 'Bis',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
