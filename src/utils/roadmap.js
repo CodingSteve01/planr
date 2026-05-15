@@ -679,11 +679,11 @@ export function renderRoadmapSvg(args) {
   out.push(`<defs>
     <pattern id="rm-past-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
       <rect width="12" height="12" fill="#f59e0b"/>
-      <rect x="6" width="6" height="12" fill="#92400e"/>
+      <rect x="6" width="6" height="12" fill="#fde68a"/>
     </pattern>
     <pattern id="rm-plan-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
       <rect width="12" height="12" fill="#3b82f6"/>
-      <rect x="6" width="6" height="12" fill="#1e3a8a"/>
+      <rect x="6" width="6" height="12" fill="#bfdbfe"/>
     </pattern>
   </defs>`);
   out.push(`<style>
