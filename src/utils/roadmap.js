@@ -689,11 +689,10 @@ export function renderRoadmapSvg(args) {
   out.push(`<style>
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
     .rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1);paint-order:stroke fill;stroke:var(--bg,#0e1116);stroke-width:3.4;stroke-linejoin:round}
-    /* No fill override for active / done — the inline `fill="..."` attribute
-       (project colour) drives readability. The previous `.rm-abbrev-active
-       {fill:#fff}` rule cascaded over the inline colour and turned the
-       label white on top of the white halo, making the active station's
-       abbrev invisible. */
+    /* No fill override for active / done — the inline fill attribute
+       (project colour) drives readability. The previous .rm-abbrev-active
+       white-fill rule cascaded over the inline colour and made the label
+       white-on-white over the bg-coloured halo. */
     .rm-abbrev-done{opacity:.65}
     .rm-risk-tri{fill:#ef4444}
     g[style*=cursor]{pointer-events:all}
