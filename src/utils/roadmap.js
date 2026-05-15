@@ -576,14 +576,30 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // symmetric push avoids the "one route runs over another" bug we hit
   // before. Iterates a few passes; convergence is fast because the push
   // size is exactly the missing gap, not a fixed step.
-  const MIN_DIST = 18;     // px — at least one stroke width of breathing room
+  const MIN_DIST = 36;     // px — at least three stroke widths of breathing room
   const EPSILON = 0.001;   // px — guard for exactly-overlapping segments
   const PARALLEL_TOL = 2;  // px — slope tolerance for axis-aligned segments
   const SHARE_TOL = 4;     // px — span overlap must exceed this to count
+  const DIAG_ANGLE_TOL = 0.18; // ~10° — diagonal pairs within this slope diff count as parallel
   const horiz = (a, b) => Math.abs(a.y - b.y) <= PARALLEL_TOL && Math.abs(b.x - a.x) > 8;
   const vert  = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
   const overlap1D = (lo1, hi1, lo2, hi2) =>
     Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
+  // For a diagonal segment, return its angle in radians and the perpendicular
+  // unit vector. Used to detect close-parallel diagonals between routes.
+  const segAngle = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+  const perpFrom = (a, b) => {
+    const ang = segAngle(a, b);
+    return { px: -Math.sin(ang), py: Math.cos(ang) };
+  };
+  // Point-to-line distance for two parallel-ish segments (use midpoint of b
+  // projected onto a's perpendicular).
+  const perpDist = (a1, a2, b1, b2) => {
+    const ang = segAngle(a1, a2);
+    const nx = -Math.sin(ang), ny = Math.cos(ang);
+    const bmx = (b1.x + b2.x) / 2, bmy = (b1.y + b2.y) / 2;
+    return (bmx - a1.x) * nx + (bmy - a1.y) * ny;
+  };
 
   for (let pass = 0; pass < 6; pass++) {
     const adjust = baseAssigned.map(() => ({ dx: 0, dy: 0 }));
@@ -603,13 +619,12 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
               if (sx <= SHARE_TOL) continue;
               const dy = a1.y - b1.y;
               if (Math.abs(dy) >= MIN_DIST) continue;
-              // Both routes need to end up MIN_DIST apart. Split the gap.
               const sign = dy === 0 ? 1 : Math.sign(dy);
               const push = (MIN_DIST - Math.abs(dy) + EPSILON) / 2;
               adjust[i].dy += sign * push;
               adjust[j].dy -= sign * push;
               collisionCount++;
-              break; // one collision pair per route-pair per pass is enough
+              break;
             } else if (aV && vert(b1, b2)) {
               const sy = overlap1D(a1.y, a2.y, b1.y, b2.y);
               if (sy <= SHARE_TOL) continue;
@@ -619,6 +634,35 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
               const push = (MIN_DIST - Math.abs(dx) + EPSILON) / 2;
               adjust[i].dx += sign * push;
               adjust[j].dx -= sign * push;
+              collisionCount++;
+              break;
+            } else if (!aH && !aV) {
+              // Diagonal vs diagonal. Compare angles, fall through if too
+              // different. Otherwise use perpendicular signed distance.
+              const angA = segAngle(a1, a2);
+              const angB = segAngle(b1, b2);
+              // Normalize to [-π/2, π/2] so opposite-direction same line counts.
+              const da = ((angA - angB + Math.PI * 1.5) % Math.PI) - Math.PI / 2;
+              if (Math.abs(da) > DIAG_ANGLE_TOL) continue;
+              const dist = perpDist(a1, a2, b1, b2);
+              if (Math.abs(dist) >= MIN_DIST) continue;
+              // Need at least some overlap along the segment direction.
+              const along = (px, py) => (px - a1.x) * Math.cos(angA) + (py - a1.y) * Math.sin(angA);
+              const aLen = Math.hypot(a2.x - a1.x, a2.y - a1.y);
+              const tA0 = along(b1.x, b1.y), tA1 = along(b2.x, b2.y);
+              const tLo = Math.min(tA0, tA1), tHi = Math.max(tA0, tA1);
+              const proj = Math.min(tHi, aLen) - Math.max(tLo, 0);
+              if (proj <= SHARE_TOL) continue;
+              const sign = dist === 0 ? 1 : Math.sign(dist);
+              const push = (MIN_DIST - Math.abs(dist) + EPSILON) / 2;
+              const { px, py } = perpFrom(a1, a2);
+              // a's side of the line gets pushed by -sign*push*perp, b by +sign*push*perp.
+              // Wait: dist > 0 means b is on the +perp side of a. To push apart,
+              // move a by -sign*push along perp, b by +sign*push.
+              adjust[i].dx += -sign * push * px;
+              adjust[i].dy += -sign * push * py;
+              adjust[j].dx +=  sign * push * px;
+              adjust[j].dy +=  sign * push * py;
               collisionCount++;
               break;
             }
