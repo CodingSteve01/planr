@@ -1380,6 +1380,13 @@ export default function App() {
   const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
   const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
   const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
+  // Effective filter sets: pass to views only when they actually carry
+  // entries. Critical: an empty Set is truthy, so consumers like Plan /
+  // Briefing / Queues would `if (diffChangedIds)` and filter EVERYTHING
+  // out the moment the toggle was on without a matching diff/horizon
+  // configured. Null when inactive → consumer skips the filter cleanly.
+  const horizonFilterSet = horizonOnlyPlanned && horizonIds && horizonIds.size > 0 ? horizonIds : null;
+  const diffFilterSet = diffOnlyChanged && diffChangedSet.size > 0 ? diffChangedSet : null;
   const cpData = useMemo(() => rootCpm(tree), [tree]);
   const cpSet = cpData.critical;
   const cpEdges = cpData.edges;
@@ -2401,14 +2408,14 @@ export default function App() {
         tree={visibleTree} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
-        horizonIds={horizonOnlyPlanned ? horizonIds : null}
-        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
+        horizonIds={horizonFilterSet}
+        diffChangedIds={diffFilterSet}
         onOpenItem={onBriefingOpenItem}
         onExportTodo={onSumExportTodo}
       /></div>}
       {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
-        horizonIds={horizonOnlyPlanned ? horizonIds : null}
-        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
+        horizonIds={horizonFilterSet}
+        diffChangedIds={diffFilterSet}
         onOpenItem={onPlanReviewOpenItem}
         onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
@@ -2644,8 +2651,8 @@ export default function App() {
       {visitedTabs.has('queues') && <div className="pane" style={{ display: tab === 'queues' ? undefined : 'none' }}><QueuesView
         tree={tree} members={members} teams={teams} scheduled={scheduled}
         teamFilter={teamFilter} personFilter={personFilter} rootFilter={rootFilter} hideDone={hideDone}
-        horizonIds={horizonOnlyPlanned ? horizonIds : null}
-        diffChangedIds={diffOnlyChanged ? diffChangedSet : null}
+        horizonIds={horizonFilterSet}
+        diffChangedIds={diffFilterSet}
         sinceDate={sinceDate}
         onOpenItem={onSumOpenItem}
         onReorderInQueue={reorderInQueue} /></div>}
