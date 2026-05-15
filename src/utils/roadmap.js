@@ -23,10 +23,14 @@ const ROUTES = [
     { x: 880, y: 320 }, { x: 1020, y: 320 }, { x: 1080, y: 380 }, { x: 1220, y: 380 },
     { x: 1280, y: 440 }, { x: 1340, y: 440 },
   ],
-  // Route 2: vertical north-south with jog (like U8)
+  // Route 2: vertical north-south with jog (like U8). Shifted LEFT from the
+  // original x=700 spine so it doesn't crowd Route 1's diagonal sweep / Route
+  // 4's top horizontal through the same band — those routes share the
+  // (640..720, 180..260) area and auto-spacing struggled to pull the rails
+  // apart visually.
   [
-    { x: 700, y: 40 }, { x: 700, y: 180 }, { x: 640, y: 240 }, { x: 640, y: 420 },
-    { x: 700, y: 480 }, { x: 700, y: 620 }, { x: 700, y: 760 },
+    { x: 600, y: 40 }, { x: 600, y: 180 }, { x: 540, y: 240 }, { x: 540, y: 420 },
+    { x: 600, y: 480 }, { x: 600, y: 620 }, { x: 600, y: 760 },
   ],
   // Route 3: medium east-west through center
   [
