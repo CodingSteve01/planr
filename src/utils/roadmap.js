@@ -576,11 +576,11 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // symmetric push avoids the "one route runs over another" bug we hit
   // before. Iterates a few passes; convergence is fast because the push
   // size is exactly the missing gap, not a fixed step.
-  const MIN_DIST = 36;     // px — at least three stroke widths of breathing room
+  const MIN_DIST = 50;     // px — segments closer than this are visually glued
   const EPSILON = 0.001;   // px — guard for exactly-overlapping segments
   const PARALLEL_TOL = 2;  // px — slope tolerance for axis-aligned segments
   const SHARE_TOL = 4;     // px — span overlap must exceed this to count
-  const DIAG_ANGLE_TOL = 0.18; // ~10° — diagonal pairs within this slope diff count as parallel
+  const DIAG_ANGLE_TOL = 0.45; // ~26° — diagonal pairs within this slope diff count as parallel
   const horiz = (a, b) => Math.abs(a.y - b.y) <= PARALLEL_TOL && Math.abs(b.x - a.x) > 8;
   const vert  = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
   const overlap1D = (lo1, hi1, lo2, hi2) =>
@@ -601,7 +601,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
     return (bmx - a1.x) * nx + (bmy - a1.y) * ny;
   };
 
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < 10; pass++) {
     const adjust = baseAssigned.map(() => ({ dx: 0, dy: 0 }));
     let collisionCount = 0;
     for (let i = 0; i < baseAssigned.length; i++) {
