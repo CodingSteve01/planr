@@ -562,17 +562,77 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
-  // Native ROUTES untouched — automatic spacing experiments (whole-route
-  // offset, per-segment collision push) both ended up pulling routes
-  // CLOSER instead of further apart on the user's actual data. Static
-  // route designs handle the common collisions; if a specific pair still
-  // bothers us, the right answer is to tweak the offending ROUTE waypoints
-  // directly rather than auto-correct at render time.
-  const assignedLines = sortedLines.map((line, rank) => {
+  const baseAssigned = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
     const color = PALETTE[rank % PALETTE.length];
-    return { ...line, color, route: routeEntry.wp, routeLen: routeEntry.len };
+    return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len };
   });
+
+  // ── Parallel-rail spacing pass ───────────────────────────────────────────
+  // Hard "minimum distance" constraint between parallel route segments:
+  // whenever two horizontal-or-vertical segments of DIFFERENT routes overlap
+  // on the shared axis and sit closer than MIN_DIST on the perpendicular
+  // axis, both routes get pushed apart by half the deficit each. Two-sided
+  // symmetric push avoids the "one route runs over another" bug we hit
+  // before. Iterates a few passes; convergence is fast because the push
+  // size is exactly the missing gap, not a fixed step.
+  const MIN_DIST = 18;     // px — at least one stroke width of breathing room
+  const EPSILON = 0.001;   // px — guard for exactly-overlapping segments
+  const PARALLEL_TOL = 2;  // px — slope tolerance for axis-aligned segments
+  const SHARE_TOL = 4;     // px — span overlap must exceed this to count
+  const horiz = (a, b) => Math.abs(a.y - b.y) <= PARALLEL_TOL && Math.abs(b.x - a.x) > 8;
+  const vert  = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
+  const overlap1D = (lo1, hi1, lo2, hi2) =>
+    Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
+
+  for (let pass = 0; pass < 6; pass++) {
+    const adjust = baseAssigned.map(() => ({ dx: 0, dy: 0 }));
+    let collisionCount = 0;
+    for (let i = 0; i < baseAssigned.length; i++) {
+      const ri = baseAssigned[i].route;
+      for (let j = i + 1; j < baseAssigned.length; j++) {
+        const rj = baseAssigned[j].route;
+        for (let si = 1; si < ri.length; si++) {
+          const a1 = ri[si - 1], a2 = ri[si];
+          const aH = horiz(a1, a2), aV = vert(a1, a2);
+          if (!aH && !aV) continue;
+          for (let sj = 1; sj < rj.length; sj++) {
+            const b1 = rj[sj - 1], b2 = rj[sj];
+            if (aH && horiz(b1, b2)) {
+              const sx = overlap1D(a1.x, a2.x, b1.x, b2.x);
+              if (sx <= SHARE_TOL) continue;
+              const dy = a1.y - b1.y;
+              if (Math.abs(dy) >= MIN_DIST) continue;
+              // Both routes need to end up MIN_DIST apart. Split the gap.
+              const sign = dy === 0 ? 1 : Math.sign(dy);
+              const push = (MIN_DIST - Math.abs(dy) + EPSILON) / 2;
+              adjust[i].dy += sign * push;
+              adjust[j].dy -= sign * push;
+              collisionCount++;
+              break; // one collision pair per route-pair per pass is enough
+            } else if (aV && vert(b1, b2)) {
+              const sy = overlap1D(a1.y, a2.y, b1.y, b2.y);
+              if (sy <= SHARE_TOL) continue;
+              const dx = a1.x - b1.x;
+              if (Math.abs(dx) >= MIN_DIST) continue;
+              const sign = dx === 0 ? 1 : Math.sign(dx);
+              const push = (MIN_DIST - Math.abs(dx) + EPSILON) / 2;
+              adjust[i].dx += sign * push;
+              adjust[j].dx -= sign * push;
+              collisionCount++;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (collisionCount === 0) break;
+    adjust.forEach((d, li) => {
+      if (!d.dx && !d.dy) return;
+      baseAssigned[li].route = baseAssigned[li].route.map(p => ({ x: p.x + d.dx, y: p.y + d.dy }));
+    });
+  }
+  const assignedLines = baseAssigned;
 
   // ── Station placement on routes ───────────────────────────────────────────
   // Metro maps are SCHEMATIC: stations are evenly spaced, not time-proportional.
