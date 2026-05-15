@@ -852,51 +852,11 @@ export function renderRoadmapSvg(args) {
       out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`);
     }
 
-    // ── Diff overlay: ghost-train + progress trail since selected date ───────
-    // Renders the line segment between past-progress and current-progress in
-    // amber so the eye sees exactly what was traveled in the window. Lines that
-    // are entirely new since the cutoff get a dashed-amber outline plus an "⊕
-    // NEU" badge below the start.
+    // Diff / Plan overlays moved out of this per-line loop — they're drawn
+    // in a dedicated pass after all routes + stations so subsequent lines
+    // can't paint over them. `isNewLine` still needed below for the
+    // start-badge "⊕ NEU" sub-tag.
     const isNewLine = newSet.has(line.root.id);
-    let pastT = null;
-    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !isNewLine) {
-      // Floor past-progress at 0 and cap at current trainT so the overlay
-      // never overshoots the live train marker.
-      pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
-    }
-    if (isNewLine) {
-      // Construction-tape outline — striped pattern stays legible regardless
-      // of the line's own colour so it never blends into a yellow/blue route.
-      out.push(`<path d="${esc(pathD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
-    } else if (pastT != null && trainT - pastT > 0.005) {
-      const trailD = partialPath(route, trainT, pastT);
-      if (trailD) {
-        // Striped past-trail — amber + dark diagonals so it reads on top of
-        // amber-coloured project lines too.
-        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
-        // Animated dot tracing the same segment so the eye locks onto motion
-        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
-        out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
-        out.push(`</circle>`);
-      }
-    }
-
-    // ── Forward "Plan" projection ─────────────────────────────────────────
-    // Same construction-tape pattern, blue instead of amber, so the future
-    // segment never visually collides with a project line that happens to
-    // ride a blue base colour.
-    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
-      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
-      if (fT - trainT > 0.005) {
-        const planD = partialPath(route, fT, trainT);
-        if (planD) {
-          out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
-          out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
-          out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
-          out.push(`</circle>`);
-        }
-      }
-    }
 
     // ── Line badges at start and end ─────────────────────────────────────────
     const startPt = route[0];
@@ -1032,6 +992,44 @@ export function renderRoadmapSvg(args) {
     });
 
     out.push(`</g>`);
+  });
+
+  // ── Progress overlays — drawn AFTER every base route + station so they
+  // can never be covered by a later route's faded backbone. Striped past
+  // trail, striped plan trail, animated dots — all on top.
+  lines.forEach((line) => {
+    const { route, trainT } = line;
+    const isNewLine = newSet.has(line.root.id);
+    if (isNewLine) {
+      const pathD = waypointsToPath(route);
+      out.push(`<path d="${esc(pathD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+      return;
+    }
+    let pastT = null;
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id)) {
+      pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
+    }
+    if (pastT != null && trainT - pastT > 0.005) {
+      const trailD = partialPath(route, trainT, pastT);
+      if (trailD) {
+        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
+        out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
+        out.push(`</circle>`);
+      }
+    }
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
+      if (fT - trainT > 0.005) {
+        const planD = partialPath(route, fT, trainT);
+        if (planD) {
+          out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
+          out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
+          out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
+          out.push(`</circle>`);
+        }
+      }
+    }
   });
 
   // ── Trains ── drawn last so they appear on top of everything ───────────────
