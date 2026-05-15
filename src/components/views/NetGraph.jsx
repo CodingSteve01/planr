@@ -335,13 +335,36 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
   // Sets of leaf ids that completed / progressed in the diff window. Used to
   // ring matching nodes in the SVG so the graph reflects sprint movement.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
   const _diffProgSet = diffProgressedIds instanceof Set ? diffProgressedIds : new Set(diffProgressedIds || []);
   const _diffChangedSet = new Set([..._diffDoneSet, ..._diffProgSet]);
   const _diffOnlyMode = onlyChanged && _diffChangedSet.size > 0;
+
+  // Hard-filter the graph nodes when an "Only…" toggle is on. Drops every
+  // node outside the match set (plus their ancestors) so the layout itself
+  // shrinks instead of just dimming. Edges drawn later only consider nodes
+  // present in this filtered tree, so no dangling arrows survive.
+  const tree = useMemo(() => {
+    let items = _treeProp;
+    const applyKeep = (matchSet) => {
+      const keep = new Set();
+      items.forEach(r => {
+        if (matchSet.has(r.id)) {
+          keep.add(r.id);
+          const parts = r.id.split('.');
+          for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
+        }
+      });
+      return items.filter(r => keep.has(r.id));
+    };
+    if (_diffOnlyMode) items = applyKeep(_diffChangedSet);
+    if (horizonIds && horizonOnlyPlanned) items = applyKeep(horizonIds);
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_treeProp, _diffOnlyMode, horizonIds, horizonOnlyPlanned]);
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
