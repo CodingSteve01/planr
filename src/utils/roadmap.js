@@ -667,9 +667,25 @@ export function renderRoadmapSvg(args) {
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
+  // Construction-tape pattern for the diff trails — base colour stays amber
+  // (past) / blue (future) so the semantic colour story is intact, but the
+  // diagonal dark stripes make the trail readable on top of any line colour
+  // the project palette might happen to use.
+  // `paint-order: stroke fill` on the station abbrev so the text gets a dark
+  // outline that survives whichever route colour sits underneath it.
+  out.push(`<defs>
+    <pattern id="rm-past-stripe" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="10" height="10" fill="#f59e0b"/>
+      <rect x="5" width="5" height="10" fill="#3a2308"/>
+    </pattern>
+    <pattern id="rm-plan-stripe" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="10" height="10" fill="#3b82f6"/>
+      <rect x="5" width="5" height="10" fill="#0b1e3d"/>
+    </pattern>
+  </defs>`);
   out.push(`<style>
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
-    .rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1)}
+    .rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1);paint-order:stroke fill;stroke:var(--bg,#0e1116);stroke-width:3.4;stroke-linejoin:round}
     .rm-abbrev-active{fill:#fff}
     .rm-abbrev-done{opacity:.65}
     .rm-risk-tri{fill:#ef4444}
@@ -685,12 +701,30 @@ export function renderRoadmapSvg(args) {
 
     out.push(`<g id="${gId}">`);
 
+    // Build the line-level tooltip so hovering anywhere on the route reveals
+    // project id + name + progress, not just when the user finds the train.
+    const lTrainHover = labels.train || 'Train';
+    const linePct = Math.round((line.progress || 0) * 100);
+    const lineCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', linePct);
+    const lineTooltip = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
+      + `<span style="display:inline-block;width:14px;height:8px;border-radius:2px;background:${color}"></span>`
+      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(line.root.id)}</span>`
+      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.06em;margin-left:auto">${esc(lTrainHover)}</span>`
+      + `</div>`
+      + `<div style="font:500 10.5px/1.4 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4);margin-bottom:4px">${esc(line.root.name)}</div>`
+      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">${esc(lineCurrentPos)}</div>`
+      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ ${esc(labels.atRisk || 'AT RISK')}</div>` : '');
+
+    // Invisible fat hit area so hovering anywhere along the route surfaces
+    // the line tooltip — not only when the cursor lands on the train glyph.
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-tip="${esc(lineTooltip)}" data-item-id="${esc(line.root.id)}" style="cursor:pointer"/>`);
+
     // Full route (faded) — drawn first so progress overlays it
-    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.22"/>`);
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.22" pointer-events="none"/>`);
 
     // Traveled portion (full color)
     if (progressD) {
-      out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
+      out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`);
     }
 
     // ── Diff overlay: ghost-train + progress trail since selected date ───────
@@ -706,31 +740,33 @@ export function renderRoadmapSvg(args) {
       pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
     }
     if (isNewLine) {
-      // Dashed outline overlay so the whole line reads as "added since cutoff"
-      out.push(`<path d="${esc(pathD)}" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6,4" opacity="0.85"/>`);
+      // Construction-tape outline — striped pattern stays legible regardless
+      // of the line's own colour so it never blends into a yellow/blue route.
+      out.push(`<path d="${esc(pathD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
     } else if (pastT != null && trainT - pastT > 0.005) {
       const trailD = partialPath(route, trainT, pastT);
       if (trailD) {
-        // Bright amber segment marking the "moved since" portion
-        out.push(`<path d="${esc(trailD)}" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`);
+        // Striped past-trail — amber + dark diagonals so it reads on top of
+        // amber-coloured project lines too.
+        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
         // Animated dot tracing the same segment so the eye locks onto motion
-        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5">`);
+        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
         out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
         out.push(`</circle>`);
       }
     }
 
     // ── Forward "Plan" projection ─────────────────────────────────────────
-    // Draws the segment between the live train and where it would sit at the
-    // chosen planning horizon. Blue so the Diff/Ist/Plan colour story reads
-    // top-to-bottom: amber = past, white = now, blue = planned.
+    // Same construction-tape pattern, blue instead of amber, so the future
+    // segment never visually collides with a project line that happens to
+    // ride a blue base colour.
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
       if (fT - trainT > 0.005) {
         const planD = partialPath(route, fT, trainT);
         if (planD) {
-          out.push(`<path d="${esc(planD)}" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" stroke-dasharray="8,4"/>`);
-          out.push(`<circle r="3.5" fill="#3b82f6" opacity="0.85">`);
+          out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
+          out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
           out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
           out.push(`</circle>`);
         }

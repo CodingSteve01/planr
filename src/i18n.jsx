@@ -371,6 +371,8 @@ const en = {
   'vf.label': 'Filter',
   'vf.tip': 'Review diff and planning-horizon filters',
   'vf.off': 'none',
+  'vf.exclusiveHint': 'Review (past) and Plan (future) are mutually exclusive — one tells one story.',
+  'vf.disabledByOther': 'paused',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',
@@ -967,6 +969,8 @@ const de = {
   'vf.label': 'Filter',
   'vf.tip': 'Review-Diff und Planungshorizont konfigurieren',
   'vf.off': 'keine',
+  'vf.exclusiveHint': 'Review (Vergangenheit) und Plan (Zukunft) schließen sich gegenseitig aus.',
+  'vf.disabledByOther': 'pausiert',
 
   // ── SumView – Pulse Check ──
   'pc.title': 'Pulse Check',

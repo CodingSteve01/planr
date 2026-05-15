@@ -2356,13 +2356,8 @@ export default function App() {
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
       <div style={{ width: 150 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} data-htip={_t('ui.hideDoneTip')}>
-        <label className="toggle">
-          <input type="checkbox" checked={hideDone} onChange={e => setHideDone(e.target.checked)} aria-label={_t('ui.hideDone')} />
-          <span className="slider" />
-        </label>
-        <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{_t('ui.hideDone')}</span>
-      </div>
+      {/* `Hide done` lives in the ViewFilters popup now to keep the
+          sub-toolbar compact. State + setter still passed there. */}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
       {/* Sprint-review diff picker — available wherever the diff overlay
           can actually show something (tree/gantt/net). Tab-shared state in
@@ -2378,6 +2373,7 @@ export default function App() {
         hasHistory={(data?.historyEvents || []).length > 0}
         horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
         horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+        hideDone={hideDone} setHideDone={setHideDone}
       />
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox

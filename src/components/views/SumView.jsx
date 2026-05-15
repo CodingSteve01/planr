@@ -328,6 +328,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
             horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
           />
         </span>
+        {/* hideDone toggle lives in the App-level subtoolbar / popup, not
+            here — Summary's tt.map view doesn't filter rows by status. */}
       </div>
       {view === 'map' && diff && (
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',

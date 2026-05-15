@@ -17,7 +17,20 @@ export function ViewFilters({
   // Horizon (Planning)
   horizonDays, persistHorizon, horizonEnd,
   horizonOnlyPlanned, persistHorizonOnly,
+  // Status (hide done)
+  hideDone, setHideDone,
 }) {
+  // Diff (past review) and Horizon (future plan) are mutually exclusive: a
+  // single screen can only tell one of those stories cleanly at a time, so
+  // turning one on auto-clears the other. Keeps the legend / map honest.
+  const setSince = (val) => {
+    if (val && horizonDays && persistHorizon) persistHorizon('');
+    persistSince?.(val);
+  };
+  const setHorizon = (val) => {
+    if (val && sinceDays && persistSince) persistSince('');
+    persistHorizon?.(val);
+  };
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -36,9 +49,10 @@ export function ViewFilters({
 
   const showDiff = !!persistSince && hasHistory;
   const showHorizon = !!persistHorizon;
-  if (!showDiff && !showHorizon) return null;
+  const showHideDone = typeof setHideDone === 'function';
+  if (!showDiff && !showHorizon && !showHideDone) return null;
 
-  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0);
+  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0) + (hideDone ? 1 : 0);
 
   // Summary string on the trigger: "—" when no filter, otherwise a compact
   // marker like "Δ14T · ▶+30T" so the user reads the state without opening.
@@ -87,24 +101,45 @@ export function ViewFilters({
             padding: 12, width: 320, fontSize: 11,
           }}
         >
+          {showHideDone && (
+            <section style={{ marginBottom: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={!!hideDone} onChange={e => setHideDone(e.target.checked)} />
+                <span style={{ fontSize: 11 }}>{t('ui.hideDone')}</span>
+              </label>
+            </section>
+          )}
+          {showHideDone && (showDiff || showHorizon) && (
+            <div style={{ height: 1, background: 'var(--b)', margin: '4px 0 12px' }} />
+          )}
+
+          {(showDiff || showHorizon) && (
+            <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>
+              {t('vf.exclusiveHint')}
+            </div>
+          )}
+
           {showDiff && (
-            <section style={{ marginBottom: showHorizon ? 14 : 0 }}>
+            <section style={{ marginBottom: showHorizon ? 14 : 0, opacity: horizonDays ? 0.45 : 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
                   padding: '1px 5px', borderRadius: 3, background: 'rgba(245,158,11,.18)', color: '#f59e0b' }}>Δ Review</span>
                 <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{t('diff.since')}</span>
+                {horizonDays && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
+                )}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                {presetBtn(sinceDays, '', t('diff.off'), persistSince)}
-                {presetBtn(sinceDays, '7', t('diff.days', 7), persistSince)}
-                {presetBtn(sinceDays, '14', t('diff.days', 14), persistSince)}
-                {presetBtn(sinceDays, '30', t('diff.days', 30), persistSince)}
+                {presetBtn(sinceDays, '', t('diff.off'), setSince)}
+                {presetBtn(sinceDays, '7', t('diff.days', 7), setSince)}
+                {presetBtn(sinceDays, '14', t('diff.days', 14), setSince)}
+                {presetBtn(sinceDays, '30', t('diff.days', 30), setSince)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 10, color: 'var(--tx3)', minWidth: 60 }}>{t('diff.customDate')}:</span>
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
-                  onChange={e => persistSince(e.target.value)}
+                  onChange={e => setSince(e.target.value)}
                   style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
               </div>
               {sinceDate && persistDiffOnlyChanged && (
@@ -123,24 +158,27 @@ export function ViewFilters({
           )}
 
           {showHorizon && (
-            <section>
+            <section style={{ opacity: sinceDays ? 0.45 : 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
                   padding: '1px 5px', borderRadius: 3, background: 'rgba(59,130,246,.18)', color: '#3b82f6' }}>▶ Plan</span>
                 <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{t('horizon.label')}</span>
+                {sinceDays && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
+                )}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                {presetBtn(horizonDays, '', t('horizon.off'), persistHorizon)}
-                {presetBtn(horizonDays, '7', t('horizon.days', 7), persistHorizon)}
-                {presetBtn(horizonDays, '14', t('horizon.days', 14), persistHorizon)}
-                {presetBtn(horizonDays, '30', t('horizon.days', 30), persistHorizon)}
-                {presetBtn(horizonDays, '60', t('horizon.days', 60), persistHorizon)}
+                {presetBtn(horizonDays, '', t('horizon.off'), setHorizon)}
+                {presetBtn(horizonDays, '7', t('horizon.days', 7), setHorizon)}
+                {presetBtn(horizonDays, '14', t('horizon.days', 14), setHorizon)}
+                {presetBtn(horizonDays, '30', t('horizon.days', 30), setHorizon)}
+                {presetBtn(horizonDays, '60', t('horizon.days', 60), setHorizon)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 10, color: 'var(--tx3)', minWidth: 60 }}>{t('horizon.until')}:</span>
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(horizonDays) ? horizonDays : ''}
-                  onChange={e => persistHorizon(e.target.value)}
+                  onChange={e => setHorizon(e.target.value)}
                   style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
               </div>
               {horizonEnd && persistHorizonOnly && (
