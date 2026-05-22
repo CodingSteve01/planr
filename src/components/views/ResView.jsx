@@ -453,10 +453,38 @@ function Avatar({ member, teams }) {
   );
 }
 
-function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t }) {
+function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled = [], weeks = [], onClick, t }) {
   const team = teams.find(t => t.id === member.team);
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
+  // Weekly utilisation: sum scheduled effort assigned to this member per
+  // week, divided by their weekly budget (cap × 5 person-days). Peaks
+  // above 100% surface as a red chip — exactly what the no-dep-bypass
+  // is meant to make visible.
+  const dailyCap = deriveCap(member, { plans: meetingPlans, teams });
+  const weeklyBudget = dailyCap * 5;
+  let peakPct = 0, peakWi = -1;
+  if (weeklyBudget > 0 && weeks.length) {
+    const perWeek = new Array(weeks.length).fill(0);
+    for (const s of scheduled) {
+      const onPerson = s.personId === member.id || (s.assign || []).includes(member.id);
+      if (!onPerson) continue;
+      if (typeof s.startWi !== 'number' || s.startWi < 0) continue;
+      const span = Math.max(1, (s.endWi - s.startWi + 1));
+      const weekly = (s.effort || 0) / span;
+      for (let w = s.startWi; w <= s.endWi && w < perWeek.length; w++) {
+        if (w >= 0) perWeek[w] += weekly;
+      }
+    }
+    for (let w = 0; w < perWeek.length; w++) {
+      const pct = (perWeek[w] / weeklyBudget) * 100;
+      if (pct > peakPct) { peakPct = pct; peakWi = w; }
+    }
+  }
+  peakPct = Math.round(peakPct);
+  const peakWeek = peakWi >= 0 && weeks[peakWi] ? weeks[peakWi] : null;
+  const peakLabel = peakWeek?.mon ? `KW${weekNum(peakWeek.mon)}` : '';
+  const overbookSeverity = peakPct >= 150 ? 're' : peakPct >= 110 ? 'am' : null;
   const today = new Date();
   const endD = member.end ? new Date(member.end) : null;
   const offboarded = endD && endD < today;
@@ -503,14 +531,32 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
           ))}
         </span>
       </td>
-      <td className="res-row-meta" style={{ textAlign: 'right' }}>{cap}% · {vac}d</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>
+        {cap}% · {vac}d
+        {overbookSeverity && (
+          <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                         background: `var(--${overbookSeverity})`, color: overbookSeverity === 'am' ? '#1a1a1a' : '#fff' }}
+            data-htip={`Peak weekly load: ${peakPct}% in ${peakLabel}. Person is overbooked there.`}>
+            ⚠ {peakPct}%
+          </span>
+        )}
+      </td>
       <td className="res-row-meta" style={{ textAlign: 'right' }}>{dates || ''}</td>
     </tr>
   );
 }
 
+function weekNum(d) {
+  // ISO week number — Mon-based.
+  const x = new Date(d.getTime());
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() + 4 - (x.getDay() || 7));
+  const yearStart = new Date(x.getFullYear(), 0, 1);
+  return Math.ceil((((x - yearStart) / 86400000) + 1) / 7);
+}
+
 /* ─── Main component ──────────────────────────────────────────────────── */
-function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], scheduled = [], weeks = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -735,6 +781,8 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
                       teams={teams}
                       shortMap={shortMap}
                       meetingPlans={meetingPlans}
+                      scheduled={scheduled}
+                      weeks={weeks}
                       onClick={() => setEditingMemberId(m.id)}
                       t={t}
                     />

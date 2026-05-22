@@ -1761,12 +1761,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 })()}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>
-                {/* Right-edge link handle: drag from here to another bar to add a dependency.
-                    Larger hit area (22px) than the visible knob so picking it up doesn't
-                    require pixel-precise aim. */}
+                {/* Right-edge link handle: semicircle pointing OUT of the bar.
+                    The half-circle shape signals "draw a connection out here"
+                    visually — round on the outside, flat against the bar edge.
+                    Hit area still 22px for forgiving aim. */}
                 {!isSummary && s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
-                  style={{ position: 'absolute', right: -10, top: -4, bottom: -4, width: 22, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 2, zIndex: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bg)', border: `1.8px solid ${tc}`, opacity: linkDrag ? 1 : 0.85 }} />
+                  style={{ position: 'absolute', right: -12, top: -4, bottom: -4, width: 24, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', zIndex: 5 }}>
+                  <div style={{
+                    width: 10, height: 16,
+                    background: 'var(--bg)',
+                    border: `1.8px solid ${tc}`,
+                    borderLeft: 'none',
+                    borderRadius: '0 16px 16px 0',
+                    opacity: linkDrag ? 1 : 0.85,
+                  }} />
                 </div>}
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
@@ -1899,8 +1907,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       onMouseLeave={leaveLine}
                       onClick={handleClick}>
                       <title>{isConfirm ? `Click again to confirm delete: ${l.removeDepId} → ${l.removeFromId}` : `Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
-                      <circle cx={midX} cy={midY} r={18} fill="transparent" />
-                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke={accent} strokeWidth={1.8} />
+                      {/* `pointerEvents="all"` is critical: an SVG element with
+                          fill="transparent" does NOT receive clicks under the
+                          default `visiblePainted` pointer-events mode. Without
+                          this, clicks landing in the enlarged hit zone (between
+                          r=10 and r=18) silently missed. */}
+                      <circle cx={midX} cy={midY} r={18} fill="transparent" pointerEvents="all" style={{ cursor: 'pointer' }} />
+                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke={accent} strokeWidth={1.8} style={{ cursor: 'pointer' }} />
                       {isConfirm
                         ? <path d={`M${midX - 4.5},${midY + 0.5} L${midX - 1.2},${midY + 3.5} L${midX + 4.5},${midY - 3}`} fill="none" stroke={accent} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                         : <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke={accent} strokeWidth={1.8} strokeLinecap="round" />}
