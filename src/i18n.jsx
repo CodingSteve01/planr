@@ -332,7 +332,7 @@ const en = {
   'tpl.gen.phase.close':   'Wrap-up',
 
   // ── Roadmap ──
-  'rm.train': 'Train', 'rm.currentPos': 'Current position: {0}% of route', 'rm.atRisk': 'AT RISK',
+  'rm.train': 'Train', 'rm.currentPos': 'Effort-weighted progress: {0}%', 'rm.atRisk': 'AT RISK',
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
@@ -955,7 +955,7 @@ const de = {
   'tpl.gen.phase.close':   'Abschluss',
 
   // ── Roadmap ──
-  'rm.train': 'Zug', 'rm.currentPos': 'Aktuelle Position: {0}% der Strecke', 'rm.atRisk': 'GEFÄHRDET',
+  'rm.train': 'Zug', 'rm.currentPos': 'Aufwandsgewichteter Fortschritt: {0}%', 'rm.atRisk': 'GEFÄHRDET',
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',

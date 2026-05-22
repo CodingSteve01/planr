@@ -778,20 +778,18 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // Margins so the first/last station don't sit on the badges at the
     // route ends.
     const T_LO = 0.04, T_HI = 0.96;
-    // Train rides at TODAY's time-position within the project's [firstD,lastD]
-    // window. This puts past/done stations BEHIND the train and future stations
-    // AHEAD, which matches the mental model "where are we right now". Progress
-    // (effort %) is kept as `ghostT` so a Soll/Ist gap is visible when behind/
-    // ahead of plan.
+    // Train rides at the project's effort-weighted progress: how much of the
+    // total effort has actually been completed. `line.progress` comes from
+    // treeStats._progress which is Σ(leafProgress × leafEffort) / Σ(leafEffort),
+    // so a 1d leaf weighs less than a 10d leaf and the train position reflects
+    // delivered value, not item count.
+    const trainT = clamp(line.progress, T_LO, T_HI);
+    // Today-on-timeline marker — kept as `ghostT` so a Soll/Ist gap can be
+    // rendered later (effort progress vs calendar position).
     const nowMs = +new Date(now);
-    let trainT;
-    if (span > 0 && firstD != null && lastD != null) {
-      const rawT = (nowMs - firstD) / span;
-      trainT = clamp(T_LO + clamp(rawT, 0, 1) * (T_HI - T_LO), T_LO, T_HI);
-    } else {
-      trainT = clamp(line.progress, T_LO, T_HI);
-    }
-    const ghostT = clamp(line.progress, T_LO, T_HI);
+    const ghostT = (span > 0 && firstD != null && lastD != null)
+      ? clamp(T_LO + clamp((nowMs - firstD) / span, 0, 1) * (T_HI - T_LO), T_LO, T_HI)
+      : trainT;
 
     const positioned = allStations.map((station, idx) => {
       let t;
@@ -931,7 +929,7 @@ export function renderRoadmapSvg(args) {
     // project id + name + progress, not just when the user finds the train.
     const lTrainHover = labels.train || 'Train';
     const linePct = Math.round((line.progress || 0) * 100);
-    const lineCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', linePct);
+    const lineCurrentPos = (labels.currentPos || 'Effort-weighted progress: {0}%').replace('{0}', linePct);
     const lineTooltip = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
       + `<span style="display:inline-block;width:14px;height:8px;border-radius:2px;background:${color}"></span>`
       + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(line.root.id)}</span>`
