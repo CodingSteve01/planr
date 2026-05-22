@@ -488,13 +488,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
               {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
             </div>
-            {onReorderInQueue && !f.parallel && <div style={{ display: 'flex', gap: 3, marginLeft: 'auto' }}>
-              <span style={{ fontSize: 10, color: 'var(--tx3)', marginRight: 4 }}>{t('qe.queue')}</span>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 6px' }}>⤒</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 6px' }}>▲</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 6px' }}>▼</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 6px' }}>⤓</button>
-            </div>}
+            {/* seq-based queue reorder removed — ordering lives in dep
+                graph, edited via Gantt drag-link. */}
           </div>
           <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
         </>}

@@ -670,11 +670,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const allDepLines = useMemo(() => {
     if (!tree) return [];
     const lines = [];
-    scheduled.forEach(s => {
-      const node = iMap[s.treeId || s.id]; if (!node) return;
-      (node.deps || []).forEach(rawDep => {
+    const processDep = (s, node, rawDep, isSoft) => {
         const leafIds = resD(rawDep);
-        // Find the latest-finishing scheduled leaf — that's the real blocker
         let latestId = null, latestEnd = null;
         leafIds.forEach(depId => {
           const dep = sMap[depId]; if (!dep) return;
@@ -698,15 +695,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 srcId: depId,
                 tgtId: s.id,
                 isCp: isCriticalEdge,
+                isSoft,
               });
             });
           });
         };
-        if (latestId) addLine(latestId, 'dep', cpEdgeSet.has(`${latestId}->${s.id}`));
+        if (latestId) addLine(latestId, isSoft ? 'sdep' : 'dep', cpEdgeSet.has(`${latestId}->${s.id}`));
         leafIds
           .filter(depId => depId !== latestId && cpEdgeSet.has(`${depId}->${s.id}`))
           .forEach(depId => addLine(depId, 'cp', true));
-      });
+    };
+    scheduled.forEach(s => {
+      const node = iMap[s.treeId || s.id]; if (!node) return;
+      (node.deps || []).forEach(rawDep => processDep(s, node, rawDep, false));
+      (node.softDeps || []).forEach(rawDep => processDep(s, node, rawDep, true));
     });
     return lines;
   }, [scheduled, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
@@ -1606,15 +1608,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
                 // Default opacity raised because solid-fill bars made the prior 0.32
                 // grey arrows disappear visually between adjacent bars.
-                const opacity = emphasized ? 0.95 : (l.isCp ? 0.7 : 0.55);
-                const strokeWidth = emphasized ? 1.8 : 1.2;
+                // Soft deps render dashed + thinner so planner-set ordering is
+                // visually distinct from business-need hard deps.
+                const opacity = emphasized ? 0.95 : (l.isCp ? 0.7 : (l.isSoft ? 0.4 : 0.55));
+                const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1 : 1.2);
+                const dash = l.isSoft && !l.isCp ? '4,3' : undefined;
                 const openDependency = () => {
                   dismissTooltip(true);
                   setHoverLineKey(null);
                   onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
                 };
                 return <g key={l.key}>
-                  <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} style={{ pointerEvents: 'none' }} />
+                  <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
                   {/* Wide invisible hover/click target */}
                   <path d={path} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
@@ -1724,10 +1729,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           {node.pinnedStart
             ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 {t('g.ctxUnpin')} ({node.pinnedStart})</div>
             : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: iso(sched.startD) }); } close(); }}>📌 {t('g.ctxPinCurrent')}</div>}
-          {node.deps?.length > 0 && <>
+          {((node.deps?.length || 0) + (node.softDeps?.length || 0)) > 0 && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxRemoveDep')}</div>
-            {node.deps.map(d => <div key={d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× {d}</div>)}
+            {(node.deps || []).map(d => <div key={'h:' + d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× {d}</div>)}
+            {(node.softDeps || []).map(d => <div key={'s:' + d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--tx3)', fontFamily: 'var(--mono)', fontStyle: 'italic' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× ~{d}</div>)}
           </>}
         </div>
       </>;

@@ -235,7 +235,12 @@ function computeLayout(tree) {
   tree.forEach(r => {
     (r.deps || []).forEach(d => {
       if (iMap[d] && pos[d] && pos[r.id]) {
-        edges.push({ id: `d|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d });
+        edges.push({ id: `d|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d, isSoft: false });
+      }
+    });
+    (r.softDeps || []).forEach(d => {
+      if (iMap[d] && pos[d] && pos[r.id]) {
+        edges.push({ id: `s|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d, isSoft: true });
       }
     });
   });
@@ -593,16 +598,19 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
             strokeWidth={isActive ? 1.5 : .8} opacity={isActive ? .7 : .35} />;
         })}
 
-        {/* Dependency edges */}
+        {/* Dependency edges — hard = solid blue / red (CP), soft = grey + thinner */}
         {allEdges.filter(e => !e.isHier).map(e => {
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
           const isActive = activeId && (e.from === activeId || e.to === activeId);
-          const op = isActive ? .9 : isCp ? .55 : .35;
+          const op = isActive ? .9 : isCp ? .55 : (e.isSoft ? .25 : .35);
           const owner = iMap[e.depOwner || e.from]; const label = owner?._depLabels?.[e.depTarget || e.to] || '';
           const lp = e.labelPt;
+          const stroke = isCp ? 'var(--re)' : (e.isSoft ? 'var(--tx3)' : 'var(--ac)');
+          const dashSoft = e.isSoft && !isActive ? '3 3' : (isActive ? 'none' : '5 3');
           return <g key={e.id}>
-            <path d={e.path} fill="none" stroke={isCp ? 'var(--re)' : 'var(--ac)'}
-              strokeWidth={isActive ? 2.5 : isCp ? 1.5 : .8} strokeDasharray={isActive ? 'none' : '5 3'}
+            <path d={e.path} fill="none" stroke={stroke}
+              strokeWidth={isActive ? 2.5 : isCp ? 1.5 : (e.isSoft ? .5 : .8)}
+              strokeDasharray={dashSoft}
               opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
             {label && isActive && lp && <>
               <rect x={lp.x - label.length * 2.5 - 4} y={lp.y - 7} width={label.length * 5 + 8} height={13} rx={3}

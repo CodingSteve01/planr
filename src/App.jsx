@@ -1632,22 +1632,34 @@ export default function App() {
   // Targeted dep mutations: read current tree state and touch ONLY the deps field.
   // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
   // out unrelated field changes that happened after the callback was created.
+  // Remove a dep edge — checks both hard and soft buckets so the caller
+  // can stay agnostic ("delete this connection") without knowing the
+  // kind. Returns the node to either bucket if it lives there.
   function removeDep(fromId, depId) {
     setData(d => ({
       ...d,
       tree: (d.tree || []).map(r => r.id === fromId
-        ? { ...r, deps: (r.deps || []).filter(x => x !== depId) }
+        ? { ...r,
+            deps: (r.deps || []).filter(x => x !== depId),
+            softDeps: (r.softDeps || []).filter(x => x !== depId),
+          }
         : r)
     }));
     setSaved(false);
   }
-  function addDep(fromId, depId) {
+  // Add a dep edge. `kind='soft'` (default for in-Gantt drag-link) parks
+  // it in softDeps; `kind='hard'` is the business-need variant.
+  function addDep(fromId, depId, kind = 'soft') {
     if (fromId === depId) return;
+    const targetKey = kind === 'hard' ? 'deps' : 'softDeps';
     setData(d => ({
       ...d,
-      tree: (d.tree || []).map(r => r.id === fromId
-        ? { ...r, deps: [...new Set([...(r.deps || []), depId])] }
-        : r)
+      tree: (d.tree || []).map(r => {
+        if (r.id !== fromId) return r;
+        const existing = new Set([...(r.deps || []), ...(r.softDeps || [])]);
+        if (existing.has(depId)) return r; // already linked either way
+        return { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
+      })
     }));
     setSaved(false);
   }

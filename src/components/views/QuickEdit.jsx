@@ -503,15 +503,9 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
           <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked })} /><span className="slider" /></label>
           {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
-          {onReorderInQueue && !f.parallel && <>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('qe.queue')}</span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'first')} style={{ padding: '2px 5px' }} data-htip={t('nm.first')}>⤒</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'earlier')} style={{ padding: '2px 5px' }} data-htip={t('nm.earlier')}>▲</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'later')} style={{ padding: '2px 5px' }} data-htip={t('nm.later')}>▼</button>
-              <button className="btn btn-sec btn-xs" onClick={() => onReorderInQueue(node.id, 'last')} style={{ padding: '2px 5px' }} data-htip={t('nm.last')}>⤓</button>
-            </div>
-          </>}
+          {/* seq-based queue reorder gone — ordering now lives in the
+              dep + softDep graph, edited via Gantt drag-link or the
+              Benötigt list. */}
         </div>
         <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
       </>}
