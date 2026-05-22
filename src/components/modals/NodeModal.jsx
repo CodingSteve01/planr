@@ -34,6 +34,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const [nmTab, setNmTab] = useState('insights');
   const [focusHint, setFocusHint] = useState(null);
   const [highlightedDepId, setHighlightedDepId] = useState(null);
+  const [nmDepKind, setNmDepKind] = useState('soft');
   const depRowRefs = useRef({});
   const activateTab = (e, action) => {
     if (e.button !== 0) return;
@@ -507,17 +508,32 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         <div className="field">
           <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-            {(f.deps || []).map(d => { const dn = findById(d); const isHighlighted = highlightedDepId === d; return <div key={d} className="dep-row"
+            {(f.deps || []).map(d => { const dn = findById(d); const isHighlighted = highlightedDepId === d; return <div key={'h_' + d} className="dep-row"
               ref={el => {
                 if (el) depRowRefs.current[d] = el;
                 else delete depRowRefs.current[d];
               }}
               style={isHighlighted ? { background: 'rgba(59,130,246,.10)', borderColor: 'rgba(59,130,246,.35)', boxShadow: '0 0 0 1px rgba(59,130,246,.25)' } : undefined}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span title="Hard" style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
                 {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
               </div>
-              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                <span title="To soft" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => setF(x => ({ ...x, deps: (x.deps || []).filter(y => y !== d), softDeps: [...new Set([...(x.softDeps || []), d])] }))}>→S</span>
+                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
+              </div>
+            </div>; })}
+            {(f.softDeps || []).map(d => { const dn = findById(d); return <div key={'s_' + d} className="dep-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span title="Soft" style={{ fontSize: 8, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{d}</span>
+                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{dn.name}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                <span title="To hard" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => setF(x => ({ ...x, softDeps: (x.softDeps || []).filter(y => y !== d), deps: [...new Set([...(x.deps || []), d])] }))}>→H</span>
+                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => ({ ...x, softDeps: (x.softDeps || []).filter(y => y !== d) }))}>×</span>
+              </div>
             </div>; })}
             {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
@@ -527,10 +543,37 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
             </div>; })}
           </div>
-          <div ref={focusRefs.deps}>
-            <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+          <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <SearchSelect options={allIds.filter(i => !(f.deps || []).includes(i) && !(f.softDeps || []).includes(i)).map(i => ({ id: i, label: findById(i)?.name || '' }))} onSelect={id => s(nmDepKind === 'hard' ? 'deps' : 'softDeps', [...new Set([...((nmDepKind === 'hard' ? f.deps : f.softDeps) || []), id])])} placeholder={`+ ${nmDepKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`} showIds />
+            <div style={{ display: 'flex', flexShrink: 0 }}>
+              <button type="button" className={`btn btn-xs ${nmDepKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setNmDepKind('hard')}>H</button>
+              <button type="button" className={`btn btn-xs ${nmDepKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setNmDepKind('soft')}>S</button>
+            </div>
           </div>
         </div>
+
+        {(() => {
+          const succs = (tree || []).filter(r => r.id !== node.id && (((r.deps || []).includes(node.id)) || ((r.softDeps || []).includes(node.id))));
+          if (!succs.length) return null;
+          return <div className="field">
+            <label>Nachfolger</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {succs.map(r => {
+                const isSoft = !(r.deps || []).includes(node.id) && (r.softDeps || []).includes(node.id);
+                return <div key={'succ_' + r.id} className="dep-row" style={{ opacity: isSoft ? 0.75 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                    <span style={{ fontSize: 8, color: isSoft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{isSoft ? 'S' : 'H'}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isSoft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: isSoft ? 'italic' : 'normal' }}>{r.id}</span>
+                    {r.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: isSoft ? 'italic' : 'normal' }}>{r.name}</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                    {onNavigate && <span title="Open" style={{ cursor: 'pointer', fontSize: 11, color: 'var(--ac)' }} onClick={() => onNavigate(r.id)}>↗</span>}
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>;
+        })()}
       </>}
 
       {/* ══════ ADVANCED TAB ══════ */}
