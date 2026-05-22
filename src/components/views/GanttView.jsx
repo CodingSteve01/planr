@@ -1840,11 +1840,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const opacity = emphasized ? 0.95 : (l.isCp ? 0.75 : (l.isSoft ? 0.6 : 0.7));
                 const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1.1 : 1.4);
                 const dash = undefined;
-                // × badge sits ~18 px after the source on the outgoing stub —
-                // exactly where the first knick would naturally fall. Same offset
-                // for straight + bent + S-loop variants so it's predictable.
-                const midX = l.x1 + 18;
-                const midY = l.y1;
+                // × badge sits at the SECOND bend (vertical-segment midpoint of
+                // the L) so it lands in the whitespace between source and target
+                // rows — clear of either bar. For straight same-row arrows there
+                // is no vertical segment, fall back to a fixed 18 px source-side
+                // offset on the row.
+                const midX = parts.bendX;
+                const midY = Math.abs(l.y2 - l.y1) > 4 ? (l.y1 + l.y2) / 2 : l.y1;
                 // Hover persists for 80ms after the cursor leaves the line so the
                 // user has time to move onto the × badge without it vanishing.
                 const enterLine = () => {
