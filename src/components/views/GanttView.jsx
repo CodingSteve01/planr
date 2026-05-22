@@ -90,6 +90,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState(null); // line key in second-click delete-confirm state
+  const confirmTimerRef = useRef(null);
   const [ctxMenu, setCtxMenu] = useState(null); // {x, y, taskId}
   const [linkMode, setLinkMode] = useState(null); // {fromId, mode: 'pred'|'succ'} — click a second bar to add dep
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
@@ -1870,23 +1872,38 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   {/* × delete badge — pinned at the bend, only shown while hovered.
                       Both the badge and the line share the hover-persistence timer
                       so cursor travel between line and badge keeps it visible. */}
-                  {isHovered && onRemoveDep && <g
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={enterLine}
-                    onMouseLeave={leaveLine}
-                    onClick={(e) => {
+                  {isHovered && onRemoveDep && (() => {
+                    const isConfirm = confirmDeleteKey === l.key;
+                    const accent = isConfirm ? 'var(--gr)' : 'var(--re)';
+                    const handleClick = (e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Verbindung entfernen?\n\n${l.removeDepId} → ${l.removeFromId}`)) {
+                      if (isConfirm) {
+                        if (confirmTimerRef.current) { clearTimeout(confirmTimerRef.current); confirmTimerRef.current = null; }
                         onRemoveDep(l.removeFromId, l.removeDepId);
+                        setConfirmDeleteKey(null);
+                        setHoverLineKey(null);
+                      } else {
+                        setConfirmDeleteKey(l.key);
+                        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+                        confirmTimerRef.current = setTimeout(() => {
+                          setConfirmDeleteKey(prev => prev === l.key ? null : prev);
+                          confirmTimerRef.current = null;
+                        }, 2500);
                       }
-                      setHoverLineKey(null);
-                    }}>
-                    <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
-                    {/* Invisible enlarged hit area (16px radius) for forgiving click. */}
-                    <circle cx={midX} cy={midY} r={16} fill="transparent" />
-                    <circle cx={midX} cy={midY} r={9} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.5} />
-                    <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke="var(--re)" strokeWidth={1.5} strokeLinecap="round" />
-                  </g>}
+                    };
+                    return <g
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={enterLine}
+                      onMouseLeave={leaveLine}
+                      onClick={handleClick}>
+                      <title>{isConfirm ? `Click again to confirm delete: ${l.removeDepId} → ${l.removeFromId}` : `Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
+                      <circle cx={midX} cy={midY} r={18} fill="transparent" />
+                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke={accent} strokeWidth={1.8} />
+                      {isConfirm
+                        ? <path d={`M${midX - 4.5},${midY + 0.5} L${midX - 1.2},${midY + 3.5} L${midX + 4.5},${midY - 3}`} fill="none" stroke={accent} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                        : <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke={accent} strokeWidth={1.8} strokeLinecap="round" />}
+                    </g>;
+                  })()}
                 </g>;
               });
             })()}
