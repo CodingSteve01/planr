@@ -797,11 +797,21 @@ export default function App() {
           if (!trimmed) return;
           const depM = trimmed.match(/^\*Benötigt:\s*(.+?)\*$/);
           if (depM) {
-            const items = depM[1].split(',').map(s => s.trim());
-            lastItem.deps = items.map(it => { const lm = it.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/); return lm ? lm[1] : it; });
-            // capture labels
+            const items = depM[1].split(',').map(s => s.trim()).filter(Boolean);
+            // Items prefixed with `~` are soft-deps (planner-set sequencing).
+            // Plain items are hard-deps (business need).
+            const hard = [], soft = [];
             const labels = {};
-            items.forEach(it => { const lm = it.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/); if (lm) labels[lm[1]] = lm[2]; });
+            for (const raw of items) {
+              const isSoft = raw.startsWith('~');
+              const body = isSoft ? raw.slice(1).trim() : raw;
+              const lm = body.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/);
+              const id = lm ? lm[1] : body;
+              if (lm) labels[id] = lm[2];
+              if (isSoft) soft.push(id); else hard.push(id);
+            }
+            lastItem.deps = hard;
+            if (soft.length) lastItem.softDeps = soft;
             if (Object.keys(labels).length) lastItem._depLabels = labels;
             return;
           }

@@ -131,8 +131,13 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const cvEntries = r.customValues ? Object.entries(r.customValues).filter(([, v]) => v != null && v !== '') : [];
     if (cvEntries.length) tags.push(...cvEntries.map(([k, v]) => `cv.${k}:${String(v).replace(/[,}]/g, ' ')}`));
     const tagStr = tags.length ? ` {${tags.join(', ')}}` : '';
+    // Hard deps render plain. Soft deps (planner-set sequencing) get a `~`
+    // prefix so the markdown round-trip preserves the two kinds without a
+    // separate field. Parser strips the prefix and tracks the kind.
     const depItems = (r.deps || []).map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
-    const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';
+    const softDepItems = (r.softDeps || []).map(d => `~${d}`);
+    const allDepItems = [...depItems, ...softDepItems];
+    const deps = allDepItems.length ? `\n${indent}  *Benötigt: ${allDepItems.join(', ')}*` : '';
     const phases = (r.phases || []).length ? `\n${indent}  *Phasen: ${r.phases.map(p => formatPhaseToken(p, {
       teamName,
       memberLabel: memberShort,

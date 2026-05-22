@@ -151,7 +151,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
     const r = iMap[id]; if (!r) return [];
-    const ownDeps = r.deps || [];
+    // Hard deps (`r.deps`) and soft deps (`r.softDeps`, planner-set ordering)
+    // are mechanically identical — both block start until the predecessor
+    // ends. Difference is intent + visual style only. Union here so the
+    // schedule walks the combined topological order.
+    const ownDeps = [...(r.deps || []), ...(r.softDeps || [])];
     const ancestors = []; let aid = parentId(id); while (aid) { ancestors.push(aid); aid = parentId(aid); }
     return [...new Set([...ownDeps, ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
   };
@@ -403,8 +407,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const tM = members.filter(m => pt(m.team) === team);
     // Inherit deps from all ancestors so a parent dep blocks every leaf underneath
     const ancestorIds = []; let aid = parentId(r.id); while (aid) { ancestorIds.push(aid); aid = parentId(aid); }
-    const inheritedDeps = ancestorIds.flatMap(a => iMap[a]?.deps || []);
-    const allDepsRaw = [...new Set([...(r.deps || []), ...inheritedDeps])];
+    const inheritedDeps = ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]);
+    const allDepsRaw = [...new Set([...(r.deps || []), ...(r.softDeps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
