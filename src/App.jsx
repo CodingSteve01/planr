@@ -735,6 +735,44 @@ export default function App() {
           lastItem.capMode = 'derived';
           if (lastItem.weeklyHours == null) lastItem.weeklyHours = 40;
         }
+        // Sub-bullet for capacity changes: *Cap-Plan: 2026-09-01→50%, 2027-01-01→100%30h/w*
+        const cp = line.match(/^\s*\*Cap-Plan:\s*(.+?)\*\s*$/);
+        if (cp && lastItem && mems[mems.length - 1] === lastItem) {
+          const out = [];
+          for (const raw of cp[1].split(',').map(s => s.trim()).filter(Boolean)) {
+            const dm = raw.match(/^(\d{4}-\d{2}-\d{2})\s*→\s*(.*)$/);
+            if (!dm) continue;
+            const entry = { from: dm[1] };
+            const body = dm[2];
+            const capM = body.match(/(\d+(?:\.\d+)?)\s*%/);
+            if (capM) entry.cap = parseFloat(capM[1]) / 100;
+            const hM = body.match(/(\d+(?:\.\d+)?)\s*h\s*\/\s*w/i);
+            if (hM) entry.weeklyHours = parseFloat(hM[1]);
+            if (entry.cap !== undefined || entry.weeklyHours !== undefined) out.push(entry);
+          }
+          if (out.length) lastItem.capChanges = out.sort((a, b) => a.from.localeCompare(b.from));
+          return;
+        }
+        // Sub-bullet for scheduled meeting overrides:
+        // *Meeting-Plan: 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]; 2027-01-01→[...]*
+        const mp = line.match(/^\s*\*Meeting-Plan:\s*(.+?)\*\s*$/);
+        if (mp && lastItem && mems[mems.length - 1] === lastItem) {
+          const out = [];
+          for (const seg of mp[1].split(';').map(s => s.trim()).filter(Boolean)) {
+            const dm = seg.match(/^(\d{4}-\d{2}-\d{2})\s*→\s*\[(.+)\]\s*$/);
+            if (!dm) continue;
+            const meetings = dm[2].split(',').map(s => s.trim()).filter(Boolean).map((raw, i) => {
+              const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
+              if (!hm) return { id: 'mc_' + i, name: raw, hours: 0, frequency: 'weekly' };
+              const fk = hm[3].toLowerCase();
+              const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
+              return { id: 'mc_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq };
+            });
+            out.push({ from: dm[1], meetings });
+          }
+          if (out.length) lastItem.meetingChanges = out.sort((a, b) => a.from.localeCompare(b.from));
+          return;
+        }
         return;
       }
 

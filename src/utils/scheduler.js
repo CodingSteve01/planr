@@ -1,7 +1,7 @@
 import { addD, iso, addWorkDays, localDate, eachDayInclusive, normalizeVacation } from './date.js';
 import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
-import { deriveCap } from './capacity.js';
+import { deriveCap, memberAtDate } from './capacity.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
@@ -504,6 +504,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (better) { bs = fw; bp = m; bDate = fd; bestPF = candPF; }
         }
         if (bp) {
+          // Snapshot bp at the task's start week so time-shifted cap /
+          // meetings apply transparently below.
+          bp = memberAtDate(bp, wks[bs]?.mon || new Date());
           // Schedule on this member's real timeline (same logic as assigned path)
           const mStart = localDate(bp.start || ps);
           const personFree = pF[bp.id]?.nextDate;
@@ -781,6 +784,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
     });
     if (!bp || bs >= wks.length) { tEW[id] = { wi: Math.min(early, wks.length - 1), nextDate: null }; return; }
+    // Snapshot the chosen member at the task's start week so any
+    // capChanges/meetingChanges before that date take effect. Subsequent
+    // `deriveCap(bp)` calls see the time-shifted profile transparently.
+    bp = memberAtDate(bp, wks[bs]?.mon || new Date());
     // pinOverridden is finalised AFTER scheduling using the actual start —
     // catches every reason the pin couldn't be honoured (member-start, dep,
     // person busy, vacation, etc.) instead of just member-start.

@@ -60,6 +60,53 @@ export function resolveMemberMeetings(member, ctxOrPlans) {
 // (team plans + member plans + individual) reduce that baseline regardless
 // of capMode — team-inherited plans always count, matching the user's
 // expectation that "Team-Plans gelten egal auf was die Ressource steht".
+// Resolve a member's effective profile for a given calendar date. Honours
+// `capChanges` and `meetingChanges` arrays: each entry { from: 'YYYY-MM-DD',
+// ... } overrides the prior value from `from` onward. Both arrays must be
+// sorted ascending by `from`; helper picks the latest entry whose `from` is
+// <= the target date.
+//
+// Returns a shallow-cloned member with overridden `cap` / `weeklyHours` /
+// `meetings` (the fields deriveCap reads). Other fields are preserved so
+// downstream callers (e.g. scheduling-window helpers) don't lose context.
+export function memberAtDate(member, date) {
+  if (!member) return member;
+  const target = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(+target)) return member;
+  let m = member;
+  const capChanges = Array.isArray(member.capChanges) ? member.capChanges : [];
+  if (capChanges.length) {
+    let active = null;
+    for (const c of capChanges) {
+      if (!c?.from) continue;
+      const d = new Date(c.from);
+      if (Number.isNaN(+d) || d > target) continue;
+      if (!active || new Date(active.from) < d) active = c;
+    }
+    if (active) {
+      m = { ...m };
+      if (typeof active.cap === 'number') m.cap = active.cap;
+      if (typeof active.weeklyHours === 'number') m.weeklyHours = active.weeklyHours;
+    }
+  }
+  const meetingChanges = Array.isArray(member.meetingChanges) ? member.meetingChanges : [];
+  if (meetingChanges.length) {
+    let active = null;
+    for (const c of meetingChanges) {
+      if (!c?.from) continue;
+      const d = new Date(c.from);
+      if (Number.isNaN(+d) || d > target) continue;
+      if (!active || new Date(active.from) < d) active = c;
+    }
+    if (active) {
+      m = { ...m };
+      if (Array.isArray(active.meetings)) m.meetings = active.meetings;
+      if (Array.isArray(active.meetingPlanIds)) m.meetingPlanIds = active.meetingPlanIds;
+    }
+  }
+  return m;
+}
+
 export function deriveCap(member, ctxOrPlans) {
   if (!member) return 1;
   const wh = member.capMode === 'derived'

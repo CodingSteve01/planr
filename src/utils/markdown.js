@@ -76,6 +76,33 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
           .join(', ');
         md += `  *Plans: ${planNames}*\n`;
       }
+      // Scheduled capacity changes — each "{from}→{cap%}|{Xh/w}" entry
+      // applies from that date onward. Scheduler picks the latest entry
+      // whose `from` is on or before the task's start.
+      if (Array.isArray(m.capChanges) && m.capChanges.length) {
+        const items = m.capChanges
+          .filter(c => c && c.from)
+          .map(c => {
+            const parts = [c.from + '→'];
+            if (typeof c.cap === 'number') parts.push(`${Math.round(c.cap * 100)}%`);
+            if (typeof c.weeklyHours === 'number') parts.push(`${c.weeklyHours}h/w`);
+            return parts.join('');
+          });
+        if (items.length) md += `  *Cap-Plan: ${items.join(', ')}*\n`;
+      }
+      // Scheduled meeting overrides — each entry replaces the member's
+      // meeting list from `from` onward. Format mirrors the *Meetings:*
+      // line so existing parsers can read either.
+      if (Array.isArray(m.meetingChanges) && m.meetingChanges.length) {
+        const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+        const lines = m.meetingChanges
+          .filter(c => c && c.from && Array.isArray(c.meetings))
+          .map(c => {
+            const ms = c.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ');
+            return `${c.from}→[${ms}]`;
+          });
+        if (lines.length) md += `  *Meeting-Plan: ${lines.join('; ')}*\n`;
+      }
     });
     md += '\n';
   }

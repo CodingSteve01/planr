@@ -120,6 +120,11 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
             label/value grid so the meetings list and breakdown have room. */}
         <CapacityField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
 
+        {/* Time-shifted capacity changes — schedulable cap/weeklyHours
+            overrides effective from a given date onward. Scheduler picks
+            the latest entry whose `from` is on or before each task's start. */}
+        <CapChangesField member={member} onUpd={onUpd} t={t} />
+
         {/* Footer */}
         <div className="modal-footer">
           <button
@@ -905,6 +910,57 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
           <button className="btn btn-sec" onClick={onClose}>{t('rv.close')}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── CapChangesField ─────────────────────────────────────────────────────────
+// Minimal timeline editor for scheduled capacity changes. Each row is an
+// effective-from date plus optional cap % or weekly-hours override; the
+// scheduler picks the latest entry on/before each task's start week. Add /
+// remove inline, sorted by date.
+function CapChangesField({ member, onUpd, t }) {
+  const entries = Array.isArray(member.capChanges) ? member.capChanges : [];
+  const update = (next) => {
+    const sorted = [...next].filter(c => c && c.from)
+      .sort((a, b) => a.from.localeCompare(b.from));
+    onUpd({ ...member, capChanges: sorted });
+  };
+  const addRow = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    update([...entries, { from: today, cap: member.cap ?? 1 }]);
+  };
+  return (
+    <div style={{ marginTop: 14, padding: '8px 10px', border: '1px solid var(--b)', borderRadius: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.capPlanTitle')}</span>
+        <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)' }}>{t('rv.capPlanHint')}</span>
+        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 10 }}
+          onClick={addRow}>+ {t('rv.capPlanAdd')}</button>
+      </div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.capPlanEmpty')}</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {entries.map((c, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 90px 100px 28px', gap: 6, alignItems: 'center' }}>
+              <input type="date" value={c.from || ''}
+                onChange={e => { const next = [...entries]; next[i] = { ...c, from: e.target.value }; update(next); }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+              <input type="number" min="0" max="200" step="5" placeholder="%"
+                value={typeof c.cap === 'number' ? Math.round(c.cap * 100) : ''}
+                onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value) / 100; const next = [...entries]; next[i] = { ...c, cap: v }; update(next); }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+              <input type="number" min="0" max="80" step="0.5" placeholder="h/w"
+                value={typeof c.weeklyHours === 'number' ? c.weeklyHours : ''}
+                onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); const next = [...entries]; next[i] = { ...c, weeklyHours: v }; update(next); }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+              <button className="btn btn-ghost btn-xs" onClick={() => { update(entries.filter((_, j) => j !== i)); }}
+                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
