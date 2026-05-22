@@ -566,29 +566,16 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
-  // Pre-compute color assignment per root id — deterministic hash so a
-  // project keeps the same line color across reloads + data edits. Walk
-  // in sorted-line order and resolve collisions by stepping forward in
-  // the palette until a free slot is found; first-touched id wins its
-  // preferred colour.
-  const colorByRoot = {};
-  const usedColors = new Set();
-  sortedLines.forEach(line => {
-    const baseIdx = Math.abs(hashStr(line.root.id)) % PALETTE.length;
-    let pick = PALETTE[baseIdx];
-    if (usedColors.has(pick)) {
-      for (let k = 1; k < PALETTE.length; k++) {
-        const alt = PALETTE[(baseIdx + k) % PALETTE.length];
-        if (!usedColors.has(alt)) { pick = alt; break; }
-      }
-    }
-    colorByRoot[line.root.id] = pick;
-    usedColors.add(pick);
-  });
-
+  // Color and route assignment are rank-based: longest project gets the
+  // longest route and PALETTE[0], next-longest PALETTE[1], etc. Restores
+  // the historical visual — hash-based assignment swapped every project's
+  // colour vs. the older renders. Stable across rerenders for identical
+  // input; small data tweaks can still swap rank between two projects of
+  // similar duration. Future work: persist mapping in `data.roadmapAssignment`
+  // so the map survives data edits.
   const baseAssigned = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
-    const color = colorByRoot[line.root.id];
+    const color = PALETTE[rank % PALETTE.length];
     return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len };
   });
 
