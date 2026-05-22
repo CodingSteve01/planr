@@ -125,10 +125,29 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
     let latestEnd = null;
 
     leafIds.forEach(id => {
-      if (nodeMap[id]?.status === 'done') done++;
+      const n = nodeMap[id];
+      if (n?.status === 'done') done++;
       const sched = schedMap[id];
-      const start = toDate(sched?.startD || nodeMap[id]?.pinnedStart || nodeMap[id]?.decideBy || nodeMap[id]?.date);
-      const end = toDate(sched?.endD || nodeMap[id]?.date || nodeMap[id]?.pinnedStart || nodeMap[id]?.decideBy);
+      // For DONE items prefer the actual completion dates (`completedStart` /
+      // `completedEnd`) so past work lands at its real past timestamp on the
+      // roadmap. Falling back to pinnedStart/decideBy/date loses the "this
+      // was finished in April" signal and pushes done items into the future
+      // window of their successors.
+      const start = toDate(
+        (n?.status === 'done' ? n?.completedStart : null)
+        || sched?.startD
+        || (n?.status === 'done' ? n?.completedEnd : null)
+        || n?.pinnedStart
+        || n?.decideBy
+        || n?.date,
+      );
+      const end = toDate(
+        (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
+        || sched?.endD
+        || n?.date
+        || n?.pinnedStart
+        || n?.decideBy,
+      );
       if (start && (!earliestStart || start < earliestStart)) earliestStart = start;
       if (end && (!latestEnd || end > latestEnd)) latestEnd = end;
     });
@@ -756,10 +775,23 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const lastD = dates.length ? Math.max(...dates) : null;
     const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
 
-    const trainT = clamp(line.progress, 0.02, 0.96);
     // Margins so the first/last station don't sit on the badges at the
     // route ends.
     const T_LO = 0.04, T_HI = 0.96;
+    // Train rides at TODAY's time-position within the project's [firstD,lastD]
+    // window. This puts past/done stations BEHIND the train and future stations
+    // AHEAD, which matches the mental model "where are we right now". Progress
+    // (effort %) is kept as `ghostT` so a Soll/Ist gap is visible when behind/
+    // ahead of plan.
+    const nowMs = +new Date(now);
+    let trainT;
+    if (span > 0 && firstD != null && lastD != null) {
+      const rawT = (nowMs - firstD) / span;
+      trainT = clamp(T_LO + clamp(rawT, 0, 1) * (T_HI - T_LO), T_LO, T_HI);
+    } else {
+      trainT = clamp(line.progress, T_LO, T_HI);
+    }
+    const ghostT = clamp(line.progress, T_LO, T_HI);
 
     const positioned = allStations.map((station, idx) => {
       let t;
@@ -799,6 +831,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const currentId = currentStation?.id || null;
 
     const trainPt = pointAtFraction(route, trainT);
+    const ghostPt = pointAtFraction(route, ghostT);
 
     return {
       ...line,
@@ -807,6 +840,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       currentId,
       trainT,
       trainPt,
+      ghostT,
+      ghostPt,
     };
   });
 

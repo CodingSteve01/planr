@@ -895,8 +895,9 @@ export default function App() {
       // the tag block first with an `$` anchor and missed it whenever a
       // decideBy/pinned marker trailed — which silently dropped `assign`
       // because the later assign-regex is also `$`-anchored.
-      let parallel = false;
-      if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
+      // Strip legacy `≡` parallel marker — flag has been removed from the
+      // data model. Don't capture it so it doesn't round-trip back.
+      if (raw.includes('≡')) raw = raw.replace(/≡/g, '').trim();
       let pinnedStart = '';
       const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
       if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
@@ -967,7 +968,6 @@ export default function App() {
       if (date) item.date = date;
       if (decideBy) item.decideBy = decideBy;
       if (pinnedStart) item.pinnedStart = pinnedStart;
-      if (parallel) item.parallel = true;
       if (confidence) item.confidence = confidence;
       if (completedAt) item.completedAt = completedAt;
       if (completedStart) item.completedStart = completedStart;
@@ -2513,7 +2513,6 @@ export default function App() {
               const commonFactor = commonOf('factor');
               const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
               const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
-              const commonParallel = commonOf('parallel', r => !!r.parallel);
               const commonConfidence = commonOf('confidence', r => r.confidence || '');
               const commonNote = commonOf('note');
               const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
@@ -2648,16 +2647,6 @@ export default function App() {
                     </div>
                     <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ' (mixed)' : ''}</label>
                       <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v } : r))} />
-                    </div>
-                  </div>}
-                  {allLeaf && <div className="field">
-                    <label>{_t('qe.parallel')}{commonParallel == null ? ' (mixed)' : ''}</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <label className="toggle">
-                        <input type="checkbox" checked={!!commonParallel} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked } : r))} />
-                        <span className="slider" />
-                      </label>
-                      <span style={{ fontSize: 11, color: commonParallel ? 'var(--am)' : 'var(--tx2)' }}>{commonParallel ? _t('yes') : _t('no')}</span>
                     </div>
                   </div>}
                   {allDeadlineScoped && <div className="field">

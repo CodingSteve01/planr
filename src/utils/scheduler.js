@@ -531,7 +531,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               // (non-parallel) tasks. Parallel tasks deliberately skip this
               // check — that's the whole point of `r.parallel`. Own task's
               // reservation happens after the loop, so no self-collision.
-              if (!r.parallel && anyAssigneePinnedBusy(dIso, [bp.id])) continue;
+              if (anyAssigneePinnedBusy(dIso, [bp.id])) continue;
               if (!firstWorkDay) firstWorkDay = d;
               rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
               if (rem <= 0) break;
@@ -578,7 +578,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
                 lastOffboard: planState.lastOffboard,
                 usedIds,
                 tM: pool,
-                isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
+                isPinned: !!r.pinnedStart, isParallel: false,
               earliestStart: earlyDate,
             });
               if (!chunk.segments.length) break; // plan entry unusable, fall through to auto
@@ -597,7 +597,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               lastOffboard: planState.lastOffboard,
               usedIds,
               tM,
-              isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
+              isPinned: !!r.pinnedStart, isParallel: false,
               earliestStart: earlyDate,
             });
             let combined = {
@@ -617,7 +617,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               lastOffboard: combined.lastOffboard || endDate,
               usedIds,
               tM: others,
-              isPinned: !!r.pinnedStart, isParallel: !!r.parallel,
+              isPinned: !!r.pinnedStart, isParallel: false,
               earliestStart: earlyDate,
             });
             return {
@@ -680,10 +680,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             // Non-pinned work consumes the queue directly. Pinned work blocks via
             // pinnedBusy instead so earlier gaps remain usable.
             pF[bp.id] = { wi: eW, nextDate: nd };
-          } else if (!r.parallel) {
-            // Non-parallel pinned task: reserve days so other non-parallel
-            // pinned tasks for the same person don't overlap. Parallel pinned
-            // tasks deliberately skip both pF and the reservation set.
+          } else {
             reservePinnedDays([bp.id], workedDays);
           }
           // If the primary did zero work (already offboarded before the task
@@ -778,7 +775,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
       const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
       const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-      const fw = (r.parallel || r.pinnedStart)
+      const fw = (r.pinnedStart)
         ? Math.max(early, ji >= 0 ? ji : 0)
         : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
       if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
@@ -797,7 +794,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     for (const m of cands) {
       const ms = localDate(m.start || ps);
       if (!skipBefore || ms > skipBefore) skipBefore = ms;
-      if (!(r.parallel || r.pinnedStart)) {
+      if (!(r.pinnedStart)) {
         const pf = pF[m.id]?.nextDate;
         const pe = pPE[m.id]?.nextDate;
         if (pf && pf > skipBefore) skipBefore = pf;
@@ -830,7 +827,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
         // Non-parallel tasks respect days reserved by OTHER pinned tasks.
         // Parallel tasks skip this — that's the explicit point of r.parallel.
-        if (!r.parallel && anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
+        if (anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
         if (!firstWorkDay) firstWorkDay = d;
         rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
         if (rem <= 0) break;
@@ -868,7 +865,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         if (stageAssign.length) pool = members.filter(mm => stageAssign.includes(mm.id));
         else if (stage?.team) pool = members.filter(mm => pt(mm.team) === pt(stage.team));
         if (!pool.length) break;
-        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
+        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
         if (!chunk.segments.length) break;
         chunk.segments.forEach(seg => { seg.planned = true; });
         planSegs.push(...chunk.segments);
@@ -879,21 +876,21 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti && state.remaining > 0) {
         const coAssignees = cands.filter(m => !usedIds.has(m.id));
         if (coAssignees.length) {
-          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
+          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
           state = { remaining: coChunk.remaining, lastOffboard: coChunk.lastOffboard || state.lastOffboard, lastWD: coChunk.lastWD || state.lastWD, finalWi: coChunk.finalWi >= 0 ? coChunk.finalWi : state.finalWi };
           planSegs.push(...coChunk.segments);
         }
       }
       if (state.remaining <= 0) return { segments: planSegs, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 3) Same team auto-cascade
-      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
+      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
       state = { remaining: primaryChunk.remaining, lastOffboard: primaryChunk.lastOffboard || state.lastOffboard, lastWD: primaryChunk.lastWD || state.lastWD, finalWi: primaryChunk.finalWi >= 0 ? primaryChunk.finalWi : state.finalWi };
       const combined = [...planSegs, ...primaryChunk.segments];
       if (state.remaining <= 0) return { segments: combined, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 4) Cross-team fallback
       const others = members.filter(mm => pt(mm.team) !== team && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
       if (!others.length) return { segments: combined, remaining: state.remaining, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: state.lastOffboard };
-      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart, isParallel: !!r.parallel, earliestStart: earlyDate });
+      const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
       return {
         segments: [...combined, ...secondary.segments],
         remaining: secondary.remaining,
@@ -941,25 +938,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // so pair-programming or multi-assign tasks occupy everyone involved.
     const allAssigned = asgn.map(a => members.find(m => m.id === a)).filter(Boolean);
     for (const m of allAssigned) {
-      if (!r.parallel && !r.pinnedStart) {
+      if (!r.pinnedStart) {
         pF[m.id] = { wi: eW, nextDate: nd };
-      } else if (r.parallel && !r.pinnedStart) {
-        const prev = pPE[m.id];
-        if (!prev || eW > prev.wi || (eW === prev.wi && nd && (!prev.nextDate || nd > prev.nextDate))) {
-          pPE[m.id] = { wi: eW, nextDate: nd };
-        }
       }
-      // Drain this assignee's committed-effort tracker — the auto-assign
-      // virtual fd floor must shrink as real work consumes it, otherwise
-      // late unassigned tasks see stale committed and steer away forever.
       if (committedRem[m.id] != null) {
         committedRem[m.id] = Math.max(0, committedRem[m.id] - eff);
       }
     }
-    // Only NON-parallel pinned tasks reserve their days. A parallel pinned
-    // task is allowed to overlap with anything else on the same person, so
-    // it must not block other pinned tasks either.
-    if (r.pinnedStart && !r.parallel) reservePinnedDays(asgn, workedDays);
+    if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
     const firstCascadeSegExplicit = cascade.segments[0];
     let actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
@@ -1009,7 +995,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
-      weeks: eW - bs + 1, parallel: !!r.parallel, pinOverridden,
+      weeks: eW - bs + 1, parallel: false, pinOverridden,
       due: r.due || '', dueOverdue, latestStart, dueInfeasible,
       blockedBy: depBlockedAsg ? { id: depBlockerId, endD: depNextDate } : null,
       personPrevFree: personPrevFreeAsg,

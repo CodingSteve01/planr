@@ -73,7 +73,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
-  const [groupBy, setGroupBy] = useState(() => { try { return normalizeViewMode(localStorage.getItem('planr_gantt_group')); } catch { return 'project'; } });
+  const [groupBy, setGroupBy] = useState(() => {
+    try {
+      const stored = localStorage.getItem('planr_gantt_group');
+      return stored ? normalizeViewMode(stored) : 'thread';
+    } catch { return 'thread'; }
+  });
   const [collapsedByMode, setCollapsedByMode] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem('planr_gantt_collapsed') || '{}');
@@ -1754,10 +1759,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 })()}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>
-                {/* Right-edge link handle: drag from here to another bar to add a dependency */}
+                {/* Right-edge link handle: drag from here to another bar to add a dependency.
+                    Larger hit area (22px) than the visible knob so picking it up doesn't
+                    require pixel-precise aim. */}
                 {!isSummary && s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
-                  style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 10, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 1 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', border: `1.5px solid ${tc}`, opacity: linkDrag ? 1 : 0.7 }} />
+                  style={{ position: 'absolute', right: -10, top: -4, bottom: -4, width: 22, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 2, zIndex: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bg)', border: `1.8px solid ${tc}`, opacity: linkDrag ? 1 : 0.85 }} />
                 </div>}
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
@@ -1793,9 +1800,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   const sxS = Math.round(sx) + 0.5;
                   return {
                     d: `M${l.x1},${l.y1} L${sxS},${l.y1} L${sxS},${l.y2} L${l.x2 - 1},${l.y2}`,
-                    // Bend point = vertical-segment midpoint (clear of bars).
+                    // Bend point = FIRST corner (source-side knick). User can
+                    // grab it next to the bar the link starts from instead of
+                    // hunting halfway down the rail.
                     bendX: sxS,
-                    bendY: (l.y1 + l.y2) / 2,
+                    bendY: l.y1,
                   };
                 }
                 // Backward: 5-segment S-loop. Exit right of source, loop horizontally
@@ -1873,7 +1882,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     onMouseLeave={leaveLine}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onRemoveDep(l.removeFromId, l.removeDepId);
+                      if (window.confirm(`Verbindung entfernen?\n\n${l.removeDepId} → ${l.removeFromId}`)) {
+                        onRemoveDep(l.removeFromId, l.removeDepId);
+                      }
                       setHoverLineKey(null);
                     }}>
                     <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>

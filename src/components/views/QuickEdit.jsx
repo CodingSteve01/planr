@@ -514,14 +514,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>
           );
         })()}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
-          <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked })} /><span className="slider" /></label>
-          {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
-          {/* seq-based queue reorder gone — ordering now lives in the
-              dep + softDep graph, edited via Gantt drag-link or the
-              Benötigt list. */}
-        </div>
         <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
       </>}
       {showDeadlineRelevant && <div className="field">

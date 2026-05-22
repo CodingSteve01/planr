@@ -227,7 +227,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && <SBadge s={node.status} />}
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-        {f.parallel && <span className="badge bo">≡</span>}
         {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
       </div>
 
@@ -481,15 +480,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.completedAt')}</label>
             <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => s('completedAt', e.target.value)} />
             <div className="helper">{t('qe.completedHint')}</div>
-          </div>
-          <div className="frow" style={{ alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
-              <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('nm.runParallel')}</label>
-              <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked)} /><span className="slider" /></label>
-              {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
-            </div>
-            {/* seq-based queue reorder removed — ordering lives in dep
-                graph, edited via Gantt drag-link. */}
           </div>
           <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
         </>}

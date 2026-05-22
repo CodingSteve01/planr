@@ -74,15 +74,13 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   });
   const ccTotal = cc.committed + cc.estimated + cc.exploratory;
 
-  // Team capacity. Parallel tasks are tracked separately since they run
-  // alongside the primary queue and would otherwise double-count load.
+  // Team capacity.
   const teamCap = {};
-  teams.forEach(tm => { teamCap[tm.id] = { name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, parallel: 0, count: 0 }; });
+  teams.forEach(tm => { teamCap[tm.id] = { name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
   members.forEach(m => { if (teamCap[m.team]) teamCap[m.team].members.push(m); });
   lvs.filter(r => r.status !== 'done').forEach(r => {
     if (!teamCap[r.team]) return;
     const pt = re(r.best || 0, r.factor || 1.5);
-    if (r.parallel) { teamCap[r.team].parallel += pt; return; }
     if ((r.assign || []).length > 0) teamCap[r.team].committed += pt;
     else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
   });
@@ -108,8 +106,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   const unassignedPt = ccPt.estimated + ccPt.exploratory;
   if (unassignedPt > 100) risks.push({ severity: 'medium', text: t(`${(cc.estimated + cc.exploratory)} items (${unassignedPt.toFixed(0)} PT) have no person assigned`, `${(cc.estimated + cc.exploratory)} Items (${unassignedPt.toFixed(0)} PT) haben keine zugewiesene Person`) });
   // 4. Overloaded team members. Capacity scales with actual project span
-  //    (not a fixed year) and excludes `parallel` tasks since those run
-  //    alongside the primary queue rather than consuming it linearly.
+  //    (not a fixed year).
   const planStart = meta.planStart ? new Date(meta.planStart) : null;
   const projectSpanDays = planStart && projectEnd && projectEnd > planStart
     ? Math.max(1, Math.round((projectEnd - planStart) / 86400000))
@@ -117,11 +114,9 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   const projectSpanYears = projectSpanDays / 365;
   members.forEach(m => {
     const primaryPt = lvs
-      .filter(r => r.status !== 'done' && !r.parallel && (r.assign || []).includes(m.id))
+      .filter(r => r.status !== 'done' && (r.assign || []).includes(m.id))
       .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-    const parallelPt = lvs
-      .filter(r => r.status !== 'done' && r.parallel && (r.assign || []).includes(m.id))
-      .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+    const parallelPt = 0;
     const capDays = deriveCap(m, { plans: data?.meetingPlans || [], teams }) * 220 * projectSpanYears;
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
     if (util > 100) {

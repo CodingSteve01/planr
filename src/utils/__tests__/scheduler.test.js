@@ -214,37 +214,9 @@ describe('schedule(): pinned starts', () => {
   });
 });
 
-describe('schedule(): parallel flag', () => {
-  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
-
-  test('parallel flag persists to scheduled output', () => {
-    const tree = [
-      { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Review', team: 'T1', best: 10, factor: 1,
-        assign: ['M1'], parallel: true, status: 'open' },
-    ];
-    const { results } = runSchedule({ tree, members: [alex] });
-    const review = results.find(s => s.id === 'P1.1');
-    expect(review).toBeDefined();
-    expect(review.parallel).toBe(true);
-  });
-
-  test('two parallel tasks on same person overlap in time', () => {
-    // Both parallel: neither blocks the primary queue, so they can overlap.
-    const tree = [
-      { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Review-A', team: 'T1', best: 5, factor: 1,
-        assign: ['M1'], parallel: true, status: 'open' },
-      { id: 'P1.2', name: 'Review-B', team: 'T1', best: 5, factor: 1,
-        assign: ['M1'], parallel: true, status: 'open' },
-    ];
-    const { results } = runSchedule({ tree, members: [alex] });
-    const a = results.find(s => s.id === 'P1.1');
-    const b = results.find(s => s.id === 'P1.2');
-    // Start days match (both planStart) — true concurrency.
-    expect(a.startD.getTime()).toBe(b.startD.getTime());
-  });
-});
+// `parallel` flag removed from the data model — parallelism is now expressed
+// by the absence of dep edges between tasks (per-person capacity still
+// queues, but tasks on different people / no shared deps run concurrently).
 
 describe('schedule(): vacations', () => {
   test('explicit vacation days lower effective capacity', () => {

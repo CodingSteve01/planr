@@ -187,9 +187,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const date = r.date ? ` (${r.date})` : '';
     const decideBy = r.decideBy ? ` ⏰decide:${r.decideBy}` : '';
     const pinned = r.pinnedStart ? ` 📌${r.pinnedStart}` : '';
-    const parallel = r.parallel ? ` ≡` : '';
     const desc = r.description ? `\n${indent}  ${r.description}` : '';
-    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${parallel}${deps}${phases}${handoff}${note}${desc}\n`;
+    md += `${indent}- ${done}**${r.id}** ${r.name}${type}${date}${est}${prog}${team}${assign}${tagStr}${decideBy}${pinned}${deps}${phases}${handoff}${note}${desc}\n`;
   });
 
   // Task Templates section
