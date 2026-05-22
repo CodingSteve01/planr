@@ -474,6 +474,7 @@ const en = {
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Add team',
   'rv.members': 'Team Members', 'rv.addPerson': 'Add person',
+  'rv.teamLockTip': '{0} open team-lock tasks block this whole team when scheduled',
   'rv.noMembers': 'No team members yet.',
   'rv.noMembersHint': 'Add people to assign tasks and plan capacity.',
   'rv.vacations': 'Vacations', 'rv.addVacation': '+ Add vacation',
@@ -1090,6 +1091,7 @@ const de = {
   // ── ResView ──
   'rv.teams': 'Teams', 'rv.addTeam': '+ Team hinzufügen',
   'rv.members': 'Team-Mitglieder', 'rv.addPerson': 'Person hinzufügen',
+  'rv.teamLockTip': '{0} offene Team-Block-Aufgaben blockieren das ganze Team bei Einplanung',
   'rv.noMembers': 'Noch keine Team-Mitglieder.',
   'rv.noMembersHint': 'Personen hinzufügen, um Aufgaben zuzuweisen und Kapazitäten zu planen.',
   'rv.vacations': 'Urlaub', 'rv.addVacation': '+ Urlaub hinzufügen',

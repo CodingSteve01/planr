@@ -411,14 +411,20 @@ function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
 }
 
 /* ─── Teams ───────────────────────────────────────────────────────────── */
-function TeamReadRow({ team, memberCount, meetingPlans = [], onClick, t }) {
+function TeamReadRow({ team, memberCount, meetingPlans = [], teamLockCount = 0, onClick, t }) {
   const plans = (team.meetingPlanIds || [])
     .map(id => meetingPlans.find(p => p.id === id))
     .filter(Boolean);
   return (
     <tr onClick={onClick}>
       <td className="res-td-avatar"><span className="res-dot" style={{ background: team.color || 'var(--ac)' }} /></td>
-      <td className="res-row-name">{team.name || team.id}</td>
+      <td className="res-row-name">
+        {team.name || team.id}
+        {teamLockCount > 0 && (
+          <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--am)', background: 'rgba(245,158,11,.10)', color: 'var(--am)' }}
+            data-htip={t('rv.teamLockTip', teamLockCount)}>⚞⚟ {teamLockCount}</span>
+        )}
+      </td>
       <td>
         <span className="res-plan-tags">
           {plans.map(p => (
@@ -499,7 +505,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], onClick, t 
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
-function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -655,16 +661,23 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
                   </tr>
                 </thead>
                 <tbody>
-                  {fTeams.map(tm => (
-                    <TeamReadRow
-                      key={tm.id}
-                      team={tm}
-                      memberCount={memberCountForTeam(tm.id)}
-                      meetingPlans={meetingPlans}
-                      onClick={() => setEditingTeamId(tm.id)}
-                      t={t}
-                    />
-                  ))}
+                  {fTeams.map(tm => {
+                    // Count leaves locked to this team so users see at a
+                    // glance which teams have whole-team-blocking work in
+                    // the pipeline.
+                    const lockCount = (tree || []).filter(r => r.teamLock && r.team === tm.id && r.status !== 'done').length;
+                    return (
+                      <TeamReadRow
+                        key={tm.id}
+                        team={tm}
+                        memberCount={memberCountForTeam(tm.id)}
+                        meetingPlans={meetingPlans}
+                        teamLockCount={lockCount}
+                        onClick={() => setEditingTeamId(tm.id)}
+                        t={t}
+                      />
+                    );
+                  })}
                 </tbody>
               </table>
             )

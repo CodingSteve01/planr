@@ -336,6 +336,10 @@ function ProjectsBacklog({ tree, scheduled, members, teams, rootFilter, teamFilt
   const [collapsedRoots, setCollapsedRoots] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('planr_pb_collapsed') || '[]')); } catch { return new Set(); }
   });
+  // Drag-state per row so the indicator line only renders on the row
+  // currently hovered.
+  const [dragId, setDragId] = useState(null);
+  const [drop, setDrop] = useState(null); // {id, position: 'before'|'after'}
   const toggleRoot = (rid) => {
     setCollapsedRoots(prev => {
       const next = new Set(prev);
@@ -437,15 +441,54 @@ function ProjectsBacklog({ tree, scheduled, members, teams, rootFilter, teamFilt
                   const hasConflict = conflicts.length > 0;
                   return (
                     <li key={node.id}
+                      draggable
+                      onDragStart={e => { setDragId(node.id); try { e.dataTransfer.setData('text/plain', node.id); e.dataTransfer.effectAllowed = 'move'; } catch {} }}
+                      onDragEnd={() => { setDragId(null); setDrop(null); }}
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const before = (e.clientY - rect.top) < rect.height / 2;
+                        setDrop({ id: node.id, position: before ? 'before' : 'after' });
+                      }}
+                      onDragLeave={() => setDrop(prev => prev?.id === node.id ? null : prev)}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const sourceId = (() => { try { return e.dataTransfer.getData('text/plain') || dragId; } catch { return dragId; } })();
+                        setDragId(null); setDrop(null);
+                        if (!sourceId || sourceId === node.id) return;
+                        const tgtIdx = ordered.findIndex(x => x.id === node.id);
+                        if (tgtIdx < 0) return;
+                        const above = drop?.id === node.id && drop.position === 'before';
+                        const srcIdx = ordered.findIndex(x => x.id === sourceId);
+                        let newIdx = above ? tgtIdx : tgtIdx + 1;
+                        if (srcIdx >= 0 && srcIdx < newIdx) newIdx -= 1;
+                        onReorderInProject?.(sourceId, newIdx);
+                      }}
                       style={{
+                        position: 'relative',
                         display: 'grid',
                         gridTemplateColumns: '28px 70px 1fr 140px 120px 50px 60px 30px 30px 30px 30px',
                         alignItems: 'center', gap: 6,
                         padding: '5px 8px',
                         borderBottom: '1px solid var(--b)',
                         background: hasConflict ? 'rgba(239,68,68,.06)' : 'transparent',
+                        cursor: 'grab',
+                        opacity: dragId === node.id ? 0.4 : 1,
                         fontSize: 11,
                       }}>
+                      {drop?.id === node.id && (
+                        <div style={{
+                          position: 'absolute',
+                          left: 0, right: 0,
+                          [drop.position === 'before' ? 'top' : 'bottom']: -1,
+                          height: 2,
+                          background: 'var(--ac)',
+                          boxShadow: '0 0 6px var(--ac)',
+                          pointerEvents: 'none',
+                          zIndex: 2,
+                        }} />
+                      )}
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 10 }}>{i + 1}.</span>
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(node.id)}>{node.id}</span>

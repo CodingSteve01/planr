@@ -1232,11 +1232,13 @@ export default function App() {
   // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
   // planStart = scheduling start. New/unstarted tasks begin here.
   const viewStart = meta.viewStart && meta.viewStart < planStart ? meta.viewStart : planStart;
-  // Default planEnd: 10 years out so the scheduler has headroom for long
-  // migrations. Previously +2y, which cut off projects at Dec 2028 on the
-  // user's plan. buildWeeks() lazily walks the range, ~520 weeks at 10y
-  // is fine memory-wise.
-  const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 10, 11, 31));
+  // Headroom horizon for the scheduler — +10 years so even long migrations
+  // fit. After scheduling we trim the resulting `weeks` array back to the
+  // latest scheduled endD + ~2 months so the Gantt / Roadmap don't render
+  // empty decades. Plans with an explicit `End` in the Plan table honour
+  // that exactly.
+  const SCHEDULER_HEADROOM_END = iso(new Date(new Date().getFullYear() + 10, 11, 31));
+  const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
   // Enrich members with effective meetings (team-inherited plans + member
   // plans + individual) so the scheduler's deriveCap() sees the full picture
@@ -1251,7 +1253,24 @@ export default function App() {
       return { ...m, meetings: effective };
     });
   }, [members, data?.meetingPlans, data?.teams]);
-  const { results: scheduled, weeks } = useMemo(() => data ? schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart) : { results: [], weeks: [] }, [tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays]);
+  const { results: scheduled, weeks } = useMemo(() => {
+    if (!data) return { results: [], weeks: [] };
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart);
+    // Trim weeks to the actual horizon when planEnd wasn't user-set:
+    // latest scheduled endD + ~2 months padding. Falls back to a 6-month
+    // window when nothing is scheduled so the Gantt isn't empty.
+    if (meta.planEnd) return out; // explicit user choice — leave alone
+    let latest = null;
+    for (const s of out.results || []) {
+      const endD = s.endD instanceof Date ? s.endD : (s.endD ? new Date(s.endD) : null);
+      if (endD && (!latest || endD > latest)) latest = endD;
+    }
+    const horizonEnd = latest
+      ? new Date(latest.getFullYear(), latest.getMonth() + 2, latest.getDate())
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 6, 1);
+    const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
+    return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };
+  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -2717,6 +2736,7 @@ export default function App() {
         onDeleteNode={onNetDeleteNode} /></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
+        tree={tree}
         teamFilter={teamFilter} personFilter={personFilter}
         onMeetingPlansUpd={onResMeetingPlansUpd}
         onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}
