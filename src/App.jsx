@@ -1453,19 +1453,32 @@ export default function App() {
       for (const lf of leaves) {
         const eff = (lf.best || 0) * (lf.factor || 1.5) || 1;
         total += eff;
-        if (lf.status === 'done') { doneByHorizon += eff; continue; }
-        const s = sById[lf.id];
-        if (!s?.endD) continue;
-        const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
-        const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
-        if (endD <= horizonEnd) { doneByHorizon += eff; continue; }
-        if (startD < horizonEnd) {
-          // Partial credit pro-rated across the bar's duration
-          const dur = +endD - +startD;
-          const elapsed = +horizonEnd - +startD;
-          const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
-          doneByHorizon += eff * frac;
+        // Floor by the leaf's CURRENT progress so the future projection never
+        // regresses below the live train. Without this, a 80%-wip leaf whose
+        // scheduled bar starts after the horizon contributed 0 and dragged
+        // fT below trainT — the planned ghost-train then vanished because
+        // `fT - trainT < 0`.
+        const curFrac = lf.status === 'done' ? 1
+          : (typeof lf.progress === 'number' && lf.progress > 0 ? lf.progress / 100
+            : (lf.status === 'wip' ? 0.5 : 0));
+        let projFrac = curFrac;
+        if (lf.status !== 'done') {
+          const s = sById[lf.id];
+          if (s?.endD) {
+            const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
+            const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
+            if (endD <= horizonEnd) projFrac = 1;
+            else if (startD < horizonEnd) {
+              const dur = +endD - +startD;
+              const elapsed = +horizonEnd - +startD;
+              const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
+              projFrac = Math.max(projFrac, frac);
+            }
+          }
+        } else {
+          projFrac = 1;
         }
+        doneByHorizon += eff * projFrac;
       }
       out[root.id] = total > 0 ? doneByHorizon / total : 0;
     }
