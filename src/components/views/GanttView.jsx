@@ -210,6 +210,35 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     (tree || []).forEach((r, idx) => { m[r.id] = { idx, ord: typeof r.displayOrder === 'number' ? r.displayOrder : null }; });
     return m;
   }, [tree]);
+  // Earliest scheduled startWi per node — primary sort key so siblings cascade
+  // top-to-bottom by time, minimizing edge crossings ("spider web" → top-down flow).
+  // For a parent: min startWi across all leaves in its subtree.
+  const earliestStartByNode = useMemo(() => {
+    const sMap = {};
+    for (const s of (scheduled || [])) {
+      if (typeof s.startWi === 'number' && s.startWi >= 0) {
+        if (sMap[s.id] == null || s.startWi < sMap[s.id]) sMap[s.id] = s.startWi;
+      }
+    }
+    const out = {};
+    for (const r of (tree || [])) {
+      const own = sMap[r.id];
+      if (own != null) out[r.id] = own;
+    }
+    // Propagate min from descendants up to ancestors (id prefix relationship).
+    const ids = (tree || []).map(r => r.id);
+    for (const id of ids) {
+      const own = sMap[id];
+      if (own == null) continue;
+      const parts = id.split('.');
+      while (parts.length > 1) {
+        parts.pop();
+        const p = parts.join('.');
+        if (out[p] == null || own < out[p]) out[p] = own;
+      }
+    }
+    return out;
+  }, [tree, scheduled]);
   const childrenByParent = useMemo(() => {
     const map = {};
     (tree || []).forEach(r => {
@@ -218,12 +247,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       map[pid].push(r.id);
     });
     Object.values(map).forEach(ids => ids.sort((a, b) => {
+      // Primary: earliest scheduled start in subtree (top-down by time).
+      const sa = earliestStartByNode[a];
+      const sb = earliestStartByNode[b];
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+      if (sa != null && sb == null) return -1;
+      if (sa == null && sb != null) return 1;
+      // Secondary: displayOrder (from Reorganize).
       const A = ordMap[a] || { idx: 0, ord: null }, B = ordMap[b] || { idx: 0, ord: null };
       if (A.ord != null && B.ord != null && A.ord !== B.ord) return A.ord - B.ord;
+      // Tertiary: original tree-array index (id-numeric).
       return A.idx - B.idx;
     }));
     return map;
-  }, [tree, ordMap]);
+  }, [tree, ordMap, earliestStartByNode]);
   // treeOrder = flattened depth-first traversal so cross-parent ordering also follows displayOrder.
   const treeOrder = useMemo(() => {
     const out = {};
@@ -1618,7 +1655,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const c2x = tx - dx;
                 return `M${l.x1},${l.y1} L${sx},${l.y1} C${c1x},${l.y1} ${c2x},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
               };
-              return renderedDepLines.map(l => {
+              // Render hovered line LAST so its × badge always sits on top of
+              // overlapping neighbour lines (SVG has no z-index — paint order wins).
+              const orderedLines = hoverLineKey
+                ? [...renderedDepLines.filter(l => l.key !== hoverLineKey), ...renderedDepLines.filter(l => l.key === hoverLineKey)]
+                : renderedDepLines;
+              return orderedLines.map(l => {
                 const path = buildPath(l);
                 const isHovered = hoverLineKey === l.key;
                 const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
@@ -1637,8 +1679,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   setHoverLineKey(null);
                   onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
                 };
-                const midX = (l.x1 + l.x2) / 2;
-                const midY = (l.y1 + l.y2) / 2;
+                // Place × near target arrow (80% along line, then shift left 18px
+                // so it sits just before the arrowhead). Lines fan out toward
+                // distinct targets so badges rarely overlap there, even when
+                // mid-line is congested.
+                const tFrac = 0.82;
+                const midX = Math.max(l.x1 + 12, l.x1 + (l.x2 - l.x1) * tFrac - 14);
+                const midY = l.y1 + (l.y2 - l.y1) * tFrac;
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
                   {/* Wide invisible hover/click target */}
