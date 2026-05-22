@@ -48,11 +48,18 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
       const spaceAbove = r.top;
       // Open upward when there's not enough room below AND there is enough above.
       const openUp = spaceBelow < POPUP_MAX_H + 16 && spaceAbove > spaceBelow;
+      // Popup width expands beyond the trigger when the trigger is narrow
+      // (e.g. inside a side panel). Cap at viewport edge so it doesn't
+      // run off-screen. Min width = max(trigger, 280) so task names stay
+      // readable; max = window.innerWidth - left - 16 margin.
+      const desired = Math.max(r.width, 320);
+      const maxAvail = Math.max(160, window.innerWidth - r.left - 16);
+      const width = Math.min(desired, maxAvail);
       setPopupPos({
         top: r.bottom + 2,
         bottom: window.innerHeight - r.top + 2,
         left: r.left,
-        width: r.width,
+        width,
         openUp,
       });
     };

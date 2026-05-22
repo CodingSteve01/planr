@@ -23,7 +23,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -34,6 +34,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const [f, setF] = useState({ ...node });
   const [focusHint, setFocusHint] = useState(null);
   const [depAddKind, setDepAddKind] = useState('soft');
+  const [succAddKind, setSuccAddKind] = useState('soft');
   const activateTab = (e, action) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -613,18 +614,38 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
       </div>
 
-      {directSuccessors.length > 0 && <div className="field"><label>Nachfolger</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.7 : 1 }}>
+      <div className="field"><label>Nachfolger</label>
+        {directSuccessors.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+          {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.85 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span style={{ fontSize: 8, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
+              <span title={s.soft ? 'Soft' : 'Hard'} style={{ fontSize: 8, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: s.soft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.id}</span>
               {s.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+              {onAddDep && onRemoveDep && <span title={s.soft ? 'Convert to hard' : 'Convert to soft'}
+                style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: s.soft ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                onClick={() => {
+                  onRemoveDep(s.id, node.id);
+                  onAddDep(s.id, node.id, s.soft ? 'hard' : 'soft');
+                }}>{s.soft ? '→H' : '→S'}</span>}
+              {onRemoveDep && <span className="tag-x" title="Remove successor link"
+                style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }}
+                onClick={() => onRemoveDep(s.id, node.id)}>×</span>}
+            </div>
           </div>)}
-        </div>
-        <div className="helper" style={{ fontSize: 9, marginTop: 4 }}>Direkte Nachfolger werden auf der Nachfolger-Karte bearbeitet.</div>
-      </div>}
+        </div>}
+        {onAddDep && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <SearchSelect options={allIds.filter(i => i !== node.id && !directSuccessors.some(s => s.id === i)).map(i => {
+            const entry = tree.find(row => row.id === i);
+            return { id: i, label: entry?.name || '' };
+          })} onSelect={id => onAddDep(id, node.id, succAddKind)} placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} Nachfolger`} showIds />
+          <div style={{ display: 'flex', flexShrink: 0 }}>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('hard')} title="Hard dep">H</button>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('soft')} title="Soft dep">S</button>
+          </div>
+        </div>}
+      </div>
     </>}
 
     <hr className="divider" />

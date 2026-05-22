@@ -2711,6 +2711,8 @@ export default function App() {
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
+              onAddDep={addDep}
+              onRemoveDep={removeDep}
               onSplitHandoff={splitHandoff}
               onSplitTaskAtProgress={splitTaskAtProgress} /></div>
           </>}

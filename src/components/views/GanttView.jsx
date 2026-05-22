@@ -1125,7 +1125,32 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         setDDelta(Math.round(dx / stepPx));
       }
     }
-    if (linkDrag) { setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null); }
+    if (linkDrag) {
+      setLinkDrag(ld => ld ? { ...ld, mouseX: e.clientX, mouseY: e.clientY } : null);
+      // Auto-scroll the Gantt body when cursor approaches the viewport edges
+      // so users can drop links onto bars that live off-screen. Step scales
+      // with how close the cursor is to the edge.
+      const el = bR.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const edge = 80;
+        const maxStep = 28;
+        if (e.clientX < rect.left + edge) {
+          const t = (rect.left + edge - e.clientX) / edge;
+          el.scrollLeft -= Math.ceil(maxStep * Math.min(1, t));
+        } else if (e.clientX > rect.right - edge) {
+          const t = (e.clientX - (rect.right - edge)) / edge;
+          el.scrollLeft += Math.ceil(maxStep * Math.min(1, t));
+        }
+        if (e.clientY < rect.top + edge) {
+          const t = (rect.top + edge - e.clientY) / edge;
+          el.scrollTop -= Math.ceil(maxStep * Math.min(1, t));
+        } else if (e.clientY > rect.bottom - edge) {
+          const t = (e.clientY - (rect.bottom - edge)) / edge;
+          el.scrollTop += Math.ceil(maxStep * Math.min(1, t));
+        }
+      }
+    }
   }
   function onMU() {
     const d = dragRef.current;
@@ -1766,15 +1791,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     visually — round on the outside, flat against the bar edge.
                     Hit area still 22px for forgiving aim. */}
                 {!isSummary && s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
-                  style={{ position: 'absolute', right: -12, top: -4, bottom: -4, width: 24, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', zIndex: 5 }}>
-                  <div style={{
-                    width: 10, height: 16,
-                    background: 'var(--bg)',
-                    border: `1.8px solid ${tc}`,
-                    borderLeft: 'none',
-                    borderRadius: '0 16px 16px 0',
-                    opacity: linkDrag ? 1 : 0.85,
-                  }} />
+                  style={{ position: 'absolute', right: -18, top: 0, bottom: 0, width: 24, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', zIndex: 5 }}>
+                  {/* Outline-only `(` shape: flat side faces the bar, curve
+                      opens rightward. Drawn as SVG path so the bar's bg shows
+                      through and there's no filled rectangle look. */}
+                  <svg width="14" height="20" viewBox="0 0 14 20" style={{ overflow: 'visible' }}>
+                    <path d="M 1 1 A 12 12 0 0 1 1 19"
+                      fill="none"
+                      stroke={tc}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      opacity={linkDrag ? 1 : 0.85} />
+                  </svg>
                 </div>}
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
