@@ -1449,20 +1449,22 @@ export default function App() {
       const leaves = tree
         .filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
         .filter(n => !tree.some(o => o.id !== n.id && o.id.startsWith(n.id + '.')));
+      const today = new Date();
       let total = 0, doneByHorizon = 0;
       for (const lf of leaves) {
         const eff = (lf.best || 0) * (lf.factor || 1.5) || 1;
         total += eff;
         // Floor by the leaf's CURRENT progress so the future projection never
-        // regresses below the live train. Without this, a 80%-wip leaf whose
-        // scheduled bar starts after the horizon contributed 0 and dragged
-        // fT below trainT — the planned ghost-train then vanished because
-        // `fT - trainT < 0`.
+        // regresses below the live train.
         const curFrac = lf.status === 'done' ? 1
           : (typeof lf.progress === 'number' && lf.progress > 0 ? lf.progress / 100
             : (lf.status === 'wip' ? 0.5 : 0));
         let projFrac = curFrac;
-        if (lf.status !== 'done') {
+        if (lf.status === 'done') {
+          projFrac = 1;
+        } else {
+          // Source 1: scheduled bar — partial credit prorated across the bar
+          // duration up to the horizon.
           const s = sById[lf.id];
           if (s?.endD) {
             const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
@@ -1475,8 +1477,25 @@ export default function App() {
               projFrac = Math.max(projFrac, frac);
             }
           }
-        } else {
-          projFrac = 1;
+          // Source 2: WIP + due date — linear interpolation from current
+          // progress toward 100% by `due`. Captures the user's plan: "I know
+          // I'll finish D1.1 by 2026-06-30 because I'm 58% there now". Even
+          // if the scheduler isn't routing the work into the horizon window
+          // (because another assignee's queue is full), the active task's
+          // own trajectory still counts.
+          if (lf.status === 'wip' && lf.due && projFrac < 1) {
+            const dueD = new Date(lf.due);
+            const horizonD = horizonEnd instanceof Date ? horizonEnd : new Date(horizonEnd);
+            if (dueD > today) {
+              if (horizonD >= dueD) projFrac = Math.max(projFrac, 1);
+              else {
+                const span = +dueD - +today;
+                const elapsed = +horizonD - +today;
+                const frac = span > 0 ? Math.min(1, Math.max(0, elapsed / span)) : 0;
+                projFrac = Math.max(projFrac, curFrac + (1 - curFrac) * frac);
+              }
+            }
+          }
         }
         doneByHorizon += eff * projFrac;
       }
