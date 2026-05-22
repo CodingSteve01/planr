@@ -1794,15 +1794,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const buildPathParts = (l) => {
                 const isForward = l.x2 > l.x1 + STUB * 2;
                 if (isForward) {
-                  // L-shape: (x1,y1) → (sx,y1) → (sx,y2) → (x2,y2)
-                  const sx = Math.max(l.x1 + STUB, l.x2 - STUB);
-                  // Snap to .5 for crisp 1px strokes
+                  // L-shape with source-side stub: (x1,y1) → (sx,y1) → (sx,y2) → (x2,y2).
+                  // The vertical drop sits right next to the source so the FIRST knick
+                  // is always reachable next to the bar the link originates from.
+                  const sx = l.x1 + STUB;
                   const sxS = Math.round(sx) + 0.5;
                   return {
                     d: `M${l.x1},${l.y1} L${sxS},${l.y1} L${sxS},${l.y2} L${l.x2 - 1},${l.y2}`,
-                    // Bend point = FIRST corner (source-side knick). User can
-                    // grab it next to the bar the link starts from instead of
-                    // hunting halfway down the rail.
+                    // Bend point = source-side knick.
                     bendX: sxS,
                     bendY: l.y1,
                   };
@@ -1814,9 +1813,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const my = (l.y1 + l.y2) / 2;
                 return {
                   d: `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${my} L${tx},${my} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`,
-                  // Bend point = midpoint of horizontal connector (most reachable).
-                  bendX: (sx + tx) / 2,
-                  bendY: my,
+                  // Bend point = FIRST knick from source side.
+                  bendX: sx,
+                  bendY: l.y1,
                 };
               };
               // Render hovered line LAST so its × badge always sits on top of
