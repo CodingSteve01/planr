@@ -432,6 +432,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       }
     }
     let asgn = (r.assign || []).filter(a => members.find(m => m.id === a));
+    // teamLock: declarative "this task blocks the entire team" — at run
+    // time we resolve to all current members of the task's team and treat
+    // it as multi-assign. Avoids the manual-assign-everyone workaround
+    // and stays correct when team membership changes (onboard / offboard).
+    if (r.teamLock && tM.length > 0) {
+      asgn = tM.map(m => m.id);
+    }
     if (!asgn.length && tM.length === 1) asgn = [tM[0].id];
 
     // ── Team-slot path (unassigned → schedule on earliest-free REAL person) ────
@@ -983,7 +990,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // appearing as the blocker when the real reason this row sits in the future
     // is the assignee's prior queue.
     const depBlockedAsg = !!(depBlockerId && depNextDate && bs === depWi);
-    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, assign: r.assign || [], prio: r.prio, seq: r.seq,
+    res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id,
+      // Emit the resolved `asgn` list (which already includes teamLock fan-
+      // out + explicit assign) so consumers like Queues can mirror the
+      // task into every involved person's lane, not only the picked one.
+      assign: [...asgn], prio: r.prio, seq: r.seq,
       best: r.best, effort: eff, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
       capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),

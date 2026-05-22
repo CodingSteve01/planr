@@ -841,7 +841,7 @@ export default function App() {
       const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '';
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false;
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -857,6 +857,7 @@ export default function App() {
           const pem = t.match(/^plan-end:(\d{4}-\d{2}-\d{2})$/i); if (pem) { plannedEnd = pem[1]; return; }
           const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
           const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
+          const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
@@ -911,6 +912,7 @@ export default function App() {
       if (plannedEnd) item.plannedEnd = plannedEnd;
       if (deadlineRelevant === false) item.deadlineRelevant = false;
       if (due) item.due = due;
+      if (teamLock) item.teamLock = true;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;
@@ -1945,6 +1947,38 @@ export default function App() {
     if (tM.length === 1) return tM[0].id;
     return `team:${r.team || ''}`;
   }
+  // Reorder a leaf within its root subtree by rewriting `seq` across every
+  // sibling leaf. `target` accepts 'first' | 'last' | 'earlier' | 'later'
+  // or a number (drop index). Project-backlog uses this to express the
+  // planner's intended ordering of project work; the scheduler then
+  // honours `seq` modulo dependency constraints.
+  function reorderInProject(taskId, target) {
+    const task = tree.find(r => r.id === taskId);
+    if (!task) return;
+    const rootId = task.id.split('.')[0];
+    const leaves = tree
+      .filter(r => isLeafNode(tree, r.id) && (r.id === rootId || r.id.startsWith(rootId + '.')))
+      .sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
+    const idx = leaves.findIndex(r => r.id === taskId);
+    if (idx < 0 || leaves.length < 2) return;
+    let newIdx = idx;
+    if (target === 'first') newIdx = 0;
+    else if (target === 'last') newIdx = leaves.length - 1;
+    else if (target === 'earlier') newIdx = Math.max(0, idx - 1);
+    else if (target === 'later') newIdx = Math.min(leaves.length - 1, idx + 1);
+    else if (typeof target === 'number') newIdx = Math.max(0, Math.min(leaves.length - 1, target));
+    if (newIdx === idx) return;
+    const reordered = [...leaves];
+    const [picked] = reordered.splice(idx, 1);
+    reordered.splice(newIdx, 0, picked);
+    // Re-number seq in 10-step buckets so insertions later remain easy.
+    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
+    setData(d => ({
+      ...d,
+      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r),
+    }));
+    setSaved(false);
+  }
   function reorderInQueue(taskId, target, stepsArg) {
     const task = tree.find(r => r.id === taskId);
     if (!task || !isLeafNode(tree, task.id)) return;
@@ -2655,7 +2689,8 @@ export default function App() {
         diffChangedIds={diffFilterSet}
         sinceDate={sinceDate}
         onOpenItem={onSumOpenItem}
-        onReorderInQueue={reorderInQueue} /></div>}
+        onReorderInQueue={reorderInQueue}
+        onReorderInProject={reorderInProject} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}

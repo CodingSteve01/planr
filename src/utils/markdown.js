@@ -126,6 +126,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (r.plannedEnd) tags.push(`plan-end:${r.plannedEnd}`);
     if (r.deadlineRelevant === false) tags.push('deadline:false');
     if (r.due) tags.push(`due:${r.due}`);
+    if (r.teamLock) tags.push('team-lock:true');
     // Custom field values inline: {jira:PROJ-123, customer:Acme}
     const cvEntries = r.customValues ? Object.entries(r.customValues).filter(([, v]) => v != null && v !== '') : [];
     if (cvEntries.length) tags.push(...cvEntries.map(([k, v]) => `cv.${k}:${String(v).replace(/[,}]/g, ' ')}`));

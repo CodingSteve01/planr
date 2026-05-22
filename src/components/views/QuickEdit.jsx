@@ -495,6 +495,9 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
           <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked })} /><span className="slider" /></label>
           {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
+          <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0, marginLeft: 12 }} data-htip={t('qe.teamLockTip')}>{t('qe.teamLock')}</label>
+          <label className="toggle"><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
+          {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)' }}>⚞⚟</span>}
           {onReorderInQueue && !f.parallel && <>
             <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('qe.queue')}</span>
             <div style={{ display: 'flex', gap: 2 }}>

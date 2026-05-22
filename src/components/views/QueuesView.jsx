@@ -15,7 +15,7 @@ import { useMemo, memo, useState } from 'react';
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 
-function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', rootFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, sinceDate = null, onOpenItem, onReorderInQueue }) {
+function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', personFilter = '', rootFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, sinceDate = null, onOpenItem, onReorderInQueue, onReorderInProject }) {
   const { t } = useT();
   const [hoverId, setHoverId] = useState(null);
   // {id, position}: drop indicator. position = 'before' or 'after' relative
@@ -26,6 +26,14 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
   // the duplicated local picker is gone. Offboarded toggle stays as an
   // operational filter — different concern from "narrow to one person".
   const [showOffboarded, setShowOffboarded] = useState(false);
+  // Mode: 'persons' (one queue per assigned person, the original view) or
+  // 'projects' (one backlog per top-level root, sortable by `seq`, with
+  // dep-conflict markers). Persisted so the user keeps their preferred
+  // lens across reloads.
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem('planr_queues_mode') || 'persons'; } catch { return 'persons'; }
+  });
+  const setModePersisted = (v) => { setMode(v); try { localStorage.setItem('planr_queues_mode', v); } catch {} };
 
   const treeById = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
   const teamById = useMemo(() => Object.fromEntries((teams || []).map(tm => [tm.id, tm])), [teams]);
@@ -63,13 +71,29 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
       if (rootFilter && !(node.id === rootFilter || node.id.startsWith(rootFilter + '.'))) return;
       if (horizonSet && !horizonSet.has(node.id)) return;
       if (diffSet && !diffSet.has(node.id)) return;
-      // Prefer scheduler's chosen person, fall back to first explicit assign,
-      // then to a team-slot key.
-      let key;
-      if (s.personId) key = 'p:' + s.personId;
-      else if ((node.assign || []).length) key = 'p:' + node.assign[0];
-      else key = 't:' + (node.team || '');
-      (map[key] ||= []).push({ s, node });
+      // Determine the primary lane (scheduler's chosen person) plus every
+      // additional lane the task should mirror into. Multi-assign and
+      // teamLock tasks need to show up in every involved person's queue,
+      // not just the picked-one — otherwise people miss work assigned to
+      // them. The primary lane keeps the full task with drag-reorder; the
+      // mirrors render as read-only `_mirror` entries with a shared icon.
+      const allAssignees = Array.isArray(s.assign) && s.assign.length
+        ? s.assign
+        : (Array.isArray(node.assign) ? node.assign : []);
+      const primaryId = s.personId || allAssignees[0] || null;
+      if (primaryId) {
+        (map['p:' + primaryId] ||= []).push({ s, node, _primaryId: primaryId });
+      } else {
+        (map['t:' + (node.team || '')] ||= []).push({ s, node, _primaryId: null });
+      }
+      // Mirrors — same task in every other assignee's queue, flagged so
+      // the UI can mute them and skip drag affordance.
+      if (primaryId && allAssignees.length > 1) {
+        for (const aid of allAssignees) {
+          if (aid === primaryId) continue;
+          (map['p:' + aid] ||= []).push({ s, node, _mirror: true, _primaryId: primaryId });
+        }
+      }
     });
     Object.values(map).forEach(arr => arr.sort((a, b) => {
       const sa = a.s, sb = b.s;
@@ -149,13 +173,17 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <p className="helper" style={{ marginBottom: 10 }}>{t('q.intro')}</p>
 
-      {/* No local person/team picker any more — those filters live in the
-          sub-toolbar so the same chip drives every view. Only the
-          offboarded-include toggle stays, since it's a Queues-specific
-          operational concern (operationally finished members shouldn't
-          clutter the run-down by default). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        {offboardedCount > 0 && (
+        {/* Mode toggle: per-person queues vs per-project backlogs. */}
+        <div style={{ display: 'inline-flex', gap: 2 }}>
+          <button className={`btn btn-xs ${mode === 'persons' ? 'btn-pri' : 'btn-sec'}`}
+            style={{ padding: '3px 9px', fontSize: 11 }}
+            onClick={() => setModePersisted('persons')}>{t('q.modePersons')}</button>
+          <button className={`btn btn-xs ${mode === 'projects' ? 'btn-pri' : 'btn-sec'}`}
+            style={{ padding: '3px 9px', fontSize: 11 }}
+            onClick={() => setModePersisted('projects')}>{t('q.modeProjects')}</button>
+        </div>
+        {offboardedCount > 0 && mode === 'persons' && (
           <label className="toggle-mini" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
             data-htip={t('q.includeOffboardedTip')}>
             <input type="checkbox" checked={showOffboarded} onChange={e => setShowOffboarded(e.target.checked)} />
@@ -167,13 +195,29 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
         </span>
       </div>
 
-      {visibleQueues.length === 0 && (
+      {mode === 'persons' && visibleQueues.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)', fontSize: 12 }}>
           {t('q.empty')}
         </div>
       )}
 
-      {visibleQueues.map(q => {
+      {mode === 'projects' && <ProjectsBacklog
+        tree={tree}
+        scheduled={scheduled}
+        members={members}
+        teams={teams}
+        rootFilter={rootFilter}
+        teamFilter={teamFilter}
+        personFilter={personFilter}
+        horizonIds={horizonIds}
+        diffChangedIds={diffChangedIds}
+        onOpenItem={onOpenItem}
+        onReorderInProject={onReorderInProject}
+        t={t}
+        memberById={memberById}
+      />}
+
+      {mode === 'persons' && visibleQueues.map(q => {
         const color = q.member ? (teamById[q.member.team]?.color || 'var(--ac)') : (q.team?.color || 'var(--tx3)');
         const isOff = q.member?.end && q.member.end < todayIso;
         return (
@@ -187,17 +231,22 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
               <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 8px' }}>{t('q.queueEmpty')}</div>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                {q.tasks.map(({ s, node }, i) => {
+                {q.tasks.map(({ s, node, _mirror, _primaryId }, i) => {
                   const isAuto = s.autoAssigned && !(node.assign || []).length;
                   const dueRed = s.dueOverdue || (node.due && node.due < todayIso && node.status !== 'done');
+                  // Mirror rows belong to a multi-assign / team-lock task and
+                  // are owned by another queue. Show them muted, with the
+                  // primary-assignee name, and disable drag-reorder so all
+                  // ordering changes happen in the owning lane.
+                  const primaryName = _mirror ? (memberById[_primaryId]?.name || _primaryId) : '';
                   return (
-                    <li key={node.id}
-                      draggable
-                      onDragStart={e => onDragStart(e, node.id)}
+                    <li key={node.id + (_mirror ? ':m' : '')}
+                      draggable={!_mirror}
+                      onDragStart={e => !_mirror && onDragStart(e, node.id)}
                       onDragEnd={onDragEnd}
-                      onDragOver={e => onDragOver(e, node.id)}
+                      onDragOver={e => !_mirror && onDragOver(e, node.id)}
                       onDragLeave={() => setDrop(prev => prev?.id === node.id ? null : prev)}
-                      onDrop={e => onDrop(e, node.id, q.tasks)}
+                      onDrop={e => !_mirror && onDrop(e, node.id, q.tasks)}
                       onMouseEnter={() => setHoverId(node.id)}
                       onMouseLeave={() => setHoverId(prev => (prev === node.id ? null : prev))}
                       style={{
@@ -208,13 +257,11 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
                         padding: '5px 8px',
                         borderBottom: '1px solid var(--b)',
                         background: hoverId === node.id ? 'var(--bg2)' : 'transparent',
-                        cursor: 'grab',
-                        opacity: dragId === node.id ? 0.4 : 1,
+                        cursor: _mirror ? 'pointer' : 'grab',
+                        opacity: dragId === node.id ? 0.4 : (_mirror ? 0.65 : 1),
                         fontSize: 11,
                       }}>
-                      {/* Drop indicator: 2px accent line above or below this
-                          row depending on the cursor's vertical position. */}
-                      {drop?.id === node.id && (
+                      {drop?.id === node.id && !_mirror && (
                         <div style={{
                           position: 'absolute',
                           left: 0, right: 0,
@@ -226,13 +273,15 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
                           zIndex: 2,
                         }} />
                       )}
-                      <span style={{ color: 'var(--tx3)', cursor: 'grab', userSelect: 'none' }} data-htip={t('q.dragTip')}>≡</span>
+                      <span style={{ color: 'var(--tx3)', cursor: _mirror ? 'help' : 'grab', userSelect: 'none' }}
+                        data-htip={_mirror ? t('q.mirrorTip', primaryName) : t('q.dragTip')}>{_mirror ? '⇋' : '≡'}</span>
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(node.id)}>{node.id}</span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(node.id)}>
                         {node.name}
                         {isAuto && <span style={{ marginLeft: 6, fontSize: 8, color: 'var(--am)', fontWeight: 600 }}>AUTO</span>}
+                        {_mirror && <span style={{ marginLeft: 6, fontSize: 8, color: 'var(--tx3)', fontWeight: 600 }} data-htip={t('q.mirrorTip', primaryName)}>↳ {primaryName}</span>}
                       </span>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
                         {s.startD ? `${fmtDate(s.startD)} → ${fmtDate(s.endD)}` : '—'}
@@ -245,24 +294,24 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
                       </span>
                       <button className="btn btn-ghost btn-xs"
                         data-htip={t('q.first')}
-                        disabled={i === 0}
-                        onClick={() => onReorderInQueue?.(node.id, 'first')}
-                        style={{ padding: '0 4px', fontSize: 11, opacity: i === 0 ? 0.3 : 1 }}>⤒</button>
+                        disabled={i === 0 || _mirror}
+                        onClick={() => !_mirror && onReorderInQueue?.(node.id, 'first')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: (i === 0 || _mirror) ? 0.3 : 1 }}>⤒</button>
                       <button className="btn btn-ghost btn-xs"
                         data-htip={t('q.earlier')}
-                        disabled={i === 0}
-                        onClick={() => onReorderInQueue?.(node.id, 'earlier')}
-                        style={{ padding: '0 4px', fontSize: 11, opacity: i === 0 ? 0.3 : 1 }}>▲</button>
+                        disabled={i === 0 || _mirror}
+                        onClick={() => !_mirror && onReorderInQueue?.(node.id, 'earlier')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: (i === 0 || _mirror) ? 0.3 : 1 }}>▲</button>
                       <button className="btn btn-ghost btn-xs"
                         data-htip={t('q.later')}
-                        disabled={i === q.tasks.length - 1}
-                        onClick={() => onReorderInQueue?.(node.id, 'later')}
-                        style={{ padding: '0 4px', fontSize: 11, opacity: i === q.tasks.length - 1 ? 0.3 : 1 }}>▼</button>
+                        disabled={i === q.tasks.length - 1 || _mirror}
+                        onClick={() => !_mirror && onReorderInQueue?.(node.id, 'later')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: (i === q.tasks.length - 1 || _mirror) ? 0.3 : 1 }}>▼</button>
                       <button className="btn btn-ghost btn-xs"
                         data-htip={t('q.last')}
-                        disabled={i === q.tasks.length - 1}
-                        onClick={() => onReorderInQueue?.(node.id, 'last')}
-                        style={{ padding: '0 4px', fontSize: 11, opacity: i === q.tasks.length - 1 ? 0.3 : 1 }}>⤓</button>
+                        disabled={i === q.tasks.length - 1 || _mirror}
+                        onClick={() => !_mirror && onReorderInQueue?.(node.id, 'last')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: (i === q.tasks.length - 1 || _mirror) ? 0.3 : 1 }}>⤓</button>
                     </li>
                   );
                 })}
@@ -272,6 +321,174 @@ function QueuesViewImpl({ tree, members, teams, scheduled, teamFilter = '', pers
         );
       })}
     </div>
+  );
+}
+
+// ─── ProjectsBacklog ─────────────────────────────────────────────────────────
+// One backlog per top-level root. Each backlog lists all leaves in the
+// root subtree sorted by the planner's intended `seq`. Buttons reorder
+// (App.jsx renumbers seq). Dep-conflict markers highlight rows whose
+// declared deps land later in the manual sequence than themselves — a
+// strong signal that the planner's preferred order won't survive the
+// scheduler. The scheduler's effective order (post-dep resolution) is
+// shown as a faint "#N" column so user sees Soll vs Ist at a glance.
+function ProjectsBacklog({ tree, scheduled, members, teams, rootFilter, teamFilter, personFilter, horizonIds, diffChangedIds, onOpenItem, onReorderInProject, t, memberById }) {
+  const [collapsedRoots, setCollapsedRoots] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('planr_pb_collapsed') || '[]')); } catch { return new Set(); }
+  });
+  const toggleRoot = (rid) => {
+    setCollapsedRoots(prev => {
+      const next = new Set(prev);
+      if (next.has(rid)) next.delete(rid); else next.add(rid);
+      try { localStorage.setItem('planr_pb_collapsed', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  const roots = useMemo(() => tree.filter(r => !r.id.includes('.')), [tree]);
+  const isLeaf = (id) => !tree.some(o => o.id !== id && o.id.startsWith(id + '.'));
+  const teamColor = (id) => teams.find(tm => tm.id === id)?.color || 'var(--tx3)';
+
+  // Build scheduler-effective order: sort scheduled by startD, then by id.
+  // Map taskId → rank for soft "scheduler position" rendering next to the
+  // planner's intended position.
+  const schedRank = useMemo(() => {
+    const sorted = [...(scheduled || [])]
+      .filter(s => s.startD)
+      .sort((a, b) => +new Date(a.startD) - +new Date(b.startD) || a.id.localeCompare(b.id));
+    const m = new Map();
+    sorted.forEach((s, i) => m.set(s.treeId || s.id, i + 1));
+    return m;
+  }, [scheduled]);
+
+  const horizonSet = horizonIds instanceof Set ? horizonIds
+    : Array.isArray(horizonIds) ? new Set(horizonIds) : null;
+  const diffSet = diffChangedIds instanceof Set ? diffChangedIds
+    : Array.isArray(diffChangedIds) ? new Set(diffChangedIds) : null;
+
+  // Pick which roots show: explicit root-filter pin, otherwise all that
+  // contain at least one leaf passing the team/person/horizon/diff filter.
+  const visibleRoots = useMemo(() => {
+    return roots.filter(root => {
+      if (rootFilter && rootFilter !== root.id && !rootFilter.startsWith(root.id + '.')) return false;
+      const leaves = tree.filter(r => isLeaf(r.id) && (r.id === root.id || r.id.startsWith(root.id + '.')));
+      const matching = leaves.filter(r => {
+        if (teamFilter && (r.team || '') !== teamFilter) return false;
+        if (personFilter && !(r.assign || []).includes(personFilter)) return false;
+        if (horizonSet && !horizonSet.has(r.id)) return false;
+        if (diffSet && !diffSet.has(r.id)) return false;
+        return true;
+      });
+      return matching.length > 0;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roots, tree, rootFilter, teamFilter, personFilter, horizonIds, diffChangedIds]);
+
+  if (!visibleRoots.length) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)', fontSize: 12 }}>
+        {t('q.projectsEmpty')}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {visibleRoots.map(root => {
+        const collapsed = collapsedRoots.has(root.id);
+        const allLeaves = tree
+          .filter(r => isLeaf(r.id) && (r.id === root.id || r.id.startsWith(root.id + '.')))
+          .filter(r => {
+            if (teamFilter && (r.team || '') !== teamFilter) return false;
+            if (personFilter && !(r.assign || []).includes(personFilter)) return false;
+            if (horizonSet && !horizonSet.has(r.id)) return false;
+            if (diffSet && !diffSet.has(r.id)) return false;
+            return true;
+          });
+        // Sort by planner intent: prio → seq → id.
+        const ordered = [...allLeaves].sort((a, b) =>
+          (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
+        // Map id → manual index for dep-conflict detection.
+        const idxOf = new Map(ordered.map((r, i) => [r.id, i]));
+        const rootColor = teamColor(root.team);
+        const rootDone = allLeaves.filter(r => r.status === 'done').length;
+        const rootTotal = allLeaves.length;
+        return (
+          <div key={root.id} style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${rootColor}` }}>
+              <button className="btn btn-ghost btn-xs" onClick={() => toggleRoot(root.id)} style={{ padding: '0 4px', fontSize: 11 }}>{collapsed ? '▶' : '▼'}</button>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: rootColor, fontSize: 12 }}>{root.id}</span>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{root.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{rootDone}/{rootTotal}</span>
+            </div>
+            {!collapsed && (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {ordered.map((node, i) => {
+                  const sch = (scheduled || []).find(s => (s.treeId || s.id) === node.id);
+                  const assignee = sch?.person || (node.assign || []).map(id => memberById[id]?.name || id).join(', ');
+                  const schDate = sch?.startD;
+                  const schPos = schedRank.get(node.id);
+                  // Dep-conflict: any dep that lands at a HIGHER index than
+                  // this row → dep is queued AFTER, scheduler will swap.
+                  const conflicts = (node.deps || []).filter(d => {
+                    const di = idxOf.get(d);
+                    return typeof di === 'number' && di > i;
+                  });
+                  const hasConflict = conflicts.length > 0;
+                  return (
+                    <li key={node.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '28px 70px 1fr 140px 120px 50px 60px 30px 30px 30px 30px',
+                        alignItems: 'center', gap: 6,
+                        padding: '5px 8px',
+                        borderBottom: '1px solid var(--b)',
+                        background: hasConflict ? 'rgba(239,68,68,.06)' : 'transparent',
+                        fontSize: 11,
+                      }}>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 10 }}>{i + 1}.</span>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                        onClick={() => onOpenItem?.(node.id)}>{node.id}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer',
+                        textDecoration: node.status === 'done' ? 'line-through' : 'none',
+                        opacity: node.status === 'done' ? 0.6 : 1 }}
+                        onClick={() => onOpenItem?.(node.id)}>
+                        {node.name}
+                        {hasConflict && <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--re)', fontWeight: 700 }}
+                          data-htip={t('q.depConflictTip', conflicts.join(', '))}>⚠ {t('q.depConflict')}</span>}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assignee || '—'}</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+                        {schDate ? (schDate instanceof Date ? schDate.toISOString().slice(0,10) : String(schDate).slice(0,10)) : '—'}
+                      </span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>
+                        {node.best ? `${node.best}d` : '—'}
+                      </span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: schPos && schPos !== i + 1 ? 'var(--am)' : 'var(--tx3)' }}
+                        data-htip={schPos ? t('q.schedPosTip', schPos) : ''}>
+                        {schPos ? `#${schPos}` : ''}
+                      </span>
+                      <button className="btn btn-ghost btn-xs" data-htip={t('q.first')} disabled={i === 0}
+                        onClick={() => onReorderInProject?.(node.id, 'first')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: i === 0 ? 0.3 : 1 }}>⤒</button>
+                      <button className="btn btn-ghost btn-xs" data-htip={t('q.earlier')} disabled={i === 0}
+                        onClick={() => onReorderInProject?.(node.id, 'earlier')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: i === 0 ? 0.3 : 1 }}>▲</button>
+                      <button className="btn btn-ghost btn-xs" data-htip={t('q.later')} disabled={i === ordered.length - 1}
+                        onClick={() => onReorderInProject?.(node.id, 'later')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: i === ordered.length - 1 ? 0.3 : 1 }}>▼</button>
+                      <button className="btn btn-ghost btn-xs" data-htip={t('q.last')} disabled={i === ordered.length - 1}
+                        onClick={() => onReorderInProject?.(node.id, 'last')}
+                        style={{ padding: '0 4px', fontSize: 11, opacity: i === ordered.length - 1 ? 0.3 : 1 }}>⤓</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

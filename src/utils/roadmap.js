@@ -683,47 +683,60 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   const assignedLines = baseAssigned;
 
   // ── Station placement on routes ───────────────────────────────────────────
-  // Metro maps are SCHEMATIC: stations are evenly spaced, not time-proportional.
-  // Done stations come first (the train has "passed" them), then open ones ahead.
-  // This prevents the visual lie of showing open stations behind the train.
+  // Time-proportional spacing: each station's t is its endDate position
+  // within the project's [earliestDate, latestDate] window. Stations
+  // landing on the same week pile up; stations months apart visibly drift
+  // apart. Done stations naturally end up behind the live train because
+  // their endDate already passed. Anchor the train at the effort-weighted
+  // progress (`line.progress`) — the two metrics don't have to agree, and
+  // when they don't, the visible gap is itself the story.
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
-    // Sort: done first (by endDate), then not-done (by endDate).
-    // endDate = when the milestone is actually reached. A station only counts as
-    // "passed" when its last task ends, not when it starts.
     const byEnd = (a, b) => (+a.endDate || Infinity) - (+b.endDate || Infinity)
       || a.id.localeCompare(b.id, undefined, { numeric: true });
-    const allStations = [...line.majorStations, ...line.minorStations];
-    const doneStations = allStations.filter(s => s.allDone).sort(byEnd);
-    const openStations = allStations.filter(s => !s.allDone).sort(byEnd);
+    const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
 
-    // Train position = effort-weighted project progress. This is THE truth indicator.
+    // Project span: earliest and latest endDate across stations (with
+    // sensible fallback when only one or none have dates).
+    const dates = allStations.map(s => +s.endDate).filter(Number.isFinite);
+    const firstD = dates.length ? Math.min(...dates) : null;
+    const lastD = dates.length ? Math.max(...dates) : null;
+    const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
+
     const trainT = clamp(line.progress, 0.02, 0.96);
+    // Margins so the first/last station don't sit on the badges at the
+    // route ends.
+    const T_LO = 0.04, T_HI = 0.96;
 
-    // Distribute stations so done ones are always in [0.03, trainT] and open ones
-    // always in [trainT, 0.97]. That way, everything "behind" the train is truly done
-    // and everything "ahead" is not yet fully reached.
-    const doneRange = [0.03, Math.max(trainT - 0.01, 0.03)];
-    const openRange = [Math.min(trainT + 0.01, 0.97), 0.97];
-
-    const distribute = (stations, [lo, hi]) => {
-      const n = stations.length;
-      if (!n) return [];
-      if (n === 1) return [{ station: stations[0], t: (lo + hi) / 2 }];
-      return stations.map((station, i) => ({
-        station,
-        t: lo + ((hi - lo) * (i + 1)) / (n + 1),
-      }));
-    };
-
-    const positioned = [
-      ...distribute(doneStations, doneRange),
-      ...distribute(openStations, openRange),
-    ].map(({ station, t }) => {
+    const positioned = allStations.map((station, idx) => {
+      let t;
+      if (span > 0 && Number.isFinite(+station.endDate)) {
+        const frac = (+station.endDate - firstD) / span;
+        t = T_LO + frac * (T_HI - T_LO);
+      } else {
+        // Fallback when there is no usable date span — fall back to even
+        // spacing so nothing collapses to a single point.
+        const n = allStations.length;
+        t = T_LO + ((idx + 1) / (n + 1)) * (T_HI - T_LO);
+      }
       const pt = pointAtFraction(route, t);
       return { ...station, t, x: pt.x, y: pt.y };
     });
+
+    // Anti-collision pass for stations whose endDate falls in the same
+    // week — without this they'd render exactly on top of each other.
+    // Walk in t-order and bump each station forward if it would land
+    // closer than MIN_T to its predecessor.
+    const MIN_T = 0.035;
+    positioned.sort((a, b) => a.t - b.t);
+    for (let i = 1; i < positioned.length; i++) {
+      if (positioned[i].t - positioned[i - 1].t < MIN_T) {
+        const bumped = Math.min(T_HI, positioned[i - 1].t + MIN_T);
+        const pt = pointAtFraction(route, bumped);
+        positioned[i] = { ...positioned[i], t: bumped, x: pt.x, y: pt.y };
+      }
+    }
 
     const majors = positioned.filter(s => s.kind === 'major');
     const minors = positioned.filter(s => s.kind === 'minor');
