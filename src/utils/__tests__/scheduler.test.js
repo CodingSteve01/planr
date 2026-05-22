@@ -218,6 +218,37 @@ describe('schedule(): pinned starts', () => {
 // by the absence of dep edges between tasks (per-person capacity still
 // queues, but tasks on different people / no shared deps run concurrently).
 
+describe('schedule(): no-dep starters bypass the per-person queue', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('two unrelated no-dep tasks on same person both start at planStart', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.1');
+    const b = results.find(s => s.id === 'P1.2');
+    // Both start same day (planStart). User intent: no-dep tasks fire
+    // immediately; person overbook is surfaced by the cap visualisation.
+    expect(a.startD.getTime()).toBe(b.startD.getTime());
+  });
+
+  test('successor still waits for predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Succ', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const pred = results.find(s => s.id === 'P1.1');
+    const succ = results.find(s => s.id === 'P1.2');
+    // Successor uses normal queue mechanics — it still waits for pred.endD.
+    expect(succ.startD >= pred.endD).toBe(true);
+  });
+});
+
 describe('schedule(): fan-out auto-parallel (shared capacity)', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
@@ -295,20 +326,25 @@ describe('schedule(): multi-assign (pair programming)', () => {
   const m1 = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
   const m2 = { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
-  test('both members are booked on the task window', () => {
+  test('multi-assign pair task with dep-blocked follow-ups: sequential', () => {
+    // No-dep tasks now bypass the per-person queue (user intent: start
+    // immediately at planStart / pin / today, overbook visualised
+    // separately). To still exercise the multi-assign-blocks-both
+    // mechanic, give the follow-ups an explicit dep on the pair task.
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'Pair', team: 'T1', best: 5, factor: 1,
         assign: ['M1', 'M2'], status: 'open' },
-      { id: 'P1.2', name: 'Other-A', team: 'T1', best: 3, factor: 1, assign: ['M1'], status: 'open' },
-      { id: 'P1.3', name: 'Other-B', team: 'T1', best: 3, factor: 1, assign: ['M2'], status: 'open' },
+      { id: 'P1.2', name: 'Other-A', team: 'T1', best: 3, factor: 1,
+        assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'Other-B', team: 'T1', best: 3, factor: 1,
+        assign: ['M2'], deps: ['P1.1'], status: 'open' },
     ];
     const { results } = runSchedule({ tree, members: [m1, m2] });
     const pair = results.find(s => s.id === 'P1.1');
     const a = results.find(s => s.id === 'P1.2');
     const b = results.find(s => s.id === 'P1.3');
-    // Both follow-up tasks start at or after the pair task's end — the pair
-    // blocked both members.
+    // Follow-ups now wait for the pair via explicit dep.
     expect(a.startD >= pair.endD).toBe(true);
     expect(b.startD >= pair.endD).toBe(true);
   });

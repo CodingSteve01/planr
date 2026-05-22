@@ -413,6 +413,11 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         ...ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]),
       ])];
       const depLeaves = [...new Set(depSrc.flatMap(d => resolveToLeafIds(tree, d)).filter(d => d !== r.id))].sort();
+      // Tasks with NO real predecessor are handled by the no-dep bypass
+      // (start at planStart / pin / today, person counter ignored). Don't
+      // batch them — the batch would re-introduce a sum-of-efforts calendar
+      // span which contradicts "starts immediately" intent.
+      if (depLeaves.length === 0) continue;
       const pin = r.pinnedStart || '';
       const key = `${assigns[0]}|${pin}|${depLeaves.join(',')}`;
       if (!buckets.has(key)) buckets.set(key, []);
@@ -477,6 +482,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const inheritedDeps = ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]);
     const allDepsRaw = [...new Set([...(r.deps || []), ...(r.softDeps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
+    // A task with NO effective predecessors and no pin is a "root starter":
+    // by user intent it should begin immediately (planStart / today) rather
+    // than wait at the back of the assignee's queue. The per-person counter
+    // (`pF`) is bypassed for these tasks below; it still ADVANCES so down-
+    // stream successors (deps on this task) see the proper finish position.
+    // Use this to overlay person utilisation honestly: many no-dep tasks on
+    // one person → bars overlap → cap-warning surfaces the overbook.
+    const noDeps = allD.length === 0;
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).
@@ -527,11 +540,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (mEnd && mEnd < (earlyDate || planStartDate)) continue; // already offboarded
           const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
           const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-          let fw = Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
+          let fw = noDeps
+            ? Math.max(early, ji >= 0 ? ji : 0)
+            : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
           let fd = mStart;
           if (earlyDate && earlyDate > fd) fd = earlyDate;
-          if (personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
-          if (parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
+          if (!noDeps && personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
+          if (!noDeps && parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
           // Virtual fd floor from committed-but-not-yet-scheduled assigned work.
           // Without this, an unassigned task picks a body whose explicit-assign
           // queue hasn't run yet but is heavy — landing speculative work on a
@@ -559,13 +574,22 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // busy until close to the dep so the freer body stays available
           // for later no-dep work (forward-pass can't otherwise gap-fill).
           const candPF = personFree.nextDate || mStart;
+          // Tiebreak direction depends on whether the task has deps:
+          //   - dep-blocked → pick BUSIER (highest candPF) so the dep-end
+          //     lands on someone whose pre-dep slot was already consumed,
+          //     leaving freer bodies for later no-dep work.
+          //   - no-dep      → pick FREER (lowest candPF) for load balance;
+          //     no-deps bypass the queue and would otherwise stack on a
+          //     single overbooked person.
+          const preferBusier = !noDeps;
           const better = !bp
             ? true
             : (fw < bs)
               ? true
               : (fw === bs && fd && bDate && fd < bDate)
                 ? true
-                : (fw === bs && fd && bDate && +fd === +bDate && bestPF && candPF > bestPF)
+                : (fw === bs && fd && bDate && +fd === +bDate && bestPF
+                    && (preferBusier ? candPF > bestPF : candPF < bestPF))
                   ? true
                   : false;
           if (better) { bs = fw; bp = m; bDate = fd; bestPF = candPF; }
@@ -842,7 +866,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
       const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
       const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-      const fw = (r.pinnedStart)
+      const fw = (r.pinnedStart || noDeps)
         ? Math.max(early, ji >= 0 ? ji : 0)
         : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
       if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
@@ -861,7 +885,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     for (const m of cands) {
       const ms = localDate(m.start || ps);
       if (!skipBefore || ms > skipBefore) skipBefore = ms;
-      if (!(r.pinnedStart)) {
+      if (!(r.pinnedStart) && !noDeps) {
         const pf = pF[m.id]?.nextDate;
         const pe = pPE[m.id]?.nextDate;
         if (pf && pf > skipBefore) skipBefore = pf;
