@@ -16,7 +16,7 @@ import { aggregateSollIst } from '../../utils/sollIst.js';
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
   const lvs = leafNodes(tree);
@@ -128,7 +128,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
       horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
       futureProgressByRootId={futureProgressByRootId}
-      workDays={workDays} holidayIso={holidayIso} />
+      workDays={workDays} holidayIso={holidayIso}
+      roadmapAssignment={roadmapAssignment} onAssignmentChange={onAssignmentChange} />
 
     {/* Planning confidence */}
     {(() => {
@@ -301,7 +302,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -440,7 +441,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
       {view === 'map'
         ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff}
             horizonIds={horizonIds} horizonEnd={horizonEnd}
-            futureProgressByRootId={futureProgressByRootId} />
+            futureProgressByRootId={futureProgressByRootId}
+            assignment={roadmapAssignment}
+            onAssignmentChange={onAssignmentChange} />
         : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />
       }

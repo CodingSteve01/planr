@@ -180,5 +180,21 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     md += '\n```\n';
   }
 
+  // Persistent Roadmap (Subway-Map) layout — saves the {rootId → route,
+  // colour} assignment so projects keep their visual identity across
+  // data edits. Format mirrors the history block for consistency.
+  if (data?.roadmapAssignment && typeof data.roadmapAssignment === 'object') {
+    const entries = Object.entries(data.roadmapAssignment)
+      .filter(([, v]) => v && Number.isFinite(v.routeIdx) && Number.isFinite(v.colorIdx));
+    if (entries.length) {
+      md += `\n## Roadmap\n\n<!-- Auto-generated. Locks Subway-Map line colours + lanes so they stay stable. -->\n\n`;
+      md += '```planr-roadmap\nv1\n';
+      entries.forEach(([rootId, v]) => {
+        md += `${rootId} route=${v.routeIdx} color=${v.colorIdx}\n`;
+      });
+      md += '```\n';
+    }
+  }
+
   return md;
 }

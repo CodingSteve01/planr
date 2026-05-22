@@ -573,6 +573,9 @@ export default function App() {
     let lastItem = null;
     // History fenced-block accumulator: lines between ```planr-history and ```
     let historyBlockLines = null;
+    // Roadmap-assignment fenced-block accumulator: lines between
+    // ```planr-roadmap and ``` (see `## Roadmap` section).
+    let roadmapBlockLines = null;
 
     lines.forEach(line => {
       // Heading switches section
@@ -591,6 +594,7 @@ export default function App() {
         else if (lower === 'meeting plans') { section = 'meetingplans'; currentMeetingPlan = null; }
         else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
         else if (lower === 'history') { section = 'history'; historyBlockLines = null; }
+        else if (lower === 'roadmap') { section = 'roadmap'; roadmapBlockLines = null; }
         else if (section === 'meetingplans' && hm[0].startsWith('###')) {
           currentMeetingPlan = { id: 'mp_' + Date.now() + parsedMeetingPlans.length, name: h, meetings: [] };
           parsedMeetingPlans.push(currentMeetingPlan);
@@ -615,6 +619,17 @@ export default function App() {
         if (fenceClose && historyBlockLines != null) { /* end of block; keep array as-is */ historyBlockLines.push(null); return; }
         if (historyBlockLines != null && historyBlockLines[historyBlockLines.length - 1] !== null) {
           historyBlockLines.push(line);
+        }
+        return;
+      }
+      // Roadmap-assignment section: same fenced-block pattern as history.
+      if (section === 'roadmap') {
+        const fenceOpen = /^\s*```planr-roadmap\s*$/i.test(line);
+        const fenceClose = /^\s*```\s*$/.test(line);
+        if (fenceOpen) { roadmapBlockLines = []; return; }
+        if (fenceClose && roadmapBlockLines != null) { roadmapBlockLines.push(null); return; }
+        if (roadmapBlockLines != null && roadmapBlockLines[roadmapBlockLines.length - 1] !== null) {
+          roadmapBlockLines.push(line);
         }
         return;
       }
@@ -1039,6 +1054,18 @@ export default function App() {
       const blockText = historyBlockLines.filter(l => l !== null).join('\n');
       historyEvents = parseHistoryBlock(blockText);
     }
+    // Roadmap assignment — lines like "P1 route=2 color=0" inside the
+    // ```planr-roadmap fenced block.
+    let roadmapAssignment = null;
+    if (roadmapBlockLines && roadmapBlockLines.length) {
+      const lines = roadmapBlockLines.filter(l => l !== null);
+      const out = {};
+      lines.forEach(line => {
+        const m = line.match(/^([\w.]+)\s+route=(\d+)\s+color=(\d+)/);
+        if (m) out[m[1]] = { routeIdx: +m[2], colorIdx: +m[3] };
+      });
+      if (Object.keys(out).length) roadmapAssignment = out;
+    }
     return {
       meta: metaObj, teams: teamsArr, members: mems, tree,
       vacations: normalizedVacations, holidays: holidaysArr,
@@ -1046,6 +1073,7 @@ export default function App() {
       ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}),
       ...(parsedMeetingPlans.length ? { meetingPlans: parsedMeetingPlans } : {}),
       ...(historyEvents.length ? { historyEvents } : {}),
+      ...(roadmapAssignment ? { roadmapAssignment } : {}),
     };
   }
 
@@ -2205,6 +2233,13 @@ export default function App() {
     else { setMN(node); setModal('node'); }
   });
   const onBriefingOpenItem = onSumOpenItem;
+  // Persistent Subway-Map assignment: Roadmap.jsx fires this when its
+  // computed {rootId → routeIdx, colorIdx} differs from what's stored
+  // (first render of a fresh plan, or a new root entered). Locks the
+  // layout so projects keep their colour + lane across data edits.
+  const onRoadmapAssignmentChange = useStableCallback(assignment => {
+    setData(d => ({ ...d, roadmapAssignment: assignment }));
+  });
   const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
   const onResMeetingPlansUpd = useStableCallback(v => setD('meetingPlans', v));
   const onResMemberUpd = useStableCallback((...a) => updateMember(...a));
@@ -2435,6 +2470,8 @@ export default function App() {
         horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
         futureProgressByRootId={futureProgressByRootId}
         workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))}
+        roadmapAssignment={data?.roadmapAssignment || null}
+        onAssignmentChange={onRoadmapAssignmentChange}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}

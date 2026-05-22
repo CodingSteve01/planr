@@ -381,7 +381,7 @@ function deduplicateAbbrevs(stations) {
 
 // ─── computeRoadmapModel ──────────────────────────────────────────────────────
 
-export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }) {
+export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), assignment = null }) {
   const nodeMap = Object.fromEntries(tree.map(node => [node.id, node]));
   const childMap = {};
   tree.forEach(node => {
@@ -566,16 +566,61 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
-  // Color and route assignment are rank-based: longest project gets the
-  // longest route and PALETTE[0], next-longest PALETTE[1], etc. Restores
-  // the historical visual — hash-based assignment swapped every project's
-  // colour vs. the older renders. Stable across rerenders for identical
-  // input; small data tweaks can still swap rank between two projects of
-  // similar duration. Future work: persist mapping in `data.roadmapAssignment`
-  // so the map survives data edits.
+  // Color + route assignment. Two modes:
+  //   1. Stored mapping (`args.assignment = {rootId: {routeIdx, colorIdx}}`)
+  //      wins — gives the user stable visuals across data edits.
+  //   2. Anything unmapped falls back to rank-based assignment (longest
+  //      project gets palette 0, etc.), but picks the next FREE slot so
+  //      a stored mapping never gets overwritten by a fallback.
+  // Caller can read the assignment back via the model's `_assignment`
+  // map and persist it (App.jsx auto-init on first render).
+  const stored = (assignment && typeof assignment === 'object') ? assignment : {};
+  const usedRoute = new Set();
+  const usedColor = new Set();
+  // Pre-claim every stored slot first so fallbacks can't collide with them.
+  sortedLines.forEach(line => {
+    const st = stored[line.root.id];
+    if (st && Number.isFinite(st.routeIdx)) usedRoute.add(st.routeIdx);
+    if (st && Number.isFinite(st.colorIdx)) usedColor.add(st.colorIdx);
+  });
+  const nextFreeRoute = () => {
+    for (let i = 0; i < routesWithLen.length; i++) {
+      if (!usedRoute.has(routesWithLen[i].idx)) return i;
+    }
+    return 0; // all consumed — wrap, two lines will share a route
+  };
+  const nextFreeColor = () => {
+    for (let i = 0; i < PALETTE.length; i++) if (!usedColor.has(i)) return i;
+    return 0;
+  };
+  const assignmentOut = {};
   const baseAssigned = sortedLines.map((line, rank) => {
-    const routeEntry = routesWithLen[rank % routesWithLen.length];
-    const color = PALETTE[rank % PALETTE.length];
+    const st = stored[line.root.id];
+    let routeRank, colorIdx;
+    if (st && Number.isFinite(st.routeIdx) && routesWithLen.some(r => r.idx === st.routeIdx)) {
+      // routesWithLen is sorted by length, find the entry by original idx.
+      routeRank = routesWithLen.findIndex(r => r.idx === st.routeIdx);
+    } else {
+      // Fallback prefers the rank-th routesWithLen slot, but skips any slot
+      // already claimed by a stored assignment.
+      let pick = rank;
+      while (pick < routesWithLen.length && usedRoute.has(routesWithLen[pick].idx)) pick++;
+      if (pick >= routesWithLen.length) pick = nextFreeRoute();
+      routeRank = pick;
+      usedRoute.add(routesWithLen[pick].idx);
+    }
+    if (st && Number.isFinite(st.colorIdx)) {
+      colorIdx = st.colorIdx;
+    } else {
+      let pick = rank;
+      while (pick < PALETTE.length && usedColor.has(pick)) pick++;
+      if (pick >= PALETTE.length) pick = nextFreeColor();
+      colorIdx = pick;
+      usedColor.add(pick);
+    }
+    const routeEntry = routesWithLen[routeRank];
+    const color = PALETTE[colorIdx % PALETTE.length];
+    assignmentOut[line.root.id] = { routeIdx: routeEntry.idx, colorIdx };
     return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len };
   });
 
@@ -768,6 +813,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   return {
     lines: positionedLines,
     nodeMap,
+    _assignment: assignmentOut,
   };
 }
 

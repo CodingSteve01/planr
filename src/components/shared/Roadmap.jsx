@@ -1,8 +1,8 @@
-import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
-import { renderRoadmapSvg } from '../../utils/roadmap.js';
+import { useMemo, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react';
+import { renderRoadmapSvg, computeRoadmapModel } from '../../utils/roadmap.js';
 import { useT } from '../../i18n.jsx';
 
-export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null }) {
+export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null }) {
   const { t } = useT();
   // Pass raw template strings (with {0}) so roadmap.js can substitute the percentage itself.
   // t() without extra args leaves {0} intact, which roadmap.js replaces with the actual %.
@@ -15,7 +15,34 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     prevPos: t('diff.prevPos'),
     plannedPos: t('horizon.plannedPos'),
   }), [t]);
-  const svg = useMemo(() => renderRoadmapSvg({ tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId]);
+  // Two-step: compute model once so we can inspect its `_assignment` map,
+  // then build the SVG from the same args. Lets the parent (App.jsx)
+  // persist the assignment back into the plan file the first time a new
+  // root appears or no mapping exists yet — gives projects stable
+  // colours + routes across data edits.
+  const renderArgs = useMemo(() => ({
+    tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment,
+  }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment]);
+  const model = useMemo(() => computeRoadmapModel(renderArgs), [renderArgs]);
+  const svg = useMemo(() => renderRoadmapSvg({ ...renderArgs }), [renderArgs]);
+  // Detect "stored assignment differs from what we just computed" — happens
+  // on the first render of a plan that has no mapping yet, or when a new
+  // root entered the tree and grabbed a fresh slot.
+  useEffect(() => {
+    if (!onAssignmentChange || !model?._assignment) return;
+    const computed = model._assignment;
+    const stored = assignment || {};
+    const computedKeys = Object.keys(computed);
+    let drift = computedKeys.length !== Object.keys(stored).length;
+    if (!drift) {
+      for (const k of computedKeys) {
+        const s = stored[k];
+        const c = computed[k];
+        if (!s || s.routeIdx !== c.routeIdx || s.colorIdx !== c.colorIdx) { drift = true; break; }
+      }
+    }
+    if (drift) onAssignmentChange(computed);
+  }, [model, assignment, onAssignmentChange]);
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
   const tipRef = useRef(null);
