@@ -1232,7 +1232,11 @@ export default function App() {
   // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
   // planStart = scheduling start. New/unstarted tasks begin here.
   const viewStart = meta.viewStart && meta.viewStart < planStart ? meta.viewStart : planStart;
-  const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 2, 11, 31));
+  // Default planEnd: 10 years out so the scheduler has headroom for long
+  // migrations. Previously +2y, which cut off projects at Dec 2028 on the
+  // user's plan. buildWeeks() lazily walks the range, ~520 weeks at 10y
+  // is fine memory-wise.
+  const planEnd = meta.planEnd || iso(new Date(new Date().getFullYear() + 10, 11, 31));
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
   // Enrich members with effective meetings (team-inherited plans + member
   // plans + individual) so the scheduler's deriveCap() sees the full picture

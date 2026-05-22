@@ -332,14 +332,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
       <div className="field"><label>{t('qe.team')}</label>
         <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
-        {/* Team-lock: declarative "this leaf blocks the whole team" — sits
-            next to the team picker so the scoping relationship is visible
-            at glance. Same slider chrome as the parallel toggle. */}
+        {/* Team-lock pill — bordered chip next to the team picker, no
+            orphan slider. Same styling as the NodeModal counterpart. */}
         {isLeaf && f.team && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }} data-htip={t('qe.teamLockTip')}>{t('qe.teamLock')}</label>
-            <label className="toggle"><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
-            {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)' }}>⚞⚟</span>}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
+            <span>{t('qe.teamLock')}</span>
+            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
           </div>
         )}
       </div>

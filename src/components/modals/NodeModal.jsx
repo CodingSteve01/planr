@@ -382,17 +382,16 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 />
               </div>
             </div>
+            {/* Team-lock toggle sits inline on the right edge of the team
+                row so it lives in the same baseline as the picker — keeps
+                the layout aligned instead of stacking a stray slider below. */}
+            {isLeaf && f.team && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.teamLockTip')}>
+                <span>{t('qe.teamLock')}</span>
+                <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} /><span className="slider" /></label>
+              </div>
+            )}
           </div>
-          {/* Team-lock toggle sits next to the team picker so the scoping
-              relationship is obvious. Uses the same slider chrome as the
-              "parallel" toggle for visual consistency. */}
-          {isLeaf && f.team && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-              <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }} data-htip={t('qe.teamLockTip')}>{t('qe.teamLock')}</label>
-              <label className="toggle"><input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} /><span className="slider" /></label>
-              {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)' }}>⚞⚟</span>}
-            </div>
-          )}
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
