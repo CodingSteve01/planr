@@ -1839,11 +1839,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const opacity = emphasized ? 0.95 : (l.isCp ? 0.75 : (l.isSoft ? 0.6 : 0.7));
                 const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1.1 : 1.4);
                 const dash = undefined;
-                const openDependency = () => {
-                  dismissTooltip(true);
-                  setHoverLineKey(null);
-                  onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
-                };
                 // × badge sits at the bend (corner of the L / mid of the S-loop)
                 // — always on the line itself, unambiguous which arrow it belongs
                 // to, and in whitespace between rows so it doesn't fight the bars.
@@ -1865,12 +1860,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 };
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
-                  {/* Wide invisible hover/click target */}
+                  {/* Wide invisible hover target — click is a no-op; the only
+                      action on the link is the × badge that appears on hover. */}
                   <path d={path} fill="none" stroke="transparent" strokeWidth={14}
-                    style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                    style={{ cursor: 'default', pointerEvents: 'stroke' }}
                     onMouseEnter={enterLine}
-                    onMouseLeave={leaveLine}
-                    onClick={openDependency}>
+                    onMouseLeave={leaveLine}>
                     <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId}`}</title>
                   </path>
                   {/* × delete badge — pinned at the bend, only shown while hovered.
