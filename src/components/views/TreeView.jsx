@@ -71,6 +71,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       byParent[pid].push(r);
     });
     Object.values(byParent).forEach(arr => arr.sort((a, b) => {
+      // Honour displayOrder when present (computed by `Reorganize layout`
+      // for path-friendly Gantt rendering). Falls back to id-numeric.
+      const da = typeof a.displayOrder === 'number' ? a.displayOrder : null;
+      const db = typeof b.displayOrder === 'number' ? b.displayOrder : null;
+      if (da != null && db != null && da !== db) return da - db;
       const aLast = a.id.split('.').pop(), bLast = b.id.split('.').pop();
       const an = parseInt(aLast.replace(/\D/g, '')) || 0, bn = parseInt(bLast.replace(/\D/g, '')) || 0;
       return an !== bn ? an - bn : aLast.localeCompare(bLast);

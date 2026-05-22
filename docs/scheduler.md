@@ -44,7 +44,11 @@ For each leaf in topological order:
 
 **a. Earliest start from deps**
 
-Walk all effective deps (resolved to leaf IDs). Take the max `endWi` across them, plus one. No buffer week is added.
+Walk all effective deps — `deps ∪ softDeps`, resolved to leaf IDs. Hard and soft deps block identically (a soft predecessor IS waited for); the distinction is purely visual in Gantt/NetGraph. Take the max `endWi` across them, plus one. No buffer week is added.
+
+**a′. Snapshot member profile at task start**
+
+After the assignee is picked (or team slot resolved to a member), the scheduler calls `memberAtDate(member, monOfStartWeek)` and uses that snapshot for capacity + meetings. `capChanges` / `meetingChanges` therefore land at the correct point on the timeline — a 2027 task sees the 2027 profile, not the import-time one.
 
 **b. Respect pinned start**
 

@@ -7,6 +7,7 @@ import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exp
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
+import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
@@ -904,7 +905,7 @@ export default function App() {
       const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false;
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, displayOrder = null;
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -921,6 +922,7 @@ export default function App() {
           const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
           const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
           const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
+          const om = t.match(/^ord:(\d+)$/i); if (om) { displayOrder = +om[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
         });
@@ -976,6 +978,7 @@ export default function App() {
       if (deadlineRelevant === false) item.deadlineRelevant = false;
       if (due) item.due = due;
       if (teamLock) item.teamLock = true;
+      if (displayOrder != null) item.displayOrder = displayOrder;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
       lastItem = item;
@@ -2316,6 +2319,14 @@ export default function App() {
     else { setMN(node); setModal('node'); }
   });
   const onBriefingOpenItem = onSumOpenItem;
+  // Reorganize tree layout: per-parent topological sort of children by
+  // their dep + softDep edges so paths render top-to-bottom in the Gantt.
+  // Manually-triggered so live edits don't shuffle the tree on the user.
+  const onReorganizeLayout = useStableCallback(() => {
+    const order = computeDisplayOrder(tree);
+    setData(d => ({ ...d, tree: applyDisplayOrder(d.tree || [], order) }));
+    setSaved(false);
+  });
   // Persistent Subway-Map assignment: Roadmap.jsx fires this when its
   // computed {rootId → routeIdx, colorIdx} differs from what's stored
   // (first render of a fresh plan, or a new root entered). Locks the
@@ -2518,6 +2529,7 @@ export default function App() {
       {/* `Hide done` lives in the ViewFilters popup now to keep the
           sub-toolbar compact. State + setter still passed there. */}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
+      {(tab === 'tree' || tab === 'gantt') && <button className="btn btn-sec btn-sm" onClick={onReorganizeLayout} data-htip={_t('ui.reorganizeTip')}>⇅ {_t('ui.reorganize')}</button>}
       {/* Sprint-review diff picker — available wherever the diff overlay
           can actually show something (tree/gantt/net). Tab-shared state in
           App.jsx keeps all surfaces in sync. */}

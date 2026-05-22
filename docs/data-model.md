@@ -32,12 +32,21 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   best,          // optimistic effort in days (0 = unestimated)
   factor,        // complexity multiplier, default 1.5
   prio,          // priority, lower = higher. Default 2
-  deps,          // [taskId] — predecessors (can reference any node, resolved to leaves at scheduling time)
+  deps,          // [taskId] — HARD predecessors (A must finish before B because B needs A)
+  softDeps,      // [taskId] — SOFT predecessors (sequencing/parallelism intent, no semantic dep)
+                 //            Both block the scheduler the same way; only the visual differs
+                 //            (dashed thin edge in Gantt/NetGraph). Written as `~id` in markdown.
+  teamLock,      // bool — task blocks the WHOLE team. Scheduler treats it as multi-assigned to
+                 //        every current member of the team. Onboard/offboard flows through.
+                 //        Markdown tag: `team-lock:true`.
   assign,        // [memberId] — assignees (usually 1; multiple means any of them can pick it up)
   progress,      // 0-100 on leaves, auto-cascaded on parents (never set manually on parents)
   note,          // short free-form text, shown in tooltips
-  seq,           // legacy sequencing hint, optional
+  seq,           // legacy sequencing hint, optional — superseded by deps/softDeps + displayOrder
   parallel,      // legacy flag: bypass person capacity (kept for MD round-trip, not in UI)
+  displayOrder,  // integer — per-sibling layout rank (Reorganize button → topo sort of deps+softDeps).
+                 // Drives TreeView/Gantt row order. Falls back to id-numeric when unset.
+                 // Markdown tag: `ord:N`.
   _depLabels,    // { depId: "label" } — display labels for individual deps
 
   // Root-only fields (id has no dot):
@@ -111,8 +120,19 @@ A node is a leaf iff no other node has it as a prefix-parent. `isLeafNode(tree, 
   weeklyHours,    // number — default 40 (FTE). Only honored when capMode === 'derived'
   meetings,       // [{ id, name, hours, frequency }] — recurring meetings subtracted from weeklyHours
                   // frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' (normalized to weekly-equivalent hours)
+
+  // Time-shifted profile — scheduled changes that take effect on/after a date:
+  capChanges,     // [{ date: 'YYYY-MM-DD', cap?, weeklyHours? }] — sorted ascending by date.
+                  // Each entry overrides cap/weeklyHours from `date` onward (latest wins per field).
+  meetingChanges, // [{ date: 'YYYY-MM-DD', meetings: [...] }] — replaces the whole meetings array
+                  // from `date` onward.
 }
 ```
+
+`memberAtDate(member, date)` in [capacity.js](../src/utils/capacity.js) returns a shallow clone with the
+overrides applied. The scheduler calls it at task start so a task scheduled in 2027 sees the 2027
+capacity profile, not the import-time one. Markdown roundtrip: `*Cap-Plan:* 2026-09-01→50%, 2027-01-01→100%30h/w` /
+`*Meeting-Plan:* 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]`.
 
 **Capacity** — `cap` scales the whole weekly budget. `vac` splits into explicit vacation weeks (zero-capacity) + a blanket deduction across the horizon. See [scheduler.md](scheduler.md#vacation-model).
 

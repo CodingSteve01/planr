@@ -46,9 +46,10 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `×factor`: only if factor != 1.5
 - `NN%`: progress (only if 1–99)
 - `[assignees]`: short names, comma-separated
-- `{tags}`: `prio:N`, `seq:N`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
+- `{tags}`: `prio:N`, `seq:N` (legacy), `ord:N` (display rank), `team-lock:true`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
-- Sub-bullets: `*Benötigt: ...*` for deps (with optional labels), `*Phasen: ...*` for phases, `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
+- Sub-bullets: `*Benötigt: ...*` for deps (soft-deps prefixed with `~`, e.g. `~P1.2`), `*Phasen: ...*` for phases, `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
+- Member sub-bullets: `*Cap-Plan: YYYY-MM-DD→NN%, YYYY-MM-DD→NN%HHh/w*` and `*Meeting-Plan: YYYY-MM-DD→[Name Xh/freq, ...]*` for time-shifted profile changes
 
 **Phases line format:**
 
@@ -82,7 +83,8 @@ Each `###` heading starts a template, numbered lines are phases. Team after ` �
 
 | Field group | JSON ↔ JSON | MD ↔ MD | JSON → MD → JSON |
 |---|---|---|---|
-| All tree item fields (name, status, team, best, factor, prio, seq, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, dep-labels, assign, note, description, phases, templateId) | ✓ | ✓ | ✓ (via name-lookup) |
+| All tree item fields (name, status, team, best, factor, prio, seq, displayOrder, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, softDeps, dep-labels, teamLock, assign, note, description, phases, templateId) | ✓ | ✓ | ✓ (via name-lookup) |
+| Member time-shifted profile (capChanges, meetingChanges) | ✓ | ✓ | ✓ |
 | Task templates | ✓ | ✓ | ✓ |
 | Member fields (name, team, role, cap, vac, start) | ✓ | ✓ | ✓ |
 | Team fields (name, color) | ✓ | ✓ | ✓ |

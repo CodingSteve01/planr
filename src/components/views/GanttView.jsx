@@ -205,7 +205,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
-  const treeOrder = useMemo(() => Object.fromEntries((tree || []).map((r, idx) => [r.id, idx])), [tree]);
+  const ordMap = useMemo(() => {
+    const m = {};
+    (tree || []).forEach((r, idx) => { m[r.id] = { idx, ord: typeof r.displayOrder === 'number' ? r.displayOrder : null }; });
+    return m;
+  }, [tree]);
   const childrenByParent = useMemo(() => {
     const map = {};
     (tree || []).forEach(r => {
@@ -213,9 +217,24 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (!map[pid]) map[pid] = [];
       map[pid].push(r.id);
     });
-    Object.values(map).forEach(ids => ids.sort((a, b) => (treeOrder[a] ?? 0) - (treeOrder[b] ?? 0)));
+    Object.values(map).forEach(ids => ids.sort((a, b) => {
+      const A = ordMap[a] || { idx: 0, ord: null }, B = ordMap[b] || { idx: 0, ord: null };
+      if (A.ord != null && B.ord != null && A.ord !== B.ord) return A.ord - B.ord;
+      return A.idx - B.idx;
+    }));
     return map;
-  }, [tree, treeOrder]);
+  }, [tree, ordMap]);
+  // treeOrder = flattened depth-first traversal so cross-parent ordering also follows displayOrder.
+  const treeOrder = useMemo(() => {
+    const out = {};
+    let i = 0;
+    const walk = (pid) => {
+      const kids = (childrenByParent[pid] || []);
+      for (const id of kids) { out[id] = i++; walk(id); }
+    };
+    walk('');
+    return out;
+  }, [childrenByParent]);
   const rootIds = useMemo(() => (childrenByParent[''] || EMPTY_ARR), [childrenByParent]);
   const personIdsOf = s => {
     const ids = new Set();
@@ -1618,6 +1637,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   setHoverLineKey(null);
                   onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
                 };
+                const midX = (l.x1 + l.x2) / 2;
+                const midY = (l.y1 + l.y2) / 2;
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
                   {/* Wide invisible hover/click target */}
@@ -1628,6 +1649,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     onClick={openDependency}>
                     <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId}`}</title>
                   </path>
+                  {/* Mid-line × delete badge — appears on hover. Stops propagation so the
+                      underlying line click (which opens QuickEdit) doesn't also fire. */}
+                  {isHovered && onRemoveDep && <g
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => { setHoverLineKey(l.key); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveDep(l.removeFromId, l.removeDepId);
+                      setHoverLineKey(null);
+                    }}>
+                    <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
+                    <circle cx={midX} cy={midY} r={8} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.5} />
+                    <path d={`M${midX - 3.5},${midY - 3.5} L${midX + 3.5},${midY + 3.5} M${midX + 3.5},${midY - 3.5} L${midX - 3.5},${midY + 3.5}`} stroke="var(--re)" strokeWidth={1.5} strokeLinecap="round" />
+                  </g>}
                 </g>;
               });
             })()}

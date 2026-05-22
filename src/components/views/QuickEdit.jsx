@@ -33,6 +33,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   };
   const [f, setF] = useState({ ...node });
   const [focusHint, setFocusHint] = useState(null);
+  const [depAddKind, setDepAddKind] = useState('soft');
   const activateTab = (e, action) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -157,7 +158,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   };
 
   const inheritedDeps = (() => {
-    const ownSet = new Set(f.deps || []);
+    const ownSet = new Set([...(f.deps || []), ...(f.softDeps || [])]);
     const inherited = [];
     let ancestorId = node.id.split('.').slice(0, -1).join('.');
     while (ancestorId) {
@@ -173,6 +174,20 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       ancestorId = ancestorId.split('.').slice(0, -1).join('.');
     }
     return inherited;
+  })();
+
+  // Direct successors (read-only Nachfolger list): every other task whose
+  // deps OR softDeps point to *this* node. Doesn't follow ancestor chains —
+  // only the explicit graph edges, which is what the user drew.
+  const directSuccessors = (() => {
+    const out = [];
+    for (const r of (tree || [])) {
+      if (r.id === node.id) continue;
+      const hard = (r.deps || []).includes(node.id);
+      const soft = (r.softDeps || []).includes(node.id);
+      if (hard || soft) out.push({ id: r.id, name: r.name, soft: !hard && soft });
+    }
+    return out;
   })();
 
   return <>
@@ -535,18 +550,46 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           {(f.deps || []).map(dep => {
             const target = tree.find(entry => entry.id === dep);
             const label = (f._depLabels || {})[dep] || '';
-            return <div key={dep} className="dep-row">
+            return <div key={'h_' + dep} className="dep-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span title="Hard dep — A must finish before B" style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
                 {target?.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                 <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
+                <span title="Convert to soft" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
+                  patchNode({
+                    deps: (f.deps || []).filter(id => id !== dep),
+                    softDeps: [...new Set([...(f.softDeps || []), dep])],
+                  });
+                }}>→S</span>
                 <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
                   const nextDeps = (f.deps || []).filter(id => id !== dep);
                   const nextLabels = { ...(f._depLabels || {}) };
                   delete nextLabels[dep];
                   patchNode({ deps: nextDeps, _depLabels: nextLabels });
+                }}>×</span>
+              </div>
+            </div>;
+          })}
+          {(f.softDeps || []).map(dep => {
+            const target = tree.find(entry => entry.id === dep);
+            return <div key={'s_' + dep} className="dep-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <span title="Soft dep — planner-set sequencing, scheduler still waits" style={{ fontSize: 8, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{dep}</span>
+                {target?.name && <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{target.name}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                <span title="Convert to hard" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
+                  patchNode({
+                    softDeps: (f.softDeps || []).filter(id => id !== dep),
+                    deps: [...new Set([...(f.deps || []), dep])],
+                  });
+                }}>→H</span>
+                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
+                  patchNode({ softDeps: (f.softDeps || []).filter(id => id !== dep) });
                 }}>×</span>
               </div>
             </div>;
@@ -563,13 +606,33 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>;
           })}
         </div>
-        <div ref={focusRefs.deps}>
+        <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <SearchSelect options={allIds.map(id => {
             const entry = tree.find(row => row.id === id);
             return { id, label: entry?.name || '' };
-          })} onSelect={id => patchNode({ deps: [...new Set([...(f.deps || []), id])] })} placeholder={`+ ${t('qe.predecessors')}`} showIds />
+          })} onSelect={id => {
+            if (depAddKind === 'hard') patchNode({ deps: [...new Set([...(f.deps || []), id])] });
+            else patchNode({ softDeps: [...new Set([...(f.softDeps || []), id])] });
+          }} placeholder={`+ ${depAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`} showIds />
+          <div className="btn-group" style={{ display: 'flex', flexShrink: 0 }}>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('hard')} title="Hard dep">H</button>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('soft')} title="Soft dep">S</button>
+          </div>
         </div>
       </div>
+
+      {directSuccessors.length > 0 && <div className="field"><label>Nachfolger</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.7 : 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ fontSize: 8, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: s.soft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.id}</span>
+              {s.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
+            </div>
+          </div>)}
+        </div>
+        <div className="helper" style={{ fontSize: 9, marginTop: 4 }}>Direkte Nachfolger werden auf der Nachfolger-Karte bearbeitet.</div>
+      </div>}
     </>}
 
     <hr className="divider" />
