@@ -107,6 +107,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     action();
   };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
+  const hoverClearTimerRef = useRef(null);
   const [bodyScrollbarH, setBodyScrollbarH] = useState(0);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
@@ -1633,27 +1634,37 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               <marker id="garN" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--tx3)" /></marker>
             </defs>
             {(() => {
-              // Short 5px stubs horizontally out of source / into target, cubic bezier between.
-              // Works for both forward (target right of source) and backward (target left of source):
-              // in the backward case the control points' horizontal pull creates a natural S-loop
-              // without any orthogonal step pattern.
-              const buildPath = (l) => {
-                const isForward = l.x2 > l.x1;
-                const stub = 10;
-                const sx = l.x1 + stub;
-                const tx = l.x2 - stub;
-                // Short forward arrows (stubs overlap): simple arc, no S-loop.
-                if (isForward && tx <= sx) {
-                  const cpOff = Math.max(Math.abs(l.y2 - l.y1) * 0.4, 20);
-                  return `M${l.x1},${l.y1} C${l.x1 + cpOff},${l.y1} ${l.x2 - cpOff},${l.y2} ${l.x2 - 1},${l.y2}`;
+              // Gantt-style orthogonal routing (MS-Project FS arrow): right-stub
+              // out of source → vertical drop → horizontal into target. Backward
+              // arrows (cycle/violation) use a 5-segment S-loop that exits the
+              // source on the right, loops over/under, and re-enters the target
+              // from the left so the arrowhead direction stays consistent.
+              const STUB = 12;
+              const buildPathParts = (l) => {
+                const isForward = l.x2 > l.x1 + STUB * 2;
+                if (isForward) {
+                  // L-shape: (x1,y1) → (sx,y1) → (sx,y2) → (x2,y2)
+                  const sx = Math.max(l.x1 + STUB, l.x2 - STUB);
+                  // Snap to .5 for crisp 1px strokes
+                  const sxS = Math.round(sx) + 0.5;
+                  return {
+                    d: `M${l.x1},${l.y1} L${sxS},${l.y1} L${sxS},${l.y2} L${l.x2 - 1},${l.y2}`,
+                    // Bend point = vertical-segment midpoint (clear of bars).
+                    bendX: sxS,
+                    bendY: (l.y1 + l.y2) / 2,
+                  };
                 }
-                // Normal forward: smooth bezier. Backward: S-loop to visualize the violation.
-                const dx = isForward
-                  ? Math.max((tx - sx) * 0.4, 20)
-                  : Math.max(Math.abs(tx - sx) * 0.5, 30);
-                const c1x = sx + dx;
-                const c2x = tx - dx;
-                return `M${l.x1},${l.y1} L${sx},${l.y1} C${c1x},${l.y1} ${c2x},${l.y2} ${tx},${l.y2} L${l.x2 - 1},${l.y2}`;
+                // Backward: 5-segment S-loop. Exit right of source, loop horizontally
+                // halfway between rows, re-enter target from left.
+                const sx = l.x1 + STUB;
+                const tx = l.x2 - STUB;
+                const my = (l.y1 + l.y2) / 2;
+                return {
+                  d: `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${my} L${tx},${my} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`,
+                  // Bend point = midpoint of horizontal connector (most reachable).
+                  bendX: (sx + tx) / 2,
+                  bendY: my,
+                };
               };
               // Render hovered line LAST so its × badge always sits on top of
               // overlapping neighbour lines (SVG has no z-index — paint order wins).
@@ -1661,7 +1672,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 ? [...renderedDepLines.filter(l => l.key !== hoverLineKey), ...renderedDepLines.filter(l => l.key === hoverLineKey)]
                 : renderedDepLines;
               return orderedLines.map(l => {
-                const path = buildPath(l);
+                const parts = buildPathParts(l);
+                const path = parts.d;
                 const isHovered = hoverLineKey === l.key;
                 const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
                 const emphasized = isHovered || isHoveredTask;
@@ -1679,36 +1691,52 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   setHoverLineKey(null);
                   onBarClick?.({ id: l.removeFromId }, { tab: 'timing', focusHint: 'deps', depId: l.removeDepId });
                 };
-                // Place × near target arrow (80% along line, then shift left 18px
-                // so it sits just before the arrowhead). Lines fan out toward
-                // distinct targets so badges rarely overlap there, even when
-                // mid-line is congested.
-                const tFrac = 0.82;
-                const midX = Math.max(l.x1 + 12, l.x1 + (l.x2 - l.x1) * tFrac - 14);
-                const midY = l.y1 + (l.y2 - l.y1) * tFrac;
+                // × badge sits at the bend (corner of the L / mid of the S-loop)
+                // — always on the line itself, unambiguous which arrow it belongs
+                // to, and in whitespace between rows so it doesn't fight the bars.
+                const midX = parts.bendX;
+                const midY = parts.bendY;
+                // Hover persists for 80ms after the cursor leaves the line so the
+                // user has time to move onto the × badge without it vanishing.
+                const enterLine = () => {
+                  if (hoverClearTimerRef.current) { clearTimeout(hoverClearTimerRef.current); hoverClearTimerRef.current = null; }
+                  dismissTooltip(true);
+                  setHoverLineKey(l.key);
+                };
+                const leaveLine = () => {
+                  if (hoverClearTimerRef.current) clearTimeout(hoverClearTimerRef.current);
+                  hoverClearTimerRef.current = setTimeout(() => {
+                    setHoverLineKey(k => k === l.key ? null : k);
+                    hoverClearTimerRef.current = null;
+                  }, 120);
+                };
                 return <g key={l.key}>
                   <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
                   {/* Wide invisible hover/click target */}
                   <path d={path} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                    onMouseEnter={() => { dismissTooltip(true); setHoverLineKey(l.key); }}
-                    onMouseLeave={() => setHoverLineKey(k => k === l.key ? null : k)}
+                    onMouseEnter={enterLine}
+                    onMouseLeave={leaveLine}
                     onClick={openDependency}>
                     <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId}`}</title>
                   </path>
-                  {/* Mid-line × delete badge — appears on hover. Stops propagation so the
-                      underlying line click (which opens QuickEdit) doesn't also fire. */}
+                  {/* × delete badge — pinned at the bend, only shown while hovered.
+                      Both the badge and the line share the hover-persistence timer
+                      so cursor travel between line and badge keeps it visible. */}
                   {isHovered && onRemoveDep && <g
                     style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => { setHoverLineKey(l.key); }}
+                    onMouseEnter={enterLine}
+                    onMouseLeave={leaveLine}
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveDep(l.removeFromId, l.removeDepId);
                       setHoverLineKey(null);
                     }}>
                     <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
-                    <circle cx={midX} cy={midY} r={8} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.5} />
-                    <path d={`M${midX - 3.5},${midY - 3.5} L${midX + 3.5},${midY + 3.5} M${midX + 3.5},${midY - 3.5} L${midX - 3.5},${midY + 3.5}`} stroke="var(--re)" strokeWidth={1.5} strokeLinecap="round" />
+                    {/* Invisible enlarged hit area (16px radius) for forgiving click. */}
+                    <circle cx={midX} cy={midY} r={16} fill="transparent" />
+                    <circle cx={midX} cy={midY} r={9} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.5} />
+                    <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke="var(--re)" strokeWidth={1.5} strokeLinecap="round" />
                   </g>}
                 </g>;
               });
