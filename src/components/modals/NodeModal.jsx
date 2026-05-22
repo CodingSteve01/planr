@@ -22,7 +22,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onReorderInQueue, onNavigate, onSplitHandoff, onSplitTaskAtProgress }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onSplitHandoff, onSplitTaskAtProgress }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),

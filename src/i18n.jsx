@@ -109,7 +109,7 @@ const en = {
 
   // ── Gantt ──
   'g.group': 'Group', 'g.project': 'Project', 'g.projTeam': 'Project › Team',
-  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Resource',
+  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Resource', 'g.thread': 'Thread',
   'g.noItems': 'No items yet', 'g.addTasks': 'Add tasks to see the Gantt chart.',
   'g.zoom': 'Zoom', 'g.week': 'Week', 'g.day': 'Day', 'g.today': 'Today',
   'g.noEstimate': 'no estimate', 'g.matches': 'matches',
@@ -732,7 +732,7 @@ const de = {
 
   // ── Gantt ──
   'g.group': 'Gruppierung', 'g.project': 'Projekt', 'g.projTeam': 'Projekt › Team',
-  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Ressource',
+  'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Ressource', 'g.thread': 'Thread',
   'g.noItems': 'Noch keine Items', 'g.addTasks': 'Aufgaben hinzufügen um den Gantt-Chart zu sehen.',
   'g.zoom': 'Zoom', 'g.week': 'Woche', 'g.day': 'Tag', 'g.today': 'Heute',
   'g.noEstimate': 'kein Aufwand', 'g.matches': 'Treffer',

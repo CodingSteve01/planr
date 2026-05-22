@@ -50,7 +50,7 @@ describe('view smoke', () => {
         tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
         onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
         onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderInQueue={noop} onReorderSibling={noop} />,
+        onReorderSibling={noop} />,
     )).not.toThrow();
   });
 

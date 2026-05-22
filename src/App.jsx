@@ -25,7 +25,6 @@ import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView } from './components/views/ResView.jsx';
-import { QueuesView } from './components/views/QueuesView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
 import { BriefingView } from './components/views/BriefingView.jsx';
@@ -2037,105 +2036,6 @@ export default function App() {
     if (selId === nodeId && idMap[nodeId]) setSel(idMap[nodeId]);
   }
 
-  // Reorder a task within its "queue" — the set of tasks that share the same
-  // assignee (or team when unassigned). Renumbers the `seq` field for every
-  // task in the queue (steps of 10 with gaps) so the scheduler's tiebreak
-  // (prio, seq, id) honors the new order. `target` can be:
-  //   'first' | 'last' | 'earlier' | 'later'   — relative moves
-  //   number                                   — absolute queue index
-  //   { direction, steps }                     — relative with step count
-  // Build the "queue key" for a task: tasks with the same key run through the same
-  // scheduler pF counter. For single-member teams, team-only and direct-assign must
-  // produce the SAME key so reordering works identically for both.
-  function queueKeyOf(r) {
-    if ((r.assign || []).length) return [...r.assign].sort().join(',');
-    // Honour the scheduler's auto-assignment so a task it routed to a single
-    // person shares that person's queue with explicitly-assigned work.
-    // Without this, dragging an auto-assigned task across the same person's
-    // backlog in the Queues view silently failed because reorderInQueue
-    // saw it as part of a separate `team:` queue.
-    const sc = scheduled?.find(s => (s.treeId || s.id) === r.id && !s.isHandoff);
-    if (sc?.personId) return sc.personId;
-    const tm = pt(r.team);
-    const tM = members.filter(m => pt(m.team) === tm);
-    if (tM.length === 1) return tM[0].id;
-    return `team:${r.team || ''}`;
-  }
-  // Reorder a leaf within its root subtree by rewriting `seq` across every
-  // sibling leaf. `target` accepts 'first' | 'last' | 'earlier' | 'later'
-  // or a number (drop index). Project-backlog uses this to express the
-  // planner's intended ordering of project work; the scheduler then
-  // honours `seq` modulo dependency constraints.
-  function reorderInProject(taskId, target) {
-    const task = tree.find(r => r.id === taskId);
-    if (!task) return;
-    const rootId = task.id.split('.')[0];
-    const leaves = tree
-      .filter(r => isLeafNode(tree, r.id) && (r.id === rootId || r.id.startsWith(rootId + '.')))
-      .sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id));
-    const idx = leaves.findIndex(r => r.id === taskId);
-    if (idx < 0 || leaves.length < 2) return;
-    let newIdx = idx;
-    if (target === 'first') newIdx = 0;
-    else if (target === 'last') newIdx = leaves.length - 1;
-    else if (target === 'earlier') newIdx = Math.max(0, idx - 1);
-    else if (target === 'later') newIdx = Math.min(leaves.length - 1, idx + 1);
-    else if (typeof target === 'number') newIdx = Math.max(0, Math.min(leaves.length - 1, target));
-    if (newIdx === idx) return;
-    const reordered = [...leaves];
-    const [picked] = reordered.splice(idx, 1);
-    reordered.splice(newIdx, 0, picked);
-    // Re-number seq in 10-step buckets so insertions later remain easy.
-    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
-    setData(d => ({
-      ...d,
-      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r),
-    }));
-    setSaved(false);
-  }
-  function reorderInQueue(taskId, target, stepsArg) {
-    const task = tree.find(r => r.id === taskId);
-    if (!task || !isLeafNode(tree, task.id)) return;
-    const myKey = queueKeyOf(task);
-    const psDate = new Date(meta.planStart || Date.now());
-    // Sort must match the scheduler's actual processing order (future-pinned last,
-    // then prio → seq → id) so that "move later" in the UI = "runs later" in the plan.
-    const queueTasks = tree.filter(r => {
-      if (!isLeafNode(tree, r.id)) return false;
-      if (!r.best) return false;
-      return queueKeyOf(r) === myKey;
-    }).sort((a, b) => {
-      const aF = a.pinnedStart && new Date(a.pinnedStart) > psDate ? 1 : 0;
-      const bF = b.pinnedStart && new Date(b.pinnedStart) > psDate ? 1 : 0;
-      if (aF !== bF) return aF - bF;
-      return (a.prio || 4) - (b.prio || 4) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
-    });
-    if (queueTasks.length < 2) return;
-    const idx = queueTasks.findIndex(t => t.id === taskId);
-    if (idx < 0) return;
-    const steps = Math.max(1, stepsArg || 1);
-    let newIdx = idx;
-    if (target === 'first') newIdx = 0;
-    else if (target === 'last') newIdx = queueTasks.length - 1;
-    else if (target === 'earlier') newIdx = idx - steps;
-    else if (target === 'later') newIdx = idx + steps;
-    else if (typeof target === 'number') newIdx = target;
-    newIdx = Math.max(0, Math.min(queueTasks.length - 1, newIdx));
-    if (newIdx === idx) return;
-    const reordered = [...queueTasks];
-    const [moved] = reordered.splice(idx, 1);
-    reordered.splice(newIdx, 0, moved);
-    // Renumber seq with gaps (10, 20, 30…). Seq is a SOFT tiebreaker — it adjusts
-    // the scheduler's processing order within the same priority level. For HARD ordering
-    // (e.g. "A must run after B"), the user should create a dependency link instead.
-    const updates = new Map(reordered.map((t, i) => [t.id, (i + 1) * 10]));
-    setData(d => ({
-      ...d,
-      tree: (d.tree || []).map(r => updates.has(r.id) ? { ...r, seq: updates.get(r.id) } : r)
-    }));
-    setSaved(false);
-  }
-
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
@@ -2301,7 +2201,6 @@ export default function App() {
   const onGanttTaskUpdate = useStableCallback((...a) => updateNode(...a));
   const onGanttRemoveDep = useStableCallback((...a) => removeDep(...a));
   const onGanttAddDep = useStableCallback((...a) => addDep(...a));
-  const onGanttReorderInQueue = useStableCallback((...a) => reorderInQueue(...a));
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   const onNetAddNode = useStableCallback(() => setModal('add'));
@@ -2417,7 +2316,6 @@ export default function App() {
     { id: 'gantt', label: _t('tab.gantt'), isNew: showNewBadge },
     { id: 'net', label: _t('tab.net') },
     { id: 'resources', label: _t('tab.resources') },
-    { id: 'queues', label: _t('tab.queues'), isNew: showNewBadge },
     { id: 'holidays', label: _t('tab.holidays') },
   ];
 
@@ -2521,7 +2419,7 @@ export default function App() {
       ))}
       <div style={{ flex: 1 }} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'queues') && <div className="subtoolbar">
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
@@ -2792,13 +2690,12 @@ export default function App() {
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
-              onReorderInQueue={reorderInQueue}
               onSplitHandoff={splitHandoff}
               onSplitTaskAtProgress={splitTaskAtProgress} /></div>
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderInQueue={onGanttReorderInQueue} onReorderSibling={onGanttReorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
@@ -2815,22 +2712,12 @@ export default function App() {
         onTeamUpd={onResTeamUpd}
         onTeamAdd={onResTeamAdd}
         onTeamDel={onResTeamDel} /></div>}
-      {visitedTabs.has('queues') && <div className="pane" style={{ display: tab === 'queues' ? undefined : 'none' }}><QueuesView
-        tree={tree} members={members} teams={teams} scheduled={scheduled}
-        teamFilter={teamFilter} personFilter={personFilter} rootFilter={rootFilter} hideDone={hideDone}
-        horizonIds={horizonFilterSet}
-        diffChangedIds={diffFilterSet}
-        sinceDate={sinceDate}
-        onOpenItem={onSumOpenItem}
-        onReorderInQueue={reorderInQueue}
-        onReorderInProject={reorderInProject} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
-      onReorderInQueue={reorderInQueue}
       onSplitHandoff={splitHandoff}
       onSplitTaskAtProgress={splitTaskAtProgress}
       onNavigate={id => {

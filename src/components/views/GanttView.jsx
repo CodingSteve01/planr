@@ -35,7 +35,7 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderInQueue, onReorderSibling }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling }) {
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -274,6 +274,99 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return out;
   }, [childrenByParent]);
   const rootIds = useMemo(() => (childrenByParent[''] || EMPTY_ARR), [childrenByParent]);
+
+  // Threads = weakly-connected components of (deps ∪ softDeps). Each thread
+  // is one "Pfad" the user can read top-to-bottom; ranks come from a longest-
+  // path topo sort so parallel tasks at the same rank sit on adjacent rows.
+  // Isolated leaves end up as singleton threads.
+  const threadStructure = useMemo(() => {
+    if (groupBy !== 'thread') return EMPTY_ARR;
+    const leafIds = new Set();
+    for (const it of (allItems || [])) leafIds.add(it.treeId || it.id);
+    // Undirected adjacency for component detection + directed for ranking.
+    const undirected = new Map();
+    const succ = new Map(); // predecessor → [successors]
+    const indeg = new Map();
+    for (const id of leafIds) { undirected.set(id, new Set()); succ.set(id, []); indeg.set(id, 0); }
+    for (const id of leafIds) {
+      const node = iMap[id];
+      if (!node) continue;
+      const ancestors = []; let aid = parentId(id); while (aid) { ancestors.push(aid); aid = parentId(aid); }
+      const raw = [
+        ...(node.deps || []),
+        ...(node.softDeps || []),
+        ...ancestors.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]),
+      ];
+      const resolved = new Set();
+      for (const d of raw) {
+        for (const t of resolveToLeafIds(tree || [], d)) {
+          if (leafIds.has(t) && t !== id) resolved.add(t);
+        }
+      }
+      for (const t of resolved) {
+        undirected.get(id).add(t); undirected.get(t).add(id);
+        succ.get(t).push(id); indeg.set(id, (indeg.get(id) || 0) + 1);
+      }
+    }
+    // Component label via BFS.
+    const compOf = new Map();
+    let cid = 0;
+    for (const id of leafIds) {
+      if (compOf.has(id)) continue;
+      cid++;
+      const q = [id]; compOf.set(id, cid);
+      while (q.length) {
+        const cur = q.shift();
+        for (const n of undirected.get(cur) || []) {
+          if (!compOf.has(n)) { compOf.set(n, cid); q.push(n); }
+        }
+      }
+    }
+    // Longest-path rank via Kahn.
+    const rank = new Map([...leafIds].map(i => [i, 0]));
+    const q = [...leafIds].filter(i => indeg.get(i) === 0);
+    const indegMut = new Map(indeg);
+    while (q.length) {
+      const cur = q.shift();
+      for (const next of succ.get(cur) || []) {
+        rank.set(next, Math.max(rank.get(next) || 0, (rank.get(cur) || 0) + 1));
+        indegMut.set(next, indegMut.get(next) - 1);
+        if (indegMut.get(next) === 0) q.push(next);
+      }
+    }
+    // Earliest start per leaf (used for thread ordering + within-rank tiebreak).
+    const startOf = new Map();
+    for (const s of (scheduled || [])) {
+      if (typeof s.startWi !== 'number' || s.startWi < 0) continue;
+      const tid = s.treeId || s.id;
+      const cur = startOf.get(tid);
+      if (cur == null || s.startWi < cur) startOf.set(tid, s.startWi);
+    }
+    // Group ids by component, sort by rank → startWi → id.
+    const byComp = new Map();
+    for (const [id, c] of compOf) {
+      if (!byComp.has(c)) byComp.set(c, []);
+      byComp.get(c).push(id);
+    }
+    const threads = [];
+    for (const [c, ids] of byComp) {
+      ids.sort((a, b) => {
+        const ra = rank.get(a) ?? 0, rb = rank.get(b) ?? 0;
+        if (ra !== rb) return ra - rb;
+        const sa = startOf.get(a) ?? 1e9, sb = startOf.get(b) ?? 1e9;
+        if (sa !== sb) return sa - sb;
+        return a.localeCompare(b);
+      });
+      const earliest = ids.reduce((m, i) => Math.min(m, startOf.get(i) ?? Infinity), Infinity);
+      threads.push({ cid: c, ids, earliest, isSolo: ids.length === 1 });
+    }
+    threads.sort((a, b) => {
+      // Real threads (>1) before solo. Then earliest start.
+      if (a.isSolo !== b.isSolo) return a.isSolo ? 1 : -1;
+      return (a.earliest === Infinity ? 1e9 : a.earliest) - (b.earliest === Infinity ? 1e9 : b.earliest);
+    });
+    return threads;
+  }, [groupBy, allItems, tree, iMap, scheduled]);
   const personIdsOf = s => {
     const ids = new Set();
     if (s.personId) ids.add(s.personId);
@@ -423,6 +516,64 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const nodes = [];
     if (groupBy === 'project') {
       nodes.push(...buildTreeNodes(allItems, displayItems, 'project', 0));
+    } else if (groupBy === 'thread') {
+      threadStructure.forEach((thread, i) => {
+        const idSet = new Set(thread.ids);
+        const threadItems = allItems.filter(it => idSet.has(it.treeId || it.id));
+        const visibleThreadItems = displayItems.filter(it => idSet.has(it.treeId || it.id));
+        if (!visibleThreadItems.length) return;
+        const sortedItems = sortItems(threadItems);
+        const namespace = `thread:${thread.cid}`;
+        const firstNode = iMap[thread.ids[0]];
+        const label = thread.isSolo
+          ? `Solo · ${firstNode?.name || thread.ids[0]}`
+          : `Thread ${i + 1} · ${thread.ids.length} Tasks`;
+        const color = 'var(--ac)';
+        const groupSummary = buildSummaryItem({
+          id: namespace,
+          name: label,
+          team: '',
+          deps: [],
+          phases: [],
+        }, sortedItems, { color });
+        // Flat task rows in thread order (rank → startWi → id).
+        const children = [];
+        for (const id of thread.ids) {
+          const items = visibleThreadItems.filter(it => (it.treeId || it.id) === id);
+          if (!items.length) continue;
+          const primary = items.find(it => !it.isHandoff) || items[0];
+          children.push({
+            type: 'task',
+            key: `${namespace}::task:${primary.id}`,
+            s: primary,
+            node: iMap[id],
+            level: 1,
+            groupKey: namespace,
+          });
+          for (const ho of items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0))) {
+            children.push({
+              type: 'task',
+              key: `${namespace}::task:${ho.id}`,
+              s: ho,
+              node: iMap[id],
+              level: 2,
+              groupKey: namespace,
+            });
+          }
+        }
+        if (thread.isSolo) defaultCollapsed.add(namespace);
+        nodes.push({
+          type: 'group',
+          key: namespace,
+          collapseKey: namespace,
+          label,
+          color,
+          s: groupSummary,
+          count: visibleThreadItems.length,
+          level: 0,
+          children,
+        });
+      });
     } else if (groupBy === 'team') {
       const usedTeams = [...new Set(displayItems.map(item => item.team || NO_TEAM))];
       const orderedTeams = [...new Set([...teams.map(team => team.id), ...usedTeams])].filter(id => usedTeams.includes(id));
@@ -496,7 +647,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         });
     }
     return { nodes, defaultCollapsed: [...defaultCollapsed] };
-  }, [allItems, displayItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t]);
+  }, [allItems, displayItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t, threadStructure]);
 
   const collapsed = useMemo(() => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed), [collapsedByMode, groupBy, structure.defaultCollapsed]);
   const updateCollapsed = updater => {
@@ -940,9 +1091,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       personId: s.personId,
       rowType: row.type,
       canPin: row.type === 'task' && s.status !== 'done' && !s._unestimated,
-      reorderMode: groupBy === 'project' && onReorderSibling
-        ? 'tree'
-        : (row.type === 'task' && onReorderInQueue ? 'queue' : null),
+      reorderMode: groupBy === 'project' && onReorderSibling ? 'tree' : null,
       lockVertical: row.type === 'summary',
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
       lastDy: 0,
@@ -974,15 +1123,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   function onMU() {
     const d = dragRef.current;
     if (d) {
-      if (d.isReorder && d.lastDy) {
+      if (d.isReorder && d.lastDy && d.reorderMode === 'tree') {
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
-        if (d.reorderMode === 'tree') {
-          const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
-          onReorderSibling?.(d.id, dir);
-        } else {
-          const dir = d.lastDy > 0 ? 'later' : 'earlier';
-          onReorderInQueue?.(d.id, dir, rowShift);
-        }
+        const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
+        onReorderSibling?.(d.id, dir);
       } else if (d.canPin && dDelta !== 0) {
         // Day mode: offset from the bar's actual start date (not the week's Monday).
         // Week mode: offset from the start week's Monday (bar is week-aligned).
@@ -1090,7 +1234,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* group label removed — buttons are self-explanatory and the row was too wide */}
-          {[['project', t('g.project')], ['team', t('g.team')], ['resource', t('g.resource')]].map(([k, l]) =>
+          {[['project', t('g.project')], ['team', t('g.team')], ['resource', t('g.resource')], ['thread', t('g.thread')]].map(([k, l]) =>
             <button
               key={k}
               className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
@@ -1818,22 +1962,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             onClick={() => { onTaskUpdate?.({ ...node, parallel: !node.parallel }); close(); }}>
             {node.parallel ? `≡ ${t('g.ctxSequential')}` : `≡ ${t('g.ctxParallel')}`}
           </div>
-          {(groupBy === 'project' ? onReorderSibling : onReorderInQueue) && !node.parallel && <>
+          {groupBy === 'project' && onReorderSibling && !node.parallel && <>
             <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
             <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxQueueOrder')}</div>
-            {groupBy === 'project'
-              ? <>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'up'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'down'); close(); }}>▼ {t('g.ctxRunLater')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
-              </>
-              : <>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'earlier'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'later'); close(); }}>▼ {t('g.ctxRunLater')}</div>
-                <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderInQueue?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
-              </>}
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'up'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'down'); close(); }}>▼ {t('g.ctxRunLater')}</div>
+            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
           </>}
           <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
           {node.pinnedStart
