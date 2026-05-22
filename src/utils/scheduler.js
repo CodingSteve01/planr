@@ -382,13 +382,77 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     return { segments, remaining: rem, lastWD, finalWi, lastOffboard };
   };
 
+  // ── Fan-out auto-parallel pre-pass ─────────────────────────────────────────
+  // When N leaves share the same effective predecessor set AND the same single
+  // assignee, they're "obvious siblings" — a fan-out from one upstream task.
+  // The user expects them to run concurrently with shared capacity (each
+  // consumes 1/N of the assignee's daily throughput) so all N share the same
+  // start and the calendar span stretches to N × effort.
+  //
+  // Implementation: pick a "leader" per group (= first member encountered in
+  // topological order). Skip followers during the main scheduling loop and
+  // schedule the leader with the SUM of all members' effort. After the loop,
+  // replicate the leader's scheduled span onto each follower in `res` + `tEW`
+  // so successors of any follower wait on the batch-end time.
+  const paraLeaderOf = new Map(); // memberId → leaderId
+  const paraGroups = new Map();   // leaderId → [memberIds in ord order]
+  const paraEffByLeader = new Map(); // leaderId → totalEff sum across group
+  {
+    const buckets = new Map();
+    for (const id of ord) {
+      const r = iMap[id];
+      if (!r || r.status === 'done' || !isLeafNode(tree, r.id) || !r.best) continue;
+      const assigns = [...(r.assign || [])].sort();
+      // Only single-assign fan-out for now; multi-assign / team-slots stay
+      // on the regular path so team-lock and handoff cascades aren't broken.
+      if (assigns.length !== 1) continue;
+      const ancestorIds = []; let aid = parentId(r.id); while (aid) { ancestorIds.push(aid); aid = parentId(aid); }
+      const depSrc = [...new Set([
+        ...(r.deps || []),
+        ...(r.softDeps || []),
+        ...ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]),
+      ])];
+      const depLeaves = [...new Set(depSrc.flatMap(d => resolveToLeafIds(tree, d)).filter(d => d !== r.id))].sort();
+      const pin = r.pinnedStart || '';
+      const key = `${assigns[0]}|${pin}|${depLeaves.join(',')}`;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(r.id);
+    }
+    for (const ids of buckets.values()) {
+      if (ids.length < 2) continue;
+      const leader = ids[0];
+      paraGroups.set(leader, ids);
+      let totalEff = 0;
+      for (const mid of ids) {
+        const m = iMap[mid];
+        let mEff = re(m.best, m.factor);
+        if (_discountProgress && m.status === 'wip'
+            && typeof m.progress === 'number' && m.progress > 0 && m.progress < 100) {
+          mEff = mEff * (1 - m.progress / 100);
+        }
+        totalEff += mEff;
+        paraLeaderOf.set(mid, leader);
+      }
+      paraEffByLeader.set(leader, totalEff);
+    }
+  }
+
   const res = [];
   ord.forEach(id => {
     const r = iMap[id];
     if (r?.status === 'done') return;
     if (tEW[id]?.wi === -1) return;
     if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = { wi: -1, nextDate: null }; return; }
+    // Fan-out follower: skip — its schedule is replicated from the leader's
+    // batch run after the main loop completes.
+    const fanoutLeader = paraLeaderOf.get(id);
+    if (fanoutLeader && fanoutLeader !== id) return;
     let eff = re(r.best, r.factor);
+    // Fan-out leader: inflate effort to the batch total so the per-person
+    // counter reserves the whole batch span on the assignee's queue.
+    if (fanoutLeader === id && paraEffByLeader.has(id)) {
+      eff = paraEffByLeader.get(id);
+    }
     // WIP tasks: subtract the already-done portion so the scheduler only
     // places the remaining effort. Without this a 90%-done 10d task still
     // takes 10d on the Gantt and slides every successor by 9d of phantom
@@ -398,7 +462,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // the existing left-side progress overlay (see GanttView) lands on
     // real calendar days in the past.
     let consumedEff = 0;
-    if (_discountProgress && eff > 0 && r.status === 'wip'
+    // For fan-out leaders the eff was already discounted member-by-member
+    // in the pre-pass (paraEffByLeader holds the post-discount total), so
+    // skip the per-row discount here to avoid double-subtracting progress.
+    if (_discountProgress && eff > 0 && r.status === 'wip' && !paraEffByLeader.has(id)
         && typeof r.progress === 'number' && r.progress > 0 && r.progress < 100) {
       consumedEff = eff * (r.progress / 100);
       eff = eff - consumedEff;
@@ -1003,6 +1070,37 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
       segments, truncatedByOffboard: truncated });
   });
+
+  // ── Replicate fan-out leader schedule onto followers ─────────────────────
+  // The leader was scheduled with the SUM of all group efforts. Each follower
+  // shares the same calendar span (start..end) so all N tasks visually run
+  // concurrently. tEW is mirrored so downstream successors of any follower
+  // see the batch-end position as their predecessor's finish.
+  for (const [leaderId, memberIds] of paraGroups) {
+    const leaderRes = res.find(s => s.id === leaderId);
+    if (!leaderRes) continue;
+    const leaderEW = tEW[leaderId];
+    for (const mid of memberIds) {
+      if (mid === leaderId) continue;
+      const m = iMap[mid];
+      if (!m) continue;
+      tEW[mid] = leaderEW;
+      res.push({
+        ...leaderRes,
+        id: mid,
+        treeId: mid,
+        name: m.name,
+        best: m.best,
+        factor: m.factor,
+        prio: m.prio,
+        seq: m.seq,
+        deps: (m.deps || []).join(', '),
+        status: m.status,
+        note: m.note || '',
+        _autoParallel: true,
+      });
+    }
+  }
   // Post-process: split handoff segments into independent scheduled entries.
   // Each secondary segment becomes its own row so downstream consumers
   // (person filter, Gantt rows, TODO lists, ResView workload) naturally see

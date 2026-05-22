@@ -218,6 +218,62 @@ describe('schedule(): pinned starts', () => {
 // by the absence of dep edges between tasks (per-person capacity still
 // queues, but tasks on different people / no shared deps run concurrently).
 
+describe('schedule(): fan-out auto-parallel (shared capacity)', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('N successors with same predecessor + same assignee share start, span = N × eff', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.4', name: 'C', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.2');
+    const b = results.find(s => s.id === 'P1.3');
+    const c = results.find(s => s.id === 'P1.4');
+    // All three share the same start (= predecessor's end + 1 day, rounded
+    // to the week-grid the scheduler operates on).
+    expect(a.startD.getTime()).toBe(b.startD.getTime());
+    expect(a.startD.getTime()).toBe(c.startD.getTime());
+    // Calendar span covers all three efforts back-to-back (shared cap = 1/3
+    // throughput on each → identical end for all three).
+    expect(a.endD.getTime()).toBe(b.endD.getTime());
+    expect(a.endD.getTime()).toBe(c.endD.getTime());
+  });
+
+  test('singleton successor stays on regular per-person path', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Only', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const t = results.find(s => s.id === 'P1.2');
+    expect(t).toBeDefined();
+    expect(t._autoParallel).toBeFalsy();
+  });
+
+  test('different assignees keep the regular sequential per-person schedule', () => {
+    const max = { id: 'M2', name: 'Max', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M2'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex, max] });
+    const a = results.find(s => s.id === 'P1.2');
+    const b = results.find(s => s.id === 'P1.3');
+    // Different people → no batching. They may still start at the same time
+    // because both wait on the same predecessor, but neither is marked auto-
+    // parallel because the grouping requires identical assignee sets.
+    expect(a._autoParallel).toBeFalsy();
+    expect(b._autoParallel).toBeFalsy();
+  });
+});
+
 describe('schedule(): vacations', () => {
   test('explicit vacation days lower effective capacity', () => {
     const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' };

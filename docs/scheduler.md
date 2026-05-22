@@ -46,6 +46,28 @@ For each leaf in topological order:
 
 Walk all effective deps — `deps ∪ softDeps`, resolved to leaf IDs. Hard and soft deps block identically (a soft predecessor IS waited for); the distinction is purely visual in Gantt/NetGraph. Take the max `endWi` across them, plus one. No buffer week is added.
 
+**a*. Fan-out auto-parallel batching**
+
+Before step (a), the scheduler runs a pre-pass that groups leaves with
+identical effective predecessor set, identical single assignee, and identical
+pinnedStart. These are treated as "obvious siblings" of a fan-out from one
+upstream task and scheduled as a batch:
+
+- The lowest-id member (in topo order) becomes the **leader**; the others
+  are **followers**.
+- The leader is scheduled with the SUM of all members' effort, so the
+  assignee's per-person counter reserves the whole batch span.
+- Followers are skipped in the main loop. After the loop completes the
+  scheduler replicates the leader's `startD` / `endD` / `weeks` onto each
+  follower in `res`, and mirrors `tEW` so successors of any follower wait
+  on the same batch-end position.
+- Each follower carries `_autoParallel: true` for debugging.
+
+The semantic: a single person works on N parallel tasks at once with 1/N
+throughput per task → all N share the same calendar span. Multi-assign,
+team slots, and handoff cascades stay on the regular path and are
+unaffected.
+
 **a′. Snapshot member profile at task start**
 
 After the assignee is picked (or team slot resolved to a member), the scheduler calls `memberAtDate(member, monOfStartWeek)` and uses that snapshot for capacity + meetings. `capChanges` / `meetingChanges` therefore land at the correct point on the timeline — a 2027 task sees the 2027 profile, not the import-time one.
