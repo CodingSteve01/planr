@@ -566,9 +566,29 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date() }
   // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
   // axis based on the route's original index in ROUTES — stations move with
   // the route so positioning stays consistent.
+  // Pre-compute color assignment per root id — deterministic hash so a
+  // project keeps the same line color across reloads + data edits. Walk
+  // in sorted-line order and resolve collisions by stepping forward in
+  // the palette until a free slot is found; first-touched id wins its
+  // preferred colour.
+  const colorByRoot = {};
+  const usedColors = new Set();
+  sortedLines.forEach(line => {
+    const baseIdx = Math.abs(hashStr(line.root.id)) % PALETTE.length;
+    let pick = PALETTE[baseIdx];
+    if (usedColors.has(pick)) {
+      for (let k = 1; k < PALETTE.length; k++) {
+        const alt = PALETTE[(baseIdx + k) % PALETTE.length];
+        if (!usedColors.has(alt)) { pick = alt; break; }
+      }
+    }
+    colorByRoot[line.root.id] = pick;
+    usedColors.add(pick);
+  });
+
   const baseAssigned = sortedLines.map((line, rank) => {
     const routeEntry = routesWithLen[rank % routesWithLen.length];
-    const color = PALETTE[rank % PALETTE.length];
+    const color = colorByRoot[line.root.id];
     return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len };
   });
 

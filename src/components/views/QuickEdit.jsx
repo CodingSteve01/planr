@@ -332,6 +332,16 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
       <div className="field"><label>{t('qe.team')}</label>
         <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
+        {/* Team-lock: declarative "this leaf blocks the whole team" — sits
+            next to the team picker so the scoping relationship is visible
+            at glance. Scheduler fans out to all current members at run time. */}
+        {isLeaf && f.team && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--tx2)', cursor: 'pointer' }} data-htip={t('qe.teamLockTip')}>
+            <input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} />
+            {t('qe.teamLock')}
+            {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)', fontWeight: 700 }}>⚞⚟</span>}
+          </label>
+        )}
       </div>
 
       <div className="field"><label>{t('qe.assignee')}</label>
@@ -495,9 +505,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0 }}>{t('qe.parallel')}</label>
           <label className="toggle"><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked })} /><span className="slider" /></label>
           {f.parallel && <span style={{ fontSize: 10, color: 'var(--am)' }}>≡</span>}
-          <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0, marginLeft: 12 }} data-htip={t('qe.teamLockTip')}>{t('qe.teamLock')}</label>
-          <label className="toggle"><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
-          {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)' }}>⚞⚟</span>}
           {onReorderInQueue && !f.parallel && <>
             <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{t('qe.queue')}</span>
             <div style={{ display: 'flex', gap: 2 }}>

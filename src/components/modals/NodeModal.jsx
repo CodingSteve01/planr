@@ -383,6 +383,19 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               </div>
             </div>
           </div>
+          {/* Team-lock toggle sits right next to the team picker because
+              that's what it scopes against: "blocks the whole team for
+              this task". Scheduler resolves it to all current members at
+              run time, no manual fan-out needed. */}
+          {isLeaf && f.team && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <label style={{ fontSize: 11, color: 'var(--tx2)', margin: 0, cursor: 'pointer' }} data-htip={t('qe.teamLockTip')}>
+                <input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                {t('qe.teamLock')}
+              </label>
+              {f.teamLock && <span style={{ fontSize: 10, color: 'var(--am)', fontWeight: 700 }}>⚞⚟</span>}
+            </div>
+          )}
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
