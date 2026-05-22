@@ -152,7 +152,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
           <p className="helper">Leave at 0 for structural grouping items — estimates aggregate from children.</p>
         </div>
         <div className="frow">
-          <div className="field"><label>Best (days)</label><input type="number" min="0" value={f.best} onChange={e => s('best', +e.target.value)} /></div>
+          <div className="field"><label>Best (days)</label><input type="number" min="0" step="0.1" value={f.best} onChange={e => s('best', +e.target.value)} /></div>
           <div className="field"><label>Factor</label><input type="number" step="0.1" min="1" value={f.factor} onChange={e => s('factor', +e.target.value)} /></div>
           <div className="field"><label>Priority</label>
             <SearchSelect value={String(f.prio)} options={[{ id: '1', label: '1 Critical' }, { id: '2', label: '2 High' }, { id: '3', label: '3 Medium' }, { id: '4', label: '4 Low' }]} onSelect={v => s('prio', +v)} />

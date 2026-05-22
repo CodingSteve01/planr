@@ -399,7 +399,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       </div>
 
       <div className="frow">
-        <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" value={f.best || 0} onChange={e => bufferNode({ best: +e.target.value })} onBlur={flushNode} /></div>
+        <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" step="0.1" value={f.best || 0} onChange={e => bufferNode({ best: +e.target.value })} onBlur={flushNode} /></div>
         <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => bufferNode({ factor: +e.target.value })} onBlur={flushNode} /></div>
         <div className="field"><label>{t('qe.priority')}</label>
           <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `1 ${t('critical')}` }, { id: '2', label: `2 ${t('high')}` }, { id: '3', label: `3 ${t('medium')}` }, { id: '4', label: `4 ${t('low')}` }]} onSelect={value => patchNode({ prio: +value })} />

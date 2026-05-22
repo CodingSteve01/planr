@@ -938,8 +938,8 @@ export default function App() {
       if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.lastIndexOf(teamM[0])); if (team) teamSet.add(team); }
       // Estimate: (SZ NTd) or (SZ NTd ×F)
       let best = 0, factor = 1.5;
-      const estM = raw.match(/\((\w+\s+)?(\d+)T(?:\s*×([\d.]+))?\)/);
-      if (estM) { best = parseInt(estM[2]); if (estM[3]) factor = parseFloat(estM[3]); raw = raw.replace(estM[0], '').trim(); }
+      const estM = raw.match(/\((\w+\s+)?([\d.]+)T(?:\s*×([\d.]+))?\)/);
+      if (estM) { best = parseFloat(estM[2]); if (estM[3]) factor = parseFloat(estM[3]); raw = raw.replace(estM[0], '').trim(); }
       // Progress
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
@@ -2622,7 +2622,7 @@ export default function App() {
                 {bTab === 'effort' && <>
                   {allLeaf && <div className="frow">
                     <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="number" min="0" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
+                      <LazyInput type="number" min="0" step="0.1" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
                     </div>
                     <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ' (mixed)' : ''}</label>
                       <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
