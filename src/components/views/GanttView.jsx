@@ -1836,9 +1836,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 // grey arrows disappear visually between adjacent bars.
                 // Soft deps render dashed + thinner so planner-set ordering is
                 // visually distinct from business-need hard deps.
-                const opacity = emphasized ? 0.95 : (l.isCp ? 0.7 : (l.isSoft ? 0.4 : 0.55));
-                const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1 : 1.2);
-                const dash = l.isSoft && !l.isCp ? '4,3' : undefined;
+                const opacity = emphasized ? 0.95 : (l.isCp ? 0.75 : (l.isSoft ? 0.6 : 0.7));
+                const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1.1 : 1.4);
+                const dash = undefined;
                 const openDependency = () => {
                   dismissTooltip(true);
                   setHoverLineKey(null);

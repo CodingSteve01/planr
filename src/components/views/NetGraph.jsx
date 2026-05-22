@@ -602,15 +602,13 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
         {allEdges.filter(e => !e.isHier).map(e => {
           const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
           const isActive = activeId && (e.from === activeId || e.to === activeId);
-          const op = isActive ? .9 : isCp ? .55 : (e.isSoft ? .25 : .35);
+          const op = isActive ? .9 : isCp ? .7 : (e.isSoft ? .55 : .7);
           const owner = iMap[e.depOwner || e.from]; const label = owner?._depLabels?.[e.depTarget || e.to] || '';
           const lp = e.labelPt;
           const stroke = isCp ? 'var(--re)' : (e.isSoft ? 'var(--tx3)' : 'var(--ac)');
-          const dashSoft = e.isSoft && !isActive ? '3 3' : (isActive ? 'none' : '5 3');
           return <g key={e.id}>
             <path d={e.path} fill="none" stroke={stroke}
-              strokeWidth={isActive ? 2.5 : isCp ? 1.5 : (e.isSoft ? .5 : .8)}
-              strokeDasharray={dashSoft}
+              strokeWidth={isActive ? 2.5 : isCp ? 1.5 : (e.isSoft ? .8 : 1)}
               opacity={op} markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'} />
             {label && isActive && lp && <>
               <rect x={lp.x - label.length * 2.5 - 4} y={lp.y - 7} width={label.length * 5 + 8} height={13} rx={3}
@@ -705,7 +703,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
 
     <div className="ng-legend">
       <div className="ng-li"><div style={{ width: 14, height: 1, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
-      <div className="ng-li"><div style={{ width: 14, height: 0, borderTop: '1.5px dashed var(--ac)', flexShrink: 0 }} />Dependency</div>
+      <div className="ng-li"><div style={{ width: 14, height: 0, borderTop: '1.5px solid var(--ac)', flexShrink: 0 }} />Dependency</div>
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
       <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
     </div>
