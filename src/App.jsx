@@ -1992,88 +1992,58 @@ export default function App() {
     setD('tree', renamed);
     return idMap[nodeId];
   }
-  // Reorder a node within its sibling list by renumbering trailing IDs (and all
-  // descendants, plus dep references everywhere). Direction: 'up'|'down'|'first'|'last'.
-  // For root items (no dot), only siblings sharing the same alphabetic prefix swap —
-  // mixing P-roots with D-roots would change category semantics.
+  // Reorder a node within its sibling list by writing persistent displayOrder
+  // values. IDs and dependencies stay stable; the order round-trips as `ord:`.
+  // Direction: 'up'|'down'|'first'|'last' or { targetId, position:'before'|'after' }.
   function reorderSibling(nodeId, direction) {
-    const parts = nodeId.split('.');
-    const parentId = parts.slice(0, -1).join('.');
-    const node = tree.find(r => r.id === nodeId); if (!node) return;
-
-    // Build sibling list. For children: same parent. For roots: same alphabetic prefix.
-    const isRoot = !parentId;
-    const myPrefix = isRoot ? (nodeId.match(/^[A-Za-z]+/)?.[0] || '') : '';
-    const siblings = tree.filter(r => {
-      if (isRoot) {
-        if (r.id.includes('.')) return false;
-        return (r.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
+    const rank = r => {
+      const explicit = typeof r.displayOrder === 'number' ? r.displayOrder : null;
+      if (explicit != null) return explicit;
+      return parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0;
+    };
+    const sameRootPrefix = (a, b) => (a.match(/^[A-Za-z]+/)?.[0] || '') === (b.match(/^[A-Za-z]+/)?.[0] || '');
+    let changed = false;
+    setData(d => {
+      const currentTree = d.tree || [];
+      const node = currentTree.find(r => r.id === nodeId);
+      if (!node) return d;
+      const parent = nodeId.split('.').slice(0, -1).join('.');
+      const isRoot = !parent;
+      const siblings = currentTree
+        .filter(r => {
+          if (isRoot) return !r.id.includes('.') && sameRootPrefix(r.id, nodeId);
+          return r.id.split('.').slice(0, -1).join('.') === parent;
+        })
+        .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+      const fromIdx = siblings.findIndex(s => s.id === nodeId);
+      if (fromIdx < 0 || siblings.length <= 1) return d;
+      let toIdx = fromIdx;
+      if (direction === 'up') toIdx = fromIdx - 1;
+      else if (direction === 'down') toIdx = fromIdx + 1;
+      else if (direction === 'first') toIdx = 0;
+      else if (direction === 'last') toIdx = siblings.length - 1;
+      else if (direction && typeof direction === 'object' && direction.targetId) {
+        const targetIdx = siblings.findIndex(s => s.id === direction.targetId);
+        if (targetIdx < 0 || direction.targetId === nodeId) return d;
+        const without = siblings.filter(s => s.id !== nodeId);
+        const adjustedTarget = without.findIndex(s => s.id === direction.targetId);
+        toIdx = adjustedTarget + (direction.position === 'after' ? 1 : 0);
       }
-      const rp = r.id.split('.').slice(0, -1).join('.');
-      return rp === parentId;
-    }).sort((a, b) => {
-      const an = parseInt(a.id.split('.').pop().replace(/\D/g, '')) || 0;
-      const bn = parseInt(b.id.split('.').pop().replace(/\D/g, '')) || 0;
-      return an - bn;
-    });
-
-    const myIdx = siblings.findIndex(s => s.id === nodeId);
-    if (myIdx < 0) return;
-    let newIdx = myIdx;
-    if (direction === 'up') newIdx = myIdx - 1;
-    else if (direction === 'down') newIdx = myIdx + 1;
-    else if (direction === 'first') newIdx = 0;
-    else if (direction === 'last') newIdx = siblings.length - 1;
-    newIdx = Math.max(0, Math.min(siblings.length - 1, newIdx));
-    if (newIdx === myIdx) return;
-
-    // Reorder siblings array
-    const reordered = [...siblings];
-    const [moved] = reordered.splice(myIdx, 1);
-    reordered.splice(newIdx, 0, moved);
-
-    // Build idMap: old → new for every sibling whose position changed,
-    // plus for every descendant of those siblings.
-    const idMap = {};
-    reordered.forEach((s, i) => {
-      const newSuffix = i + 1;
-      const newId = isRoot ? `${myPrefix}${newSuffix}` : `${parentId}.${newSuffix}`;
-      if (newId === s.id) return;
-      idMap[s.id] = newId;
-      const descPrefix = s.id + '.';
-      tree.forEach(r => {
-        if (r.id.startsWith(descPrefix)) idMap[r.id] = newId + '.' + r.id.slice(descPrefix.length);
+      toIdx = Math.max(0, Math.min(siblings.length - 1, toIdx));
+      if (toIdx === fromIdx) return d;
+      const reordered = [...siblings];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      const order = new Map(reordered.map((s, idx) => [s.id, idx + 1]));
+      const nextTree = currentTree.map(r => {
+        if (!order.has(r.id)) return r;
+        const nextOrder = order.get(r.id);
+        return r.displayOrder === nextOrder ? r : { ...r, displayOrder: nextOrder };
       });
+      changed = true;
+      return { ...d, tree: nextTree };
     });
-    if (!Object.keys(idMap).length) return;
-
-    // Apply renaming + dep remapping (mirrors moveNode's logic).
-    const renamed = tree.map(r => {
-      const newId = idMap[r.id] || r.id;
-      const newDeps = (r.deps || []).map(d => idMap[d] || d);
-      const depsChanged = newDeps.some((d, i) => d !== (r.deps || [])[i]);
-      if (newId === r.id && !depsChanged) return r;
-      const newR = { ...r, id: newId, deps: newDeps };
-      if (r._depLabels) {
-        newR._depLabels = {};
-        Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
-      }
-      return newR;
-    });
-    // Re-sort so parent-then-children order is preserved globally
-    renamed.sort((a, b) => {
-      const ap = a.id.split('.'), bp = b.id.split('.');
-      for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
-        if (ap[i] !== bp[i]) {
-          const an = parseInt(ap[i].replace(/\D/g, '')) || 0, bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
-          return an !== bn ? an - bn : ap[i].localeCompare(bp[i]);
-        }
-      }
-      return ap.length - bp.length;
-    });
-    setD('tree', renamed);
-    // Keep the moved node selected under its new ID
-    if (selId === nodeId && idMap[nodeId]) setSel(idMap[nodeId]);
+    if (changed) setSaved(false);
   }
 
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }

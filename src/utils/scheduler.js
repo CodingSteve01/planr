@@ -845,6 +845,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
             actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
           }
+          if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
           const ws0 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : [bp.id]);
           let pinOverridden0 = false;
           if (r.pinnedStart && actualStartD) {
@@ -1112,6 +1113,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
       actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
     }
+    if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
     // Dep violation diagnostic: warn if this task starts before any of its deps finish.
     allD.forEach(depId => {
       const dEnd = tEW[depId];

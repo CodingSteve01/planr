@@ -155,7 +155,35 @@ describe('schedule(): dependencies', () => {
     const { results } = runSchedule({ tree, members: [alex] });
     const first = results.find(s => s.id === 'P1.1');
     const second = results.find(s => s.id === 'P1.2');
-    expect(second.startD >= first.endD).toBe(true);
+    expect(second.startD > first.endD).toBe(true);
+  });
+
+  test('soft dependency from Gantt link serialises same-resource tasks', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 5, factor: 1, assign: ['M1'], softDeps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(second.startD > first.endD).toBe(true);
+  });
+
+  test('wip progress does not visually move a dep-blocked successor before its predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 10, factor: 1, assign: ['M1'], softDeps: ['P1.1'], status: 'wip', progress: 50 },
+    ];
+    const { results } = runSchedule({
+      tree,
+      members: [alex],
+      options: { discountProgress: true },
+    });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(second.startD > first.endD).toBe(true);
   });
 
   test('inherited dep from parent blocks all children', () => {
@@ -214,9 +242,8 @@ describe('schedule(): pinned starts', () => {
   });
 });
 
-// `parallel` flag removed from the data model — parallelism is now expressed
-// by the absence of dep edges between tasks (per-person capacity still
-// queues, but tasks on different people / no shared deps run concurrently).
+// Unlinked work may intentionally start in parallel; explicit dependency
+// edges are the user's "run this after that" signal.
 
 describe('schedule(): no-dep starters bypass the per-person queue', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };

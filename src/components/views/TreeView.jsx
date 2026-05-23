@@ -19,6 +19,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
   const [collapsed, setCollapsed] = useState(new Set());
+  const [orderDrop, setOrderDrop] = useState(null);
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
 
@@ -263,17 +264,37 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const parts = selected.id.split('.');
     const isRoot = parts.length === 1;
     const myPrefix = isRoot ? (selected.id.match(/^[A-Za-z]+/)?.[0] || '') : '';
+    const rank = r => typeof r.displayOrder === 'number'
+      ? r.displayOrder
+      : (parseInt(r.id.split('.').pop().replace(/\D/g, '')) || 0);
     const siblings = tree.filter(x => {
       if (isRoot) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
       return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
     }).sort((a, b) => {
-      const an = parseInt(a.id.split('.').pop().replace(/\D/g, '')) || 0;
-      const bn = parseInt(b.id.split('.').pop().replace(/\D/g, '')) || 0;
-      return an - bn;
+      return rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true });
     });
     const idx = siblings.findIndex(x => x.id === selected.id);
     return { idx, count: siblings.length };
   }, [selected?.id, tree]);
+  const siblingKeyOf = id => {
+    const parent = id.split('.').slice(0, -1).join('.');
+    if (parent) return parent;
+    return `root:${id.match(/^[A-Za-z]+/)?.[0] || ''}`;
+  };
+  const canDropOrder = (dragId, targetId) => !!dragId && !!targetId && dragId !== targetId && siblingKeyOf(dragId) === siblingKeyOf(targetId);
+  const onOrderDragOver = (e, targetId) => {
+    if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+    setOrderDrop(prev => prev?.targetId === targetId && prev?.position === position ? prev : { ...prev, targetId, position });
+  };
+  const onOrderDrop = (e, targetId) => {
+    if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
+    e.preventDefault();
+    onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
+    setOrderDrop(null);
+  };
   const toolBtn = (label, title, onClick, disabled) => <button
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
     style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer' }}>{label}</button>;
@@ -340,11 +361,43 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           // Diff-since badge — shared helper keeps the same rule used by the
           // "only with changes" filter so the two views stay in sync.
           const diffBadge = computeDiffBadge(r);
+          const dropHere = orderDrop?.targetId === r.id && canDropOrder(orderDrop.dragId, r.id) ? orderDrop.position : '';
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
-            onClick={e => onSelect(r, e, filt.map(x => x.id))}>
+            onClick={e => onSelect(r, e, filt.map(x => x.id))}
+            onDragOver={e => onOrderDragOver(e, r.id)}
+            onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
+            onDrop={e => onOrderDrop(e, r.id)}
+            style={{
+              boxShadow: dropHere === 'before'
+                ? 'inset 0 2px 0 var(--ac)'
+                : dropHere === 'after'
+                ? 'inset 0 -2px 0 var(--ac)'
+                : undefined,
+            }}>
             {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
-            <td {...(cpTip ? { 'data-htip': `Critical path: ${cpTip}` } : {})}><span className="tid">{r.id}</span></td>
+            <td {...(cpTip ? { 'data-htip': `Critical path: ${cpTip}` } : {})}>
+              {onReorder && <span
+                draggable
+                data-htip={`Drag to reorder ${r.id} within its siblings`}
+                onDragStart={e => {
+                  e.stopPropagation();
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', r.id);
+                  setOrderDrop({ dragId: r.id, targetId: null, position: 'before' });
+                }}
+                onDragEnd={() => setOrderDrop(null)}
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  marginRight: 4,
+                  color: 'var(--tx3)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  textAlign: 'center',
+                }}>≡</span>}
+              <span className="tid">{r.id}</span>
+            </td>
 
             {/* Name column — flex container so badges wrap as a single trailing
                 group instead of breaking individually under the name when the row
