@@ -748,6 +748,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return { ...dl, wi, x, dateD, isLate, maxEnd };
   });
   const now = new Date();
+  const todayIso = iso(now);
   const todayWi = weeks.findIndex((w, i) => { const next = weeks[i + 1]; return w.mon <= now && (!next || next.mon > now); });
   // Always day-accurate — even in week mode the line sits on the correct day
   // column within the week, not at the week's left edge.
@@ -873,6 +874,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         wi,
         kw: week.kw,
         start: iso(week.mon),
+        end: iso(week.sun || (week.wds || EMPTY_ARR)[(week.wds || EMPTY_ARR).length - 1] || week.mon),
         availability: 0,
         load: 0,
         taskCount: 0,
@@ -917,13 +919,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           loadByWeek.set(wi, (loadByWeek.get(wi) || 0) + loadPerSlot);
         });
         loadByWeek.forEach((load, wi) => {
+          const status = item.status || node?.status || '';
+          const startIso = item.startD ? iso(item.startD) : '';
+          const endIso = item.endD ? iso(item.endD) : '';
           rows[wi].tasks.push({
             id: item.treeId || item.id,
             name: item.name || node?.name || item.id,
             load,
-            status: item.status || node?.status || '',
-            start: item.startD ? iso(item.startD) : '',
-            end: item.endD ? iso(item.endD) : '',
+            status,
+            start: startIso,
+            end: endIso,
+            done: status === 'done',
           });
         });
       });
@@ -935,16 +941,22 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         : row.load > 0 ? 999 : 0;
       row.tasks.sort((a, b) => b.load - a.load || a.id.localeCompare(b.id, undefined, { numeric: true }));
       row.taskCount = row.tasks.length;
+      row.openTaskCount = row.tasks.filter(task => task.status !== 'done').length;
+      row.hasOpenWork = row.openTaskCount > 0;
+      row.historicalOnly = row.load > 0 && !row.hasOpenWork;
+      row.currentOrFuture = !row.end || row.end >= todayIso;
+      row.isPlanningRisk = row.load > 0 && row.hasOpenWork && row.currentOrFuture && row.percent >= 90;
     }));
     return result;
-  }, [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams]);
+  }, [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso]);
   const loadRiskSummary = useMemo(() => {
     const risky = [];
+    const historical = [];
     Object.entries(resourceLoadByWeek || {}).forEach(([personId, rows]) => {
       const name = memberById[personId]?.name || personId;
       (rows || EMPTY_ARR).forEach(row => {
         if (!row || row.load <= 0 || row.percent < 90) return;
-        risky.push({
+        const entry = {
           personId,
           name,
           kw: row.kw,
@@ -953,23 +965,33 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           availability: row.availability,
           percent: row.percent,
           tasks: row.tasks || EMPTY_ARR,
-        });
+        };
+        if (row.isPlanningRisk) risky.push(entry);
+        else if (row.historicalOnly) historical.push(entry);
       });
     });
     risky.sort((a, b) => b.percent - a.percent || b.load - a.load);
+    historical.sort((a, b) => b.percent - a.percent || b.load - a.load);
     const over = risky.filter(r => r.percent > 110);
     const full = risky.filter(r => r.percent >= 90 && r.percent <= 110);
     const top = risky.slice(0, 6);
-    const tip = top.length
-      ? `html:<div><b>${t('g.loadRiskTitle')}</b><br/>${top.map(r => {
+    const histTop = historical.slice(0, Math.max(0, 6 - top.length));
+    const riskHtml = top.map(r => {
           const tasks = (r.tasks || EMPTY_ARR).slice(0, 3).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
           return `${htmlEsc(r.name)} · KW ${r.kw} (${r.start}): <b>${r.percent}%</b> · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}${tasks}`;
-        }).join('<br/>')}<br/><span style="color:var(--tx3)">${t('g.loadRiskAction')}</span></div>`
+        }).join('<br/>');
+    const histHtml = histTop.map(r => {
+          const tasks = (r.tasks || EMPTY_ARR).slice(0, 2).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
+          return `${htmlEsc(r.name)} · KW ${r.kw} (${r.start}): ${r.percent}% · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}${tasks}`;
+        }).join('<br/>');
+    const tip = top.length || histTop.length
+      ? `html:<div><b>${t('g.loadRiskTitle')}</b>${riskHtml ? `<br/>${riskHtml}<br/><span style="color:var(--tx3)">${t('g.loadRiskAction')}</span>` : `<br/><span style="color:var(--tx3)">${t('g.loadOkTip')}</span>`}${histHtml ? `<br/><br/><b>${t('g.loadHistoryTitle')}</b><br/>${histHtml}<br/><span style="color:var(--tx3)">${t('g.loadHistoryNote')}</span>` : ''}</div>`
       : t('g.loadOkTip');
     return {
       overCount: over.length,
       fullCount: full.length,
       maxPercent: risky[0]?.percent || 0,
+      historicalCount: historical.length,
       tip,
     };
   }, [resourceLoadByWeek, memberById, t]);
@@ -986,20 +1008,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             load: row.load,
             availability: row.availability,
             tasks: row.tasks || EMPTY_ARR,
+            hasOpenWork: row.hasOpenWork,
+            historicalOnly: row.historicalOnly,
+            isPlanningRisk: row.isPlanningRisk,
           };
         })
         .filter(Boolean)
         .sort((a, b) => b.percent - a.percent || b.load - a.load);
+      const planningPeople = people.filter(p => p.isPlanningRisk);
       const totalLoad = people.reduce((sum, p) => sum + p.load, 0);
       const totalAvailability = people.reduce((sum, p) => sum + p.availability, 0);
-      const maxPercent = people[0]?.percent || 0;
-      const overCount = people.filter(p => p.percent > 110).length;
-      const shown = (people.filter(p => p.percent >= 90).length ? people.filter(p => p.percent >= 90) : people).slice(0, 8);
+      const maxPercent = planningPeople[0]?.percent || people[0]?.percent || 0;
+      const overCount = planningPeople.filter(p => p.percent > 110).length;
+      const historicalOnly = people.length > 0 && !planningPeople.length && people.every(p => p.historicalOnly);
+      const shownBase = planningPeople.length ? planningPeople : (people.filter(p => p.percent >= 90).length ? people.filter(p => p.percent >= 90) : people);
+      const shown = shownBase.slice(0, 8);
       const tip = people.length
         ? `html:<div><b>${t('g.loadWeekTitle')} KW ${week.kw} · ${iso(week.mon)}</b><br/>${t('g.loadWeekTotal')}: ${fmtLoadDays(totalLoad)} / ${fmtLoadDays(totalAvailability)} · max ${maxPercent}%<br/>${shown.map(p => {
             const tasks = (p.tasks || EMPTY_ARR).slice(0, 4).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
             return `<div style="margin-top:5px"><b>${htmlEsc(p.name)}</b>: ${p.percent}% · ${fmtLoadDays(p.load)} / ${fmtLoadDays(p.availability)}${tasks}</div>`;
-          }).join('')}<div style="margin-top:7px;color:var(--tx3)">${t('g.loadClickResource')}</div></div>`
+          }).join('')}${historicalOnly ? `<div style="margin-top:7px;color:var(--tx3)">${t('g.loadHistoryNote')}</div>` : ''}<div style="margin-top:7px;color:var(--tx3)">${t('g.loadClickResource')}</div></div>`
         : t('g.loadNoWork');
       return {
         wi,
@@ -1008,18 +1036,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         overCount,
         totalLoad,
         totalAvailability,
+        historicalOnly,
         tip,
       };
     });
   }, [weeks, resourceLoadByWeek, memberById, t]);
-  const loadHeatColor = percent => {
+  const loadHeatColor = (percent, meta = null) => {
+    if (meta?.historicalOnly) return 'rgba(148,163,184,.12)';
     if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.08)';
     if (percent < 50) return 'rgba(59,130,246,.18)';
     if (percent < 90) return 'rgba(16,185,129,.20)';
     if (percent <= 110) return 'rgba(245,158,11,.26)';
     return 'rgba(239,68,68,.34)';
   };
-  const loadHeatStroke = percent => {
+  const loadHeatStroke = (percent, meta = null) => {
+    if (meta?.historicalOnly) return 'rgba(148,163,184,.45)';
     if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.22)';
     if (percent < 50) return 'rgba(59,130,246,.55)';
     if (percent < 90) return 'rgba(16,185,129,.58)';
@@ -1038,11 +1069,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (cellRight <= barLeft || cellLeft >= barRight) return;
       let load = 0;
       let availability = 0;
+      let hasOpenWork = false;
+      let isPlanningRisk = false;
       ids.forEach(id => {
         const row = resourceLoadByWeek[id]?.[wi];
         if (!row) return;
         load += row.load || 0;
         availability += row.availability || 0;
+        if (row.hasOpenWork) hasOpenWork = true;
+        if (row.isPlanningRisk) isPlanningRisk = true;
       });
       const percent = availability > 0
         ? Math.round(load / availability * 100)
@@ -1053,6 +1088,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         percent,
         load,
         availability,
+        hasOpenWork,
+        isPlanningRisk,
+        historicalOnly: load > 0 && !hasOpenWork,
         left: Math.max(0, cellLeft - barLeft),
         width: Math.max(1, Math.min(cellRight, barRight) - Math.max(cellLeft, barLeft)),
       });
@@ -1698,7 +1736,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)', boxShadow: '0 1px 0 var(--b)' }}>
             {showLoadHeatmap && loadWeekSummary.map(cell => {
               const pct = cell.maxPercent || 0;
-              const isRisk = pct >= 90;
+              const isRisk = pct >= 90 && !cell.historicalOnly;
               const h = isRisk ? FLAG_ROW_H : 5;
               const top = isRisk ? 0 : FLAG_ROW_H - h;
               return <div
@@ -1711,8 +1749,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   top,
                   width: WPX,
                   height: h,
-                  background: pct > 0 ? loadHeatColor(pct) : 'transparent',
-                  borderBottom: pct > 0 ? `2px solid ${loadHeatStroke(pct)}` : 'none',
+                  background: pct > 0 ? loadHeatColor(pct, cell) : 'transparent',
+                  borderBottom: pct > 0 ? `2px solid ${loadHeatStroke(pct, cell)}` : 'none',
                   opacity: pct > 0 ? (isRisk ? .88 : .62) : 0,
                   cursor: pct > 0 ? 'pointer' : 'default',
                   zIndex: 0,
@@ -1777,7 +1815,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       top: 0,
                       width: WPX,
                       height: '100%',
-                      background: loadHeatColor(pct),
+                      background: loadHeatColor(pct, cell),
                       borderRight: pct > 110 ? '1px solid rgba(239,68,68,.65)' : '1px solid rgba(127,127,127,.08)',
                       pointerEvents: 'auto',
                       zIndex: 0,
@@ -1897,8 +1935,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   top: 0,
                   width: cell.width,
                   height: '100%',
-                  background: loadHeatColor(cell.percent),
-                  borderBottom: `2px solid ${loadHeatStroke(cell.percent)}`,
+                  background: loadHeatColor(cell.percent, cell),
+                  borderBottom: `2px solid ${loadHeatStroke(cell.percent, cell)}`,
                   opacity: .72,
                   pointerEvents: 'none',
                   zIndex: 0,
@@ -2121,8 +2159,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       top: 0,
                       bottom: 0,
                       width: cell.width,
-                      background: loadHeatColor(cell.percent),
-                      borderBottom: `3px solid ${loadHeatStroke(cell.percent)}`,
+                      background: loadHeatColor(cell.percent, cell),
+                      borderBottom: `3px solid ${loadHeatStroke(cell.percent, cell)}`,
                     }} />
                   ))}
                 </div>}

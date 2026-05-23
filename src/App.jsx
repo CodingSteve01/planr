@@ -896,9 +896,10 @@ export default function App() {
       // the tag block first with an `$` anchor and missed it whenever a
       // decideBy/pinned marker trailed — which silently dropped `assign`
       // because the later assign-regex is also `$`-anchored.
-      // Strip legacy `≡` parallel marker — flag has been removed from the
-      // data model. Don't capture it so it doesn't round-trip back.
-      if (raw.includes('≡')) raw = raw.replace(/≡/g, '').trim();
+      // Legacy files used a trailing `≡` marker. New exports use
+      // `{parallel:true}` so the flag survives tag parsing cleanly.
+      let parallel = false;
+      if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
       let pinnedStart = '';
       const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
       if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
@@ -923,6 +924,7 @@ export default function App() {
           const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
           const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
           const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
+          const plm = t.match(/^parallel:(true|yes|on)$/i); if (plm) { parallel = true; return; }
           const fdm = t.match(/^fixed:(\d+(?:\.\d+)?)$/i); if (fdm) { fixedDurationDays = Math.max(1, Math.ceil(+fdm[1])); return; }
           const om = t.match(/^ord:(\d+)$/i); if (om) { displayOrder = +om[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
@@ -979,6 +981,7 @@ export default function App() {
       if (deadlineRelevant === false) item.deadlineRelevant = false;
       if (due) item.due = due;
       if (teamLock) item.teamLock = true;
+      if (parallel) item.parallel = true;
       if (fixedDurationDays > 0) item.fixedDurationDays = fixedDurationDays;
       if (displayOrder != null) item.displayOrder = displayOrder;
       if (Object.keys(customValues).length) item.customValues = customValues;

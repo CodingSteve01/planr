@@ -39,16 +39,17 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(tagPos).toBeGreaterThan(assignPos);
   });
 
-  test('parallel `≡` marker dropped (flag removed from data model)', () => {
+  test('parallel flag serialises as metadata, not as legacy marker', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
       { id: 'P1.1', name: 'Task', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], prio: 2, status: 'open', pinnedStart: '2026-03-01',
+        assign: ['M1'], prio: 2, status: 'open', pinnedStart: '2026-03-01', parallel: true,
       },
     ];
     const md = buildMarkdownText({ ...base, tree });
     const line = md.split('\n').find(l => l.includes('**P1.1**'));
     expect(line).not.toMatch(/≡/);
+    expect(line).toMatch(/\{parallel:true\}/);
     expect(line).toMatch(/📌2026-03-01/);
   });
 

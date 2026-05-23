@@ -154,6 +154,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (r.deadlineRelevant === false) tags.push('deadline:false');
     if (r.due) tags.push(`due:${r.due}`);
     if (r.teamLock) tags.push('team-lock:true');
+    if (r.parallel) tags.push('parallel:true');
     if (r.fixedDurationDays > 0) tags.push(`fixed:${Math.max(1, Math.ceil(+r.fixedDurationDays))}`);
     if (typeof r.displayOrder === 'number') tags.push(`ord:${r.displayOrder}`);
     // Custom field values inline: {jira:PROJ-123, customer:Acme}
