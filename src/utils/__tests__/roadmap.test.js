@@ -73,7 +73,7 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(station.prog).toBeCloseTo(0.5, 4);
   });
 
-  test('reached route cannot pass the first not-done station even when effort progress is high', () => {
+  test('live train sits at the reached route end and cannot pass the first not-done station', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'open', best: 0 },
       { id: 'P1.1', name: 'Large done task', status: 'done', progress: 100, best: 100, factor: 1 },
@@ -92,7 +92,8 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(line.progress).toBeGreaterThan(0.9);
     expect(line.reachedT).toBeLessThan(firstOpenStation.t);
-    expect(line.trainT).toBeGreaterThanOrEqual(line.reachedT);
+    expect(line.trainT).toBe(line.reachedT);
+    expect(line.trainT).toBeLessThan(firstOpenStation.t);
   });
 
   test('station placement follows weighted scope progress instead of calendar time', () => {

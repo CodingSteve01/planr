@@ -801,8 +801,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   // ── Station placement on routes ───────────────────────────────────────────
   // Effort-proportional spacing: the subway line is a percent-of-scope view,
   // not a calendar timeline. Dates define station order, but station distance
-  // along the route follows weighted work. The solid travelled rail remains
-  // station-gated; the train itself shows weighted aggregate project progress.
+  // along the route follows weighted work. The solid travelled rail is
+  // station-gated and the live train always sits exactly at that rail end.
+  // Raw effort progress is still exposed as the percentage label, but it must
+  // not visually drive past an unfinished station.
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
@@ -884,7 +886,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     }
 
     const reachedT = clamp(stationGatedT, ROUTE_T_LO, ROUTE_T_HI);
-    const trainT = clamp(effortTrainT, ROUTE_T_LO, ROUTE_T_HI);
+    const trainT = reachedT;
     const trainPt = pointAtFraction(route, trainT);
     const ghostPt = pointAtFraction(route, ghostT);
 
@@ -1165,9 +1167,9 @@ export function renderRoadmapSvg(args) {
     let pastT = null;
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id)) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
-      pastT = progressToRouteT(pastPct);
+      pastT = Math.min(progressToRouteT(pastPct), line.trainT);
     }
-    if (pastT != null && (line.progress || 0) - (pastProgress[line.root.id] || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
+    if (pastT != null && line.trainT - pastT > MIN_VISIBLE_PROGRESS_DELTA) {
       const trailD = partialPath(route, trainT, pastT);
       if (trailD) {
         out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
@@ -1248,8 +1250,8 @@ export function renderRoadmapSvg(args) {
     // Ghost train marker at the past position — only when there's a real gap
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
-      const pastT = progressToRouteT(pastPct);
-      if ((line.progress || 0) - pastPct > MIN_VISIBLE_PROGRESS_DELTA) {
+      const pastT = Math.min(progressToRouteT(pastPct), line.trainT);
+      if (line.trainT - pastT > MIN_VISIBLE_PROGRESS_DELTA) {
         const gp = pointAtFraction(line.route, pastT);
         const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
