@@ -727,12 +727,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const RH = 28, HH = 28, FLAG_ROW_H = 18;
   const rowCenterY = rowIndex => FLAG_ROW_H + rowIndex * RH + RH / 2;
   const dlL = (goals || []).filter(d => d.date).map(dl => {
-    const di = weeks.findIndex(w => w.mon > new Date(dl.date));
-    const wi = di >= 0 ? di : weeks.length;
+    const dateD = localDate(dl.date);
+    const x = dateToX(dateD);
+    const wi = weekIndexOfDate(dateD);
     const linked = scheduled.filter(s => s.id.startsWith(dl.id + '.'));
     const maxEnd = linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
-    const isLate = maxEnd && new Date(dl.date) < maxEnd;
-    return { ...dl, wi, isLate, maxEnd };
+    const isLate = maxEnd && dateD < maxEnd;
+    return { ...dl, wi, x, dateD, isLate, maxEnd };
   });
   const now = new Date();
   const todayWi = weeks.findIndex((w, i) => { const next = weeks[i + 1]; return w.mon <= now && (!next || next.mon > now); });
@@ -774,7 +775,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
     return m;
   }, [visibleRows]);
-  const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
+  const sMap = useMemo(() => Object.fromEntries(
+    allItems
+      .filter(s => !s._unestimated && s.startWi >= 0 && s.endWi >= 0)
+      .map(s => [s.id, s]),
+  ), [allItems]);
   const cpEdgeSet = useMemo(() => cpEdges || new Set(), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
   const vacByPerson = useMemo(() => {
@@ -1033,14 +1038,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           .filter(depId => depId !== latestId && cpEdgeSet.has(`${depId}->${s.id}`))
           .forEach(depId => addLine(depId, 'cp', true));
     };
-    scheduled.forEach(s => {
+    allItems.forEach(s => {
+      if (!sMap[s.id]) return;
       const node = iMap[s.treeId || s.id]; if (!node) return;
       const removeFromId = node.id;
       (node.deps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, false));
       (node.softDeps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, true));
     });
     return lines;
-  }, [scheduled, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
+  }, [allItems, sMap, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
 
   // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
   const hoverLines = useMemo(() => {
@@ -1052,7 +1058,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const target = sMap[hoverDepId];
     // Outgoing: this task depends on these (deps must finish before this starts)
     if (target) {
-      (node.deps || []).forEach(rawDep => {
+      [...(node.deps || []), ...(node.softDeps || [])].forEach(rawDep => {
         const leafIds = resD(rawDep);
         let latestId = null, latestEnd = null;
         leafIds.forEach(depId => {
@@ -1072,9 +1078,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       });
     }
     // Incoming: which tasks depend on this one (this must finish before they start)
-    scheduled.forEach(s => {
+    allItems.forEach(s => {
+      if (!sMap[s.id]) return;
       const sNode = iMap[s.treeId || s.id]; if (!sNode) return;
-      (sNode.deps || []).forEach(rawDep => {
+      [...(sNode.deps || []), ...(sNode.softDeps || [])].forEach(rawDep => {
         const resolved = resD(rawDep);
         if (!resolved.includes(hoverDepId)) return;
         if (!target) return;
@@ -1089,7 +1096,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       });
     });
     return { lines, rowIds };
-  }, [hoverDepId, tree, scheduled, visibleRows, WPX, showDays, dDelta, drag]);
+  }, [hoverDepId, tree, allItems, sMap, visibleRows, WPX, showDays, dDelta, drag]);
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
@@ -1397,6 +1404,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     onAddDep?.(targetId, linkDrag.fromId);
     setLinkDrag(null);
   }
+  useEffect(() => {
+    if (!linkDrag) return undefined;
+    const finishLinkDrag = (e) => {
+      const hitElements = typeof document.elementsFromPoint === 'function'
+        ? document.elementsFromPoint(e.clientX, e.clientY)
+        : [document.elementFromPoint(e.clientX, e.clientY)];
+      const targetEl = hitElements
+        .map(el => el?.closest?.('[data-link-target]'))
+        .find(Boolean);
+      const targetId = targetEl?.getAttribute?.('data-link-target');
+      if (targetId) {
+        dismissTooltip(true);
+        onLinkDrop(targetId);
+        return;
+      }
+      setLinkDrag(null);
+    };
+    window.addEventListener('mouseup', finishLinkDrag, true);
+    return () => window.removeEventListener('mouseup', finishLinkDrag, true);
+  }, [linkDrag]);
 
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
@@ -1586,7 +1613,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               </>;
             })()}
             {dlL.map(dl => {
-              const x = dl.wi * WPX;
+              const x = dl.x;
               const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
               // Backfill: gentle gradient fading from the deadline mast to the left, so the eye
               // naturally traces the runway leading up to the date. Capped at 8 weeks.
@@ -1596,14 +1623,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 {backfillW > 0 && <div style={{ position: 'absolute', left: x - backfillW, top: 0, width: backfillW, height: '100%',
                   background: `linear-gradient(to right, transparent, ${dl.severity === 'critical' ? 'rgba(244,63,94,.14)' : 'rgba(245,158,11,.14)'})`,
                   pointerEvents: 'none', zIndex: 3 }} data-htip={titleStr} />}
-                {/* Mast: vertical line at the deadline week */}
+                {/* Mast: vertical line at the exact deadline date */}
                 <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: .7, zIndex: 4 }} data-htip={titleStr} />
               </React.Fragment>;
             })}
           </div>
           <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)', boxShadow: '0 1px 0 var(--b)' }}>
             {dlL.map(dl => {
-              const x = dl.wi * WPX;
+              const x = dl.x;
               const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
               const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ' — AT RISK' : ''}`;
               return <React.Fragment key={`flag-${dl.id}`}>
@@ -1726,6 +1753,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const isMatch = searchMatches?.has(s.id);
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
             const node = row.node || iMap[s.treeId || s.id];
+            const linkTaskId = s.treeId || s.id;
             const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
             const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
             const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
@@ -1739,14 +1767,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const resizePreviewLeft = Math.min(Math.max(0, barLeft + bW + 7), Math.max(0, tw - 74));
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
-            const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
-            const isDecideOverdue = decideBy && new Date(decideBy) < now;
-            // Due-date marker: solid red bar at due-week. Red when overdue
+            const decideX = decideBy ? dateToX(localDate(decideBy)) : -1;
+            const isDecideOverdue = decideBy && localDate(decideBy) < now;
+            // Due-date marker: solid red bar at the start of the exact due date.
+            // "Due 2026-07-01" means it must be done when 2026-07-01 starts.
             // (due < today and unfinished) OR scheduler's projected end blows
             // past due (sc.dueOverdue).
             const dueDate = isSummary ? null : node?.due;
-            const dueWi = dueDate ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(dueDate); return w.mon <= d && (!next || next.mon > d); }) : -1;
-            const isDueOverdue = dueDate && (s.dueOverdue || (new Date(dueDate) < now && s.status !== 'done'));
+            const dueX = dueDate ? dateToX(localDate(dueDate)) : -1;
+            const isDueOverdue = dueDate && (s.dueOverdue || (localDate(dueDate) < now && s.status !== 'done'));
             // Confidence-based bar styling
             const confStyle = conf === 'exploratory'
               ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
@@ -1829,7 +1858,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     border: `2px solid ${_diffDoneSet.has(s.id) ? '#10b981' : '#f59e0b'}`,
                     boxShadow: `0 0 0 1px var(--bg,#111318), 0 0 10px ${_diffDoneSet.has(s.id) ? 'rgba(16,185,129,.6)' : 'rgba(245,158,11,.6)'}` }} />
               )}
-              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={s.id}
+              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={linkTaskId} data-link-target={linkTaskId}
                 style={{
                   left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,
                   padding: isSummary ? '0 6px' : microBar ? 0 : compactBar ? '0 2px' : '0 6px',
@@ -1876,7 +1905,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   if (s.status === 'done') return;
                   onBMD(e, row);
                 }}
-                onMouseUp={() => { if (linkDrag && !isSummary) { dismissTooltip(true); onLinkDrop(s.id); } }}
+                onMouseUp={() => { if (linkDrag && !isSummary) { dismissTooltip(true); onLinkDrop(linkTaskId); } }}
                 onClick={() => {
                   dismissTooltip(true);
                   if (isSummary) {
@@ -1884,10 +1913,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     onBarClick?.(s);
                     return;
                   }
-                  if (linkMode && linkMode.fromId !== s.id) {
+                  if (linkMode && linkMode.fromId !== linkTaskId) {
                     // Click-link mode (legacy via context menu): this bar becomes successor (depends on linkMode.fromId) or predecessor
-                    if (linkMode.mode === 'pred') onAddDep?.(s.id, linkMode.fromId);
-                    else onAddDep?.(linkMode.fromId, s.id);
+                    if (linkMode.mode === 'pred') onAddDep?.(linkTaskId, linkMode.fromId);
+                    else onAddDep?.(linkMode.fromId, linkTaskId);
                     setLinkMode(null);
                     return;
                   }
@@ -2070,7 +2099,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {/* Dependency connector sits outside the clipped bar. The
                   fixed-duration resize handle remains inside the bar near the
                   end; this hover button starts a dependency drag. */}
-              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === s.id || linkMode?.fromId === s.id ? ' active' : ''}`} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, s.id)} onClick={e => e.stopPropagation()}
+              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId || linkMode?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()}
                 style={{
                   position: 'absolute',
                   left: barLeft + bW - 11,
@@ -2080,15 +2109,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 }}>
                 <span className="g-link-connector-dot">+</span>
               </div>}
-              {/* Decision-by marker: diamond on the row at the decideBy week */}
-              {decideWi >= 0 && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
-                style={{ position: 'absolute', left: decideWi * WPX + WPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
-              {/* Due-date marker: vertical bar at the due-week. Solid red
+              {/* Decision-by marker: diamond on the exact decide-by date */}
+              {decideX >= 0 && decideX <= tw && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
+                style={{ position: 'absolute', left: decideX + DPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
+              {/* Due-date marker: vertical bar at the start of the exact due date. Solid red
                   when scheduler projects end past due or due is already in
                   the past + task unfinished. Otherwise dim red. */}
-              {dueWi >= 0 && !isSummary && s.status !== 'done' && <div
+              {dueX >= 0 && dueX <= tw && !isSummary && s.status !== 'done' && <div
                 data-htip={`Due ${dueDate}${isDueOverdue ? ' — OVERDUE / projected end past due' : ''}`}
-                style={{ position: 'absolute', left: dueWi * WPX + WPX - 2, top: 2, width: 4, bottom: 2, background: isDueOverdue ? 'var(--re)' : 'rgba(220,38,38,0.55)', borderRadius: 2, zIndex: 4, pointerEvents: 'auto', boxShadow: isDueOverdue ? '0 0 8px rgba(220,38,38,0.7)' : 'none' }} />}
+                style={{ position: 'absolute', left: dueX, top: 2, width: 4, bottom: 2, background: isDueOverdue ? 'var(--re)' : 'rgba(220,38,38,0.55)', borderRadius: 2, zIndex: 4, pointerEvents: 'auto', boxShadow: isDueOverdue ? '0 0 8px rgba(220,38,38,0.7)' : 'none' }} />}
             </div>;
           })}
           {renderedDepLines.length > 0 && <svg style={{ position: 'absolute', top: 0, left: 0, width: tw, height: FLAG_ROW_H + visibleRows.length * RH, zIndex: 3, pointerEvents: 'none' }}>
