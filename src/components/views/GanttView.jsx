@@ -181,6 +181,32 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (cm) ms.push({ ym: cm, count: cc, start: cs });
     return ms;
   }, [weeks]);
+  const monthHeaderLabel = (m) => {
+    const [yearRaw, monthRaw] = m.ym.split('-');
+    const year = String(yearRaw);
+    const shortYear = year.slice(-2);
+    const month = +monthRaw;
+    const width = WPX * m.count;
+    const name = MDE[month] || '';
+    const shortName = name.slice(0, 3);
+    const isJanuary = month === 0;
+    if (zoomMode === 'month') {
+      if (width < 30) return isJanuary ? shortYear : '';
+      if (width < 44) return isJanuary ? shortYear : shortName;
+      return isJanuary ? `${shortName} ${shortYear}` : shortName;
+    }
+    if (width < 42) return isJanuary ? `'${year.slice(2)}` : '';
+    if (width < 58) return isJanuary ? shortYear : shortName;
+    return `${name} '${year.slice(2)}`;
+  };
+  const weekHeaderLabel = (w, i, isYB, isNow) => {
+    if (isNow) return w.kw;
+    const shortYear = String(w.mon.getFullYear()).slice(-2);
+    if (WPX < 14) return isYB ? shortYear : '';
+    if (WPX < 18) return isYB ? shortYear : (i % 2 === 0 ? w.kw : '');
+    if (WPX < 24) return isYB ? shortYear : (i % 2 === 0 ? w.kw : '');
+    return w.kw;
+  };
 
   // Build the fact base for this Gantt scope: scheduled items + unscheduled leaves,
   // filtered by root/team/person, but NOT by hideDone. Summary rows derive from this
@@ -1337,16 +1363,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <div ref={hR} className="gh-scroll">
         <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: zoomMode === 'month' ? HH : HH / 2 }}>
           {months.map((m, i) => { const [y, mo] = m.ym.split('-'); const isYS = mo === '0';
-            const label = `${MDE[+mo]} '${y.slice(2)}`;
-            return <div key={i} style={{ width: WPX * m.count, flexShrink: 0, borderRight: '1px solid var(--b2)', padding: zoomMode === 'month' ? '2px 4px' : '2px 5px', fontSize: zoomMode === 'month' ? 10 : 11, color: isYS ? 'var(--ac)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: isYS ? 600 : 500, overflow: 'hidden', background: isYS ? 'var(--bg3)' : '', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={label}>
+            const label = monthHeaderLabel(m);
+            const title = `${MDE[+mo]} '${y.slice(2)}`;
+            return <div key={i} style={{ width: WPX * m.count, flexShrink: 0, borderRight: '1px solid var(--b2)', padding: zoomMode === 'month' ? '2px 4px' : '2px 5px', fontSize: zoomMode === 'month' ? 10 : 11, color: isYS ? 'var(--ac)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: isYS ? 600 : 500, overflow: 'hidden', background: isYS ? 'var(--bg3)' : '', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>
               {label}
             </div>; })}
         </div>
         {zoomMode !== 'month' && <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
             const isNow = todayWi >= 0 && i === todayWi;
-            return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400 }}>
-              {w.kw}
+            const label = weekHeaderLabel(w, i, isYB, isNow);
+            return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: `${HH / 2}px` }}>
+              {label}
             </div>; })}
         </div>}
         {/* Day-level header row: all 7 days (Mon–Sun). Weekends grayed. */}
@@ -1616,6 +1644,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const node = row.node || iMap[s.treeId || s.id];
             const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
             const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
+            const linkHandleRight = canResizeDuration ? 20 : 0;
             const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
               ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + dDelta))
               : fixedDays;
@@ -1885,22 +1914,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.45))',
                   }} />
                 </div>}
-                {/* Right-edge link handle: semicircle pointing OUT of the bar.
-                    The half-circle shape signals "draw a connection out here"
-                    visually — round on the outside, flat against the bar edge.
-                    Hit area still 22px for forgiving aim. */}
-                {!isSummary && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
-                  style={{ position: 'absolute', right: -18, top: 0, bottom: 0, width: 24, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', zIndex: 5 }}>
-                  {/* Outline-only `(` shape: flat side faces the bar, curve
-                      opens rightward. Drawn as SVG path so the bar's bg shows
-                      through and there's no filled rectangle look. */}
+                {/* Visible in-bar dependency handle. It used to sit outside the
+                    clipped bar box, which made completed bars effectively
+                    impossible to link. */}
+                {!isSummary && <div data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, s.id)} onClick={e => e.stopPropagation()}
+                  style={{ position: 'absolute', right: linkHandleRight, top: 0, bottom: 0, width: 18, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', zIndex: 7, pointerEvents: 'auto' }}>
                   <svg width="14" height="20" viewBox="0 0 14 20" style={{ overflow: 'visible' }}>
-                    <path d="M 1 1 A 12 12 0 0 1 1 19"
+                    <path d="M 2 2 A 10 10 0 0 1 2 18"
                       fill="none"
-                      stroke={tc}
+                      stroke={s.status === 'done' ? 'rgba(255,255,255,.96)' : tc}
                       strokeWidth="2"
                       strokeLinecap="round"
-                      opacity={linkDrag ? 1 : 0.85} />
+                      opacity={linkDrag ? 1 : 0.95}
+                      filter="drop-shadow(0 1px 1px rgba(0,0,0,.55))" />
                   </svg>
                 </div>}
               </div>}
