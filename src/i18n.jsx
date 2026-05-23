@@ -119,6 +119,10 @@ const en = {
   'g.loadOver': '{0} overloads', 'g.loadFullWeeks': '{0} full weeks', 'g.loadOk': 'Load ok',
   'g.loadRiskTitle': 'Resource load risks', 'g.loadRiskAction': 'Red means this plan exceeds available capacity. Move work, reduce scope, split to another person, or add capacity.',
   'g.loadOkTip': 'No overloaded or full resource weeks in the current view.',
+  'g.loadWeekTitle': 'Resource load',
+  'g.loadWeekTotal': 'Total',
+  'g.loadNoWork': 'No planned work in this week.',
+  'g.loadClickResource': 'Click to switch the Gantt to Resource grouping.',
   'g.noEstimate': 'no estimate', 'g.matches': 'matches',
   'g.cpLabel': 'Critical path', 'g.barHelp': 'Bar drag ← → = pin · ↑ ↓ = reorder queue · edge handle = link · Right-click = more',
   'g.linkClick': 'Click another bar to {0}', 'g.linkDrop': 'Drop on a bar to link as dependency',
@@ -345,8 +349,6 @@ const en = {
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
-  'diff.points': 'points',
-  'diff.pointsShort': 'pts',
   'diff.off': 'Off',
   'diff.days': '{0} d',
   'diff.stand': 'As of {0} → today',
@@ -768,6 +770,10 @@ const de = {
   'g.loadOver': '{0} Überlast', 'g.loadFullWeeks': '{0} volle Wochen', 'g.loadOk': 'Last ok',
   'g.loadRiskTitle': 'Ressourcenlast-Risiken', 'g.loadRiskAction': 'Rot bedeutet: Diese Planung überschreitet die verfügbare Kapazität. Arbeit verschieben, Scope reduzieren, auf andere Person splitten oder Kapazität erhöhen.',
   'g.loadOkTip': 'Keine überlasteten oder vollen Ressourcenwochen in der aktuellen Ansicht.',
+  'g.loadWeekTitle': 'Ressourcenlast',
+  'g.loadWeekTotal': 'Gesamt',
+  'g.loadNoWork': 'Keine geplante Arbeit in dieser Woche.',
+  'g.loadClickResource': 'Klick wechselt das Gantt in die Ressourcen-Gruppierung.',
   'g.noEstimate': 'kein Aufwand', 'g.matches': 'Treffer',
   'g.cpLabel': 'Kritischer Pfad', 'g.barHelp': 'Balken ← → = fixieren · ↑ ↓ = Reihenfolge · Rand = verknüpfen · Rechtsklick = mehr',
   'g.linkClick': 'Klicke einen anderen Balken um {0}', 'g.linkDrop': 'Auf Balken ziehen um Abhängigkeit zu erstellen',
@@ -994,8 +1000,6 @@ const de = {
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',
-  'diff.points': 'Punkte',
-  'diff.pointsShort': 'Pkt',
   'diff.off': 'Aus',
   'diff.days': '{0} T',
   'diff.stand': 'Stand {0} → heute',

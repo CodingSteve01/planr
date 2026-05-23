@@ -92,13 +92,13 @@ function formatPercent(progress) {
   return `${formatPercentNumber(progress)}%`;
 }
 
-function formatProgressDelta(deltaProgress, unitLabel = 'points') {
+function formatProgressDelta(deltaProgress) {
   const delta = Number(deltaProgress) || 0;
-  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA) return `0 ${unitLabel}`;
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA) return '0%';
   const sign = delta > 0 ? '+' : '-';
   const absPct = Math.abs(delta) * 100;
-  if (absPct >= 0.1) return `${sign}${trim1(absPct)} ${unitLabel}`;
-  return `${sign}${trim2(absPct)} ${unitLabel}`;
+  if (absPct >= 0.1) return `${sign}${trim1(absPct)}%`;
+  return `${sign}${trim2(absPct)}%`;
 }
 
 function esc(text) {
@@ -919,8 +919,6 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
   const labels = args.labels || {};
-  const progressUnit = labels.points || 'points';
-  const progressUnitShort = labels.pointsShort || progressUnit;
   if (!model?.lines.length) return '';
 
   const { lines, nodeMap } = model;
@@ -1173,12 +1171,25 @@ export function renderRoadmapSvg(args) {
       return;
     }
     let pastT = null;
+    let deltaProgressForTrail = 0;
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id)) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
+      deltaProgressForTrail = Math.max(0, (line.progress || 0) - pastPct);
       pastT = Math.min(progressToRouteT(pastPct), line.trainT);
     }
-    if (pastT != null && line.trainT - pastT > MIN_VISIBLE_PROGRESS_DELTA) {
-      const trailD = partialPath(route, trainT, pastT);
+    if (pastT != null) {
+      let trailStartT = pastT;
+      // If the train is station-gated and the raw progress still moved, the
+      // true old/new train positions can collapse to the same pixel. Keep a
+      // small striped segment immediately behind the train so the diff is not
+      // reduced to a floating number with no visible rail movement.
+      if (line.trainT - trailStartT <= MIN_VISIBLE_PROGRESS_DELTA && deltaProgressForTrail > 0.005) {
+        const minVisualTrail = Math.min(0.05, Math.max(0.018, deltaProgressForTrail * (ROUTE_T_HI - ROUTE_T_LO)));
+        trailStartT = Math.max(ROUTE_T_LO, line.trainT - minVisualTrail);
+      }
+      const trailD = line.trainT - trailStartT > MIN_VISIBLE_PROGRESS_DELTA
+        ? partialPath(route, trainT, trailStartT)
+        : null;
       if (trailD) {
         out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
         out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
@@ -1245,7 +1256,7 @@ export function renderRoadmapSvg(args) {
       const past = Math.max(0, pastProgress[line.root.id] || 0);
       const deltaProgress = (line.progress || 0) - past;
       if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-        const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
+        const deltaLabel = formatProgressDelta(deltaProgress);
         const pillW = Math.max(34, 12 + deltaLabel.length * 7);
         const px = +tx - pillW / 2;
         const py = +ty - 28;
@@ -1281,7 +1292,7 @@ export function renderRoadmapSvg(args) {
         out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
         out.push(`</g>`);
         if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-          const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
+          const deltaLabel = formatProgressDelta(deltaProgress);
           const pillW = Math.max(34, 12 + deltaLabel.length * 7);
           const px = +fx - pillW / 2;
           const py = +fy - 28;
@@ -1372,15 +1383,15 @@ export function renderRoadmapSvg(args) {
       const pastProgressValue = clamp(pastProgress[line.root.id] || 0, 0, 1);
       const pastPct = formatPercentNumber(pastProgressValue);
       const deltaProgress = currentProgress - pastProgressValue;
-      const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
-      const deltaTitle = formatProgressDelta(deltaProgress, progressUnit);
+      const deltaLabel = formatProgressDelta(deltaProgress);
+      const deltaTitle = formatProgressDelta(deltaProgress);
       parts.push(`<span title="Vorher ${pastPct}% -> jetzt ${currentPct}% (Differenz: ${deltaTitle})" style="font:800 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px;white-space:nowrap">${deltaLabel}</span>`);
     }
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const futureProgressValue = clamp(futureProgress[line.root.id] || 0, 0, 1);
       const futurePct = formatPercentNumber(futureProgressValue);
       const deltaProgress = futureProgressValue - currentProgress;
-      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress, progressUnit)}` : '';
+      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress)}` : '';
       parts.push(`<span title="Jetzt ${currentPct}% -> Plan ${futurePct}%${suffix ? ` (Differenz: ${suffix.trim()})` : ''}" style="font:800 9px/1 'JetBrains Mono',monospace;background:#3b82f6;color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">Plan ${futurePct}%</span>`);
     }
     return `<span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">${parts.join('')}</span>`;

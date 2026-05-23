@@ -135,9 +135,9 @@ describe('computeRoadmapModel progress semantics', () => {
     });
 
     expect(svg).toContain('50%');
-    expect(svg).toContain('+25 points');
+    expect(svg).toContain('+25%');
     expect(svg).toContain('Plan 75%');
-    expect(svg).toContain('Differenz: +25 points');
+    expect(svg).toContain('Differenz: +25%');
   });
 
   test('legend keeps sub-percent progress deltas visible as permille', () => {
@@ -157,7 +157,7 @@ describe('computeRoadmapModel progress semantics', () => {
       diff: { pastProgressByRootId: { P1: 0.5 }, doneInWindowIds: [], changedInWindowIds: [] },
     });
 
-    expect(svg).toContain('+0.04 points');
+    expect(svg).toContain('+0.04%');
   });
 
   test('new lines stripe only the reached segment, not the entire future route', () => {

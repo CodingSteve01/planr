@@ -29,19 +29,18 @@ function progressPctLabel(value) {
   return trim1(Math.max(0, Math.min(100, Number(value) || 0)));
 }
 
-function progressDeltaLabel(deltaPct, unitLabel = 'points') {
+function progressDeltaLabel(deltaPct) {
   const delta = Number(deltaPct) || 0;
-  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return `0 ${unitLabel}`;
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return '0%';
   const sign = delta > 0 ? '+' : '-';
   const abs = Math.abs(delta);
-  if (abs >= 0.1) return `${sign}${trim1(abs)} ${unitLabel}`;
-  return `${sign}${trim2(abs)} ${unitLabel}`;
+  if (abs >= 0.1) return `${sign}${trim1(abs)}%`;
+  return `${sign}${trim2(abs)}%`;
 }
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
-  const pointsUnit = t('diff.points');
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -138,7 +137,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   }, [futureProgressByRootId, lvs, stats, tree]);
   const futureOverallDelta = futureOverallProg != null ? futureOverallProg - prog : null;
   const futureOverallDeltaLabel = futureOverallDelta > MIN_VISIBLE_PROGRESS_DELTA_PCT
-    ? progressDeltaLabel(futureOverallDelta, pointsUnit)
+    ? progressDeltaLabel(futureOverallDelta)
     : '';
   const futureOverallTip = futureOverallProg != null
     ? (isDe
@@ -161,7 +160,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             background: overallDelta >= 0 ? 'rgba(245,158,11,.12)' : 'rgba(244,63,94,.10)',
             border: `1px solid ${overallDelta >= 0 ? 'rgba(245,158,11,.5)' : 'rgba(244,63,94,.45)'}`,
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          {progressDeltaLabel(overallDelta, pointsUnit)}
+          {progressDeltaLabel(overallDelta)}
         </span>
       )}
       {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
