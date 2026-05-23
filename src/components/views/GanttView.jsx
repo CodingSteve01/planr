@@ -2,7 +2,8 @@ import React, { useState, useRef, useMemo, useEffect, memo } from 'react';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate } from '../../utils/completion.js';
-import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress } from '../../utils/scheduler.js';
+import { deriveCap, memberAtDate } from '../../utils/capacity.js';
+import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
 import { buildThreadStructure } from '../../utils/threads.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { chainShorts, hasChain, chainTooltip } from '../../utils/handoff.js';
@@ -104,6 +105,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const WPX = zoom;
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
   const zoomMode = showDays ? 'day' : WPX <= 12 ? 'month' : 'week';
+  const [showLoadHeatmap, setShowLoadHeatmap] = useState(() => {
+    try { return localStorage.getItem('planr_gantt_load_heatmap') !== 'false'; } catch { return true; }
+  });
+  const toggleLoadHeatmap = () => setShowLoadHeatmap(v => {
+    const next = !v;
+    try { localStorage.setItem('planr_gantt_load_heatmap', String(next)); } catch {}
+    return next;
+  });
   const setGB = v => {
     const next = normalizeViewMode(v);
     setGroupBy(next);
@@ -570,6 +579,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             key: `resource:${personId}`,
             collapseKey: `resource:${personId}`,
             label,
+            personId,
             color,
             s: groupSummary,
             count: visibleScopeItems.length,
@@ -801,6 +811,85 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
     return bands;
   }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
+  const resourceLoadByWeek = useMemo(() => {
+    const result = {};
+    const isActiveMemberDay = (member, date) => {
+      if (!member) return false;
+      const d = date instanceof Date ? date : localDate(date);
+      if (member.start && d < localDate(member.start)) return false;
+      if (member.end && d > localDate(member.end)) return false;
+      return true;
+    };
+    const onVacation = (personId, date) => {
+      const d = date instanceof Date ? date : localDate(date);
+      return (vacByPerson[personId] || EMPTY_ARR).some(v => d >= localDate(v.from) && d <= localDate(v.to));
+    };
+    const ensure = personId => {
+      if (result[personId]) return result[personId];
+      result[personId] = weeks.map((week, wi) => ({
+        wi,
+        kw: week.kw,
+        start: iso(week.mon),
+        availability: 0,
+        load: 0,
+        taskCount: 0,
+      }));
+      return result[personId];
+    };
+
+    for (const member of members || EMPTY_ARR) {
+      const rows = ensure(member.id);
+      weeks.forEach((week, wi) => {
+        let availability = 0;
+        (week.wds || EMPTY_ARR).forEach(date => {
+          if (!isActiveMemberDay(member, date) || onVacation(member.id, date)) return;
+          availability += Math.max(0, deriveCap(memberAtDate(member, date)));
+        });
+        rows[wi].availability = availability;
+      });
+    }
+
+    for (const item of allItems || EMPTY_ARR) {
+      if (!item.startD || !item.endD || item._unestimated || item.isHandoff && item.unscheduled) continue;
+      const personIds = personIdsOf(item).filter(id => memberById[id]);
+      if (!personIds.length) continue;
+      const start = item.startD instanceof Date ? item.startD : localDate(item.startD);
+      const end = item.endD instanceof Date ? item.endD : localDate(item.endD);
+      const slots = [];
+      weeks.forEach((week, wi) => {
+        (week.wds || EMPTY_ARR).forEach(date => {
+          if (date >= start && date <= end) slots.push({ wi, date });
+        });
+      });
+      if (!slots.length) continue;
+      const node = iMap[item.treeId || item.id] || item;
+      const effort = item.effort || scheduleEffort(node) || scheduledWorkDaysOf(item);
+      const loadPerSlot = Math.max(0, effort) / Math.max(1, slots.length);
+      personIds.forEach(personId => {
+        const rows = ensure(personId);
+        const weeksSeen = new Set();
+        slots.forEach(({ wi }) => {
+          rows[wi].load += loadPerSlot;
+          weeksSeen.add(wi);
+        });
+        weeksSeen.forEach(wi => { rows[wi].taskCount += 1; });
+      });
+    }
+
+    Object.values(result).forEach(rows => rows.forEach(row => {
+      row.percent = row.availability > 0
+        ? Math.round((row.load / row.availability) * 100)
+        : row.load > 0 ? 999 : 0;
+    }));
+    return result;
+  }, [allItems, iMap, memberById, members, vacByPerson, weeks]);
+  const loadHeatColor = percent => {
+    if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.08)';
+    if (percent < 50) return 'rgba(59,130,246,.18)';
+    if (percent < 90) return 'rgba(16,185,129,.20)';
+    if (percent <= 110) return 'rgba(245,158,11,.26)';
+    return 'rgba(239,68,68,.34)';
+  };
   const searchableItems = useMemo(
     () => displayItems.map(item => ({ id: item.id, text: `${item.id} ${(item.name || '')}`.toLowerCase() })),
     [displayItems],
@@ -1246,19 +1335,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         </div>
       </div>
       <div ref={hR} className="gh-scroll">
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: HH / 2 }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: zoomMode === 'month' ? HH : HH / 2 }}>
           {months.map((m, i) => { const [y, mo] = m.ym.split('-'); const isYS = mo === '0';
-            return <div key={i} style={{ width: WPX * m.count, flexShrink: 0, borderRight: '1px solid var(--b2)', padding: '2px 5px', fontSize: 11, color: isYS ? 'var(--ac)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: isYS ? 600 : 500, overflow: 'hidden', background: isYS ? 'var(--bg3)' : '', display: 'flex', alignItems: 'center' }}>
-              {MDE[+mo]}{` '${y.slice(2)}`}
+            const label = `${MDE[+mo]} '${y.slice(2)}`;
+            return <div key={i} style={{ width: WPX * m.count, flexShrink: 0, borderRight: '1px solid var(--b2)', padding: zoomMode === 'month' ? '2px 4px' : '2px 5px', fontSize: zoomMode === 'month' ? 10 : 11, color: isYS ? 'var(--ac)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: isYS ? 600 : 500, overflow: 'hidden', background: isYS ? 'var(--bg3)' : '', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={label}>
+              {label}
             </div>; })}
         </div>
-        <div style={{ display: 'flex', height: HH / 2 }}>
+        {zoomMode !== 'month' && <div style={{ display: 'flex', height: HH / 2 }}>
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
             const isNow = todayWi >= 0 && i === todayWi;
             return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400 }}>
               {w.kw}
             </div>; })}
-        </div>
+        </div>}
         {/* Day-level header row: all 7 days (Mon–Sun). Weekends grayed. */}
         {showDays && <div style={{ display: 'flex', height: 14, borderTop: '1px solid var(--b2)' }}>
           {weeks.map((w, i) => <div key={i} style={{ width: WPX, flexShrink: 0, display: 'flex' }}>
@@ -1440,7 +1530,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const groupProgress = s?.progress ?? (s?.status === 'done' ? 100 : s?.status === 'wip' ? 50 : 0);
               const isCp = rowIsCp(row);
               const dim = cpOnly && !rowRelevantToCp(row);
+              const loadCells = showLoadHeatmap && groupBy === 'resource' && row.personId && row.personId !== NO_PERSON
+                ? resourceLoadByWeek[row.personId]
+                : null;
               return <div key={row.key} style={{ height: RH, position: 'relative', background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }}>
+                {loadCells?.map(cell => {
+                  const pct = cell.percent || 0;
+                  const tip = `${row.label} · KW ${cell.kw} (${cell.start}): ${cell.load.toFixed(1)}d / ${cell.availability.toFixed(1)}d · ${pct}%`;
+                  return <div key={`load-${cell.wi}`} data-htip={tip}
+                    style={{
+                      position: 'absolute',
+                      left: cell.wi * WPX,
+                      top: 0,
+                      width: WPX,
+                      height: '100%',
+                      background: loadHeatColor(pct),
+                      borderRight: pct > 110 ? '1px solid rgba(239,68,68,.65)' : '1px solid rgba(127,127,127,.08)',
+                      pointerEvents: 'auto',
+                      zIndex: 0,
+                    }} />;
+                })}
                 {hasWindow && <div className={`gbar${isCp ? ' cp-bar' : ''}`}
                   style={{
                     left: barLeft,
@@ -1780,7 +1889,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     The half-circle shape signals "draw a connection out here"
                     visually — round on the outside, flat against the bar edge.
                     Hit area still 22px for forgiving aim. */}
-                {!isSummary && s.status !== 'done' && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
+                {!isSummary && <div data-htip="Drag to another bar to add a dependency" onMouseDown={e => onLinkStart(e, s.id)}
                   style={{ position: 'absolute', right: -18, top: 0, bottom: 0, width: 24, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', zIndex: 5 }}>
                   {/* Outline-only `(` shape: flat side faces the bar, curve
                       opens rightward. Drawn as SVG path so the bar's bg shows
@@ -1939,6 +2048,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
         <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
+        <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
+        <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
+          data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>▦ {t('g.loadHeatmap')}</button>
       </div>
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         {searchMatchList.length
