@@ -136,7 +136,8 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(svg).toContain('50%');
     expect(svg).toContain('+25 points');
-    expect(svg).toContain('Plan 75% (+25 points)');
+    expect(svg).toContain('Plan 75%');
+    expect(svg).toContain('Differenz: +25 points');
   });
 
   test('legend keeps sub-percent progress deltas visible as permille', () => {

@@ -15,6 +15,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     prevPos: t('diff.prevPos'),
     plannedPos: t('horizon.plannedPos'),
     points: t('diff.points'),
+    pointsShort: t('diff.pointsShort'),
   }), [t]);
   // Two-step: compute model once so we can inspect its `_assignment` map,
   // then build the SVG from the same args. Lets the parent (App.jsx)

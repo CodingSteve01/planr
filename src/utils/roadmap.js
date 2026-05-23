@@ -919,6 +919,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
   const labels = args.labels || {};
+  const progressUnit = labels.points || 'points';
+  const progressUnitShort = labels.pointsShort || progressUnit;
   if (!model?.lines.length) return '';
 
   const { lines, nodeMap } = model;
@@ -1243,7 +1245,7 @@ export function renderRoadmapSvg(args) {
       const past = Math.max(0, pastProgress[line.root.id] || 0);
       const deltaProgress = (line.progress || 0) - past;
       if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-        const deltaLabel = formatProgressDelta(deltaProgress, labels.points || 'points');
+        const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
         const pillW = Math.max(34, 12 + deltaLabel.length * 7);
         const px = +tx - pillW / 2;
         const py = +ty - 28;
@@ -1279,7 +1281,7 @@ export function renderRoadmapSvg(args) {
         out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
         out.push(`</g>`);
         if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-          const deltaLabel = formatProgressDelta(deltaProgress, labels.points || 'points');
+          const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
           const pillW = Math.max(34, 12 + deltaLabel.length * 7);
           const px = +fx - pillW / 2;
           const py = +fy - 28;
@@ -1369,15 +1371,17 @@ export function renderRoadmapSvg(args) {
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const pastProgressValue = clamp(pastProgress[line.root.id] || 0, 0, 1);
       const pastPct = formatPercentNumber(pastProgressValue);
-      const deltaLabel = formatProgressDelta(currentProgress - pastProgressValue, labels.points || 'points');
-      parts.push(`<span title="Vorher ${pastPct}% -> jetzt ${currentPct}% (Differenz: ${deltaLabel})" style="font:800 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px;white-space:nowrap">${deltaLabel}</span>`);
+      const deltaProgress = currentProgress - pastProgressValue;
+      const deltaLabel = formatProgressDelta(deltaProgress, progressUnitShort);
+      const deltaTitle = formatProgressDelta(deltaProgress, progressUnit);
+      parts.push(`<span title="Vorher ${pastPct}% -> jetzt ${currentPct}% (Differenz: ${deltaTitle})" style="font:800 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px;white-space:nowrap">${deltaLabel}</span>`);
     }
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const futureProgressValue = clamp(futureProgress[line.root.id] || 0, 0, 1);
       const futurePct = formatPercentNumber(futureProgressValue);
       const deltaProgress = futureProgressValue - currentProgress;
-      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress, labels.points || 'points')}` : '';
-      parts.push(`<span title="Jetzt ${currentPct}% -> Plan ${futurePct}%${suffix ? ` (Differenz: ${suffix.trim()})` : ''}" style="font:800 9px/1 'JetBrains Mono',monospace;background:#3b82f6;color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">Plan ${futurePct}%${suffix ? ` (${suffix.trim()})` : ''}</span>`);
+      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress, progressUnit)}` : '';
+      parts.push(`<span title="Jetzt ${currentPct}% -> Plan ${futurePct}%${suffix ? ` (Differenz: ${suffix.trim()})` : ''}" style="font:800 9px/1 'JetBrains Mono',monospace;background:#3b82f6;color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">Plan ${futurePct}%</span>`);
     }
     return `<span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">${parts.join('')}</span>`;
   }
