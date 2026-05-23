@@ -1645,7 +1645,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const loadCells = showLoadHeatmap && groupBy === 'resource' && row.personId && row.personId !== NO_PERSON
                 ? resourceLoadByWeek[row.personId]
                 : null;
-              return <div key={row.key} style={{ height: RH, position: 'relative', background: 'var(--bg2)', borderBottom: '1px solid var(--b2)' }}>
+              return <div key={row.key} style={{ height: RH, position: 'relative', background: 'rgba(127,127,127,.035)', borderBottom: '1px solid var(--b2)' }}>
                 {loadCells?.map(cell => {
                   const pct = cell.percent || 0;
                   const tip = `${row.label} · KW ${cell.kw} (${cell.start}): ${cell.load.toFixed(1)}d / ${cell.availability.toFixed(1)}d · ${pct}%`;
@@ -1735,6 +1735,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const compactBar = !isSummary && bW < 36;
             const microBar = !isSummary && bW < 16;
             const showResizeHandle = canResizeDuration && bW >= 26;
+            const isResizingDuration = isDrag && drag?.kind === 'resizeEnd';
+            const resizePreviewLeft = Math.min(Math.max(0, barLeft + bW + 7), Math.max(0, tw - 74));
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
@@ -2039,6 +2041,32 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   }} />
                 </div>}
               </div>}
+              {isResizingDuration && <div style={{ position: 'absolute', left: barLeft + bW, top: 3, bottom: 3, width: 2, background: 'var(--ac)', borderRadius: 2, zIndex: 9, boxShadow: '0 0 8px rgba(59,130,246,.65)', pointerEvents: 'none' }} />}
+              {isResizingDuration && <div
+                data-htip={t('g.durationPreviewTip', resizePreviewDays)}
+                style={{
+                  position: 'absolute',
+                  left: resizePreviewLeft,
+                  top: 2,
+                  height: 22,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0 7px',
+                  borderRadius: 999,
+                  background: 'var(--ac)',
+                  border: '1px solid rgba(255,255,255,.75)',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  fontFamily: 'var(--mono)',
+                  lineHeight: '20px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.15)',
+                  zIndex: 10,
+                  pointerEvents: 'none',
+                  whiteSpace: 'nowrap',
+                }}>
+                → {resizePreviewDays}d
+              </div>}
               {/* Dependency connector sits outside the clipped bar. The
                   fixed-duration resize handle remains inside the bar near the
                   end; this hover button starts a dependency drag. */}
@@ -2175,8 +2203,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                           this, clicks landing in the enlarged hit zone (between
                           r=10 and r=18) silently missed. */}
                       <circle cx={midX} cy={midY} r={18} fill="transparent" pointerEvents="all" style={{ cursor: 'pointer' }} />
-                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.8} style={{ cursor: 'pointer' }} />
-                      <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke="var(--re)" strokeWidth={1.8} strokeLinecap="round" />
+                      <circle
+                        cx={midX}
+                        cy={midY}
+                        r={8}
+                        fill="var(--re)"
+                        stroke="rgba(255,255,255,.75)"
+                        strokeWidth={1}
+                        style={{
+                          cursor: 'pointer',
+                          filter: 'drop-shadow(0 1px 4px rgba(0,0,0,.45)) drop-shadow(0 0 0 rgba(0,0,0,.15))',
+                        }}
+                      />
+                      <path d={`M${midX - 3.8},${midY - 3.8} L${midX + 3.8},${midY + 3.8} M${midX + 3.8},${midY - 3.8} L${midX - 3.8},${midY + 3.8}`} stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
                     </g>;
                   })()}
                 </g>;
