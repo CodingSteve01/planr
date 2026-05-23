@@ -6,6 +6,11 @@ import { deriveCap, memberAtDate } from './capacity.js';
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
 export const re = (best, factor) => best && best > 0 ? best * (factor || 1.5) : 0;
+export const fixedDurationDays = task => {
+  const n = Number(task?.fixedDurationDays);
+  return Number.isFinite(n) && n > 0 ? Math.max(1, Math.ceil(n)) : 0;
+};
+export const scheduleEffort = task => fixedDurationDays(task) || re(task?.best || 0, task?.factor || 1.5);
 export const parentId = id => id.split('.').slice(0, -1).join('.');
 
 // Derive task status + progress from its phases array.
@@ -189,17 +194,25 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       };
       return;
     }
-    if (!r.best || r.best === 0) tEW[r.id] = { wi: -1, nextDate: null };
+    const fixedDays = fixedDurationDays(r);
+    if ((!r.best || r.best === 0) && !fixedDays) tEW[r.id] = { wi: -1, nextDate: null };
     // Sum remaining committed effort per assignee for not-yet-done leaves.
-    if (r.status !== 'done' && r.best > 0) {
+    if (r.status !== 'done' && (r.best > 0 || fixedDays > 0)) {
       const assigns = (r.assign || []).filter(a => committedRem[a] != null);
       if (assigns.length) {
-        let eff = re(r.best, r.factor);
-        if (_discountProgress && r.status === 'wip' && typeof r.progress === 'number'
+        let eff = fixedDays || re(r.best, r.factor);
+        if (!fixedDays && _discountProgress && r.status === 'wip' && typeof r.progress === 'number'
             && r.progress > 0 && r.progress < 100) {
           eff *= (1 - r.progress / 100);
         }
-        for (const aId of assigns) committedRem[aId] += eff;
+        for (const aId of assigns) {
+          if (fixedDays) {
+            const member = members.find(m => m.id === aId);
+            committedRem[aId] += eff * Math.max(deriveCap(member || {}), 0.01);
+          } else {
+            committedRem[aId] += eff;
+          }
+        }
       }
     }
   });
@@ -257,6 +270,38 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       count++;
     }
     return count;
+  };
+  const fixedWorkWindow = (notBefore, days) => {
+    const needed = Math.max(1, Math.ceil(days));
+    const startFloor = notBefore || planStartDate;
+    const workedDays = [];
+    let firstWorkDay = null;
+    let lastWorkDay = null;
+    let endWi = Math.max(0, weekIndexOfDate(startFloor));
+    for (let wi = 0; wi < wks.length; wi++) {
+      for (const d of wks[wi].wds) {
+        if (d < startFloor) continue;
+        if (!firstWorkDay) firstWorkDay = d;
+        lastWorkDay = d;
+        endWi = wi;
+        workedDays.push(iso(d));
+        if (workedDays.length >= needed) {
+          return {
+            startD: firstWorkDay,
+            endD: lastWorkDay,
+            endWi,
+            workedDays,
+          };
+        }
+      }
+    }
+    const fallback = firstWorkDay || startFloor || wks[0].mon;
+    return {
+      startD: fallback,
+      endD: lastWorkDay || fallback,
+      endWi: Math.max(0, weekIndexOfDate(lastWorkDay || fallback)),
+      workedDays,
+    };
   };
   const maxDate = (...dates) => dates.filter(Boolean).reduce((max, date) => !max || date > max ? date : max, null);
   const minDate = (...dates) => dates.filter(Boolean).reduce((min, date) => !min || date < min ? date : min, null);
@@ -401,7 +446,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const buckets = new Map();
     for (const id of ord) {
       const r = iMap[id];
-      if (!r || r.status === 'done' || !isLeafNode(tree, r.id) || !r.best) continue;
+      if (!r || r.status === 'done' || !isLeafNode(tree, r.id) || (!r.best && !fixedDurationDays(r))) continue;
+      if (fixedDurationDays(r)) continue;
       const assigns = [...(r.assign || [])].sort();
       // Only single-assign fan-out for now; multi-assign / team-slots stay
       // on the regular path so team-lock and handoff cascades aren't broken.
@@ -447,12 +493,14 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const r = iMap[id];
     if (r?.status === 'done') return;
     if (tEW[id]?.wi === -1) return;
-    if (!r || !isLeafNode(tree, r.id) || !r.best || r.best === 0) { tEW[id] = { wi: -1, nextDate: null }; return; }
+    const fixedDaysTotal = fixedDurationDays(r);
+    const hasFixedDuration = fixedDaysTotal > 0;
+    if (!r || !isLeafNode(tree, r.id) || ((!r.best || r.best === 0) && !hasFixedDuration)) { tEW[id] = { wi: -1, nextDate: null }; return; }
     // Fan-out follower: skip — its schedule is replicated from the leader's
     // batch run after the main loop completes.
     const fanoutLeader = paraLeaderOf.get(id);
     if (fanoutLeader && fanoutLeader !== id) return;
-    let eff = re(r.best, r.factor);
+    let eff = hasFixedDuration ? fixedDaysTotal : re(r.best, r.factor);
     // Fan-out leader: inflate effort to the batch total so the per-person
     // counter reserves the whole batch span on the assignee's queue.
     if (fanoutLeader === id && paraEffByLeader.has(id)) {
@@ -470,7 +518,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // For fan-out leaders the eff was already discounted member-by-member
     // in the pre-pass (paraEffByLeader holds the post-discount total), so
     // skip the per-row discount here to avoid double-subtracting progress.
-    if (_discountProgress && eff > 0 && r.status === 'wip' && !paraEffByLeader.has(id)
+    if (!hasFixedDuration && _discountProgress && eff > 0 && r.status === 'wip' && !paraEffByLeader.has(id)
         && typeof r.progress === 'number' && r.progress > 0 && r.progress < 100) {
       consumedEff = eff * (r.progress / 100);
       eff = eff - consumedEff;
@@ -610,24 +658,33 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
           const workedDays = [];
-          while (rem > 0 && wi < wks.length) {
-            const w = wks[wi];
-            if (endDate && w.mon > endDate) break;
-            for (const d of w.wds) {
-              if (d < skipBefore) continue;
-              if (endDate && d > endDate) break;
-              const dIso = iso(d);
-              if (anyAssigneeOnVacation(dIso, [bp.id], vs)) continue; // skip vacation day
-              // Non-parallel tasks respect days reserved by OTHER pinned
-              // (non-parallel) tasks. Parallel tasks deliberately skip this
-              // check — that's the whole point of `r.parallel`. Own task's
-              // reservation happens after the loop, so no self-collision.
-              if (anyAssigneePinnedBusy(dIso, [bp.id])) continue;
-              if (!firstWorkDay) firstWorkDay = d;
-              rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
-              if (rem <= 0) break;
+          if (hasFixedDuration) {
+            const fixed = fixedWorkWindow(skipBefore, fixedDaysTotal);
+            firstWorkDay = fixed.startD;
+            lastWorkDay = fixed.endD;
+            wi = fixed.endWi;
+            rem = 0;
+            workedDays.push(...fixed.workedDays);
+          } else {
+            while (rem > 0 && wi < wks.length) {
+              const w = wks[wi];
+              if (endDate && w.mon > endDate) break;
+              for (const d of w.wds) {
+                if (d < skipBefore) continue;
+                if (endDate && d > endDate) break;
+                const dIso = iso(d);
+                if (anyAssigneeOnVacation(dIso, [bp.id], vs)) continue; // skip vacation day
+                // Non-parallel tasks respect days reserved by OTHER pinned
+                // (non-parallel) tasks. Parallel tasks deliberately skip this
+                // check — that's the whole point of `r.parallel`. Own task's
+                // reservation happens after the loop, so no self-collision.
+                if (anyAssigneePinnedBusy(dIso, [bp.id])) continue;
+                if (!firstWorkDay) firstWorkDay = d;
+                rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
+                if (rem <= 0) break;
+              }
+              if (rem <= 0) break; wi++;
             }
-            if (rem <= 0) break; wi++;
           }
           // Initial segment (primary assignee).
           const primarySegment = {
@@ -784,18 +841,18 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           // already consumed at this person's daily capacity. Done portion sits
           // in the past where it actually happened; remaining portion stays on
           // the freshly placed dates from today onward.
-          if (consumedEff > 0 && dailyBaseCap > 0) {
+          if (!hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0) {
             const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
             actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
           }
-          const ws0 = computeWindowStats(actualStartD, actualEndD, [bp.id]);
+          const ws0 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : [bp.id]);
           let pinOverridden0 = false;
           if (r.pinnedStart && actualStartD) {
             const pinD = localDate(r.pinnedStart);
             if (actualStartD > pinD) pinOverridden0 = true;
           }
           {
-            const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
+            const latestStart = r.due ? calcLatestStart(r.due, eff, hasFixedDuration ? 1 : deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
             const dueInfeasible = !!(latestStart && latestStart < _now);
             // blockedBy: surface the latest dep so UI can show "this row sits
             // in 2027 because it was waiting for X (finished 2026-12-30)".
@@ -810,9 +867,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             // (typically a long-finished or done predecessor).
             const depBlocked = !!(depBlockerId && depNextDate && bs === depWi);
             res.push({ id: r.id, name: r.name, team, person: bp.name || bp.id, personId: bp.id, personShort: mShort[bp.id] || bp.id, autoAssigned: true, prio: r.prio, seq: r.seq,
-              best: r.best, effort: eff, startWi: bs, endWi: eW,
+              best: r.best, effort: eff, fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined, startWi: bs, endWi: eW,
               startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-              capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
+              capPct: hasFixedDuration ? 100 : Math.round(deriveCap(bp) * 100), vacDed: hasFixedDuration ? 0 : Math.round((1 - vacInfo[bp.id]) * 100), weeks: eW - bs + 1,
               vacDays: ws0.vacDays, holidaysInWindow: ws0.holidaysInWindow, workingDaysInWindow: ws0.workingDaysInWindow,
               deps: (r.deps || []).join(', '), status: r.status, note: r.note || '',
               segments, truncatedByOffboard: truncated, pinOverridden: pinOverridden0,
@@ -843,7 +900,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
       const ws1 = computeWindowStats(actualStartD, actualEndD, []);
       res.push({ id: r.id, name: r.name, team, person: '(unassigned)', personId: null, personShort: '?', prio: r.prio, seq: r.seq,
-        best: r.best, effort: eff, startWi: Math.max(early, planStartWi), endWi: eW,
+        best: r.best, effort: eff, fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined, startWi: Math.max(early, planStartWi), endWi: eW,
         startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
         capPct: 100, vacDed: 0, weeks: eW - Math.max(early, planStartWi) + 1,
         vacDays: ws1.vacDays, holidaysInWindow: ws1.holidaysInWindow, workingDaysInWindow: ws1.workingDaysInWindow,
@@ -907,23 +964,32 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       : (bp.end ? localDate(bp.end) : null);
     let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
     const workedDays = [];
-    while (rem > 0 && wi < wks.length) {
-      const w = wks[wi];
-      if (endDate && w.mon > endDate) break; // person offboarded
-      for (const d of w.wds) {
-        if (d < skipBefore) continue;
-        if (endDate && d > endDate) break; // past offboarding date
-        const dIso = iso(d);
-        const activeAssignees = isMulti ? asgn : [bp.id];
-        if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
-        // Non-parallel tasks respect days reserved by OTHER pinned tasks.
-        // Parallel tasks skip this — that's the explicit point of r.parallel.
-        if (anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
-        if (!firstWorkDay) firstWorkDay = d;
-        rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
-        if (rem <= 0) break;
+    if (hasFixedDuration) {
+      const fixed = fixedWorkWindow(skipBefore, fixedDaysTotal);
+      firstWorkDay = fixed.startD;
+      lastWorkDay = fixed.endD;
+      wi = fixed.endWi;
+      rem = 0;
+      workedDays.push(...fixed.workedDays);
+    } else {
+      while (rem > 0 && wi < wks.length) {
+        const w = wks[wi];
+        if (endDate && w.mon > endDate) break; // person offboarded
+        for (const d of w.wds) {
+          if (d < skipBefore) continue;
+          if (endDate && d > endDate) break; // past offboarding date
+          const dIso = iso(d);
+          const activeAssignees = isMulti ? asgn : [bp.id];
+          if (anyAssigneeOnVacation(dIso, activeAssignees, vs)) continue; // skip if any assignee on vacation
+          // Non-parallel tasks respect days reserved by OTHER pinned tasks.
+          // Parallel tasks skip this — that's the explicit point of r.parallel.
+          if (anyAssigneePinnedBusy(dIso, activeAssignees)) continue;
+          if (!firstWorkDay) firstWorkDay = d;
+          rem -= dailyBaseCap; lastWorkDay = d; workedDays.push(dIso);
+          if (rem <= 0) break;
+        }
+        if (rem <= 0) break; wi++;
       }
-      if (rem <= 0) break; wi++;
     }
     // Primary segment for explicit-assign path.
     const primarySegment = {
@@ -1033,7 +1099,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         pF[m.id] = { wi: eW, nextDate: nd };
       }
       if (committedRem[m.id] != null) {
-        committedRem[m.id] = Math.max(0, committedRem[m.id] - eff);
+        const committedDrop = hasFixedDuration ? eff * Math.max(deriveCap(m), 0.01) : eff;
+        committedRem[m.id] = Math.max(0, committedRem[m.id] - committedDrop);
       }
     }
     if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
@@ -1041,7 +1108,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     let actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
     const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
     // Same WIP-progress backward shift as the team-slot path (see comment there).
-    if (consumedEff > 0 && dailyBaseCap > 0) {
+    if (!hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0) {
       const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
       actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
     }
@@ -1055,7 +1122,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       }
     });
     // For multi-assign: union of all assignees' vacation sets (any day any assignee is on vacation counts once).
-    const ws2 = computeWindowStats(actualStartD, actualEndD, isMulti ? asgn : [bp.id]);
+    const ws2 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : (isMulti ? asgn : [bp.id]));
     // Final pinOverridden: any pin couldn't land because actual start ended
     // up later than the pinned date. Reasons collapsed into one flag:
     // dep-block, person busy, member start, vacation overlap.
@@ -1070,7 +1137,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const dueD = localDate(r.due);
       if (actualEndD > dueD) dueOverdue = true;
     }
-    const latestStart = r.due ? calcLatestStart(r.due, eff, deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
+    const latestStart = r.due ? calcLatestStart(r.due, eff, hasFixedDuration ? 1 : deriveCap(bp) * (vacInfo[bp.id] || 1)) : null;
     const dueInfeasible = !!(latestStart && latestStart < _now);
     const personPrevFreeAsg = priorPF[bp.id];
     // Same gating as the team-fallback path: only surface blockedBy when the
@@ -1083,9 +1150,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       // out + explicit assign) so consumers like Queues can mirror the
       // task into every involved person's lane, not only the picked one.
       assign: [...asgn], prio: r.prio, seq: r.seq,
-      best: r.best, effort: eff, startWi: bs, endWi: eW,
+      best: r.best, effort: eff, fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined, startWi: bs, endWi: eW,
       startD: actualStartD, endD: actualEndD, calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
-      capPct: Math.round(deriveCap(bp) * 100), vacDed: Math.round((1 - vacInfo[bp.id]) * 100),
+      capPct: hasFixedDuration ? 100 : Math.round(deriveCap(bp) * 100), vacDed: hasFixedDuration ? 0 : Math.round((1 - vacInfo[bp.id]) * 100),
       weeks: eW - bs + 1, parallel: false, pinOverridden,
       due: r.due || '', dueOverdue, latestStart, dueInfeasible,
       blockedBy: depBlockedAsg ? { id: depBlockerId, endD: depNextDate } : null,
@@ -1251,8 +1318,9 @@ export function computeConfidence(tree, members) {
     if (r.confidence) { result[r.id] = r.confidence; reasons[r.id] = 'manual'; return; }
     if (r.status === 'done') { result[r.id] = 'committed'; reasons[r.id] = 'done'; return; }
     const hasAssign = (r.assign || []).length > 0;
-    const hasEstimate = r.best > 0;
-    const highRisk = (r.factor || 1.5) >= 2.0;
+    const hasFixed = fixedDurationDays(r) > 0;
+    const hasEstimate = r.best > 0 || hasFixed;
+    const highRisk = !hasFixed && (r.factor || 1.5) >= 2.0;
     if (hasAssign && hasEstimate && !highRisk) {
       result[r.id] = 'committed';
       reasons[r.id] = 'auto:person+estimate';
@@ -1282,21 +1350,27 @@ export function computeConfidence(tree, members) {
 
 // Derive leaf progress: phases (single source of truth) > explicit field > status-based default
 export function leafProgress(r) {
-  // Phases are the single source of truth when present
-  if (r.phases?.length) return phaseProgress(r.phases);
-  if (r.progress != null && r.progress >= 0) return r.progress;
+  if (!r) return 0;
   if (r.status === 'done') return 100;
-  if (r.status === 'wip') return 50;
-  return 0;
+  // Phases are the single source of truth when present, but a non-done task
+  // must never become "reached" just because phase or manual progress hit 100.
+  const raw = r.phases?.length
+    ? phaseProgress(r.phases)
+    : (r.progress != null && r.progress >= 0)
+      ? r.progress
+      : r.status === 'wip' ? 50 : 0;
+  return Math.max(0, Math.min(99, raw));
 }
 
 export function treeStats(tree) {
   const m = Object.fromEntries(tree.map(r => [r.id, { ...r }]));
   [...tree].reverse().forEach(r => {
     if (isLeafNode(tree, r.id)) {
-      m[r.id]._b = r.best || 0;
-      m[r.id]._r = re(r.best || 0, r.factor || 1.5);
-      m[r.id]._w = (r.best || 0) * (r.factor || 1.5);
+      const fixedDays = fixedDurationDays(r);
+      const effort = scheduleEffort(r);
+      m[r.id]._b = r.best || fixedDays || 0;
+      m[r.id]._r = effort;
+      m[r.id]._w = effort;
       m[r.id]._progress = leafProgress(r);
     } else {
       const ch = directChildren(tree, r.id);
@@ -1308,8 +1382,9 @@ export function treeStats(tree) {
       if (leaves.length) {
         const totalEff = leaves.reduce((s, l) => s + (m[l.id]?._r || 1), 0);
         const weightedProg = leaves.reduce((s, l) => s + (m[l.id]?._progress || 0) * (m[l.id]?._r || 1), 0);
-        m[r.id]._progress = Math.round(weightedProg / Math.max(totalEff, 1));
         const done = leaves.filter(l => l.status === 'done').length;
+        const rawProgress = Math.round(weightedProg / Math.max(totalEff, 1));
+        m[r.id]._progress = done === leaves.length ? rawProgress : Math.min(99, rawProgress);
         const wip = leaves.filter(l => l.status === 'wip').length;
         m[r.id]._autoStatus = done === leaves.length ? 'done' : (done > 0 || wip > 0 || m[r.id]._progress > 0) ? 'wip' : 'open';
       }

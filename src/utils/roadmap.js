@@ -2,6 +2,7 @@
 // Each project becomes a colored subway line. Stations are depth-2 milestones.
 // Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
 import { deadlineScopedScheduledItems } from './deadlines.js';
+import { leafProgress, scheduleEffort } from './scheduler.js';
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -63,12 +64,15 @@ const ROUTES = [
 // ─── Canvas dimensions ────────────────────────────────────────────────────────
 const SVG_W = 1400;
 const SVG_H = 800;
+const ROUTE_T_LO = 0.04;
+const ROUTE_T_HI = 0.96;
 
 // ─── Helpers (preserved from original) ───────────────────────────────────────
 const parentId = id => id.split('.').slice(0, -1).join('.');
 const depthOf = id => id.split('.').length;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const progressToRouteT = progress => ROUTE_T_LO + clamp(progress || 0, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO);
 const truncate = (text, len) => !text ? '' : text.length > len ? `${text.slice(0, len - 1)}...` : text;
 
 function esc(text) {
@@ -161,6 +165,7 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
       total: leafIds.length,
       done,
       prog: clamp(progressPct / 100, 0, 1),
+      effort: stats?.[node.id]?._effort || Math.max(leafIds.length, 1),
       allDone: leafIds.length > 0 && done === leafIds.length,
       earliestStart,
       latestEnd,
@@ -509,8 +514,18 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         const d = toDate(item.endD);
         return d && (!max || d > max) ? d : max;
       }, null);
-      const done = cluster.filter(item => item.status === 'done').length;
+      const progressStats = cluster.reduce((acc, item) => {
+        const node = nodeMap[item.id] || item;
+        const weight = scheduleEffort(node) || item.effort || 1;
+        const prog = leafProgress(node) / 100;
+        acc.weight += weight;
+        acc.progress += weight * prog;
+        if (node.status === 'done') acc.done += 1;
+        return acc;
+      }, { done: 0, weight: 0, progress: 0 });
+      const done = progressStats.done;
       const total = cluster.length;
+      const prog = progressStats.weight > 0 ? progressStats.progress / progressStats.weight : (total > 0 ? done / total : 0);
 
       return {
         id: representative.id,
@@ -521,10 +536,11 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         kind: 'major',
         anchorDate: earliestStart || latestEnd,
         endDate: latestEnd || earliestStart,
-        prog: total > 0 ? done / total : 0,
+        prog,
         done,
         total,
-        allDone: done === total && total > 0,
+        effort: progressStats.weight || total || 1,
+        allDone: total > 0 && cluster.every(item => (nodeMap[item.id] || item).status === 'done'),
         depth: 1,
       };
     });
@@ -754,13 +770,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const assignedLines = baseAssigned;
 
   // ── Station placement on routes ───────────────────────────────────────────
-  // Time-proportional spacing: each station's t is its endDate position
-  // within the project's [earliestDate, latestDate] window. Stations
-  // landing on the same week pile up; stations months apart visibly drift
-  // apart. Done stations naturally end up behind the live train because
-  // their endDate already passed. Anchor the train at the effort-weighted
-  // progress (`line.progress`) — the two metrics don't have to agree, and
-  // when they don't, the visible gap is itself the story.
+  // Effort-proportional spacing: the subway line is a percent-of-scope view,
+  // not a calendar timeline. Dates define station order, but station distance
+  // along the route follows weighted work. The solid travelled rail remains
+  // station-gated; the train itself shows weighted aggregate project progress.
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
@@ -768,39 +781,40 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       || a.id.localeCompare(b.id, undefined, { numeric: true });
     const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
 
-    // Project span: earliest and latest endDate across stations (with
-    // sensible fallback when only one or none have dates).
+    // Project span is retained only for the "today on calendar" ghost marker
+    // and as fallback if a line has no effort data.
     const dates = allStations.map(s => +s.endDate).filter(Number.isFinite);
     const firstD = dates.length ? Math.min(...dates) : null;
     const lastD = dates.length ? Math.max(...dates) : null;
     const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
+    const totalStationEffort = allStations.reduce((sum, station) => sum + Math.max(0, station.effort || 0), 0);
 
-    // Margins so the first/last station don't sit on the badges at the
-    // route ends.
-    const T_LO = 0.04, T_HI = 0.96;
-    // Train rides at the project's effort-weighted progress: how much of the
+    // Raw effort progress: how much of the
     // total effort has actually been completed. `line.progress` comes from
     // treeStats._progress which is Σ(leafProgress × leafEffort) / Σ(leafEffort),
-    // so a 1d leaf weighs less than a 10d leaf and the train position reflects
-    // delivered value, not item count.
-    const trainT = clamp(line.progress, T_LO, T_HI);
+    // so a 1d leaf weighs less than a 10d leaf.
+    const effortTrainT = progressToRouteT(line.progress);
     // Today-on-timeline marker — kept as `ghostT` so a Soll/Ist gap can be
     // rendered later (effort progress vs calendar position).
     const nowMs = +new Date(now);
     const ghostT = (span > 0 && firstD != null && lastD != null)
-      ? clamp(T_LO + clamp((nowMs - firstD) / span, 0, 1) * (T_HI - T_LO), T_LO, T_HI)
-      : trainT;
+      ? ROUTE_T_LO + clamp((nowMs - firstD) / span, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO)
+      : effortTrainT;
 
+    let cumulativeEffort = 0;
     const positioned = allStations.map((station, idx) => {
       let t;
-      if (span > 0 && Number.isFinite(+station.endDate)) {
+      if (totalStationEffort > 0) {
+        cumulativeEffort += Math.max(0, station.effort || 0);
+        t = progressToRouteT(cumulativeEffort / totalStationEffort);
+      } else if (span > 0 && Number.isFinite(+station.endDate)) {
         const frac = (+station.endDate - firstD) / span;
-        t = T_LO + frac * (T_HI - T_LO);
+        t = ROUTE_T_LO + frac * (ROUTE_T_HI - ROUTE_T_LO);
       } else {
         // Fallback when there is no usable date span — fall back to even
         // spacing so nothing collapses to a single point.
         const n = allStations.length;
-        t = T_LO + ((idx + 1) / (n + 1)) * (T_HI - T_LO);
+        t = ROUTE_T_LO + ((idx + 1) / (n + 1)) * (ROUTE_T_HI - ROUTE_T_LO);
       }
       const pt = pointAtFraction(route, t);
       return { ...station, t, x: pt.x, y: pt.y };
@@ -814,7 +828,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     positioned.sort((a, b) => a.t - b.t);
     for (let i = 1; i < positioned.length; i++) {
       if (positioned[i].t - positioned[i - 1].t < MIN_T) {
-        const bumped = Math.min(T_HI, positioned[i - 1].t + MIN_T);
+        const bumped = Math.min(ROUTE_T_HI, positioned[i - 1].t + MIN_T);
         const pt = pointAtFraction(route, bumped);
         positioned[i] = { ...positioned[i], t: bumped, x: pt.x, y: pt.y };
       }
@@ -823,11 +837,25 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const majors = positioned.filter(s => s.kind === 'major');
     const minors = positioned.filter(s => s.kind === 'minor');
 
-    // Current station: first not-done station (the one being approached)
+    // Current station: first not-done station (the one being approached).
+    // The train may advance between the last done station and this station
+    // according to the station's own partial progress, but it must never pass
+    // the station until every clustered item is actually done.
     const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
       || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
+    const doneStations = positioned.filter(s => s.allDone);
+    const lastDoneT = doneStations.length ? Math.max(...doneStations.map(s => s.t)) : ROUTE_T_LO;
+    let stationGatedT = effortTrainT;
+    if (currentStation) {
+      const stationProg = Math.max(0, Math.min(0.99, currentStation.prog || 0));
+      const approachT = lastDoneT + Math.max(0, currentStation.t - lastDoneT) * stationProg;
+      stationGatedT = Math.min(effortTrainT, approachT, Math.max(ROUTE_T_LO, currentStation.t - 0.006));
+      stationGatedT = Math.max(ROUTE_T_LO, stationGatedT);
+    }
 
+    const reachedT = clamp(stationGatedT, ROUTE_T_LO, ROUTE_T_HI);
+    const trainT = clamp(effortTrainT, ROUTE_T_LO, ROUTE_T_HI);
     const trainPt = pointAtFraction(route, trainT);
     const ghostPt = pointAtFraction(route, ghostT);
 
@@ -836,6 +864,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       majorStations: majors,
       minorStations: minors,
       currentId,
+      reachedT,
       trainT,
       trainPt,
       ghostT,
@@ -918,9 +947,9 @@ export function renderRoadmapSvg(args) {
 
   // ── Route lines ─────────────────────────────────────────────────────────────
   lines.forEach((line, lineIdx) => {
-    const { route, color, trainT } = line;
+    const { route, color, reachedT } = line;
     const pathD = waypointsToPath(route);
-    const progressD = trainT > 0 ? partialPath(route, trainT) : null;
+    const progressD = reachedT > 0 ? partialPath(route, reachedT) : null;
     const gId = `rm-line-${lineIdx}`;
 
     out.push(`<g id="${gId}">`);
@@ -1008,14 +1037,14 @@ export function renderRoadmapSvg(args) {
     majorStations.forEach(station => {
       const isDone = station.allDone;
       const isCurrent = station.id === currentId && !isDone;
-      const stStatus = isDone ? 'done' : station.done > 0 ? 'wip' : 'open';
-      const stProg = station.total > 0 ? station.done / station.total : 0;
+      const stProg = Math.max(0, Math.min(1, station.prog || 0));
+      const stStatus = isDone ? 'done' : stProg > 0 ? 'wip' : 'open';
       const headerIcon = statusIcon(stStatus, color, stProg, 14);
       const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
       const itemsHtml = (station.clusterItems || []).map(c => {
         const node = nodeMap[c.id];
         const itStatus = node?.status === 'done' ? 'done' : node?.status === 'wip' ? 'wip' : 'open';
-        const itProg = typeof node?.progress === 'number' ? node.progress / 100 : itStatus === 'wip' ? 0.5 : 0;
+        const itProg = leafProgress(node || c) / 100;
         const itIcon = statusIcon(itStatus, color, itProg, 11);
         const itStyle = itStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
           : itStatus === 'wip' ? `color:${color}` : 'color:var(--tx2,#cbd5e1)';
@@ -1025,7 +1054,7 @@ export function renderRoadmapSvg(args) {
         + `<span style="display:inline-flex;line-height:0">${headerIcon}</span>`
         + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(station.abbrev)}</span>`
         + `<span style="font:600 11px/1.2 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4)">${esc(station.name)}</span>`
-        + `<span style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);margin-left:auto">${esc(isDone ? '✓' : station.done + '/' + station.total)}</span>`
+        + `<span style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);margin-left:auto">${esc(isDone ? '✓' : stProg > 0 ? `${Math.round(stProg * 100)}%` : station.done + '/' + station.total)}</span>`
         + `</div>`;
       const tooltip = headerHtml + itemsHtml;
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
@@ -1049,7 +1078,7 @@ export function renderRoadmapSvg(args) {
         out.push(`</circle>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="6" fill="${color}"/>`);
       } else if (isCurrent) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
         out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
@@ -1106,7 +1135,8 @@ export function renderRoadmapSvg(args) {
     }
     let pastT = null;
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id)) {
-      pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
+      const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
+      pastT = progressToRouteT(pastPct);
     }
     if (pastT != null && trainT - pastT > 0.005) {
       const trailD = partialPath(route, trainT, pastT);
@@ -1118,7 +1148,8 @@ export function renderRoadmapSvg(args) {
       }
     }
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
-      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
+      const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
+      const fT = progressToRouteT(futurePct);
       if (fT - trainT > 0.005) {
         const planD = partialPath(route, fT, trainT);
         if (planD) {
@@ -1180,7 +1211,8 @@ export function renderRoadmapSvg(args) {
     }
     // Ghost train marker at the past position — only when there's a real gap
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
-      const pastT = Math.max(0, Math.min(pastProgress[line.root.id] || 0, trainT));
+      const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
+      const pastT = progressToRouteT(pastPct);
       if (trainT - pastT > 0.005) {
         const gp = pointAtFraction(line.route, pastT);
         const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
@@ -1193,11 +1225,12 @@ export function renderRoadmapSvg(args) {
     // intentionally mirrors the ▶ Plan filter chip so the Diff/Ist/Plan
     // story reads as a coherent palette.
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
-      const fT = Math.max(0, Math.min(0.985, futureProgress[line.root.id] || 0));
+      const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
+      const fT = progressToRouteT(futurePct);
       if (fT - trainT > 0.005) {
         const fp = pointAtFraction(line.route, fT);
         const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
-        const delta = Math.round((fT - line.progress) * 100);
+        const delta = Math.round((futurePct - line.progress) * 100);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
         out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
         out.push(`</g>`);
@@ -1316,11 +1349,11 @@ export function renderRoadmapSvg(args) {
 
     // Station rows
     allStations.forEach(station => {
-      const stStatus = station.allDone ? 'done' : station.done > 0 ? 'wip' : 'open';
-      const stProg = station.total > 0 ? station.done / station.total : 0;
+      const stProg = Math.max(0, Math.min(1, station.prog || 0));
+      const stStatus = station.allDone ? 'done' : stProg > 0 ? 'wip' : 'open';
       const stIcon = statusIcon(stStatus, line.color, stProg, 13);
       const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
-      const statusBadge = station.allDone ? '' : ` ${station.done}/${station.total}`;
+      const statusBadge = station.allDone ? '' : stProg > 0 ? ` ${Math.round(stProg * 100)}%` : ` ${station.done}/${station.total}`;
       // Same split per station: ✓-pill for done-in-window, ▲-pill for
       // progress-only edits. Row background lights up when either is non-zero.
       const stDoneItems = doneInWindow.size > 0
@@ -1353,7 +1386,7 @@ export function renderRoadmapSvg(args) {
         extras.forEach(c => {
           const itemNode = nodeMap[c.id];
           const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
-          const itemProg = typeof itemNode?.progress === 'number' ? itemNode.progress / 100 : itemStatus === 'wip' ? 0.5 : 0;
+          const itemProg = leafProgress(itemNode || c) / 100;
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
           const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
             : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';

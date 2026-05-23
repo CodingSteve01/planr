@@ -78,9 +78,13 @@ export function leafSnapshot(tree) {
   if (!Array.isArray(tree)) return m;
   for (const r of tree) {
     if (!r?.id) continue;
+    const status = r.status || 'open';
+    const rawProgress = typeof r.progress === 'number'
+      ? r.progress
+      : status === 'done' ? 100 : status === 'wip' ? 50 : 0;
     m.set(r.id, {
-      status: r.status || 'open',
-      progress: typeof r.progress === 'number' ? r.progress : (r.status === 'done' ? 100 : r.status === 'wip' ? 50 : 0),
+      status,
+      progress: status === 'done' ? 100 : Math.max(0, Math.min(99, rawProgress)),
       completedAt: r.completedAt || null,
     });
   }

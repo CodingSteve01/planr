@@ -11,7 +11,7 @@ import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js'
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -905,7 +905,7 @@ export default function App() {
       const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, displayOrder = null;
+      let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, fixedDurationDays = 0, displayOrder = null;
       const customValues = {};
       const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
       if (tagM) {
@@ -922,6 +922,7 @@ export default function App() {
           const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
           const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
           const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
+          const fdm = t.match(/^fixed:(\d+(?:\.\d+)?)$/i); if (fdm) { fixedDurationDays = Math.max(1, Math.ceil(+fdm[1])); return; }
           const om = t.match(/^ord:(\d+)$/i); if (om) { displayOrder = +om[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
           if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
@@ -977,6 +978,7 @@ export default function App() {
       if (deadlineRelevant === false) item.deadlineRelevant = false;
       if (due) item.due = due;
       if (teamLock) item.teamLock = true;
+      if (fixedDurationDays > 0) item.fixedDurationDays = fixedDurationDays;
       if (displayOrder != null) item.displayOrder = displayOrder;
       if (Object.keys(customValues).length) item.customValues = customValues;
       tree.push(item);
@@ -1452,13 +1454,12 @@ export default function App() {
       const today = new Date();
       let total = 0, doneByHorizon = 0;
       for (const lf of leaves) {
-        const eff = (lf.best || 0) * (lf.factor || 1.5) || 1;
+        const eff = scheduleEffort(lf) || 1;
         total += eff;
         // Floor by the leaf's CURRENT progress so the future projection never
         // regresses below the live train.
-        const curFrac = lf.status === 'done' ? 1
-          : (typeof lf.progress === 'number' && lf.progress > 0 ? lf.progress / 100
-            : (lf.status === 'wip' ? 0.5 : 0));
+        const curFrac = leafProgress(lf) / 100;
+        const maxFutureFrac = lf.status === 'done' ? 1 : 0.99;
         let projFrac = curFrac;
         if (lf.status === 'done') {
           projFrac = 1;
@@ -1469,12 +1470,12 @@ export default function App() {
           if (s?.endD) {
             const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
             const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
-            if (endD <= horizonEnd) projFrac = 1;
+            if (endD <= horizonEnd) projFrac = maxFutureFrac;
             else if (startD < horizonEnd) {
               const dur = +endD - +startD;
               const elapsed = +horizonEnd - +startD;
               const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
-              projFrac = Math.max(projFrac, frac);
+              projFrac = Math.max(projFrac, Math.min(maxFutureFrac, frac));
             }
           }
           // Source 2: WIP + due date — linear interpolation from current
@@ -1483,23 +1484,25 @@ export default function App() {
           // if the scheduler isn't routing the work into the horizon window
           // (because another assignee's queue is full), the active task's
           // own trajectory still counts.
-          if (lf.status === 'wip' && lf.due && projFrac < 1) {
+          if (lf.status === 'wip' && lf.due && projFrac < maxFutureFrac) {
             const dueD = new Date(lf.due);
             const horizonD = horizonEnd instanceof Date ? horizonEnd : new Date(horizonEnd);
             if (dueD > today) {
-              if (horizonD >= dueD) projFrac = Math.max(projFrac, 1);
+              if (horizonD >= dueD) projFrac = Math.max(projFrac, maxFutureFrac);
               else {
                 const span = +dueD - +today;
                 const elapsed = +horizonD - +today;
                 const frac = span > 0 ? Math.min(1, Math.max(0, elapsed / span)) : 0;
-                projFrac = Math.max(projFrac, curFrac + (1 - curFrac) * frac);
+                projFrac = Math.max(projFrac, curFrac + (maxFutureFrac - curFrac) * frac);
               }
             }
           }
         }
-        doneByHorizon += eff * projFrac;
+        doneByHorizon += eff * Math.min(projFrac, maxFutureFrac);
       }
-      out[root.id] = total > 0 ? doneByHorizon / total : 0;
+      const allDone = leaves.length > 0 && leaves.every(lf => lf.status === 'done');
+      const projected = total > 0 ? doneByHorizon / total : 0;
+      out[root.id] = allDone ? projected : Math.min(0.99, projected);
     }
     return out;
   }, [tree, scheduled, horizonEnd]);

@@ -696,3 +696,47 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     expect(depBlocked.personId).not.toBe('JFf');
   });
 });
+
+describe('schedule(): fixedDurationDays', () => {
+  const alexLowCap = { id: 'M1', name: 'Alex', team: 'T1', cap: 0.25, vac: 25, start: '2026-01-01' };
+
+  test('schedules a task with fixed duration even without a best estimate', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Known duration', team: 'T1', best: 0, factor: 1, fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alexLowCap] });
+    const task = results.find(s => s.id === 'P1.1');
+    expect(task).toBeTruthy();
+    expect(task.fixedDurationDays).toBe(3);
+    expect(iso(task.startD)).toBe('2026-01-05');
+    expect(iso(task.endD)).toBe('2026-01-07');
+  });
+
+  test('fixed duration ignores capacity and vacations when placing the end date', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Exact', team: 'T1', best: 20, factor: 1, fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+    ];
+    const vacations = [{ person: 'M1', from: '2026-01-06', to: '2026-01-06', note: 'away' }];
+    const { results } = runSchedule({ tree, members: [alexLowCap], vacations });
+    const task = results.find(s => s.id === 'P1.1');
+    expect(iso(task.startD)).toBe('2026-01-05');
+    expect(iso(task.endD)).toBe('2026-01-07');
+    expect(task.capPct).toBe(100);
+    expect(task.vacDed).toBe(0);
+  });
+
+  test('successor starts after a fixed-duration predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Exact', team: 'T1', fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'After', team: 'T1', best: 1, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alexLowCap] });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(iso(first.endD)).toBe('2026-01-07');
+    expect(iso(second.startD)).toBe('2026-01-08');
+  });
+});

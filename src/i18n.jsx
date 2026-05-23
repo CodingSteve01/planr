@@ -58,6 +58,9 @@ const en = {
   'qe.focusType': 'Focus type', 'qe.severity': 'Severity', 'qe.date': 'Date',
   'qe.description': 'Description', 'qe.descPlaceholder': 'Why does this matter?',
   'qe.quickEstimate': 'Estimate', 'qe.bestDays': 'Best (days)', 'qe.factor': 'Factor',
+  'qe.fixedDuration': 'Fixed duration', 'qe.fixedDurationDays': 'Duration (workdays)',
+  'qe.fixedDurationHint': 'When set, the scheduler keeps this task at exactly this duration. Capacity, meetings and vacation do not stretch it.',
+  'qe.fixedDurationShort': 'fixed',
   'qe.priority': 'Priority', 'qe.estimationWizard': 'Estimation helper...', 'qe.estimateNow': 'Estimate now',
   'qe.decideBy': 'Decide by', 'qe.due': 'Due', 'qe.pinnedStart': 'Pinned start', 'qe.completedAt': 'Completed on', 'qe.parallel': 'Parallel',
   'qe.teamLock': 'Team-lock', 'qe.teamLockTip': 'Blocks the entire team for this task — resolved to all current team members automatically',
@@ -449,6 +452,7 @@ const en = {
   'g.reasonPersonEstimate': 'Person + estimate present', 'g.reasonNoPerson': 'No person assigned',
   'g.reasonHighRisk': 'Risk factor ≥ 2.0', 'g.reasonNoEstimate': 'No estimate',
   'g.reasonInherited': 'Derived from worst child item',
+  'g.fixedResize': 'Drag to set exact task duration',
 
   // ── PlanReview – confidence reason labels ──
   'pr.reasonManual': 'Set manually', 'pr.reasonDone': 'Done',
@@ -681,6 +685,9 @@ const de = {
   'qe.focusType': 'Fokus-Typ', 'qe.severity': 'Schweregrad', 'qe.date': 'Datum',
   'qe.description': 'Beschreibung', 'qe.descPlaceholder': 'Warum ist das wichtig?',
   'qe.quickEstimate': 'Schätzung', 'qe.bestDays': 'Best (Tage)', 'qe.factor': 'Faktor',
+  'qe.fixedDuration': 'Feste Dauer', 'qe.fixedDurationDays': 'Dauer (Arbeitstage)',
+  'qe.fixedDurationHint': 'Wenn gesetzt, plant der Scheduler genau diese Dauer. Kapazität, Meetings und Urlaub verlängern den Task nicht.',
+  'qe.fixedDurationShort': 'fix',
   'qe.priority': 'Priorität', 'qe.estimationWizard': 'Schätzungshilfe...', 'qe.estimateNow': 'Jetzt schätzen',
   'qe.decideBy': 'Entscheiden bis', 'qe.due': 'Fällig bis', 'qe.pinnedStart': 'Fixierter Start', 'qe.completedAt': 'Erledigt am', 'qe.parallel': 'Parallel',
   'qe.teamLock': 'Team-Block', 'qe.teamLockTip': 'Blockiert das gesamte Team für diese Aufgabe — automatisch auf alle aktuellen Team-Mitglieder aufgelöst',
@@ -1072,6 +1079,7 @@ const de = {
   'g.reasonPersonEstimate': 'Person + Schätzung vorhanden', 'g.reasonNoPerson': 'Keine Person zugewiesen',
   'g.reasonHighRisk': 'Risikofaktor ≥ 2.0', 'g.reasonNoEstimate': 'Keine Schätzung',
   'g.reasonInherited': 'Vom schlechtesten Kind-Element',
+  'g.fixedResize': 'Ziehen, um die exakte Task-Dauer zu setzen',
 
   // ── PlanReview – Confidence-Reason-Labels ──
   'pr.reasonManual': 'Manuell gesetzt', 'pr.reasonDone': 'Erledigt',

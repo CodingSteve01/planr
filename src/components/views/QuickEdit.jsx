@@ -407,6 +407,23 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
       </div>
 
+      <div className="field">
+        <label>{t('qe.fixedDuration')}</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label className="toggle" style={{ margin: 0 }}>
+            <input type="checkbox" checked={(f.fixedDurationDays || 0) > 0}
+              onChange={e => patchNode({ fixedDurationDays: e.target.checked ? (f.fixedDurationDays || Math.max(1, Math.ceil(f.best || 1))) : 0 })} />
+            <span className="slider" />
+          </label>
+          <input type="number" min="1" step="1" disabled={!(f.fixedDurationDays > 0)}
+            value={f.fixedDurationDays || ''}
+            onChange={e => patchNode({ fixedDurationDays: Math.max(1, Math.ceil(+e.target.value || 1)) })}
+            style={{ maxWidth: 110, fontFamily: 'var(--mono)' }} />
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
+        </div>
+        <div className="helper">{t('qe.fixedDurationHint')}</div>
+      </div>
+
       <div className="field"><label>{t('qe.confidence')}</label>
         <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={value => patchNode({ confidence: value })} />
         {/* Effective confidence tag — same style as AutoAssignHint */}
@@ -424,14 +441,14 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       </div>
 
       {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
-        <span style={{ color: 'var(--tx3)' }}>{f.best}d × {f.factor || 1.5} = </span>
-        <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
-        <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span>
+        {f.fixedDurationDays > 0
+          ? <><span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span><b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b></>
+          : <><span style={{ color: 'var(--tx3)' }}>{f.best}d × {f.factor || 1.5} = </span><b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b><span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span></>}
         <br />
         <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)}</span>
       </div>}
-      {!sc && f.best > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
-        {f.best}d × {f.factor || 1.5} = {re(f.best || 0, f.factor || 1.5).toFixed(1)}d {t('qe.realisticSuffix')} · {t('qe.notScheduled')}
+      {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
+        {f.fixedDurationDays > 0 ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d` : `${f.best}d × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`} · {t('qe.notScheduled')}
       </div>}
     </>}
 

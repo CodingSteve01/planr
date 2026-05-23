@@ -7,7 +7,7 @@
 // pre-filter their tree (e.g. NetGraph already drops descendants of collapsed
 // nodes) and look up ids in the returned sets.
 import { stateAsOf } from './history.js';
-import { re } from './scheduler.js';
+import { leafProgress, scheduleEffort } from './scheduler.js';
 
 // Build a Set of day-of-week numbers that count as workdays. Defaults to
 // Mon–Fri (1..5). Helper kept local so callers don't have to pre-shape it.
@@ -136,7 +136,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     if (!isLeaf) continue;
     const past = pastLeafState.get(r.id);
     const nowStatus = r.status || 'open';
-    const nowProg = typeof r.progress === 'number' ? r.progress : (nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0);
+    const nowProg = leafProgress(r);
     if (nowStatus === 'done' && past?.status !== 'done') {
       doneInWindowIds.add(r.id);
     } else if (past && nowStatus !== 'done' && nowProg > (past.progress || 0)) {
@@ -162,12 +162,12 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     let totalEff = 0, doneEff = 0;
     let anyPastLeaf = false;
     for (const lf of subtreeLeaves) {
-      const eff = re(lf.best || 0, lf.factor || 1.5) || 1;
+      const eff = scheduleEffort(lf) || 1;
       totalEff += eff;
       const past = pastLeafState.get(lf.id);
       if (past) anyPastLeaf = true;
       const pastDone = past?.status === 'done';
-      const pastProg = past ? (past.progress || 0) / 100 : 0;
+      const pastProg = past ? Math.min(pastDone ? 100 : 99, Math.max(0, past.progress || 0)) / 100 : 0;
       doneEff += eff * (pastDone ? 1 : pastProg);
     }
     pastProgressByRootId[root.id] = totalEff > 0 ? doneEff / totalEff : 0;
@@ -180,7 +180,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     const node = tree.find(r => r.id === id);
     if (!node) continue;
     doneCount++;
-    effortInWindow += re(node.best || 0, node.factor || 1.5) || 0;
+    effortInWindow += scheduleEffort(node) || 0;
   }
 
   // Sprint-window capacity: gross calendar workdays, holidays, available

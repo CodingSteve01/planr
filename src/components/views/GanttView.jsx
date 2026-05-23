@@ -2,7 +2,8 @@ import React, { useState, useRef, useMemo, useEffect, memo } from 'react';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate } from '../../utils/completion.js';
-import { resolveToLeafIds, isLeafNode, parentId } from '../../utils/scheduler.js';
+import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress } from '../../utils/scheduler.js';
+import { buildThreadStructure } from '../../utils/threads.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { chainShorts, hasChain, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -90,8 +91,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
-  const [confirmDeleteKey, setConfirmDeleteKey] = useState(null); // line key in second-click delete-confirm state
-  const confirmTimerRef = useRef(null);
   const [ctxMenu, setCtxMenu] = useState(null); // {x, y, taskId}
   const [linkMode, setLinkMode] = useState(null); // {fromId, mode: 'pred'|'succ'} — click a second bar to add dep
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
@@ -151,6 +150,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const d = date instanceof Date ? date : localDate(date);
     const wi = weeks.findIndex(w => d < addD(w.mon, 7));
     return wi >= 0 ? wi : weeks.length - 1;
+  }
+  function scheduledWorkDaysOf(s) {
+    const fixed = fixedDurationDays(s);
+    if (fixed) return fixed;
+    if (s?.workingDaysInWindow > 0) return Math.max(1, Math.ceil(s.workingDaysInWindow));
+    if (s?.startD && s?.endD) {
+      const start = s.startD instanceof Date ? s.startD : localDate(s.startD);
+      const end = s.endD instanceof Date ? s.endD : localDate(s.endD);
+      const count = weeks.reduce((sum, w) => sum + (w.wds || []).filter(d => d >= start && d <= end).length, 0);
+      if (count > 0) return count;
+    }
+    if (s?.startWi >= 0 && s?.endWi >= s.startWi) return Math.max(1, (s.endWi - s.startWi + 1) * 5);
+    return 1;
   }
   const months = useMemo(() => {
     const ms = []; let cm = null, cc = 0, cs = 0;
@@ -282,97 +294,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   }, [childrenByParent]);
   const rootIds = useMemo(() => (childrenByParent[''] || EMPTY_ARR), [childrenByParent]);
 
-  // Threads = weakly-connected components of (deps ∪ softDeps). Each thread
-  // is one "Pfad" the user can read top-to-bottom; ranks come from a longest-
-  // path topo sort so parallel tasks at the same rank sit on adjacent rows.
-  // Isolated leaves end up as singleton threads.
   const threadStructure = useMemo(() => {
-    if (groupBy !== 'thread') return EMPTY_ARR;
-    const leafIds = new Set();
-    for (const it of (allItems || [])) leafIds.add(it.treeId || it.id);
-    // Undirected adjacency for component detection + directed for ranking.
-    const undirected = new Map();
-    const succ = new Map(); // predecessor → [successors]
-    const indeg = new Map();
-    for (const id of leafIds) { undirected.set(id, new Set()); succ.set(id, []); indeg.set(id, 0); }
-    for (const id of leafIds) {
-      const node = iMap[id];
-      if (!node) continue;
-      const ancestors = []; let aid = parentId(id); while (aid) { ancestors.push(aid); aid = parentId(aid); }
-      const raw = [
-        ...(node.deps || []),
-        ...(node.softDeps || []),
-        ...ancestors.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]),
-      ];
-      const resolved = new Set();
-      for (const d of raw) {
-        for (const t of resolveToLeafIds(tree || [], d)) {
-          if (leafIds.has(t) && t !== id) resolved.add(t);
-        }
-      }
-      for (const t of resolved) {
-        undirected.get(id).add(t); undirected.get(t).add(id);
-        succ.get(t).push(id); indeg.set(id, (indeg.get(id) || 0) + 1);
-      }
-    }
-    // Component label via BFS.
-    const compOf = new Map();
-    let cid = 0;
-    for (const id of leafIds) {
-      if (compOf.has(id)) continue;
-      cid++;
-      const q = [id]; compOf.set(id, cid);
-      while (q.length) {
-        const cur = q.shift();
-        for (const n of undirected.get(cur) || []) {
-          if (!compOf.has(n)) { compOf.set(n, cid); q.push(n); }
-        }
-      }
-    }
-    // Longest-path rank via Kahn.
-    const rank = new Map([...leafIds].map(i => [i, 0]));
-    const q = [...leafIds].filter(i => indeg.get(i) === 0);
-    const indegMut = new Map(indeg);
-    while (q.length) {
-      const cur = q.shift();
-      for (const next of succ.get(cur) || []) {
-        rank.set(next, Math.max(rank.get(next) || 0, (rank.get(cur) || 0) + 1));
-        indegMut.set(next, indegMut.get(next) - 1);
-        if (indegMut.get(next) === 0) q.push(next);
-      }
-    }
-    // Earliest start per leaf (used for thread ordering + within-rank tiebreak).
-    const startOf = new Map();
-    for (const s of (scheduled || [])) {
-      if (typeof s.startWi !== 'number' || s.startWi < 0) continue;
-      const tid = s.treeId || s.id;
-      const cur = startOf.get(tid);
-      if (cur == null || s.startWi < cur) startOf.set(tid, s.startWi);
-    }
-    // Group ids by component, sort by rank → startWi → id.
-    const byComp = new Map();
-    for (const [id, c] of compOf) {
-      if (!byComp.has(c)) byComp.set(c, []);
-      byComp.get(c).push(id);
-    }
-    const threads = [];
-    for (const [c, ids] of byComp) {
-      ids.sort((a, b) => {
-        const ra = rank.get(a) ?? 0, rb = rank.get(b) ?? 0;
-        if (ra !== rb) return ra - rb;
-        const sa = startOf.get(a) ?? 1e9, sb = startOf.get(b) ?? 1e9;
-        if (sa !== sb) return sa - sb;
-        return a.localeCompare(b);
-      });
-      const earliest = ids.reduce((m, i) => Math.min(m, startOf.get(i) ?? Infinity), Infinity);
-      threads.push({ cid: c, ids, earliest, isSolo: ids.length === 1 });
-    }
-    threads.sort((a, b) => {
-      // Real threads (>1) before solo. Then earliest start.
-      if (a.isSolo !== b.isSolo) return a.isSolo ? 1 : -1;
-      return (a.earliest === Infinity ? 1e9 : a.earliest) - (b.earliest === Infinity ? 1e9 : b.earliest);
-    });
-    return threads;
+    return buildThreadStructure({ groupBy, allItems, tree, iMap, scheduled });
   }, [groupBy, allItems, tree, iMap, scheduled]);
   const personIdsOf = s => {
     const ids = new Set();
@@ -786,17 +709,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // positions when dates aren't available.
   // When the task is currently being dragged, add the live drag pixel offset so
   // dependency lines follow the bar in real time (Bug 2 fix).
-  function dragOffsetFor(s) {
+  const resizePxPerDay = showDays ? DPX : WPX / 5;
+  function dragOffsetFor(s, edge = 'both') {
     if (!drag || drag.id !== s.id || drag.isReorder) return 0;
+    if (drag.kind === 'resizeEnd') return edge === 'end' ? dDelta * resizePxPerDay : 0;
     return dDelta * (showDays ? DPX : WPX);
   }
   function depX1(s) {
     const base = showDays && s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX;
-    return base + dragOffsetFor(s);
+    return base + dragOffsetFor(s, 'end');
   }
   function depX2(s) {
     const base = showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX;
-    return base + dragOffsetFor(s);
+    return base + dragOffsetFor(s, 'start');
   }
 
   // rowIdx maps task ID → array of ALL visible row indices (a multi-assigned task appears
@@ -885,7 +810,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const allDepLines = useMemo(() => {
     if (!tree) return [];
     const lines = [];
-    const processDep = (s, node, rawDep, isSoft) => {
+    const processDep = (s, removeFromId, rawDep, isSoft) => {
         const leafIds = resD(rawDep);
         let latestId = null, latestEnd = null;
         leafIds.forEach(depId => {
@@ -905,7 +830,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 y1: rowCenterY(srcRow),
                 x2: depX2(s),
                 y2: rowCenterY(tgtRow),
-                removeFromId: s.id,
+                removeFromId,
                 removeDepId: rawDep,
                 srcId: depId,
                 tgtId: s.id,
@@ -922,8 +847,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     };
     scheduled.forEach(s => {
       const node = iMap[s.treeId || s.id]; if (!node) return;
-      (node.deps || []).forEach(rawDep => processDep(s, node, rawDep, false));
-      (node.softDeps || []).forEach(rawDep => processDep(s, node, rawDep, true));
+      const removeFromId = node.id;
+      (node.deps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, false));
+      (node.softDeps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, true));
     });
     return lines;
   }, [scheduled, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
@@ -1103,6 +1029,35 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
       lastDy: 0,
       isReorder: false,
+      kind: 'move',
+    };
+    dragRef.current = d;
+    setDrag(d);
+    setDDelta(0);
+  }
+  function onResizeEndMD(e, row) {
+    e.stopPropagation();
+    e.preventDefault();
+    dismissTooltip(true);
+    justDraggedRef.current = false;
+    const s = row.s;
+    const node = row.node || iMap[s.treeId || s.id];
+    if (!node || row.type !== 'task' || s.status === 'done' || s._unestimated || s.isHandoff) return;
+    const currentDays = fixedDurationDays(node) || scheduledWorkDaysOf(s);
+    const d = {
+      id: s.id,
+      treeId: s.treeId || s.id,
+      ox: e.clientX,
+      oy: e.clientY,
+      baseDurationDays: Math.max(1, Math.ceil(currentDays || 1)),
+      minDelta: 1 - Math.max(1, Math.ceil(currentDays || 1)),
+      rowType: row.type,
+      canPin: false,
+      reorderMode: null,
+      lockVertical: false,
+      lastDy: 0,
+      isReorder: false,
+      kind: 'resizeEnd',
     };
     dragRef.current = d;
     setDrag(d);
@@ -1120,6 +1075,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (d.isReorder || enterReorder) {
         d.isReorder = true; d.lastDy = dy;
         setDrag({ ...d }); // re-render for cursor + visual feedback
+      } else if (d.kind === 'resizeEnd') {
+        const delta = Math.round(dx / resizePxPerDay);
+        setDDelta(Math.max(d.minDelta || 0, delta));
       } else if (d.canPin) {
         const stepPx = showDays ? DPX : WPX;
         setDDelta(Math.round(dx / stepPx));
@@ -1155,7 +1113,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   function onMU() {
     const d = dragRef.current;
     if (d) {
-      if (d.isReorder && d.lastDy && d.reorderMode === 'tree') {
+      if (d.kind === 'resizeEnd') {
+        if (dDelta !== 0) {
+          onSeqUpdate?.(d.treeId || d.id, { fixedDurationDays: Math.max(1, Math.ceil((d.baseDurationDays || 1) + dDelta)) });
+        }
+      } else if (d.isReorder && d.lastDy && d.reorderMode === 'tree') {
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
         const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
         onReorderSibling?.(d.id, dir);
@@ -1523,15 +1485,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
             }
             // Drag offset: dDelta is in days when showDays, weeks otherwise.
-            const dragPxOffset = isDrag ? dDelta * (showDays ? DPX : WPX) : 0;
+            const dragPxOffset = isDrag && drag?.kind !== 'resizeEnd' ? dDelta * (showDays ? DPX : WPX) : 0;
+            const resizePxOffset = isDrag && drag?.kind === 'resizeEnd' ? dDelta * resizePxPerDay : 0;
             const barLeft = Math.max(0, baseLeft + dragPxOffset);
-            const bW = baseWidth;
+            const bW = Math.max(6, baseWidth + resizePxOffset);
             const dim = cpOnly && !rowRelevantToCp(row);
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
             const node = row.node || iMap[s.treeId || s.id];
+            const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
+            const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
+            const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
+              ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + dDelta))
+              : fixedDays;
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
@@ -1635,6 +1603,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   cursor: linkMode || linkDrag ? 'crosshair'
                     : isSummary ? (groupBy === 'project' ? 'ns-resize' : 'pointer')
                     : s.status === 'done' ? 'pointer'
+                    : (drag?.id === s.id && drag?.kind === 'resizeEnd') ? 'ew-resize'
                     : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
                 }}
@@ -1685,7 +1654,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     When the diff overlay is active the band is split: the part up to the
                     past-progress percentage stays neutral, the slice between past and now
                     is amber so the "gained in window" portion stands out. */}
-                {(() => { const prog = s.progress ?? node?.progress ?? (node?.status === 'done' ? 100 : node?.status === 'wip' ? 50 : 0);
+                {(() => { const prog = leafProgress(node || s);
                   if (!(prog > 0 && prog < 100)) return null;
                   const past = _diffActive && !isSummary && diffPastLeafState?.get?.(s.id);
                   const pastProg = past ? Math.max(0, Math.min(prog, past.progress || 0)) : null;
@@ -1784,8 +1753,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
                     data-htip={`Wartet auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
                 })()}
+                {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
+                  data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
                 {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>
+                {canResizeDuration && <div data-htip={`${t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`} onMouseDown={e => onResizeEndMD(e, row)} onClick={e => e.stopPropagation()}
+                  style={{ position: 'absolute', right: 6, top: 2, bottom: 2, width: 10, cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6 }}>
+                  <span style={{
+                    width: 4, height: '70%', borderLeft: `1px solid ${fixedDays ? '#fff' : 'rgba(255,255,255,.78)'}`,
+                    borderRight: `1px solid ${fixedDays ? '#fff' : 'rgba(255,255,255,.78)'}`,
+                    opacity: isDrag && drag?.kind === 'resizeEnd' ? 1 : 0.8,
+                    filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.45))',
+                  }} />
+                </div>}
                 {/* Right-edge link handle: semicircle pointing OUT of the bar.
                     The half-circle shape signals "draw a connection out here"
                     visually — round on the outside, flat against the bar edge.
@@ -1911,40 +1891,25 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       Both the badge and the line share the hover-persistence timer
                       so cursor travel between line and badge keeps it visible. */}
                   {isHovered && onRemoveDep && (() => {
-                    const isConfirm = confirmDeleteKey === l.key;
-                    const accent = isConfirm ? 'var(--gr)' : 'var(--re)';
                     const handleClick = (e) => {
                       e.stopPropagation();
-                      if (isConfirm) {
-                        if (confirmTimerRef.current) { clearTimeout(confirmTimerRef.current); confirmTimerRef.current = null; }
-                        onRemoveDep(l.removeFromId, l.removeDepId);
-                        setConfirmDeleteKey(null);
-                        setHoverLineKey(null);
-                      } else {
-                        setConfirmDeleteKey(l.key);
-                        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-                        confirmTimerRef.current = setTimeout(() => {
-                          setConfirmDeleteKey(prev => prev === l.key ? null : prev);
-                          confirmTimerRef.current = null;
-                        }, 2500);
-                      }
+                      onRemoveDep(l.removeFromId, l.removeDepId);
+                      setHoverLineKey(null);
                     };
                     return <g
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={enterLine}
                       onMouseLeave={leaveLine}
                       onClick={handleClick}>
-                      <title>{isConfirm ? `Click again to confirm delete: ${l.removeDepId} → ${l.removeFromId}` : `Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
+                      <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
                       {/* `pointerEvents="all"` is critical: an SVG element with
                           fill="transparent" does NOT receive clicks under the
                           default `visiblePainted` pointer-events mode. Without
                           this, clicks landing in the enlarged hit zone (between
                           r=10 and r=18) silently missed. */}
                       <circle cx={midX} cy={midY} r={18} fill="transparent" pointerEvents="all" style={{ cursor: 'pointer' }} />
-                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke={accent} strokeWidth={1.8} style={{ cursor: 'pointer' }} />
-                      {isConfirm
-                        ? <path d={`M${midX - 4.5},${midY + 0.5} L${midX - 1.2},${midY + 3.5} L${midX + 4.5},${midY - 3}`} fill="none" stroke={accent} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                        : <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke={accent} strokeWidth={1.8} strokeLinecap="round" />}
+                      <circle cx={midX} cy={midY} r={10} fill="var(--bg)" stroke="var(--re)" strokeWidth={1.8} style={{ cursor: 'pointer' }} />
+                      <path d={`M${midX - 4},${midY - 4} L${midX + 4},${midY + 4} M${midX + 4},${midY - 4} L${midX - 4},${midY + 4}`} stroke="var(--re)" strokeWidth={1.8} strokeLinecap="round" />
                     </g>;
                   })()}
                 </g>;
