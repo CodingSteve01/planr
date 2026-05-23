@@ -11,6 +11,12 @@ const iso = d => {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 };
 const relDate = daysFromNow => { const d = new Date(today); d.setDate(d.getDate() + daysFromNow); return iso(d); };
+const relTs = (daysFromNow, hour = 12) => {
+  const d = new Date(today);
+  d.setDate(d.getDate() + daysFromNow);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
 
 function buildDemoTree() {
   // Demo design notes:
@@ -77,6 +83,49 @@ function buildDemoTree() {
   ];
 }
 
+function buildDemoHistory(tree) {
+  const isLeaf = node => !tree.some(other => other.id !== node.id && other.id.startsWith(node.id + '.'));
+  const leafIds = tree.filter(isLeaf).map(node => node.id);
+  const events = leafIds.map(id => ({
+    ts: relTs(-60, 8),
+    id,
+    kind: 'added',
+    status: 'open',
+    progress: 0,
+  }));
+
+  const addWip = (id, day, progress = 1) => {
+    events.push({ ts: relTs(day, 9), id, status: 'wip', progress });
+  };
+  const addProgress = (id, day, progress) => {
+    events.push({ ts: relTs(day, 12), id, progress });
+  };
+  const addDone = (id, day) => {
+    events.push({ ts: relTs(day, 18), id, status: 'done', progress: 100, completedAt: relDate(day) });
+  };
+
+  addWip('P1.1.1', -58);
+  addDone('P1.1.1', -52);
+  addWip('P1.1.2', -50);
+  addDone('P1.1.2', -42);
+  addWip('P2.1', -38);
+  addDone('P2.1', -35);
+
+  addWip('P1.1.3', -28, 20);
+  addProgress('P1.1.3', -18, 45);
+  addProgress('P1.1.3', -7, 60);
+  addWip('P1.1.4', -24, 15);
+  addProgress('P1.1.4', -8, 40);
+  addWip('P2.2', -20, 25);
+  addProgress('P2.2', -5, 75);
+  addWip('D1.1', -12, 10);
+  addProgress('D1.1', -3, 30);
+  addWip('H1.1', -9, 5);
+  addProgress('H1.1', -2, 10);
+
+  return events.sort((a, b) => a.ts.localeCompare(b.ts) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+}
+
 /**
  * Build a ready-to-use demo project data object.
  * Templates are resolved via the provided `t` function so demo content
@@ -90,6 +139,7 @@ export function buildDemoProject(t) {
   const tpl = getTemplate('software-dev');
   const seeded = applyTemplate(tpl, t);
 
+  const tree = buildDemoTree();
   return {
     meta: {
       name: t ? t('demo.projectName') : 'Planr Demo Project',
@@ -159,7 +209,8 @@ export function buildDemoProject(t) {
       { person: 'M2', from: relDate(48), to: relDate(55), note: '' },
       { person: 'M3', from: relDate(35), to: relDate(42), note: '' },
     ],
-    tree: buildDemoTree(),
+    tree,
+    historyEvents: buildDemoHistory(tree),
     holidays: hols,
     risks: seeded.risks,
     sizes: seeded.sizes,

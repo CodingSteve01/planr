@@ -7,6 +7,7 @@
 // pre-filter their tree (e.g. NetGraph already drops descendants of collapsed
 // nodes) and look up ids in the returned sets.
 import { stateAsOf } from './history.js';
+import { addD, iso, localDate } from './date.js';
 import { leafProgress, scheduleEffort } from './scheduler.js';
 
 // Build a Set of day-of-week numbers that count as workdays. Defaults to
@@ -92,11 +93,64 @@ function _capacityStats({ from, to, members = [], vacations = [], holidays = {},
   return { grossWorkdays, holidayCount, availablePersonDays, vacationDaysInWindow };
 }
 
+function _tsForDay(value, hour = 12) {
+  const d = value instanceof Date ? new Date(value) : localDate(value);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
+function _leafNodes(tree) {
+  return (tree || []).filter(r => r?.id && !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.')));
+}
+
+// Legacy/backfilled files can have actual bars (`completedStart` / `completedAt`)
+// but no append-only history yet. Seed enough history from those bars so
+// "diff since date" still has a reliable past state. Real history wins per id.
+function _syntheticHistoryFromActualBars(tree, idsWithRealHistory) {
+  const leaves = _leafNodes(tree);
+  const datedLeaves = leaves.filter(leaf =>
+    leaf.completedStart || leaf.completedAt || leaf.completedEnd || leaf.plannedStart || leaf.pinnedStart);
+  if (!datedLeaves.length) return [];
+
+  const dates = datedLeaves
+    .flatMap(leaf => [leaf.completedStart, leaf.completedAt, leaf.completedEnd, leaf.plannedStart, leaf.pinnedStart])
+    .filter(Boolean)
+    .map(localDate)
+    .filter(d => !Number.isNaN(+d));
+  if (!dates.length) return [];
+
+  const baseline = addD(new Date(Math.min(...dates.map(d => +d))), -1);
+  const events = [];
+  for (const leaf of leaves) {
+    if (idsWithRealHistory.has(leaf.id)) continue;
+    events.push({ ts: _tsForDay(baseline, 8), id: leaf.id, kind: 'added', status: 'open', progress: 0 });
+    if (leaf.status === 'done') {
+      const end = localDate(leaf.completedEnd || leaf.completedAt || leaf.completedStart || baseline);
+      const start = localDate(leaf.completedStart || leaf.completedAt || leaf.completedEnd || baseline);
+      if (start < end) {
+        events.push({ ts: _tsForDay(start, 9), id: leaf.id, status: 'wip', progress: 1 });
+      }
+      events.push({ ts: _tsForDay(end, 18), id: leaf.id, status: 'done', progress: 100, completedAt: iso(end) });
+    } else if (leaf.status === 'wip' && leafProgress(leaf) > 0) {
+      const start = localDate(leaf.plannedStart || leaf.pinnedStart || baseline);
+      events.push({ ts: _tsForDay(start, 9), id: leaf.id, status: 'wip', progress: leafProgress(leaf) });
+    }
+  }
+  return events;
+}
+
 export function computeDiff({ tree, historyEvents, sinceDate, members, vacations, holidays, workDays }) {
-  if (!sinceDate || !Array.isArray(historyEvents) || !historyEvents.length || !Array.isArray(tree)) {
+  if (!sinceDate || !Array.isArray(tree)) {
     return null;
   }
-  const pastLeafState = stateAsOf(historyEvents, sinceDate);
+  const realHistory = Array.isArray(historyEvents) ? historyEvents : [];
+  const idsWithRealHistory = new Set(realHistory.map(ev => ev.id).filter(Boolean));
+  const syntheticHistory = _syntheticHistoryFromActualBars(tree, idsWithRealHistory);
+  const effectiveHistory = [...syntheticHistory, ...realHistory];
+  if (!effectiveHistory.length) {
+    return null;
+  }
+  const pastLeafState = stateAsOf(effectiveHistory, sinceDate);
   const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
 
   const doneInWindowIds = new Set();
@@ -110,7 +164,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   // counted only when the prior state was NOT done (real transition). A
   // progress event counts when it's an increase and the task wasn't already
   // done. `kind=added` after the cutoff marks an actual new leaf.
-  for (const ev of historyEvents) {
+  for (const ev of effectiveHistory) {
     if (ev.ts <= cutoffIso) continue;
     const past = pastLeafState.get(ev.id);
     if (ev.status === 'done' && past?.status !== 'done') {

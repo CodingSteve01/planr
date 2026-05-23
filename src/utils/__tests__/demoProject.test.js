@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { buildDemoProject } from '../demoProject.js';
+import { computeDiff } from '../diff.js';
 
 const dayMs = 86400000;
 const diffDays = (a, b) => Math.round((new Date(a) - new Date(b)) / dayMs);
@@ -18,5 +19,17 @@ describe('demo project', () => {
       const offset = diffDays(item.date, demo.meta.planStart);
       return offset >= 0 && offset <= 120;
     })).toBe(true);
+
+    expect(demo.historyEvents.length).toBeGreaterThan(doneLeaves.length);
+    const since = new Date();
+    since.setDate(since.getDate() - 14);
+    since.setHours(23, 59, 59, 999);
+    const diff = computeDiff({
+      tree: demo.tree,
+      historyEvents: demo.historyEvents,
+      sinceDate: since,
+    });
+    expect(diff).not.toBeNull();
+    expect(diff.changedInWindowIds.length).toBeGreaterThan(0);
   });
 });
