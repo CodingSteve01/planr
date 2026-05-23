@@ -909,6 +909,37 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     }));
     return result;
   }, [allItems, iMap, memberById, members, vacByPerson, weeks]);
+  const loadRiskSummary = useMemo(() => {
+    const risky = [];
+    Object.entries(resourceLoadByWeek || {}).forEach(([personId, rows]) => {
+      const name = memberById[personId]?.name || personId;
+      (rows || EMPTY_ARR).forEach(row => {
+        if (!row || row.load <= 0 || row.percent < 90) return;
+        risky.push({
+          personId,
+          name,
+          kw: row.kw,
+          start: row.start,
+          load: row.load,
+          availability: row.availability,
+          percent: row.percent,
+        });
+      });
+    });
+    risky.sort((a, b) => b.percent - a.percent || b.load - a.load);
+    const over = risky.filter(r => r.percent > 110);
+    const full = risky.filter(r => r.percent >= 90 && r.percent <= 110);
+    const top = risky.slice(0, 6);
+    const tip = top.length
+      ? `html:<div><b>${t('g.loadRiskTitle')}</b><br/>${top.map(r => `${r.name} · KW ${r.kw} (${r.start}): ${r.percent}% · ${r.load.toFixed(1)}d / ${r.availability.toFixed(1)}d`).join('<br/>')}<br/><span style="color:var(--tx3)">${t('g.loadRiskAction')}</span></div>`
+      : t('g.loadOkTip');
+    return {
+      overCount: over.length,
+      fullCount: full.length,
+      maxPercent: risky[0]?.percent || 0,
+      tip,
+    };
+  }, [resourceLoadByWeek, memberById, t]);
   const loadHeatColor = percent => {
     if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.08)';
     if (percent < 50) return 'rgba(59,130,246,.18)';
@@ -1395,7 +1426,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             >{l}</button>)}
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
-            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>▦ {t('g.loadHeatmap')}</button>
+            aria-pressed={showLoadHeatmap}
+            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '☑' : '☐'} {t('g.loadHeatmap')}</button>
+          {showLoadHeatmap && <span className={`badge ${loadRiskSummary.overCount ? 'bc' : loadRiskSummary.fullCount ? 'bw' : 'bd'}`}
+            data-htip={loadRiskSummary.tip}
+            style={{ fontSize: 10, padding: '2px 7px' }}>
+            {loadRiskSummary.overCount
+              ? t('g.loadOver', loadRiskSummary.overCount)
+              : loadRiskSummary.fullCount
+              ? t('g.loadFullWeeks', loadRiskSummary.fullCount)
+              : t('g.loadOk')}
+          </span>}
           {allCollapseKeys.length > 0 && <>
             <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
             <button className="btn btn-sec btn-xs" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
@@ -1691,6 +1732,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + dDelta))
               : fixedDays;
             const loadCells = !isSummary ? taskLoadCells(s, barLeft, bW) : EMPTY_ARR;
+            const compactBar = !isSummary && bW < 36;
+            const microBar = !isSummary && bW < 16;
+            const showResizeHandle = canResizeDuration && bW >= 26;
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
@@ -1786,6 +1830,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={s.id}
                 style={{
                   left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,
+                  padding: isSummary ? '0 6px' : microBar ? 0 : compactBar ? '0 2px' : '0 6px',
+                  justifyContent: compactBar ? 'center' : undefined,
                   // Vertical reorder feedback: bar visually follows the mouse vertically,
                   // with a strong glow so the user sees they're in reorder mode.
                   transform: (isDrag && drag?.isReorder) ? `translateY(${Math.round(drag.lastDy / RH) * RH}px)` : undefined,
@@ -1955,27 +2001,35 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     }} />
                   ))}
                 </div>}
-                <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
-                {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
-                {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
-                  data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
-                  onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
-                {!isSummary && s.blockedBy && (() => {
-                  const blocker = scheduled.find(x => x.id === s.blockedBy.id);
-                  const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
-                  const blockerPerson = blocker?.person || blocker?.personShort || '';
-                  const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
-                  const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
-                  const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
-                  return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
-                    data-htip={`Wartet auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
-                })()}
-                {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
-                  data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
-                {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
-                </span>
-                {canResizeDuration && <div data-htip={`${t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`} onMouseDown={e => onResizeEndMD(e, row)} onClick={e => e.stopPropagation()}
+                {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
+                  {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
+                  {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
+                    data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
+                    onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
+                  {!isSummary && s.blockedBy && (() => {
+                    const blocker = scheduled.find(x => x.id === s.blockedBy.id);
+                    const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
+                    const blockerPerson = blocker?.person || blocker?.personShort || '';
+                    const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
+                    const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
+                    const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
+                    return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
+                      data-htip={`Wartet auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
+                  })()}
+                  {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
+                    data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
+                  {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
+                </span>}
+                {compactBar && !microBar && <span style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 999,
+                  background: s.status === 'done' ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.82)',
+                  boxShadow: '0 1px 1px rgba(0,0,0,.35)',
+                  pointerEvents: 'none',
+                }} />}
+                {showResizeHandle && <div data-htip={`${t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`} onMouseDown={e => onResizeEndMD(e, row)} onClick={e => e.stopPropagation()}
                   style={{ position: 'absolute', right: 6, top: 2, bottom: 2, width: 10, cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6 }}>
                   <span style={{
                     width: 4, height: '70%', borderLeft: `1px solid ${fixedDays ? '#fff' : 'rgba(255,255,255,.78)'}`,
@@ -1991,12 +2045,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === s.id || linkMode?.fromId === s.id ? ' active' : ''}`} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, s.id)} onClick={e => e.stopPropagation()}
                 style={{
                   position: 'absolute',
-                  left: barLeft + bW - 1,
+                  left: barLeft + bW - 11,
                   top: 14,
                   '--link-color': s.status === 'done' ? 'rgba(255,255,255,.88)' : tc,
                   pointerEvents: 'auto',
                 }}>
-                <span className="g-link-connector-line" />
                 <span className="g-link-connector-dot">+</span>
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
