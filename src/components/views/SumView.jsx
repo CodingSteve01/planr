@@ -1,6 +1,6 @@
 import { useMemo, useState, memo } from "react";
 import { TBadge } from '../shared/Badges.jsx';
-import { leafNodes, re, resolveToLeafIds, treeStats } from '../../utils/scheduler.js';
+import { leafNodes, leafProgress, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
 import { GT, GL } from '../../constants.js';
@@ -15,6 +15,24 @@ import { aggregateSollIst } from '../../utils/sollIst.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
+const MIN_VISIBLE_PROGRESS_DELTA_PCT = 0.005;
+
+function trim1(value) {
+  return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
+}
+
+function progressPctLabel(value) {
+  return trim1(Math.max(0, Math.min(100, Number(value) || 0)));
+}
+
+function progressDeltaLabel(deltaPct) {
+  const delta = Number(deltaPct) || 0;
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return '0%';
+  const sign = delta > 0 ? '+' : '-';
+  const abs = Math.abs(delta);
+  if (abs >= 0.1) return `${sign}${trim1(abs)}%`;
+  return `${sign}${trim1(abs * 10)}‰`;
+}
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
@@ -23,8 +41,17 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
   const open = lvs.filter(r => r.status === 'open').length;
-  const tR = lvs.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-  const prog = lvs.length > 0 ? (done / lvs.length) * 100 : 0;
+  const tR = lvs.reduce((s, r) => s + (scheduleEffort(r) || 0), 0);
+  const prog = useMemo(() => {
+    let total = 0;
+    let progressed = 0;
+    for (const lf of lvs) {
+      const effort = scheduleEffort(lf) || 1;
+      total += effort;
+      progressed += effort * (leafProgress(lf) / 100);
+    }
+    return total > 0 ? (progressed / total) * 100 : 0;
+  }, [lvs]);
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
@@ -70,39 +97,69 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   // Network). The picker UI lives in RoadmapSwitcher / TreeView toolbars.
 
   // Effort-weighted overall progress AT the cutoff. Mirrors the live
-  // `prog` calculation (`done / totalLeaves * 100`) but with each leaf's
-  // status replaced by its state at the cutoff. New leaves count as 0%.
+  // Subway-map train semantics: partial progress counts by realistic effort,
+  // but a non-done task is capped below 100%. New leaves count as 0%.
   const pastOverallProg = useMemo(() => {
-    if (!sinceDate || !historyEvents.length) return null;
-    const past = stateAsOf(historyEvents, sinceDate);
-    let total = 0, doneCount = 0;
+    if (!sinceDate) return null;
+    const past = diff?.pastLeafState || (historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null);
+    if (!past) return null;
+    let total = 0, progressed = 0;
     for (const lf of lvs) {
-      total++;
+      const effort = scheduleEffort(lf) || 1;
+      total += effort;
       const p = past.get(lf.id);
-      if (p?.status === 'done') doneCount++;
+      const pastDone = p?.status === 'done';
+      const pastProg = p ? Math.min(pastDone ? 100 : 99, Math.max(0, p.progress || 0)) : 0;
+      progressed += effort * (pastDone ? 1 : pastProg / 100);
     }
-    return total > 0 ? (doneCount / total) * 100 : 0;
-  }, [historyEvents, sinceDate, lvs]);
+    return total > 0 ? (progressed / total) * 100 : 0;
+  }, [diff?.pastLeafState, historyEvents, sinceDate, lvs]);
   const overallDelta = pastOverallProg != null ? prog - pastOverallProg : null;
+  const futureOverallProg = useMemo(() => {
+    if (!futureProgressByRootId) return null;
+    const roots = tree.filter(r => !r.id.includes('.'));
+    let total = 0, progressed = 0;
+    for (const root of roots) {
+      const leaves = lvs.filter(lf => lf.id === root.id || lf.id.startsWith(root.id + '.'));
+      const effort = leaves.reduce((sum, lf) => sum + (scheduleEffort(lf) || 1), 0);
+      if (effort <= 0) continue;
+      total += effort;
+      const rootProgress = Object.prototype.hasOwnProperty.call(futureProgressByRootId, root.id)
+        ? futureProgressByRootId[root.id] * 100
+        : (stats?.[root.id]?._progress || 0);
+      progressed += effort * Math.max(0, Math.min(100, rootProgress)) / 100;
+    }
+    return total > 0 ? (progressed / total) * 100 : null;
+  }, [futureProgressByRootId, lvs, stats, tree]);
+  const futureOverallDelta = futureOverallProg != null ? futureOverallProg - prog : null;
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Progress header */}
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
-      <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{prog.toFixed(0)}%</span>
-      {overallDelta != null && overallDelta > 0.05 && (
-        <span data-htip={t('diff.tipPastNow', pastOverallProg.toFixed(1), iso(sinceDate), prog.toFixed(1))}
-          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#f59e0b',
-            background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.5)',
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{progressPctLabel(prog)}%</span>
+      {overallDelta != null && Math.abs(overallDelta) >= MIN_VISIBLE_PROGRESS_DELTA_PCT && (
+        <span data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
+          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: overallDelta >= 0 ? '#f59e0b' : 'var(--re)',
+            background: overallDelta >= 0 ? 'rgba(245,158,11,.12)' : 'rgba(244,63,94,.10)',
+            border: `1px solid ${overallDelta >= 0 ? 'rgba(245,158,11,.5)' : 'rgba(244,63,94,.45)'}`,
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          +{overallDelta.toFixed(1)}%
+          {progressDeltaLabel(overallDelta)}
         </span>
       )}
-      {overallDelta != null && overallDelta <= 0.05 && overallDelta >= -0.05 && (
+      {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
         <span data-htip={t('diff.noMovement')}
           style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--tx3)',
             background: 'var(--bg3)', border: '1px solid var(--b)',
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
           ±0%
+        </span>
+      )}
+      {futureOverallProg != null && (
+        <span data-htip={`Jetzt ${progressPctLabel(prog)}% -> Plan ${progressPctLabel(futureOverallProg)}%`}
+          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#fff',
+            background: '#3b82f6', border: '1px solid rgba(147,197,253,.55)',
+            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
+          Plan {progressPctLabel(futureOverallProg)}%{futureOverallDelta > MIN_VISIBLE_PROGRESS_DELTA_PCT ? ` ${progressDeltaLabel(futureOverallDelta)}` : ''}
         </span>
       )}
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
@@ -112,8 +169,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       <div className="prog-fill" style={{ width: `${prog}%` }} />
       {/* Past-progress marker: thin vertical line on the bar showing where
           progress sat at the cutoff. Makes the gained delta tangible. */}
-      {pastOverallProg != null && pastOverallProg < prog - 0.05 && (
-        <div data-htip={t('diff.tipPastNow', pastOverallProg.toFixed(1), iso(sinceDate), prog.toFixed(1))}
+      {pastOverallProg != null && pastOverallProg < prog - MIN_VISIBLE_PROGRESS_DELTA_PCT && (
+        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
           style={{ position: 'absolute', left: `${pastOverallProg}%`, top: -2, bottom: -2,
             width: 2, background: '#f59e0b', opacity: 0.85, cursor: 'help' }} />
       )}
@@ -138,7 +195,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       lvs.filter(r => r.status !== 'done').forEach(r => {
         const c = confidence[r.id] || 'committed';
         cc[c]++;
-        ccPt[c] += re(r.best || 0, r.factor || 1.5);
+        ccPt[c] += scheduleEffort(r) || 0;
       });
       const total = cc.committed + cc.estimated + cc.exploratory;
       if (!total) return null;

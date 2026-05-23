@@ -9,6 +9,10 @@ function threadSets(threads) {
   return threads.map(t => [...t.ids].sort());
 }
 
+function leaves(tree) {
+  return tree.filter(node => !tree.some(other => other.id !== node.id && other.id.startsWith(`${node.id}.`)));
+}
+
 describe('buildThreadStructure', () => {
   test('keeps paths separate when they are connected only by soft deps', () => {
     const tree = [
@@ -43,6 +47,41 @@ describe('buildThreadStructure', () => {
 
     expect(threadSets(threads)).toEqual([
       ['P1.1.1', 'P1.1.2', 'P1.1.3'],
+    ]);
+  });
+
+  test('groups parallel start siblings inside one coarse WBS branch', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P1.1.2'),
+      item('P1.1.3'),
+    ];
+    const allItems = tree.filter(n => n.id.split('.').length === 3);
+
+    const threads = buildThreadStructure({ allItems, tree });
+
+    expect(threadSets(threads)).toEqual([
+      ['P1.1.1', 'P1.1.2', 'P1.1.3'],
+    ]);
+  });
+
+  test('does not group parallel starts across coarse WBS branches', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P1.2'),
+      item('P1.2.1'),
+    ];
+    const allItems = tree.filter(n => n.id.split('.').length === 3);
+
+    const threads = buildThreadStructure({ allItems, tree });
+
+    expect(threadSets(threads)).toEqual([
+      ['P1.1.1'],
+      ['P1.2.1'],
     ]);
   });
 
@@ -98,6 +137,42 @@ describe('buildThreadStructure', () => {
 
     expect(threadSets(threads)).toEqual([
       ['P1.1', 'P1.2', 'P2.1', 'P2.2'],
+    ]);
+  });
+
+  test('attaches a singleton with cross-branch soft predecessor to that thread', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P1.1.2', { deps: ['P1.1.1'] }),
+      item('P2'),
+      item('P2.1', { softDeps: ['P1.1.2'] }),
+    ];
+    const allItems = leaves(tree);
+
+    const threads = buildThreadStructure({ allItems, tree });
+
+    expect(threadSets(threads)).toEqual([
+      ['P1.1.1', 'P1.1.2', 'P2.1'],
+    ]);
+  });
+
+  test('attaches a singleton predecessor to the downstream cross-branch thread', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P2'),
+      item('P2.1', { softDeps: ['P1.1.1'] }),
+      item('P2.2', { deps: ['P2.1'] }),
+    ];
+    const allItems = leaves(tree);
+
+    const threads = buildThreadStructure({ allItems, tree });
+
+    expect(threadSets(threads)).toEqual([
+      ['P1.1.1', 'P2.1', 'P2.2'],
     ]);
   });
 });

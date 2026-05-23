@@ -66,6 +66,7 @@ const SVG_W = 1400;
 const SVG_H = 800;
 const ROUTE_T_LO = 0.04;
 const ROUTE_T_HI = 0.96;
+const MIN_VISIBLE_PROGRESS_DELTA = 0.00005; // 0.005 percentage points = 0.05 permille
 
 // ─── Helpers (preserved from original) ───────────────────────────────────────
 const parentId = id => id.split('.').slice(0, -1).join('.');
@@ -74,6 +75,27 @@ const depthOf = id => id.split('.').length;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const progressToRouteT = progress => ROUTE_T_LO + clamp(progress || 0, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO);
 const truncate = (text, len) => !text ? '' : text.length > len ? `${text.slice(0, len - 1)}...` : text;
+
+function trim1(value) {
+  return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
+}
+
+function formatPercentNumber(progress) {
+  return trim1(clamp(progress || 0, 0, 1) * 100);
+}
+
+function formatPercent(progress) {
+  return `${formatPercentNumber(progress)}%`;
+}
+
+function formatProgressDelta(deltaProgress) {
+  const delta = Number(deltaProgress) || 0;
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA) return '0%';
+  const sign = delta > 0 ? '+' : '-';
+  const absPct = Math.abs(delta) * 100;
+  if (absPct >= 0.1) return `${sign}${trim1(absPct)}%`;
+  return `${sign}${trim1(Math.abs(delta) * 1000)}‰`;
+}
 
 function esc(text) {
   return String(text || '')
@@ -127,10 +149,15 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
     let done = 0;
     let earliestStart = null;
     let latestEnd = null;
+    let totalEffort = 0;
+    let progressedEffort = 0;
 
     leafIds.forEach(id => {
       const n = nodeMap[id];
       if (n?.status === 'done') done++;
+      const effort = scheduleEffort(n) || 1;
+      totalEffort += effort;
+      progressedEffort += effort * (leafProgress(n) / 100);
       const sched = schedMap[id];
       // For DONE items prefer the actual completion dates (`completedStart` /
       // `completedEnd`) so past work lands at its real past timestamp on the
@@ -160,12 +187,14 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
     if (!earliestStart && ownDate) earliestStart = ownDate;
     if (!latestEnd && ownDate) latestEnd = ownDate;
 
-    const progressPct = stats?.[node.id]?._progress ?? (leafIds.length ? Math.round(done / leafIds.length * 100) : 0);
+    const progressPct = totalEffort > 0
+      ? (progressedEffort / totalEffort) * 100
+      : (stats?.[node.id]?._progress ?? (leafIds.length ? done / leafIds.length * 100 : 0));
     result[node.id] = {
       total: leafIds.length,
       done,
       prog: clamp(progressPct / 100, 0, 1),
-      effort: stats?.[node.id]?._effort || Math.max(leafIds.length, 1),
+      effort: totalEffort || stats?.[node.id]?._effort || Math.max(leafIds.length, 1),
       allDone: leafIds.length > 0 && done === leafIds.length,
       earliestStart,
       latestEnd,
@@ -957,7 +986,7 @@ export function renderRoadmapSvg(args) {
     // Build the line-level tooltip so hovering anywhere on the route reveals
     // project id + name + progress, not just when the user finds the train.
     const lTrainHover = labels.train || 'Train';
-    const linePct = Math.round((line.progress || 0) * 100);
+    const linePct = formatPercentNumber(line.progress);
     const lineCurrentPos = (labels.currentPos || 'Effort-weighted progress: {0}%').replace('{0}', linePct);
     const lineTooltip = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
       + `<span style="display:inline-block;width:14px;height:8px;border-radius:2px;background:${color}"></span>`
@@ -1138,7 +1167,7 @@ export function renderRoadmapSvg(args) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
       pastT = progressToRouteT(pastPct);
     }
-    if (pastT != null && trainT - pastT > 0.005) {
+    if (pastT != null && (line.progress || 0) - (pastProgress[line.root.id] || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
       const trailD = partialPath(route, trainT, pastT);
       if (trailD) {
         out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
@@ -1150,7 +1179,7 @@ export function renderRoadmapSvg(args) {
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
       const fT = progressToRouteT(futurePct);
-      if (fT - trainT > 0.005) {
+      if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
         const planD = partialPath(route, fT, trainT);
         if (planD) {
           out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
@@ -1167,7 +1196,7 @@ export function renderRoadmapSvg(args) {
     const { color, trainT, trainPt, progress } = line;
     if (trainT <= 0 || progress >= 1) return;
 
-    const pct = Math.round(progress * 100);
+    const pct = formatPercentNumber(progress);
     const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
     const lTrain = labels.train || 'Train';
     const lCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', pct);
@@ -1192,20 +1221,27 @@ export function renderRoadmapSvg(args) {
     // Window slits — two small white rectangles like train windows
     out.push(`<rect x="${(+tx - 7).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
     out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
+    const pctLabel = `${pct}%`;
+    const pctW = Math.max(30, pctLabel.length * 7 + 10);
+    const pctX = Math.min(SVG_W - pctW - 4, Math.max(4, +tx + 15));
+    const pctY = Math.max(4, Math.min(SVG_H - 16, +ty - 8));
+    out.push(`<rect x="${pctX.toFixed(1)}" y="${pctY.toFixed(1)}" width="${pctW}" height="16" rx="4" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.4" opacity="0.96"/>`);
+    out.push(`<text x="${(pctX + pctW / 2).toFixed(1)}" y="${(pctY + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${color}" font-size="10" font-weight="800">${esc(pctLabel)}</text>`);
     out.push(`</g>`);
     // Delta pill: shows "+ΔN%" above the train when the diff overlay is on
     // and progress actually moved in the window. Below the train if there's
     // no headroom.
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const past = Math.max(0, pastProgress[line.root.id] || 0);
-      const delta = Math.round((line.progress - past) * 100);
-      if (delta > 0) {
-        const pillW = Math.max(34, 12 + String(delta).length * 8);
+      const deltaProgress = (line.progress || 0) - past;
+      if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
+        const deltaLabel = formatProgressDelta(deltaProgress);
+        const pillW = Math.max(34, 12 + deltaLabel.length * 7);
         const px = +tx - pillW / 2;
         const py = +ty - 28;
         out.push(`<g pointer-events="none">`);
         out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#f59e0b" opacity="0.95"/>`);
-        out.push(`<text x="${+tx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="10" font-weight="700">+${delta}%</text>`);
+        out.push(`<text x="${+tx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="10" font-weight="700">${esc(deltaLabel)}</text>`);
         out.push(`</g>`);
       }
     }
@@ -1213,7 +1249,7 @@ export function renderRoadmapSvg(args) {
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
       const pastT = progressToRouteT(pastPct);
-      if (trainT - pastT > 0.005) {
+      if ((line.progress || 0) - pastPct > MIN_VISIBLE_PROGRESS_DELTA) {
         const gp = pointAtFraction(line.route, pastT);
         const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
@@ -1227,20 +1263,21 @@ export function renderRoadmapSvg(args) {
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
       const fT = progressToRouteT(futurePct);
-      if (fT - trainT > 0.005) {
+      if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
         const fp = pointAtFraction(line.route, fT);
         const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
-        const delta = Math.round((futurePct - line.progress) * 100);
+        const deltaProgress = futurePct - (line.progress || 0);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
         out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
         out.push(`</g>`);
-        if (delta > 0) {
-          const pillW = Math.max(34, 12 + String(delta).length * 8);
+        if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
+          const deltaLabel = formatProgressDelta(deltaProgress);
+          const pillW = Math.max(34, 12 + deltaLabel.length * 7);
           const px = +fx - pillW / 2;
           const py = +fy - 28;
           out.push(`<g pointer-events="none">`);
           out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#3b82f6" opacity="0.95"/>`);
-          out.push(`<text x="${+fx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#fff" font-size="10" font-weight="700">+${delta}%</text>`);
+          out.push(`<text x="${+fx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#fff" font-size="10" font-weight="700">${esc(deltaLabel)}</text>`);
           out.push(`</g>`);
         }
       }
@@ -1315,6 +1352,28 @@ export function renderRoadmapSvg(args) {
 
   // Helper: render one project's legend block as an HTML string. Closes over
   // every piece of state the inline rendering needs (labels, sets, nodeMap).
+  function renderLineProgressPills(line) {
+    const currentProgress = clamp(line.progress || 0, 0, 1);
+    const currentPct = formatPercentNumber(currentProgress);
+    const parts = [
+      `<span title="Jetzt ${currentPct}%" style="font:800 9px/1 'JetBrains Mono',monospace;background:${line.color};color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">${currentPct}%</span>`,
+    ];
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
+      const pastProgressValue = clamp(pastProgress[line.root.id] || 0, 0, 1);
+      const pastPct = formatPercentNumber(pastProgressValue);
+      const deltaLabel = formatProgressDelta(currentProgress - pastProgressValue);
+      parts.push(`<span title="Vorher ${pastPct}% -> jetzt ${currentPct}%" style="font:800 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px;white-space:nowrap">${deltaLabel}</span>`);
+    }
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const futureProgressValue = clamp(futureProgress[line.root.id] || 0, 0, 1);
+      const futurePct = formatPercentNumber(futureProgressValue);
+      const deltaProgress = futureProgressValue - currentProgress;
+      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress)}` : '';
+      parts.push(`<span title="Jetzt ${currentPct}% -> Plan ${futurePct}%" style="font:800 9px/1 'JetBrains Mono',monospace;background:#3b82f6;color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">Plan ${futurePct}%${suffix}</span>`);
+    }
+    return `<span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">${parts.join('')}</span>`;
+  }
+
   function renderLegendBlock(line) {
     const block = [];
     const allStations = [...line.majorStations, ...line.minorStations]
@@ -1334,9 +1393,10 @@ export function renderRoadmapSvg(args) {
     block.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
     block.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
     block.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
-    block.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(line.root.name, 22))}</span>`);
+    block.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1 1 auto">${esc(truncate(line.root.name, 22))}</span>`);
+    block.push(renderLineProgressPills(line));
     if (lineDoneCount > 0 || lineProgCount > 0) {
-      block.push(`<span style="margin-left:auto;display:inline-flex;gap:3px">`);
+      block.push(`<span style="display:inline-flex;gap:3px;flex-shrink:0">`);
       if (lineDoneCount > 0) {
         block.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:2px 5px" title="${esc(labels.tipDone || 'Done in window')}">✓ ${lineDoneCount}</span>`);
       }

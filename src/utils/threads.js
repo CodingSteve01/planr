@@ -55,7 +55,13 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
   const nodeMap = iMap || Object.fromEntries((tree || []).map((item) => [item.id, item]));
 
   const undirected = new Map();
-  for (const id of leafIds) undirected.set(id, new Set());
+  const incident = new Map();
+  const predecessors = new Map();
+  for (const id of leafIds) {
+    undirected.set(id, new Set());
+    incident.set(id, new Set());
+    predecessors.set(id, new Set());
+  }
 
   // Thread membership is intentionally based on hard deps only. Soft deps are
   // only allowed to join a thread inside the same coarse WBS branch (`P1.1.*`).
@@ -66,12 +72,19 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     for (const depId of hardDeps) {
       undirected.get(id).add(depId);
       undirected.get(depId).add(id);
+      incident.get(id).add(depId);
+      incident.get(depId).add(id);
+      predecessors.get(id).add(depId);
     }
-    const localSoftDeps = resolvedLeafDeps(tree, leafIds, id, ownSoftDependencyIds(id, nodeMap));
-    for (const depId of localSoftDeps) {
-      if (branchKey(id) !== branchKey(depId)) continue;
-      undirected.get(id).add(depId);
-      undirected.get(depId).add(id);
+    const ownSoftDeps = resolvedLeafDeps(tree, leafIds, id, ownSoftDependencyIds(id, nodeMap));
+    for (const depId of ownSoftDeps) {
+      incident.get(id).add(depId);
+      incident.get(depId).add(id);
+      if (branchKey(id) === branchKey(depId)) {
+        undirected.get(id).add(depId);
+        undirected.get(depId).add(id);
+      }
+      predecessors.get(id).add(depId);
     }
   }
 
@@ -89,6 +102,60 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
         compOf.set(next, cid);
         queue.push(next);
       }
+    }
+  }
+
+  // Parallel start lanes: if several sibling leaves in the same coarse WBS
+  // branch have no predecessors and no explicit route yet, they are alternative
+  // starts of that branch's workstream, not separate "one-row threads".
+  const compSize = () => {
+    const sizes = new Map();
+    for (const c of compOf.values()) sizes.set(c, (sizes.get(c) || 0) + 1);
+    return sizes;
+  };
+  let sizes = compSize();
+  const byBranch = new Map();
+  for (const id of leafIds) {
+    const branch = branchKey(id);
+    if (!byBranch.has(branch)) byBranch.set(branch, []);
+    byBranch.get(branch).push(id);
+  }
+  for (const ids of byBranch.values()) {
+    const startSingles = ids
+      .filter(id => (sizes.get(compOf.get(id)) || 0) === 1)
+      .filter(id => (predecessors.get(id)?.size || 0) === 0)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    if (startSingles.length < 2) continue;
+    const target = compOf.get(startSingles[0]);
+    startSingles.slice(1).forEach(id => compOf.set(id, target));
+    sizes = compSize();
+  }
+
+  // Cross-branch soft links should not collapse two real workstreams into one
+  // huge component, but a single-task component with a real incoming/outgoing
+  // edge is not a useful "Solo" thread. Attach those singleton edge-nodes to
+  // their largest neighbouring component so the row appears where its arrow
+  // already says it belongs.
+  let mergedSingleton = true;
+  while (mergedSingleton) {
+    mergedSingleton = false;
+    sizes = compSize();
+    const ids = [...leafIds].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    for (const id of ids) {
+      const currentComp = compOf.get(id);
+      if ((sizes.get(currentComp) || 0) !== 1) continue;
+      const candidates = [...(incident.get(id) || EMPTY_ARR)]
+        .filter(otherId => leafIds.has(otherId) && compOf.get(otherId) !== currentComp)
+        .sort((a, b) => {
+          const sizeA = sizes.get(compOf.get(a)) || 0;
+          const sizeB = sizes.get(compOf.get(b)) || 0;
+          if (sizeA !== sizeB) return sizeB - sizeA;
+          return a.localeCompare(b, undefined, { numeric: true });
+        });
+      if (!candidates.length) continue;
+      compOf.set(id, compOf.get(candidates[0]));
+      mergedSingleton = true;
+      break;
     }
   }
 

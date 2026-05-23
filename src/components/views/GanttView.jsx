@@ -18,6 +18,7 @@ const NO_TEAM_COLOR = '#64748b';
 const NO_PERSON = '__no_person__';
 const EMPTY_ARR = [];
 const DAY_ZOOM = 98;
+const MONTH_ZOOM = 9;
 
 function normalizeViewMode(mode) {
   if (mode === 'person') return 'resource';
@@ -102,6 +103,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const setZ = v => { const c = Math.max(8, Math.min(140, v)); setZoom(c); try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {} };
   const WPX = zoom;
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
+  const zoomMode = showDays ? 'day' : WPX <= 12 ? 'month' : 'week';
   const setGB = v => {
     const next = normalizeViewMode(v);
     setGroupBy(next);
@@ -1285,7 +1287,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     </div>
     <div className="gantt-body">
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
-        <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
+        <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
         {(() => { let _taskIdx = 0; return visibleRows.map(row => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
@@ -1394,8 +1396,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   pointerEvents: 'none', zIndex: 3 }} data-htip={titleStr} />}
                 {/* Mast: vertical line at the deadline week */}
                 <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: .7, zIndex: 4 }} data-htip={titleStr} />
-                {/* Flag: triangle notch on the left (pointing back toward the backfill), label body to the right of the mast */}
-                <div style={{ position: 'absolute', left: x, top: 1, zIndex: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center', maxWidth: 120 }} data-htip={titleStr}>
+              </React.Fragment>;
+            })}
+          </div>
+          <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)', boxShadow: '0 1px 0 var(--b)' }}>
+            {dlL.map(dl => {
+              const x = dl.wi * WPX;
+              const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
+              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ' — AT RISK' : ''}`;
+              return <React.Fragment key={`flag-${dl.id}`}>
+                <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: FLAG_ROW_H, background: col, opacity: .8 }} />
+                <div style={{ position: 'absolute', left: x, top: 1, display: 'flex', alignItems: 'center', maxWidth: 120, pointerEvents: 'auto' }} data-htip={titleStr}>
                   <div style={{
                     background: col, color: '#fff', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)',
                     padding: '2px 6px 2px 8px', letterSpacing: '.02em',
@@ -1406,7 +1417,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               </React.Fragment>;
             })}
           </div>
-          <div style={{ height: FLAG_ROW_H, borderBottom: '1px solid var(--b)' }} />
           {visibleRows.map(row => {
             if (row.type === 'group') {
               const s = row.s;
@@ -1922,8 +1932,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     <div className="gantt-footer">
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
-        <button className={`btn btn-xs ${!showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
-        <button className={`btn btn-xs ${showDays ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
+        <button className={`btn btn-xs ${zoomMode === 'month' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(MONTH_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.month')}</button>
+        <button className={`btn btn-xs ${zoomMode === 'week' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
+        <button className={`btn btn-xs ${zoomMode === 'day' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />

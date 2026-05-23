@@ -11,6 +11,7 @@ import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js'
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
+import { inferGanttViewStart } from './utils/viewWindow.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
@@ -1283,12 +1284,13 @@ export default function App() {
   const planStart = meta.planStart || iso(new Date());
   // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
   // planStart = scheduling start. New/unstarted tasks begin here.
-  const viewStart = meta.viewStart && meta.viewStart < planStart ? meta.viewStart : planStart;
+  const viewStart = useMemo(() => inferGanttViewStart(tree, planStart, meta.viewStart, 14), [tree, planStart, meta.viewStart]);
   // Headroom horizon for the scheduler — +10 years so even long migrations
   // fit. After scheduling we trim the resulting `weeks` array back to the
-  // latest scheduled endD + ~2 months so the Gantt / Roadmap don't render
+  // latest scheduled endD + padding so the Gantt / Roadmap don't render
   // empty decades. Plans with an explicit `End` in the Plan table honour
   // that exactly.
+  const GANTT_WINDOW_PADDING_DAYS = 14;
   const SCHEDULER_HEADROOM_END = iso(new Date(new Date().getFullYear() + 10, 11, 31));
   const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
@@ -1309,7 +1311,7 @@ export default function App() {
     if (!data) return { results: [], weeks: [] };
     const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart);
     // Trim weeks to the actual horizon when planEnd wasn't user-set:
-    // latest scheduled endD + ~2 months padding. Falls back to a 6-month
+    // latest scheduled endD + padding. Falls back to a 6-month
     // window when nothing is scheduled so the Gantt isn't empty.
     if (meta.planEnd) return out; // explicit user choice — leave alone
     let latest = null;
@@ -1318,7 +1320,7 @@ export default function App() {
       if (endD && (!latest || endD > latest)) latest = endD;
     }
     const horizonEnd = latest
-      ? new Date(latest.getFullYear(), latest.getMonth() + 2, latest.getDate())
+      ? new Date(latest.getFullYear(), latest.getMonth(), latest.getDate() + GANTT_WINDOW_PADDING_DAYS)
       : new Date(new Date().getFullYear(), new Date().getMonth() + 6, 1);
     const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
     return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };

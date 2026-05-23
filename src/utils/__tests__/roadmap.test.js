@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { computeRoadmapModel } from '../roadmap.js';
+import { computeRoadmapModel, renderRoadmapSvg } from '../roadmap.js';
 import { treeStats } from '../scheduler.js';
 
 function d(iso) {
@@ -111,5 +111,50 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(firstStation.id).toBe('P1.1');
     expect(firstStation.t).toBeLessThan(0.08);
+  });
+
+  test('legend exposes current, past-delta and future total progress percentages', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.25 }, doneInWindowIds: [], changedInWindowIds: [] },
+      futureProgressByRootId: { P1: 0.75 },
+    });
+
+    expect(svg).toContain('50%');
+    expect(svg).toContain('+25%');
+    expect(svg).toContain('Plan 75% +25%');
+  });
+
+  test('legend keeps sub-percent progress deltas visible as permille', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Tiny movement', status: 'wip', progress: 50.04, best: 100, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Tiny movement', status: 'wip', effort: 100, startD: d('2026-01-01'), endD: d('2026-01-31') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.5 }, doneInWindowIds: [], changedInWindowIds: [] },
+    });
+
+    expect(svg).toContain('+0.4‰');
   });
 });
