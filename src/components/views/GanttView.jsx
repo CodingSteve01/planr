@@ -916,6 +916,46 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (percent <= 110) return 'rgba(245,158,11,.26)';
     return 'rgba(239,68,68,.34)';
   };
+  const loadHeatStroke = percent => {
+    if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.22)';
+    if (percent < 50) return 'rgba(59,130,246,.55)';
+    if (percent < 90) return 'rgba(16,185,129,.58)';
+    if (percent <= 110) return 'rgba(245,158,11,.70)';
+    return 'rgba(239,68,68,.82)';
+  };
+  const taskLoadCells = (s, barLeft, barWidth) => {
+    if (!showLoadHeatmap || !s || s._unestimated || !barWidth) return EMPTY_ARR;
+    const ids = personIdsOf(s).filter(id => resourceLoadByWeek[id]);
+    if (!ids.length) return EMPTY_ARR;
+    const barRight = barLeft + barWidth;
+    const cells = [];
+    weeks.forEach((week, wi) => {
+      const cellLeft = wi * WPX;
+      const cellRight = cellLeft + WPX;
+      if (cellRight <= barLeft || cellLeft >= barRight) return;
+      let load = 0;
+      let availability = 0;
+      ids.forEach(id => {
+        const row = resourceLoadByWeek[id]?.[wi];
+        if (!row) return;
+        load += row.load || 0;
+        availability += row.availability || 0;
+      });
+      const percent = availability > 0
+        ? Math.round(load / availability * 100)
+        : load > 0 ? 999 : 0;
+      cells.push({
+        wi,
+        kw: week.kw,
+        percent,
+        load,
+        availability,
+        left: Math.max(0, cellLeft - barLeft),
+        width: Math.max(1, Math.min(cellRight, barRight) - Math.max(cellLeft, barLeft)),
+      });
+    });
+    return cells;
+  };
   const searchableItems = useMemo(
     () => displayItems.map(item => ({ id: item.id, text: `${item.id} ${(item.name || '')}`.toLowerCase() })),
     [displayItems],
@@ -1353,6 +1393,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               onClick={e => { if (e.detail === 0) setGB(k); }}
               style={{ padding: '2px 7px', fontSize: 10 }}
             >{l}</button>)}
+          <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
+          <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
+            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>▦ {t('g.loadHeatmap')}</button>
           {allCollapseKeys.length > 0 && <>
             <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
             <button className="btn btn-sec btn-xs" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
@@ -1644,10 +1687,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const node = row.node || iMap[s.treeId || s.id];
             const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
             const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
-            const linkHandleRight = canResizeDuration ? 20 : 0;
             const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
               ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + dDelta))
               : fixedDays;
+            const loadCells = !isSummary ? taskLoadCells(s, barLeft, bW) : EMPTY_ARR;
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
             const decideWi = decideBy ? weeks.findIndex(w => { const next = weeks[weeks.indexOf(w) + 1]; const d = new Date(decideBy); return w.mon <= d && (!next || next.mon > d); }) : -1;
@@ -1677,7 +1720,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   color: 'var(--tx)',
                   textShadow: 'none',
                 };
-            return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
+            return <div key={rowKey} className="grow-r" style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
+              {loadCells.map(cell => (
+                <div key={`row-load-${cell.wi}`} style={{
+                  position: 'absolute',
+                  left: barLeft + cell.left,
+                  top: 0,
+                  width: cell.width,
+                  height: '100%',
+                  background: loadHeatColor(cell.percent),
+                  borderBottom: `2px solid ${loadHeatStroke(cell.percent)}`,
+                  opacity: .72,
+                  pointerEvents: 'none',
+                  zIndex: 0,
+                }} />
+              ))}
               {/* Idle-wait gap: hatched amber band from when the assignee was
                   prev free → this task's start. Visualises why the bar sits
                   far in the future (waiting for a dep). Only when gap > ~5d
@@ -1885,6 +1942,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   borderRadius: isSummary ? 5 : 4,
                   pointerEvents: 'none',
                 }} />}
+                {loadCells.length > 0 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: isSummary ? 5 : 4, overflow: 'hidden' }}>
+                  {loadCells.map(cell => (
+                    <div key={`bar-load-${cell.wi}`} style={{
+                      position: 'absolute',
+                      left: cell.left,
+                      top: 0,
+                      bottom: 0,
+                      width: cell.width,
+                      background: loadHeatColor(cell.percent),
+                      borderBottom: `3px solid ${loadHeatStroke(cell.percent)}`,
+                    }} />
+                  ))}
+                </div>}
                 <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                 {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
                 {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
@@ -1914,21 +1984,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.45))',
                   }} />
                 </div>}
-                {/* Visible in-bar dependency handle. It used to sit outside the
-                    clipped bar box, which made completed bars effectively
-                    impossible to link. */}
-                {!isSummary && <div data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, s.id)} onClick={e => e.stopPropagation()}
-                  style={{ position: 'absolute', right: linkHandleRight, top: 0, bottom: 0, width: 18, cursor: 'crosshair', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', zIndex: 7, pointerEvents: 'auto' }}>
-                  <svg width="14" height="20" viewBox="0 0 14 20" style={{ overflow: 'visible' }}>
-                    <path d="M 2 2 A 10 10 0 0 1 2 18"
-                      fill="none"
-                      stroke={s.status === 'done' ? 'rgba(255,255,255,.96)' : tc}
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      opacity={linkDrag ? 1 : 0.95}
-                      filter="drop-shadow(0 1px 1px rgba(0,0,0,.55))" />
-                  </svg>
-                </div>}
+              </div>}
+              {/* Dependency connector sits outside the clipped bar. The
+                  fixed-duration resize handle remains inside the bar near the
+                  end; this hover button starts a dependency drag. */}
+              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === s.id || linkMode?.fromId === s.id ? ' active' : ''}`} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, s.id)} onClick={e => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  left: barLeft + bW - 1,
+                  top: 14,
+                  '--link-color': s.status === 'done' ? 'rgba(255,255,255,.88)' : tc,
+                  pointerEvents: 'auto',
+                }}>
+                <span className="g-link-connector-line" />
+                <span className="g-link-connector-dot">+</span>
               </div>}
               {/* Decision-by marker: diamond on the row at the decideBy week */}
               {decideWi >= 0 && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
@@ -2074,9 +2143,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
         <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
-        <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-        <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
-          data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>▦ {t('g.loadHeatmap')}</button>
       </div>
       {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         {searchMatchList.length
