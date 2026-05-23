@@ -21,22 +21,27 @@ function trim1(value) {
   return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
 }
 
+function trim2(value) {
+  return (Math.round(value * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+}
+
 function progressPctLabel(value) {
   return trim1(Math.max(0, Math.min(100, Number(value) || 0)));
 }
 
-function progressDeltaLabel(deltaPct) {
+function progressDeltaLabel(deltaPct, unitLabel = 'points') {
   const delta = Number(deltaPct) || 0;
-  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return '0%';
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return `0 ${unitLabel}`;
   const sign = delta > 0 ? '+' : '-';
   const abs = Math.abs(delta);
-  if (abs >= 0.1) return `${sign}${trim1(abs)}%`;
-  return `${sign}${trim1(abs * 10)}‰`;
+  if (abs >= 0.1) return `${sign}${trim1(abs)} ${unitLabel}`;
+  return `${sign}${trim2(abs)} ${unitLabel}`;
 }
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
+  const pointsUnit = t('diff.points');
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -132,6 +137,19 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     return total > 0 ? (progressed / total) * 100 : null;
   }, [futureProgressByRootId, lvs, stats, tree]);
   const futureOverallDelta = futureOverallProg != null ? futureOverallProg - prog : null;
+  const futureOverallDeltaLabel = futureOverallDelta > MIN_VISIBLE_PROGRESS_DELTA_PCT
+    ? progressDeltaLabel(futureOverallDelta, pointsUnit)
+    : '';
+  const futureOverallTip = futureOverallProg != null
+    ? (isDe
+      ? `Jetzt ${progressPctLabel(prog)}% Gesamtfortschritt. Bis zum gewählten Horizont: ${progressPctLabel(futureOverallProg)}%${futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : ''}.`
+      : `Current total progress: ${progressPctLabel(prog)}%. By the selected horizon: ${progressPctLabel(futureOverallProg)}%${futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : ''}.`)
+    : '';
+  const currentPct = Math.max(0, Math.min(100, prog));
+  const pastPct = pastOverallProg != null ? Math.max(0, Math.min(100, pastOverallProg)) : null;
+  const futurePct = futureOverallProg != null ? Math.max(0, Math.min(100, futureOverallProg)) : null;
+  const showPastStripe = pastPct != null && currentPct - pastPct > MIN_VISIBLE_PROGRESS_DELTA_PCT;
+  const showFutureStripe = futurePct != null && futurePct - currentPct > MIN_VISIBLE_PROGRESS_DELTA_PCT;
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Progress header */}
@@ -143,7 +161,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             background: overallDelta >= 0 ? 'rgba(245,158,11,.12)' : 'rgba(244,63,94,.10)',
             border: `1px solid ${overallDelta >= 0 ? 'rgba(245,158,11,.5)' : 'rgba(244,63,94,.45)'}`,
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          {progressDeltaLabel(overallDelta)}
+          {progressDeltaLabel(overallDelta, pointsUnit)}
         </span>
       )}
       {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
@@ -155,24 +173,52 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         </span>
       )}
       {futureOverallProg != null && (
-        <span data-htip={`Jetzt ${progressPctLabel(prog)}% -> Plan ${progressPctLabel(futureOverallProg)}%`}
+        <span data-htip={futureOverallTip}
           style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#fff',
             background: '#3b82f6', border: '1px solid rgba(147,197,253,.55)',
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          Plan {progressPctLabel(futureOverallProg)}%{futureOverallDelta > MIN_VISIBLE_PROGRESS_DELTA_PCT ? ` ${progressDeltaLabel(futureOverallDelta)}` : ''}
+          Plan {progressPctLabel(futureOverallProg)}%
         </span>
       )}
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
       {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }} data-htip={iso(latE)}>{t('s.projected')}: {horizonLabel(latE, null, isDe, now)}</span>}
     </div>
-    <div className="prog-wrap" style={{ height: 6, marginBottom: 16, position: 'relative' }}>
-      <div className="prog-fill" style={{ width: `${prog}%` }} />
+    <div className="prog-wrap" style={{ height: 8, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
+      <div className="prog-fill" style={{ width: `${currentPct}%`, position: 'absolute', inset: '0 auto 0 0', zIndex: 1 }} />
+      {showPastStripe && (
+        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
+          style={{
+            position: 'absolute',
+            left: `${pastPct}%`,
+            width: `${currentPct - pastPct}%`,
+            top: 0,
+            bottom: 0,
+            zIndex: 2,
+            background: 'repeating-linear-gradient(115deg, #f59e0b 0 7px, #fde68a 7px 13px)',
+            opacity: 0.95,
+            cursor: 'help',
+          }} />
+      )}
+      {showFutureStripe && (
+        <div data-htip={futureOverallTip}
+          style={{
+            position: 'absolute',
+            left: `${currentPct}%`,
+            width: `${futurePct - currentPct}%`,
+            top: 0,
+            bottom: 0,
+            zIndex: 2,
+            background: 'repeating-linear-gradient(115deg, #3b82f6 0 7px, #bfdbfe 7px 13px)',
+            opacity: 0.95,
+            cursor: 'help',
+          }} />
+      )}
       {/* Past-progress marker: thin vertical line on the bar showing where
           progress sat at the cutoff. Makes the gained delta tangible. */}
-      {pastOverallProg != null && pastOverallProg < prog - MIN_VISIBLE_PROGRESS_DELTA_PCT && (
-        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
-          style={{ position: 'absolute', left: `${pastOverallProg}%`, top: -2, bottom: -2,
-            width: 2, background: '#f59e0b', opacity: 0.85, cursor: 'help' }} />
+      {showPastStripe && (
+        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
+          style={{ position: 'absolute', left: `${pastPct}%`, top: -2, bottom: -2,
+            width: 2, background: '#f59e0b', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
       )}
     </div>
 

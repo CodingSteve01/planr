@@ -14,6 +14,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     tipProgress: t('diff.legendReachedTip'),
     prevPos: t('diff.prevPos'),
     plannedPos: t('horizon.plannedPos'),
+    points: t('diff.points'),
   }), [t]);
   // Two-step: compute model once so we can inspect its `_assignment` map,
   // then build the SVG from the same args. Lets the parent (App.jsx)

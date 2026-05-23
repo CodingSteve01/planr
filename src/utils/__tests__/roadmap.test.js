@@ -135,8 +135,8 @@ describe('computeRoadmapModel progress semantics', () => {
     });
 
     expect(svg).toContain('50%');
-    expect(svg).toContain('+25%');
-    expect(svg).toContain('Plan 75% +25%');
+    expect(svg).toContain('+25 points');
+    expect(svg).toContain('Plan 75% (+25 points)');
   });
 
   test('legend keeps sub-percent progress deltas visible as permille', () => {
@@ -156,6 +156,34 @@ describe('computeRoadmapModel progress semantics', () => {
       diff: { pastProgressByRootId: { P1: 0.5 }, doneInWindowIds: [], changedInWindowIds: [] },
     });
 
-    expect(svg).toContain('+0.4‰');
+    expect(svg).toContain('+0.04 points');
+  });
+
+  test('new lines stripe only the reached segment, not the entire future route', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({ tree, scheduled, stats: treeStats(tree), now: d('2026-01-15') });
+    const line = model.lines[0];
+    const fullRoutePath = line.route.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { newRootIds: ['P1'], pastProgressByRootId: {}, doneInWindowIds: [], changedInWindowIds: [] },
+    });
+
+    const fullStripe = `<path d="${fullRoutePath}" fill="none" stroke="url(#rm-past-stripe)"`;
+    expect(line.trainT).toBeLessThan(0.96);
+    expect(svg).not.toContain(fullStripe);
+    expect(svg).toContain('stroke="url(#rm-past-stripe)"');
   });
 });

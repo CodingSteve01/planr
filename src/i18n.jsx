@@ -345,6 +345,7 @@ const en = {
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
+  'diff.points': 'points',
   'diff.off': 'Off',
   'diff.days': '{0} d',
   'diff.stand': 'As of {0} → today',
@@ -978,6 +979,7 @@ const de = {
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',
+  'diff.points': 'Punkte',
   'diff.off': 'Aus',
   'diff.days': '{0} T',
   'diff.stand': 'Stand {0} → heute',
