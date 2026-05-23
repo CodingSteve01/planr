@@ -39,9 +39,12 @@ export function resolveMemberMeetings(member, ctxOrPlans) {
   const plans = Array.isArray(ctx.plans) ? ctx.plans : [];
   const teams = Array.isArray(ctx.teams) ? ctx.teams : [];
   const planById = Object.fromEntries(plans.map(p => [p.id, p]));
+  const seenPlanIds = new Set();
   const emitPlan = (pid, out, via) => {
+    if (seenPlanIds.has(pid)) return;
     const plan = planById[pid];
     if (!plan || !Array.isArray(plan.meetings)) return;
+    seenPlanIds.add(pid);
     plan.meetings.forEach(m => out.push({ ...m, _plan: plan.id, _planName: plan.name, _planSource: via }));
   };
   const out = [];
@@ -139,4 +142,3 @@ export function capBreakdown(member, ctxOrPlans) {
   lines.push({ kind: 'result', text: `= ${avail.toFixed(2)} h  →  ${pct} % FTE` });
   return lines;
 }
-

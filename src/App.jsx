@@ -1298,14 +1298,13 @@ export default function App() {
   const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
   const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
   // Enrich members with effective meetings (team-inherited plans + member
-  // plans + individual) so the scheduler's deriveCap() sees the full picture
-  // without having to know about data.meetingPlans directly.
+  // plans + individual) so the scheduler's deriveCap() sees the same capacity
+  // picture as Gantt/Resource load.
   const enrichedMembers = useMemo(() => {
     const plans = data?.meetingPlans || [];
     const currentTeams = data?.teams || [];
     if (!plans.length && !currentTeams.some(tm => (tm.meetingPlanIds || []).length)) return members;
     return members.map(m => {
-      if (m.capMode !== 'derived') return m;
       const effective = resolveMemberMeetings(m, { plans, teams: currentTeams });
       return { ...m, meetings: effective };
     });

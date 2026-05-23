@@ -69,6 +69,12 @@ describe('resolveMemberMeetings', () => {
     expect(got).toHaveLength(2);
     expect(got.map(m => m._planName)).toEqual(['Engineering', 'Leitung']);
   });
+  test('same plan on team and member is only counted once', () => {
+    const got = resolveMemberMeetings({ team: 'T1', meetingPlanIds: ['eng', 'lead', 'eng'] }, { plans, teams });
+    expect(got).toHaveLength(2);
+    expect(got.map(m => m._planName)).toEqual(['Engineering', 'Leitung']);
+    expect(got[0]._planSource).toBe('team');
+  });
   test('member adds own ad-hoc meetings at the end', () => {
     const got = resolveMemberMeetings({
       team: 'T2',

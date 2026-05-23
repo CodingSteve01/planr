@@ -459,9 +459,8 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
   // Weekly utilisation: sum scheduled effort assigned to this member per
-  // week, divided by their weekly budget (cap × 5 person-days). Peaks
-  // above 100% surface as a red chip — exactly what the no-dep-bypass
-  // is meant to make visible.
+  // week, divided by their weekly budget (cap × 5 person-days). Peaks above
+  // 100% surface as a red chip.
   const dailyCap = deriveCap(member, { plans: meetingPlans, teams });
   const weeklyBudget = dailyCap * 5;
   let peakPct = 0, peakWi = -1;

@@ -242,13 +242,13 @@ describe('schedule(): pinned starts', () => {
   });
 });
 
-// Unlinked work may intentionally start in parallel; explicit dependency
-// edges are the user's "run this after that" signal.
+// Unlinked work is queued by resource by default. Intentional overlap is an
+// explicit planning choice via `parallel:true`.
 
-describe('schedule(): no-dep starters bypass the per-person queue', () => {
+describe('schedule(): no-dep starters respect resource queues', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
-  test('two unrelated no-dep tasks on same person both start at planStart', () => {
+  test('two unrelated no-dep tasks on same person run sequentially by default', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
@@ -257,8 +257,18 @@ describe('schedule(): no-dep starters bypass the per-person queue', () => {
     const { results } = runSchedule({ tree, members: [alex] });
     const a = results.find(s => s.id === 'P1.1');
     const b = results.find(s => s.id === 'P1.2');
-    // Both start same day (planStart). User intent: no-dep tasks fire
-    // immediately; person overbook is surfaced by the cap visualisation.
+    expect(b.startD > a.endD).toBe(true);
+  });
+
+  test('parallel:true keeps unrelated no-dep tasks overlapped intentionally', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', parallel: true },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.1');
+    const b = results.find(s => s.id === 'P1.2');
     expect(a.startD.getTime()).toBe(b.startD.getTime());
   });
 
@@ -354,10 +364,8 @@ describe('schedule(): multi-assign (pair programming)', () => {
   const m2 = { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
   test('multi-assign pair task with dep-blocked follow-ups: sequential', () => {
-    // No-dep tasks now bypass the per-person queue (user intent: start
-    // immediately at planStart / pin / today, overbook visualised
-    // separately). To still exercise the multi-assign-blocks-both
-    // mechanic, give the follow-ups an explicit dep on the pair task.
+    // Exercise the multi-assign-blocks-both mechanic with explicit deps so
+    // the assertion is about pair blocking, not ordinary queue order.
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'Pair', team: 'T1', best: 5, factor: 1,

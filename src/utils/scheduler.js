@@ -459,10 +459,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         ...ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]),
       ])];
       const depLeaves = [...new Set(depSrc.flatMap(d => resolveToLeafIds(tree, d)).filter(d => d !== r.id))].sort();
-      // Tasks with NO real predecessor are handled by the no-dep bypass
-      // (start at planStart / pin / today, person counter ignored). Don't
-      // batch them — the batch would re-introduce a sum-of-efforts calendar
-      // span which contradicts "starts immediately" intent.
+      // Tasks with NO real predecessor are intentionally not batched here.
+      // They are placed by the normal resource queue unless the task is
+      // explicitly marked parallel; batching them would hide the user's chosen
+      // order and make root starters look like one synthetic task.
       if (depLeaves.length === 0) continue;
       const pin = r.pinnedStart || '';
       const key = `${assigns[0]}|${pin}|${depLeaves.join(',')}`;
@@ -530,14 +530,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const inheritedDeps = ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]);
     const allDepsRaw = [...new Set([...(r.deps || []), ...(r.softDeps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
-    // A task with NO effective predecessors and no pin is a "root starter":
-    // by user intent it should begin immediately (planStart / today) rather
-    // than wait at the back of the assignee's queue. The per-person counter
-    // (`pF`) is bypassed for these tasks below; it still ADVANCES so down-
-    // stream successors (deps on this task) see the proper finish position.
-    // Use this to overlay person utilisation honestly: many no-dep tasks on
-    // one person → bars overlap → cap-warning surfaces the overbook.
     const noDeps = allD.length === 0;
+    // Root starters still begin at planStart/today, but they now respect the
+    // resource queue by default. Use `parallel:true` for intentional overlap.
+    // Pins also bypass the queue so manual dates remain visible as conflicts
+    // instead of being silently moved.
+    const bypassPersonQueue = !!r.pinnedStart || (noDeps && !!r.parallel);
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).
@@ -588,13 +586,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (mEnd && mEnd < (earlyDate || planStartDate)) continue; // already offboarded
           const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
           const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-          let fw = noDeps
+          let fw = bypassPersonQueue
             ? Math.max(early, ji >= 0 ? ji : 0)
             : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
           let fd = mStart;
           if (earlyDate && earlyDate > fd) fd = earlyDate;
-          if (!noDeps && personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
-          if (!noDeps && parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
+          if (!bypassPersonQueue && personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
+          if (!bypassPersonQueue && parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
           // Virtual fd floor from committed-but-not-yet-scheduled assigned work.
           // Without this, an unassigned task picks a body whose explicit-assign
           // queue hasn't run yet but is heavy — landing speculative work on a
@@ -627,8 +625,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           //     lands on someone whose pre-dep slot was already consumed,
           //     leaving freer bodies for later no-dep work.
           //   - no-dep      → pick FREER (lowest candPF) for load balance;
-          //     no-deps bypass the queue and would otherwise stack on a
-          //     single overbooked person.
+          //     no-deps should fill the earliest genuinely-free body.
           const preferBusier = !noDeps;
           const better = !bp
             ? true
@@ -652,8 +649,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           const parallelEndDate = pPE[bp.id]?.nextDate;
           let skipBefore = mStart;
           if (earlyDate && earlyDate > skipBefore) skipBefore = earlyDate;
-          if (personFree && personFree > skipBefore) skipBefore = personFree;
-          if (parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
+          if (!bypassPersonQueue && personFree && personFree > skipBefore) skipBefore = personFree;
+          if (!bypassPersonQueue && parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
           const dailyBaseCap = deriveCap(bp) * vacInfo[bp.id];
           const endDate = bp.end ? localDate(bp.end) : null;
           let rem = eff, wi = bs, firstWorkDay = null, lastWorkDay = null;
@@ -924,7 +921,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
       const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
       const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-      const fw = (r.pinnedStart || noDeps)
+      const fw = bypassPersonQueue
         ? Math.max(early, ji >= 0 ? ji : 0)
         : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
       if (isMulti ? fw >= bs : fw < bs) { bs = fw; bp = m; }
@@ -943,7 +940,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     for (const m of cands) {
       const ms = localDate(m.start || ps);
       if (!skipBefore || ms > skipBefore) skipBefore = ms;
-      if (!(r.pinnedStart) && !noDeps) {
+      if (!bypassPersonQueue) {
         const pf = pF[m.id]?.nextDate;
         const pe = pPE[m.id]?.nextDate;
         if (pf && pf > skipBefore) skipBefore = pf;
