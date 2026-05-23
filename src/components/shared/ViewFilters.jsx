@@ -65,6 +65,7 @@ export function ViewFilters({
     if (/^\d{4}-\d{2}-\d{2}$/.test(horizonDays)) parts.push(`▶ ${horizonDays}`);
     else parts.push(`▶ ${t('horizon.days', horizonDays)}`);
   }
+  if (hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
   const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
 
   const presetBtn = (current, val, label, onClick) => (
@@ -103,10 +104,25 @@ export function ViewFilters({
         >
           {showHideDone && (
             <section style={{ marginBottom: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-                <input type="checkbox" checked={!!hideDone} onChange={e => setHideDone(e.target.checked)} />
-                <span style={{ fontSize: 11 }}>{t('ui.hideDone')}</span>
-              </label>
+              <button
+                type="button"
+                className={`btn btn-xs ${hideDone ? 'btn-pri' : 'btn-sec'}`}
+                aria-pressed={!!hideDone}
+                data-htip={t('ui.hideDoneTip')}
+                onClick={() => setHideDone(!hideDone)}
+                style={{
+                  padding: '4px 9px',
+                  fontSize: 11,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>
+                  {hideDone ? '☑' : '☐'}
+                </span>
+                {t('ui.hideDone')}
+              </button>
             </section>
           )}
           {showHideDone && (showDiff || showHorizon) && (
