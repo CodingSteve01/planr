@@ -269,11 +269,61 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
     return items;
   }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter]);
-  const displayItems = useMemo(() => hideDone ? allItems.filter(item => item.status !== 'done') : allItems, [allItems, hideDone]);
-
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
+  const searchNeedle = useMemo(() => (search || '').trim().toLowerCase(), [search]);
+  const searchTextById = useMemo(() => {
+    const cache = {};
+    const textForId = id => {
+      if (!id) return '';
+      if (cache[id] != null) return cache[id];
+      const node = iMap[id];
+      if (!node) return cache[id] = id.toLowerCase();
+      const pid = parentId(id);
+      const team = teamById[node.team]?.name || node.team || '';
+      const assignees = (node.assign || []).map(mid => memberById[mid]?.name || mid).join(' ');
+      const own = [
+        node.id,
+        node.name,
+        node.note,
+        node.description,
+        team,
+        assignees,
+        ...(node.deps || EMPTY_ARR),
+        ...(node.softDeps || EMPTY_ARR).map(dep => `~${dep}`),
+        ...Object.values(node.customValues || {}),
+      ].filter(Boolean).join(' ');
+      const parentText = pid ? textForId(pid) : '';
+      return cache[id] = `${parentText} ${own}`.toLowerCase();
+    };
+    (tree || EMPTY_ARR).forEach(node => textForId(node.id));
+    return cache;
+  }, [tree, iMap, teamById, memberById]);
+  const displayItems = useMemo(() => {
+    let items = hideDone ? allItems.filter(item => item.status !== 'done') : allItems;
+    if (!searchNeedle) return items;
+    return items.filter(item => {
+      const taskId = item.treeId || item.id;
+      const node = iMap[taskId] || item;
+      const team = teamById[item.team || node.team]?.name || item.team || node.team || '';
+      const people = [
+        item.person,
+        item.personId ? memberById[item.personId]?.name || item.personId : '',
+        ...((item.assign || node.assign || EMPTY_ARR).map(mid => memberById[mid]?.name || mid)),
+      ].filter(Boolean).join(' ');
+      const text = [
+        searchTextById[taskId],
+        item.id,
+        item.name,
+        item.note,
+        item.deps,
+        team,
+        people,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return text.includes(searchNeedle);
+    });
+  }, [allItems, hideDone, searchNeedle, searchTextById, iMap, teamById, memberById]);
   const ordMap = useMemo(() => {
     const m = {};
     (tree || []).forEach((r, idx) => { m[r.id] = { idx, ord: typeof r.displayOrder === 'number' ? r.displayOrder : null }; });
@@ -1250,12 +1300,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     onBarClick?.(row.s, focusRequest);
   };
 
-  // Search: Set for dimming (all matches across allItems), ordered list for cycling (visible rows only).
+  // Search acts as a real Gantt filter. Matching uses each task plus its
+  // ancestor path so searching a work-package name keeps its leaf bars visible.
   const searchMatches = useMemo(() => {
-    const q = (search || '').trim().toLowerCase();
-    if (!q) return null;
-    return new Set(searchableItems.filter(item => item.text.includes(q)).map(item => item.id));
-  }, [search, searchableItems]);
+    if (!searchNeedle) return null;
+    return new Set(searchableItems.map(item => item.id));
+  }, [searchNeedle, searchableItems]);
   // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
   const searchMatchList = useMemo(() => {
     if (!searchMatches?.size) return [];
