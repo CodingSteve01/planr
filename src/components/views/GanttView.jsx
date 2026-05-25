@@ -340,7 +340,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return cache;
   }, [tree, iMap, teamById, memberById]);
   const displayItems = useMemo(() => {
-    let items = hideDone ? allItems.filter(item => item.status !== 'done') : allItems;
+    const isChangedDoneInDiff = item => {
+      const taskId = item.treeId || item.id;
+      return _diffActive && item.status === 'done' && _diffChangedSet.has(taskId);
+    };
+    let items = hideDone ? allItems.filter(item => item.status !== 'done' || isChangedDoneInDiff(item)) : allItems;
     if (!searchNeedle) return items;
     return items.filter(item => {
       const taskId = item.treeId || item.id;
@@ -362,7 +366,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       ].filter(Boolean).join(' ').toLowerCase();
       return text.includes(searchNeedle);
     });
-  }, [allItems, hideDone, searchNeedle, searchTextById, iMap, teamById, memberById]);
+  }, [allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById]);
   const ordMap = useMemo(() => {
     const m = {};
     (tree || []).forEach((r, idx) => { m[r.id] = { idx, ord: typeof r.displayOrder === 'number' ? r.displayOrder : null }; });
@@ -857,11 +861,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return dDelta * (showDays ? DPX : WPX);
   }
   function depX1(s) {
-    const base = showDays && s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX;
+    const base = s.endD ? dateToX(s.endD) + DPX : (s.endWi + 1) * WPX;
     return base + dragOffsetFor(s, 'end');
   }
   function depX2(s) {
-    const base = showDays && s.startD ? dateToX(s.startD) : s.startWi * WPX;
+    const base = s.startD ? dateToX(s.startD) : s.startWi * WPX;
     return base + dragOffsetFor(s, 'start');
   }
 
@@ -887,7 +891,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (row.s._completed && (!row.s.startD || !row.s.endD)) return null;
     const s = row.s;
     let baseLeft, baseWidth;
-    if (showDays && s.startD && s.endD) {
+    if (s.startD && s.endD) {
       baseLeft = dateToX(s.startD) + 2;
       baseWidth = dateToX(s.endD) + DPX - dateToX(s.startD) - 4;
     } else {
@@ -916,6 +920,31 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
     return ordered;
   }, [selectedIds, visibleRows]);
+  const visibleTaskIds = useMemo(() => {
+    const ids = [];
+    const seen = new Set();
+    visibleRows.forEach(row => {
+      if (row.type !== 'task') return;
+      const id = row.s?.treeId || row.s?.id;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      ids.push(id);
+    });
+    return ids;
+  }, [visibleRows]);
+  useEffect(() => {
+    const h = (e) => {
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      const editingText = ['input', 'textarea', 'select'].includes(tag) || document.activeElement?.isContentEditable;
+      if (editingText) return;
+      if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelectedIds(new Set(visibleTaskIds));
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [visibleTaskIds]);
   const linkSelectedInOrder = () => {
     selectedTaskIds.forEach((id, index) => {
       const prev = selectedTaskIds[index - 1];
@@ -924,15 +953,28 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   };
   const clearSelectedLinks = () => {
     const selected = new Set(selectedTaskIds);
+    const pairs = new Set();
+    const scheduleRemove = (targetId, depId) => {
+      if (!targetId || !depId) return;
+      pairs.add(`${targetId}\u0000${depId}`);
+    };
     selectedTaskIds.forEach(id => {
       const node = iMap[id];
       if (!node) return;
       [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
+        .forEach(depId => scheduleRemove(id, depId));
+    });
+    (tree || EMPTY_ARR).forEach(node => {
+      [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
         .filter(depId => selected.has(depId))
-        .forEach(depId => onRemoveDep?.(id, depId));
+        .forEach(depId => scheduleRemove(node.id, depId));
+    });
+    pairs.forEach(key => {
+      const [targetId, depId] = key.split('\u0000');
+      onRemoveDep?.(targetId, depId);
     });
   };
-  const cpEdgeSet = useMemo(() => cpEdges || new Set(), [cpEdges]);
+  const cpEdgeSet = useMemo(() => cpEdges instanceof Set ? cpEdges : new Set(cpEdges || []), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
   const vacByPerson = useMemo(() => {
     const m = {};
@@ -1489,7 +1531,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (interactive) return;
     e.preventDefault();
     dismissTooltip(true);
-    if (e.shiftKey) {
+    const isBody = e.currentTarget === bR.current;
+    const selectOnBody = isBody && e.button === 0 && !e.altKey;
+    if (selectOnBody) {
       const rect = bR.current.getBoundingClientRect();
       const x = bR.current.scrollLeft + e.clientX - rect.left;
       const y = bR.current.scrollTop + e.clientY - rect.top;
@@ -2014,13 +2058,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               let baseLeft = 0;
               let baseWidth = 0;
               if (hasWindow) {
-                if (showDays) {
-                  baseLeft = dateToX(s.startD) + 2;
-                  baseWidth = dateToX(s.endD) + DPX - dateToX(s.startD) - 4;
-                } else {
-                  baseLeft = s.startWi * WPX + 2;
-                  baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
-                }
+                baseLeft = dateToX(s.startD) + 2;
+                baseWidth = dateToX(s.endD) + DPX - dateToX(s.startD) - 4;
               }
               const barLeft = Math.max(0, baseLeft);
               const barWidth = Math.max(baseWidth, 6);
@@ -2096,10 +2135,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             if (s._unestimated) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
             if (s._completed && (!s.startD || !s.endD)) return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
             const isDrag = drag?.id === s.id;
-            // Bar geometry — day-accurate in day-mode (using scheduler's per-day startD/endD),
-            // week-aligned otherwise.
+            // Bar geometry is day-accurate whenever scheduler dates exist.
+            // Zoom only changes scale/labels; it must not snap bars to weeks.
             let baseLeft, baseWidth;
-            if (showDays && s.startD && s.endD) {
+            if (s.startD && s.endD) {
               baseLeft = dateToX(s.startD) + 2;
               baseWidth = dateToX(s.endD) + (DPX) - dateToX(s.startD) - 4;
             } else {

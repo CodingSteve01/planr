@@ -318,6 +318,62 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(doneStation.t).toBeLessThan(openStation.t);
   });
 
+  test('scheduled done stations are capped at now even without explicit completion metadata', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done with stale future plan', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done with stale future plan', status: 'done', effort: 1, startD: d('2026-08-01'), endD: d('2026-08-05') },
+      { id: 'P1.2', name: 'Open future', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const doneStation = model.lines[0].majorStations.find(station => station.id === 'P1.1');
+
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.endDate).toEqual(d('2026-01-15'));
+  });
+
+  test('completed stations cannot move ahead of the train when future scope is unscheduled', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Completed package',
+        status: 'done',
+        progress: 100,
+        best: 10,
+        factor: 1,
+        completedStart: '2026-01-01',
+        completedEnd: '2026-01-05',
+      },
+      { id: 'P1.2', name: 'Unscheduled future scope', status: 'open', progress: 0, best: 90, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Completed package', status: 'done', effort: 10, startD: d('2026-01-01'), endD: d('2026-01-05') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const doneStation = line.majorStations.find(station => station.id === 'P1.1');
+
+    expect(line.progress).toBeCloseTo(0.1, 4);
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+  });
+
   test('diff mode uses static station halos instead of pulsing rings', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },

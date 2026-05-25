@@ -122,7 +122,7 @@ describe('view smoke', () => {
     expect(timeline.scrollLeft).toBeLessThan(125);
   });
 
-  it('GanttView pans the timeline by dragging empty space', () => {
+  it('GanttView pans the timeline with Alt-drag on empty space', () => {
     const scheduledTask = {
       ...tree[0],
       treeId: 'P1',
@@ -144,8 +144,8 @@ describe('view smoke', () => {
     timeline.scrollLeft = 80;
     timeline.scrollTop = 20;
 
-    fireEvent.mouseDown(timeline, { button: 0, clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(container.querySelector('.gantt'), { clientX: 60, clientY: 90 });
+    fireEvent.mouseDown(timeline, { button: 0, altKey: true, clientX: 100, clientY: 100 });
+    fireEvent.mouseMove(container.querySelector('.gantt'), { altKey: true, clientX: 60, clientY: 90 });
     fireEvent.mouseUp(container.querySelector('.gantt'));
 
     expect(timeline.scrollLeft).toBe(120);
@@ -185,7 +185,7 @@ describe('view smoke', () => {
     const timeline = getByTestId('gantt-timeline');
     const shell = container.querySelector('.gantt');
 
-    fireEvent.mouseDown(timeline, { button: 0, shiftKey: true, clientX: 0, clientY: 30 });
+    fireEvent.mouseDown(timeline, { button: 0, clientX: 0, clientY: 30 });
     fireEvent.mouseMove(shell, { clientX: 130, clientY: 190 });
     fireEvent.mouseUp(shell);
 
@@ -194,6 +194,125 @@ describe('view smoke', () => {
 
     expect(onAddDep).toHaveBeenCalledWith('P1.2', 'P1.1');
     expect(onAddDep).toHaveBeenCalledWith('P1.3', 'P1.2');
+  });
+
+  it('GanttView selects all visible bars with Cmd/Ctrl+A', () => {
+    localStorage.setItem('planr_gantt_group', 'thread');
+    localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ thread: [] }));
+    const selectionTree = [
+      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'open', deps: [], assign: [] },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+    ];
+    const selectionScheduled = selectionTree
+      .filter(item => item.id !== 'P1')
+      .map(item => ({
+        ...item,
+        treeId: item.id,
+        startWi: 0,
+        endWi: 0,
+        startD: new Date('2026-01-05'),
+        endD: new Date('2026-01-05'),
+        assign: [],
+      }));
+    const { getByTestId } = wrap(
+      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+
+    fireEvent.keyDown(window, { key: 'a', ctrlKey: true });
+
+    expect(getByTestId('gantt-selection-count').textContent).toContain('2');
+  });
+
+  it('GanttView removes incoming and outgoing links for a rectangle selection', () => {
+    localStorage.setItem('planr_gantt_group', 'thread');
+    localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ thread: [] }));
+    const onRemoveDep = vi.fn();
+    const selectionTree = [
+      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'open', deps: [], assign: [] },
+      { id: 'P1.0', name: 'External predecessor', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 2, factor: 1, status: 'open', deps: ['P1.0'], softDeps: [], assign: [] },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], softDeps: ['P1.1'], assign: [] },
+      { id: 'P1.3', name: 'Outside successor', team: 'T1', best: 2, factor: 1, status: 'open', deps: ['P1.2'], assign: [] },
+    ];
+    const selectionScheduled = selectionTree
+      .filter(item => item.id !== 'P1')
+      .map((item, idx) => ({
+        ...item,
+        treeId: item.id,
+        startWi: 0,
+        endWi: 0,
+        startD: new Date('2026-01-05'),
+        endD: new Date('2026-01-05'),
+        assign: [],
+        _selectionOrder: idx,
+      }));
+    const { container, getByTestId } = wrap(
+      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={onRemoveDep} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+    const timeline = getByTestId('gantt-timeline');
+    const shell = container.querySelector('.gantt');
+
+    fireEvent.mouseDown(timeline, { button: 0, clientX: 0, clientY: 84 });
+    fireEvent.mouseMove(shell, { clientX: 130, clientY: 150 });
+    fireEvent.mouseUp(shell);
+    fireEvent.click(getByTestId('gantt-clear-selected-links'));
+
+    expect(onRemoveDep).toHaveBeenCalledWith('P1.1', 'P1.0');
+    expect(onRemoveDep).toHaveBeenCalledWith('P1.2', 'P1.1');
+    expect(onRemoveDep).toHaveBeenCalledWith('P1.3', 'P1.2');
+  });
+
+  it('GanttView keeps changed done items visible when hideDone is active in diff mode', () => {
+    const doneTree = [
+      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'wip', deps: [], assign: [] },
+      {
+        id: 'P1.1',
+        name: 'Recently completed',
+        team: 'T1',
+        best: 2,
+        factor: 1,
+        status: 'done',
+        deps: [],
+        assign: [],
+        completedStart: '2026-01-05',
+        completedEnd: '2026-01-05',
+      },
+      { id: 'P1.2', name: 'Open work', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+    ];
+    const doneScheduled = doneTree
+      .filter(item => item.id !== 'P1')
+      .map((item, idx) => ({
+        ...item,
+        treeId: item.id,
+        startWi: idx,
+        endWi: idx,
+        startD: new Date('2026-01-05'),
+        endD: new Date('2026-01-05'),
+        assign: [],
+      }));
+    const { container } = wrap(
+      <GanttView scheduled={doneScheduled} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={doneTree} hideDone diffDoneIds={['P1.1']} sinceDate={new Date('2026-01-01')}
+        workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+
+    expect(container.textContent).toContain('Recently completed');
+    expect(container.textContent).toContain('Open work');
   });
 
   it('GanttView opens done bars on click and shows their item tooltip on hover', () => {

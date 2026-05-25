@@ -143,4 +143,81 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(handoffLine).toMatch(/→ AK/);
     expect(handoffLine).toMatch(/→ \(Backend\)/);
   });
+
+  test('task timing, fixed duration and dependencies are fully serialised', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: 'T1', best: 0 },
+      { id: 'P1.0', name: 'Predecessor', team: 'T1', best: 1, factor: 1, status: 'done' },
+      {
+        id: 'P1.1',
+        name: 'Fixed task',
+        team: 'T1',
+        best: 3,
+        factor: 1,
+        assign: ['M1'],
+        prio: 2,
+        status: 'done',
+        completedAt: '2026-04-10',
+        completedStart: '2026-04-08',
+        completedEnd: '2026-04-10',
+        plannedStart: '2026-04-07',
+        plannedEnd: '2026-04-11',
+        due: '2026-04-12',
+        deadlineRelevant: false,
+        teamLock: true,
+        parallel: true,
+        fixedDurationDays: 4,
+        displayOrder: 7,
+        customValues: { jira: 'PLAN-7' },
+        deps: ['P1.0'],
+        softDeps: ['P1.2'],
+      },
+    ];
+
+    const md = buildMarkdownText({ ...base, tree });
+    const line = md.split('\n').find(l => l.includes('**P1.1**'));
+    const depLine = md.split('\n').find(l => l.includes('*Benötigt:'));
+
+    expect(line).toMatch(/\{[^}]*done:2026-04-10/);
+    expect(line).toMatch(/\{[^}]*done-start:2026-04-08/);
+    expect(line).toMatch(/\{[^}]*done-end:2026-04-10/);
+    expect(line).toMatch(/\{[^}]*plan-start:2026-04-07/);
+    expect(line).toMatch(/\{[^}]*plan-end:2026-04-11/);
+    expect(line).toMatch(/\{[^}]*due:2026-04-12/);
+    expect(line).toMatch(/\{[^}]*deadline:false/);
+    expect(line).toMatch(/\{[^}]*team-lock:true/);
+    expect(line).toMatch(/\{[^}]*parallel:true/);
+    expect(line).toMatch(/\{[^}]*fixed:4/);
+    expect(line).toMatch(/\{[^}]*ord:7/);
+    expect(line).toMatch(/\{[^}]*cv\.jira:PLAN-7/);
+    expect(depLine).toContain('P1.0');
+    expect(depLine).toContain('~P1.2');
+  });
+
+  test('planning metadata is JSON-safe without lossy fields', () => {
+    const data = {
+      tree: [{
+        id: 'P1.1',
+        name: 'Fixed task',
+        fixedDurationDays: 3,
+        completedStart: '2026-04-01',
+        completedEnd: '2026-04-03',
+        plannedStart: '2026-04-01',
+        plannedEnd: '2026-04-04',
+        due: '2026-04-05',
+        teamLock: true,
+        parallel: true,
+        deps: ['P1.0'],
+        softDeps: ['P1.2'],
+      }],
+      members: [{
+        id: 'M1',
+        capChanges: [{ from: '2026-06-01', cap: 0.5, weeklyHours: 20 }],
+        meetingChanges: [{ from: '2026-06-01', meetingPlanIds: ['p1'], meetings: [{ id: 'm1', name: 'Standup', hours: 0.5, frequency: 'daily' }] }],
+      }],
+      roadmapAssignment: { P1: { routeIdx: 2, colorIdx: 4 } },
+    };
+
+    expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+  });
 });

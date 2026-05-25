@@ -492,21 +492,6 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 </span>;
               })()}
 
-              {/* Link badge — # of predecessors / successors (hard+soft).
-                  Quick at-a-glance signal that this row is part of a chain. */}
-              {(() => {
-                const inCount = ((r.deps || []).length) + ((r.softDeps || []).length);
-                const outCount = tree.filter(o => o.id !== r.id && (((o.deps || []).includes(r.id)) || ((o.softDeps || []).includes(r.id)))).length;
-                if (!inCount && !outCount) return null;
-                const tip = `${inCount} Vorgänger · ${outCount} Nachfolger — click to open Timing tab`;
-                return <span data-htip={tip}
-                  style={{ marginLeft: 8, fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
-                  {inCount > 0 && <span style={{ color: 'var(--ac)', fontWeight: 600 }}>←{inCount}</span>}
-                  {inCount > 0 && outCount > 0 && ' '}
-                  {outCount > 0 && <span style={{ color: 'var(--am)', fontWeight: 600 }}>→{outCount}</span>}
-                </span>;
-              })()}
-
               {/* Collapsed children count */}
               {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
 

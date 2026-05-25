@@ -12,7 +12,7 @@ const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, onOpenItem, onUpdate }) {
+function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -33,11 +33,11 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
     if (rootFilter) f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
     if (teamFilter) f = f.filter(r => (r.team || '') === teamFilter);
     if (personFilter) f = f.filter(r => (r.assign || []).includes(personFilter));
-    if (hideDone) f = f.filter(r => r.status !== 'done');
+    if (hideDone) f = f.filter(r => r.status !== 'done' || diffVisibleIds?.has(r.id));
     if (horizonIds) f = f.filter(r => horizonIds.has(r.id));
     if (diffChangedIds) f = f.filter(r => diffChangedIds.has(r.id));
     return f;
-  }, [allLvs, rootFilter, teamFilter, personFilter, hideDone, horizonIds, diffChangedIds]);
+  }, [allLvs, rootFilter, teamFilter, personFilter, hideDone, horizonIds, diffChangedIds, diffVisibleIds]);
   const doneSet = useMemo(() => new Set(lvs.filter(r => r.status === 'done').map(r => r.id)), [lvs]);
   const teamName = id => teams.find(tm => tm.id === id)?.name || id || '';
   const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';
@@ -50,7 +50,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
     if (rootFilter && !(node.id === rootFilter || node.id.startsWith(rootFilter + '.'))) return false;
     if (teamFilter && (node.team || '') !== teamFilter) return false;
     if (personFilter && !(node.assign || []).includes(personFilter)) return false;
-    if (hideDone && node.status === 'done') return false;
+    if (hideDone && node.status === 'done' && !diffVisibleIds?.has(node.id)) return false;
     if (horizonIds && !horizonIds.has(node.id)) return false;
     if (diffChangedIds && !diffChangedIds.has(node.id)) return false;
     return true;

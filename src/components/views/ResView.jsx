@@ -1228,6 +1228,21 @@ function CapChangesField({ member, onUpd, t }) {
         <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.capPlanEmpty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '120px 90px 100px 28px',
+            gap: 6,
+            fontSize: 9,
+            color: 'var(--tx3)',
+            textTransform: 'uppercase',
+            letterSpacing: '.06em',
+            fontWeight: 700,
+          }}>
+            <span>{t('rv.validFrom')}</span>
+            <span>{t('rv.capacityPct')}</span>
+            <span>{t('rv.hoursWeek')}</span>
+            <span />
+          </div>
           {entries.map((c, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 90px 100px 28px', gap: 6, alignItems: 'center' }}>
               <input type="date" value={c.from || ''}
@@ -1284,6 +1299,20 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
         <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.meetingPlanTimelineEmpty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '120px 1fr 28px',
+            gap: 6,
+            fontSize: 9,
+            color: 'var(--tx3)',
+            textTransform: 'uppercase',
+            letterSpacing: '.06em',
+            fontWeight: 700,
+          }}>
+            <span>{t('rv.validFrom')}</span>
+            <span>{t('rv.plans')}</span>
+            <span />
+          </div>
           {entries.map((entry, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 28px', gap: 6, alignItems: 'start' }}>
               <input type="date" value={entry.from || ''}

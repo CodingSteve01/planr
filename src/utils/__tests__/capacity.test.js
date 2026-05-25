@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   FTE_HOURS, meetingWeeklyHours, sumMeetingHours,
-  resolveMemberMeetings, deriveCap,
+  resolveMemberMeetings, deriveCap, memberAtDate,
 } from '../capacity.js';
 
 describe('meetingWeeklyHours', () => {
@@ -144,5 +144,37 @@ describe('deriveCap', () => {
     expect(deriveCap({ cap: -0.5 })).toBe(0);
     // Derived with negative weeklyHours falls back to FTE_HOURS (treated as missing)
     expect(deriveCap({ capMode: 'derived', weeklyHours: -5 })).toBe(1);
+  });
+});
+
+describe('memberAtDate', () => {
+  test('uses the latest capacity change on or before the target date', () => {
+    const member = {
+      cap: 1,
+      weeklyHours: 40,
+      capChanges: [
+        { from: '2026-06-01', cap: 0.5 },
+        { from: '2026-09-01', cap: 0.8, weeklyHours: 32 },
+      ],
+    };
+
+    expect(memberAtDate(member, '2026-05-31').cap).toBe(1);
+    expect(memberAtDate(member, '2026-06-01').cap).toBe(0.5);
+    expect(memberAtDate(member, '2026-10-01')).toMatchObject({ cap: 0.8, weeklyHours: 32 });
+  });
+
+  test('uses the latest meeting-plan change on or before the target date', () => {
+    const member = {
+      meetingPlanIds: ['base'],
+      meetings: [{ id: 'base-mt', name: 'Base', hours: 1, frequency: 'weekly' }],
+      meetingChanges: [
+        { from: '2026-07-01', meetingPlanIds: ['summer'], meetings: [{ id: 's', name: 'Summer', hours: 0.5, frequency: 'weekly' }] },
+        { from: '2026-10-01', meetingPlanIds: ['fall'], meetings: [] },
+      ],
+    };
+
+    expect(memberAtDate(member, '2026-06-30')).toMatchObject({ meetingPlanIds: ['base'] });
+    expect(memberAtDate(member, '2026-07-15')).toMatchObject({ meetingPlanIds: ['summer'] });
+    expect(memberAtDate(member, '2026-11-01')).toMatchObject({ meetingPlanIds: ['fall'], meetings: [] });
   });
 });

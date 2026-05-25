@@ -200,10 +200,11 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
         || n?.pinnedStart
         || n?.decideBy,
       );
-      const hasActualDoneDate = n?.status === 'done' && !!(doneWindow || n?.completedStart || n?.completedEnd || n?.completedAt);
-      if (hasActualDoneDate && end && end > today) end = new Date(today);
-      if (hasActualDoneDate && start && start > today) start = new Date(today);
-      if (hasActualDoneDate && start && end && start > end) start = new Date(end);
+      if (n?.status === 'done') {
+        if (end && end > today) end = new Date(today);
+        if (start && start > today) start = new Date(today);
+        if (start && end && start > end) start = new Date(end);
+      }
       if (start && (!earliestStart || start < earliestStart)) earliestStart = start;
       if (end && (!latestEnd || end > latestEnd)) latestEnd = end;
     });
@@ -534,20 +535,19 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       });
     const capDoneItem = (item) => {
       const node = nodeMap[item.id] || item;
-      if (node?.status !== 'done') return item;
-      if (!(node.completedStart || node.completedEnd || node.completedAt)) return item;
       const end = toDate(item.endD || item.startD);
-      if (!end) return item;
+      if (node?.status !== 'done') return { ...item, clusterEndD: end };
+      if (!end) return { ...item, clusterEndD: end };
       const cappedEnd = end > today ? new Date(today) : end;
       const rawStart = toDate(item.startD || cappedEnd);
       const cappedStart = rawStart && rawStart > cappedEnd ? new Date(cappedEnd) : rawStart;
-      return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd };
+      return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd, clusterEndD: end };
     };
 
     // Combine scheduled + done leaves, sort by endD
     const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
       .map(capDoneItem)
-      .sort((a, b) => +new Date(a.endD) - +new Date(b.endD));
+      .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
 
     // Cluster: group items whose endD are within 14 days of each other.
     // Important: never merge completed work with unfinished work just because
@@ -566,9 +566,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         currentCluster.push(item);
         return;
       }
-      const lastEnd = new Date(currentCluster[currentCluster.length - 1].endD);
-      const firstEnd = new Date(currentCluster[0].endD);
-      const thisEnd = new Date(item.endD);
+      const lastItem = currentCluster[currentCluster.length - 1];
+      const lastEnd = new Date(lastItem.clusterEndD || lastItem.endD);
+      const firstEnd = new Date(currentCluster[0].clusterEndD || currentCluster[0].endD);
+      const thisEnd = new Date(item.clusterEndD || item.endD);
       const sameProgressBand = clusterBand(item) === clusterBand(currentCluster[currentCluster.length - 1]);
       const gapDays = (+thisEnd - +lastEnd) / DAY;
       const spanDays = (+thisEnd - +firstEnd) / DAY;
@@ -653,6 +654,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     return {
       root,
       progress: rootInfo.prog || 0,
+      totalEffort: rootInfo.effort || 0,
       atRisk,
       hiddenMinorCount: 0,
       timeline,
@@ -861,7 +863,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
-    const byEnd = (a, b) => (+a.endDate || Infinity) - (+b.endDate || Infinity)
+    const stationRank = station => station.allDone ? 0 : 1;
+    const byEnd = (a, b) => stationRank(a) - stationRank(b)
+      || (+a.endDate || Infinity) - (+b.endDate || Infinity)
       || a.id.localeCompare(b.id, undefined, { numeric: true });
     const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
 
@@ -872,6 +876,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const lastD = dates.length ? Math.max(...dates) : null;
     const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
     const totalStationEffort = allStations.reduce((sum, station) => sum + Math.max(0, station.effort || 0), 0);
+    const totalRouteEffort = Math.max(totalStationEffort, line.totalEffort || 0);
 
     // Raw effort progress: how much of the
     // total effort has actually been completed. `line.progress` comes from
@@ -888,9 +893,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     let cumulativeEffort = 0;
     const positioned = allStations.map((station, idx) => {
       let t;
-      if (totalStationEffort > 0) {
+      if (totalRouteEffort > 0) {
         cumulativeEffort += Math.max(0, station.effort || 0);
-        t = progressToRouteT(cumulativeEffort / totalStationEffort);
+        t = progressToRouteT(cumulativeEffort / totalRouteEffort);
       } else if (span > 0 && Number.isFinite(+station.endDate)) {
         const frac = (+station.endDate - firstD) / span;
         t = ROUTE_T_LO + frac * (ROUTE_T_HI - ROUTE_T_LO);

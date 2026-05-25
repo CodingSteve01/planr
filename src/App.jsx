@@ -1549,6 +1549,7 @@ export default function App() {
   // configured. Null when inactive → consumer skips the filter cleanly.
   const horizonFilterSet = horizonOnlyPlanned && horizonIds && horizonIds.size > 0 ? horizonIds : null;
   const diffFilterSet = diffOnlyChanged && diffChangedSet.size > 0 ? diffChangedSet : null;
+  const diffVisibleSet = sinceDate && diffChangedSet.size > 0 ? diffChangedSet : null;
   const cpData = useMemo(() => rootCpm(tree), [tree]);
   const cpSet = cpData.critical;
   const cpEdges = cpData.edges;
@@ -1557,14 +1558,28 @@ export default function App() {
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
   // pass through view-filters together with their tree node.
-  const viewScheduled = useMemo(() => scheduled.filter(s => visibleIdSet.has(s.id) || (s.treeId && visibleIdSet.has(s.treeId))), [scheduled, visibleIdSet]);
-  const viewGoals = useMemo(() => visibleTree.filter(r => !r.id.includes('.') && r.type), [visibleTree]);
+  const visibleTreeForViews = useMemo(() => {
+    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return visibleTree;
+    const keep = new Set(visibleTree.map(r => r.id));
+    const byId = Object.fromEntries(tree.map(r => [r.id, r]));
+    diffChangedSet.forEach(id => {
+      const node = byId[id];
+      if (!node || node.status !== 'done') return;
+      keep.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
+    });
+    return tree.filter(r => keep.has(r.id));
+  }, [hideDone, sinceDate, diffChangedSet, visibleTree, tree]);
+  const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
+  const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
+  const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
   const viewStats = useMemo(() => {
     if (!hideDone) return stats;
-    const s = treeStats(visibleTree);
-    enrichParentSchedules(s, visibleTree, viewScheduled);
+    const s = treeStats(visibleTreeForViews);
+    enrichParentSchedules(s, visibleTreeForViews, viewScheduled);
     return s;
-  }, [hideDone, stats, visibleTree, viewScheduled]);
+  }, [hideDone, stats, visibleTreeForViews, viewScheduled]);
   const viewCpSet = cpData.critical;
   const viewCpEdges = cpData.edges;
   const viewGoalPaths = goalPaths;
@@ -2498,24 +2513,26 @@ export default function App() {
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
-        tree={visibleTree} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
+        tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
+        diffVisibleIds={diffVisibleSet}
         onOpenItem={onBriefingOpenItem}
         onExportTodo={onSumExportTodo}
       /></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTree} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
+        diffVisibleIds={diffVisibleSet}
         onOpenItem={onPlanReviewOpenItem}
         onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {!visibleTree.length
+          {!visibleTreeForViews.length
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView tree={visibleTree} selected={selected} multiSel={multiSel}
+            : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
