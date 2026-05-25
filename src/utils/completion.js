@@ -42,12 +42,13 @@ function effectiveDeps(tree, item) {
   return [...deps];
 }
 
-function completedWindowOf(item) {
+function completedWindowOf(item, today = localDate(new Date())) {
   const startLike = item?.completedStart || item?.completedAt || item?.completedEnd;
   const endLike = item?.completedEnd || item?.completedAt || item?.completedStart;
   if (!startLike || !endLike) return null;
   let start = localDate(startLike);
   let end = localDate(endLike);
+  if (end > today) end = new Date(today);
   if (start > end) start = new Date(end);
   return { start, end };
 }
@@ -73,18 +74,32 @@ function endAfterWorkDays(start, days, wdSet) {
   return cursor;
 }
 
-export function normalizeCompletedWindows(tree, { workDays } = {}) {
+function startBeforeWorkDays(end, days, wdSet) {
+  let cursor = localDate(end);
+  let counted = 0;
+  let guard = 0;
+  while (guard < 4000) {
+    if (wdSet.has(cursor.getDay())) counted++;
+    if (counted >= days) return cursor;
+    cursor = addD(cursor, -1);
+    guard++;
+  }
+  return cursor;
+}
+
+export function normalizeCompletedWindows(tree, { workDays, now } = {}) {
   const rows = tree || [];
   const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
+  const today = localDate(now || new Date());
   const doneLeaves = rows
     .filter(item => item?.status === 'done' && isLeafNode(rows, item.id))
-    .filter(item => completedWindowOf(item));
+    .filter(item => completedWindowOf(item, today));
   const doneById = new Map(doneLeaves.map(item => [item.id, item]));
   const windows = new Map();
   const visiting = new Set();
 
   const originalWindow = (item) => {
-    const original = completedWindowOf(item);
+    const original = completedWindowOf(item, today);
     if (!original) return null;
     return {
       start: iso(original.start),
@@ -102,7 +117,7 @@ export function normalizeCompletedWindows(tree, { workDays } = {}) {
       return fallback;
     }
 
-    const original = completedWindowOf(item);
+    const original = completedWindowOf(item, today);
     if (!original) return null;
 
     visiting.add(item.id);
@@ -120,7 +135,11 @@ export function normalizeCompletedWindows(tree, { workDays } = {}) {
       if (requiredStart > start) start = requiredStart;
     }
 
-    const end = endAfterWorkDays(start, duration, wdSet);
+    let end = endAfterWorkDays(start, duration, wdSet);
+    if (end > today) {
+      end = new Date(today);
+      start = startBeforeWorkDays(end, duration, wdSet);
+    }
     const normalized = {
       start: iso(start),
       end: iso(end),

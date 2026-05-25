@@ -82,6 +82,32 @@ describe('view smoke', () => {
     expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
   });
 
+  it('GanttView zooms the timeline with Ctrl+mouse wheel', () => {
+    localStorage.setItem('planr_gantt_zoom', '20');
+    const scheduledTask = {
+      ...tree[0],
+      treeId: 'P1',
+      startWi: 0,
+      endWi: 0,
+      startD: new Date('2026-01-05'),
+      endD: new Date('2026-01-05'),
+      assign: [],
+    };
+    const { getByTestId } = wrap(
+      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+    const timeline = getByTestId('gantt-timeline');
+
+    fireEvent.wheel(timeline, { ctrlKey: true, deltaY: -100, clientX: 20, clientY: 10 });
+
+    expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
+  });
+
   it('GanttView pans the timeline by dragging empty space', () => {
     const scheduledTask = {
       ...tree[0],

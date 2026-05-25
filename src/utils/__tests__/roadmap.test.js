@@ -236,6 +236,65 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(svg).toContain('stroke="url(#rm-past-stripe)"');
   });
 
+  test('route progress percentages stay in tooltips and legend, not as visible map labels', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.25 }, doneInWindowIds: [], changedInWindowIds: [] },
+      futureProgressByRootId: { P1: 0.75 },
+    });
+
+    expect(svg).toContain('50%');
+    expect(svg).toContain('Differenz: +25%');
+    expect(svg).not.toMatch(/>[+-]?\d+(?:\.\d+)?%<\/text>/);
+  });
+
+  test('done stations with invalid future completion dates are capped at now before placement', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Already done but dated too late',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-03-02',
+        completedEnd: '2026-03-02',
+      },
+      { id: 'P1.2', name: 'Future open', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.2', name: 'Future open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+    const doneStation = stations.find(station => station.id === 'P1.1');
+    const openStation = stations.find(station => station.id === 'P1.2');
+
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.endDate).toEqual(d('2026-01-15'));
+    expect(doneStation.t).toBeLessThan(openStation.t);
+  });
+
   test('diff mode uses static station halos instead of pulsing rings', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect, memo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
@@ -149,7 +149,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   function syncS(e) { if (hR.current) hR.current.scrollLeft = e.target.scrollLeft; if (lR.current) { scrollLock.current = true; lR.current.scrollTop = e.target.scrollTop; } }
   function syncL(e) { if (scrollLock.current) { scrollLock.current = false; return; } if (bR.current) bR.current.scrollTop = e.target.scrollTop; }
   function onLWheel(e) { if (bR.current) { bR.current.scrollTop += e.deltaY; bR.current.scrollLeft += e.deltaX; } }
-  function onTimelineWheel(e) {
+  const onTimelineWheel = useCallback((e) => {
     const isZoomGesture = e.ctrlKey || e.metaKey;
     if (!isZoomGesture) return;
     e.preventDefault();
@@ -169,7 +169,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       bR.current.scrollLeft = Math.max(0, timeAtPointer * nextZoom - anchorX);
       if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
     });
-  }
+  }, [WPX]);
+  useEffect(() => {
+    const targets = [hR.current, bR.current].filter(Boolean);
+    if (!targets.length) return undefined;
+    targets.forEach(el => el.addEventListener('wheel', onTimelineWheel, { passive: false }));
+    return () => targets.forEach(el => el.removeEventListener('wheel', onTimelineWheel));
+  }, [onTimelineWheel]);
   useEffect(() => {
     try { localStorage.setItem('planr_gantt_collapsed', JSON.stringify(collapsedByMode)); } catch {}
   }, [collapsedByMode]);

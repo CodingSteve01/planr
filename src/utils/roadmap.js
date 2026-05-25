@@ -138,7 +138,8 @@ function compareByTime(a, b) {
   return a.id.localeCompare(b.id, undefined, { numeric: true });
 }
 
-function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = new Map()) {
+function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = new Map(), now = new Date()) {
+  const today = toDate(now) || toDate(new Date());
   const ordered = [...tree].sort((a, b) => depthOf(b.id) - depthOf(a.id) || b.id.localeCompare(a.id));
   const leafIdsById = {};
   const result = {};
@@ -170,7 +171,7 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
       // was finished in April" signal and pushes done items into the future
       // window of their successors.
       const doneWindow = n?.status === 'done' ? completedWindows.get(id) : null;
-      const start = toDate(
+      let start = toDate(
         doneWindow?.start
         || (n?.status === 'done' ? n?.completedStart : null)
         || sched?.startD
@@ -179,7 +180,7 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
         || n?.decideBy
         || n?.date,
       );
-      const end = toDate(
+      let end = toDate(
         doneWindow?.end
         || (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
         || sched?.endD
@@ -187,6 +188,8 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
         || n?.pinnedStart
         || n?.decideBy,
       );
+      if (n?.status === 'done' && end && end > today) end = new Date(today);
+      if (n?.status === 'done' && start && end && start > end) start = new Date(end);
       if (start && (!earliestStart || start < earliestStart)) earliestStart = start;
       if (end && (!latestEnd || end > latestEnd)) latestEnd = end;
     });
@@ -444,6 +447,7 @@ function deduplicateAbbrevs(stations) {
 
 export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), assignment = null }) {
   const nodeMap = Object.fromEntries(tree.map(node => [node.id, node]));
+  const today = toDate(now) || toDate(new Date());
   const childMap = {};
   tree.forEach(node => {
     const pid = parentId(node.id);
@@ -451,8 +455,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     childMap[pid].push(node);
   });
   const schedMap = scheduled ? Object.fromEntries(scheduled.map(item => [item.id, item])) : {};
-  const completedWindows = normalizeCompletedWindows(tree || []);
-  const meta = buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows);
+  const completedWindows = normalizeCompletedWindows(tree || [], { now: today });
+  const meta = buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows, today);
 
   const roots = tree.filter(node => !node.id.includes('.'));
   if (!roots.length) return null;
@@ -514,9 +518,20 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         const start = m.earliestStart || end;
         return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
       });
+    const capDoneItem = (item) => {
+      const node = nodeMap[item.id] || item;
+      if (node?.status !== 'done') return item;
+      const end = toDate(item.endD || item.startD);
+      if (!end) return item;
+      const cappedEnd = end > today ? new Date(today) : end;
+      const rawStart = toDate(item.startD || cappedEnd);
+      const cappedStart = rawStart && rawStart > cappedEnd ? new Date(cappedEnd) : rawStart;
+      return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd };
+    };
 
     // Combine scheduled + done leaves, sort by endD
     const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
+      .map(capDoneItem)
       .sort((a, b) => +new Date(a.endD) - +new Date(b.endD));
 
     // Cluster: group items whose endD are within 14 days of each other.
@@ -1259,30 +1274,7 @@ export function renderRoadmapSvg(args) {
     // Window slits — two small white rectangles like train windows
     out.push(`<rect x="${(+tx - 7).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
     out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
-    const pctLabel = `${pct}%`;
-    const pctW = Math.max(30, pctLabel.length * 7 + 10);
-    const pctX = Math.min(SVG_W - pctW - 4, Math.max(4, +tx + 15));
-    const pctY = Math.max(4, Math.min(SVG_H - 16, +ty - 8));
-    out.push(`<rect x="${pctX.toFixed(1)}" y="${pctY.toFixed(1)}" width="${pctW}" height="16" rx="4" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.4" opacity="0.96"/>`);
-    out.push(`<text x="${(pctX + pctW / 2).toFixed(1)}" y="${(pctY + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${color}" font-size="10" font-weight="800">${esc(pctLabel)}</text>`);
     out.push(`</g>`);
-    // Delta pill: shows "+ΔN%" above the train when the diff overlay is on
-    // and progress actually moved in the window. Below the train if there's
-    // no headroom.
-    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
-      const past = Math.max(0, pastProgress[line.root.id] || 0);
-      const deltaProgress = (line.progress || 0) - past;
-      if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-        const deltaLabel = formatProgressDelta(deltaProgress);
-        const pillW = Math.max(34, 12 + deltaLabel.length * 7);
-        const px = +tx - pillW / 2;
-        const py = +ty - 28;
-        out.push(`<g pointer-events="none">`);
-        out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#f59e0b" opacity="0.95"/>`);
-        out.push(`<text x="${+tx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="10" font-weight="700">${esc(deltaLabel)}</text>`);
-        out.push(`</g>`);
-      }
-    }
     // Ghost train marker at the past position — only when there's a real gap
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
@@ -1295,7 +1287,7 @@ export function renderRoadmapSvg(args) {
         out.push(`</g>`);
       }
     }
-    // Planned ghost-train + +ΔN% pill ahead of the live train. Blue colour
+    // Planned ghost-train ahead of the live train. Blue colour
     // intentionally mirrors the ▶ Plan filter chip so the Diff/Ist/Plan
     // story reads as a coherent palette.
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
@@ -1304,20 +1296,9 @@ export function renderRoadmapSvg(args) {
       if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
         const fp = pointAtFraction(line.route, fT);
         const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
-        const deltaProgress = futurePct - (line.progress || 0);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
         out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
         out.push(`</g>`);
-        if (deltaProgress > MIN_VISIBLE_PROGRESS_DELTA) {
-          const deltaLabel = formatProgressDelta(deltaProgress);
-          const pillW = Math.max(34, 12 + deltaLabel.length * 7);
-          const px = +fx - pillW / 2;
-          const py = +fy - 28;
-          out.push(`<g pointer-events="none">`);
-          out.push(`<rect x="${px}" y="${py}" width="${pillW}" height="14" rx="7" fill="#3b82f6" opacity="0.95"/>`);
-          out.push(`<text x="${+fx}" y="${py + 10.5}" text-anchor="middle" font="700 10px/1 'JetBrains Mono',monospace" fill="#fff" font-size="10" font-weight="700">${esc(deltaLabel)}</text>`);
-          out.push(`</g>`);
-        }
       }
     }
   });
