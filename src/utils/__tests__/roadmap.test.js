@@ -155,7 +155,12 @@ describe('computeRoadmapModel progress semantics', () => {
       { id: 'P1.2', name: 'Large later', status: 'done', effort: 99, startD: d('2026-12-31'), endD: d('2026-12-31') },
     ];
 
-    const model = modelFor(tree, scheduled);
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2027-01-15'),
+    });
     const firstStation = model.lines[0].majorStations.sort((a, b) => a.t - b.t)[0];
 
     expect(firstStation.id).toBe('P1.1');
@@ -339,6 +344,39 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(doneStation.allDone).toBe(true);
     expect(doneStation.endDate).toEqual(d('2026-01-15'));
+  });
+
+  test('done station order uses actual completion date instead of stale future plan', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Finished early',
+        status: 'done',
+        progress: 100,
+        best: 2,
+        factor: 1,
+        completedStart: '2026-04-01',
+        completedEnd: '2026-04-03',
+      },
+      { id: 'P1.2', name: 'Current planned work', status: 'open', progress: 0, best: 2, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Finished early', status: 'done', effort: 2, startD: d('2026-08-01'), endD: d('2026-08-05') },
+      { id: 'P1.2', name: 'Current planned work', status: 'open', effort: 2, startD: d('2026-05-01'), endD: d('2026-05-02') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-05-15'),
+    });
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+
+    expect(stations[0].id).toBe('P1.1');
+    expect(stations[0].endDate).toEqual(d('2026-04-03'));
+    expect(stations[1].id).toBe('P1.2');
   });
 
   test('completed stations cannot move ahead of the train when future scope is unscheduled', () => {

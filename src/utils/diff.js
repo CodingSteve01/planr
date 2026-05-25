@@ -139,18 +139,37 @@ function _syntheticHistoryFromActualBars(tree) {
   return events;
 }
 
+function _syntheticHistoryFromCompletionEvents(historyEvents) {
+  const events = [];
+  for (const ev of historyEvents || []) {
+    if (!ev?.id || !ev.completedAt) continue;
+    const completed = localDate(ev.completedAt);
+    if (Number.isNaN(+completed)) continue;
+    events.push({
+      ts: _tsForDay(completed, 18),
+      id: ev.id,
+      status: 'done',
+      progress: 100,
+      completedAt: iso(completed),
+    });
+  }
+  return events;
+}
+
 export function computeDiff({ tree, historyEvents, sinceDate, members, vacations, holidays, workDays }) {
   if (!sinceDate || !Array.isArray(tree)) {
     return null;
   }
   const realHistory = Array.isArray(historyEvents) ? historyEvents : [];
   const syntheticHistory = _syntheticHistoryFromActualBars(tree);
-  const effectiveHistory = [...syntheticHistory, ...realHistory];
+  const syntheticCompletionHistory = _syntheticHistoryFromCompletionEvents(realHistory);
+  const effectiveHistory = [...syntheticHistory, ...syntheticCompletionHistory, ...realHistory];
   if (!effectiveHistory.length) {
     return null;
   }
   const pastLeafState = stateAsOf(effectiveHistory, sinceDate);
   const cutoffIso = sinceDate instanceof Date ? sinceDate.toISOString() : new Date(sinceDate).toISOString();
+  const leafIdSet = new Set(_leafNodes(tree).map(leaf => leaf.id));
 
   const doneInWindowIds = new Set();
   const progressedInWindowIds = new Set();
@@ -165,6 +184,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   // done. `kind=added` after the cutoff marks an actual new leaf.
   for (const ev of effectiveHistory) {
     if (ev.ts <= cutoffIso) continue;
+    if (!leafIdSet.has(ev.id)) continue;
     const past = pastLeafState.get(ev.id);
     if (ev.status === 'done' && past?.status !== 'done') {
       doneInWindowIds.add(ev.id);

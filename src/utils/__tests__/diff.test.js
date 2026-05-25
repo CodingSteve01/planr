@@ -54,4 +54,45 @@ describe('computeDiff historical fallback', () => {
     expect(diff.progressedInWindowIds).not.toContain('P1.1');
     expect(diff.pastProgressByRootId.P1).toBeGreaterThan(0.45);
   });
+
+  test('post-cutoff imported completion uses completedAt, not import time', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Old done work', status: 'done', best: 5, factor: 1 },
+    ];
+    const historyEvents = [
+      { ts: '2026-05-22T17:39:21.764Z', id: 'P1.1', kind: 'added', status: 'done', progress: 100, completedAt: '2026-04-20' },
+    ];
+
+    const diff = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-05-11'),
+    });
+
+    expect(diff.doneInWindowIds).toEqual([]);
+    expect(diff.progressedInWindowIds).not.toContain('P1.1');
+    expect(diff.pastProgressByRootId.P1).toBe(1);
+  });
+
+  test('post-cutoff imported parent completion is not counted as leaf work', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Parent package', status: 'done', best: 0, completedAt: '2026-04-20' },
+      { id: 'P1.1.1', name: 'Child A', status: 'done', best: 2, factor: 1, completedAt: '2026-04-18' },
+      { id: 'P1.1.2', name: 'Child B', status: 'done', best: 2, factor: 1, completedAt: '2026-04-20' },
+    ];
+    const historyEvents = [
+      { ts: '2026-05-22T17:39:21.764Z', id: 'P1.1', kind: 'added', status: 'done', progress: 100, completedAt: '2026-04-20' },
+    ];
+
+    const diff = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-05-11'),
+    });
+
+    expect(diff.doneInWindowIds).toEqual([]);
+    expect(diff.changedInWindowIds).toEqual([]);
+  });
 });
