@@ -93,6 +93,18 @@ function formatPercent(progress) {
   return `${formatPercentNumber(progress)}%`;
 }
 
+function contrastText(color) {
+  if (!color?.startsWith('#')) return '#fff';
+  let hex = color.slice(1);
+  if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+  if (hex.length !== 6) return '#fff';
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.56 ? '#111318' : '#fff';
+}
+
 function formatProgressDelta(deltaProgress) {
   const delta = Number(deltaProgress) || 0;
   if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA) return '0%';
@@ -982,7 +994,23 @@ export function renderRoadmapSvg(args) {
   // so the map tells the Diff/Ist/Plan story in one glance.
   const futureProgress = args.futureProgressByRootId || {};
   const hasFuture = Object.keys(futureProgress).length > 0;
+  const expandedLegendIds = args.expandedLegendIds instanceof Set ? args.expandedLegendIds
+    : Array.isArray(args.expandedLegendIds) ? new Set(args.expandedLegendIds) : new Set();
   const out = [];
+
+  const renderLaneDeltaLabel = (route, fromT, toT, label, fill) => {
+    if (!label || label === '0%' || !Number.isFinite(fromT) || !Number.isFinite(toT)) return;
+    const midT = clamp((fromT + toT) / 2, ROUTE_T_LO, ROUTE_T_HI);
+    const pt = pointAtFraction(route, midT);
+    const w = Math.max(34, 14 + label.length * 7);
+    const x = clamp(pt.x - w / 2, 4, SVG_W - w - 4);
+    const yRaw = pt.y - 24;
+    const y = yRaw < 4 ? pt.y + 12 : yRaw;
+    out.push(`<g class="rm-diff-label" pointer-events="none">`);
+    out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w}" height="16" rx="8" fill="${fill}" opacity="0.96" stroke="rgba(17,19,24,.65)" stroke-width="1"/>`);
+    out.push(`<text x="${(x + w / 2).toFixed(1)}" y="${(y + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${contrastText(fill)}" font-size="10" font-weight="800">${esc(label)}</text>`);
+    out.push(`</g>`);
+  };
 
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
 
@@ -1202,6 +1230,9 @@ export function renderRoadmapSvg(args) {
       const trailD = trainT > ROUTE_T_LO ? partialPath(route, trainT) : null;
       if (trailD) {
         out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        if (diffMode && (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
+          renderLaneDeltaLabel(route, ROUTE_T_LO, trainT, formatProgressDelta(line.progress || 0), '#f59e0b');
+        }
       }
       return;
     }
@@ -1230,6 +1261,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
         out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
         out.push(`</circle>`);
+        if (diffMode && deltaProgressForTrail > MIN_VISIBLE_PROGRESS_DELTA) {
+          renderLaneDeltaLabel(route, trailStartT, trainT, formatProgressDelta(deltaProgressForTrail), '#f59e0b');
+        }
       }
     }
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
@@ -1242,6 +1276,7 @@ export function renderRoadmapSvg(args) {
           out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
           out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
           out.push(`</circle>`);
+          renderLaneDeltaLabel(route, trainT, fT, formatProgressDelta(futurePct - (line.progress || 0)), '#3b82f6');
         }
       }
     }
@@ -1377,25 +1412,26 @@ export function renderRoadmapSvg(args) {
   function renderLineProgressPills(line) {
     const currentProgress = clamp(line.progress || 0, 0, 1);
     const currentPct = formatPercentNumber(currentProgress);
-    const parts = [
-      `<span title="Jetzt ${currentPct}%" style="font:800 9px/1 'JetBrains Mono',monospace;background:${line.color};color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">${currentPct}%</span>`,
-    ];
+    const textParts = [`${currentPct}%`];
+    const titleParts = [`Jetzt ${currentPct}%`];
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
       const pastProgressValue = clamp(pastProgress[line.root.id] || 0, 0, 1);
       const pastPct = formatPercentNumber(pastProgressValue);
       const deltaProgress = currentProgress - pastProgressValue;
       const deltaLabel = formatProgressDelta(deltaProgress);
-      const deltaTitle = formatProgressDelta(deltaProgress);
-      parts.push(`<span title="Vorher ${pastPct}% -> jetzt ${currentPct}% (Differenz: ${deltaTitle})" style="font:800 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px;white-space:nowrap">${deltaLabel}</span>`);
+      if (deltaLabel !== '0%') textParts.push(deltaLabel);
+      titleParts.push(`Vorher ${pastPct}%`, `Differenz: ${deltaLabel}`);
     }
     if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
       const futureProgressValue = clamp(futureProgress[line.root.id] || 0, 0, 1);
       const futurePct = formatPercentNumber(futureProgressValue);
       const deltaProgress = futureProgressValue - currentProgress;
-      const suffix = deltaProgress > MIN_VISIBLE_PROGRESS_DELTA ? ` ${formatProgressDelta(deltaProgress)}` : '';
-      parts.push(`<span title="Jetzt ${currentPct}% -> Plan ${futurePct}%${suffix ? ` (Differenz: ${suffix.trim()})` : ''}" style="font:800 9px/1 'JetBrains Mono',monospace;background:#3b82f6;color:#fff;border-radius:3px;padding:2px 5px;white-space:nowrap">Plan ${futurePct}%</span>`);
+      const deltaLabel = formatProgressDelta(deltaProgress);
+      textParts.push(`→${futurePct}%`);
+      titleParts.push(`Plan ${futurePct}%`);
+      if (deltaLabel !== '0%') titleParts.push(`Plan-Differenz: ${deltaLabel}`);
     }
-    return `<span style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">${parts.join('')}</span>`;
+    return `<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:${line.color};color:${contrastText(line.color)};border-radius:3px;padding:2px 5px;white-space:nowrap;flex-shrink:0">${esc(textParts.join(' '))}</span>`;
   }
 
   function renderLegendBlock(line) {
@@ -1406,10 +1442,12 @@ export function renderRoadmapSvg(args) {
     const stationMoved = station => (station.clusterItems || [])
       .some(c => doneInWindow.has(c.id) || changedInWindow.has(c.id));
     const stationCurrent = station => station.id === line.currentId && !station.allDone;
-    const visibleStations = diffMode
+    const compactStations = diffMode
       ? allStations.filter(station => station.allDone || stationCurrent(station) || stationMoved(station))
       : allStations;
-    const hiddenStationCount = allStations.length - visibleStations.length;
+    const isLegendExpanded = expandedLegendIds.has(line.root.id);
+    const visibleStations = diffMode && !isLegendExpanded ? compactStations : allStations;
+    const hiddenStationCount = allStations.length - compactStations.length;
     // Line-level diff: two pills in the header — completions (✓) and
     // progress-only movements (▲). Either can be zero; the row stays quiet
     // when both are.
@@ -1427,14 +1465,17 @@ export function renderRoadmapSvg(args) {
     block.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1 1 auto">${esc(truncate(line.root.name, 22))}</span>`);
     block.push(renderLineProgressPills(line));
     if (lineDoneCount > 0 || lineProgCount > 0) {
-      block.push(`<span style="display:inline-flex;gap:3px;flex-shrink:0">`);
+      const statusParts = [];
+      const titleParts = [];
       if (lineDoneCount > 0) {
-        block.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:2px 5px" title="${esc(labels.tipDone || 'Done in window')}">✓ ${lineDoneCount}</span>`);
+        statusParts.push(`<span style="color:#10b981">✓ ${lineDoneCount}</span>`);
+        titleParts.push(`${labels.tipDone || 'Done in window'}: ${lineDoneCount}`);
       }
       if (lineProgCount > 0) {
-        block.push(`<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:2px 5px" title="${esc(labels.tipProgress || 'Progress in window')}">▲ ${lineProgCount}</span>`);
+        statusParts.push(`<span style="color:#f59e0b">▲ ${lineProgCount}</span>`);
+        titleParts.push(`${labels.tipProgress || 'Progress in window'}: ${lineProgCount}`);
       }
-      block.push(`</span>`);
+      block.push(`<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:var(--bg3,#232830);border:1px solid var(--b2,#364456);border-radius:3px;padding:1px 5px;display:inline-flex;gap:5px;white-space:nowrap;flex-shrink:0">${statusParts.join('')}</span>`);
     }
     block.push(`</div>`);
 
@@ -1474,7 +1515,7 @@ export function renderRoadmapSvg(args) {
       // Cluster details — indented rows below, each with own icon+text centered, clickable
       if (station.clusterSize > 1) {
         const extras = station.clusterItems.filter(c => c.id !== station.id);
-        const visibleExtras = diffMode
+        const visibleExtras = diffMode && !isLegendExpanded
           ? extras.filter(c => {
               const itemNode = nodeMap[c.id];
               return doneInWindow.has(c.id)
@@ -1508,8 +1549,11 @@ export function renderRoadmapSvg(args) {
       }
     });
 
-    if (hiddenStationCount > 0) {
-      block.push(`<div style="margin-top:6px;padding:2px 3px;font:500 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx3,#8898b0)">+${hiddenStationCount} weitere per Hover auf der Karte</div>`);
+    if (diffMode && hiddenStationCount > 0) {
+      const toggleLabel = isLegendExpanded
+        ? (labels.showLess || 'Show fewer')
+        : (labels.showMore || '+{0} more').replace('{0}', hiddenStationCount);
+      block.push(`<button type="button" data-rm-toggle="${esc(line.root.id)}" style="margin-top:6px;padding:2px 5px;font:700 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#cbd5e1);background:transparent;border:1px solid var(--b2,#364456);border-radius:4px;cursor:pointer">${esc(toggleLabel)}</button>`);
     }
 
     block.push(`</div>`);

@@ -236,7 +236,7 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(svg).toContain('stroke="url(#rm-past-stripe)"');
   });
 
-  test('route progress percentages stay in tooltips and legend, not as visible map labels', () => {
+  test('route progress percentages stay in tooltips and legend, while diff labels stay visible on map lanes', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
       { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
@@ -258,6 +258,29 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(svg).toContain('50%');
     expect(svg).toContain('Differenz: +25%');
+    expect(svg).toMatch(/>\+25%<\/text>/);
+    expect(svg).not.toMatch(/>50%<\/text>/);
+  });
+
+  test('route progress percentages are hidden on map lanes outside diff overlays', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+
+    expect(svg).toContain('50%');
     expect(svg).not.toMatch(/>[+-]?\d+(?:\.\d+)?%<\/text>/);
   });
 
@@ -342,5 +365,58 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(svg).toContain('data-item-id="P1.1"');
     expect(svg).toContain('data-item-id="P1.2"');
     expect(svg).not.toContain('data-item-id="P1.3"');
+  });
+
+  test('diff legend can expand hidden untouched stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Current open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Current open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+    const base = {
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+      labels: { showMore: '+{0} more', showLess: 'Show fewer' },
+    };
+
+    const collapsedSvg = renderRoadmapSvg(base);
+    const expandedSvg = renderRoadmapSvg({ ...base, expandedLegendIds: new Set(['P1']) });
+
+    expect(collapsedSvg).not.toContain('data-item-id="P1.3"');
+    expect(collapsedSvg).toContain('data-rm-toggle="P1"');
+    expect(collapsedSvg).toContain('+1 more');
+    expect(expandedSvg).toContain('data-item-id="P1.3"');
+    expect(expandedSvg).toContain('Show fewer');
+  });
+
+  test('legend progress pill keeps readable contrast on light route colors', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      assignment: { P1: { routeIdx: 1, colorIdx: 2 } },
+    });
+
+    expect(svg).toContain('background:#f59e0b;color:#111318');
   });
 });

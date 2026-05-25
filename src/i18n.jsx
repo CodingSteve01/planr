@@ -351,6 +351,7 @@ const en = {
 
   // ── Roadmap ──
   'rm.train': 'Train', 'rm.currentPos': 'Effort-weighted progress: {0}%', 'rm.atRisk': 'AT RISK',
+  'rm.showMore': '+{0} more', 'rm.showLess': 'Show fewer',
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
@@ -1010,6 +1011,7 @@ const de = {
 
   // ── Roadmap ──
   'rm.train': 'Zug', 'rm.currentPos': 'Aufwandsgewichteter Fortschritt: {0}%', 'rm.atRisk': 'GEFÄHRDET',
+  'rm.showMore': '+{0} weitere anzeigen', 'rm.showLess': 'Weniger anzeigen',
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',

@@ -3,7 +3,7 @@
 // payload and asserts the render doesn't throw. Catches missing imports,
 // unwrapped JSX, and prop-shape mismatches introduced by future refactors.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, cleanup } from '@testing-library/react';
+import { fireEvent, render, cleanup, waitFor } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { TreeView } from '../components/views/TreeView.jsx';
 import { GanttView } from '../components/views/GanttView.jsx';
@@ -82,7 +82,7 @@ describe('view smoke', () => {
     expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
   });
 
-  it('GanttView zooms the timeline with Ctrl+mouse wheel', () => {
+  it('GanttView zooms the timeline with Ctrl+mouse wheel around the cursor', async () => {
     localStorage.setItem('planr_gantt_zoom', '20');
     const scheduledTask = {
       ...tree[0],
@@ -102,17 +102,24 @@ describe('view smoke', () => {
         onReorderSibling={noop} />,
     );
     const timeline = getByTestId('gantt-timeline');
+    Object.defineProperty(timeline, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: 0, right: 200, top: 0, bottom: 120, width: 200, height: 120 }),
+    });
+    timeline.scrollLeft = 100;
 
     const event = new Event('wheel', { bubbles: true, cancelable: true });
     Object.defineProperties(event, {
       ctrlKey: { value: true },
       deltaY: { value: -100 },
-      clientX: { value: 20 },
+      clientX: { value: 50 },
       clientY: { value: 10 },
     });
     timeline.dispatchEvent(event);
 
     expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
+    await waitFor(() => expect(timeline.scrollLeft).toBeGreaterThan(110));
+    expect(timeline.scrollLeft).toBeLessThan(125);
   });
 
   it('GanttView pans the timeline by dragging empty space', () => {

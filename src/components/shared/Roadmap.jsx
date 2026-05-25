@@ -4,6 +4,7 @@ import { useT } from '../../i18n.jsx';
 
 export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null }) {
   const { t } = useT();
+  const [expandedLegendIds, setExpandedLegendIds] = useState(() => new Set());
   // Pass raw template strings (with {0}) so roadmap.js can substitute the percentage itself.
   // t() without extra args leaves {0} intact, which roadmap.js replaces with the actual %.
   const labels = useMemo(() => ({
@@ -14,6 +15,8 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     tipProgress: t('diff.legendReachedTip'),
     prevPos: t('diff.prevPos'),
     plannedPos: t('horizon.plannedPos'),
+    showMore: t('rm.showMore'),
+    showLess: t('rm.showLess'),
   }), [t]);
   // Two-step: compute model once so we can inspect its `_assignment` map,
   // then build the SVG from the same args. Lets the parent (App.jsx)
@@ -21,8 +24,8 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   // root appears or no mapping exists yet — gives projects stable
   // colours + routes across data edits.
   const renderArgs = useMemo(() => ({
-    tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment,
-  }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment]);
+    tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment, expandedLegendIds,
+  }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment, expandedLegendIds]);
   const model = useMemo(() => computeRoadmapModel(renderArgs), [renderArgs]);
   const svg = useMemo(() => renderRoadmapSvg({ ...renderArgs }), [renderArgs]);
   // Detect "stored assignment differs from what we just computed" — happens
@@ -71,6 +74,19 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   const onLeave = useCallback(() => setTip(null), []);
 
   const onClick = useCallback(e => {
+    const toggle = e.target.closest('[data-rm-toggle]');
+    if (toggle) {
+      const id = toggle.getAttribute('data-rm-toggle');
+      if (id) {
+        setExpandedLegendIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+      }
+      return;
+    }
     const el = e.target.closest('[data-item-id]');
     if (el && onOpenItem) {
       const id = el.getAttribute('data-item-id');

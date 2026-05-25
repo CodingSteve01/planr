@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
@@ -143,6 +143,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   };
   const hR = useRef(null), bR = useRef(null), lR = useRef(null);
   const hoverClearTimerRef = useRef(null);
+  const zoomAnchorRef = useRef(null);
   const [bodyScrollbarH, setBodyScrollbarH] = useState(0);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
@@ -157,20 +158,22 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     e.preventDefault();
     e.stopPropagation();
     const body = bR.current;
-    const anchorEl = e.currentTarget;
-    if (!body || !anchorEl) {
+    if (!body) {
       setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
       return;
     }
-    const rect = anchorEl.getBoundingClientRect();
+    const rect = body.getBoundingClientRect();
     const anchorX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const timeAtPointer = (body.scrollLeft + anchorX) / Math.max(WPX, 1);
-    const nextZoom = setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
-    requestAnimationFrame(() => {
-      if (!bR.current) return;
-      bR.current.scrollLeft = Math.max(0, timeAtPointer * nextZoom - anchorX);
-      if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
-    });
+    zoomAnchorRef.current = { timeAtPointer, anchorX };
+    setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+  }, [WPX]);
+  useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current;
+    if (!anchor || !bR.current) return;
+    zoomAnchorRef.current = null;
+    bR.current.scrollLeft = Math.max(0, anchor.timeAtPointer * WPX - anchor.anchorX);
+    if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
   }, [WPX]);
   useEffect(() => {
     const targets = [hR.current, bR.current].filter(Boolean);
