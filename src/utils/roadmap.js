@@ -514,10 +514,15 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
       .sort((a, b) => +new Date(a.endD) - +new Date(b.endD));
 
-    // Cluster: group items whose endD are within 14 days of each other
+    // Cluster: group items whose endD are within 14 days of each other.
+    // Important: never merge completed work with unfinished work just because
+    // their dates are close. The Subway map is a progress tool; if a cluster
+    // contains one open task, the whole station becomes "not reached" and
+    // months of completed predecessor work disappear visually.
     const CLUSTER_GAP_DAYS = 14;
     const clusters = [];
     let currentCluster = [];
+    const clusterBand = item => ((nodeMap[item.id] || item)?.status === 'done' ? 'done' : 'active');
 
     sorted.forEach(item => {
       if (!currentCluster.length) {
@@ -526,7 +531,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       }
       const lastEnd = new Date(currentCluster[currentCluster.length - 1].endD);
       const thisEnd = new Date(item.endD);
-      if ((+thisEnd - +lastEnd) / 864e5 <= CLUSTER_GAP_DAYS) {
+      const sameProgressBand = clusterBand(item) === clusterBand(currentCluster[currentCluster.length - 1]);
+      if (sameProgressBand && (+thisEnd - +lastEnd) / 864e5 <= CLUSTER_GAP_DAYS) {
         currentCluster.push(item);
       } else {
         clusters.push(currentCluster);
@@ -929,6 +935,7 @@ export function renderRoadmapSvg(args) {
   //   changedInWindowIds   — leaves with ANY movement (done OR progress-only),
   //                          drives the legend/station "moved in window" mark
   const diff = args.diff || null;
+  const diffMode = !!diff;
   const pastProgress = diff?.pastProgressByRootId || {};
   const newSet = new Set(diff?.newRootIds || []);
   const doneInWindow = new Set(diff?.doneInWindowIds || []);
@@ -1107,13 +1114,10 @@ export function renderRoadmapSvg(args) {
       // Amber halo for stations reached in the diff window. Drawn before the
       // station glyph so it sits behind it.
       if (reachedInWindow) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="11" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.95">`);
-        out.push(`<animate attributeName="r" values="10;13;10" dur="2.4s" repeatCount="indefinite"/>`);
-        out.push(`<animate attributeName="opacity" values="0.95;0.55;0.95" dur="2.4s" repeatCount="indefinite"/>`);
-        out.push(`</circle>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="#f59e0b" stroke-width="1.8" opacity="0.78"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="6" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="${color}"/>`);
       } else if (isCurrent) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
         out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
@@ -1124,7 +1128,10 @@ export function renderRoadmapSvg(args) {
 
       // Abbreviation label
       const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
-      out.push(`<text x="${(station.x + 8).toFixed(1)}" y="${(station.y - 8).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      const showLabel = !diffMode || isDone || isCurrent || reachedInWindow;
+      if (showLabel) {
+        out.push(`<text x="${(station.x + 8).toFixed(1)}" y="${(station.y - 8).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      }
     });
 
     // Minor stations (r=3)
@@ -1137,13 +1144,10 @@ export function renderRoadmapSvg(args) {
       if (!inHorizon) out.push(`<g opacity="0.22">`);
 
       if (reachedInWindow) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.85">`);
-        out.push(`<animate attributeName="r" values="6;9;6" dur="2.4s" repeatCount="indefinite"/>`);
-        out.push(`<animate attributeName="opacity" values="0.85;0.4;0.85" dur="2.4s" repeatCount="indefinite"/>`);
-        out.push(`</circle>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6" fill="none" stroke="#f59e0b" stroke-width="1.3" opacity="0.70"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="${color}" opacity="0.8"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="4" fill="${color}" opacity="0.85"/>`);
       } else {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.5" opacity="${isCurrent ? 1 : 0.7}"/>`);
       }
@@ -1402,6 +1406,13 @@ export function renderRoadmapSvg(args) {
     const allStations = [...line.majorStations, ...line.minorStations]
       .sort((a, b) => a.t - b.t);
     if (!allStations.length) return '';
+    const stationMoved = station => (station.clusterItems || [])
+      .some(c => doneInWindow.has(c.id) || changedInWindow.has(c.id));
+    const stationCurrent = station => station.id === line.currentId && !station.allDone;
+    const visibleStations = diffMode
+      ? allStations.filter(station => station.allDone || stationCurrent(station) || stationMoved(station))
+      : allStations;
+    const hiddenStationCount = allStations.length - visibleStations.length;
     // Line-level diff: two pills in the header — completions (✓) and
     // progress-only movements (▲). Either can be zero; the row stays quiet
     // when both are.
@@ -1431,7 +1442,7 @@ export function renderRoadmapSvg(args) {
     block.push(`</div>`);
 
     // Station rows
-    allStations.forEach(station => {
+    visibleStations.forEach(station => {
       const stProg = Math.max(0, Math.min(1, station.prog || 0));
       const stStatus = station.allDone ? 'done' : stProg > 0 ? 'wip' : 'open';
       const stIcon = statusIcon(stStatus, line.color, stProg, 13);
@@ -1466,7 +1477,16 @@ export function renderRoadmapSvg(args) {
       // Cluster details — indented rows below, each with own icon+text centered, clickable
       if (station.clusterSize > 1) {
         const extras = station.clusterItems.filter(c => c.id !== station.id);
-        extras.forEach(c => {
+        const visibleExtras = diffMode
+          ? extras.filter(c => {
+              const itemNode = nodeMap[c.id];
+              return doneInWindow.has(c.id)
+                || changedInWindow.has(c.id)
+                || itemNode?.status === 'done'
+                || itemNode?.status === 'wip';
+            })
+          : extras;
+        visibleExtras.forEach(c => {
           const itemNode = nodeMap[c.id];
           const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
           const itemProg = leafProgress(itemNode || c) / 100;
@@ -1490,6 +1510,10 @@ export function renderRoadmapSvg(args) {
         });
       }
     });
+
+    if (hiddenStationCount > 0) {
+      block.push(`<div style="margin-top:6px;padding:2px 3px;font:500 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx3,#8898b0)">+${hiddenStationCount} weitere per Hover auf der Karte</div>`);
+    }
 
     block.push(`</div>`);
     return block.join('');

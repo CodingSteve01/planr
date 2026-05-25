@@ -3,7 +3,7 @@
 // listing every member regardless of personFilter / teamFilter. Verify that
 // passing a filter narrows the rendered rows.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { ResView } from '../components/views/ResView.jsx';
 
@@ -53,5 +53,13 @@ describe('ResView filter', () => {
     expect(screen.queryByText('Anna')).toBeNull();
     expect(screen.queryByText('Bob')).toBeNull();
     expect(screen.queryByText('Carla')).toBeTruthy();
+  });
+
+  it('opens a derived-capacity member without crashing', async () => {
+    const derivedMembers = [{ ...members[0], capMode: 'derived', weeklyHours: 32 }];
+    wrap(<ResView {...baseProps} members={derivedMembers} />);
+
+    expect(() => fireEvent.click(screen.getByText('Anna'))).not.toThrow();
+    expect(await screen.findByText('Hrs / week')).toBeTruthy();
   });
 });

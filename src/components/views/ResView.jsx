@@ -125,6 +125,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
             overrides effective from a given date onward. Scheduler picks
             the latest entry whose `from` is on or before each task's start. */}
         <CapChangesField member={member} onUpd={onUpd} t={t} />
+        <MeetingChangesField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} />
 
         {/* Footer */}
         <div className="modal-footer">
@@ -289,9 +290,9 @@ function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           <button className={`btn btn-xs ${mode === 'manual' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setMode('manual')}>Manuell</button>
+            onClick={() => setMode('manual')}>{t('rv.manualCap')}</button>
           <button className={`btn btn-xs ${mode === 'derived' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setMode('derived')}>Aus Meetings</button>
+            onClick={() => setMode('derived')}>{t('rv.derivedCap')}</button>
         </div>
       </div>
       {mode === 'manual' ? (
@@ -302,13 +303,13 @@ function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
             onCommit={v => onUpd({ ...member, cap: v / 100 })} />
         </div>
       ) : (
-        <DerivedCapacity member={member} onUpd={onUpd} meetingPlans={meetingPlans} teams={teams} />
+        <DerivedCapacity member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
       )}
     </div>
   );
 }
 
-function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
+function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
   const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const meetings = member.meetings || [];
   // Inherited meetings: from team-level + member-level plans.
@@ -334,7 +335,7 @@ function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div className="rf" style={{ marginBottom: 0 }}>
-        <label>Std / Woche</label>
+        <label>{t('rv.hoursWeek')}</label>
         <div style={{ width: 150, display: 'flex', alignItems: 'center', gap: 6 }}>
           <LazyInput type="number" min="0" max="80" step="0.5" value={wh}
             onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
@@ -342,7 +343,7 @@ function DerivedCapacity({ member, onUpd, meetingPlans = [], teams = [] }) {
         </div>
       </div>
       <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: -4 }}>
-        Default: {FTE_HOURS} h (FTE). Teilzeit/Überstunden hier anpassen.
+        {t('rv.hoursDefault', FTE_HOURS)}
       </div>
 
       {/* Plan-Picker für Member (zusätzlich zu Team-geerbten Plänen). */}
@@ -1241,6 +1242,72 @@ function CapChangesField({ member, onUpd, t }) {
                 onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); const next = [...entries]; next[i] = { ...c, weeklyHours: v }; update(next); }}
                 style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
               <button className="btn btn-ghost btn-xs" onClick={() => { update(entries.filter((_, j) => j !== i)); }}
+                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
+  const entries = Array.isArray(member.meetingChanges) ? member.meetingChanges : [];
+  const update = (next) => {
+    const sorted = [...next].filter(c => c && c.from)
+      .sort((a, b) => a.from.localeCompare(b.from));
+    onUpd({ ...member, meetingChanges: sorted });
+  };
+  const addRow = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    update([...entries, {
+      from: today,
+      meetingPlanIds: [...(member.meetingPlanIds || [])],
+      meetings: [...(member.meetings || [])],
+    }]);
+  };
+  const togglePlan = (entry, planId) => {
+    const selected = entry.meetingPlanIds || [];
+    return selected.includes(planId)
+      ? selected.filter(id => id !== planId)
+      : [...selected, planId];
+  };
+  return (
+    <div style={{ marginTop: 10, padding: '8px 10px', border: '1px solid var(--b)', borderRadius: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.meetingPlanTimelineTitle')}</span>
+        <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)' }}>{t('rv.meetingPlanTimelineHint')}</span>
+        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 10 }}
+          onClick={addRow}>+ {t('rv.capPlanAdd')}</button>
+      </div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.meetingPlanTimelineEmpty')}</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {entries.map((entry, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 28px', gap: 6, alignItems: 'start' }}>
+              <input type="date" value={entry.from || ''}
+                onChange={e => { const next = [...entries]; next[i] = { ...entry, from: e.target.value }; update(next); }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, minHeight: 24 }}>
+                {meetingPlans.length ? meetingPlans.map(plan => {
+                  const on = (entry.meetingPlanIds || []).includes(plan.id);
+                  return (
+                    <button key={plan.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
+                      onClick={() => {
+                        const next = [...entries];
+                        next[i] = { ...entry, meetingPlanIds: togglePlan(entry, plan.id) };
+                        update(next);
+                      }}
+                      style={{ fontSize: 10 }}>
+                      {on ? '✓ ' : ''}{plan.name}
+                    </button>
+                  );
+                }) : (
+                  <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('rv.plansEmpty')}</span>
+                )}
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={() => update(entries.filter((_, j) => j !== i))}
                 style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}>×</button>
             </div>
           ))}

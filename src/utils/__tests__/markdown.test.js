@@ -107,6 +107,25 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(md).toMatch(/\*Plans: Eng\*/);
   });
 
+  test('scheduled member meeting-plan changes emit effective date', () => {
+    const md = buildMarkdownText({
+      ...base,
+      members: [{
+        id: 'M1',
+        name: 'Alex Kim',
+        team: 'T1',
+        capMode: 'derived',
+        weeklyHours: 40,
+        meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
+      }],
+      tree: [],
+      data: {
+        meetingPlans: [{ id: 'p1', name: 'Eng', meetings: [] }],
+      },
+    });
+    expect(md).toMatch(/\*Meeting-Plan: 2026-07-01→\[plans:Eng\]\*/);
+  });
+
   test('handoff-plan emitted as sub-bullet with stages', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },

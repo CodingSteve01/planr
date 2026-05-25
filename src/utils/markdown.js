@@ -96,11 +96,17 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       if (Array.isArray(m.meetingChanges) && m.meetingChanges.length) {
         const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
         const lines = m.meetingChanges
-          .filter(c => c && c.from && Array.isArray(c.meetings))
+          .filter(c => c && c.from && (Array.isArray(c.meetings) || Array.isArray(c.meetingPlanIds)))
           .map(c => {
-            const ms = c.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ');
-            return `${c.from}→[${ms}]`;
-          });
+            const planNames = (c.meetingPlanIds || [])
+              .map(pid => (data?.meetingPlans || []).find(p => p.id === pid)?.name || pid)
+              .filter(Boolean);
+            const planToken = planNames.length ? [`plans:${planNames.join('+')}`] : [];
+            const ms = (c.meetings || []).map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`);
+            const tokens = [...planToken, ...ms].filter(Boolean);
+            return tokens.length ? `${c.from}→[${tokens.join(', ')}]` : null;
+          })
+          .filter(Boolean);
         if (lines.length) md += `  *Meeting-Plan: ${lines.join('; ')}*\n`;
       }
     });

@@ -32,6 +32,14 @@ function branchKey(id, depth = 2) {
   return String(id || '').split('.').slice(0, depth).join('.');
 }
 
+function naturalCompare(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+function threadClusterKey(id) {
+  return parentId(id) || id;
+}
+
 function ownSoftDependencyIds(id, iMap) {
   return [...(iMap[id]?.softDeps || [])];
 }
@@ -205,17 +213,80 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     byComp.get(componentId).push(id);
   }
 
+  const compareItems = (a, b) => {
+    const rankA = rank.get(a) ?? 0;
+    const rankB = rank.get(b) ?? 0;
+    if (rankA !== rankB) return rankA - rankB;
+    const startA = startOf.get(a) ?? 1e9;
+    const startB = startOf.get(b) ?? 1e9;
+    if (startA !== startB) return startA - startB;
+    return naturalCompare(a, b);
+  };
+
+  const compareClusters = (a, b, clusters) => {
+    const aIds = clusters.get(a) || EMPTY_ARR;
+    const bIds = clusters.get(b) || EMPTY_ARR;
+    const minRankA = aIds.reduce((min, id) => Math.min(min, rank.get(id) ?? 0), Infinity);
+    const minRankB = bIds.reduce((min, id) => Math.min(min, rank.get(id) ?? 0), Infinity);
+    if (minRankA !== minRankB) return minRankA - minRankB;
+    const minStartA = aIds.reduce((min, id) => Math.min(min, startOf.get(id) ?? Infinity), Infinity);
+    const minStartB = bIds.reduce((min, id) => Math.min(min, startOf.get(id) ?? Infinity), Infinity);
+    if (minStartA !== minStartB) return minStartA - minStartB;
+    return naturalCompare(a, b);
+  };
+
+  const sortThreadIds = (ids) => {
+    const idSet = new Set(ids);
+    const clusters = new Map();
+    const clusterOf = new Map();
+    for (const id of ids) {
+      const key = threadClusterKey(id);
+      clusterOf.set(id, key);
+      if (!clusters.has(key)) clusters.set(key, []);
+      clusters.get(key).push(id);
+    }
+    for (const clusterIds of clusters.values()) clusterIds.sort(compareItems);
+
+    const clusterSucc = new Map([...clusters.keys()].map(key => [key, new Set()]));
+    const clusterIndeg = new Map([...clusters.keys()].map(key => [key, 0]));
+    for (const edgeKey of rankEdges) {
+      const [from, to] = edgeKey.split('->');
+      if (!idSet.has(from) || !idSet.has(to)) continue;
+      const fromCluster = clusterOf.get(from);
+      const toCluster = clusterOf.get(to);
+      if (!fromCluster || !toCluster || fromCluster === toCluster) continue;
+      const next = clusterSucc.get(fromCluster);
+      if (next.has(toCluster)) continue;
+      next.add(toCluster);
+      clusterIndeg.set(toCluster, (clusterIndeg.get(toCluster) || 0) + 1);
+    }
+
+    const orderedClusters = [];
+    const queue = [...clusters.keys()]
+      .filter(key => (clusterIndeg.get(key) || 0) === 0)
+      .sort((a, b) => compareClusters(a, b, clusters));
+    while (queue.length) {
+      const current = queue.shift();
+      orderedClusters.push(current);
+      for (const next of clusterSucc.get(current) || EMPTY_ARR) {
+        clusterIndeg.set(next, (clusterIndeg.get(next) || 0) - 1);
+        if (clusterIndeg.get(next) === 0) {
+          queue.push(next);
+          queue.sort((a, b) => compareClusters(a, b, clusters));
+        }
+      }
+    }
+
+    const orderedSet = new Set(orderedClusters);
+    const remaining = [...clusters.keys()]
+      .filter(key => !orderedSet.has(key))
+      .sort((a, b) => compareClusters(a, b, clusters));
+    return [...orderedClusters, ...remaining].flatMap(key => clusters.get(key) || EMPTY_ARR);
+  };
+
   const threads = [];
   for (const [componentId, ids] of byComp) {
-    ids.sort((a, b) => {
-      const rankA = rank.get(a) ?? 0;
-      const rankB = rank.get(b) ?? 0;
-      if (rankA !== rankB) return rankA - rankB;
-      const startA = startOf.get(a) ?? 1e9;
-      const startB = startOf.get(b) ?? 1e9;
-      if (startA !== startB) return startA - startB;
-      return a.localeCompare(b);
-    });
+    ids.splice(0, ids.length, ...sortThreadIds(ids));
     const earliest = ids.reduce((min, id) => Math.min(min, startOf.get(id) ?? Infinity), Infinity);
     threads.push({ cid: componentId, ids, earliest, isSolo: ids.length === 1 });
   }

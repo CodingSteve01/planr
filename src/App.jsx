@@ -755,21 +755,30 @@ export default function App() {
           return;
         }
         // Sub-bullet for scheduled meeting overrides:
-        // *Meeting-Plan: 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]; 2027-01-01→[...]*
+        // *Meeting-Plan: 2026-06-01→[plans:dev+lead, Standup 0.5h/d]; 2027-01-01→[...]*
         const mp = line.match(/^\s*\*Meeting-Plan:\s*(.+?)\*\s*$/);
         if (mp && lastItem && mems[mems.length - 1] === lastItem) {
           const out = [];
           for (const seg of mp[1].split(';').map(s => s.trim()).filter(Boolean)) {
             const dm = seg.match(/^(\d{4}-\d{2}-\d{2})\s*→\s*\[(.+)\]\s*$/);
             if (!dm) continue;
-            const meetings = dm[2].split(',').map(s => s.trim()).filter(Boolean).map((raw, i) => {
+            const entry = { from: dm[1], meetings: [] };
+            dm[2].split(',').map(s => s.trim()).filter(Boolean).forEach((raw, i) => {
+              const planM = raw.match(/^plans:\s*(.+)$/i);
+              if (planM) {
+                entry._parsedPlanNames = planM[1].split('+').map(s => s.trim()).filter(Boolean);
+                return;
+              }
               const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
-              if (!hm) return { id: 'mc_' + i, name: raw, hours: 0, frequency: 'weekly' };
+              if (!hm) {
+                entry.meetings.push({ id: 'mc_' + i, name: raw, hours: 0, frequency: 'weekly' });
+                return;
+              }
               const fk = hm[3].toLowerCase();
               const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
-              return { id: 'mc_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq };
+              entry.meetings.push({ id: 'mc_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq });
             });
-            out.push({ from: dm[1], meetings });
+            out.push(entry);
           }
           if (out.length) lastItem.meetingChanges = out.sort((a, b) => a.from.localeCompare(b.from));
           return;
@@ -1094,6 +1103,17 @@ export default function App() {
       if (m._parsedPlanNames) {
         m.meetingPlanIds = m._parsedPlanNames.map(n => planByName[n] || n).filter(Boolean);
         delete m._parsedPlanNames;
+      }
+      if (Array.isArray(m.meetingChanges)) {
+        m.meetingChanges = m.meetingChanges.map(change => {
+          if (!change?._parsedPlanNames) return change;
+          const next = {
+            ...change,
+            meetingPlanIds: change._parsedPlanNames.map(n => planByName[n] || n).filter(Boolean),
+          };
+          delete next._parsedPlanNames;
+          return next;
+        });
       }
     });
     // Strip transient _parsedShort field from members

@@ -104,9 +104,10 @@ function _leafNodes(tree) {
 }
 
 // Legacy/backfilled files can have actual bars (`completedStart` / `completedAt`)
-// but no append-only history yet. Seed enough history from those bars so
-// "diff since date" still has a reliable past state. Real history wins per id.
-function _syntheticHistoryFromActualBars(tree, idsWithRealHistory) {
+// and later imported append-only history. Seed enough history from those bars so
+// "diff since date" has a reliable pre-import past state; later real events still
+// win because they are replayed after these baseline events.
+function _syntheticHistoryFromActualBars(tree) {
   const leaves = _leafNodes(tree);
   const datedLeaves = leaves.filter(leaf =>
     leaf.completedStart || leaf.completedAt || leaf.completedEnd || leaf.plannedStart || leaf.pinnedStart);
@@ -122,7 +123,6 @@ function _syntheticHistoryFromActualBars(tree, idsWithRealHistory) {
   const baseline = addD(new Date(Math.min(...dates.map(d => +d))), -1);
   const events = [];
   for (const leaf of leaves) {
-    if (idsWithRealHistory.has(leaf.id)) continue;
     events.push({ ts: _tsForDay(baseline, 8), id: leaf.id, kind: 'added', status: 'open', progress: 0 });
     if (leaf.status === 'done') {
       const end = localDate(leaf.completedEnd || leaf.completedAt || leaf.completedStart || baseline);
@@ -144,8 +144,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     return null;
   }
   const realHistory = Array.isArray(historyEvents) ? historyEvents : [];
-  const idsWithRealHistory = new Set(realHistory.map(ev => ev.id).filter(Boolean));
-  const syntheticHistory = _syntheticHistoryFromActualBars(tree, idsWithRealHistory);
+  const syntheticHistory = _syntheticHistoryFromActualBars(tree);
   const effectiveHistory = [...syntheticHistory, ...realHistory];
   if (!effectiveHistory.length) {
     return null;

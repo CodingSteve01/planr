@@ -3,7 +3,7 @@
 // payload and asserts the render doesn't throw. Catches missing imports,
 // unwrapped JSX, and prop-shape mismatches introduced by future refactors.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { fireEvent, render, cleanup } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { TreeView } from '../components/views/TreeView.jsx';
 import { GanttView } from '../components/views/GanttView.jsx';
@@ -31,7 +31,10 @@ function wrap(node) {
 }
 
 describe('view smoke', () => {
-  beforeEach(() => cleanup());
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('TreeView mounts', () => {
     expect(() => wrap(
@@ -52,6 +55,61 @@ describe('view smoke', () => {
         onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
         onReorderSibling={noop} />,
     )).not.toThrow();
+  });
+
+  it('GanttView updates the timeline zoom through the zoom control', () => {
+    localStorage.setItem('planr_gantt_zoom', '20');
+    const scheduledTask = {
+      ...tree[0],
+      treeId: 'P1',
+      startWi: 0,
+      endWi: 0,
+      startD: new Date('2026-01-05'),
+      endD: new Date('2026-01-05'),
+      assign: [],
+    };
+    const { container } = wrap(
+      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+
+    fireEvent.click(container.querySelector('[data-htip="Zoom in"]'));
+
+    expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
+  });
+
+  it('GanttView pans the timeline by dragging empty space', () => {
+    const scheduledTask = {
+      ...tree[0],
+      treeId: 'P1',
+      startWi: 0,
+      endWi: 0,
+      startD: new Date('2026-01-05'),
+      endD: new Date('2026-01-05'),
+      assign: [],
+    };
+    const { container, getByTestId } = wrap(
+      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+    const timeline = getByTestId('gantt-timeline');
+    timeline.scrollLeft = 80;
+    timeline.scrollTop = 20;
+
+    fireEvent.mouseDown(timeline, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.mouseMove(container.querySelector('.gantt'), { clientX: 60, clientY: 90 });
+    fireEvent.mouseUp(container.querySelector('.gantt'));
+
+    expect(timeline.scrollLeft).toBe(120);
+    expect(timeline.scrollTop).toBe(30);
   });
 
   it('NetGraph mounts', () => {

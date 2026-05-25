@@ -53,7 +53,7 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(station.prog).toBeCloseTo(0.25, 4);
   });
 
-  test('station is reached only when every clustered item is actually done', () => {
+  test('done and open tasks are not clustered into one reached station', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'open', best: 0 },
       { id: 'P1.1', name: 'Done', status: 'done', progress: 100, best: 1, factor: 1 },
@@ -65,12 +65,33 @@ describe('computeRoadmapModel progress semantics', () => {
     ];
 
     const model = modelFor(tree, scheduled);
-    const station = model.lines[0].majorStations[0];
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
 
-    expect(station.done).toBe(1);
-    expect(station.total).toBe(2);
-    expect(station.allDone).toBe(false);
-    expect(station.prog).toBeCloseTo(0.5, 4);
+    expect(stations).toHaveLength(2);
+    expect(stations[0].done).toBe(1);
+    expect(stations[0].total).toBe(1);
+    expect(stations[0].allDone).toBe(true);
+    expect(stations[1].allDone).toBe(false);
+  });
+
+  test('done and unfinished work close in time become separate stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done predecessor', status: 'done', progress: 100, best: 8, factor: 1 },
+      { id: 'P1.2', name: 'Active successor', status: 'wip', progress: 25, best: 8, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done predecessor', status: 'done', effort: 8, startD: d('2026-01-01'), endD: d('2026-01-10') },
+      { id: 'P1.2', name: 'Active successor', status: 'wip', effort: 8, startD: d('2026-01-11'), endD: d('2026-01-12') },
+    ];
+
+    const model = modelFor(tree, scheduled);
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+
+    expect(stations).toHaveLength(2);
+    expect(stations[0].id).toBe('P1.1');
+    expect(stations[0].allDone).toBe(true);
+    expect(stations[1].allDone).toBe(false);
   });
 
   test('live train sits at the reached route end and cannot pass the first not-done station', () => {
@@ -186,5 +207,54 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(line.trainT).toBeLessThan(0.96);
     expect(svg).not.toContain(fullStripe);
     expect(svg).toContain('stroke="url(#rm-past-stripe)"');
+  });
+
+  test('diff mode uses static station halos instead of pulsing rings', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+    });
+
+    expect(svg).not.toContain('values="10;13;10"');
+    expect(svg).not.toContain('values="6;9;6"');
+  });
+
+  test('diff legend hides untouched future stations but keeps current context', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Current open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Current open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+    });
+
+    expect(svg).toContain('data-item-id="P1.1"');
+    expect(svg).toContain('data-item-id="P1.2"');
+    expect(svg).not.toContain('data-item-id="P1.3"');
   });
 });

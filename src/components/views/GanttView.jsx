@@ -105,15 +105,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
-  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, taskId}
-  const [linkMode, setLinkMode] = useState(null); // {fromId, mode: 'pred'|'succ'} — click a second bar to add dep
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   // Horizon lines: weeks from today that separate committed / estimated / exploratory zones
   const [h1Weeks] = useState(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } });
   const [h2Weeks] = useState(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } });
   // Zoom: WPX = pixels per week. 20 = default, lower zooms out (months), higher zooms in (toward day-level)
   const [zoom, setZoom] = useState(() => { try { return +localStorage.getItem('planr_gantt_zoom') || DAY_ZOOM; } catch { return DAY_ZOOM; } });
-  const setZ = v => { const c = Math.max(8, Math.min(140, v)); setZoom(c); try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {} };
+  const clampZoom = v => Math.max(8, Math.min(140, v));
+  const setZ = v => {
+    const c = clampZoom(v);
+    setZoom(c);
+    try { localStorage.setItem('planr_gantt_zoom', String(c)); } catch {}
+    return c;
+  };
   const WPX = zoom;
   const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
   const zoomMode = showDays ? 'day' : WPX <= 12 ? 'month' : 'week';
@@ -145,6 +149,27 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   function syncS(e) { if (hR.current) hR.current.scrollLeft = e.target.scrollLeft; if (lR.current) { scrollLock.current = true; lR.current.scrollTop = e.target.scrollTop; } }
   function syncL(e) { if (scrollLock.current) { scrollLock.current = false; return; } if (bR.current) bR.current.scrollTop = e.target.scrollTop; }
   function onLWheel(e) { if (bR.current) { bR.current.scrollTop += e.deltaY; bR.current.scrollLeft += e.deltaX; } }
+  function onTimelineWheel(e) {
+    const isZoomGesture = e.ctrlKey || e.metaKey;
+    if (!isZoomGesture) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const body = bR.current;
+    const anchorEl = e.currentTarget;
+    if (!body || !anchorEl) {
+      setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+      return;
+    }
+    const rect = anchorEl.getBoundingClientRect();
+    const anchorX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const timeAtPointer = (body.scrollLeft + anchorX) / Math.max(WPX, 1);
+    const nextZoom = setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+    requestAnimationFrame(() => {
+      if (!bR.current) return;
+      bR.current.scrollLeft = Math.max(0, timeAtPointer * nextZoom - anchorX);
+      if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
+    });
+  }
   useEffect(() => {
     try { localStorage.setItem('planr_gantt_collapsed', JSON.stringify(collapsedByMode)); } catch {}
   }, [collapsedByMode]);
@@ -1352,6 +1377,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // without waiting for React's batched state commit — same pattern as NetGraph's
   // zoomRef/panRef that fixed the stale-closure zoom-jump bug.
   const dragRef = useRef(null);
+  const panRef = useRef(null);
   const justDraggedRef = useRef(false);
 
   function onBMD(e, row) {
@@ -1385,6 +1411,28 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     setDrag(d);
     setDDelta(0);
   }
+  function clearTimelinePan() {
+    if (!panRef.current) return;
+    panRef.current = null;
+    if (bR.current) bR.current.style.cursor = '';
+    if (hR.current) hR.current.style.cursor = '';
+  }
+  function onTimelinePanStart(e) {
+    if (e.button !== 0 && e.button !== 1) return;
+    if (!bR.current) return;
+    const interactive = e.target?.closest?.('.gbar,[data-link-target],button,a,input,select,textarea,[role="button"]');
+    if (interactive) return;
+    e.preventDefault();
+    dismissTooltip(true);
+    panRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: bR.current.scrollLeft,
+      top: bR.current.scrollTop,
+    };
+    bR.current.style.cursor = 'grabbing';
+    if (hR.current) hR.current.style.cursor = 'grabbing';
+  }
   function onResizeEndMD(e, row) {
     e.stopPropagation();
     e.preventDefault();
@@ -1414,6 +1462,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     setDDelta(0);
   }
   function onMM(e) {
+    if (panRef.current && bR.current) {
+      const p = panRef.current;
+      bR.current.scrollLeft = Math.max(0, p.left - (e.clientX - p.x));
+      bR.current.scrollTop = Math.max(0, p.top - (e.clientY - p.y));
+      if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
+      if (lR.current) lR.current.scrollTop = bR.current.scrollTop;
+      return;
+    }
     const d = dragRef.current;
     if (d) {
       const dx = e.clientX - d.ox;
@@ -1461,6 +1517,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     }
   }
   function onMU() {
+    clearTimelinePan();
     const d = dragRef.current;
     if (d) {
       if (d.kind === 'resizeEnd') {
@@ -1536,9 +1593,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   useEffect(() => {
     const h = (e) => {
       if (e.key === 'Escape') {
+        clearTimelinePan();
         if (dragRef.current || drag) { dragRef.current = null; setDrag(null); setDDelta(0); justDraggedRef.current = false; }
         if (linkDrag) setLinkDrag(null);
-        if (linkMode) setLinkMode(null);
       }
     };
     window.addEventListener('keydown', h);
@@ -1592,6 +1649,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => {
     dismissTooltip(true);
     setHoverLineKey(null);
+    clearTimelinePan();
     if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); }
   }}>
     <div className="gantt-hdr">
@@ -1626,7 +1684,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           </>}
         </div>
       </div>
-      <div ref={hR} className="gh-scroll">
+      <div ref={hR} className="gh-scroll" onWheel={onTimelineWheel} onMouseDown={onTimelinePanStart}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: zoomMode === 'month' ? HH : HH / 2 }}>
           {months.map((m, i) => { const [y, mo] = m.ym.split('-'); const isYS = mo === '0';
             const label = monthHeaderLabel(m);
@@ -1725,7 +1783,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
       </div>
-      <div ref={bR} style={{ flex: 1, overflow: 'auto' }} onScroll={syncS}>
+      <div ref={bR} data-testid="gantt-timeline" style={{ flex: 1, overflow: 'auto' }} onScroll={syncS} onWheel={onTimelineWheel} onMouseDown={onTimelinePanStart}>
         <div style={{ width: tw, position: 'relative', minHeight: FLAG_ROW_H + visibleRows.length * RH }}>
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
@@ -2053,7 +2111,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     ? '0 4px 20px rgba(0,0,0,.5), 0 0 0 2px var(--ac)'
                     : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
                     : isMatch ? '0 0 0 2px var(--am)'
-                    : linkMode?.fromId === s.id || linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
+                    : linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
                   ...(isSummary
                     ? summaryStyle
                     : s.status === 'done'
@@ -2064,7 +2122,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                         textShadow: '0 1px 1.5px rgba(0,0,0,.28)',
                       }
                     : confStyle),
-                  cursor: linkMode || linkDrag ? 'crosshair'
+                  cursor: linkDrag ? 'crosshair'
                     : isSummary ? (groupBy === 'project' ? 'ns-resize' : 'pointer')
                     : s.status === 'done' ? 'pointer'
                     : (drag?.id === s.id && drag?.kind === 'resizeEnd') ? 'ew-resize'
@@ -2072,13 +2130,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     : drag ? 'grabbing' : 'grab',
                 }}
                 onMouseEnter={e => {
-                  if (dragRef.current || drag || linkDrag || linkMode || hoverLineKey) return;
+                  if (dragRef.current || drag || linkDrag || hoverLineKey) return;
                   showRowTip(row, e, !isSummary);
                 }}
                 onMouseLeave={() => hideRowTip(row, !isSummary)}
                 onMouseDown={e => {
                   dismissTooltip(true);
-                  if (linkMode || linkDrag) return;
+                  if (linkDrag) return;
                   if (isSummary) {
                     if (groupBy !== 'project' || !onReorderSibling) return;
                     onBMD(e, row);
@@ -2095,24 +2153,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     onBarClick?.(s);
                     return;
                   }
-                  if (linkMode && linkMode.fromId !== linkTaskId) {
-                    // Click-link mode (legacy via context menu): this bar becomes successor (depends on linkMode.fromId) or predecessor
-                    if (linkMode.mode === 'pred') onAddDep?.(linkTaskId, linkMode.fromId);
-                    else onAddDep?.(linkMode.fromId, linkTaskId);
-                    setLinkMode(null);
-                    return;
-                  }
                   // Suppress the click-after-drag: drag gestures (pin, reorder) shouldn't
                   // also open the QuickEdit sidebar on mouse-up.
                   if (justDraggedRef.current) { justDraggedRef.current = false; return; }
                   if (linkDrag) return;
                   onBarClick?.(s);
-                }}
-                onContextMenu={e => {
-                  if (isSummary) return;
-                  e.preventDefault();
-                  dismissTooltip(true);
-                  setCtxMenu({ x: e.clientX, y: e.clientY, taskId: s.id });
                 }}>
                 {/* Progress overlay: lighter strip on the left proportional to progress %.
                     When the diff overlay is active the band is split: the part up to the
@@ -2281,7 +2326,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {/* Dependency connector sits outside the clipped bar. The
                   fixed-duration resize handle remains inside the bar near the
                   end; this hover button starts a dependency drag. */}
-              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId || linkMode?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()}
+              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()}
                 style={{
                   position: 'absolute',
                   left: barLeft + bW - 11,
@@ -2468,12 +2513,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <span data-htip="Exploratory: scope unclear, needs concept work">○ {counts.exploratory}</span>
         </span> : null;
       })()}
-      {linkMode && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>
-        🔗 {t('g.linkClick', linkMode.mode === 'pred' ? t('g.ctxPred') : t('g.ctxSucc'))} <b>{linkMode.fromId}</b>
-        <button className="btn btn-ghost btn-xs" style={{ marginLeft: 6 }} onClick={() => setLinkMode(null)}>{t('cancel')}</button>
-      </span>}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
-      {/* Bar-help text removed — discoverable via right-click context menu */}
     </div>
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
@@ -2495,42 +2535,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     </svg>}
     {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
     {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
-    {ctxMenu && (() => {
-      const node = iMap[ctxMenu.taskId]; if (!node) return null;
-      const close = () => setCtxMenu(null);
-      return <>
-        <div onClick={close} onContextMenu={e => { e.preventDefault(); close(); }} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-        <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 200 }}>
-          <div style={{ padding: '5px 10px', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', borderBottom: '1px solid var(--b)', marginBottom: 4 }}>{ctxMenu.taskId} — {node.name?.slice(0, 30)}</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onBarClick(scheduled.find(s => s.id === ctxMenu.taskId) || node); close(); }}>📝 {t('g.ctxEdit')}</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'succ' }); close(); }}>⬇ {t('g.ctxSucc')}</div>
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { setLinkMode({ fromId: ctxMenu.taskId, mode: 'pred' }); close(); }}>⬆ {t('g.ctxPred')}</div>
-          <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-          <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }}
-            onClick={() => { onTaskUpdate?.({ ...node, parallel: !node.parallel }); close(); }}>
-            {node.parallel ? `≡ ${t('g.ctxSequential')}` : `≡ ${t('g.ctxParallel')}`}
-          </div>
-          {groupBy === 'project' && onReorderSibling && !node.parallel && <>
-            <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxQueueOrder')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'first'); close(); }}>⤒ {t('g.ctxRunFirst')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'up'); close(); }}>▲ {t('g.ctxRunEarlier')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'down'); close(); }}>▼ {t('g.ctxRunLater')}</div>
-            <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onReorderSibling?.(ctxMenu.taskId, 'last'); close(); }}>⤓ {t('g.ctxRunLast')}</div>
-          </>}
-          <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-          {node.pinnedStart
-            ? <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { onTaskUpdate?.({ ...node, pinnedStart: '' }); close(); }}>📌 {t('g.ctxUnpin')} ({node.pinnedStart})</div>
-            : <div className="tr" style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} onClick={() => { const sched = scheduled.find(s => s.id === ctxMenu.taskId); if (sched && sched.startD) { onTaskUpdate?.({ ...node, pinnedStart: iso(sched.startD) }); } close(); }}>📌 {t('g.ctxPinCurrent')}</div>}
-          {((node.deps?.length || 0) + (node.softDeps?.length || 0)) > 0 && <>
-            <div style={{ borderTop: '1px solid var(--b)', margin: '4px 0' }} />
-            <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{t('g.ctxRemoveDep')}</div>
-            {(node.deps || []).map(d => <div key={'h:' + d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--re)', fontFamily: 'var(--mono)' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× {d}</div>)}
-            {(node.softDeps || []).map(d => <div key={'s:' + d} className="tr" style={{ padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4, color: 'var(--tx3)', fontFamily: 'var(--mono)', fontStyle: 'italic' }} onClick={() => { onRemoveDep?.(ctxMenu.taskId, d); close(); }}>× ~{d}</div>)}
-          </>}
-        </div>
-      </>;
-    })()}
   </div>;
 }
 

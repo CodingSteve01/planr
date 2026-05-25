@@ -175,4 +175,27 @@ describe('buildThreadStructure', () => {
       ['P1.1.1', 'P2.1', 'P2.2'],
     ]);
   });
+
+  test('keeps related branch items together inside a connected thread', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P1.1.2', { deps: ['P1.1.1'] }),
+      item('P2'),
+      item('P2.1'),
+      item('P2.1.1'),
+      item('P2.1.2', { deps: ['P2.1.1', 'P1.1.2'] }),
+    ];
+    const allItems = [
+      { ...tree.find(n => n.id === 'P1.1.1'), startWi: 0 },
+      { ...tree.find(n => n.id === 'P2.1.1'), startWi: 1 },
+      { ...tree.find(n => n.id === 'P1.1.2'), startWi: 10 },
+      { ...tree.find(n => n.id === 'P2.1.2'), startWi: 11 },
+    ];
+
+    const [thread] = buildThreadStructure({ allItems, tree });
+
+    expect(thread.ids).toEqual(['P1.1.1', 'P1.1.2', 'P2.1.1', 'P2.1.2']);
+  });
 });
