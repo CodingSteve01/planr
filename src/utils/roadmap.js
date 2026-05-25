@@ -3,6 +3,7 @@
 // Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
 import { deadlineScopedScheduledItems } from './deadlines.js';
 import { leafProgress, scheduleEffort } from './scheduler.js';
+import { normalizeCompletedWindows } from './completion.js';
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -137,7 +138,7 @@ function compareByTime(a, b) {
   return a.id.localeCompare(b.id, undefined, { numeric: true });
 }
 
-function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
+function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = new Map()) {
   const ordered = [...tree].sort((a, b) => depthOf(b.id) - depthOf(a.id) || b.id.localeCompare(a.id));
   const leafIdsById = {};
   const result = {};
@@ -168,8 +169,10 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
       // roadmap. Falling back to pinnedStart/decideBy/date loses the "this
       // was finished in April" signal and pushes done items into the future
       // window of their successors.
+      const doneWindow = n?.status === 'done' ? completedWindows.get(id) : null;
       const start = toDate(
-        (n?.status === 'done' ? n?.completedStart : null)
+        doneWindow?.start
+        || (n?.status === 'done' ? n?.completedStart : null)
         || sched?.startD
         || (n?.status === 'done' ? n?.completedEnd : null)
         || n?.pinnedStart
@@ -177,7 +180,8 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats) {
         || n?.date,
       );
       const end = toDate(
-        (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
+        doneWindow?.end
+        || (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
         || sched?.endD
         || n?.date
         || n?.pinnedStart
@@ -447,7 +451,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     childMap[pid].push(node);
   });
   const schedMap = scheduled ? Object.fromEntries(scheduled.map(item => [item.id, item])) : {};
-  const meta = buildMeta(tree, childMap, nodeMap, schedMap, stats);
+  const completedWindows = normalizeCompletedWindows(tree || []);
+  const meta = buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows);
 
   const roots = tree.filter(node => !node.id.includes('.'));
   if (!roots.length) return null;
@@ -520,6 +525,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // contains one open task, the whole station becomes "not reached" and
     // months of completed predecessor work disappear visually.
     const CLUSTER_GAP_DAYS = 14;
+    const CLUSTER_MAX_SPAN_DAYS = 21;
+    const CLUSTER_MAX_ITEMS = 4;
     const clusters = [];
     let currentCluster = [];
     const clusterBand = item => ((nodeMap[item.id] || item)?.status === 'done' ? 'done' : 'active');
@@ -530,9 +537,15 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         return;
       }
       const lastEnd = new Date(currentCluster[currentCluster.length - 1].endD);
+      const firstEnd = new Date(currentCluster[0].endD);
       const thisEnd = new Date(item.endD);
       const sameProgressBand = clusterBand(item) === clusterBand(currentCluster[currentCluster.length - 1]);
-      if (sameProgressBand && (+thisEnd - +lastEnd) / 864e5 <= CLUSTER_GAP_DAYS) {
+      const gapDays = (+thisEnd - +lastEnd) / DAY;
+      const spanDays = (+thisEnd - +firstEnd) / DAY;
+      if (sameProgressBand
+          && gapDays <= CLUSTER_GAP_DAYS
+          && spanDays <= CLUSTER_MAX_SPAN_DAYS
+          && currentCluster.length < CLUSTER_MAX_ITEMS) {
         currentCluster.push(item);
       } else {
         clusters.push(currentCluster);

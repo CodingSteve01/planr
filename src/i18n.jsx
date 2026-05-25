@@ -390,15 +390,15 @@ const en = {
   'horizon.plannedPos': 'Planned position at horizon',
 
   // ── Retro panel (Soll/Ist aggregate over the diff window) ──
-  'retro.title': 'Retro · Soll/Ist',
-  'retro.sum': 'Soll {0}d → Ist {1}d',
-  'retro.sumTip': 'Aggregated over {0} completed tasks in the window',
-  'retro.ratio': 'Ratio {0}',
-  'retro.ratioTip': 'Ist ÷ Soll: 1.00 = on target, > 1.20 = overrun, < 0.80 = under',
-  'retro.hitRate': 'Hit rate {0}% ({1}/{2})',
-  'retro.hitRateTip': 'Share of tasks landing within ±20% of the estimate',
-  'retro.topOver': 'Top overruns',
-  'retro.topUnder': 'Top underruns',
+  'retro.title': 'Review · Estimate vs actual',
+  'retro.sum': 'Estimated {0}d · actual {1}d',
+  'retro.sumTip': 'Completed tasks in this comparison window: {0}. Estimated = best × factor; actual = workdays from done-start to done-end.',
+  'retro.ratio': 'Actual/estimate {0}',
+  'retro.ratioTip': 'Actual ÷ estimated. 1.00 = on estimate; 1.39 = 39% more workdays than estimated.',
+  'retro.hitRate': '{0}% within tolerance ({1}/{2})',
+  'retro.hitRateTip': 'Completed tasks whose actual workdays are within ±20% of their estimate',
+  'retro.topOver': 'Largest estimate overruns',
+  'retro.topUnder': 'Largest underruns',
 
   // ── Unified view filter popup ──
   'vf.label': 'Filter',
@@ -1046,15 +1046,15 @@ const de = {
   'horizon.plannedPos': 'Geplante Position am Horizont',
 
   // ── Retro-Panel (Soll/Ist-Aggregat über das Diff-Fenster) ──
-  'retro.title': 'Retro · Soll/Ist',
-  'retro.sum': 'Soll {0}d → Ist {1}d',
-  'retro.sumTip': 'Aggregiert über {0} im Fenster erledigte Tasks',
-  'retro.ratio': 'Verhältnis {0}',
-  'retro.ratioTip': 'Ist ÷ Soll: 1.00 = im Plan, > 1.20 = überzogen, < 0.80 = unterboten',
-  'retro.hitRate': 'Trefferquote {0}% ({1}/{2})',
-  'retro.hitRateTip': 'Anteil der Tasks innerhalb ±20% der Schätzung',
-  'retro.topOver': 'Top überzogen',
-  'retro.topUnder': 'Top unterboten',
+  'retro.title': 'Review · Schätzung vs. Ist',
+  'retro.sum': 'Geschätzt {0}d · tatsächlich {1}d',
+  'retro.sumTip': 'Erledigte Tasks in diesem Vergleichszeitraum: {0}. Geschätzt = Best × Faktor; tatsächlich = Arbeitstage von done-start bis done-end.',
+  'retro.ratio': 'Ist/Schätzung {0}',
+  'retro.ratioTip': 'Tatsächlich ÷ geschätzt. 1,00 = im Ziel; 1,39 = 39% mehr Arbeitstage als geschätzt.',
+  'retro.hitRate': '{0}% in Toleranz ({1}/{2})',
+  'retro.hitRateTip': 'Erledigte Tasks, deren tatsächliche Arbeitstage innerhalb ±20% der Schätzung liegen',
+  'retro.topOver': 'Größte Überschreitungen',
+  'retro.topUnder': 'Größte Unterschreitungen',
 
   // ── Vereinheitlichter View-Filter-Popup ──
   'vf.label': 'Filter',

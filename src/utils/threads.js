@@ -245,7 +245,52 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
       if (!clusters.has(key)) clusters.set(key, []);
       clusters.get(key).push(id);
     }
-    for (const clusterIds of clusters.values()) clusterIds.sort(compareItems);
+
+    const pathSortCluster = (clusterIds) => {
+      const localSet = new Set(clusterIds);
+      const localSucc = new Map(clusterIds.map(id => [id, []]));
+      const localIndeg = new Map(clusterIds.map(id => [id, 0]));
+      for (const edgeKey of rankEdges) {
+        const [from, to] = edgeKey.split('->');
+        if (!localSet.has(from) || !localSet.has(to)) continue;
+        localSucc.get(from).push(to);
+        localIndeg.set(to, (localIndeg.get(to) || 0) + 1);
+      }
+
+      const originalIndeg = new Map(localIndeg);
+      const ordered = [];
+      const seen = new Set();
+      const queue = clusterIds
+        .filter(id => (localIndeg.get(id) || 0) === 0)
+        .sort(compareItems);
+
+      while (queue.length) {
+        const current = queue.shift();
+        if (seen.has(current)) continue;
+        seen.add(current);
+        ordered.push(current);
+
+        const ready = [];
+        for (const next of (localSucc.get(current) || EMPTY_ARR).sort(compareItems)) {
+          localIndeg.set(next, (localIndeg.get(next) || 0) - 1);
+          if (localIndeg.get(next) === 0) ready.push(next);
+        }
+
+        const continuations = ready
+          .filter(id => (originalIndeg.get(id) || 0) <= 1)
+          .sort(compareItems);
+        const joins = ready
+          .filter(id => (originalIndeg.get(id) || 0) > 1)
+          .sort(compareItems);
+        queue.unshift(...continuations);
+        queue.push(...joins);
+      }
+
+      const remaining = clusterIds.filter(id => !seen.has(id)).sort(compareItems);
+      return [...ordered, ...remaining];
+    };
+
+    for (const [key, clusterIds] of clusters) clusters.set(key, pathSortCluster(clusterIds));
 
     const clusterSucc = new Map([...clusters.keys()].map(key => [key, new Set()]));
     const clusterIndeg = new Map([...clusters.keys()].map(key => [key, 0]));

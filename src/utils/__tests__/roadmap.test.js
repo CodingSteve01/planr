@@ -94,6 +94,33 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(stations[1].allDone).toBe(false);
   });
 
+  test('long chains of completed work are split into multiple stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Step 1', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.2', name: 'Step 2', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.3', name: 'Step 3', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.4', name: 'Step 4', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.5', name: 'Step 5', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.6', name: 'Step 6', status: 'done', progress: 100, best: 2, factor: 1 },
+    ];
+    const scheduled = ['2026-01-05', '2026-01-15', '2026-01-26', '2026-02-05', '2026-02-16', '2026-02-26']
+      .map((day, idx) => ({
+        id: `P1.${idx + 1}`,
+        name: `Step ${idx + 1}`,
+        status: 'done',
+        effort: 2,
+        startD: d(day),
+        endD: d(day),
+      }));
+
+    const model = modelFor(tree, scheduled);
+    const stations = model.lines[0].majorStations;
+
+    expect(stations.length).toBeGreaterThan(1);
+    expect(Math.max(...stations.map(station => station.clusterSize))).toBeLessThan(6);
+  });
+
   test('live train sits at the reached route end and cannot pass the first not-done station', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'open', best: 0 },

@@ -2,7 +2,7 @@
 // Smoke tests for each memo'd view. Each one mounts with a minimal project
 // payload and asserts the render doesn't throw. Catches missing imports,
 // unwrapped JSX, and prop-shape mismatches introduced by future refactors.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, cleanup } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { TreeView } from '../components/views/TreeView.jsx';
@@ -110,6 +110,55 @@ describe('view smoke', () => {
 
     expect(timeline.scrollLeft).toBe(120);
     expect(timeline.scrollTop).toBe(30);
+  });
+
+  it('GanttView opens done bars on click and shows their item tooltip on hover', () => {
+    const onBarClick = vi.fn();
+    const doneTree = [
+      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'done', deps: [], assign: [] },
+      { id: 'P1.1', name: 'Work package', team: 'T1', best: 0, factor: 1.5, status: 'done', deps: [], assign: [] },
+      {
+        id: 'P1.1.1',
+        name: 'Item',
+        team: 'T1',
+        best: 5,
+        factor: 1.5,
+        status: 'done',
+        deps: [],
+        assign: [],
+        completedStart: '2026-01-05',
+        completedEnd: '2026-01-05',
+        completedAt: '2026-01-05',
+      },
+      {
+        id: 'P1.1.2',
+        name: 'Second item',
+        team: 'T1',
+        best: 1,
+        factor: 1,
+        status: 'done',
+        deps: [],
+        assign: [],
+        completedStart: '2026-01-05',
+        completedEnd: '2026-01-05',
+        completedAt: '2026-01-05',
+      },
+    ];
+    const { container } = wrap(
+      <GanttView scheduled={[]} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={doneTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={onBarClick} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
+        onReorderSibling={noop} />,
+    );
+    const bar = container.querySelector('[data-task-bar="P1.1.1"]');
+
+    fireEvent.mouseEnter(bar, { clientX: 100, clientY: 80 });
+    expect(container.querySelector('.tt-title')?.textContent).toContain('P1.1.1');
+
+    fireEvent.click(bar);
+    expect(onBarClick).toHaveBeenCalled();
   });
 
   it('NetGraph mounts', () => {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, memo } from 'react';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
-import { clampCompletedDate } from '../../utils/completion.js';
+import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
 import { buildThreadStructure } from '../../utils/threads.js';
@@ -250,6 +250,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // full scoped set so their aggregates stay factually correct.
   const allItems = useMemo(() => {
     const sIdSet = new Set(scheduled.map(s => s.id));
+    const doneWindows = normalizeCompletedWindows(tree || [], { workDays });
     const unscheduledLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status !== 'done').map(r => ({
       id: r.id, name: r.name, team: r.team || '', person: UNASSIGNED_LABEL, personId: null, assign: r.assign || [], prio: r.prio, seq: r.seq,
       best: r.best || 0, status: r.status, note: r.note || '', deps: (r.deps || []).join(', '),
@@ -257,9 +258,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       _unestimated: true,
     }));
     const doneLeaves = (tree || []).filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status === 'done').map(r => {
-      const completedAt = clampCompletedDate(r.completedAt || r.completedEnd || r.completedStart);
+      const doneWindow = doneWindows.get(r.id);
+      const completedAt = clampCompletedDate(doneWindow?.end || r.completedAt || r.completedEnd || r.completedStart);
       const endD = completedAt ? localDate(completedAt) : null;
-      let startD = r.completedStart ? localDate(r.completedStart) : endD;
+      let startD = doneWindow?.start ? localDate(doneWindow.start) : (r.completedStart ? localDate(r.completedStart) : endD);
       if (startD && endD && startD > endD) startD = new Date(endD);
       const completedPersonId = r.completedPersonId || r.assign?.[0] || null;
       const completedPerson = r.completedPerson || (completedPersonId ? (memberById[completedPersonId]?.name || completedPersonId) : UNASSIGNED_LABEL);
@@ -286,6 +288,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         vacDed: 0,
         autoAssigned: !!r.completedAutoAssigned,
         _completed: true,
+        _historyAdjusted: !!doneWindow?.adjusted,
       };
     });
     let items = [...scheduled, ...doneLeaves, ...unscheduledLeaves];
@@ -293,7 +296,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (teamFilter) items = items.filter(s => (s.team || '') === teamFilter);
     if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
     return items;
-  }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter]);
+  }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays]);
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const rootOf = id => id.split('.')[0];
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
@@ -2098,7 +2101,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     border: `2px solid ${_diffDoneSet.has(s.id) ? '#10b981' : '#f59e0b'}`,
                     boxShadow: `0 0 0 1px var(--bg,#111318), 0 0 10px ${_diffDoneSet.has(s.id) ? 'rgba(16,185,129,.6)' : 'rgba(245,158,11,.6)'}` }} />
               )}
-              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={linkTaskId} data-link-target={linkTaskId}
+              {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={linkTaskId} data-link-target={linkTaskId} data-task-bar={!isSummary ? linkTaskId : undefined}
                 style={{
                   left: barLeft, width: Math.max(bW, 6), top: isSummary ? 6 : 4, height: isSummary ? 16 : 20, borderRadius: isSummary ? 5 : 4,
                   padding: isSummary ? '0 6px' : microBar ? 0 : compactBar ? '0 2px' : '0 6px',
@@ -2326,15 +2329,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               {/* Dependency connector sits outside the clipped bar. The
                   fixed-duration resize handle remains inside the bar near the
                   end; this hover button starts a dependency drag. */}
-              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')} onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()}
+              {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')}
                 style={{
                   position: 'absolute',
-                  left: barLeft + bW - 11,
+                  left: microBar ? barLeft + bW + 1 : barLeft + bW - 11,
                   top: 14,
                   '--link-color': s.status === 'done' ? 'rgba(255,255,255,.88)' : tc,
-                  pointerEvents: 'auto',
+                  pointerEvents: 'none',
                 }}>
-                <span className="g-link-connector-dot">+</span>
+                <span className="g-link-connector-dot" onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>+</span>
               </div>}
               {/* Decision-by marker: diamond on the exact decide-by date */}
               {decideX >= 0 && decideX <= tw && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
