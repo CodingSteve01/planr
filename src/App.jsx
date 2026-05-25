@@ -2448,7 +2448,7 @@ export default function App() {
       <button className="btn btn-sec btn-sm" onClick={() => setModal('snapshots')}
         data-htip="Recover from a rolling JSON snapshot — last 20 saves are kept locally as a safety net.">↶ Snapshots</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('history')}
-        data-htip="Edit the raw plan history used by Subway and diff views.">History</button>
+        data-htip="Raw fallback editor for the planr-history block. Normal history edits live in the item dialog.">Raw history</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
@@ -2764,12 +2764,16 @@ export default function App() {
         onTeamDel={onResTeamDel} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} focusRequest={modalFocus}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onSplitHandoff={splitHandoff}
       onSplitTaskAtProgress={splitTaskAtProgress}
+      onHistoryChange={events => {
+        setData(d => ({ ...d, historyEvents: events }));
+        setSaved(false);
+      }}
       onNavigate={id => {
         const target = tree.find(r => r.id === id);
         if (!target) return;
@@ -2796,6 +2800,8 @@ export default function App() {
     />}
     {modal === 'history' && <HistoryModal
       events={data?.historyEvents || []}
+      tree={tree}
+      initialItemId={selected?.id || ''}
       onClose={() => setModal(null)}
       onSave={events => {
         setData(d => ({ ...d, historyEvents: events }));

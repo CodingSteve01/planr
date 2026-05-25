@@ -524,6 +524,32 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(openStation.t).toBeGreaterThan(line.trainT);
   });
 
+  test('completed stations are ordered by actual completion date, not schedule end date', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Completed later in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-03-01', completedEnd: '2026-03-01' },
+      { id: 'P1.2', name: 'Completed earlier in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-01-01', completedEnd: '2026-01-01' },
+      { id: 'P1.3', name: 'Future scope', status: 'open', progress: 0, best: 8, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Completed later in reality', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Completed earlier in reality', status: 'done', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-03-15'),
+    });
+    const line = model.lines[0];
+    const earlier = line.majorStations.find(station => station.id === 'P1.2');
+    const later = line.majorStations.find(station => station.id === 'P1.1');
+
+    expect(earlier.milestoneDate < later.milestoneDate).toBe(true);
+    expect(earlier.t).toBeLessThan(later.t);
+  });
+
   test('diff mode uses static station halos instead of pulsing rings', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },

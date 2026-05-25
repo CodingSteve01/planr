@@ -124,6 +124,15 @@ describe('stateAsOf', () => {
     const at06 = stateAsOf(events, '2026-05-06');
     expect(at06.has('P.A')).toBe(false);
   });
+
+  test('uses completedAt over effectiveAt for done replay semantics', () => {
+    const events = [
+      { ts: '2026-05-01T10:00:00Z', id: 'P.A', kind: 'added', status: 'open', progress: 0 },
+      { ts: '2026-05-20T10:00:00Z', id: 'P.A', status: 'done', progress: 100, effectiveAt: '2026-05-30', completedAt: '2026-05-10' },
+    ];
+
+    expect(stateAsOf(events, '2026-05-15').get('P.A')).toMatchObject({ status: 'done', progress: 100 });
+  });
 });
 
 describe('diffForUi', () => {

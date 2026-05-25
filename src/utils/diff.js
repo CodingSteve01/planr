@@ -6,7 +6,7 @@
 // Keep this pure so it composes cleanly into useMemo. Views are expected to
 // pre-filter their tree (e.g. NetGraph already drops descendants of collapsed
 // nodes) and look up ids in the returned sets.
-import { stateAsOf } from './history.js';
+import { eventReplayTimestamp, stateAsOf } from './history.js';
 import { addD, iso, localDate } from './date.js';
 import { leafProgress, scheduleEffort } from './scheduler.js';
 
@@ -183,7 +183,7 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   // progress event counts when it's an increase and the task wasn't already
   // done. `kind=added` after the cutoff marks an actual new leaf.
   for (const ev of effectiveHistory) {
-    if (ev.ts <= cutoffIso) continue;
+    if (eventReplayTimestamp(ev) <= cutoffIso) continue;
     if (!leafIdSet.has(ev.id)) continue;
     const past = pastLeafState.get(ev.id);
     if (ev.status === 'done' && past?.status !== 'done') {

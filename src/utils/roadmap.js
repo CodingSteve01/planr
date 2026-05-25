@@ -497,6 +497,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       parentId: parentId(node.id),
       kind,
       anchorDate,
+      milestoneDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
       endDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
       prog: info.prog || 0,
       done: info.done || 0,
@@ -632,6 +633,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
         clusterItems: cluster.map(c => ({ id: c.id, name: c.name })),
         kind: 'major',
         anchorDate: earliestStart || latestEnd,
+        milestoneDate: latestEnd || earliestStart,
         endDate: latestEnd || earliestStart,
         prog,
         done,
@@ -876,7 +878,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
-    const byEnd = (a, b) => (+a.endDate || Infinity) - (+b.endDate || Infinity)
+    const byEnd = (a, b) => (+(a.milestoneDate || a.endDate) || Infinity) - (+(b.milestoneDate || b.endDate) || Infinity)
       || a.id.localeCompare(b.id, undefined, { numeric: true });
     const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
     const doneOrdered = allStations.filter(station => station.allDone).sort(byEnd);
@@ -884,7 +886,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 
     // Project span is retained only for the "today on calendar" ghost marker
     // and as fallback if a line has no effort data.
-    const dates = allStations.map(s => +s.endDate).filter(Number.isFinite);
+    const dates = allStations.map(s => +(s.milestoneDate || s.endDate)).filter(Number.isFinite);
     const firstD = dates.length ? Math.min(...dates) : null;
     const lastD = dates.length ? Math.max(...dates) : null;
     const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
@@ -945,8 +947,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const doneRawTs = doneOrdered.map(station => {
       doneEffort += Math.max(0, station.effort || 0);
       if (totalRouteEffort > 0) return progressToRouteT(doneEffort / totalRouteEffort);
-      if (span > 0 && Number.isFinite(+station.endDate)) {
-        return ROUTE_T_LO + ((+station.endDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      const milestoneDate = station.milestoneDate || station.endDate;
+      if (span > 0 && Number.isFinite(+milestoneDate)) {
+        return ROUTE_T_LO + ((+milestoneDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
       }
       return NaN;
     });
@@ -954,8 +957,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const activeRawTs = activeOrdered.map(station => {
       activeEffort += Math.max(0, station.effort || 0);
       if (totalRouteEffort > 0) return progressToRouteT(activeEffort / totalRouteEffort);
-      if (span > 0 && Number.isFinite(+station.endDate)) {
-        return ROUTE_T_LO + ((+station.endDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      const milestoneDate = station.milestoneDate || station.endDate;
+      if (span > 0 && Number.isFinite(+milestoneDate)) {
+        return ROUTE_T_LO + ((+milestoneDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
       }
       return NaN;
     });

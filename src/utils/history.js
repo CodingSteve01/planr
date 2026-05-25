@@ -4,7 +4,8 @@
 //
 //   <ISO_TS> <ID> key=value [key=value ...]
 //
-// Recognised keys: status, progress, completedAt, kind (added|removed).
+// Recognised keys: status, progress, completedAt, effectiveAt,
+// kind (added|removed).
 // Lines outside that shape are ignored on parse so future schema extensions
 // stay forward-compatible.
 //
@@ -69,6 +70,12 @@ export function formatEvent(ev) {
   return [ev.ts, ev.id, ...kvs].join(' ');
 }
 
+export function eventReplayTimestamp(ev) {
+  const day = ev?.completedAt || ev?.effectiveAt || '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return `${day}T12:00:00.000Z`;
+  return ev?.ts || '';
+}
+
 // ── Snapshot helpers ─────────────────────────────────────────────────────────
 // Build a leaf-state map from a tree array. Stores only the fields the diff
 // machinery looks at (status, progress, completedAt). Used both pre- and
@@ -123,9 +130,13 @@ export function stateAsOf(events, asOfDate) {
   const cutoff = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
   const m = new Map();
   if (!Array.isArray(events)) return m;
-  const sorted = [...events].sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+  const sorted = [...events].sort((a, b) => {
+    const at = eventReplayTimestamp(a);
+    const bt = eventReplayTimestamp(b);
+    return at < bt ? -1 : at > bt ? 1 : 0;
+  });
   for (const ev of sorted) {
-    if (new Date(ev.ts) > cutoff) break;
+    if (new Date(eventReplayTimestamp(ev)) > cutoff) break;
     if (ev.kind === 'removed') { m.delete(ev.id); continue; }
     const prev = m.get(ev.id) || { status: 'open', progress: 0, completedAt: null };
     const next = { ...prev };

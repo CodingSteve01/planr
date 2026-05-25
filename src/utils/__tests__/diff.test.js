@@ -95,4 +95,28 @@ describe('computeDiff historical fallback', () => {
     expect(diff.doneInWindowIds).toEqual([]);
     expect(diff.changedInWindowIds).toEqual([]);
   });
+
+  test('progress event effectiveAt controls whether it appears in a diff window', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Backfilled progress', status: 'wip', progress: 50, best: 5, factor: 1 },
+    ];
+    const historyEvents = [
+      { ts: '2026-05-25T12:00:00.000Z', id: 'P1.1', status: 'wip', progress: 50, effectiveAt: '2026-05-01' },
+    ];
+
+    const afterEffectiveDate = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-05-11'),
+    });
+    expect(afterEffectiveDate.progressedInWindowIds).not.toContain('P1.1');
+
+    const beforeEffectiveDate = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-04-30'),
+    });
+    expect(beforeEffectiveDate.progressedInWindowIds).toContain('P1.1');
+  });
 });

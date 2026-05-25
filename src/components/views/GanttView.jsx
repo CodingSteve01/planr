@@ -951,27 +951,49 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (prev && prev !== id) onAddDep?.(id, prev);
     });
   };
-  const clearSelectedLinks = () => {
+  const clearSelectedLinks = (kind = 'all') => {
     const selected = new Set(selectedTaskIds);
-    const pairs = new Set();
-    const scheduleRemove = (targetId, depId) => {
-      if (!targetId || !depId) return;
-      pairs.add(`${targetId}\u0000${depId}`);
-    };
-    selectedTaskIds.forEach(id => {
-      const node = iMap[id];
-      if (!node) return;
-      [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
-        .forEach(depId => scheduleRemove(id, depId));
-    });
+    if (kind === 'all' && onRemoveDep) {
+      const pairs = new Set();
+      const scheduleRemove = (targetId, depId) => {
+        if (!targetId || !depId) return;
+        pairs.add(`${targetId}\u0000${depId}`);
+      };
+      selectedTaskIds.forEach(id => {
+        const node = iMap[id];
+        if (!node) return;
+        [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
+          .forEach(depId => scheduleRemove(id, depId));
+      });
+      (tree || EMPTY_ARR).forEach(node => {
+        [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
+          .filter(depId => selected.has(depId))
+          .forEach(depId => scheduleRemove(node.id, depId));
+      });
+      pairs.forEach(key => {
+        const [targetId, depId] = key.split('\u0000');
+        onRemoveDep(targetId, depId);
+      });
+      return;
+    }
+    const removeHard = kind === 'hard' || kind === 'all';
+    const removeSoft = kind === 'soft' || kind === 'all';
     (tree || EMPTY_ARR).forEach(node => {
-      [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
-        .filter(depId => selected.has(depId))
-        .forEach(depId => scheduleRemove(node.id, depId));
-    });
-    pairs.forEach(key => {
-      const [targetId, depId] = key.split('\u0000');
-      onRemoveDep?.(targetId, depId);
+      const isSelectedTarget = selected.has(node.id);
+      let deps = node.deps || EMPTY_ARR;
+      let softDeps = node.softDeps || EMPTY_ARR;
+      let changed = false;
+      if (removeHard) {
+        const next = deps.filter(depId => !(isSelectedTarget || selected.has(depId)));
+        changed = changed || next.length !== deps.length;
+        deps = next;
+      }
+      if (removeSoft) {
+        const next = softDeps.filter(depId => !(isSelectedTarget || selected.has(depId)));
+        changed = changed || next.length !== softDeps.length;
+        softDeps = next;
+      }
+      if (changed) onTaskUpdate?.({ ...node, deps, softDeps });
     });
   };
   const cpEdgeSet = useMemo(() => cpEdges instanceof Set ? cpEdges : new Set(cpEdges || []), [cpEdges]);
@@ -2664,8 +2686,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       </span>}
       {selectedTaskIds.length > 0 && <span data-testid="gantt-selection-count" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>
         <span>{t('g.selectedTasks', selectedTaskIds.length)}</span>
-        {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-xs btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.linkSelected')}</button>}
-        {selectedTaskIds.length > 1 && onRemoveDep && <button data-testid="gantt-clear-selected-links" className="btn btn-xs btn-sec" onClick={clearSelectedLinks} data-htip={t('g.clearSelectedLinksTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelectedLinks')}</button>}
         <button data-testid="gantt-clear-selection" className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelection')}</button>
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
@@ -2686,6 +2706,35 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       })()}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
     </div>
+    {selectedTaskIds.length > 0 && <div
+      style={{
+        position: 'fixed',
+        left: '50%',
+        bottom: 52,
+        transform: 'translateX(-50%)',
+        zIndex: 60,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '7px 9px',
+        borderRadius: 8,
+        border: '1px solid var(--b2)',
+        background: 'rgba(17, 24, 39, .96)',
+        boxShadow: '0 12px 32px rgba(0,0,0,.32)',
+        color: 'var(--tx)',
+        fontSize: 11,
+        fontFamily: 'var(--mono)',
+      }}
+      data-testid="gantt-selection-actionbar"
+    >
+      <span style={{ color: 'var(--ac)', fontWeight: 700 }}>{t('g.selectedTasks', selectedTaskIds.length)}</span>
+      {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-xs btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.linkSelected')}</button>}
+      <span style={{ width: 1, height: 16, background: 'var(--b2)' }} />
+      <button data-testid="gantt-clear-selected-soft-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedSoftLinks')}</button>
+      <button data-testid="gantt-clear-selected-hard-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('hard')} data-htip={t('g.clearSelectedHardLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedHardLinks')}</button>
+      <button data-testid="gantt-clear-selected-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedLinks')}</button>
+      <button className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelection')}</button>
+    </div>}
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
       <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>

@@ -6,14 +6,14 @@ function inspectHistoryText(text) {
   for (const [idx, raw] of text.split('\n').entries()) {
     const line = raw.trim();
     if (!line || line === 'v1' || line.startsWith('#') || line.startsWith('//')) continue;
-    if (!/^\d{4}-\d{2}-\d{2}T\S+\s+\S+\s+\S+=/.test(line)) badLines.push(idx + 1);
+    if (!/^\d{4}-\d{2}-\d{2}T\S+\s+\S+\s*=/.test(line)) badLines.push(idx + 1);
   }
   return { events: parseHistoryBlock(text), badLines };
 }
 
 export function HistoryModal({ events = [], onClose, onSave }) {
-  const [text, setText] = useState(() => formatHistoryBlock(events));
-  const parsed = useMemo(() => inspectHistoryText(text), [text]);
+  const [rawText, setRawText] = useState(() => formatHistoryBlock(events));
+  const parsed = useMemo(() => inspectHistoryText(rawText), [rawText]);
   const hasErrors = parsed.badLines.length > 0;
 
   useEffect(() => {
@@ -24,14 +24,14 @@ export function HistoryModal({ events = [], onClose, onSave }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-lg" style={{ width: 'min(920px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ marginTop: 0 }}>History</h2>
+      <div className="modal modal-lg" style={{ width: 'min(860px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ marginTop: 0 }}>Raw history</h2>
         <p className="helper" style={{ marginTop: -4, marginBottom: 10 }}>
-          Edit the planr-history block. Format: ISO timestamp, item id, then key=value pairs such as status=done progress=100 completedAt=2026-05-20.
+          Fallback text editor for the planr-history block. Normal history repair lives in the item dialog under History.
         </p>
         <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
+          value={rawText}
+          onChange={e => setRawText(e.target.value)}
           spellCheck={false}
           style={{
             minHeight: 420,
@@ -50,9 +50,8 @@ export function HistoryModal({ events = [], onClose, onSave }) {
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, fontSize: 11, color: hasErrors ? 'var(--re)' : 'var(--tx3)' }}>
           {hasErrors
-            ? <span>Invalid event lines: {parsed.badLines.slice(0, 8).join(', ')}{parsed.badLines.length > 8 ? '…' : ''}</span>
+            ? <span>Invalid event lines: {parsed.badLines.slice(0, 8).join(', ')}{parsed.badLines.length > 8 ? '...' : ''}</span>
             : <span>{parsed.events.length} events parsed</span>}
-          <span style={{ marginLeft: 'auto' }}>Saving rewrites the block in canonical format.</span>
         </div>
         <div className="modal-footer">
           <button className="btn btn-sec" onClick={onClose}>Cancel</button>

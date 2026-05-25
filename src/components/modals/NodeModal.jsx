@@ -6,6 +6,7 @@ import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
+import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
@@ -22,7 +23,7 @@ const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onSplitHandoff, onSplitTaskAtProgress }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -228,6 +229,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     { id: 'workflow', label: t('qe.tab.workflow') },
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
+    { id: 'history', label: 'History' },
     { id: 'advanced', label: t('nm.advanced') },
   ];
   const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'insights';
@@ -631,6 +633,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>;
         })()}
       </>}
+
+      {/* ══════ HISTORY TAB ══════ */}
+      {activeNmTab === 'history' && <ItemHistoryTimeline
+        item={f}
+        events={historyEvents}
+        onEventsChange={onHistoryChange}
+      />}
 
       {/* ══════ ADVANCED TAB ══════ */}
       {activeNmTab === 'advanced' && <>
