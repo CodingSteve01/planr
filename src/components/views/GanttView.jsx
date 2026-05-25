@@ -953,7 +953,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   };
   const clearSelectedLinks = (kind = 'all') => {
     const selected = new Set(selectedTaskIds);
-    if (kind === 'all' && onRemoveDep) {
+    if (!onTaskUpdate && kind === 'all' && onRemoveDep) {
       const pairs = new Set();
       const scheduleRemove = (targetId, depId) => {
         if (!targetId || !depId) return;
@@ -983,6 +983,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       let deps = node.deps || EMPTY_ARR;
       let softDeps = node.softDeps || EMPTY_ARR;
       let changed = false;
+      const wasLinkedToSelection = isSelectedTarget
+        || deps.some(depId => selected.has(depId))
+        || softDeps.some(depId => selected.has(depId));
       if (removeHard) {
         const next = deps.filter(depId => !(isSelectedTarget || selected.has(depId)));
         changed = changed || next.length !== deps.length;
@@ -993,7 +996,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         changed = changed || next.length !== softDeps.length;
         softDeps = next;
       }
-      if (changed) onTaskUpdate?.({ ...node, deps, softDeps });
+      const shouldParallelize = wasLinkedToSelection
+        && leafIdSet.has(node.id)
+        && node.status !== 'done'
+        && deps.length === 0
+        && softDeps.length === 0
+        && !node.parallel;
+      if (changed || shouldParallelize) onTaskUpdate?.({ ...node, deps, softDeps, ...(shouldParallelize ? { parallel: true } : {}) });
     });
   };
   const cpEdgeSet = useMemo(() => cpEdges instanceof Set ? cpEdges : new Set(cpEdges || []), [cpEdges]);
