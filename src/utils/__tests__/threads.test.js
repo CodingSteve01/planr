@@ -225,4 +225,30 @@ describe('buildThreadStructure', () => {
 
     expect(thread.ids).toEqual(['P1.1.1', 'P1.1.3', 'P1.1.4', 'P1.1.2', 'P1.1.5', 'P1.1.6', 'P1.1.7']);
   });
+
+  test('follows a dependency continuation across parent clusters before unrelated sibling lanes', () => {
+    const tree = [
+      item('P1'),
+      item('P1.1'),
+      item('P1.1.1'),
+      item('P1.1.2', { deps: ['P1.1.1'] }),
+      item('P1.1.3'),
+      item('P1.1.4', { deps: ['P1.1.3'] }),
+      item('P1.1.5', { deps: ['P1.1.4', 'P1.2.1'] }),
+      item('P1.2'),
+      item('P1.2.1', { deps: ['P1.1.2'] }),
+    ];
+    const allItems = [
+      { ...tree.find(n => n.id === 'P1.1.1'), startWi: 0 },
+      { ...tree.find(n => n.id === 'P1.1.3'), startWi: 1 },
+      { ...tree.find(n => n.id === 'P1.1.2'), startWi: 10 },
+      { ...tree.find(n => n.id === 'P1.1.4'), startWi: 11 },
+      { ...tree.find(n => n.id === 'P1.2.1'), startWi: 12 },
+      { ...tree.find(n => n.id === 'P1.1.5'), startWi: 20 },
+    ];
+
+    const [thread] = buildThreadStructure({ allItems, tree });
+
+    expect(thread.ids).toEqual(['P1.1.1', 'P1.1.2', 'P1.2.1', 'P1.1.3', 'P1.1.4', 'P1.1.5']);
+  });
 });

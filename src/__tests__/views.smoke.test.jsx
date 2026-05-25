@@ -103,7 +103,14 @@ describe('view smoke', () => {
     );
     const timeline = getByTestId('gantt-timeline');
 
-    fireEvent.wheel(timeline, { ctrlKey: true, deltaY: -100, clientX: 20, clientY: 10 });
+    const event = new Event('wheel', { bubbles: true, cancelable: true });
+    Object.defineProperties(event, {
+      ctrlKey: { value: true },
+      deltaY: { value: -100 },
+      clientX: { value: 20 },
+      clientY: { value: 10 },
+    });
+    timeline.dispatchEvent(event);
 
     expect(Number(localStorage.getItem('planr_gantt_zoom'))).toBeGreaterThan(20);
   });
@@ -136,6 +143,50 @@ describe('view smoke', () => {
 
     expect(timeline.scrollLeft).toBe(120);
     expect(timeline.scrollTop).toBe(30);
+  });
+
+  it('GanttView supports rectangle selection and serial bulk linking', () => {
+    localStorage.setItem('planr_gantt_group', 'thread');
+    localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ thread: [] }));
+    const onAddDep = vi.fn();
+    const selectionTree = [
+      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'open', deps: [], assign: [] },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+      { id: 'P1.3', name: 'Third', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
+    ];
+    const selectionScheduled = selectionTree
+      .filter(item => item.id !== 'P1')
+      .map((item, idx) => ({
+        ...item,
+        treeId: item.id,
+        startWi: 0,
+        endWi: 0,
+        startD: new Date('2026-01-05'),
+        endD: new Date('2026-01-05'),
+        assign: [],
+        _selectionOrder: idx,
+      }));
+    const { container, getByTestId } = wrap(
+      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
+        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
+        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
+        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
+        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={onAddDep}
+        onReorderSibling={noop} />,
+    );
+    const timeline = getByTestId('gantt-timeline');
+    const shell = container.querySelector('.gantt');
+
+    fireEvent.mouseDown(timeline, { button: 0, shiftKey: true, clientX: 0, clientY: 30 });
+    fireEvent.mouseMove(shell, { clientX: 130, clientY: 190 });
+    fireEvent.mouseUp(shell);
+
+    expect(getByTestId('gantt-selection-count').textContent).toContain('3');
+    fireEvent.click(getByTestId('gantt-link-selected'));
+
+    expect(onAddDep).toHaveBeenCalledWith('P1.2', 'P1.1');
+    expect(onAddDep).toHaveBeenCalledWith('P1.3', 'P1.2');
   });
 
   it('GanttView opens done bars on click and shows their item tooltip on hover', () => {

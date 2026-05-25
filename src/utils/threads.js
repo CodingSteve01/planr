@@ -237,96 +237,75 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
 
   const sortThreadIds = (ids) => {
     const idSet = new Set(ids);
-    const clusters = new Map();
-    const clusterOf = new Map();
-    for (const id of ids) {
-      const key = threadClusterKey(id);
-      clusterOf.set(id, key);
-      if (!clusters.has(key)) clusters.set(key, []);
-      clusters.get(key).push(id);
-    }
-
-    const pathSortCluster = (clusterIds) => {
-      const localSet = new Set(clusterIds);
-      const localSucc = new Map(clusterIds.map(id => [id, []]));
-      const localIndeg = new Map(clusterIds.map(id => [id, 0]));
-      for (const edgeKey of rankEdges) {
-        const [from, to] = edgeKey.split('->');
-        if (!localSet.has(from) || !localSet.has(to)) continue;
-        localSucc.get(from).push(to);
-        localIndeg.set(to, (localIndeg.get(to) || 0) + 1);
-      }
-
-      const originalIndeg = new Map(localIndeg);
-      const ordered = [];
-      const seen = new Set();
-      const queue = clusterIds
-        .filter(id => (localIndeg.get(id) || 0) === 0)
-        .sort(compareItems);
-
-      while (queue.length) {
-        const current = queue.shift();
-        if (seen.has(current)) continue;
-        seen.add(current);
-        ordered.push(current);
-
-        const ready = [];
-        for (const next of (localSucc.get(current) || EMPTY_ARR).sort(compareItems)) {
-          localIndeg.set(next, (localIndeg.get(next) || 0) - 1);
-          if (localIndeg.get(next) === 0) ready.push(next);
-        }
-
-        const continuations = ready
-          .filter(id => (originalIndeg.get(id) || 0) <= 1)
-          .sort(compareItems);
-        const joins = ready
-          .filter(id => (originalIndeg.get(id) || 0) > 1)
-          .sort(compareItems);
-        queue.unshift(...continuations);
-        queue.push(...joins);
-      }
-
-      const remaining = clusterIds.filter(id => !seen.has(id)).sort(compareItems);
-      return [...ordered, ...remaining];
-    };
-
-    for (const [key, clusterIds] of clusters) clusters.set(key, pathSortCluster(clusterIds));
-
-    const clusterSucc = new Map([...clusters.keys()].map(key => [key, new Set()]));
-    const clusterIndeg = new Map([...clusters.keys()].map(key => [key, 0]));
+    const localSucc = new Map(ids.map(id => [id, []]));
+    const localIndeg = new Map(ids.map(id => [id, 0]));
     for (const edgeKey of rankEdges) {
       const [from, to] = edgeKey.split('->');
       if (!idSet.has(from) || !idSet.has(to)) continue;
-      const fromCluster = clusterOf.get(from);
-      const toCluster = clusterOf.get(to);
-      if (!fromCluster || !toCluster || fromCluster === toCluster) continue;
-      const next = clusterSucc.get(fromCluster);
-      if (next.has(toCluster)) continue;
-      next.add(toCluster);
-      clusterIndeg.set(toCluster, (clusterIndeg.get(toCluster) || 0) + 1);
+      localSucc.get(from).push(to);
+      localIndeg.set(to, (localIndeg.get(to) || 0) + 1);
     }
 
-    const orderedClusters = [];
-    const queue = [...clusters.keys()]
-      .filter(key => (clusterIndeg.get(key) || 0) === 0)
-      .sort((a, b) => compareClusters(a, b, clusters));
+    const originalIndeg = new Map(localIndeg);
+    const ordered = [];
+    const seen = new Set();
+    const queue = ids
+      .filter(id => (localIndeg.get(id) || 0) === 0)
+      .sort(compareItems);
+
+    const resourceKey = (id) => {
+      const node = nodeMap[id] || {};
+      const scheduledItem = (allItems || []).find(item => (item.treeId || item.id) === id)
+        || (scheduled || []).find(item => (item.treeId || item.id) === id)
+        || {};
+      const assign = node.assign || scheduledItem.assign || [];
+      return assign[0] || node.personId || scheduledItem.personId || node.team || scheduledItem.team || '';
+    };
+    const compareSuccessor = (from) => (a, b) => {
+      const sameParentA = parentId(a) === parentId(from);
+      const sameParentB = parentId(b) === parentId(from);
+      if (sameParentA !== sameParentB) return sameParentA ? -1 : 1;
+      const sameResourceA = resourceKey(a) && resourceKey(a) === resourceKey(from);
+      const sameResourceB = resourceKey(b) && resourceKey(b) === resourceKey(from);
+      if (sameResourceA !== sameResourceB) return sameResourceA ? -1 : 1;
+      return compareItems(a, b);
+    };
+
+    const pushReady = (id) => {
+      if (seen.has(id) || queue.includes(id)) return;
+      queue.push(id);
+      queue.sort(compareItems);
+    };
+
+    const emitPath = (id) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      ordered.push(id);
+
+      const ready = [];
+      for (const next of (localSucc.get(id) || EMPTY_ARR).sort(compareSuccessor(id))) {
+        localIndeg.set(next, (localIndeg.get(next) || 0) - 1);
+        if (localIndeg.get(next) === 0) ready.push(next);
+      }
+
+      const continuations = ready
+        .filter(next => (originalIndeg.get(next) || 0) <= 1)
+        .sort(compareSuccessor(id));
+      const joins = ready
+        .filter(next => (originalIndeg.get(next) || 0) > 1)
+        .sort(compareSuccessor(id));
+
+      continuations.forEach(emitPath);
+      joins.forEach(pushReady);
+    };
+
     while (queue.length) {
       const current = queue.shift();
-      orderedClusters.push(current);
-      for (const next of clusterSucc.get(current) || EMPTY_ARR) {
-        clusterIndeg.set(next, (clusterIndeg.get(next) || 0) - 1);
-        if (clusterIndeg.get(next) === 0) {
-          queue.push(next);
-          queue.sort((a, b) => compareClusters(a, b, clusters));
-        }
-      }
+      emitPath(current);
     }
 
-    const orderedSet = new Set(orderedClusters);
-    const remaining = [...clusters.keys()]
-      .filter(key => !orderedSet.has(key))
-      .sort((a, b) => compareClusters(a, b, clusters));
-    return [...orderedClusters, ...remaining].flatMap(key => clusters.get(key) || EMPTY_ARR);
+    const remaining = ids.filter(id => !seen.has(id)).sort(compareItems);
+    return [...ordered, ...remaining];
   };
 
   const threads = [];

@@ -106,6 +106,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [selectRect, setSelectRect] = useState(null);
   // Horizon lines: weeks from today that separate committed / estimated / exploratory zones
   const [h1Weeks] = useState(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } });
   const [h2Weeks] = useState(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } });
@@ -877,6 +879,56 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       .filter(s => !s._unestimated && s.startWi >= 0 && s.endWi >= 0)
       .map(s => [s.id, s]),
   ), [allItems]);
+  function taskBarRectForRow(row, index) {
+    if (row?.type !== 'task' || !row.s || row.s._unestimated) return null;
+    if (row.s._completed && (!row.s.startD || !row.s.endD)) return null;
+    const s = row.s;
+    let baseLeft, baseWidth;
+    if (showDays && s.startD && s.endD) {
+      baseLeft = dateToX(s.startD) + 2;
+      baseWidth = dateToX(s.endD) + DPX - dateToX(s.startD) - 4;
+    } else {
+      baseLeft = s.startWi * WPX + 2;
+      baseWidth = (s.endWi - s.startWi + 1) * WPX - 4;
+    }
+    const isSummary = row.type === 'summary';
+    return {
+      id: s.treeId || s.id,
+      isSummary,
+      left: Math.max(0, baseLeft),
+      top: FLAG_ROW_H + index * RH + (isSummary ? 6 : 4),
+      width: Math.max(6, baseWidth),
+      height: isSummary ? 16 : 20,
+    };
+  }
+  const selectedTaskIds = useMemo(() => {
+    const ordered = [];
+    const seen = new Set();
+    visibleRows.forEach(row => {
+      if (row.type !== 'task') return;
+      const id = row.s?.treeId || row.s?.id;
+      if (!id || seen.has(id) || !selectedIds.has(id)) return;
+      seen.add(id);
+      ordered.push(id);
+    });
+    return ordered;
+  }, [selectedIds, visibleRows]);
+  const linkSelectedInOrder = () => {
+    selectedTaskIds.forEach((id, index) => {
+      const prev = selectedTaskIds[index - 1];
+      if (prev && prev !== id) onAddDep?.(id, prev);
+    });
+  };
+  const clearSelectedLinks = () => {
+    const selected = new Set(selectedTaskIds);
+    selectedTaskIds.forEach(id => {
+      const node = iMap[id];
+      if (!node) return;
+      [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
+        .filter(depId => selected.has(depId))
+        .forEach(depId => onRemoveDep?.(id, depId));
+    });
+  };
   const cpEdgeSet = useMemo(() => cpEdges || new Set(), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
   const vacByPerson = useMemo(() => {
@@ -1387,6 +1439,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // zoomRef/panRef that fixed the stale-closure zoom-jump bug.
   const dragRef = useRef(null);
   const panRef = useRef(null);
+  const selectRef = useRef(null);
   const justDraggedRef = useRef(false);
 
   function onBMD(e, row) {
@@ -1433,6 +1486,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (interactive) return;
     e.preventDefault();
     dismissTooltip(true);
+    if (e.shiftKey) {
+      const rect = bR.current.getBoundingClientRect();
+      const x = bR.current.scrollLeft + e.clientX - rect.left;
+      const y = bR.current.scrollTop + e.clientY - rect.top;
+      selectRef.current = { x1: x, y1: y, x2: x, y2: y, append: e.metaKey || e.ctrlKey };
+      setSelectRect(selectRef.current);
+      if (!e.metaKey && !e.ctrlKey) setSelectedIds(new Set());
+      return;
+    }
     panRef.current = {
       x: e.clientX,
       y: e.clientY,
@@ -1471,6 +1533,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     setDDelta(0);
   }
   function onMM(e) {
+    if (selectRef.current && bR.current) {
+      const rect = bR.current.getBoundingClientRect();
+      selectRef.current = {
+        ...selectRef.current,
+        x2: bR.current.scrollLeft + e.clientX - rect.left,
+        y2: bR.current.scrollTop + e.clientY - rect.top,
+      };
+      setSelectRect(selectRef.current);
+      return;
+    }
     if (panRef.current && bR.current) {
       const p = panRef.current;
       bR.current.scrollLeft = Math.max(0, p.left - (e.clientX - p.x));
@@ -1526,6 +1598,25 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     }
   }
   function onMU() {
+    if (selectRef.current) {
+      const rect = selectRef.current;
+      const x1 = Math.min(rect.x1, rect.x2);
+      const x2 = Math.max(rect.x1, rect.x2);
+      const y1 = Math.min(rect.y1, rect.y2);
+      const y2 = Math.max(rect.y1, rect.y2);
+      const picked = rect.append ? new Set(selectedIds) : new Set();
+      visibleRows.forEach((row, index) => {
+        const bar = taskBarRectForRow(row, index);
+        if (!bar || bar.isSummary) return;
+        const intersects = bar.left <= x2 && bar.left + bar.width >= x1
+          && bar.top <= y2 && bar.top + bar.height >= y1;
+        if (intersects) picked.add(bar.id);
+      });
+      selectRef.current = null;
+      setSelectRect(null);
+      setSelectedIds(picked);
+      return;
+    }
     clearTimelinePan();
     const d = dragRef.current;
     if (d) {
@@ -1603,6 +1694,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const h = (e) => {
       if (e.key === 'Escape') {
         clearTimelinePan();
+        if (selectRef.current) { selectRef.current = null; setSelectRect(null); }
+        if (selectedIds.size) setSelectedIds(new Set());
         if (dragRef.current || drag) { dragRef.current = null; setDrag(null); setDDelta(0); justDraggedRef.current = false; }
         if (linkDrag) setLinkDrag(null);
       }
@@ -1659,6 +1752,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     dismissTooltip(true);
     setHoverLineKey(null);
     clearTimelinePan();
+    if (selectRef.current) { selectRef.current = null; setSelectRect(null); }
     if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); }
   }}>
     <div className="gantt-hdr">
@@ -1693,7 +1787,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           </>}
         </div>
       </div>
-      <div ref={hR} className="gh-scroll" onWheel={onTimelineWheel} onMouseDown={onTimelinePanStart}>
+      <div ref={hR} className="gh-scroll" onMouseDown={onTimelinePanStart}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: zoomMode === 'month' ? HH : HH / 2 }}>
           {months.map((m, i) => { const [y, mo] = m.ym.split('-'); const isYS = mo === '0';
             const label = monthHeaderLabel(m);
@@ -1792,7 +1886,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
       </div>
-      <div ref={bR} data-testid="gantt-timeline" style={{ flex: 1, overflow: 'auto' }} onScroll={syncS} onWheel={onTimelineWheel} onMouseDown={onTimelinePanStart}>
+      <div ref={bR} data-testid="gantt-timeline" style={{ flex: 1, overflow: 'auto' }} onScroll={syncS} onMouseDown={onTimelinePanStart}>
         <div style={{ width: tw, position: 'relative', minHeight: FLAG_ROW_H + visibleRows.length * RH }}>
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
             {/* Week columns. When the day grid is visible we don't tint the whole week red —
@@ -1850,6 +1944,24 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               </React.Fragment>;
             })}
           </div>
+          {selectRect && (() => {
+            const x = Math.min(selectRect.x1, selectRect.x2);
+            const y = Math.min(selectRect.y1, selectRect.y2);
+            const w = Math.abs(selectRect.x2 - selectRect.x1);
+            const h = Math.abs(selectRect.y2 - selectRect.y1);
+            return <div data-testid="gantt-selection-rect" style={{
+              position: 'absolute',
+              left: x,
+              top: y,
+              width: w,
+              height: h,
+              border: '1px solid var(--ac)',
+              background: 'rgba(59,130,246,.14)',
+              boxShadow: '0 0 0 1px rgba(255,255,255,.16) inset',
+              zIndex: 7,
+              pointerEvents: 'none',
+            }} />;
+          })()}
           <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)', boxShadow: '0 1px 0 var(--b)' }}>
             {showLoadHeatmap && loadWeekSummary.map(cell => {
               const pct = cell.maxPercent || 0;
@@ -2003,6 +2115,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
             const node = row.node || iMap[s.treeId || s.id];
             const linkTaskId = s.treeId || s.id;
+            const isSelected = selectedIds.has(linkTaskId);
             const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
             const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
             const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
@@ -2120,6 +2233,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     ? '0 4px 20px rgba(0,0,0,.5), 0 0 0 2px var(--ac)'
                     : s.id === activeMatchId ? '0 0 0 3px var(--ac), 0 0 8px rgba(59,130,246,.35)'
                     : isMatch ? '0 0 0 2px var(--am)'
+                    : isSelected ? '0 0 0 2px var(--ac), 0 0 0 5px rgba(59,130,246,.22)'
                     : linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
                   ...(isSummary
                     ? summaryStyle
@@ -2505,6 +2619,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         {searchMatchList.length
           ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
           : `0 ${t('g.matches')}`}
+      </span>}
+      {selectedTaskIds.length > 0 && <span data-testid="gantt-selection-count" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>
+        <span>{t('g.selectedTasks', selectedTaskIds.length)}</span>
+        {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-xs btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.linkSelected')}</button>}
+        {selectedTaskIds.length > 1 && onRemoveDep && <button data-testid="gantt-clear-selected-links" className="btn btn-xs btn-sec" onClick={clearSelectedLinks} data-htip={t('g.clearSelectedLinksTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelectedLinks')}</button>}
+        <button data-testid="gantt-clear-selection" className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelection')}</button>
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
       {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>

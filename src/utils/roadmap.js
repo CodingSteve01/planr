@@ -188,8 +188,10 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
         || n?.pinnedStart
         || n?.decideBy,
       );
-      if (n?.status === 'done' && end && end > today) end = new Date(today);
-      if (n?.status === 'done' && start && end && start > end) start = new Date(end);
+      const hasActualDoneDate = n?.status === 'done' && !!(doneWindow || n?.completedStart || n?.completedEnd || n?.completedAt);
+      if (hasActualDoneDate && end && end > today) end = new Date(today);
+      if (hasActualDoneDate && start && start > today) start = new Date(today);
+      if (hasActualDoneDate && start && end && start > end) start = new Date(end);
       if (start && (!earliestStart || start < earliestStart)) earliestStart = start;
       if (end && (!latestEnd || end > latestEnd)) latestEnd = end;
     });
@@ -521,6 +523,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const capDoneItem = (item) => {
       const node = nodeMap[item.id] || item;
       if (node?.status !== 'done') return item;
+      if (!(node.completedStart || node.completedEnd || node.completedAt)) return item;
       const end = toDate(item.endD || item.startD);
       if (!end) return item;
       const cappedEnd = end > today ? new Date(today) : end;
