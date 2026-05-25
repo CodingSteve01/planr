@@ -868,18 +868,19 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const assignedLines = baseAssigned;
 
   // ── Station placement on routes ───────────────────────────────────────────
-  // Effort-proportional spacing: the subway line is a percent-of-scope view,
-  // not a calendar timeline. Dates define station order, but station distance
-  // along the route follows weighted work. The solid travelled rail is
-  // station-gated and the live train always sits exactly at that rail end.
-  // Raw effort progress is still exposed as the percentage label, but it must
-  // not visually drive past an unfinished station.
+  // Effort-proportional spacing: the subway line is a percent-of-scope loading
+  // bar, not a calendar timeline. The train is the real effort progress.
+  // Stations are milestone thresholds: reached stations must sit behind the
+  // train, unfinished stations must sit ahead of it. Dates define order within
+  // those two bands, not whether the train has passed a milestone.
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
     const byEnd = (a, b) => (+a.endDate || Infinity) - (+b.endDate || Infinity)
       || a.id.localeCompare(b.id, undefined, { numeric: true });
     const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
+    const doneOrdered = allStations.filter(station => station.allDone).sort(byEnd);
+    const activeOrdered = allStations.filter(station => !station.allDone).sort(byEnd);
 
     // Project span is retained only for the "today on calendar" ghost marker
     // and as fallback if a line has no effort data.
@@ -890,10 +891,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const totalStationEffort = allStations.reduce((sum, station) => sum + Math.max(0, station.effort || 0), 0);
     const totalRouteEffort = Math.max(totalStationEffort, line.totalEffort || 0);
 
-    // Raw effort progress: how much of the
-    // total effort has actually been completed. `line.progress` comes from
-    // treeStats._progress which is Σ(leafProgress × leafEffort) / Σ(leafEffort),
-    // so a 1d leaf weighs less than a 10d leaf.
+    // Raw effort progress: how much of the total effort has actually been
+    // completed. `line.progress` comes from treeStats._progress, so a 1d leaf
+    // weighs less than a 10d leaf.
     const effortTrainT = progressToRouteT(line.progress);
     // Today-on-timeline marker — kept as `ghostT` so a Soll/Ist gap can be
     // rendered later (effort progress vs calendar position).
@@ -902,38 +902,70 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       ? ROUTE_T_LO + clamp((nowMs - firstD) / span, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO)
       : effortTrainT;
 
-    let cumulativeEffort = 0;
-    const positioned = allStations.map((station, idx) => {
-      let t;
-      if (totalRouteEffort > 0) {
-        cumulativeEffort += Math.max(0, station.effort || 0);
-        t = progressToRouteT(cumulativeEffort / totalRouteEffort);
-      } else if (span > 0 && Number.isFinite(+station.endDate)) {
-        const frac = (+station.endDate - firstD) / span;
-        t = ROUTE_T_LO + frac * (ROUTE_T_HI - ROUTE_T_LO);
-      } else {
-        // Fallback when there is no usable date span — fall back to even
-        // spacing so nothing collapses to a single point.
-        const n = allStations.length;
-        t = ROUTE_T_LO + ((idx + 1) / (n + 1)) * (ROUTE_T_HI - ROUTE_T_LO);
+    const positionBand = (stations, rawTs, minT, maxT, anchorLast = false) => {
+      if (!stations.length) return [];
+      const lo = clamp(minT, ROUTE_T_LO, ROUTE_T_HI);
+      const hi = clamp(Math.max(maxT, lo), ROUTE_T_LO, ROUTE_T_HI);
+      const desiredSpacing = 0.035;
+      const available = Math.max(0, hi - lo);
+      const spacing = stations.length > 1
+        ? Math.min(desiredSpacing, available / (stations.length - 1 || 1))
+        : 0;
+
+      let positionedBand = stations.map((station, idx) => {
+        const rawT = Number.isFinite(rawTs[idx]) ? rawTs[idx] : lo + available * ((idx + 1) / (stations.length + 1));
+        return { ...station, t: clamp(rawT, lo, hi) };
+      });
+
+      positionedBand.sort((a, b) => a.t - b.t || byEnd(a, b));
+      for (let i = 1; i < positionedBand.length; i++) {
+        if (positionedBand[i].t - positionedBand[i - 1].t < spacing) {
+          positionedBand[i] = { ...positionedBand[i], t: positionedBand[i - 1].t + spacing };
+        }
       }
-      const pt = pointAtFraction(route, t);
-      return { ...station, t, x: pt.x, y: pt.y };
+      if (positionedBand.length && positionedBand[positionedBand.length - 1].t > hi) {
+        const n = positionedBand.length;
+        positionedBand = positionedBand.map((station, idx) => {
+          const t = n === 1
+            ? (anchorLast ? hi : lo + available / 2)
+            : lo + (available * idx) / (n - 1);
+          return { ...station, t };
+        });
+      } else if (anchorLast && positionedBand.length === 1) {
+        positionedBand[0] = { ...positionedBand[0], t: hi };
+      }
+
+      return positionedBand.map(station => {
+        const pt = pointAtFraction(route, station.t);
+        return { ...station, x: pt.x, y: pt.y };
+      });
+    };
+
+    let doneEffort = 0;
+    const doneRawTs = doneOrdered.map(station => {
+      doneEffort += Math.max(0, station.effort || 0);
+      if (totalRouteEffort > 0) return progressToRouteT(doneEffort / totalRouteEffort);
+      if (span > 0 && Number.isFinite(+station.endDate)) {
+        return ROUTE_T_LO + ((+station.endDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      }
+      return NaN;
+    });
+    let activeEffort = doneEffort;
+    const activeRawTs = activeOrdered.map(station => {
+      activeEffort += Math.max(0, station.effort || 0);
+      if (totalRouteEffort > 0) return progressToRouteT(activeEffort / totalRouteEffort);
+      if (span > 0 && Number.isFinite(+station.endDate)) {
+        return ROUTE_T_LO + ((+station.endDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      }
+      return NaN;
     });
 
-    // Anti-collision pass for stations whose endDate falls in the same
-    // week — without this they'd render exactly on top of each other.
-    // Walk in t-order and bump each station forward if it would land
-    // closer than MIN_T to its predecessor.
-    const MIN_T = 0.035;
-    positioned.sort((a, b) => a.t - b.t);
-    for (let i = 1; i < positioned.length; i++) {
-      if (positioned[i].t - positioned[i - 1].t < MIN_T) {
-        const bumped = Math.min(ROUTE_T_HI, positioned[i - 1].t + MIN_T);
-        const pt = pointAtFraction(route, bumped);
-        positioned[i] = { ...positioned[i], t: bumped, x: pt.x, y: pt.y };
-      }
-    }
+    const trainT = clamp(effortTrainT, ROUTE_T_LO, ROUTE_T_HI);
+    const activeStartT = Math.min(ROUTE_T_HI, trainT + (activeOrdered.length ? 0.018 : 0));
+    const positioned = [
+      ...positionBand(doneOrdered, doneRawTs, ROUTE_T_LO, trainT, true),
+      ...positionBand(activeOrdered, activeRawTs, activeStartT, ROUTE_T_HI, false),
+    ].sort((a, b) => a.t - b.t || byEnd(a, b));
 
     const majors = positioned.filter(s => s.kind === 'major');
     const minors = positioned.filter(s => s.kind === 'minor');
@@ -945,21 +977,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
       || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
-    const doneStations = positioned.filter(s => s.allDone);
-    const lastDoneT = doneStations.length ? Math.max(...doneStations.map(s => s.t)) : ROUTE_T_LO;
-    let stationGatedT = effortTrainT;
-    if (currentStation) {
-      const stationProg = Math.max(0, Math.min(0.99, currentStation.prog || 0));
-      const approachT = lastDoneT + Math.max(0, currentStation.t - lastDoneT) * stationProg;
-      stationGatedT = Math.min(effortTrainT, approachT, Math.max(ROUTE_T_LO, currentStation.t - 0.006));
-      stationGatedT = Math.max(ROUTE_T_LO, stationGatedT);
-    }
-    if (doneStations.length) {
-      stationGatedT = Math.max(stationGatedT, lastDoneT);
-    }
 
-    const reachedT = clamp(stationGatedT, ROUTE_T_LO, ROUTE_T_HI);
-    const trainT = reachedT;
+    const reachedT = trainT;
     const trainPt = pointAtFraction(route, trainT);
     const ghostPt = pointAtFraction(route, ghostT);
 

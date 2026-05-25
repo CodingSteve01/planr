@@ -454,6 +454,76 @@ describe('computeRoadmapModel progress semantics', () => {
     });
   });
 
+  test('completed milestones compress behind the real progress train instead of pulling it forward', () => {
+    const doneDates = ['2025-08-01', '2025-08-21', '2025-09-10', '2025-09-30', '2025-10-20', '2025-11-09', '2025-11-29', '2025-12-19'];
+    const doneLeaves = Array.from({ length: 8 }, (_, idx) => ({
+      id: `P1.${idx + 1}`,
+      name: `Completed ${idx + 1}`,
+      status: 'done',
+      progress: 100,
+      best: 1,
+      factor: 1,
+      completedStart: doneDates[idx],
+      completedEnd: doneDates[idx],
+    }));
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      ...doneLeaves,
+      { id: 'P1.99', name: 'Large future scope', status: 'open', progress: 0, best: 92, factor: 1 },
+    ];
+    const scheduled = doneLeaves.map((item, idx) => ({
+      id: item.id,
+      name: item.name,
+      status: 'done',
+      effort: 1,
+      startD: d(doneDates[idx]),
+      endD: d(doneDates[idx]),
+    }));
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const rawProgressT = 0.04 + line.progress * 0.92;
+
+    expect(line.progress).toBeCloseTo(0.08, 4);
+    expect(line.trainT).toBeCloseTo(rawProgressT, 4);
+    line.majorStations.filter(station => station.allDone).forEach(station => {
+      expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    });
+  });
+
+  test('unfinished milestones stay ahead of the train even when their plan date is older than completed work', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Old planned but still open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Completed later', status: 'done', progress: 100, best: 9, factor: 1, completedStart: '2026-02-01', completedEnd: '2026-02-01' },
+      { id: 'P1.3', name: 'Large future scope', status: 'open', progress: 0, best: 90, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Old planned but still open', status: 'open', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Completed later', status: 'done', effort: 9, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-02-15'),
+    });
+    const line = model.lines[0];
+    const openStation = line.majorStations.find(station => station.id === 'P1.1');
+    const doneStation = line.majorStations.find(station => station.id === 'P1.2');
+
+    expect(line.progress).toBeCloseTo(0.09, 4);
+    expect(doneStation.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    expect(openStation.allDone).toBe(false);
+    expect(openStation.t).toBeGreaterThan(line.trainT);
+  });
+
   test('diff mode uses static station halos instead of pulsing rings', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },

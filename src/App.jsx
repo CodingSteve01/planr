@@ -39,6 +39,7 @@ import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
+import { HistoryModal } from './components/modals/HistoryModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -1370,17 +1371,19 @@ export default function App() {
           ? todayIso
           : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart, completedPersonId, members, vacations, hm });
         if (!completedAt) return;
-        // Persisted done-window takes precedence over re-inference: when the
-        // user has already saved done-start/done-end we must not overwrite
-        // them on the next load just because `prev` is empty (first effect
-        // pass). Only refresh when the window is missing OR the completedAt
-        // changed OR the assignee changed — i.e. when the cached data is
-        // actually stale relative to the current task state.
-        const hasExistingWindow = !!r.completedStart && !!r.completedEnd && r.completedAt === completedAt;
+        // Persisted done-window takes precedence over re-inference. The user
+        // may reconstruct history by editing done-start/done-end directly, so
+        // do not recalculate that window just because completedAt changed in
+        // the same edit. Refresh only when no window exists, when a task is
+        // newly completed, or when the cached window is clearly stale.
+        const hasExistingWindow = !!r.completedStart && !!r.completedEnd;
+        const windowWasEdited = !!prev && (prev.completedStart !== r.completedStart || prev.completedEnd !== r.completedEnd);
+        const completedAtChanged = !!prev && prev.completedAt !== completedAt;
+        const windowMatchesCompletedAt = hasExistingWindow && r.completedEnd === completedAt;
         const shouldRefreshWindow = !hasExistingWindow
           || (prev && prev.status !== 'done')
-          || (prev && prev.completedAt !== completedAt)
-          || (prev && prev.completedPersonId !== completedPersonId);
+          || (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt)
+          || (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
         const window = shouldRefreshWindow
           ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
           : { completedStart: r.completedStart, completedEnd: r.completedEnd };
@@ -2444,6 +2447,8 @@ export default function App() {
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('snapshots')}
         data-htip="Recover from a rolling JSON snapshot — last 20 saves are kept locally as a safety net.">↶ Snapshots</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('history')}
+        data-htip="Edit the raw plan history used by Subway and diff views.">History</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
@@ -2558,6 +2563,8 @@ export default function App() {
               const commonBest = commonOf('best');
               const commonFactor = commonOf('factor');
               const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
+              const commonCompletedStart = commonOf('completedStart', r => r.completedStart || '');
+              const commonCompletedEnd = commonOf('completedEnd', r => r.completedEnd || '');
               const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
               const commonConfidence = commonOf('confidence', r => r.confidence || '');
               const commonNote = commonOf('note');
@@ -2691,8 +2698,14 @@ export default function App() {
                     <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ' (mixed)' : ''}</label>
                       <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
                     </div>
+                    <div className="field"><label>{_t('qe.completedStart')}{commonCompletedStart == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="date" value={commonCompletedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedStart: v } : r))} />
+                    </div>
+                    <div className="field"><label>{_t('qe.completedEnd')}{commonCompletedEnd == null ? ' (mixed)' : ''}</label>
+                      <LazyInput type="date" value={commonCompletedEnd ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r))} />
+                    </div>
                     <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v } : r))} />
+                      <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r))} />
                     </div>
                   </div>}
                   {allDeadlineScoped && <div className="field">
@@ -2779,6 +2792,15 @@ export default function App() {
         a.href = URL.createObjectURL(blob);
         a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
         a.click();
+      }}
+    />}
+    {modal === 'history' && <HistoryModal
+      events={data?.historyEvents || []}
+      onClose={() => setModal(null)}
+      onSave={events => {
+        setData(d => ({ ...d, historyEvents: events }));
+        setSaved(false);
+        setModal(null);
       }}
     />}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}

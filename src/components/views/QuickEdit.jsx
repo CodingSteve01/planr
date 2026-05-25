@@ -124,6 +124,43 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     commitNode({ ...f, ...patch });
   };
 
+  const donePatch = (source = f) => {
+    const today = iso(new Date());
+    const completedAt = (source.completedAt && source.completedAt <= today) ? source.completedAt : today;
+    const completedEnd = (source.completedEnd && source.completedEnd <= completedAt) ? source.completedEnd : completedAt;
+    const patch = { status: 'done', progress: 100, completedAt, completedEnd };
+    if (source.completedStart && source.completedStart <= completedEnd) patch.completedStart = source.completedStart;
+    return patch;
+  };
+
+  const patchCompletion = patch => {
+    const next = { ...f, ...patch };
+    if (patch.completedAt !== undefined) {
+      if (next.completedAt) next.completedEnd = next.completedAt;
+      else {
+        next.completedStart = '';
+        next.completedEnd = '';
+      }
+    }
+    if (patch.completedEnd !== undefined) {
+      if (next.completedEnd) next.completedAt = next.completedEnd;
+      else if (!next.completedStart) next.completedAt = '';
+    }
+    if (next.completedStart && next.completedEnd && next.completedStart > next.completedEnd) {
+      if (patch.completedStart !== undefined) {
+        next.completedEnd = next.completedStart;
+        next.completedAt = next.completedStart;
+      } else {
+        next.completedStart = next.completedEnd;
+      }
+    }
+    patchNode({
+      completedStart: next.completedStart || '',
+      completedEnd: next.completedEnd || '',
+      completedAt: next.completedAt || '',
+    });
+  };
+
   const bufferNode = patch => {
     setF(prev => ({ ...prev, ...patch }));
   };
@@ -304,9 +341,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             // clamps to today: a task marked done now is finished now, never
             // in the future (would otherwise inherit a stale planned-end).
             if (value === 'done') {
-              const today = iso(new Date());
-              const ca = (f.completedAt && f.completedAt <= today) ? f.completedAt : today;
-              patchNode({ status: 'done', progress: 100, completedAt: ca });
+              patchNode(donePatch());
             }
             else if (value === 'open') patchNode({ status: 'open', progress: 0 });
             else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
@@ -321,9 +356,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const value = +e.target.value;
             const next = { ...f, progress: value };
             if (value >= 100 && f.status !== 'done') {
-              next.status = 'done';
-              const today = iso(new Date());
-              next.completedAt = (f.completedAt && f.completedAt <= today) ? f.completedAt : today;
+              Object.assign(next, donePatch());
             }
             else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
             else if (value === 0 && f.status !== 'open') next.status = 'open';
@@ -472,10 +505,18 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>
           </div>
         </div>
-        <div className="field"><label>{t('qe.completedAt')}</label>
-          <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => patchNode({ completedAt: e.target.value })} />
-          <div className="helper">{t('qe.completedHint')}</div>
+        <div className="frow">
+          <div className="field"><label>{t('qe.completedStart')}</label>
+            <input type="date" value={f.completedStart || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedStart: e.target.value })} />
+          </div>
+          <div className="field"><label>{t('qe.completedEnd')}</label>
+            <input type="date" value={f.completedEnd || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedEnd: e.target.value })} />
+          </div>
+          <div className="field"><label>{t('qe.completedAt')}</label>
+            <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedAt: e.target.value })} />
+          </div>
         </div>
+        <div className="helper" style={{ marginTop: -8, marginBottom: 10 }}>{t('qe.completedHint')}</div>
         {/* Soll/Ist: planned window (Soll) vs actual completion (Ist).
             Renders for done tasks AND for in-flight tasks where the user
             captured plan-start/end before the task slipped. Diff in working

@@ -121,6 +121,42 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   }, [tree, node.id, deadlineRootId]);
   const showDeadlineRelevant = !!deadlineRootId && node.id !== deadlineRootId;
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const donePatch = source => {
+    const today = iso(new Date());
+    const completedAt = (source.completedAt && source.completedAt <= today) ? source.completedAt : today;
+    const completedEnd = (source.completedEnd && source.completedEnd <= completedAt) ? source.completedEnd : completedAt;
+    const patch = { status: 'done', progress: 100, completedAt, completedEnd };
+    if (source.completedStart && source.completedStart <= completedEnd) patch.completedStart = source.completedStart;
+    return patch;
+  };
+  const setCompletion = patch => setF(current => {
+    const next = { ...current, ...patch };
+    if (patch.completedAt !== undefined) {
+      if (next.completedAt) next.completedEnd = next.completedAt;
+      else {
+        next.completedStart = '';
+        next.completedEnd = '';
+      }
+    }
+    if (patch.completedEnd !== undefined) {
+      if (next.completedEnd) next.completedAt = next.completedEnd;
+      else if (!next.completedStart) next.completedAt = '';
+    }
+    if (next.completedStart && next.completedEnd && next.completedStart > next.completedEnd) {
+      if (patch.completedStart !== undefined) {
+        next.completedEnd = next.completedStart;
+        next.completedAt = next.completedStart;
+      } else {
+        next.completedStart = next.completedEnd;
+      }
+    }
+    return {
+      ...current,
+      completedStart: next.completedStart || '',
+      completedEnd: next.completedEnd || '',
+      completedAt: next.completedAt || '',
+    };
+  });
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   const findById = id => tree.find(r => r.id === id);
   const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
@@ -329,9 +365,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
             <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
               if (v === 'done') setF(x => {
-                const today = iso(new Date());
-                const ca = (x.completedAt && x.completedAt <= today) ? x.completedAt : today;
-                return ({ ...x, status: 'done', progress: 100, completedAt: ca });
+                return ({ ...x, ...donePatch(x) });
               });
               else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
               else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
@@ -344,9 +378,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 setF(x => {
                   const next = { ...x, progress: v };
                   if (v >= 100 && x.status !== 'done') {
-                    next.status = 'done';
-                    const today = iso(new Date());
-                    next.completedAt = (x.completedAt && x.completedAt <= today) ? x.completedAt : today;
+                    Object.assign(next, donePatch(x));
                   }
                   else if (v > 0 && v < 100 && x.status !== 'wip') next.status = 'wip';
                   else if (v === 0 && x.status !== 'open') next.status = 'open';
@@ -494,10 +526,18 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               </div>
             </div>
           </div>
-          <div className="field"><label>{t('qe.completedAt')}</label>
-            <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => s('completedAt', e.target.value)} />
-            <div className="helper">{t('qe.completedHint')}</div>
+          <div className="frow">
+            <div className="field"><label>{t('qe.completedStart')}</label>
+              <input type="date" value={f.completedStart || ''} disabled={f.status !== 'done'} onChange={e => setCompletion({ completedStart: e.target.value })} />
+            </div>
+            <div className="field"><label>{t('qe.completedEnd')}</label>
+              <input type="date" value={f.completedEnd || ''} disabled={f.status !== 'done'} onChange={e => setCompletion({ completedEnd: e.target.value })} />
+            </div>
+            <div className="field"><label>{t('qe.completedAt')}</label>
+              <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => setCompletion({ completedAt: e.target.value })} />
+            </div>
           </div>
+          <div className="helper" style={{ marginTop: -8, marginBottom: 10 }}>{t('qe.completedHint')}</div>
           <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
         </>}
         {showDeadlineRelevant && <div className="field">
