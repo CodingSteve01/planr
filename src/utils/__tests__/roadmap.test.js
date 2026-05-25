@@ -374,6 +374,48 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(doneStation.t).toBeLessThanOrEqual(line.trainT + 0.0001);
   });
 
+  test('anti-collision spacing cannot push completed stations ahead of the train', () => {
+    const doneDates = ['2025-08-01', '2025-08-21', '2025-09-10', '2025-09-30', '2025-10-20', '2025-11-09', '2025-11-29', '2025-12-19'];
+    const doneLeaves = Array.from({ length: 8 }, (_, idx) => ({
+      id: `P1.${idx + 1}`,
+      name: `Completed ${idx + 1}`,
+      status: 'done',
+      progress: 100,
+      best: 1,
+      factor: 1,
+      completedStart: doneDates[idx],
+      completedEnd: doneDates[idx],
+    }));
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      ...doneLeaves,
+      { id: 'P1.99', name: 'Large unscheduled future scope', status: 'open', progress: 0, best: 92, factor: 1 },
+    ];
+    const scheduled = doneLeaves.map((item, idx) => ({
+      id: item.id,
+      name: item.name,
+      status: 'done',
+      effort: 1,
+      startD: d(doneDates[idx]),
+      endD: d(doneDates[idx]),
+    }));
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const doneStations = line.majorStations.filter(station => station.allDone);
+
+    expect(line.progress).toBeCloseTo(0.08, 4);
+    expect(doneStations.length).toBeGreaterThan(1);
+    doneStations.forEach(station => {
+      expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    });
+  });
+
   test('diff mode uses static station halos instead of pulsing rings', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },

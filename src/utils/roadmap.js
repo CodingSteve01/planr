@@ -942,6 +942,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       stationGatedT = Math.min(effortTrainT, approachT, Math.max(ROUTE_T_LO, currentStation.t - 0.006));
       stationGatedT = Math.max(ROUTE_T_LO, stationGatedT);
     }
+    if (doneStations.length) {
+      stationGatedT = Math.max(stationGatedT, lastDoneT);
+    }
 
     const reachedT = clamp(stationGatedT, ROUTE_T_LO, ROUTE_T_HI);
     const trainT = reachedT;
