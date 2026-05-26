@@ -152,6 +152,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 tr:hover .tv-drag-handle{color:var(--tx3);}
 .tv-drag-handle:hover{color:var(--ac);transform:scale(1.1);}
 .tv-drag-handle:active{cursor:grabbing;}
+/* Floating selection toolbar (multi-select in Gantt). Theme-aware: dark uses
+   bg2 (panel), light mode overrides further down. */
+.gantt-selection-actionbar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:8px;border:1px solid var(--b2);background:var(--bg2);box-shadow:0 12px 32px rgba(0,0,0,.32);color:var(--tx);font-size:11px;font-family:var(--mono);}
+[data-theme="light"] .gantt-selection-actionbar{background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.14);}
 .grow-r:hover .g-link-connector,.g-link-connector:hover,.g-link-connector.active{opacity:1;transform:translateY(-50%) scale(1);}
 /* Semicircle: flat edge sits flush against the bar's right side, bulge
    protrudes outward. Right half of a circle. */

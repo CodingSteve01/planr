@@ -2882,24 +2882,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
     </div>
     {selectedTaskIds.length > 0 && <div
-      style={{
-        position: 'fixed',
-        left: '50%',
-        bottom: 52,
-        transform: 'translateX(-50%)',
-        zIndex: 60,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 9px',
-        borderRadius: 8,
-        border: '1px solid var(--b2)',
-        background: 'rgba(17, 24, 39, .96)',
-        boxShadow: '0 12px 32px rgba(0,0,0,.32)',
-        color: 'var(--tx)',
-        fontSize: 11,
-        fontFamily: 'var(--mono)',
-      }}
+      className="gantt-selection-actionbar"
       data-testid="gantt-selection-actionbar"
     >
       <span style={{ color: 'var(--ac)', fontWeight: 700 }}>{t('g.selectedTasks', selectedTaskIds.length)}</span>
