@@ -8,6 +8,7 @@ import {
   diffSnapshots,
   stateAsOf,
   diffForUi,
+  replayToDate,
   HISTORY_VERSION,
 } from '../history.js';
 
@@ -152,5 +153,69 @@ describe('diffForUi', () => {
     expect(d.has('P.B')).toBe(false);
     expect(d.get('P.C')).toMatchObject({ isGone: true });
     expect(d.get('P.D')).toMatchObject({ isNew: true });
+  });
+});
+
+describe('replayToDate (Time-Travel snapshot)', () => {
+  const tree = [
+    { id: 'P1', name: 'Root', status: 'wip' },
+    { id: 'P1.A', name: 'A', status: 'done', progress: 100, completedAt: '2026-05-15' },
+    { id: 'P1.B', name: 'B', status: 'wip', progress: 60 },
+    { id: 'P1.C', name: 'C', status: 'open', progress: 0 },
+  ];
+
+  test('applies status/progress as they were at the operating date', () => {
+    const events = [
+      { ts: '2026-05-01T10:00:00Z', id: 'P1.A', status: 'wip', progress: 40, effectiveAt: '2026-05-01' },
+      { ts: '2026-05-15T10:00:00Z', id: 'P1.A', status: 'done', progress: 100, completedAt: '2026-05-15', effectiveAt: '2026-05-15' },
+      { ts: '2026-05-10T10:00:00Z', id: 'P1.B', status: 'wip', progress: 30, effectiveAt: '2026-05-10' },
+      { ts: '2026-05-20T10:00:00Z', id: 'P1.B', status: 'wip', progress: 60, effectiveAt: '2026-05-20' },
+    ];
+    const snap = replayToDate(tree, events, '2026-05-12');
+    const a = snap.find(n => n.id === 'P1.A');
+    const b = snap.find(n => n.id === 'P1.B');
+    expect(a.status).toBe('wip');
+    expect(a.progress).toBe(40);
+    expect(a.completedAt).toBeUndefined();
+    expect(b.status).toBe('wip');
+    expect(b.progress).toBe(30);
+  });
+
+  test('filters out items added after the operating date and their subtree', () => {
+    const treeWithSub = [
+      ...tree,
+      { id: 'P1.B.1', name: 'B-child', status: 'open', progress: 0 },
+    ];
+    const events = [
+      { ts: '2026-05-20T10:00:00Z', id: 'P1.B', kind: 'added', status: 'open', progress: 0, effectiveAt: '2026-05-20' },
+      { ts: '2026-05-21T10:00:00Z', id: 'P1.B.1', kind: 'added', status: 'open', progress: 0, effectiveAt: '2026-05-21' },
+    ];
+    const snap = replayToDate(treeWithSub, events, '2026-05-10');
+    expect(snap.find(n => n.id === 'P1.B')).toBeUndefined();
+    expect(snap.find(n => n.id === 'P1.B.1')).toBeUndefined();
+    expect(snap.find(n => n.id === 'P1.A')).toBeTruthy();
+  });
+
+  test('items without any events keep current tree state when no rollback needed', () => {
+    const events = [];
+    const snap = replayToDate(tree, events, '2026-06-30');
+    expect(snap.find(n => n.id === 'P1.A')).toEqual(tree[1]);
+  });
+
+  test('items completed in the future relative to operating date roll back even without explicit events', () => {
+    const events = [];
+    const snap = replayToDate(tree, events, '2026-05-12');
+    const a = snap.find(n => n.id === 'P1.A');
+    expect(a.completedAt).toBeUndefined();
+    expect(a.status).not.toBe('done');
+  });
+
+  test('items completed after operating date are unmarked', () => {
+    const events = [
+      { ts: '2026-05-15T10:00:00Z', id: 'P1.A', status: 'done', progress: 100, completedAt: '2026-05-15', effectiveAt: '2026-05-15' },
+    ];
+    const snap = replayToDate(tree, events, '2026-05-10');
+    const a = snap.find(n => n.id === 'P1.A');
+    expect(a.completedAt).toBeUndefined();
   });
 });

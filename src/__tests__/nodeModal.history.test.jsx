@@ -39,7 +39,7 @@ function renderModal(props = {}) {
 describe('NodeModal item history', () => {
   beforeEach(() => cleanup());
 
-  it('shows an item-scoped history timeline in the item dialog', () => {
+  it('shows an item-scoped, read-only history timeline in the item dialog', () => {
     renderModal({
       historyEvents: [
         { ts: '2026-05-01T10:00:00.000Z', id: 'P1.1', status: 'wip', progress: 40, effectiveAt: '2026-05-01' },
@@ -50,28 +50,29 @@ describe('NodeModal item history', () => {
     fireEvent.click(screen.getByText('History'));
 
     expect(screen.getByTestId('item-history')).toBeTruthy();
-    expect(screen.getByText('Timeline for this item. Effective dates drive replay, Subway diffs, and historical progress.')).toBeTruthy();
+    expect(screen.getByTestId('item-history').textContent).toContain('Version history for this item');
     expect(screen.getByTestId('item-history').textContent).toContain('40%');
     expect(screen.getByTestId('item-history').textContent).not.toContain('75%');
   });
 
-  it('adds history for the current item without exposing the global event table', () => {
+  it('lets the user delete an entry from the item version history', () => {
     const onHistoryChange = vi.fn();
     renderModal({
       historyEvents: [
         { ts: '2026-05-01T10:00:00.000Z', id: 'P1.1', status: 'wip', progress: 40, effectiveAt: '2026-05-01' },
+        { ts: '2026-05-05T10:00:00.000Z', id: 'P1.1', status: 'wip', progress: 60, effectiveAt: '2026-05-05' },
       ],
       onHistoryChange,
     });
 
     fireEvent.click(screen.getByText('History'));
-    fireEvent.change(screen.getByTestId('item-history-draft-date'), { target: { value: '2026-05-10' } });
-    fireEvent.change(screen.getByTestId('item-history-draft-progress'), { target: { value: '80' } });
-    fireEvent.click(screen.getByTestId('item-history-add'));
-    fireEvent.click(screen.getByTestId('item-history-apply'));
+    const rows = screen.getAllByTestId('item-history-row');
+    expect(rows.length).toBe(2);
+    fireEvent.click(rows[0].querySelector('button'));
 
-    expect(onHistoryChange).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ id: 'P1.1', progress: 80, effectiveAt: '2026-05-10' }),
-    ]));
+    expect(onHistoryChange).toHaveBeenCalled();
+    const result = onHistoryChange.mock.calls[0][0];
+    expect(result.filter(e => e.id === 'P1.1').length).toBe(1);
+    expect(result.find(e => e.id === 'P1.1').progress).toBe(60);
   });
 });

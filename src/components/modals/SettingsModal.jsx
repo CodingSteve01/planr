@@ -142,10 +142,10 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
               checked={!!m.queueByDefault}
               onChange={e => sm('queueByDefault', e.target.checked)}
             />
-            <span>Queue no-dep leaves by default (legacy scheduler)</span>
+            <span>{t('set.queueByDefault')}</span>
           </label>
           <div className="helper" style={{ marginTop: 4 }}>
-            Off (default): tasks without dependencies start in parallel from their earliest legal date. On: tasks without dependencies queue on the assignee in seq order — same behaviour as the pre-link-driven scheduler. Useful for restoring older plans without rewriting them.
+            {t('set.queueByDefaultHint')}
           </div>
         </div>
       </>}

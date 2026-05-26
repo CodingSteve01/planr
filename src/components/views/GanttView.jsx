@@ -2357,8 +2357,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const loadCells = !isSummary ? taskLoadCells(s, barLeft, bW) : EMPTY_ARR;
             const compactBar = !isSummary && bW < 36;
             const microBar = !isSummary && bW < 16;
-            const showResizeHandle = (canResizeDuration || canResizeDone) && bW >= 26;
-            const showResizeStartHandle = canResizeDone && bW >= 26;
+            // Resize-handles need at least 30px bar width to avoid colliding with
+            // the link-connector semicircle that sits flush against the right edge.
+            const showResizeHandle = (canResizeDuration || canResizeDone) && bW >= 30;
+            const showResizeStartHandle = canResizeDone && bW >= 30;
             const isResizingDuration = isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone' || drag?.kind === 'resizeStartDone');
             const resizePreviewLeft = Math.min(Math.max(0, barLeft + bW + 7), Math.max(0, tw - 74));
             const conf = confidence[s.id] || 'committed';
@@ -2482,8 +2484,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     : confStyle),
                   cursor: linkDrag ? 'crosshair'
                     : isSummary ? (groupBy === 'project' ? 'ns-resize' : 'pointer')
-                    : s.status === 'done' ? 'pointer'
-                    : (drag?.id === s.id && drag?.kind === 'resizeEnd') ? 'ew-resize'
+                    : (drag?.id === s.id && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone' || drag?.kind === 'resizeStartDone')) ? 'ew-resize'
                     : (drag?.id === s.id && drag?.isReorder) ? 'ns-resize'
                     : drag ? 'grabbing' : 'grab',
                 }}
@@ -2500,7 +2501,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     onBMD(e, row);
                     return;
                   }
-                  if (s.status === 'done') return;
                   onBMD(e, row);
                 }}
                 onMouseUp={() => { if (linkDrag && !isSummary) { dismissTooltip(true); onLinkDrop(linkTaskId); } }}
@@ -2646,13 +2646,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   pointerEvents: 'none',
                 }} />}
                 {showResizeStartHandle && <div
-                  className={`g-resize-handle${isDrag && drag?.kind === 'resizeStartDone' ? ' active' : ''}`}
+                  className={`g-resize-handle done-edge${isDrag && drag?.kind === 'resizeStartDone' ? ' active' : ''}`}
                   data-htip={`${t('g.doneResizeStart') || 'Drag to adjust completedStart'}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
                   onMouseDown={e => onResizeStartDoneMD(e, row)}
                   onClick={e => e.stopPropagation()}
                   style={{ left: 1 }} />}
                 {showResizeHandle && <div
-                  className={`g-resize-handle${isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone') ? ' active' : ''}`}
+                  className={`g-resize-handle${canResizeDone ? ' done-edge' : ''}${isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone') ? ' active' : ''}`}
                   data-htip={`${canResizeDone ? (t('g.doneResizeEnd') || 'Drag to adjust completedEnd') : t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
                   onMouseDown={e => onResizeEndMD(e, row)}
                   onClick={e => e.stopPropagation()}

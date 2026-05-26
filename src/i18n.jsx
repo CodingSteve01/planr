@@ -476,6 +476,8 @@ const en = {
   'g.doneMove': 'Drag to shift the actual completion window',
   'g.overloadBadge': 'overbooked',
   'g.overloadFilterTip': 'Click to show only tasks with overbooked assignees',
+  'set.queueByDefault': 'Queue no-dep leaves by default (legacy scheduler)',
+  'set.queueByDefaultHint': 'Off (default): tasks without dependencies start in parallel from their earliest legal date. On: tasks without dependencies queue on the assignee in seq order — same behaviour as the pre-link-driven scheduler. Useful for restoring older plans without rewriting them.',
 
   // ── PlanReview – confidence reason labels ──
   'pr.reasonManual': 'Set manually', 'pr.reasonDone': 'Done',
@@ -1144,6 +1146,8 @@ const de = {
   'g.doneMove': 'Ziehen, um das tatsächliche Erledigungs-Fenster zu verschieben',
   'g.overloadBadge': 'überbucht',
   'g.overloadFilterTip': 'Klick zeigt nur Tasks mit überbuchten Personen',
+  'set.queueByDefault': 'Tasks ohne Links per Person sequenzieren (Legacy-Scheduler)',
+  'set.queueByDefaultHint': 'Aus (Standard): Tasks ohne Vorgänger starten parallel ab frühestmöglichem Datum. An: Tasks ohne Vorgänger reihen sich nach seq-Wert pro Person — wie der alte Scheduler vor der Link-Umstellung. Für ältere Pläne ohne Umbau.',
 
   // ── PlanReview – Confidence-Reason-Labels ──
   'pr.reasonManual': 'Manuell gesetzt', 'pr.reasonDone': 'Erledigt',

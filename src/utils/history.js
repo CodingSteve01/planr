@@ -151,6 +151,61 @@ export function stateAsOf(events, asOfDate) {
   return m;
 }
 
+// ── Time-Travel: rebuild a tree snapshot as it was at `operatingDate` ────────
+// Combines `stateAsOf` (leaf state per event log) with the current tree's
+// structural fields (name, deps, assign, team, best, factor, …). Items whose
+// `kind=added` event is in the future of `operatingDate` are filtered out so
+// the snapshot reflects "the plan as it stood that day".
+//
+// Caveat: structural fields aren't versioned in the event log yet. Renames,
+// dep edits, or estimate changes don't time-travel. v1 covers status,
+// progress, completedAt — the most common back-dating use cases.
+export function replayToDate(tree, events, operatingDate) {
+  if (!Array.isArray(tree)) return [];
+  const state = stateAsOf(events || [], operatingDate);
+  const cutoff = operatingDate instanceof Date ? operatingDate : new Date(operatingDate);
+  // Find items whose `added` event is strictly after the cutoff → they didn't
+  // exist yet. Sub-tree under such an item is removed too.
+  const futureAdditions = new Set();
+  for (const ev of events || []) {
+    if (ev.kind !== 'added') continue;
+    const ts = new Date(eventReplayTimestamp(ev));
+    if (ts > cutoff) futureAdditions.add(ev.id);
+  }
+  return tree
+    .filter(node => {
+      if (!node?.id) return false;
+      for (const futId of futureAdditions) {
+        if (node.id === futId || node.id.startsWith(futId + '.')) return false;
+      }
+      return true;
+    })
+    .map(node => {
+      const s = state.get(node.id);
+      const next = { ...node };
+      if (s) {
+        if (s.status != null) next.status = s.status;
+        if (s.progress != null) next.progress = s.progress;
+        if (s.completedAt != null) next.completedAt = s.completedAt;
+        else if (s.status !== 'done') delete next.completedAt;
+      }
+      // Roll back any completion that hasn't happened yet at operatingDate.
+      // Covers items whose current tree state says "done on 2026-06" while
+      // the user is scrubbed back to 2026-05.
+      const cmp = next.completedAt || next.completedEnd || next.completedStart;
+      if (cmp && new Date(cmp) > cutoff) {
+        delete next.completedAt;
+        delete next.completedEnd;
+        delete next.completedStart;
+        if (next.status === 'done') {
+          next.status = (s && s.status !== 'done') ? s.status : 'open';
+          if (next.status !== 'done' && (next.progress ?? 100) === 100) next.progress = s?.progress ?? 0;
+        }
+      }
+      return next;
+    });
+}
+
 // ── Convenience: diff between two snapshots, returning a per-id summary ──────
 // Used by UI to label "what changed". Returns Map<id, {wasStatus, nowStatus,
 // wasProgress, nowProgress, isNew, isGone}>.
