@@ -1755,21 +1755,19 @@ export default function App() {
   function removeDep(fromId, depId) {
     setData(d => {
       const tree = d.tree || [];
-      return {
-        ...d,
-        tree: tree.map(r => {
-          if (r.id !== fromId) return r;
-          const next = {
-            ...r,
-            deps: (r.deps || []).filter(x => x !== depId),
-            softDeps: (r.softDeps || []).filter(x => x !== depId),
-          };
-          if (shouldAutoParallelizeOnDepFree(next, isLeafNode(tree, fromId))) {
-            next.parallel = true;
-          }
-          return next;
-        }),
-      };
+      const mutated = tree.map(r => {
+        if (r.id !== fromId) return r;
+        const next = {
+          ...r,
+          deps: (r.deps || []).filter(x => x !== depId),
+          softDeps: (r.softDeps || []).filter(x => x !== depId),
+        };
+        if (shouldAutoParallelizeOnDepFree(next, isLeafNode(tree, fromId))) {
+          next.parallel = true;
+        }
+        return next;
+      });
+      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
     setSaved(false);
   }
@@ -1778,15 +1776,15 @@ export default function App() {
   function addDep(fromId, depId, kind = 'soft') {
     if (fromId === depId) return;
     const targetKey = kind === 'hard' ? 'deps' : 'softDeps';
-    setData(d => ({
-      ...d,
-      tree: (d.tree || []).map(r => {
+    setData(d => {
+      const mutated = (d.tree || []).map(r => {
         if (r.id !== fromId) return r;
         const existing = new Set([...(r.deps || []), ...(r.softDeps || [])]);
-        if (existing.has(depId)) return r; // already linked either way
+        if (existing.has(depId)) return r;
         return { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
-      })
-    }));
+      });
+      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
+    });
     setSaved(false);
   }
   function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
@@ -2485,7 +2483,6 @@ export default function App() {
       {/* `Hide done` lives in the ViewFilters popup now to keep the
           sub-toolbar compact. State + setter still passed there. */}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
-      {(tab === 'tree' || tab === 'gantt') && <button className="btn btn-sec btn-sm" onClick={onReorganizeLayout} data-htip={_t('ui.reorganizeTip')}>⇅ {_t('ui.reorganize')}</button>}
       {/* Sprint-review diff picker — available wherever the diff overlay
           can actually show something (tree/gantt/net). Tab-shared state in
           App.jsx keeps all surfaces in sync. */}
@@ -2536,7 +2533,7 @@ export default function App() {
         onOpenItem={onBriefingOpenItem}
         onExportTodo={onSumExportTodo}
       /></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}

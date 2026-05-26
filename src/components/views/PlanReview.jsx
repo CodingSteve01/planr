@@ -4,6 +4,7 @@ import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
+import { ResourceLoadMatrix } from '../shared/ResourceLoadMatrix.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
@@ -12,7 +13,7 @@ const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
+function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations = [], meetingPlans = [], confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -171,6 +172,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
           ['decide', `${t('p.decisions')} (${readyItems.length})`],
           ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
           ['capacity', t('p.teamCapacity')],
+          ['load', t('p.load') || 'Load'],
           ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
           ['warnings', `${t('pr.warnings')}${warnCount > 0 ? ' (' + warnCount + ')' : ''}`],
           ['critical', `${t('pr.criticalPaths')} (${criticalScopes.reduce((sum, scope) => sum + scope.chains.length, 0)})`],
@@ -290,6 +292,18 @@ function PlanReviewImpl({ tree, scheduled, members, teams, confidence, confReaso
         </div>;
       })}
     </div>}
+
+    {/* ══════ LOAD — weekly resource-load matrix (scheduler output) ══════ */}
+    {section === 'load' && (
+      <ResourceLoadMatrix
+        members={members}
+        teams={teams}
+        weeks={weeks}
+        vacations={vacations}
+        meetingPlans={meetingPlans}
+        scheduled={scheduled}
+      />
+    )}
 
     {/* ══════ BLOCKED — compact rows ══════ */}
     {section === 'blocked' && <>

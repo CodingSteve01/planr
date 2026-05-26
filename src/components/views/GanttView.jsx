@@ -131,6 +131,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     try { localStorage.setItem('planr_gantt_load_heatmap', String(next)); } catch {}
     return next;
   });
+  const [overloadOnly, setOverloadOnly] = useState(() => {
+    try { return localStorage.getItem('planr_gantt_overload_only') === 'true'; } catch { return false; }
+  });
+  const toggleOverloadOnly = () => setOverloadOnly(v => {
+    const next = !v;
+    try { localStorage.setItem('planr_gantt_overload_only', String(next)); } catch {}
+    return next;
+  });
   const setGB = v => {
     const next = normalizeViewMode(v);
     setGroupBy(next);
@@ -1253,6 +1261,32 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       };
     });
   }, [weeks, resourceLoadByWeek, memberById, t]);
+
+  // Set of task ids whose bar overlaps any week where any of its assignees is
+  // booked above 110%. Drives the "Only overload" Gantt filter + per-bar
+  // warning outline.
+  const overbookedTaskIds = useMemo(() => {
+    const out = new Set();
+    if (!Object.keys(resourceLoadByWeek || {}).length) return out;
+    (scheduled || []).forEach(s => {
+      if (!s || !s.startD || !s.endD) return;
+      const ids = [...new Set([s.personId, ...(s.assign || [])].filter(Boolean))];
+      if (!ids.length) return;
+      const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
+      const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
+      for (let wi = 0; wi < weeks.length; wi++) {
+        const w = weeks[wi]; if (!w?.mon) continue;
+        const wkEnd = addD(w.mon, 6);
+        if (wkEnd < start || w.mon > end) continue;
+        if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
+          out.add(s.id);
+          break;
+        }
+      }
+    });
+    return out;
+  }, [scheduled, weeks, resourceLoadByWeek]);
+
   const loadHeatColor = (percent, meta = null) => {
     if (meta?.historicalOnly) return 'rgba(148,163,184,.12)';
     if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.08)';
@@ -1942,6 +1976,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               ? t('g.loadFullWeeks', loadRiskSummary.fullCount)
               : t('g.loadOk')}
           </span>}
+          {/* Standalone overbooking badge — visible even when heatmap is off so
+              the user can't miss real overplanning. Click filters Gantt to
+              overload bars only. */}
+          {overbookedTaskIds.size > 0 && <button
+            className={`badge bc ${overloadOnly ? '' : 'btn'}`}
+            data-htip={t('g.overloadFilterTip') || 'Click to show only overbooked tasks'}
+            onClick={toggleOverloadOnly}
+            style={{ fontSize: 10, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
+            ⚠ {overbookedTaskIds.size} {t('g.overloadBadge') || 'overbooked'}{overloadOnly ? ' · only' : ''}
+          </button>}
           {allCollapseKeys.length > 0 && <>
             <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
             <button className="btn btn-sec btn-xs" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
@@ -2015,7 +2059,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const isSummary = row.type === 'summary';
           const isCp = rowIsCp(row);
           const dim = cpOnly && !rowRelevantToCp(row);
-          const indent = row.level * 14;
+          const indent = row.level * 6;
           const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
           const isHov = hoverDepId === s.id;
           const isMatchL = searchMatches?.has(s.id);
@@ -2027,6 +2071,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
           const _alt = (_taskIdx++ % 2) === 1;
           return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+            onMouseEnter={e => { if (dragRef.current || drag || linkDrag) return; showRowTip(row, e, !isSummary); }}
+            onMouseLeave={() => hideRowTip(row, !isSummary)}
             onClick={() => openRowItem(row)}>
             {isSummary && <button
               type="button"
@@ -2265,7 +2311,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const resizePxOffset = isDrag && drag?.kind === 'resizeEnd' ? dDelta * resizePxPerDay : 0;
             const barLeft = Math.max(0, baseLeft + dragPxOffset);
             const bW = Math.max(6, baseWidth + resizePxOffset);
-            const dim = cpOnly && !rowRelevantToCp(row);
+            const isOverbooked = !isSummary && overbookedTaskIds.has(s.id);
+            const overloadDimmed = overloadOnly && !isSummary && !isOverbooked;
+            const dim = (cpOnly && !rowRelevantToCp(row)) || overloadDimmed;
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
@@ -2394,6 +2442,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     : isMatch ? '0 0 0 2px var(--am)'
                     : isSelected ? '0 0 0 2px var(--ac), 0 0 0 5px rgba(59,130,246,.22)'
                     : linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
+                  opacity: overloadDimmed ? 0.22 : undefined,
                   ...(isSummary
                     ? summaryStyle
                     : s.status === 'done'
@@ -2570,21 +2619,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   pointerEvents: 'none',
                 }} />}
                 {showResizeStartHandle && <div
-                  className={`g-resize-handle done-edge${isDrag && drag?.kind === 'resizeStartDone' ? ' active' : ''}`}
+                  className={`g-resize-handle${isDrag && drag?.kind === 'resizeStartDone' ? ' active' : ''}`}
                   data-htip={`${t('g.doneResizeStart') || 'Drag to adjust completedStart'}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
                   onMouseDown={e => onResizeStartDoneMD(e, row)}
                   onClick={e => e.stopPropagation()}
-                  style={{ left: 0 }}>
-                  <span className="g-resize-icon"><span/><span/><span/></span>
-                </div>}
+                  style={{ left: 1 }} />}
                 {showResizeHandle && <div
-                  className={`g-resize-handle${canResizeDone ? ' done-edge' : ''}${fixedDays ? ' fixed-duration' : ''}${isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone') ? ' active' : ''}`}
+                  className={`g-resize-handle${isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone') ? ' active' : ''}`}
                   data-htip={`${canResizeDone ? (t('g.doneResizeEnd') || 'Drag to adjust completedEnd') : t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
                   onMouseDown={e => onResizeEndMD(e, row)}
                   onClick={e => e.stopPropagation()}
-                  style={{ right: 0 }}>
-                  <span className="g-resize-icon"><span/><span/><span/></span>
-                </div>}
+                  style={{ right: 1 }} />}
               </div>}
               {isResizingDuration && <div style={{ position: 'absolute', left: barLeft + bW, top: 3, bottom: 3, width: 2, background: 'var(--ac)', borderRadius: 2, zIndex: 9, boxShadow: '0 0 8px rgba(59,130,246,.65)', pointerEvents: 'none' }} />}
               {isResizingDuration && <div
@@ -2612,13 +2657,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 }}>
                 → {resizePreviewDays}d
               </div>}
-              {/* Dependency connector sits outside the clipped bar. The
-                  fixed-duration resize handle remains inside the bar near the
-                  end; this hover button starts a dependency drag. */}
+              {/* Dependency connector: semicircle plus-button OUTSIDE the bar's
+                  right edge so it never fights the resize-handle for pixels.
+                  Resize-handle lives inside the bar at right:1; this dot sits
+                  4px after the bar ends. */}
               {bW > 0 && !isSummary && <div className={`g-link-connector${linkDrag?.fromId === linkTaskId ? ' active' : ''}`} data-link-target={linkTaskId} data-htip={t('g.linkHandle')}
                 style={{
                   position: 'absolute',
-                  left: microBar ? barLeft + bW + 1 : barLeft + bW - 11,
+                  left: barLeft + bW,
                   top: 14,
                   '--link-color': s.status === 'done' ? 'rgba(255,255,255,.88)' : tc,
                   pointerEvents: 'none',

@@ -174,7 +174,7 @@ const en = {
   // ── PlanReview ──
   'p.clear': 'clear', 'p.needsPerson': 'needs person', 'p.unclear': 'unclear',
   'p.finished': 'finished',
-  'p.decisions': 'Decisions', 'p.teamCapacity': 'Team capacity', 'p.blocked': 'Blocked',
+  'p.decisions': 'Decisions', 'p.teamCapacity': 'Team capacity', 'p.load': 'Load', 'p.blocked': 'Blocked',
   'p.allAssigned': 'Everything assigned',
   'p.allAssignedDesc': 'Every ready-to-start item has an assignee.',
   'p.readyItems': 'These {0} items are ready to start (no blocking dependencies), but have no person assigned. Who should do them?',
@@ -474,6 +474,8 @@ const en = {
   'g.doneResizeStart': 'Drag to adjust actual start (completedStart)',
   'g.doneResizeEnd': 'Drag to adjust actual end (completedEnd)',
   'g.doneMove': 'Drag to shift the actual completion window',
+  'g.overloadBadge': 'overbooked',
+  'g.overloadFilterTip': 'Click to show only tasks with overbooked assignees',
 
   // ── PlanReview – confidence reason labels ──
   'pr.reasonManual': 'Set manually', 'pr.reasonDone': 'Done',
@@ -840,7 +842,7 @@ const de = {
   // ── PlanReview ──
   'p.clear': 'klar', 'p.needsPerson': 'braucht Person', 'p.unclear': 'unklar',
   'p.finished': 'erledigt',
-  'p.decisions': 'Entscheidungen', 'p.teamCapacity': 'Teamauslastung', 'p.blocked': 'Geblockt',
+  'p.decisions': 'Entscheidungen', 'p.teamCapacity': 'Teamauslastung', 'p.load': 'Auslastung', 'p.blocked': 'Geblockt',
   'p.allAssigned': 'Alles vergeben',
   'p.allAssignedDesc': 'Jedes startbereite Item hat eine Person.',
   'p.readyItems': 'Diese {0} Items sind startbereit (keine blockierenden Abhängigkeiten), aber noch ohne Person. Wer soll sie machen?',
@@ -1140,6 +1142,8 @@ const de = {
   'g.doneResizeStart': 'Ziehen, um den tatsächlichen Start (completedStart) anzupassen',
   'g.doneResizeEnd': 'Ziehen, um das tatsächliche Ende (completedEnd) anzupassen',
   'g.doneMove': 'Ziehen, um das tatsächliche Erledigungs-Fenster zu verschieben',
+  'g.overloadBadge': 'überbucht',
+  'g.overloadFilterTip': 'Klick zeigt nur Tasks mit überbuchten Personen',
 
   // ── PlanReview – Confidence-Reason-Labels ──
   'pr.reasonManual': 'Manuell gesetzt', 'pr.reasonDone': 'Erledigt',
