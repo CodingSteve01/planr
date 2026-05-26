@@ -12,7 +12,7 @@ import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort, shouldAutoParallelizeOnDepFree } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -1753,15 +1753,24 @@ export default function App() {
   // can stay agnostic ("delete this connection") without knowing the
   // kind. Returns the node to either bucket if it lives there.
   function removeDep(fromId, depId) {
-    setData(d => ({
-      ...d,
-      tree: (d.tree || []).map(r => r.id === fromId
-        ? { ...r,
+    setData(d => {
+      const tree = d.tree || [];
+      return {
+        ...d,
+        tree: tree.map(r => {
+          if (r.id !== fromId) return r;
+          const next = {
+            ...r,
             deps: (r.deps || []).filter(x => x !== depId),
             softDeps: (r.softDeps || []).filter(x => x !== depId),
+          };
+          if (shouldAutoParallelizeOnDepFree(next, isLeafNode(tree, fromId))) {
+            next.parallel = true;
           }
-        : r)
-    }));
+          return next;
+        }),
+      };
+    });
     setSaved(false);
   }
   // Add a dep edge. `kind='soft'` (default for in-Gantt drag-link) parks

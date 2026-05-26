@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { schedule, re } from '../scheduler.js';
+import { schedule, re, shouldAutoParallelizeOnDepFree } from '../scheduler.js';
 import { iso } from '../date.js';
 
 // Minimal project builder — returns the canonical `schedule()` invocation so
@@ -242,13 +242,15 @@ describe('schedule(): pinned starts', () => {
   });
 });
 
-// Unlinked work is queued by resource by default. Intentional overlap is an
-// explicit planning choice via `parallel:true`.
+// Link-driven Gantt: a leaf without `deps` / `softDeps` runs from its earliest
+// legal floor (planStart/today/member-start). The person queue is bypassed so
+// the task starts in parallel with whatever the resource is already doing.
+// Links are the explicit way to enforce sequencing.
 
-describe('schedule(): no-dep starters respect resource queues', () => {
+describe('schedule(): no-dep starters bypass the resource queue', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
-  test('two unrelated no-dep tasks on same person run sequentially by default', () => {
+  test('two unrelated no-dep tasks on same person start in parallel from today', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
@@ -257,19 +259,19 @@ describe('schedule(): no-dep starters respect resource queues', () => {
     const { results } = runSchedule({ tree, members: [alex] });
     const a = results.find(s => s.id === 'P1.1');
     const b = results.find(s => s.id === 'P1.2');
-    expect(b.startD > a.endD).toBe(true);
+    expect(a.startD.getTime()).toBe(b.startD.getTime());
   });
 
-  test('parallel:true keeps unrelated no-dep tasks overlapped intentionally', () => {
+  test('parallel:false opts a no-dep task back into the resource queue', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
-      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', parallel: true },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', parallel: false },
     ];
     const { results } = runSchedule({ tree, members: [alex] });
     const a = results.find(s => s.id === 'P1.1');
     const b = results.find(s => s.id === 'P1.2');
-    expect(a.startD.getTime()).toBe(b.startD.getTime());
+    expect(b.startD > a.endD).toBe(true);
   });
 
   test('successor still waits for predecessor', () => {
@@ -283,6 +285,54 @@ describe('schedule(): no-dep starters respect resource queues', () => {
     const succ = results.find(s => s.id === 'P1.2');
     // Successor uses normal queue mechanics — it still waits for pred.endD.
     expect(succ.startD >= pred.endD).toBe(true);
+  });
+});
+
+describe('shouldAutoParallelizeOnDepFree()', () => {
+  test('true when leaf has no deps + no softDeps + status not done + parallel undefined', () => {
+    const node = { id: 'X', deps: [], softDeps: [], status: 'open' };
+    expect(shouldAutoParallelizeOnDepFree(node, true)).toBe(true);
+  });
+  test('false when not a leaf', () => {
+    const node = { id: 'X', deps: [], softDeps: [], status: 'open' };
+    expect(shouldAutoParallelizeOnDepFree(node, false)).toBe(false);
+  });
+  test('false when status is done', () => {
+    const node = { id: 'X', deps: [], softDeps: [], status: 'done' };
+    expect(shouldAutoParallelizeOnDepFree(node, true)).toBe(false);
+  });
+  test('false when parallel already true (no double-flip)', () => {
+    const node = { id: 'X', deps: [], softDeps: [], status: 'open', parallel: true };
+    expect(shouldAutoParallelizeOnDepFree(node, true)).toBe(false);
+  });
+  test('false when any dep remains', () => {
+    expect(shouldAutoParallelizeOnDepFree({ id: 'X', deps: ['Y'], softDeps: [], status: 'open' }, true)).toBe(false);
+    expect(shouldAutoParallelizeOnDepFree({ id: 'X', deps: [], softDeps: ['Y'], status: 'open' }, true)).toBe(false);
+  });
+});
+
+describe('schedule(): auto-parallel after link removal', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('explicit parallel:true on a linked task only matters once the link is gone', () => {
+    // With a dep present, parallel:true is irrelevant — the successor still
+    // waits. Once the dep is removed, the task starts in parallel from today
+    // (new default behaviour for no-dep leaves).
+    const linked = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', deps: ['P1.1'], parallel: true },
+    ];
+    const linkedRes = runSchedule({ tree: linked, members: [alex] });
+    const linkedA = linkedRes.results.find(s => s.id === 'P1.1');
+    const linkedB = linkedRes.results.find(s => s.id === 'P1.2');
+    expect(linkedB.startD >= linkedA.endD).toBe(true);
+
+    const unlinked = linked.map(n => n.id === 'P1.2' ? { ...n, deps: [] } : n);
+    const unlinkedRes = runSchedule({ tree: unlinked, members: [alex] });
+    const ulA = unlinkedRes.results.find(s => s.id === 'P1.1');
+    const ulB = unlinkedRes.results.find(s => s.id === 'P1.2');
+    expect(ulB.startD.getTime()).toBe(ulA.startD.getTime());
   });
 });
 

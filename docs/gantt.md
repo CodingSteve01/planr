@@ -54,6 +54,16 @@ When zoom reaches 70 px / week or more:
 
 Click and drag a bar horizontally. On release, the start week becomes `pinnedStart` on the underlying task. A `📌` icon appears on the bar. The scheduler treats `pinnedStart` as a **hard floor** — it can't move the task earlier, but capacity and deps can still push it later. If that happens, the icon becomes `⚠📌` and the tooltip explains which constraint pushed it.
 
+### Drag-to-edit-reality (done bars)
+
+Done bars represent **reality**, not plan. A done bar therefore reacts differently:
+
+- **Drag the bar body** — shifts both `completedStart` and `completedEnd` as a block (duration preserved). `completedEnd` is clamped to today so reality cannot leak into the future.
+- **Drag the left edge** — moves `completedStart`, extending or compressing the recorded window backward. Clamped at `completedEnd` so start cannot pass end.
+- **Drag the right edge** — moves `completedEnd` (and mirrors into `completedAt`), extending or compressing forward. Clamped at today and at `completedStart`.
+
+Pinning is disabled for done bars — `pinnedStart` is a plan-side hint that has no meaning once a task is in the past.
+
 To **unpin**, right-click the bar → `📌 Unpin (currently YYYY-MM-DD)`.
 
 ### Right-click context menu
@@ -85,11 +95,13 @@ Two ways:
 
 All link mutations use a **targeted update path** in `App.jsx` (`addDep(fromId, depId)`) that reads the latest tree state — no stale-closure overwrites even when multiple mutations happen in the same tick.
 
+**Multi-select fan-in:** when the dragged bar is part of the current rectangle selection, dropping it on a target X creates a `selected → X` link for every selected item. Drag from an unselected bar keeps the legacy 1→1 behaviour.
+
 ### Removing a dependency
 
 Hover an arrow. A red `×` badge appears right at the source end of the arrow (close to the hover path so the cursor doesn't leave the hoverable area on its way to the badge). Click the badge → confirm.
 
-Removal also uses a targeted path (`removeDep(fromId, depId)`) — it only touches the `deps` field on the source task. No other fields get clobbered by a stale snapshot.
+Removal also uses a targeted path (`removeDep(fromId, depId)`) — it only touches the `deps` field on the source task. No other fields get clobbered by a stale snapshot. When removal leaves a leaf without any remaining links, the task is automatically marked `parallel: true` so the scheduler stops queuing it on the assignee's `pF` cursor (see `docs/scheduler.md` § Parallel flag).
 
 ### Hover behavior
 

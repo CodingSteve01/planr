@@ -471,6 +471,9 @@ const en = {
   'g.reasonHighRisk': 'Risk factor ≥ 2.0', 'g.reasonNoEstimate': 'No estimate',
   'g.reasonInherited': 'Derived from worst child item',
   'g.fixedResize': 'Drag to set exact task duration',
+  'g.doneResizeStart': 'Drag to adjust actual start (completedStart)',
+  'g.doneResizeEnd': 'Drag to adjust actual end (completedEnd)',
+  'g.doneMove': 'Drag to shift the actual completion window',
 
   // ── PlanReview – confidence reason labels ──
   'pr.reasonManual': 'Set manually', 'pr.reasonDone': 'Done',
@@ -1134,6 +1137,9 @@ const de = {
   'g.reasonHighRisk': 'Risikofaktor ≥ 2.0', 'g.reasonNoEstimate': 'Keine Schätzung',
   'g.reasonInherited': 'Vom schlechtesten Kind-Element',
   'g.fixedResize': 'Ziehen, um die exakte Task-Dauer zu setzen',
+  'g.doneResizeStart': 'Ziehen, um den tatsächlichen Start (completedStart) anzupassen',
+  'g.doneResizeEnd': 'Ziehen, um das tatsächliche Ende (completedEnd) anzupassen',
+  'g.doneMove': 'Ziehen, um das tatsächliche Erledigungs-Fenster zu verschieben',
 
   // ── PlanReview – Confidence-Reason-Labels ──
   'pr.reasonManual': 'Manuell gesetzt', 'pr.reasonDone': 'Erledigt',

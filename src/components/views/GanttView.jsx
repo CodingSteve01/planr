@@ -1523,8 +1523,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     dismissTooltip(true);
     justDraggedRef.current = false;
     const s = row.s;
+    const node = row.node || iMap[s.treeId || s.id];
+    // Done bars represent reality, not plan. Drag-move shifts the whole
+    // completed window (completedStart + completedEnd) so the user can record
+    // "this actually happened later than I logged". Pin is meaningless for
+    // done work and stays disabled.
+    const isDoneTask = row.type === 'task' && s.status === 'done' && !!node && !s._unestimated && !s.isHandoff;
     const d = {
       id: s.id,
+      treeId: s.treeId || s.id,
       startWi: s.startWi,
       endWi: s.endWi,
       startD: s.startD,
@@ -1538,6 +1545,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       personId: s.personId,
       rowType: row.type,
       canPin: row.type === 'task' && s.status !== 'done' && !s._unestimated,
+      canMoveDone: isDoneTask,
+      origCompletedStart: isDoneTask ? (node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD)) : null,
+      origCompletedEnd: isDoneTask ? (node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD)) : null,
       reorderMode: groupBy === 'project' && onReorderSibling ? 'tree' : null,
       lockVertical: row.type === 'summary',
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
@@ -1589,7 +1599,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     justDraggedRef.current = false;
     const s = row.s;
     const node = row.node || iMap[s.treeId || s.id];
-    if (!node || row.type !== 'task' || s.status === 'done' || s._unestimated || s.isHandoff) return;
+    if (!node || row.type !== 'task' || s._unestimated || s.isHandoff) return;
+    // Done bar resize edits reality (completedEnd shifts). Open/wip bars edit
+    // the planned fixed duration. Different drop targets, same handle UX.
+    const isDoneTask = s.status === 'done';
     const currentDays = fixedDurationDays(node) || scheduledWorkDaysOf(s);
     const d = {
       id: s.id,
@@ -1604,7 +1617,42 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       lockVertical: false,
       lastDy: 0,
       isReorder: false,
-      kind: 'resizeEnd',
+      kind: isDoneTask ? 'resizeEndDone' : 'resizeEnd',
+      origCompletedStart: isDoneTask ? (node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD)) : null,
+      origCompletedEnd: isDoneTask ? (node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD)) : null,
+    };
+    dragRef.current = d;
+    setDrag(d);
+    setDDelta(0);
+  }
+
+  // Left-edge resize: only meaningful for done bars (extends/shrinks the
+  // recorded start date). Open/wip bars take their start from the scheduler
+  // and have no editable left edge.
+  function onResizeStartDoneMD(e, row) {
+    e.stopPropagation();
+    e.preventDefault();
+    dismissTooltip(true);
+    justDraggedRef.current = false;
+    const s = row.s;
+    const node = row.node || iMap[s.treeId || s.id];
+    if (!node || row.type !== 'task' || s.status !== 'done' || s._unestimated || s.isHandoff) return;
+    const currentDays = Math.max(1, Math.ceil(scheduledWorkDaysOf(s) || 1));
+    const d = {
+      id: s.id,
+      treeId: s.treeId || s.id,
+      ox: e.clientX,
+      oy: e.clientY,
+      baseDurationDays: currentDays,
+      rowType: row.type,
+      canPin: false,
+      reorderMode: null,
+      lockVertical: false,
+      lastDy: 0,
+      isReorder: false,
+      kind: 'resizeStartDone',
+      origCompletedStart: node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD),
+      origCompletedEnd: node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD),
     };
     dragRef.current = d;
     setDrag(d);
@@ -1702,6 +1750,38 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         if (dDelta !== 0) {
           onSeqUpdate?.(d.treeId || d.id, { fixedDurationDays: Math.max(1, Math.ceil((d.baseDurationDays || 1) + dDelta)) });
         }
+      } else if (d.kind === 'resizeEndDone' && dDelta !== 0 && d.origCompletedEnd) {
+        // Shift completedEnd by N days. Clamp at today (no future-completion)
+        // and at completedStart (can't shrink past the recorded start).
+        const newEnd = addD(localDate(d.origCompletedEnd), showDays ? dDelta : dDelta * 7);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const startCap = d.origCompletedStart ? localDate(d.origCompletedStart) : null;
+        let clamped = newEnd > today ? today : newEnd;
+        if (startCap && clamped < startCap) clamped = startCap;
+        onSeqUpdate?.(d.treeId || d.id, { completedEnd: iso(clamped), completedAt: iso(clamped) });
+      } else if (d.kind === 'resizeStartDone' && dDelta !== 0 && d.origCompletedStart) {
+        // Shift completedStart. Floor at very old date, cap at completedEnd
+        // (can't push start past the recorded end).
+        const newStart = addD(localDate(d.origCompletedStart), showDays ? dDelta : dDelta * 7);
+        const endCap = d.origCompletedEnd ? localDate(d.origCompletedEnd) : null;
+        const clamped = endCap && newStart > endCap ? endCap : newStart;
+        onSeqUpdate?.(d.treeId || d.id, { completedStart: iso(clamped) });
+      } else if (d.kind === 'move' && d.canMoveDone && dDelta !== 0 && d.origCompletedStart && d.origCompletedEnd) {
+        // Move the whole done window as a block: shift start and end by the
+        // same delta. Cap end at today so reality stays in the past.
+        const shift = showDays ? dDelta : dDelta * 7;
+        const newStart = addD(localDate(d.origCompletedStart), shift);
+        const newEnd = addD(localDate(d.origCompletedEnd), shift);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        let cappedEnd = newEnd > today ? today : newEnd;
+        const span = +localDate(d.origCompletedEnd) - +localDate(d.origCompletedStart);
+        let cappedStart = newStart;
+        if (cappedEnd !== newEnd) cappedStart = new Date(+cappedEnd - span);
+        onSeqUpdate?.(d.treeId || d.id, {
+          completedStart: iso(cappedStart),
+          completedEnd: iso(cappedEnd),
+          completedAt: iso(cappedEnd),
+        });
       } else if (d.isReorder && d.lastDy && d.reorderMode === 'tree') {
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
         const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
@@ -1788,12 +1868,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     dismissTooltip(true);
     setLinkDrag({ fromId, mouseX: e.clientX, mouseY: e.clientY });
   }
-  // Complete a link-drag onto a target bar
+  // Complete a link-drag onto a target bar. If the dragged item is part of
+  // the current multi-selection, fan the link out: every selected item
+  // becomes a predecessor of the drop target. Single-select drag keeps the
+  // legacy 1→1 behaviour.
   function onLinkDrop(targetId) {
     if (!linkDrag || linkDrag.fromId === targetId) { setLinkDrag(null); return; }
-    // Targeted add: reads latest tree state in App, touches only deps field.
-    // target depends on linkDrag.fromId (predecessor → successor)
-    onAddDep?.(targetId, linkDrag.fromId);
+    const sources = selectedIds.has(linkDrag.fromId)
+      ? [linkDrag.fromId, ...selectedTaskIds.filter(id => id !== linkDrag.fromId && id !== targetId)]
+      : [linkDrag.fromId];
+    sources.forEach(fromId => { if (fromId && fromId !== targetId) onAddDep?.(targetId, fromId); });
     setLinkDrag(null);
   }
   useEffect(() => {
@@ -2191,14 +2275,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const isSelected = selectedIds.has(linkTaskId);
             const fixedDays = !isSummary ? fixedDurationDays(node) : 0;
             const canResizeDuration = !!(!isSummary && node && s.status !== 'done' && !s._unestimated && !s.isHandoff);
-            const resizePreviewDays = isDrag && drag?.kind === 'resizeEnd'
-              ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + dDelta))
+            const canResizeDone = !!(!isSummary && node && s.status === 'done' && !s._unestimated && !s.isHandoff);
+            const resizePreviewDays = isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone' || drag?.kind === 'resizeStartDone')
+              ? Math.max(1, Math.ceil((drag.baseDurationDays || fixedDays || scheduledWorkDaysOf(s)) + (drag?.kind === 'resizeStartDone' ? -dDelta : dDelta)))
               : fixedDays;
             const loadCells = !isSummary ? taskLoadCells(s, barLeft, bW) : EMPTY_ARR;
             const compactBar = !isSummary && bW < 36;
             const microBar = !isSummary && bW < 16;
-            const showResizeHandle = canResizeDuration && bW >= 26;
-            const isResizingDuration = isDrag && drag?.kind === 'resizeEnd';
+            const showResizeHandle = (canResizeDuration || canResizeDone) && bW >= 26;
+            const showResizeStartHandle = canResizeDone && bW >= 26;
+            const isResizingDuration = isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone' || drag?.kind === 'resizeStartDone');
             const resizePreviewLeft = Math.min(Math.max(0, barLeft + bW + 7), Math.max(0, tw - 74));
             const conf = confidence[s.id] || 'committed';
             const decideBy = isSummary ? null : node?.decideBy;
@@ -2483,14 +2569,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   boxShadow: '0 1px 1px rgba(0,0,0,.35)',
                   pointerEvents: 'none',
                 }} />}
-                {showResizeHandle && <div data-htip={`${t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`} onMouseDown={e => onResizeEndMD(e, row)} onClick={e => e.stopPropagation()}
-                  style={{ position: 'absolute', right: 6, top: 2, bottom: 2, width: 10, cursor: 'ew-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6 }}>
-                  <span style={{
-                    width: 4, height: '70%', borderLeft: `1px solid ${fixedDays ? '#fff' : 'rgba(255,255,255,.78)'}`,
-                    borderRight: `1px solid ${fixedDays ? '#fff' : 'rgba(255,255,255,.78)'}`,
-                    opacity: isDrag && drag?.kind === 'resizeEnd' ? 1 : 0.8,
-                    filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.45))',
-                  }} />
+                {showResizeStartHandle && <div
+                  className={`g-resize-handle done-edge${isDrag && drag?.kind === 'resizeStartDone' ? ' active' : ''}`}
+                  data-htip={`${t('g.doneResizeStart') || 'Drag to adjust completedStart'}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
+                  onMouseDown={e => onResizeStartDoneMD(e, row)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ left: 0 }}>
+                  <span className="g-resize-icon"><span/><span/><span/></span>
+                </div>}
+                {showResizeHandle && <div
+                  className={`g-resize-handle${canResizeDone ? ' done-edge' : ''}${fixedDays ? ' fixed-duration' : ''}${isDrag && (drag?.kind === 'resizeEnd' || drag?.kind === 'resizeEndDone') ? ' active' : ''}`}
+                  data-htip={`${canResizeDone ? (t('g.doneResizeEnd') || 'Drag to adjust completedEnd') : t('g.fixedResize')}${resizePreviewDays ? ` · ${resizePreviewDays}d` : ''}`}
+                  onMouseDown={e => onResizeEndMD(e, row)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ right: 0 }}>
+                  <span className="g-resize-icon"><span/><span/><span/></span>
                 </div>}
               </div>}
               {isResizingDuration && <div style={{ position: 'absolute', left: barLeft + bW, top: 3, bottom: 3, width: 2, background: 'var(--ac)', borderRadius: 2, zIndex: 9, boxShadow: '0 0 8px rgba(59,130,246,.65)', pointerEvents: 'none' }} />}

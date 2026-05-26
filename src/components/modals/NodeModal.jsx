@@ -9,7 +9,7 @@ import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
-import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
+import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId, shouldAutoParallelizeOnDepFree } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
@@ -579,7 +579,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                 <span title="To soft" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => setF(x => ({ ...x, deps: (x.deps || []).filter(y => y !== d), softDeps: [...new Set([...(x.softDeps || []), d])] }))}>→S</span>
-                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, _depLabels: nl }; })}>×</span>
+                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; const next = { ...x, deps: nd, _depLabels: nl }; if (shouldAutoParallelizeOnDepFree(next, isLeaf)) next.parallel = true; return next; })}>×</span>
               </div>
             </div>; })}
             {(f.softDeps || []).map(d => { const dn = findById(d); return <div key={'s_' + d} className="dep-row">
@@ -590,7 +590,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                 <span title="To hard" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => setF(x => ({ ...x, softDeps: (x.softDeps || []).filter(y => y !== d), deps: [...new Set([...(x.deps || []), d])] }))}>→H</span>
-                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => ({ ...x, softDeps: (x.softDeps || []).filter(y => y !== d) }))}>×</span>
+                <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const next = { ...x, softDeps: (x.softDeps || []).filter(y => y !== d) }; if (shouldAutoParallelizeOnDepFree(next, isLeaf)) next.parallel = true; return next; })}>×</span>
               </div>
             </div>; })}
             {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>

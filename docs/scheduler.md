@@ -121,7 +121,13 @@ Pinning never pulls a task earlier than its natural deps/capacity allow.
 
 ## Parallel flag
 
-`parallel: true` on a leaf bypasses the assignee's `pF` counter — the task does NOT advance the person's cursor. This is a legacy field kept for Markdown round-tripping. It's not exposed in the UI to prevent accidental misuse.
+Default behaviour: a leaf without any `deps` / `softDeps` bypasses the assignee's `pF` counter and starts from its earliest legal floor (planStart / today / member-start). Sequencing is **link-driven** — the only way to make one task wait for another is an explicit dependency. Removing the last link is the user's explicit signal that the task should overlap with whatever the resource is already doing.
+
+`parallel: false` is the explicit opt-out: the leaf re-enters the person queue even though it has no dependencies. Useful for "I have no formal predecessor but please don't double-book the assignee".
+
+`parallel: true` is redundant with the default for no-dep leaves and has no effect once a dependency is present (the dep is the binding floor). It stays writeable so Markdown round-trips don't lose intent and so the UI can persist the auto-flip described below.
+
+The UI sets `parallel: true` automatically whenever a leaf loses its last `deps` / `softDeps` link via any path (NodeModal × button, Gantt arrow-X, multi-select "clear all"). The helper `shouldAutoParallelizeOnDepFree(node, isLeaf)` encodes the rule: leaf + open status + no remaining deps + not already parallel. Re-adding a dep later does not flip the flag back; the user must clear it explicitly. Done leaves are never flipped — their dates are historical.
 
 ## Holidays
 

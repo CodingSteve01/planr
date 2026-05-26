@@ -651,4 +651,30 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(svg).toContain('background:#f59e0b;color:#111318');
   });
+
+  test('open stations preserve chronological order along the route even with uneven effort', () => {
+    // The subway map is a hybrid: stations sort by milestoneDate, but spacing
+    // is effort-weighted. Even when a small late task sits next to a huge
+    // early one, the calendar order must hold — otherwise the user reads the
+    // future in the wrong sequence.
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Early big', status: 'open', progress: 0, best: 30, factor: 1 },
+      { id: 'P1.2', name: 'Mid tiny',  status: 'open', progress: 0, best: 1,  factor: 1 },
+      { id: 'P1.3', name: 'Late big',  status: 'open', progress: 0, best: 20, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Early big', status: 'open', effort: 30, startD: d('2026-02-01'), endD: d('2026-02-28') },
+      { id: 'P1.2', name: 'Mid tiny',  status: 'open', effort: 1,  startD: d('2026-04-15'), endD: d('2026-04-16') },
+      { id: 'P1.3', name: 'Late big',  status: 'open', effort: 20, startD: d('2026-06-01'), endD: d('2026-06-30') },
+    ];
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const stations = model.lines[0].majorStations.slice().sort((a, b) => a.t - b.t);
+    expect(stations.map(s => s.id)).toEqual(['P1.1', 'P1.2', 'P1.3']);
+  });
 });

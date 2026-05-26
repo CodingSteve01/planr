@@ -41,6 +41,20 @@ export function leafNodes(tree) {
   return tree.filter(r => isLeafNode(tree, r.id));
 }
 
+// True when removing the last dep/softDep should flip the leaf into `parallel:true`.
+// Whenever a leaf becomes link-free we honour the user's intent ("nothing blocks
+// this any more, let it overlap with whatever the resource is doing") so the
+// schedule doesn't silently keep it stuck in the queue. Done leaves stay
+// untouched — their dates are historical, not planned.
+export function shouldAutoParallelizeOnDepFree(node, isLeaf) {
+  if (!node || !isLeaf) return false;
+  if (node.status === 'done') return false;
+  if (node.parallel === true) return false;
+  const deps = (node.deps || []).length;
+  const soft = (node.softDeps || []).length;
+  return deps === 0 && soft === 0;
+}
+
 export function resolveToLeafIds(tree, id) {
   const item = typeof id === 'string' ? tree.find(r => r.id === id) : id;
   if (!item) return [];
@@ -531,11 +545,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const allDepsRaw = [...new Set([...(r.deps || []), ...(r.softDeps || []), ...inheritedDeps])];
     const allD = allDepsRaw.flatMap(resD).filter(d => d !== r.id);
     const noDeps = allD.length === 0;
-    // Root starters still begin at planStart/today, but they now respect the
-    // resource queue by default. Use `parallel:true` for intentional overlap.
-    // Pins also bypass the queue so manual dates remain visible as conflicts
+    // Link-driven Gantt semantic: a leaf without any `deps` / `softDeps`
+    // bypasses the assignee's `pF` cursor so it starts from today (or its
+    // earliest legal floor) instead of waiting behind unrelated work. Links
+    // are the only mechanism that enforces sequencing — removing the last
+    // link is the user's explicit signal that this task should run in
+    // parallel with whatever the resource is already doing. Opt-out with
+    // `parallel:false` if a queued behaviour is required. Pinned tasks
+    // bypass the queue too so manual dates remain visible as conflicts
     // instead of being silently moved.
-    const bypassPersonQueue = !!r.pinnedStart || (noDeps && !!r.parallel);
+    const bypassPersonQueue = !!r.pinnedStart || (noDeps && r.parallel !== false);
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).
