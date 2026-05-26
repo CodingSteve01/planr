@@ -1582,7 +1582,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       canMoveDone: isDoneTask,
       origCompletedStart: isDoneTask ? (node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD)) : null,
       origCompletedEnd: isDoneTask ? (node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD)) : null,
-      reorderMode: groupBy === 'project' && onReorderSibling ? 'tree' : null,
+      reorderMode: groupBy === 'project' && onReorderSibling ? 'tree'
+        : groupBy === 'resource' && onAddDep ? 'resource' : null,
       lockVertical: row.type === 'summary',
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
       lastDy: 0,
@@ -1820,6 +1821,32 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
         const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
         onReorderSibling?.(d.id, dir);
+      } else if (d.isReorder && d.lastDy && d.reorderMode === 'resource') {
+        // Resource-view vertical reorder: drop above/below another task in
+        // the same person group creates a softDep so the new order becomes
+        // the scheduler order. Drag UP → source runs before target →
+        // target depends on source. Drag DOWN → source depends on target.
+        const rowShift = Math.round(d.lastDy / RH);
+        if (rowShift !== 0) {
+          const sourceIdx = visibleRows.findIndex(r => r?.type === 'task' && r.s?.id === d.id);
+          if (sourceIdx >= 0) {
+            const targetIdx = Math.max(0, Math.min(visibleRows.length - 1, sourceIdx + rowShift));
+            const target = visibleRows[targetIdx];
+            if (target?.type === 'task' && target.s?.id !== d.id) {
+              const sourcePerson = d.personId || (d.assign && d.assign[0]);
+              const targetPerson = target.s.personId || (target.s.assign && target.s.assign[0]);
+              if (sourcePerson && sourcePerson === targetPerson) {
+                if (rowShift > 0) {
+                  // source landed after target → source.deps += target
+                  onAddDep?.(d.id, target.s.id);
+                } else {
+                  // source landed before target → target.deps += source
+                  onAddDep?.(target.s.id, d.id);
+                }
+              }
+            }
+          }
+        }
       } else if (d.canPin && dDelta !== 0) {
         // Day mode: offset from the bar's actual start date (not the week's Monday).
         // Week mode: offset from the start week's Monday (bar is week-aligned).

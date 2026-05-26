@@ -39,7 +39,6 @@ import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
-import { HistoryModal } from './components/modals/HistoryModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -567,7 +566,7 @@ export default function App() {
     const parsedCustomFields = []; // custom field definitions from ## Custom Fields section
     let currentTpl = null; // template being parsed
     let projName = null;
-    let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
+    let planStart = '', planEnd = '', viewStartMd = '', workDays = '', queueByDefault = false;
     const idStack = [];
     const parsedMeetingPlans = []; // meeting plan definitions from ## Meeting Plans
     let currentMeetingPlan = null; // being parsed
@@ -647,6 +646,7 @@ export default function App() {
           else if (/^end/i.test(m[1])) planEnd = m[2].trim();
           else if (/^view\s*start/i.test(m[1])) viewStartMd = m[2].trim();
           else if (/^work\s*days/i.test(m[1])) workDays = m[2].trim();
+          else if (/^queue\s*by\s*default/i.test(m[1])) queueByDefault = /^(true|1|yes|on)$/i.test(m[2].trim());
         }
         return;
       }
@@ -1125,6 +1125,7 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
+    if (queueByDefault) metaObj.queueByDefault = true;
     // History events — parsed out of the ```planr-history``` fenced block
     let historyEvents = [];
     if (historyBlockLines && historyBlockLines.length) {
@@ -1332,7 +1333,7 @@ export default function App() {
   }, [members, data?.meetingPlans, data?.teams]);
   const { results: scheduled, weeks } = useMemo(() => {
     if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart);
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { queueByDefault: !!meta.queueByDefault });
     // Trim weeks to the actual horizon when planEnd wasn't user-set:
     // latest scheduled endD + padding. Falls back to a 6-month
     // window when nothing is scheduled so the Gantt isn't empty.
@@ -2454,8 +2455,6 @@ export default function App() {
       <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('snapshots')}
         data-htip="Recover from a rolling JSON snapshot — last 20 saves are kept locally as a safety net.">↶ Snapshots</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('history')}
-        data-htip="Raw fallback editor for the planr-history block. Normal history edits live in the item dialog.">Raw history</button>
       <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
       <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
@@ -2802,17 +2801,6 @@ export default function App() {
         a.href = URL.createObjectURL(blob);
         a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
         a.click();
-      }}
-    />}
-    {modal === 'history' && <HistoryModal
-      events={data?.historyEvents || []}
-      tree={tree}
-      initialItemId={selected?.id || ''}
-      onClose={() => setModal(null)}
-      onSave={events => {
-        setData(d => ({ ...d, historyEvents: events }));
-        setSaved(false);
-        setModal(null);
       }}
     />}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
