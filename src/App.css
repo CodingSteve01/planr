@@ -146,6 +146,12 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .gbar:hover .g-resize-handle,.g-resize-handle.active{opacity:1;pointer-events:auto;}
 .g-resize-handle:hover::before,.g-resize-handle.active::before{background:var(--ac,#3b82f6);}
 .g-resize-handle.done-edge:hover::before,.g-resize-handle.done-edge.active::before{background:#f59e0b;}
+/* Tree D&D drag-handle: subtle dotted column, brightens on row-hover so it
+   discoverably invites a grab without dominating the row visually. */
+.tv-drag-handle{display:inline-block;width:14px;margin-right:4px;font-size:11px;letter-spacing:-1px;color:rgba(148,163,184,.35);cursor:grab;user-select:none;text-align:center;line-height:1;transition:color .12s ease, transform .12s ease;}
+tr:hover .tv-drag-handle{color:var(--tx3);}
+.tv-drag-handle:hover{color:var(--ac);transform:scale(1.1);}
+.tv-drag-handle:active{cursor:grabbing;}
 .grow-r:hover .g-link-connector,.g-link-connector:hover,.g-link-connector.active{opacity:1;transform:translateY(-50%) scale(1);}
 /* Semicircle: flat edge sits flush against the bar's right side, bulge
    protrudes outward. Right half of a circle. */

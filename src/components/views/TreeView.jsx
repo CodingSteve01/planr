@@ -378,6 +378,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
             <td {...(cpTip ? { 'data-htip': `Critical path: ${cpTip}` } : {})}>
               {onReorder && <span
+                className="tv-drag-handle"
                 draggable
                 data-htip={`Drag to reorder ${r.id} within its siblings`}
                 onDragStart={e => {
@@ -386,16 +387,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   e.dataTransfer.setData('text/plain', r.id);
                   setOrderDrop({ dragId: r.id, targetId: null, position: 'before' });
                 }}
-                onDragEnd={() => setOrderDrop(null)}
-                style={{
-                  display: 'inline-block',
-                  width: 12,
-                  marginRight: 4,
-                  color: 'var(--tx3)',
-                  cursor: 'grab',
-                  userSelect: 'none',
-                  textAlign: 'center',
-                }}>≡</span>}
+                onDragEnd={() => setOrderDrop(null)}>⋮⋮</span>}
               <span className="tid">{r.id}</span>
             </td>
 

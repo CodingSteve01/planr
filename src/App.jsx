@@ -1782,7 +1782,13 @@ export default function App() {
         if (r.id !== fromId) return r;
         const existing = new Set([...(r.deps || []), ...(r.softDeps || [])]);
         if (existing.has(depId)) return r;
-        return { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
+        const next = { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
+        // Item regains a dep → auto-clear the `parallel:true` flag that was
+        // set when the item became link-free. The flag has no effect when
+        // deps exist, but keeping it around clutters the markdown and
+        // would re-fire incorrectly if the dep is removed again later.
+        if (next.parallel === true) delete next.parallel;
+        return next;
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
