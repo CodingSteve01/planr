@@ -1026,6 +1026,56 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [visibleTaskIds]);
+  // Z-order style reorder for the current multi-selection. Walks the visible
+  // task list, lifts the selected ids out, splices them back in at the new
+  // position (first / up / down / last), then rewrites `seq` values 10, 20,
+  // 30, … so the scheduler picks up the new global order.
+  const reorderSelectionInTime = (dir) => {
+    if (!onTaskUpdate || selectedTaskIds.length === 0) return;
+    const ordered = visibleRows
+      .filter(r => r?.type === 'task' && r.s)
+      .map(r => r.s.treeId || r.s.id);
+    if (!ordered.length) return;
+    const sel = new Set(selectedTaskIds);
+    const selectedInOrder = ordered.filter(id => sel.has(id));
+    const others = ordered.filter(id => !sel.has(id));
+    let next = [];
+    if (dir === 'first') {
+      next = [...selectedInOrder, ...others];
+    } else if (dir === 'last') {
+      next = [...others, ...selectedInOrder];
+    } else if (dir === 'up') {
+      const firstSelectedIdx = ordered.findIndex(id => sel.has(id));
+      if (firstSelectedIdx <= 0) return;
+      next = ordered.slice();
+      // Move every selected one slot up, keeping the relative order of
+      // unselected neighbours intact. Walk from top so swaps cascade.
+      for (let i = 1; i < next.length; i++) {
+        if (sel.has(next[i]) && !sel.has(next[i - 1])) {
+          [next[i - 1], next[i]] = [next[i], next[i - 1]];
+        }
+      }
+    } else if (dir === 'down') {
+      const lastSelectedIdx = ordered.length - 1 - [...ordered].reverse().findIndex(id => sel.has(id));
+      if (lastSelectedIdx === ordered.length - 1) return;
+      next = ordered.slice();
+      for (let i = next.length - 2; i >= 0; i--) {
+        if (sel.has(next[i]) && !sel.has(next[i + 1])) {
+          [next[i + 1], next[i]] = [next[i], next[i + 1]];
+        }
+      }
+    } else {
+      return;
+    }
+    // Rewrite seq in dense steps so future reorders have room to slide.
+    next.forEach((id, idx) => {
+      const node = iMap[id];
+      if (!node) return;
+      const newSeq = (idx + 1) * 10;
+      if (node.seq === newSeq) return;
+      onTaskUpdate({ ...node, seq: newSeq });
+    });
+  };
   const linkSelectedInOrder = () => {
     selectedTaskIds.forEach((id, index) => {
       const prev = selectedTaskIds[index - 1];
@@ -2962,6 +3012,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       testId="gantt-selection-actionbar"
     >
       {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')}>{t('g.linkSelected')}</button>}
+      {/* Z-order style reorder: shifts the whole selection in the scheduler
+          processing order (writes seq). Mirrors media-player jump controls. */}
+      <span style={{ display: 'inline-flex', gap: 2 }}>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip') || 'Auswahl ganz nach vorne in der Scheduler-Reihenfolge'} aria-label="Move to first">|◀</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip') || 'Auswahl eins nach vorne'} aria-label="Move up">◀</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip') || 'Auswahl eins nach hinten'} aria-label="Move down">▶</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip') || 'Auswahl ganz nach hinten'} aria-label="Move to last">▶|</button>
+      </span>
       <button
         type="button"
         className="sab-assign-trigger"
