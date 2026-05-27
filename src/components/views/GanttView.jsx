@@ -1870,27 +1870,46 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
         onReorderSibling?.(d.id, dir);
       } else if (d.isReorder && d.lastDy && d.reorderMode === 'resource') {
-        // Resource-view vertical reorder: drop above/below another task in
-        // the same person group creates a softDep so the new order becomes
-        // the scheduler order. Drag UP → source runs before target →
-        // target depends on source. Drag DOWN → source depends on target.
+        // Resource-view vertical reorder writes a `seq` value so the scheduler
+        // picks the dragged task up in that order on the assignee's queue.
+        // Half-step between the neighbours bracketing the drop position
+        // keeps existing seq values stable for everything else.
         const rowShift = Math.round(d.lastDy / RH);
         if (rowShift !== 0) {
           const sourceIdx = visibleRows.findIndex(r => r?.type === 'task' && r.s?.id === d.id);
-          if (sourceIdx >= 0) {
+          if (sourceIdx >= 0 && onTaskUpdate) {
             const targetIdx = Math.max(0, Math.min(visibleRows.length - 1, sourceIdx + rowShift));
-            const target = visibleRows[targetIdx];
-            if (target?.type === 'task' && target.s?.id !== d.id) {
-              const sourcePerson = d.personId || (d.assign && d.assign[0]);
-              const targetPerson = target.s.personId || (target.s.assign && target.s.assign[0]);
-              if (sourcePerson && sourcePerson === targetPerson) {
-                if (rowShift > 0) {
-                  // source landed after target → source.deps += target
-                  onAddDep?.(d.id, target.s.id);
-                } else {
-                  // source landed before target → target.deps += source
-                  onAddDep?.(target.s.id, d.id);
-                }
+            const sourcePerson = d.personId || (d.assign && d.assign[0]);
+            const personRows = visibleRows.filter(r => {
+              if (r?.type !== 'task') return false;
+              const p = r.s?.personId || (r.s?.assign && r.s.assign[0]);
+              return p && p === sourcePerson;
+            });
+            const personIdxOfSource = personRows.findIndex(r => r.s?.id === d.id);
+            const tgtRow = visibleRows[targetIdx];
+            const personIdxOfTarget = personRows.findIndex(r => r.s?.id === tgtRow?.s?.id);
+            if (personIdxOfTarget >= 0 && personIdxOfTarget !== personIdxOfSource) {
+              // Compute insertion position in the person-row list (after target
+              // when dragging down, before when dragging up).
+              const insertAt = rowShift > 0 ? personIdxOfTarget : personIdxOfTarget;
+              // Neighbour seqs bracketing the new slot.
+              const reordered = personRows.filter(r => r.s?.id !== d.id);
+              const clamped = Math.max(0, Math.min(reordered.length, insertAt));
+              const prev = reordered[clamped - 1]?.s;
+              const next = reordered[clamped]?.s;
+              const prevSeq = prev?.seq || prev?.displayOrder || (clamped) * 10;
+              const nextSeq = next?.seq || next?.displayOrder || (clamped + 2) * 10;
+              const newSeq = Math.round((prevSeq + nextSeq) / 2) || (prevSeq + 5);
+              const node = iMap[d.treeId || d.id];
+              if (node) onTaskUpdate({ ...node, seq: newSeq });
+              // Multi-row drag: keep the rest of the current selection together
+              // by spacing them around `newSeq` in their visible order.
+              if (selectedIds.has(d.id) && selectedTaskIds.length > 1) {
+                const ordered = selectedTaskIds.filter(id => id !== d.id);
+                ordered.forEach((id, i) => {
+                  const n = iMap[id]; if (!n) return;
+                  onTaskUpdate({ ...n, seq: newSeq + (i + 1) });
+                });
               }
             }
           }

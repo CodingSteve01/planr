@@ -151,7 +151,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // due dates schedule first. Tasks without due sort after dated ones.
     const aDue = a.due ? a.due : '9999-99-99';
     const bDue = b.due ? b.due : '9999-99-99';
-    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    // Tiebreak order: prio → assigned-first → due → manual rank → id.
+    // `displayOrder` is what tree/Gantt D&D writes (1, 2, 3, … per sibling
+    // group); legacy `seq` still works for old plans. Either lets the
+    // user say "this one first" without touching deps.
+    const aRank = (a.displayOrder ?? a.seq ?? 0);
+    const bRank = (b.displayOrder ?? b.seq ?? 0);
+    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || aRank - bRank || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
