@@ -553,7 +553,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       teams={teams}
       members={members}
       onClose={() => setShowAssignModal(false)}
-      onApply={({ team, person }) => {
+      onApply={({ team, persons }) => {
         (tree || []).forEach(node => {
           if (!multiSel?.has(node.id) || !onTaskUpdate) return;
           const patch = { ...node };
@@ -562,11 +562,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             patch.team = team || '';
             changed = true;
           }
-          if (person !== null && person !== undefined) {
-            const nextAssign = person === '' ? [] : [person];
-            const cur = (node.assign || []).join(',');
-            const nxt = nextAssign.join(',');
-            if (cur !== nxt) { patch.assign = nextAssign; changed = true; }
+          if (Array.isArray(persons)) {
+            const cur = (node.assign || []).slice().sort().join(',');
+            const nxt = persons.slice().sort().join(',');
+            if (cur !== nxt) { patch.assign = persons.slice(); changed = true; }
           }
           if (changed) onTaskUpdate(patch);
         });
