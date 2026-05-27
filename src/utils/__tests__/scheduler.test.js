@@ -247,14 +247,26 @@ describe('schedule(): pinned starts', () => {
 // the task starts in parallel with whatever the resource is already doing.
 // Links are the explicit way to enforce sequencing.
 
-describe('schedule(): no-dep starters bypass the resource queue', () => {
+describe('schedule(): no-dep starters queue per assignee by default', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
-  test('two unrelated no-dep tasks on same person start in parallel from today', () => {
+  test('two unrelated no-dep tasks on same person run sequentially (auto-scheduler)', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
       { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.1');
+    const b = results.find(s => s.id === 'P1.2');
+    expect(b.startD > a.endD).toBe(true);
+  });
+
+  test('parallel:true on a no-dep task bypasses the queue and starts at earliest', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', parallel: true },
     ];
     const { results } = runSchedule({ tree, members: [alex] });
     const a = results.find(s => s.id === 'P1.1');
@@ -276,14 +288,14 @@ describe('schedule(): no-dep starters bypass the resource queue', () => {
   });
 });
 
-describe('schedule(): removing a dep unblocks the task', () => {
+describe('schedule(): dep + parallel interaction', () => {
   const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
-  test('linked successor waits; once the dep is dropped it starts in parallel', () => {
+  test('linked successor always waits; once both dep is dropped AND parallel set, starts at earliest', () => {
     const linked = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
-      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', deps: ['P1.1'] },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', deps: ['P1.1'], parallel: true },
     ];
     const linkedRes = runSchedule({ tree: linked, members: [alex] });
     const linkedA = linkedRes.results.find(s => s.id === 'P1.1');

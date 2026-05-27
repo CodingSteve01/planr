@@ -17,7 +17,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder, onTaskUpdate, onClearSelection }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -527,11 +527,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       <button
         type="button"
         className="sab-assign-trigger"
-        onClick={() => setShowAssignModal(true)}
-        data-htip={t('g.selectedAssignTip') || 'Team / Person zuweisen oder entfernen'}
-        data-testid="tree-assign-trigger">
+        onClick={() => onOpenBulkEdit?.()}
+        data-htip={t('g.bulkEditTip') || 'Massenänderung: Team, Person, Status, Effort, Timing für alle ausgewählten Items'}
+        data-testid="tree-bulk-edit-trigger">
         <span className="sab-icon">⎘</span>
-        <span>{t('g.assign') || 'Zuweisen…'}</span>
+        <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
       </button>
       <span className="sab-divider" />
       {[['open', t('tv.statusOpen') || 'open'], ['wip', t('tv.statusWip') || 'wip'], ['done', t('tv.statusDone') || 'done']].map(([stVal, label]) => (

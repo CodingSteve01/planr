@@ -232,6 +232,7 @@ export default function App() {
   const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
   const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
   const [onlyOverbooked, setOnlyOverbooked] = useState(() => { try { return localStorage.getItem('planr_only_overbooked') === 'true'; } catch { return false; } });
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -2469,6 +2470,177 @@ export default function App() {
     // TODO: add Network Graph improvements once documented
   ];
 
+  // Bulk-edit body — same content rendered into the Tree sidebar AND the
+  // standalone bulk-edit modal. Closure captures the App's state + setters.
+  const renderBulkEditBody = () => {
+    if (multiSel.size === 0) return null;
+    const selItems = tree.filter(r => multiSel.has(r.id));
+    const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
+    const commonTeam = commonOf('team');
+    const commonStatus = commonOf('status');
+    const commonPrio = commonOf('prio');
+    const commonBest = commonOf('best');
+    const commonFactor = commonOf('factor');
+    const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
+    const commonCompletedStart = commonOf('completedStart', r => r.completedStart || '');
+    const commonCompletedEnd = commonOf('completedEnd', r => r.completedEnd || '');
+    const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
+    const commonConfidence = commonOf('confidence', r => r.confidence || '');
+    const commonNote = commonOf('note');
+    const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
+    const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
+      const rootId = deadlineRootIdForNode(tree, item.id);
+      return !!rootId && item.id !== rootId;
+    });
+    const deadlineParentExcluded = allDeadlineScoped && selItems.some(item => {
+      const rootId = deadlineRootIdForNode(tree, item.id);
+      const pid = item.id.split('.').slice(0, -1).join('.');
+      return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
+    });
+    const commonDeadlineRelevant = allDeadlineScoped
+      ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false)
+      : null;
+    const anyNonRoot = selItems.some(r => r.id.includes('.'));
+    const batchTabs = [
+      { id: 'overview', label: _t('qe.tab.overview') },
+      { id: 'workflow', label: _t('qe.tab.workflow') },
+      ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
+      ...((allLeaf || allDeadlineScoped) ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
+    ];
+    const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
+    return <div className="side-body">
+      <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Common values shown — changes apply to all selected.</p>
+      <div className="qe-tabs">
+        {batchTabs.map(bt => <button key={bt.id} className={`qe-tab${bTab === bt.id ? ' active' : ''}`} onClick={() => setSideTab(bt.id)}>{bt.label}</button>)}
+      </div>
+      {bTab === 'overview' && <>
+        {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
+          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
+        </div>}
+        <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ' (mixed)' : ''}</label>
+          <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
+        </div>
+        {anyNonRoot && <>
+          {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
+            <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+              onSelect={tplId => {
+                const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
+                if (!tpl) return;
+                setD('tree', tree.map(r => {
+                  if (!multiSel.has(r.id)) return r;
+                  const phases = instantiateTemplatePhases(tpl.phases);
+                  return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
+                }));
+              }} placeholder={_t('ph.applyTemplate')} />
+          </div>}
+          {(() => {
+            const withPhases = selItems.filter(r => r.phases?.length);
+            if (!withPhases.length) return null;
+            const refPhases = withPhases[0].phases;
+            const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
+            if (!allSameStructure) return null;
+            return <div className="field"><label>{_t('ph.phases')}</label>
+              {refPhases.map((ph, i) => {
+                const statuses = withPhases.map(r => r.phases[i].status);
+                const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
+                const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+                return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                    onClick={() => {
+                      const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
+                      setD('tree', tree.map(r => {
+                        if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
+                        const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
+                        const done = newPhases.filter(p => p.status === 'done').length;
+                        const wip2 = newPhases.filter(p => p.status === 'wip').length;
+                        const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
+                        const prog = Math.round(done / newPhases.length * 100);
+                        return { ...r, phases: newPhases, status: st, progress: prog };
+                      }));
+                    }}>{dot}</span>
+                  <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
+                  {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(mixed)</span>}
+                </div>;
+              })}
+            </div>;
+          })()}
+        </>}
+      </>}
+      {bTab === 'workflow' && <>
+        <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ' (mixed)' : ''}</label>
+          <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
+        </div>
+        <div className="field"><label>{_t('qe.assignee')}</label>
+          {(() => {
+            const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
+            return <>
+              {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
+              </div>}
+              <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
+            </>;
+          })()}
+        </div>
+      </>}
+      {bTab === 'effort' && <>
+        {allLeaf && <div className="frow">
+          <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="number" min="0" step="0.1" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
+          </div>
+        </div>}
+        <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ' (mixed)' : ''}</label>
+          <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
+        </div>
+        <div className="field"><label>{_t('qe.confidence')}</label>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
+              <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 10 }}
+                onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
+          </div>
+        </div>
+      </>}
+      {bTab === 'timing' && <>
+        {allLeaf && <div className="frow">
+          <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedStart')}{commonCompletedStart == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="date" value={commonCompletedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedStart: v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedEnd')}{commonCompletedEnd == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="date" value={commonCompletedEnd ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ' (mixed)' : ''}</label>
+            <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r))} />
+          </div>
+        </div>}
+        {allDeadlineScoped && <div className="field">
+          <label>{_t('qe.affectsDeadline')}{commonDeadlineRelevant == null ? ' (mixed)' : ''}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={commonDeadlineRelevant !== false}
+                disabled={deadlineParentExcluded}
+                onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r))}
+              />
+              <span className="slider" />
+            </label>
+            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+              {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
+            </span>
+          </div>
+        </div>}
+      </>}
+      <hr className="divider" />
+      <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
+    </div>;
+  };
+
   return <>
     <HoverTipProvider />
     <div className="app">
@@ -2635,191 +2807,18 @@ export default function App() {
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder}
               onTaskUpdate={onGanttTaskUpdate}
-              onClearSelection={() => setMultiSel(new Set())} />
+              onClearSelection={() => setMultiSel(new Set())}
+              onOpenBulkEdit={() => setBulkEditModalOpen(true)} />
           }
         </div>
         {selected && <div className="side fade">
           {multiSel.size > 0 ? <>
-            <div className="side-hdr"><h3>{multiSel.size} items selected</h3>
+            <div className="side-hdr">
+              <h3>{multiSel.size} items selected</h3>
+              <button className="btn btn-sec btn-xs" onClick={() => setBulkEditModalOpen(true)} data-htip={_t('bulk.openModalTip') || 'Open bulk-edit dialog'}>{_t('bulk.openModal') || '⤢ Modal'}</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}>×</button>
             </div>
-            {(() => {
-              const selItems = tree.filter(r => multiSel.has(r.id));
-              const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
-              const commonTeam = commonOf('team');
-              const commonStatus = commonOf('status');
-              const commonPrio = commonOf('prio');
-              const commonBest = commonOf('best');
-              const commonFactor = commonOf('factor');
-              const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
-              const commonCompletedStart = commonOf('completedStart', r => r.completedStart || '');
-              const commonCompletedEnd = commonOf('completedEnd', r => r.completedEnd || '');
-              const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
-              const commonConfidence = commonOf('confidence', r => r.confidence || '');
-              const commonNote = commonOf('note');
-              const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
-              const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
-                const rootId = deadlineRootIdForNode(tree, item.id);
-                return !!rootId && item.id !== rootId;
-              });
-              const deadlineParentExcluded = allDeadlineScoped && selItems.some(item => {
-                const rootId = deadlineRootIdForNode(tree, item.id);
-                const pid = item.id.split('.').slice(0, -1).join('.');
-                return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
-              });
-              const commonDeadlineRelevant = allDeadlineScoped
-                ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false)
-                : null;
-              const anyNonRoot = selItems.some(r => r.id.includes('.'));
-              const batchTabs = [
-                { id: 'overview', label: _t('qe.tab.overview') },
-                { id: 'workflow', label: _t('qe.tab.workflow') },
-                ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
-                ...((allLeaf || allDeadlineScoped) ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
-              ];
-              const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
-
-              return <div className="side-body">
-                <p className="helper" style={{ marginBottom: 10 }}>Ctrl+Click to add/remove items. Common values shown — changes apply to all selected.</p>
-
-                <div className="qe-tabs">
-                  {batchTabs.map(bt => <button key={bt.id} className={`qe-tab${bTab === bt.id ? ' active' : ''}`} onClick={() => setSideTab(bt.id)}>{bt.label}</button>)}
-                </div>
-
-                {bTab === 'overview' && <>
-                  {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
-                    <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
-                  </div>}
-                  <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ' (mixed)' : ''}</label>
-                    <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
-                  </div>
-
-                  {/* ── Phases batch (in overview because phases define status) ── */}
-                  {anyNonRoot && <>
-                    {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
-                      <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
-                        onSelect={tplId => {
-                          const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
-                          if (!tpl) return;
-                          setD('tree', tree.map(r => {
-                            if (!multiSel.has(r.id)) return r;
-                            const phases = instantiateTemplatePhases(tpl.phases);
-                            return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
-                          }));
-                        }} placeholder={_t('ph.applyTemplate')} />
-                    </div>}
-
-                    {(() => {
-                      const withPhases = selItems.filter(r => r.phases?.length);
-                      if (!withPhases.length) return null;
-                      const refPhases = withPhases[0].phases;
-                      const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
-                      if (!allSameStructure) return null;
-                      return <div className="field"><label>{_t('ph.phases')}</label>
-                        {refPhases.map((ph, i) => {
-                          const statuses = withPhases.map(r => r.phases[i].status);
-                          const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                          const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
-                          const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
-                          return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                            <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
-                              onClick={() => {
-                                const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
-                                setD('tree', tree.map(r => {
-                                  if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
-                                  const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
-                                  const done = newPhases.filter(p => p.status === 'done').length;
-                                  const wip2 = newPhases.filter(p => p.status === 'wip').length;
-                                  const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
-                                  const prog = Math.round(done / newPhases.length * 100);
-                                  return { ...r, phases: newPhases, status: st, progress: prog };
-                                }));
-                              }}>{dot}</span>
-                            <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
-                            {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>(mixed)</span>}
-                          </div>;
-                        })}
-                      </div>;
-                    })()}
-                  </>}
-                </>}
-
-                {bTab === 'workflow' && <>
-                  <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ' (mixed)' : ''}</label>
-                    <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
-                  </div>
-                  <div className="field"><label>{_t('qe.assignee')}</label>
-                    {(() => {
-                      const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
-                      return <>
-                        {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                          {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
-                        </div>}
-                        <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
-                      </>;
-                    })()}
-                  </div>
-                </>}
-
-                {bTab === 'effort' && <>
-                  {allLeaf && <div className="frow">
-                    <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="number" min="0" step="0.1" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
-                    </div>
-                    <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
-                    </div>
-                  </div>}
-                  <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ' (mixed)' : ''}</label>
-                    <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
-                  </div>
-                  <div className="field"><label>{_t('qe.confidence')}</label>
-                    <div style={{ display: 'flex', gap: 3 }}>
-                      {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
-                        <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 10 }}
-                          onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
-                    </div>
-                  </div>
-                </>}
-
-                {bTab === 'timing' && <>
-                  {allLeaf && <div className="frow">
-                    <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
-                    </div>
-                    <div className="field"><label>{_t('qe.completedStart')}{commonCompletedStart == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="date" value={commonCompletedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedStart: v } : r))} />
-                    </div>
-                    <div className="field"><label>{_t('qe.completedEnd')}{commonCompletedEnd == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="date" value={commonCompletedEnd ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r))} />
-                    </div>
-                    <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ' (mixed)' : ''}</label>
-                      <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r))} />
-                    </div>
-                  </div>}
-                  {allDeadlineScoped && <div className="field">
-                    <label>{_t('qe.affectsDeadline')}{commonDeadlineRelevant == null ? ' (mixed)' : ''}</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <label className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={commonDeadlineRelevant !== false}
-                          disabled={deadlineParentExcluded}
-                          onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r))}
-                        />
-                        <span className="slider" />
-                      </label>
-                      <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
-                        {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
-                      </span>
-                    </div>
-                  </div>}
-                </>}
-
-                <hr className="divider" />
-                <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>Clear selection</button>
-              </div>;
-            })()}
+            {renderBulkEditBody()}
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" data-htip="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
@@ -2834,7 +2833,7 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
@@ -2887,6 +2886,17 @@ export default function App() {
         a.click();
       }}
     />}
+    {bulkEditModalOpen && multiSel.size > 0 && (
+      <div className="overlay" onClick={() => setBulkEditModalOpen(false)}>
+        <div className="modal" style={{ width: 'min(640px, 96vw)', maxHeight: '88vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 15 }}>{_t('bulk.title') || `Massenänderung — ${multiSel.size} Items`}</h2>
+            <button className="btn btn-ghost btn-icon sm" onClick={() => setBulkEditModalOpen(false)}>×</button>
+          </div>
+          {renderBulkEditBody()}
+        </div>
+      </div>
+    )}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}

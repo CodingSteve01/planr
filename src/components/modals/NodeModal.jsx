@@ -425,6 +425,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} /><span className="slider" /></label>
               </div>
             )}
+            {isLeaf && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.parallelTip') || 'Darf parallel zu anderen Tasks dieser Person laufen (überspringt Person-Queue, wenn keine Vorgänger)'}>
+                <span>{t('qe.parallel') || 'Parallel'}</span>
+                <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked || undefined)} /><span className="slider" /></label>
+              </div>
+            )}
           </div>
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}

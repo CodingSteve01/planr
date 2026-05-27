@@ -151,7 +151,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // due dates schedule first. Tasks without due sort after dated ones.
     const aDue = a.due ? a.due : '9999-99-99';
     const bDue = b.due ? b.due : '9999-99-99';
-    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || a.id.localeCompare(b.id);
+    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
@@ -540,10 +540,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // `parallel:false` if a queued behaviour is required. Pinned tasks
     // bypass the queue too so manual dates remain visible as conflicts
     // instead of being silently moved.
-    // Link-driven scheduler: no-dep leaves always start at their earliest legal
-    // floor (planStart / today / member-start). Sequencing comes solely from
-    // hard/soft dependencies. Pin still bypasses so a manual date is honoured.
-    const bypassPersonQueue = !!r.pinnedStart || noDeps;
+    // Auto-scheduler with explicit opt-in for parallelism:
+    //   • pinnedStart      → manual date wins, queue bypassed
+    //   • noDeps + parallel:true → user said "this can overlap" — bypass queue
+    //   • everything else  → queue on the person's pF cursor; dependencies +
+    //     resource availability sequence the work automatically.
+    // Hard sequence between specific tasks comes from `deps` / `softDeps`.
+    const bypassPersonQueue = !!r.pinnedStart || (noDeps && r.parallel === true);
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).

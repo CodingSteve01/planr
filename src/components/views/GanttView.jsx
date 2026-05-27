@@ -53,7 +53,7 @@ function fmtLoadDays(value) {
   return `${(Math.round((Number(value) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '')}d`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], meetingPlans = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], meetingPlans = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling, onOpenBulkEdit }) {
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -2950,11 +2950,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <button
         type="button"
         className="sab-assign-trigger"
-        onClick={() => setShowAssignModal(true)}
-        data-htip={t('g.selectedAssignTip') || 'Team / Person zuweisen oder entfernen'}
-        data-testid="gantt-assign-trigger">
+        onClick={() => onOpenBulkEdit?.(selectedTaskIds)}
+        data-htip={t('g.bulkEditTip') || 'Massenänderung: Team, Person, Status, Effort, Timing für alle ausgewählten Items'}
+        data-testid="gantt-bulk-edit-trigger">
         <span className="sab-icon">⎘</span>
-        <span>{t('g.assign') || 'Zuweisen…'}</span>
+        <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
       </button>
       <span className="sab-divider" />
       <button data-testid="gantt-clear-selected-soft-links" className="btn btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')}>{t('g.clearSelectedSoftLinks')}</button>
