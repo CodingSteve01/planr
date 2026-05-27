@@ -2242,7 +2242,13 @@ export default function App() {
       const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
       if (ai >= 0 && bi >= 0) {
         const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-        setMultiSel(new Set(range));
+        // Shift = additive range. Existing multi-select survives, range gets
+        // unioned in. Matches Finder / VS Code list selection semantics.
+        setMultiSel(prev => {
+          const next = new Set(prev);
+          range.forEach(id => next.add(id));
+          return next;
+        });
       }
     } else if (e?.ctrlKey || e?.metaKey) {
       setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });

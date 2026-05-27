@@ -126,14 +126,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       const b = ids.indexOf(id);
       if (a < 0 || b < 0) return false;
       const [lo, hi] = a <= b ? [a, b] : [b, a];
-      const range = new Set(ids.slice(lo, hi + 1));
+      const range = ids.slice(lo, hi + 1);
+      // Shift = additive range. The previous selection survives; the range
+      // between anchor and click is unioned in. Matches Finder / VS Code.
       setSelectedIds(prev => {
-        if (e.metaKey || e.ctrlKey) {
-          const next = new Set(prev);
-          range.forEach(x => next.add(x));
-          return next;
-        }
-        return range;
+        const next = new Set(prev);
+        range.forEach(x => next.add(x));
+        return next;
       });
       return true;
     }
