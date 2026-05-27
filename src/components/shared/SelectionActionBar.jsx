@@ -10,8 +10,7 @@ export function SelectionActionBar({ count, onClear, children, testId = 'selecti
   return (
     <div className="gantt-selection-actionbar" data-testid={testId}>
       <span className="sab-count">
-        <span className="sab-count-pill">{count}</span>
-        <span className="sab-count-label">{t('g.selectedTasks', count)}</span>
+        <span className="sab-count-pill" title={t('g.selectedTasks', count)}>{count}</span>
       </span>
       <span className="sab-divider" />
       {children}

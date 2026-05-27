@@ -158,7 +158,6 @@ tr:hover .tv-drag-handle{color:var(--tx3);}
 [data-theme="light"] .gantt-selection-actionbar{background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.14);}
 .sab-count{display:inline-flex;align-items:center;gap:8px;}
 .sab-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;background:var(--ac);color:#fff;border-radius:6px;font-weight:700;font-size:13px;}
-.sab-count-label{color:var(--tx);font-size:12px;font-weight:500;}
 .sab-divider{display:inline-block;width:1px;height:22px;background:var(--b2);}
 .gantt-selection-actionbar .btn{padding:6px 12px;font-size:12px;height:30px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;}
 .gantt-selection-actionbar .btn-xs{padding:6px 12px;font-size:12px;height:30px;}

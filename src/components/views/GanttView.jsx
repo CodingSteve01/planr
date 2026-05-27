@@ -3015,10 +3015,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {/* Z-order style reorder: shifts the whole selection in the scheduler
           processing order (writes seq). Mirrors media-player jump controls. */}
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip') || 'Auswahl ganz nach vorne in der Scheduler-Reihenfolge'} aria-label="Move to first">|◀</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip') || 'Auswahl eins nach vorne'} aria-label="Move up">◀</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip') || 'Auswahl eins nach hinten'} aria-label="Move down">▶</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip') || 'Auswahl ganz nach hinten'} aria-label="Move to last">▶|</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏮</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip')} aria-label={t('g.reorderUpTip')} style={{ fontSize: 14, lineHeight: 1 }}>◀</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏭</button>
       </span>
       <button
         type="button"
