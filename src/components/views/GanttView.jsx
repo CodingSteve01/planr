@@ -1976,16 +1976,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     dismissTooltip(true);
     setLinkDrag({ fromId, mouseX: e.clientX, mouseY: e.clientY });
   }
-  // Complete a link-drag onto a target bar. If the dragged item is part of
-  // the current multi-selection, fan the link out: every selected item
-  // becomes a predecessor of the drop target. Single-select drag keeps the
-  // legacy 1→1 behaviour.
+  // Complete a link-drag onto a target bar. Two fan-out modes use the current
+  // multi-selection — they're mirrors of each other:
+  //   • drag SOURCE is selected → every selected id becomes a predecessor of
+  //     the drop target ("link these to that").
+  //   • drop TARGET is selected → the dragged source becomes a predecessor of
+  //     every selected id ("link this to all of those").
+  //   • both / neither → plain 1→1.
   function onLinkDrop(targetId) {
     if (!linkDrag || linkDrag.fromId === targetId) { setLinkDrag(null); return; }
-    const sources = selectedIds.has(linkDrag.fromId)
-      ? [linkDrag.fromId, ...selectedTaskIds.filter(id => id !== linkDrag.fromId && id !== targetId)]
-      : [linkDrag.fromId];
-    sources.forEach(fromId => { if (fromId && fromId !== targetId) onAddDep?.(targetId, fromId); });
+    const fromInSel = selectedIds.has(linkDrag.fromId);
+    const targetInSel = selectedIds.has(targetId);
+    if (fromInSel) {
+      const sources = [linkDrag.fromId, ...selectedTaskIds.filter(id => id !== linkDrag.fromId && id !== targetId)];
+      sources.forEach(fromId => { if (fromId && fromId !== targetId) onAddDep?.(targetId, fromId); });
+    } else if (targetInSel) {
+      const targets = [targetId, ...selectedTaskIds.filter(id => id !== targetId && id !== linkDrag.fromId)];
+      targets.forEach(t => { if (t && t !== linkDrag.fromId) onAddDep?.(t, linkDrag.fromId); });
+    } else {
+      onAddDep?.(targetId, linkDrag.fromId);
+    }
     setLinkDrag(null);
   }
   useEffect(() => {
