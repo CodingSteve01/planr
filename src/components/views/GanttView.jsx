@@ -1171,20 +1171,28 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (!personIds.length) continue;
       const start = item.startD instanceof Date ? item.startD : localDate(item.startD);
       const end = item.endD instanceof Date ? item.endD : localDate(item.endD);
-      const slots = [];
-      weeks.forEach((week, wi) => {
-        (week.wds || EMPTY_ARR).forEach(date => {
-          if (date >= start && date <= end) slots.push({ wi, date });
-        });
-      });
-      if (!slots.length) continue;
       const node = iMap[item.treeId || item.id] || item;
-      const effort = item.effort || scheduleEffort(node) || scheduledWorkDaysOf(item);
-      const loadPerSlot = Math.max(0, effort) / Math.max(1, slots.length);
+      const effort = Math.max(0, item.effort || scheduleEffort(node) || scheduledWorkDaysOf(item));
+      // Distribute effort only over days the person actually works. Vacation
+      // and off-roster days stretch the calendar duration of the bar but do
+      // not contribute to load — otherwise a task spanning a vacation week
+      // would falsely flag the resource as over-booked.
       personIds.forEach(personId => {
         const rows = ensure(personId);
+        const member = memberById[personId];
+        const personSlots = [];
+        weeks.forEach((week, wi) => {
+          (week.wds || EMPTY_ARR).forEach(date => {
+            if (date < start || date > end) return;
+            if (!isActiveMemberDay(member, date)) return;
+            if (onVacation(personId, date)) return;
+            personSlots.push({ wi });
+          });
+        });
+        if (!personSlots.length) return;
+        const loadPerSlot = effort / personSlots.length;
         const loadByWeek = new Map();
-        slots.forEach(({ wi }) => {
+        personSlots.forEach(({ wi }) => {
           rows[wi].load += loadPerSlot;
           loadByWeek.set(wi, (loadByWeek.get(wi) || 0) + loadPerSlot);
         });

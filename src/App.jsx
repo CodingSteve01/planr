@@ -227,6 +227,9 @@ export default function App() {
   const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
   const [personFilter, setPersonFilter] = useState(() => { try { return localStorage.getItem('planr_person_filter') || ''; } catch { return ''; } });
   const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
+  const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => { try { return localStorage.getItem('planr_only_auto') === 'true'; } catch { return false; } });
+  const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
+  const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -245,6 +248,9 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('planr_team_filter', teamFilter); } catch {} }, [teamFilter]);
   useEffect(() => { try { localStorage.setItem('planr_root_filter', rootFilter); } catch {} }, [rootFilter]);
   useEffect(() => { try { localStorage.setItem('planr_person_filter', personFilter); } catch {} }, [personFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_only_auto', String(onlyAutoAssigned)); } catch {} }, [onlyAutoAssigned]);
+  useEffect(() => { try { localStorage.setItem('planr_only_overdue', String(onlyOverdue)); } catch {} }, [onlyOverdue]);
+  useEffect(() => { try { localStorage.setItem('planr_only_unest', String(onlyUnestimated)); } catch {} }, [onlyUnestimated]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
@@ -1253,36 +1259,31 @@ export default function App() {
   const netTree = useMemo(() => {
     let items = visibleTree;
     if (rootFilter) items = items.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
+    const ancestorVisible = (idSet, id) => {
+      idSet.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
+    };
     if (teamFilter) {
       const visibleIds = new Set();
-      items.forEach(r => {
-        if ((r.team || '').includes(teamFilter)) {
-          visibleIds.add(r.id);
-          const parts = r.id.split('.');
-          for (let i = 1; i < parts.length; i++) {
-            const ancestor = parts.slice(0, i).join('.');
-            visibleIds.add(ancestor);
-          }
-        }
-      });
+      items.forEach(r => { if ((r.team || '').includes(teamFilter)) ancestorVisible(visibleIds, r.id); });
       items = items.filter(r => visibleIds.has(r.id));
     }
     if (personFilter) {
       const visibleIds = new Set();
+      items.forEach(r => { if ((r.assign || []).includes(personFilter)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (onlyUnestimated) {
+      const visibleIds = new Set();
       items.forEach(r => {
-        if ((r.assign || []).includes(personFilter)) {
-          visibleIds.add(r.id);
-          const parts = r.id.split('.');
-          for (let i = 1; i < parts.length; i++) {
-            const ancestor = parts.slice(0, i).join('.');
-            visibleIds.add(ancestor);
-          }
-        }
+        const isLeaf = !items.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
+        if (isLeaf && !r.best && !r.fixedDurationDays && r.status !== 'done') ancestorVisible(visibleIds, r.id);
       });
       items = items.filter(r => visibleIds.has(r.id));
     }
     return items;
-  }, [visibleTree, rootFilter, teamFilter, personFilter]);
+  }, [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated]);
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -1562,9 +1563,33 @@ export default function App() {
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
   // pass through view-filters together with their tree node.
+  // Quick-filter chips that depend on the scheduler output (auto-assigned,
+  // overdue). Applied to netTree downstream so all views share the same view.
+  const quickFilteredNetTree = useMemo(() => {
+    if (!onlyAutoAssigned && !onlyOverdue) return netTree;
+    let items = netTree;
+    const ancestorVisible = (idSet, id) => {
+      idSet.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
+    };
+    if (onlyAutoAssigned) {
+      const autoIds = new Set((scheduled || []).filter(s => s.autoAssigned).map(s => s.treeId || s.id));
+      const visibleIds = new Set();
+      items.forEach(r => { if (autoIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (onlyOverdue) {
+      const overdueIds = new Set((scheduled || []).filter(s => s.dueOverdue || (s.due && s.endD && new Date(s.endD) > new Date(s.due) && s.status !== 'done')).map(s => s.treeId || s.id));
+      const visibleIds = new Set();
+      items.forEach(r => { if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    return items;
+  }, [netTree, onlyAutoAssigned, onlyOverdue, scheduled]);
   const visibleTreeForViews = useMemo(() => {
-    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return visibleTree;
-    const keep = new Set(visibleTree.map(r => r.id));
+    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
+    const keep = new Set(quickFilteredNetTree.map(r => r.id));
     const byId = Object.fromEntries(tree.map(r => [r.id, r]));
     diffChangedSet.forEach(id => {
       const node = byId[id];
@@ -1574,7 +1599,7 @@ export default function App() {
       for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
     });
     return tree.filter(r => keep.has(r.id));
-  }, [hideDone, sinceDate, diffChangedSet, visibleTree, tree]);
+  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, tree]);
   const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
   const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
   const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
@@ -2496,9 +2521,16 @@ export default function App() {
     </div>
     {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
-      <div style={{ width: 200 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
-      <div style={{ width: 150 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
-      <div style={{ width: 150 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
+      <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
+      <div style={{ width: 130 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      {/* Quick-filter chip group — toggles in-memory predicates against the
+          shared filtered tree. Cheap to render, persistent via localStorage. */}
+      <span style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+        <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip="Nur Tasks mit automatisch vorgeschlagener Person">⚙ Auto</button>
+        <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip="Nur Tasks die nach Due-Datum enden">! Overdue</button>
+        <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip="Nur Leaves ohne Best-Schätzung">○ Unestimated</button>
+      </span>
       {/* `Hide done` lives in the ViewFilters popup now to keep the
           sub-toolbar compact. State + setter still passed there. */}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
@@ -2773,7 +2805,7 @@ export default function App() {
         </div>}
       </div>}
       {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} /></div>}
-      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={netTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={quickFilteredNetTree} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}

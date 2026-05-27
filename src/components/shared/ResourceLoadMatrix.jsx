@@ -88,19 +88,27 @@ export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlan
     if (!personIds.length) return;
     const start = item.startD instanceof Date ? item.startD : localDate(item.startD);
     const end = item.endD instanceof Date ? item.endD : localDate(item.endD);
-    const slots = [];
-    (weeks || []).forEach((week, wi) => {
-      (week.wds || []).forEach(date => {
-        if (date >= start && date <= end) slots.push({ wi, date });
-      });
-    });
-    if (!slots.length) return;
+    // Effort gets distributed only over days the person is actually working —
+    // vacation days inside the bar stretch the calendar duration but don't
+    // contribute to load. Without this, a 10d task with a 5d vacation in the
+    // middle looked over-booked when in reality the person just took longer.
     const effort = Math.max(0, item.effort || item.best || 0);
-    const loadPerSlot = effort / Math.max(1, slots.length);
     personIds.forEach(personId => {
       const rows = ensure(personId);
       const taskLoadByWeek = new Map();
-      slots.forEach(({ wi }) => {
+      const member = memberById[personId];
+      const personSlots = [];
+      (weeks || []).forEach((week, wi) => {
+        (week.wds || []).forEach(date => {
+          if (date < start || date > end) return;
+          if (!isActiveMemberDay(member, date)) return;
+          if (onVacation(personId, date)) return;
+          personSlots.push({ wi, date });
+        });
+      });
+      if (!personSlots.length) return;
+      const loadPerSlot = effort / personSlots.length;
+      personSlots.forEach(({ wi }) => {
         rows[wi].load += loadPerSlot;
         taskLoadByWeek.set(wi, (taskLoadByWeek.get(wi) || 0) + loadPerSlot);
       });

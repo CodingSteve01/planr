@@ -167,6 +167,13 @@ tr:hover .tv-drag-handle{color:var(--tx3);}
 .sab-assign-trigger{padding:6px 12px;font-size:12px;height:30px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx);cursor:pointer;transition:background .12s,border-color .12s;}
 .sab-assign-trigger:hover{background:var(--bg4);border-color:var(--b);}
 .sab-assign-trigger .sab-icon{font-size:14px;line-height:1;}
+/* Subtoolbar quick-filter chips: small, pill-style toggles. Off = neutral
+   border, On = accent-tinted fill. Use sparingly — one row of these keeps
+   the bar quieter than fixed-width dropdowns. */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;font-size:11px;font-family:var(--mono);background:transparent;color:var(--tx3);border:1px solid var(--b2);border-radius:999px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
+.chip:hover{background:var(--bg3);color:var(--tx2);}
+.chip.on{background:rgba(59,130,246,.16);color:var(--ac);border-color:rgba(59,130,246,.55);}
+[data-theme="light"] .chip.on{background:rgba(29,78,216,.12);color:#1d4ed8;border-color:rgba(29,78,216,.45);}
 .grow-r:hover .g-link-connector,.g-link-connector:hover,.g-link-connector.active{opacity:1;transform:translateY(-50%) scale(1);}
 /* Semicircle: flat edge sits flush against the bar's right side, bulge
    protrudes outward. Right half of a circle. */
