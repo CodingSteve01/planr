@@ -137,19 +137,6 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
             })}
           </div>
         </div>
-        <div className="field">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={!!m.queueByDefault}
-              onChange={e => sm('queueByDefault', e.target.checked)}
-            />
-            <span>{t('set.queueByDefault')}</span>
-          </label>
-          <div className="helper" style={{ marginTop: 4 }}>
-            {t('set.queueByDefaultHint')}
-          </div>
-        </div>
       </>}
 
       {/* ══════ TEMPLATES TAB ══════ */}

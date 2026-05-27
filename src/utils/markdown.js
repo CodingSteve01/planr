@@ -26,7 +26,6 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (meta.planEnd) md += `| End | ${meta.planEnd} |\n`;
     if (meta.viewStart && meta.viewStart < (meta.planStart || '')) md += `| View Start | ${meta.viewStart} |\n`;
     if (meta.workDays && JSON.stringify(meta.workDays) !== '[1,2,3,4,5]') md += `| Work Days | ${meta.workDays.join(',')} |\n`;
-    if (meta.queueByDefault) md += `| Queue By Default | true |\n`;
     md += '\n';
   }
   if (teams.length) {

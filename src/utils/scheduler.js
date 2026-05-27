@@ -86,12 +86,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const _anchorToToday = options.anchorToToday !== false;
   const _discountProgress = options.discountProgress !== false;
   const _autoCascade = options.autoCascade === true;
-  // queueByDefault=true reverts the no-deps-leaf default to the legacy
-  // resource-queue behaviour: same person processes its no-dep tasks
-  // sequentially in seq order. Lets pre-link-era plans reproduce their
-  // original schedule output unchanged. `parallel:true` on a leaf still
-  // bypasses the queue regardless.
-  const _queueByDefault = options.queueByDefault === true;
   const wks = buildWeeks(ps, pe, hm, workDaysArr);
   const wdSet = workDaysArr ? new Set(workDaysArr) : new Set([1, 2, 3, 4, 5]);
   if (!wks.length) return { results: [], weeks: [] };
@@ -560,7 +554,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // `parallel:false` if a queued behaviour is required. Pinned tasks
     // bypass the queue too so manual dates remain visible as conflicts
     // instead of being silently moved.
-    const bypassPersonQueue = !!r.pinnedStart || (noDeps && (_queueByDefault ? r.parallel === true : r.parallel !== false));
+    const bypassPersonQueue = !!r.pinnedStart || (noDeps && r.parallel !== false);
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).

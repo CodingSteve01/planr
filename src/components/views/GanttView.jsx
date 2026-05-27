@@ -184,14 +184,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     try { localStorage.setItem('planr_gantt_load_heatmap', String(next)); } catch {}
     return next;
   });
-  const [overloadOnly, setOverloadOnly] = useState(() => {
-    try { return localStorage.getItem('planr_gantt_overload_only') === 'true'; } catch { return false; }
-  });
-  const toggleOverloadOnly = () => setOverloadOnly(v => {
-    const next = !v;
-    try { localStorage.setItem('planr_gantt_overload_only', String(next)); } catch {}
-    return next;
-  });
   const setGB = v => {
     const next = normalizeViewMode(v);
     setGroupBy(next);
@@ -658,9 +650,36 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const sortedItems = sortItems(threadItems);
         const namespace = `thread:${thread.cid}`;
         const firstNode = iMap[thread.ids[0]];
-        const label = thread.isSolo
-          ? `Solo · ${firstNode?.name || thread.ids[0]}`
-          : `Thread ${i + 1} · ${thread.ids.length} Tasks`;
+        // Single-task threads render as a bare row — the "Solo · …" header is
+        // pure noise when there's only one child and the row itself already
+        // shows the task name.
+        if (thread.isSolo) {
+          for (const id of thread.ids) {
+            const items = visibleThreadItems.filter(it => (it.treeId || it.id) === id);
+            if (!items.length) continue;
+            const primary = items.find(it => !it.isHandoff) || items[0];
+            nodes.push({
+              type: 'task',
+              key: `solo:${primary.id}`,
+              s: primary,
+              node: iMap[id],
+              level: 0,
+              groupKey: null,
+            });
+            for (const ho of items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0))) {
+              nodes.push({
+                type: 'task',
+                key: `solo:${ho.id}`,
+                s: ho,
+                node: iMap[id],
+                level: 1,
+                groupKey: null,
+              });
+            }
+          }
+          return;
+        }
+        const label = `Thread ${i + 1} · ${thread.ids.length} Tasks`;
         const color = 'var(--ac)';
         const groupSummary = buildSummaryItem({
           id: namespace,
@@ -1323,30 +1342,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
   }, [weeks, resourceLoadByWeek, memberById, t]);
 
-  // Set of task ids whose bar overlaps any week where any of its assignees is
-  // booked above 110%. Drives the "Only overload" Gantt filter + per-bar
-  // warning outline.
-  const overbookedTaskIds = useMemo(() => {
-    const out = new Set();
-    if (!Object.keys(resourceLoadByWeek || {}).length) return out;
-    (scheduled || []).forEach(s => {
-      if (!s || !s.startD || !s.endD) return;
-      const ids = [...new Set([s.personId, ...(s.assign || [])].filter(Boolean))];
-      if (!ids.length) return;
-      const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
-      const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
-      for (let wi = 0; wi < weeks.length; wi++) {
-        const w = weeks[wi]; if (!w?.mon) continue;
-        const wkEnd = addD(w.mon, 6);
-        if (wkEnd < start || w.mon > end) continue;
-        if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
-          out.add(s.id);
-          break;
-        }
-      }
-    });
-    return out;
-  }, [scheduled, weeks, resourceLoadByWeek]);
 
   const loadHeatColor = (percent, meta = null) => {
     if (meta?.historicalOnly) return 'rgba(148,163,184,.12)';
@@ -2064,16 +2059,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               ? t('g.loadFullWeeks', loadRiskSummary.fullCount)
               : t('g.loadOk')}
           </span>}
-          {/* Standalone overbooking badge — visible even when heatmap is off so
-              the user can't miss real overplanning. Click filters Gantt to
-              overload bars only. */}
-          {overbookedTaskIds.size > 0 && <button
-            className={`badge bc ${overloadOnly ? '' : 'btn'}`}
-            data-htip={t('g.overloadFilterTip') || 'Click to show only overbooked tasks'}
-            onClick={toggleOverloadOnly}
-            style={{ fontSize: 10, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
-            ⚠ {overbookedTaskIds.size} {t('g.overloadBadge') || 'overbooked'}{overloadOnly ? ' · only' : ''}
-          </button>}
+          {/* Overbooking now surfaces as a global quick-filter chip in the
+              app's subtoolbar so the same indicator works for every view. */}
           {allCollapseKeys.length > 0 && <>
             <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
             <button className="btn btn-sec btn-xs" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
@@ -2402,9 +2389,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const resizePxOffset = isDrag && drag?.kind === 'resizeEnd' ? dDelta * resizePxPerDay : 0;
             const barLeft = Math.max(0, baseLeft + dragPxOffset);
             const bW = Math.max(6, baseWidth + resizePxOffset);
-            const isOverbooked = !isSummary && overbookedTaskIds.has(s.id);
-            const overloadDimmed = overloadOnly && !isSummary && !isOverbooked;
-            const dim = (cpOnly && !rowRelevantToCp(row)) || overloadDimmed;
+            const dim = cpOnly && !rowRelevantToCp(row);
             const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
             const isHov = hoverDepId === s.id;
             const isMatch = searchMatches?.has(s.id);
@@ -2535,7 +2520,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     : isMatch ? '0 0 0 2px var(--am)'
                     : isSelected ? '0 0 0 2px var(--ac), 0 0 0 5px rgba(59,130,246,.22)'
                     : linkDrag?.fromId === s.id ? '0 0 0 2px var(--ac)' : undefined,
-                  opacity: overloadDimmed ? 0.22 : undefined,
                   ...(isSummary
                     ? summaryStyle
                     : s.status === 'done'

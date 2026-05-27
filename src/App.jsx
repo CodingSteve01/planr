@@ -21,6 +21,7 @@ import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadli
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
+import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
 import { TreeView } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
@@ -230,6 +231,7 @@ export default function App() {
   const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => { try { return localStorage.getItem('planr_only_auto') === 'true'; } catch { return false; } });
   const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
   const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
+  const [onlyOverbooked, setOnlyOverbooked] = useState(() => { try { return localStorage.getItem('planr_only_overbooked') === 'true'; } catch { return false; } });
   const [saved, setSaved] = useState(true);
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -251,6 +253,7 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('planr_only_auto', String(onlyAutoAssigned)); } catch {} }, [onlyAutoAssigned]);
   useEffect(() => { try { localStorage.setItem('planr_only_overdue', String(onlyOverdue)); } catch {} }, [onlyOverdue]);
   useEffect(() => { try { localStorage.setItem('planr_only_unest', String(onlyUnestimated)); } catch {} }, [onlyUnestimated]);
+  useEffect(() => { try { localStorage.setItem('planr_only_overbooked', String(onlyOverbooked)); } catch {} }, [onlyOverbooked]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
@@ -572,7 +575,7 @@ export default function App() {
     const parsedCustomFields = []; // custom field definitions from ## Custom Fields section
     let currentTpl = null; // template being parsed
     let projName = null;
-    let planStart = '', planEnd = '', viewStartMd = '', workDays = '', queueByDefault = false;
+    let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
     const idStack = [];
     const parsedMeetingPlans = []; // meeting plan definitions from ## Meeting Plans
     let currentMeetingPlan = null; // being parsed
@@ -652,7 +655,7 @@ export default function App() {
           else if (/^end/i.test(m[1])) planEnd = m[2].trim();
           else if (/^view\s*start/i.test(m[1])) viewStartMd = m[2].trim();
           else if (/^work\s*days/i.test(m[1])) workDays = m[2].trim();
-          else if (/^queue\s*by\s*default/i.test(m[1])) queueByDefault = /^(true|1|yes|on)$/i.test(m[2].trim());
+          // Old `Queue By Default` flag silently ignored — link-driven scheduler is the only mode now.
         }
         return;
       }
@@ -1131,7 +1134,6 @@ export default function App() {
     if (planEnd) metaObj.planEnd = planEnd;
     if (viewStartMd) metaObj.viewStart = viewStartMd;
     if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
-    if (queueByDefault) metaObj.queueByDefault = true;
     // History events — parsed out of the ```planr-history``` fenced block
     let historyEvents = [];
     if (historyBlockLines && historyBlockLines.length) {
@@ -1334,7 +1336,7 @@ export default function App() {
   }, [members, data?.meetingPlans, data?.teams]);
   const { results: scheduled, weeks } = useMemo(() => {
     if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { queueByDefault: !!meta.queueByDefault });
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart);
     // Trim weeks to the actual horizon when planEnd wasn't user-set:
     // latest scheduled endD + padding. Falls back to a 6-month
     // window when nothing is scheduled so the Gantt isn't empty.
@@ -1560,11 +1562,40 @@ export default function App() {
   const cpEdges = cpData.edges;
   const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
+  // Global resource-load + overbooked task ids — shared by the quick-filter
+  // chip and any view that wants to flag overbookings (vs each view rolling
+  // its own load matrix and drifting out of sync).
+  const resourceLoadByWeek = useMemo(
+    () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans: data?.meetingPlans || [], scheduled, weeks }),
+    [members, teams, vacations, data?.meetingPlans, scheduled, weeks],
+  );
+  const overbookedTaskIds = useMemo(() => {
+    const out = new Set();
+    if (!Object.keys(resourceLoadByWeek || {}).length) return out;
+    (scheduled || []).forEach(s => {
+      if (!s || !s.startD || !s.endD) return;
+      const ids = [...new Set([s.personId, ...(s.assign || [])].filter(Boolean))];
+      if (!ids.length) return;
+      const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
+      const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
+      for (let wi = 0; wi < weeks.length; wi++) {
+        const w = weeks[wi]; if (!w?.mon) continue;
+        const wkEnd = new Date(w.mon); wkEnd.setDate(wkEnd.getDate() + 6);
+        if (wkEnd < start || w.mon > end) continue;
+        if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
+          out.add(s.treeId || s.id);
+          break;
+        }
+      }
+    });
+    return out;
+  }, [scheduled, weeks, resourceLoadByWeek]);
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
   // pass through view-filters together with their tree node.
   // Quick-filter chips that depend on the scheduler output (auto-assigned,
-  // overdue). Applied to netTree downstream so all views share the same view.
+  // overdue, overbooked). Applied to netTree downstream so all views share
+  // the same view.
   const quickFilteredNetTree = useMemo(() => {
     if (!onlyAutoAssigned && !onlyOverdue) return netTree;
     let items = netTree;
@@ -1585,8 +1616,13 @@ export default function App() {
       items.forEach(r => { if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
       items = items.filter(r => visibleIds.has(r.id));
     }
+    if (onlyOverbooked && overbookedTaskIds.size > 0) {
+      const visibleIds = new Set();
+      items.forEach(r => { if (overbookedTaskIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
     return items;
-  }, [netTree, onlyAutoAssigned, onlyOverdue, scheduled]);
+  }, [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds]);
   const visibleTreeForViews = useMemo(() => {
     if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
     const keep = new Set(quickFilteredNetTree.map(r => r.id));
@@ -2539,6 +2575,9 @@ export default function App() {
         <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip={_t('chip.autoTip')}>{_t('chip.auto')}</button>
         <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip={_t('chip.overdueTip')}>{_t('chip.overdue')}</button>
         <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip={_t('chip.unestimatedTip')}>{_t('chip.unestimated')}</button>
+        {overbookedTaskIds.size > 0 && (
+          <button type="button" className={`chip${onlyOverbooked ? ' on' : ''}`} onClick={() => setOnlyOverbooked(v => !v)} data-htip={_t('chip.overbookedTip')}>{_t('chip.overbooked', overbookedTaskIds.size)}</button>
+        )}
       </span>
       {/* Review/Plan picker — sprint-review diff window + planning horizon.
           Not a generic filter; it overlays the data with a time window. */}
