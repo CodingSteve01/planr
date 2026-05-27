@@ -108,6 +108,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [cpOnly, setCpOnly] = useState(false); // dim non-critical items
   const [hoverDepId, setHoverDepId] = useState(null); // task ID currently hovered (for dep arrows)
   const [hoverLineKey, setHoverLineKey] = useState(null); // currently hovered dep line (for × badge + emphasis)
+  const [pinnedLineKey, setPinnedLineKey] = useState(null); // sticky-selected dep line — survives mouse leave
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectRect, setSelectRect] = useState(null);
@@ -1964,6 +1965,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         if (selectedIds.size) setSelectedIds(new Set());
         if (dragRef.current || drag) { dragRef.current = null; setDrag(null); setDDelta(0); justDraggedRef.current = false; }
         if (linkDrag) setLinkDrag(null);
+        if (pinnedLineKey) setPinnedLineKey(null);
       }
     };
     window.addEventListener('keydown', h);
@@ -2797,17 +2799,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   bendY: l.y1,
                 };
               };
-              // Render hovered line LAST so its × badge always sits on top of
-              // overlapping neighbour lines (SVG has no z-index — paint order wins).
-              const orderedLines = hoverLineKey
-                ? [...renderedDepLines.filter(l => l.key !== hoverLineKey), ...renderedDepLines.filter(l => l.key === hoverLineKey)]
+              // Render hovered/pinned line LAST so its × badge always sits on
+              // top of overlapping neighbour lines (SVG has no z-index — paint
+              // order wins).
+              const topKey = pinnedLineKey || hoverLineKey;
+              const orderedLines = topKey
+                ? [...renderedDepLines.filter(l => l.key !== topKey), ...renderedDepLines.filter(l => l.key === topKey)]
                 : renderedDepLines;
               return orderedLines.map(l => {
                 const parts = buildPathParts(l);
                 const path = parts.d;
                 const isHovered = hoverLineKey === l.key;
+                const isPinned = pinnedLineKey === l.key;
                 const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
-                const emphasized = isHovered || isHoveredTask;
+                const emphasized = isHovered || isPinned || isHoveredTask;
                 const col = l.isCp ? 'var(--re)' : emphasized ? 'var(--ac)' : 'var(--tx3)';
                 const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
                 // Default opacity raised because solid-fill bars made the prior 0.32
@@ -2839,23 +2844,23 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   }, 120);
                 };
                 return <g key={l.key}>
-                  <path d={path} fill="none" stroke={col} strokeWidth={strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
-                  {/* Wide invisible hover target — click is a no-op; the only
-                      action on the link is the × badge that appears on hover. */}
+                  <path d={path} fill="none" stroke={col} strokeWidth={isPinned ? 2.4 : strokeWidth} opacity={opacity} strokeLinejoin="round" strokeLinecap="round" markerEnd={marker} strokeDasharray={dash} style={{ pointerEvents: 'none' }} />
+                  {/* Wide invisible hit zone — hover highlights; click pins the
+                      arrow so it stays selected after the cursor leaves. */}
                   <path d={path} fill="none" stroke="transparent" strokeWidth={14}
-                    style={{ cursor: 'default', pointerEvents: 'stroke' }}
+                    style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
                     onMouseEnter={enterLine}
-                    onMouseLeave={leaveLine}>
-                    <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId}`}</title>
+                    onMouseLeave={leaveLine}
+                    onClick={e => { e.stopPropagation(); setPinnedLineKey(k => k === l.key ? null : l.key); }}>
+                    <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId} — Click to pin`}</title>
                   </path>
-                  {/* × delete badge — pinned at the bend, only shown while hovered.
-                      Both the badge and the line share the hover-persistence timer
-                      so cursor travel between line and badge keeps it visible. */}
-                  {isHovered && onRemoveDep && (() => {
+                  {/* × delete badge — shown while hovered OR pinned. */}
+                  {(isHovered || isPinned) && onRemoveDep && (() => {
                     const handleClick = (e) => {
                       e.stopPropagation();
                       onRemoveDep(l.removeFromId, l.removeDepId);
                       setHoverLineKey(null);
+                      setPinnedLineKey(null);
                     };
                     return <g
                       style={{ cursor: 'pointer' }}
