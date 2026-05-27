@@ -2557,7 +2557,9 @@ export default function App() {
               onlyChanged={diffOnlyChanged}
               horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
               onQuickAdd={onTreeQuickAdd}
-              onDelete={onTreeDelete} onReorder={onTreeReorder} />
+              onDelete={onTreeDelete} onReorder={onTreeReorder}
+              onTaskUpdate={onGanttTaskUpdate}
+              onClearSelection={() => setMultiSel(new Set())} />
           }
         </div>
         {selected && <div className="side fade">

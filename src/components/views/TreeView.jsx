@@ -6,6 +6,8 @@ import { resolveUri } from '../../utils/customFields.js';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 
@@ -14,7 +16,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder, onTaskUpdate, onClearSelection }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -514,6 +516,54 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         })}
       </tbody>
     </table>
+    <SelectionActionBar
+      count={multiSel?.size || 0}
+      onClear={() => onClearSelection?.()}
+      testId="tree-selection-actionbar"
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 130 }} data-htip={t('g.selectedAssignTeamTip') || 'Assign team to all selected'}>
+        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>TEAM</span>
+        <SearchSelect
+          options={[{ id: '', label: '— none —' }, ...(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))]}
+          onSelect={(teamId) => {
+            (tree || []).forEach(node => {
+              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
+              if ((node.team || '') === (teamId || '')) return;
+              onTaskUpdate({ ...node, team: teamId || '' });
+            });
+          }}
+          placeholder="Team..."
+        />
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 150 }} data-htip={t('g.selectedAssignPersonTip') || 'Assign person to all selected'}>
+        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>PERS</span>
+        <SearchSelect
+          options={[{ id: '__clear__', label: '— clear —' }, ...(members || []).map(m => ({ id: m.id, label: m.name || m.id }))]}
+          onSelect={(memId) => {
+            const nextAssign = memId === '__clear__' ? [] : [memId];
+            (tree || []).forEach(node => {
+              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
+              onTaskUpdate({ ...node, assign: nextAssign });
+            });
+          }}
+          placeholder="Person..."
+        />
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 110 }} data-htip="Set status on all selected">
+        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>STATUS</span>
+        <SearchSelect
+          options={[{ id: 'open', label: t('open') || 'open' }, { id: 'wip', label: t('wip') || 'wip' }, { id: 'done', label: t('done') || 'done' }]}
+          onSelect={(stVal) => {
+            (tree || []).forEach(node => {
+              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
+              if (node.status === stVal) return;
+              onTaskUpdate({ ...node, status: stVal });
+            });
+          }}
+          placeholder="Status..."
+        />
+      </span>
+    </SelectionActionBar>
   </div>;
 }
 

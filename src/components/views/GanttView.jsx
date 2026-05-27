@@ -12,6 +12,8 @@ import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
@@ -108,6 +110,46 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectRect, setSelectRect] = useState(null);
+  const lastSelectAnchorRef = useRef(null);
+  // Standard list-selection click handler. Returns true when the click was
+  // handled as a selection gesture so the caller can skip opening the item.
+  //   shift  → range from last anchor to clicked id (additive when ctrl too)
+  //   meta   → toggle clicked id, keep rest
+  //   plain  → no-op (caller opens the item)
+  const handleSelectClick = (e, id) => {
+    if (!id) return false;
+    if (e.shiftKey) {
+      const ids = visibleTaskIds;
+      const anchor = lastSelectAnchorRef.current && ids.includes(lastSelectAnchorRef.current)
+        ? lastSelectAnchorRef.current : ids[0];
+      const a = ids.indexOf(anchor);
+      const b = ids.indexOf(id);
+      if (a < 0 || b < 0) return false;
+      const [lo, hi] = a <= b ? [a, b] : [b, a];
+      const range = new Set(ids.slice(lo, hi + 1));
+      setSelectedIds(prev => {
+        if (e.metaKey || e.ctrlKey) {
+          const next = new Set(prev);
+          range.forEach(x => next.add(x));
+          return next;
+        }
+        return range;
+      });
+      return true;
+    }
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      lastSelectAnchorRef.current = id;
+      return true;
+    }
+    lastSelectAnchorRef.current = id;
+    return false;
+  };
   // Horizon lines: weeks from today that separate committed / estimated / exploratory zones
   const [h1Weeks] = useState(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } });
   const [h2Weeks] = useState(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } });
@@ -2100,7 +2142,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onMouseEnter={e => { if (dragRef.current || drag || linkDrag) return; showRowTip(row, e, !isSummary); }}
             onMouseLeave={() => hideRowTip(row, !isSummary)}
-            onClick={() => openRowItem(row)}>
+            onClick={e => {
+              if (row.type === 'task' && handleSelectClick(e, s.id)) return;
+              openRowItem(row);
+            }}>
             {isSummary && <button
               type="button"
               aria-label={isCollapsed ? t('tv.expandAll') : t('tv.collapseAll')}
@@ -2504,17 +2549,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   onBMD(e, row);
                 }}
                 onMouseUp={() => { if (linkDrag && !isSummary) { dismissTooltip(true); onLinkDrop(linkTaskId); } }}
-                onClick={() => {
+                onClick={e => {
                   dismissTooltip(true);
                   if (isSummary) {
                     if (justDraggedRef.current) { justDraggedRef.current = false; return; }
                     onBarClick?.(s);
                     return;
                   }
-                  // Suppress the click-after-drag: drag gestures (pin, reorder) shouldn't
-                  // also open the QuickEdit sidebar on mouse-up.
                   if (justDraggedRef.current) { justDraggedRef.current = false; return; }
                   if (linkDrag) return;
+                  if (handleSelectClick(e, s.id)) return;
                   onBarClick?.(s);
                 }}>
                 {/* Progress overlay: lighter strip on the left proportional to progress %.
@@ -2881,18 +2925,47 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       })()}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
     </div>
-    {selectedTaskIds.length > 0 && <div
-      className="gantt-selection-actionbar"
-      data-testid="gantt-selection-actionbar"
+    <SelectionActionBar
+      count={selectedTaskIds.length}
+      onClear={() => setSelectedIds(new Set())}
+      testId="gantt-selection-actionbar"
     >
-      <span style={{ color: 'var(--ac)', fontWeight: 700 }}>{t('g.selectedTasks', selectedTaskIds.length)}</span>
       {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-xs btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.linkSelected')}</button>}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 130 }} data-htip={t('g.selectedAssignTeamTip') || 'Assign team to all selected'}>
+        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>TEAM</span>
+        <SearchSelect
+          options={[{ id: '', label: '— none —' }, ...(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))]}
+          onSelect={(teamId) => {
+            const sel = new Set(selectedTaskIds);
+            (tree || []).forEach(node => {
+              if (!sel.has(node.id) || !onTaskUpdate) return;
+              if ((node.team || '') === (teamId || '')) return;
+              onTaskUpdate({ ...node, team: teamId || '' });
+            });
+          }}
+          placeholder="Team..."
+        />
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 150 }} data-htip={t('g.selectedAssignPersonTip') || 'Assign person to all selected (replaces current assign)'}>
+        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>PERS</span>
+        <SearchSelect
+          options={[{ id: '__clear__', label: '— clear —' }, ...(members || []).map(m => ({ id: m.id, label: m.name || m.id }))]}
+          onSelect={(memId) => {
+            const sel = new Set(selectedTaskIds);
+            const nextAssign = memId === '__clear__' ? [] : [memId];
+            (tree || []).forEach(node => {
+              if (!sel.has(node.id) || !onTaskUpdate) return;
+              onTaskUpdate({ ...node, assign: nextAssign });
+            });
+          }}
+          placeholder="Person..."
+        />
+      </span>
       <span style={{ width: 1, height: 16, background: 'var(--b2)' }} />
       <button data-testid="gantt-clear-selected-soft-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedSoftLinks')}</button>
       <button data-testid="gantt-clear-selected-hard-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('hard')} data-htip={t('g.clearSelectedHardLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedHardLinks')}</button>
       <button data-testid="gantt-clear-selected-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedLinks')}</button>
-      <button className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelection')}</button>
-    </div>}
+    </SelectionActionBar>
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
       <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>
