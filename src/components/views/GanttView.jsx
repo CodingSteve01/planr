@@ -2187,7 +2187,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey); }}
               style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', flexShrink: 0, cursor: 'pointer' }}
             >{isCollapsed ? '▶' : '▼'}</button>}
-            <span className="tid" style={{ flexShrink: 0 }}>{s.id}</span>
             {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
