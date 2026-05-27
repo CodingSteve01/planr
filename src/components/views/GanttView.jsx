@@ -2187,15 +2187,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey); }}
               style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', flexShrink: 0, cursor: 'pointer' }}
             >{isCollapsed ? '▶' : '▼'}</button>}
-            {confDot && <span style={{ fontSize: 9, color: confL === 'exploratory' ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, lineHeight: 1, cursor: 'help' }} data-htip={`${confL === 'exploratory' ? 'Exploratory' : 'Estimated'} — ${REASON_TIP[confReasons[s.id]] || '?'}`}>{confDot}</span>}
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-            <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{s.name}</span>
+            <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
             {!isSummary && (s._unestimated
-              ? <span className="badge bw" style={{ fontSize: 9 }}>{t('g.noEstimate')}</span>
+              ? <span className="badge bw" style={{ fontSize: 9, marginLeft: 'auto', flexShrink: 0 }}>{t('g.noEstimate')}</span>
               : s.autoAssigned
-                ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)' }}>{snAll(s)}</AutoAssignBadge>
-                : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
+                ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{snAll(s)}</AutoAssignBadge>
+                : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
           </div>;
         }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
