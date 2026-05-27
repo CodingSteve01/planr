@@ -2487,6 +2487,8 @@ export default function App() {
     const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
     const commonConfidence = commonOf('confidence', r => r.confidence || '');
     const commonNote = commonOf('note');
+    const commonParallel = commonOf('parallel', r => !!r.parallel);
+    const commonTeamLock = commonOf('teamLock', r => !!r.teamLock);
     const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
     const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
       const rootId = deadlineRootIdForNode(tree, item.id);
@@ -2582,6 +2584,28 @@ export default function App() {
             </>;
           })()}
         </div>
+        {allLeaf && (
+          <div className="field"><label>{_t('qe.parallel') || 'Parallel'}{commonParallel == null ? ' (mixed)' : ''}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="toggle">
+                <input type="checkbox" checked={commonParallel === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r))} />
+                <span className="slider" />
+              </label>
+              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
+            </div>
+          </div>
+        )}
+        {allLeaf && (
+          <div className="field"><label>{_t('qe.teamLock')}{commonTeamLock == null ? ' (mixed)' : ''}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="toggle">
+                <input type="checkbox" checked={commonTeamLock === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r))} />
+                <span className="slider" />
+              </label>
+              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
+            </div>
+          </div>
+        )}
       </>}
       {bTab === 'effort' && <>
         {allLeaf && <div className="frow">
