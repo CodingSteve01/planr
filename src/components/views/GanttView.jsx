@@ -2149,7 +2149,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             onMouseEnter={e => { if (dragRef.current || drag || linkDrag) return; showRowTip(row, e, !isSummary); }}
             onMouseLeave={() => hideRowTip(row, !isSummary)}
             onClick={e => {
-              if (row.type === 'task' && handleSelectClick(e, s.id)) return;
+              if (row.type === 'task' && handleSelectClick(e, s.treeId || s.id)) return;
               openRowItem(row);
             }}>
             {isSummary && <button
@@ -2561,7 +2561,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   }
                   if (justDraggedRef.current) { justDraggedRef.current = false; return; }
                   if (linkDrag) return;
-                  if (handleSelectClick(e, s.id)) return;
+                  if (handleSelectClick(e, s.treeId || s.id)) return;
                   onBarClick?.(s);
                 }}>
                 {/* Progress overlay: lighter strip on the left proportional to progress %.
