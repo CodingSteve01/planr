@@ -358,9 +358,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           const tName = r.team ? teamName(r.team) : '';
           const prog = s._progress || 0;
           const effortDays = isLeaf ? (s._r > 0 ? s._r.toFixed(1) : '') : (s._r > 0 ? s._r.toFixed(0) + 'd' : '');
-          const parentId = r.id.split('.').slice(0, -1).join('.');
-          const parentTeam = parentId ? (effTeam[parentId] || '') : '';
-          const showTeam = !!r.team && r.team !== parentTeam;
+          // Always show team when set. Hiding inherited teams (parent matches)
+          // saved a few pixels but made it impossible to read team assignment
+          // at a glance on deep leaves where the parent label sat far away.
+          const showTeam = !!r.team;
           const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
           // Diff-since badge — shared helper keeps the same rule used by the
           // "only with changes" filter so the two views stay in sync.
