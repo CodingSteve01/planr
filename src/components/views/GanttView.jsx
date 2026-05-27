@@ -2030,13 +2030,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
 
   const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
 
-  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={() => {
-    dismissTooltip(true);
-    setHoverLineKey(null);
-    clearTimelinePan();
-    if (selectRef.current) { selectRef.current = null; setSelectRect(null); }
-    if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); }
-  }}>
+  return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU}
+    onClickCapture={e => {
+      // Click-away on the dep-arrow pin: any click whose target isn't the
+      // pinned arrow itself clears the pin. The arrow + its × badge call
+      // stopPropagation so they keep their own toggling behaviour.
+      if (pinnedLineKey) setPinnedLineKey(null);
+    }}
+    onMouseLeave={() => {
+      dismissTooltip(true);
+      setHoverLineKey(null);
+      clearTimelinePan();
+      if (selectRef.current) { selectRef.current = null; setSelectRect(null); }
+      if (drag || dragRef.current) { dragRef.current = null; setDrag(null); setDDelta(0); }
+    }}>
     <div className="gantt-hdr">
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
