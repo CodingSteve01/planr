@@ -52,7 +52,8 @@ export function ViewFilters({
   const showHideDone = typeof setHideDone === 'function';
   if (!showDiff && !showHorizon && !showHideDone) return null;
 
-  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0) + (hideDone ? 1 : 0);
+  const showHideDoneInner = typeof setHideDone === 'function';
+  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0) + (showHideDoneInner && hideDone ? 1 : 0);
 
   // Summary string on the trigger: "—" when no filter, otherwise a compact
   // marker like "Δ14T · ▶+30T" so the user reads the state without opening.
@@ -65,7 +66,7 @@ export function ViewFilters({
     if (/^\d{4}-\d{2}-\d{2}$/.test(horizonDays)) parts.push(`▶ ${horizonDays}`);
     else parts.push(`▶ ${t('horizon.days', horizonDays)}`);
   }
-  if (hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
+  if (showHideDoneInner && hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
   const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
 
   const presetBtn = (current, val, label, onClick) => (

@@ -2525,30 +2525,23 @@ export default function App() {
       <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
       <div style={{ width: 130 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
       {/* Quick-filter chip group — toggles in-memory predicates against the
-          shared filtered tree. Cheap to render, persistent via localStorage. */}
+          shared filtered tree. Cheap to render, persistent via localStorage.
+          Hide-done lives here too, not buried in the Review/Plan popup. */}
       <span style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
-        <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip="Nur Tasks mit automatisch vorgeschlagener Person">⚙ Auto</button>
-        <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip="Nur Tasks die nach Due-Datum enden">! Overdue</button>
-        <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip="Nur Leaves ohne Best-Schätzung">○ Unestimated</button>
+        <button type="button" className={`chip${hideDone ? ' on' : ''}`} onClick={() => setHideDone(v => !v)} data-htip={_t('chip.hideDoneTip')}>{_t('chip.hideDone')}</button>
+        <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip={_t('chip.autoTip')}>{_t('chip.auto')}</button>
+        <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip={_t('chip.overdueTip')}>{_t('chip.overdue')}</button>
+        <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip={_t('chip.unestimatedTip')}>{_t('chip.unestimated')}</button>
       </span>
-      {/* `Hide done` lives in the ViewFilters popup now to keep the
-          sub-toolbar compact. State + setter still passed there. */}
-      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')}>+ Add item</button>}
-      {/* Sprint-review diff picker — available wherever the diff overlay
-          can actually show something (tree/gantt/net). Tab-shared state in
-          App.jsx keeps all surfaces in sync. */}
-      {/* Unified view-filter popup — combines Sprint Review (diff) +
-          Planning Horizon under one trigger so the sub-toolbar stays
-          compact. Always rendered: the global state means horizon and
-          diff stay applied across every tab, not just the one that
-          showed the picker. */}
+      {/* Review/Plan picker — sprint-review diff window + planning horizon.
+          Not a generic filter; it overlays the data with a time window. */}
       <ViewFilters
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
         hasHistory={(data?.historyEvents || []).length > 0}
         horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
         horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
-        hideDone={hideDone} setHideDone={setHideDone}
+        hideDone={hideDone}
       />
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
@@ -2559,6 +2552,7 @@ export default function App() {
         onNext={() => setSearchIdx(i => i + 1)}
         committedSearch={search}
       />}
+      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
     </div>}
     <div className="main">
       {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
