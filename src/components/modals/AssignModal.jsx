@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 import { useT } from '../../i18n.jsx';
 
 // Bulk assignment dialog: pick team and/or person, optionally clear either.
@@ -12,21 +13,16 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
   const [person, setPerson] = useState(null);      // null = leave unchanged
   const [personClear, setPersonClear] = useState(false);
 
-  useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
-
+  const canApply = teamClear || personClear || team !== null || person !== null;
   const apply = () => {
+    if (!canApply) return;
     onApply({
       team: teamClear ? '' : team,
       person: personClear ? '' : person,
     });
     onClose();
   };
-
-  const canApply = teamClear || personClear || team !== null || person !== null;
+  useDialogShortcuts(onClose, apply);
 
   return (
     <div className="overlay" onClick={onClose}>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { useT } from '../../i18n.jsx';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 export function TemplatesModal({ templates, teams, onSave, onClose }) {
   const { t } = useT();
@@ -8,6 +9,7 @@ export function TemplatesModal({ templates, teams, onSave, onClose }) {
   const [editId, setEditId] = useState(null);
 
   const save = () => { onSave(list); onClose(); };
+  useDialogShortcuts(onClose, save);
 
   const addTemplate = () => {
     const tp = { id: 'tpl_' + Date.now(), name: t('ph.freePhase'), phases: [{ name: 'Phase 1', team: '' }] };

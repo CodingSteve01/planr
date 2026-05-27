@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../i18n.jsx';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 const CAT_COLORS = {
   pdf: 'var(--ac)',      // blue
@@ -59,6 +60,7 @@ export function ExportModal({
   onJSON,
 }) {
   const { t } = useT();
+  useDialogShortcuts(onClose);
   const _t = t;
   const [todoH, setTodoH] = useState(30);
   const [sprintH, setSprintH] = useState(30);

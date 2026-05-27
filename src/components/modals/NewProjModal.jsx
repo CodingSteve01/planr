@@ -4,8 +4,10 @@ import { computeNRW } from '../../utils/holidays.js';
 import { GT, GL } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { PROJECT_TEMPLATES, DEFAULT_TEMPLATE_ID, applyTemplate } from '../../utils/projectTemplates.js';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 export function NewProjModal({ onCreate, onClose }) {
+  useDialogShortcuts(onClose);
   const { t } = useT();
   const today = iso(new Date()), twoY = iso(new Date(new Date().getFullYear() + 2, 11, 31));
   const [step, setStep] = useState(1);

@@ -6,6 +6,7 @@ import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
@@ -14,6 +15,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
   const { themePref, setTheme } = useTheme();
   const [tab, setTab] = useState('general');
   const [m, setM] = useState({ ...meta });
+  useDialogShortcuts(onClose);
   const sm = (k, v) => setM(x => ({ ...x, [k]: v }));
   const wd = m.workDays || [1, 2, 3, 4, 5];
   const dayLabels = t('set.dayNames').split(',');

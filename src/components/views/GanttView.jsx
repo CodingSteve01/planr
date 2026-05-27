@@ -117,9 +117,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // handled as a selection gesture so the caller can skip opening the item.
   //   shift  → range from last anchor to clicked id (additive when ctrl too)
   //   meta   → toggle clicked id, keep rest
-  //   plain  → no-op (caller opens the item)
+  //   plain                → no-op (caller opens the item, single-select via opener)
+  // Standard list-selection semantics (Finder / Explorer / VS Code):
+  //   shift-click          → REPLACE selection with range from anchor to click
+  //   cmd|ctrl-click       → TOGGLE clicked id, anchor moves
+  //   cmd|ctrl+shift-click → ADD range from anchor to click to existing selection
   const handleSelectClick = (e, id) => {
     if (!id) return false;
+    const additive = e.metaKey || e.ctrlKey;
     if (e.shiftKey) {
       const ids = visibleTaskIds;
       const anchor = lastSelectAnchorRef.current && ids.includes(lastSelectAnchorRef.current)
@@ -129,16 +134,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (a < 0 || b < 0) return false;
       const [lo, hi] = a <= b ? [a, b] : [b, a];
       const range = ids.slice(lo, hi + 1);
-      // Shift = additive range. The previous selection survives; the range
-      // between anchor and click is unioned in. Matches Finder / VS Code.
       setSelectedIds(prev => {
-        const next = new Set(prev);
-        range.forEach(x => next.add(x));
-        return next;
+        if (additive) {
+          const next = new Set(prev);
+          range.forEach(x => next.add(x));
+          return next;
+        }
+        return new Set(range);
       });
+      // Shift keeps the anchor where it was — the user can keep extending.
       return true;
     }
-    if (e.metaKey || e.ctrlKey) {
+    if (additive) {
       setSelectedIds(prev => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id);

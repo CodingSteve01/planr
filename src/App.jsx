@@ -2237,20 +2237,28 @@ export default function App() {
   // Each callback's body resolves identifiers at invocation time, so the
   // closures still see fresh `tree`, `selected`, etc. via the latest-closure
   // ref pattern inside useStableCallback.
+  // Standard list-selection semantics (Finder / Explorer / VS Code):
+  //   shift               → REPLACE with range from anchor to clicked
+  //   cmd|ctrl            → TOGGLE clicked id
+  //   cmd|ctrl + shift    → ADD range from anchor to clicked to existing
+  //   plain               → single select, clear multi
   const onTreeSelect = useStableCallback((node, e, visibleIds) => {
+    const additive = !!(e?.ctrlKey || e?.metaKey);
     if (e?.shiftKey && selected && visibleIds) {
       const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
       if (ai >= 0 && bi >= 0) {
         const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-        // Shift = additive range. Existing multi-select survives, range gets
-        // unioned in. Matches Finder / VS Code list selection semantics.
-        setMultiSel(prev => {
-          const next = new Set(prev);
-          range.forEach(id => next.add(id));
-          return next;
-        });
+        if (additive) {
+          setMultiSel(prev => {
+            const next = new Set(prev);
+            range.forEach(id => next.add(id));
+            return next;
+          });
+        } else {
+          setMultiSel(new Set(range));
+        }
       }
-    } else if (e?.ctrlKey || e?.metaKey) {
+    } else if (additive) {
       setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
       if (!selected) setSel(node);
     } else { setSel(node); setMultiSel(new Set()); }

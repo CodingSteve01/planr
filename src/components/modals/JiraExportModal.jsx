@@ -3,9 +3,11 @@ import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { exportJiraCSV } from '../../utils/exports.js';
 import { useT } from '../../i18n.jsx';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose }) {
   const { t } = useT();
+  useDialogShortcuts(onClose);
   const [selectedRoots, setSelectedRoots] = useState(new Set(tree.filter(r => !r.id.includes('.')).map(r => r.id)));
   const [mapping, setMapping] = useState({ 1: 'Epic', 2: 'Story', leaf: 'Task' });
   const [includeAutoAssign, setIncludeAutoAssign] = useState(true);

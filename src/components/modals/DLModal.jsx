@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { GT, GL } from '../../constants.js';
+import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 export function DLModal({ goals, tree, onSave, onClose }) {
   // Edit goal metadata on tree roots
   const [items, setItems] = useState(goals.map(g => ({ id: g.id, name: g.name, type: g.type || 'goal', severity: g.severity || 'high', date: g.date || '', description: g.description || '' })));
   const upd = (i, k, v) => setItems(its => its.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  const save = () => { onSave(items.filter(g => g.type)); onClose(); };
+  useDialogShortcuts(onClose, save);
 
   // Tree roots without a type yet
   const roots = tree.filter(r => !r.id.includes('.'));
