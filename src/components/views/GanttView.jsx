@@ -112,19 +112,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectRect, setSelectRect] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  // Anchor + most-recent shift-range track standard list semantics:
+  //   click           → anchor = clicked, clears multi
+  //   shift+click     → replace the most-recent range [anchor..lastEnd] with
+  //                     the new range [anchor..click] — other manually pinned
+  //                     items (added via cmd+click) survive. Anchor stays.
+  //   cmd+click       → toggle clicked, anchor moves, prevRange reset
+  //   cmd+shift+click → like shift but unconditional add (never wipes prev)
   const lastSelectAnchorRef = useRef(null);
-  // Standard list-selection click handler. Returns true when the click was
-  // handled as a selection gesture so the caller can skip opening the item.
-  //   shift  → range from last anchor to clicked id (additive when ctrl too)
-  //   meta   → toggle clicked id, keep rest
-  //   plain                → no-op (caller opens the item, single-select via opener)
-  // Standard list-selection semantics (Finder / Explorer / VS Code):
-  //   shift-click          → REPLACE selection with range from anchor to click
-  //   cmd|ctrl-click       → TOGGLE clicked id, anchor moves
-  //   cmd|ctrl+shift-click → ADD range from anchor to click to existing selection
+  const lastShiftRangeRef = useRef(null); // Set of ids touched by the most recent shift-range
   const handleSelectClick = (e, id) => {
     if (!id) return false;
-    const additive = e.metaKey || e.ctrlKey;
+    const ctrlLike = e.metaKey || e.ctrlKey;
     if (e.shiftKey) {
       const ids = visibleTaskIds;
       const anchor = lastSelectAnchorRef.current && ids.includes(lastSelectAnchorRef.current)
@@ -133,19 +132,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       const b = ids.indexOf(id);
       if (a < 0 || b < 0) return false;
       const [lo, hi] = a <= b ? [a, b] : [b, a];
-      const range = ids.slice(lo, hi + 1);
+      const newRange = new Set(ids.slice(lo, hi + 1));
       setSelectedIds(prev => {
-        if (additive) {
-          const next = new Set(prev);
-          range.forEach(x => next.add(x));
-          return next;
+        const next = new Set(prev);
+        if (!ctrlLike && lastShiftRangeRef.current) {
+          // Replace just the previous shift-range; other pinned ids stay.
+          lastShiftRangeRef.current.forEach(x => next.delete(x));
         }
-        return new Set(range);
+        newRange.forEach(x => next.add(x));
+        return next;
       });
-      // Shift keeps the anchor where it was — the user can keep extending.
+      lastShiftRangeRef.current = newRange;
+      // Anchor unchanged — user can keep extending from the original point.
       return true;
     }
-    if (additive) {
+    if (ctrlLike) {
       setSelectedIds(prev => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id);
@@ -153,9 +154,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         return next;
       });
       lastSelectAnchorRef.current = id;
+      lastShiftRangeRef.current = null;
       return true;
     }
     lastSelectAnchorRef.current = id;
+    lastShiftRangeRef.current = null;
     return false;
   };
   // Horizon lines: weeks from today that separate committed / estimated / exploratory zones

@@ -251,4 +251,69 @@ describe('buildThreadStructure', () => {
 
     expect(thread.ids).toEqual(['P1.1.1', 'P1.1.2', 'P1.2.1', 'P1.1.3', 'P1.1.4', 'P1.1.5']);
   });
+
+  test('siblings under same parent collapse into one thread instead of N solos', () => {
+    // No links between them, no parent of their own — three siblings of Pr1.
+    // Old behaviour created three Solo threads cluttering the Gantt; user
+    // wants them grouped because they share the same workstream.
+    const iMap = {};
+    const tree = [
+      item('Pr1'),
+      item('Pr1.1'),
+      item('Pr1.2'),
+      item('Pr1.3'),
+      item('Pr1.4'),
+    ];
+    tree.forEach(n => { iMap[n.id] = n; });
+    const allItems = tree.filter(n => n.id.includes('.'));
+
+    const threads = buildThreadStructure({ allItems, tree, iMap });
+
+    expect(threads.length).toBe(1);
+    expect(threads[0].ids.sort()).toEqual(['Pr1.1', 'Pr1.2', 'Pr1.3', 'Pr1.4']);
+    expect(threads[0].isSolo).toBe(false);
+  });
+
+  test('solo siblings collapse even when one of them has a hard dep into the same parent', () => {
+    // Pr1.3 depends on Pr1.2 → one real thread of two items.
+    // Pr1.1, Pr1.4 are loose. All four share parent Pr1, so they belong
+    // together; the linked chain anchors the merged thread.
+    const iMap = {};
+    const tree = [
+      item('Pr1'),
+      item('Pr1.1'),
+      item('Pr1.2'),
+      item('Pr1.3', { deps: ['Pr1.2'] }),
+      item('Pr1.4'),
+    ];
+    tree.forEach(n => { iMap[n.id] = n; });
+    const allItems = tree.filter(n => n.id.includes('.'));
+
+    const threads = buildThreadStructure({ allItems, tree, iMap });
+
+    expect(threads.length).toBe(1);
+    expect(new Set(threads[0].ids)).toEqual(new Set(['Pr1.1', 'Pr1.2', 'Pr1.3', 'Pr1.4']));
+  });
+
+  test('siblings under DIFFERENT parents stay in separate threads', () => {
+    // Pr1.x and P3.x are unrelated workstreams.
+    const iMap = {};
+    const tree = [
+      item('Pr1'),
+      item('Pr1.1'),
+      item('Pr1.2'),
+      item('P3'),
+      item('P3.1'),
+      item('P3.2'),
+    ];
+    tree.forEach(n => { iMap[n.id] = n; });
+    const allItems = tree.filter(n => n.id.includes('.'));
+
+    const threads = buildThreadStructure({ allItems, tree, iMap });
+
+    const sets = threadSets(threads);
+    expect(sets.some(s => s.join() === 'Pr1.1,Pr1.2')).toBe(true);
+    expect(sets.some(s => s.join() === 'P3.1,P3.2')).toBe(true);
+    expect(threads.length).toBe(2);
+  });
 });

@@ -2262,31 +2262,38 @@ export default function App() {
   // Each callback's body resolves identifiers at invocation time, so the
   // closures still see fresh `tree`, `selected`, etc. via the latest-closure
   // ref pattern inside useStableCallback.
-  // Standard list-selection semantics (Finder / Explorer / VS Code):
-  //   shift               → REPLACE with range from anchor to clicked
-  //   cmd|ctrl            → TOGGLE clicked id
-  //   cmd|ctrl + shift    → ADD range from anchor to clicked to existing
-  //   plain               → single select, clear multi
+  // Standard list-selection (Finder / Explorer / VS Code):
+  //   plain         → single select, clear multi, anchor = clicked
+  //   shift         → replace the previous shift-range with [anchor..click];
+  //                   manually pinned items (added via cmd+click) survive
+  //   cmd|ctrl      → toggle clicked, anchor moves, previous range forgotten
+  //   cmd|ctrl+shift→ unconditional add of [anchor..click] to selection
+  const lastShiftRangeRef = useRef(null);
   const onTreeSelect = useStableCallback((node, e, visibleIds) => {
-    const additive = !!(e?.ctrlKey || e?.metaKey);
+    const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
     if (e?.shiftKey && selected && visibleIds) {
       const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
       if (ai >= 0 && bi >= 0) {
         const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-        if (additive) {
-          setMultiSel(prev => {
-            const next = new Set(prev);
-            range.forEach(id => next.add(id));
-            return next;
-          });
-        } else {
-          setMultiSel(new Set(range));
-        }
+        const newRange = new Set(range);
+        setMultiSel(prev => {
+          const next = new Set(prev);
+          if (!ctrlLike && lastShiftRangeRef.current) {
+            lastShiftRangeRef.current.forEach(x => next.delete(x));
+          }
+          newRange.forEach(x => next.add(x));
+          return next;
+        });
+        lastShiftRangeRef.current = newRange;
       }
-    } else if (additive) {
+    } else if (ctrlLike) {
       setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
       if (!selected) setSel(node);
-    } else { setSel(node); setMultiSel(new Set()); }
+      lastShiftRangeRef.current = null;
+    } else {
+      setSel(node); setMultiSel(new Set());
+      lastShiftRangeRef.current = null;
+    }
   });
   const onTreeQuickAdd = useStableCallback(parent => {
     const id = nextChildId(tree, parent.id);

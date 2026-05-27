@@ -167,6 +167,37 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     }
   }
 
+  // Final pass: components whose members all share a single common parent
+  // belong to the same workstream by definition (they're siblings of one
+  // tree node). Multiple such components collapse into one — keeps every
+  // solo or chain under e.g. `Pr1` from showing up as N separate "Solo"
+  // threads cluttering the Gantt. Roots (parent='') are excluded so
+  // unrelated top-level projects stay distinct.
+  {
+    const compMembers = new Map();
+    for (const [id, c] of compOf) {
+      if (!compMembers.has(c)) compMembers.set(c, []);
+      compMembers.get(c).push(id);
+    }
+    const parentToComps = new Map();
+    for (const [c, ids] of compMembers) {
+      const parents = new Set(ids.map(id => parentId(id)));
+      if (parents.size !== 1) continue;
+      const p = [...parents][0];
+      if (!p) continue; // top-level roots: don't merge
+      if (!parentToComps.has(p)) parentToComps.set(p, []);
+      parentToComps.get(p).push(c);
+    }
+    for (const comps of parentToComps.values()) {
+      if (comps.length < 2) continue;
+      const target = comps[0];
+      for (let i = 1; i < comps.length; i++) {
+        const other = comps[i];
+        for (const id of compMembers.get(other)) compOf.set(id, target);
+      }
+    }
+  }
+
   const succ = new Map();
   const indeg = new Map();
   for (const id of leafIds) {
