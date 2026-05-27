@@ -154,8 +154,19 @@ tr:hover .tv-drag-handle{color:var(--tx3);}
 .tv-drag-handle:active{cursor:grabbing;}
 /* Floating selection toolbar (multi-select in Gantt). Theme-aware: dark uses
    bg2 (panel), light mode overrides further down. */
-.gantt-selection-actionbar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:8px;border:1px solid var(--b2);background:var(--bg2);box-shadow:0 12px 32px rgba(0,0,0,.32);color:var(--tx);font-size:11px;font-family:var(--mono);}
+.gantt-selection-actionbar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--b2);background:var(--bg2);box-shadow:0 12px 32px rgba(0,0,0,.32);color:var(--tx);font-size:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 32px);}
 [data-theme="light"] .gantt-selection-actionbar{background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.14);}
+.sab-count{display:inline-flex;align-items:center;gap:8px;}
+.sab-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;background:var(--ac);color:#fff;border-radius:6px;font-weight:700;font-size:13px;}
+.sab-count-label{color:var(--tx);font-size:12px;font-weight:500;}
+.sab-divider{display:inline-block;width:1px;height:22px;background:var(--b2);}
+.gantt-selection-actionbar .btn{padding:6px 12px;font-size:12px;height:30px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;}
+.gantt-selection-actionbar .btn-xs{padding:6px 12px;font-size:12px;height:30px;}
+.sab-close{appearance:none;background:transparent;border:1px solid var(--b2);color:var(--tx2);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s,border-color .12s;}
+.sab-close:hover{background:var(--bg3);color:var(--tx);border-color:var(--b);}
+.sab-assign-trigger{padding:6px 12px;font-size:12px;height:30px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx);cursor:pointer;transition:background .12s,border-color .12s;}
+.sab-assign-trigger:hover{background:var(--bg4);border-color:var(--b);}
+.sab-assign-trigger .sab-icon{font-size:14px;line-height:1;}
 .grow-r:hover .g-link-connector,.g-link-connector:hover,.g-link-connector.active{opacity:1;transform:translateY(-50%) scale(1);}
 /* Semicircle: flat edge sits flush against the bar's right side, bulge
    protrudes outward. Right half of a circle. */

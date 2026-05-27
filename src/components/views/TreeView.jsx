@@ -8,6 +8,7 @@ import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
+import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 
@@ -22,6 +23,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
   const [collapsed, setCollapsed] = useState(new Set());
   const [orderDrop, setOrderDrop] = useState(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
 
@@ -521,49 +523,55 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       onClear={() => onClearSelection?.()}
       testId="tree-selection-actionbar"
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 130 }} data-htip={t('g.selectedAssignTeamTip') || 'Assign team to all selected'}>
-        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>TEAM</span>
-        <SearchSelect
-          options={[{ id: '', label: '— none —' }, ...(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))]}
-          onSelect={(teamId) => {
-            (tree || []).forEach(node => {
-              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-              if ((node.team || '') === (teamId || '')) return;
-              onTaskUpdate({ ...node, team: teamId || '' });
-            });
-          }}
-          placeholder="Team..."
-        />
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 150 }} data-htip={t('g.selectedAssignPersonTip') || 'Assign person to all selected'}>
-        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>PERS</span>
-        <SearchSelect
-          options={[{ id: '__clear__', label: '— clear —' }, ...(members || []).map(m => ({ id: m.id, label: m.name || m.id }))]}
-          onSelect={(memId) => {
-            const nextAssign = memId === '__clear__' ? [] : [memId];
-            (tree || []).forEach(node => {
-              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-              onTaskUpdate({ ...node, assign: nextAssign });
-            });
-          }}
-          placeholder="Person..."
-        />
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 110 }} data-htip="Set status on all selected">
-        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>STATUS</span>
-        <SearchSelect
-          options={[{ id: 'open', label: t('open') || 'open' }, { id: 'wip', label: t('wip') || 'wip' }, { id: 'done', label: t('done') || 'done' }]}
-          onSelect={(stVal) => {
+      <button
+        type="button"
+        className="sab-assign-trigger"
+        onClick={() => setShowAssignModal(true)}
+        data-htip={t('g.selectedAssignTip') || 'Team / Person zuweisen oder entfernen'}
+        data-testid="tree-assign-trigger">
+        <span className="sab-icon">⎘</span>
+        <span>{t('g.assign') || 'Zuweisen…'}</span>
+      </button>
+      <span className="sab-divider" />
+      {[['open', t('tv.statusOpen') || 'open'], ['wip', t('tv.statusWip') || 'wip'], ['done', t('tv.statusDone') || 'done']].map(([stVal, label]) => (
+        <button
+          key={stVal}
+          type="button"
+          className="btn btn-sec"
+          onClick={() => {
             (tree || []).forEach(node => {
               if (!multiSel?.has(node.id) || !onTaskUpdate) return;
               if (node.status === stVal) return;
               onTaskUpdate({ ...node, status: stVal });
             });
           }}
-          placeholder="Status..."
-        />
-      </span>
+          data-htip={`Set status to ${label} for all selected`}>{label}</button>
+      ))}
     </SelectionActionBar>
+    {showAssignModal && <AssignModal
+      count={multiSel?.size || 0}
+      teams={teams}
+      members={members}
+      onClose={() => setShowAssignModal(false)}
+      onApply={({ team, person }) => {
+        (tree || []).forEach(node => {
+          if (!multiSel?.has(node.id) || !onTaskUpdate) return;
+          const patch = { ...node };
+          let changed = false;
+          if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
+            patch.team = team || '';
+            changed = true;
+          }
+          if (person !== null && person !== undefined) {
+            const nextAssign = person === '' ? [] : [person];
+            const cur = (node.assign || []).join(',');
+            const nxt = nextAssign.join(',');
+            if (cur !== nxt) { patch.assign = nextAssign; changed = true; }
+          }
+          if (changed) onTaskUpdate(patch);
+        });
+      }}
+    />}
   </div>;
 }
 

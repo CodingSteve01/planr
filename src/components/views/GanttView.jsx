@@ -14,6 +14,7 @@ import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
+import { AssignModal } from '../modals/AssignModal.jsx';
 import { useT } from '../../i18n.jsx';
 
 const NO_TEAM = '__no_team__';
@@ -110,6 +111,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectRect, setSelectRect] = useState(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const lastSelectAnchorRef = useRef(null);
   // Standard list-selection click handler. Returns true when the click was
   // handled as a selection gesture so the caller can skip opening the item.
@@ -2929,42 +2931,46 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       onClear={() => setSelectedIds(new Set())}
       testId="gantt-selection-actionbar"
     >
-      {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-xs btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.linkSelected')}</button>}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 130 }} data-htip={t('g.selectedAssignTeamTip') || 'Assign team to all selected'}>
-        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>TEAM</span>
-        <SearchSelect
-          options={[{ id: '', label: '— none —' }, ...(teams || []).map(tm => ({ id: tm.id, label: tm.name || tm.id }))]}
-          onSelect={(teamId) => {
-            const sel = new Set(selectedTaskIds);
-            (tree || []).forEach(node => {
-              if (!sel.has(node.id) || !onTaskUpdate) return;
-              if ((node.team || '') === (teamId || '')) return;
-              onTaskUpdate({ ...node, team: teamId || '' });
-            });
-          }}
-          placeholder="Team..."
-        />
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 150 }} data-htip={t('g.selectedAssignPersonTip') || 'Assign person to all selected (replaces current assign)'}>
-        <span style={{ color: 'var(--tx3)', fontSize: 9, fontFamily: 'var(--mono)' }}>PERS</span>
-        <SearchSelect
-          options={[{ id: '__clear__', label: '— clear —' }, ...(members || []).map(m => ({ id: m.id, label: m.name || m.id }))]}
-          onSelect={(memId) => {
-            const sel = new Set(selectedTaskIds);
-            const nextAssign = memId === '__clear__' ? [] : [memId];
-            (tree || []).forEach(node => {
-              if (!sel.has(node.id) || !onTaskUpdate) return;
-              onTaskUpdate({ ...node, assign: nextAssign });
-            });
-          }}
-          placeholder="Person..."
-        />
-      </span>
-      <span style={{ width: 1, height: 16, background: 'var(--b2)' }} />
-      <button data-testid="gantt-clear-selected-soft-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedSoftLinks')}</button>
-      <button data-testid="gantt-clear-selected-hard-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('hard')} data-htip={t('g.clearSelectedHardLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedHardLinks')}</button>
-      <button data-testid="gantt-clear-selected-links" className="btn btn-xs btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')} style={{ padding: '3px 8px', fontSize: 10 }}>{t('g.clearSelectedLinks')}</button>
+      {selectedTaskIds.length > 1 && <button data-testid="gantt-link-selected" className="btn btn-pri" onClick={linkSelectedInOrder} data-htip={t('g.linkSelectedTip')}>{t('g.linkSelected')}</button>}
+      <button
+        type="button"
+        className="sab-assign-trigger"
+        onClick={() => setShowAssignModal(true)}
+        data-htip={t('g.selectedAssignTip') || 'Team / Person zuweisen oder entfernen'}
+        data-testid="gantt-assign-trigger">
+        <span className="sab-icon">⎘</span>
+        <span>{t('g.assign') || 'Zuweisen…'}</span>
+      </button>
+      <span className="sab-divider" />
+      <button data-testid="gantt-clear-selected-soft-links" className="btn btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')}>{t('g.clearSelectedSoftLinks')}</button>
+      <button data-testid="gantt-clear-selected-hard-links" className="btn btn-sec" onClick={() => clearSelectedLinks('hard')} data-htip={t('g.clearSelectedHardLinksTip')}>{t('g.clearSelectedHardLinks')}</button>
+      <button data-testid="gantt-clear-selected-links" className="btn btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')}>{t('g.clearSelectedLinks')}</button>
     </SelectionActionBar>
+    {showAssignModal && <AssignModal
+      count={selectedTaskIds.length}
+      teams={teams}
+      members={members}
+      onClose={() => setShowAssignModal(false)}
+      onApply={({ team, person }) => {
+        const sel = new Set(selectedTaskIds);
+        (tree || []).forEach(node => {
+          if (!sel.has(node.id) || !onTaskUpdate) return;
+          const patch = { ...node };
+          let changed = false;
+          if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
+            patch.team = team || '';
+            changed = true;
+          }
+          if (person !== null && person !== undefined) {
+            const nextAssign = person === '' ? [] : [person];
+            const cur = (node.assign || []).join(',');
+            const nxt = nextAssign.join(',');
+            if (cur !== nxt) { patch.assign = nextAssign; changed = true; }
+          }
+          if (changed) onTaskUpdate(patch);
+        });
+      }}
+    />}
     {/* Viewport overlay for the live drag-to-link line */}
     {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
       <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>
