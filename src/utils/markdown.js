@@ -149,7 +149,9 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const assign = (r.assign || []).length ? ` [${r.assign.map(memberShort).join(', ')}]` : '';
     const tags = [];
     if (r.prio && r.prio !== 2) tags.push(`prio:${r.prio}`);
-    if (r.seq) tags.push(`seq:${r.seq}`);
+    // seq is no longer scheduler-driving (link-driven model). Dropped from
+    // the writer to keep markdown clean; old plans that still carry it parse
+    // through but the value is ignored at runtime.
     if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
     if (r.confidence) tags.push(`conf:${r.confidence}`);
     if (r.completedAt) tags.push(`done:${r.completedAt}`);
@@ -160,7 +162,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     if (r.deadlineRelevant === false) tags.push('deadline:false');
     if (r.due) tags.push(`due:${r.due}`);
     if (r.teamLock) tags.push('team-lock:true');
-    if (r.parallel) tags.push('parallel:true');
+    // `parallel` is obsolete in the link-driven scheduler: no-dep leaves are
+    // always parallel, deps always block. Not emitted any more.
     if (r.fixedDurationDays > 0) tags.push(`fixed:${Math.max(1, Math.ceil(+r.fixedDurationDays))}`);
     if (typeof r.displayOrder === 'number') tags.push(`ord:${r.displayOrder}`);
     // Custom field values inline: {jira:PROJ-123, customer:Acme}

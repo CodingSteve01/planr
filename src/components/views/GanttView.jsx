@@ -1063,9 +1063,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       let deps = node.deps || EMPTY_ARR;
       let softDeps = node.softDeps || EMPTY_ARR;
       let changed = false;
-      const wasLinkedToSelection = isSelectedTarget
-        || deps.some(depId => selected.has(depId))
-        || softDeps.some(depId => selected.has(depId));
       if (removeHard) {
         const next = deps.filter(depId => !(isSelectedTarget || selected.has(depId)));
         changed = changed || next.length !== deps.length;
@@ -1076,13 +1073,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         changed = changed || next.length !== softDeps.length;
         softDeps = next;
       }
-      const shouldParallelize = wasLinkedToSelection
-        && leafIdSet.has(node.id)
-        && node.status !== 'done'
-        && deps.length === 0
-        && softDeps.length === 0
-        && !node.parallel;
-      if (changed || shouldParallelize) onTaskUpdate?.({ ...node, deps, softDeps, ...(shouldParallelize ? { parallel: true } : {}) });
+      if (changed) onTaskUpdate?.({ ...node, deps, softDeps });
     });
   };
   const cpEdgeSet = useMemo(() => cpEdges instanceof Set ? cpEdges : new Set(cpEdges || []), [cpEdges]);

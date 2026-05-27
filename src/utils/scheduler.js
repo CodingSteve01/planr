@@ -41,20 +41,6 @@ export function leafNodes(tree) {
   return tree.filter(r => isLeafNode(tree, r.id));
 }
 
-// True when removing the last dep/softDep should flip the leaf into `parallel:true`.
-// Whenever a leaf becomes link-free we honour the user's intent ("nothing blocks
-// this any more, let it overlap with whatever the resource is doing") so the
-// schedule doesn't silently keep it stuck in the queue. Done leaves stay
-// untouched — their dates are historical, not planned.
-export function shouldAutoParallelizeOnDepFree(node, isLeaf) {
-  if (!node || !isLeaf) return false;
-  if (node.status === 'done') return false;
-  if (node.parallel === true) return false;
-  const deps = (node.deps || []).length;
-  const soft = (node.softDeps || []).length;
-  return deps === 0 && soft === 0;
-}
-
 export function resolveToLeafIds(tree, id) {
   const item = typeof id === 'string' ? tree.find(r => r.id === id) : id;
   if (!item) return [];
@@ -165,7 +151,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // due dates schedule first. Tasks without due sort after dated ones.
     const aDue = a.due ? a.due : '9999-99-99';
     const bDue = b.due ? b.due : '9999-99-99';
-    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || (a.seq || 0) - (b.seq || 0) || a.id.localeCompare(b.id);
+    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
@@ -554,7 +540,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // `parallel:false` if a queued behaviour is required. Pinned tasks
     // bypass the queue too so manual dates remain visible as conflicts
     // instead of being silently moved.
-    const bypassPersonQueue = !!r.pinnedStart || (noDeps && r.parallel !== false);
+    // Link-driven scheduler: no-dep leaves always start at their earliest legal
+    // floor (planStart / today / member-start). Sequencing comes solely from
+    // hard/soft dependencies. Pin still bypasses so a manual date is honoured.
+    const bypassPersonQueue = !!r.pinnedStart || noDeps;
     // Dep tracking: find the LATEST predecessor finish. Both the week index and the day-
     // accurate nextDate are tracked so the successor can start the very next working day
     // (not the next full week — that was the source of the phantom gaps).

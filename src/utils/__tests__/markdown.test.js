@@ -39,17 +39,17 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(tagPos).toBeGreaterThan(assignPos);
   });
 
-  test('parallel flag serialises as metadata, not as legacy marker', () => {
+  test('legacy parallel/seq metadata is no longer written (link-driven scheduler)', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
       { id: 'P1.1', name: 'Task', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], prio: 2, status: 'open', pinnedStart: '2026-03-01', parallel: true,
+        assign: ['M1'], prio: 2, status: 'open', pinnedStart: '2026-03-01', parallel: true, seq: 42,
       },
     ];
     const md = buildMarkdownText({ ...base, tree });
     const line = md.split('\n').find(l => l.includes('**P1.1**'));
-    expect(line).not.toMatch(/≡/);
-    expect(line).toMatch(/\{parallel:true\}/);
+    expect(line).not.toMatch(/parallel:true/);
+    expect(line).not.toMatch(/seq:42/);
     expect(line).toMatch(/📌2026-03-01/);
   });
 
@@ -186,7 +186,7 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(line).toMatch(/\{[^}]*due:2026-04-12/);
     expect(line).toMatch(/\{[^}]*deadline:false/);
     expect(line).toMatch(/\{[^}]*team-lock:true/);
-    expect(line).toMatch(/\{[^}]*parallel:true/);
+    expect(line).not.toMatch(/parallel:true/);
     expect(line).toMatch(/\{[^}]*fixed:4/);
     expect(line).toMatch(/\{[^}]*ord:7/);
     expect(line).toMatch(/\{[^}]*cv\.jira:PLAN-7/);

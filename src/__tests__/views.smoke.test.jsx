@@ -317,7 +317,7 @@ describe('view smoke', () => {
     expect(onTaskUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.3', deps: [], softDeps: [] }));
   });
 
-  it('GanttView clear-all links also marks newly link-free planned tasks as parallel', () => {
+  it('GanttView clear-all links wipes deps + softDeps on every affected task (no legacy parallel flag)', () => {
     localStorage.setItem('planr_gantt_group', 'thread');
     localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ thread: [] }));
     const onTaskUpdate = vi.fn();
@@ -358,9 +358,11 @@ describe('view smoke', () => {
     fireEvent.click(getByTestId('gantt-clear-selected-links'));
 
     expect(onRemoveDep).not.toHaveBeenCalled();
-    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.1', deps: [], softDeps: [], parallel: true }));
-    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.2', deps: [], softDeps: [], parallel: true }));
-    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.3', deps: [], softDeps: [], parallel: true }));
+    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.1', deps: [], softDeps: [] }));
+    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.2', deps: [], softDeps: [] }));
+    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.3', deps: [], softDeps: [] }));
+    const calls = onTaskUpdate.mock.calls.map(([arg]) => arg);
+    expect(calls.some(c => c.parallel === true)).toBe(false);
   });
 
   it('GanttView keeps changed done items visible when hideDone is active in diff mode', () => {

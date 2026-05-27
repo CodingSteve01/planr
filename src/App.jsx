@@ -12,7 +12,7 @@ import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort, shouldAutoParallelizeOnDepFree } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -1819,15 +1819,11 @@ export default function App() {
       const tree = d.tree || [];
       const mutated = tree.map(r => {
         if (r.id !== fromId) return r;
-        const next = {
+        return {
           ...r,
           deps: (r.deps || []).filter(x => x !== depId),
           softDeps: (r.softDeps || []).filter(x => x !== depId),
         };
-        if (shouldAutoParallelizeOnDepFree(next, isLeafNode(tree, fromId))) {
-          next.parallel = true;
-        }
-        return next;
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
@@ -1843,13 +1839,7 @@ export default function App() {
         if (r.id !== fromId) return r;
         const existing = new Set([...(r.deps || []), ...(r.softDeps || [])]);
         if (existing.has(depId)) return r;
-        const next = { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
-        // Item regains a dep → auto-clear the `parallel:true` flag that was
-        // set when the item became link-free. The flag has no effect when
-        // deps exist, but keeping it around clutters the markdown and
-        // would re-fire incorrectly if the dep is removed again later.
-        if (next.parallel === true) delete next.parallel;
-        return next;
+        return { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
