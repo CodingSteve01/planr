@@ -191,7 +191,9 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(line).toMatch(/\{[^}]*ord:7/);
     expect(line).toMatch(/\{[^}]*cv\.jira:PLAN-7/);
     expect(depLine).toContain('P1.0');
-    expect(depLine).toContain('~P1.2');
+    // Soft deps are merged into the single deps bucket — no `~` prefix any more.
+    expect(depLine).toContain('P1.2');
+    expect(depLine).not.toContain('~');
   });
 
   test('planning metadata is JSON-safe without lossy fields', () => {

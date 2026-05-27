@@ -857,20 +857,18 @@ export default function App() {
           const depM = trimmed.match(/^\*Benötigt:\s*(.+?)\*$/);
           if (depM) {
             const items = depM[1].split(',').map(s => s.trim()).filter(Boolean);
-            // Items prefixed with `~` are soft-deps (planner-set sequencing).
-            // Plain items are hard-deps (business need).
-            const hard = [], soft = [];
+            // All deps are hard now. Old `~id` markers (soft) still parse,
+            // they collapse into the same `deps` bucket on next save.
+            const hard = [];
             const labels = {};
             for (const raw of items) {
-              const isSoft = raw.startsWith('~');
-              const body = isSoft ? raw.slice(1).trim() : raw;
+              const body = raw.startsWith('~') ? raw.slice(1).trim() : raw;
               const lm = body.match(/^([A-Za-z0-9.]+)\s*\((.+)\)$/);
               const id = lm ? lm[1] : body;
               if (lm) labels[id] = lm[2];
-              if (isSoft) soft.push(id); else hard.push(id);
+              hard.push(id);
             }
-            lastItem.deps = hard;
-            if (soft.length) lastItem.softDeps = soft;
+            lastItem.deps = [...new Set(hard)];
             if (Object.keys(labels).length) lastItem._depLabels = labels;
             return;
           }
@@ -1820,27 +1818,33 @@ export default function App() {
       const tree = d.tree || [];
       const mutated = tree.map(r => {
         if (r.id !== fromId) return r;
-        return {
-          ...r,
-          deps: (r.deps || []).filter(x => x !== depId),
-          softDeps: (r.softDeps || []).filter(x => x !== depId),
-        };
+        const next = { ...r, deps: (r.deps || []).filter(x => x !== depId) };
+        // Strip any lingering softDeps too — legacy field that's no longer
+        // emitted, but old plans might still carry it on the in-memory node.
+        if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
+        return next;
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
     setSaved(false);
   }
-  // Add a dep edge. `kind='soft'` (default for in-Gantt drag-link) parks
-  // it in softDeps; `kind='hard'` is the business-need variant.
-  function addDep(fromId, depId, kind = 'soft') {
+  // Add a hard dep edge. Soft deps were removed — every link is a hard
+  // dependency now ("X must finish before Y"). Drag-link, NodeModal picker,
+  // and selection "Reihenfolge linken" all go through this single path.
+  function addDep(fromId, depId) {
     if (fromId === depId) return;
-    const targetKey = kind === 'hard' ? 'deps' : 'softDeps';
     setData(d => {
       const mutated = (d.tree || []).map(r => {
         if (r.id !== fromId) return r;
-        const existing = new Set([...(r.deps || []), ...(r.softDeps || [])]);
-        if (existing.has(depId)) return r;
-        return { ...r, [targetKey]: [...(r[targetKey] || []), depId] };
+        const merged = new Set([...(r.deps || []), ...(r.softDeps || [])]);
+        if (merged.has(depId)) {
+          // Already linked (possibly as legacy soft); ensure it lives in deps
+          // and drop any stale softDeps reference.
+          const next = { ...r, deps: [...new Set([...(r.deps || []), depId])] };
+          if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
+          return next;
+        }
+        return { ...r, deps: [...(r.deps || []), depId] };
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });

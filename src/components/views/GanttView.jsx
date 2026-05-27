@@ -2840,12 +2840,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const emphasized = isHovered || isPinned || isHoveredTask;
                 const col = l.isCp ? 'var(--re)' : emphasized ? 'var(--ac)' : 'var(--tx3)';
                 const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
-                // Default opacity raised because solid-fill bars made the prior 0.32
-                // grey arrows disappear visually between adjacent bars.
-                // Soft deps render dashed + thinner so planner-set ordering is
-                // visually distinct from business-need hard deps.
-                const opacity = emphasized ? 0.95 : (l.isCp ? 0.75 : (l.isSoft ? 0.6 : 0.7));
-                const strokeWidth = emphasized ? 1.8 : (l.isSoft ? 1.1 : 1.4);
+                // All links are hard deps now — uniform solid stroke. CP path
+                // still gets its red emphasis.
+                const opacity = emphasized ? 0.95 : (l.isCp ? 0.75 : 0.7);
+                const strokeWidth = emphasized ? 1.8 : 1.4;
                 const dash = undefined;
                 // × badge sits at the SECOND bend (vertical-segment midpoint of
                 // the L) so it lands in the whitespace between source and target
@@ -2975,8 +2973,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
       </button>
       <span className="sab-divider" />
-      <button data-testid="gantt-clear-selected-soft-links" className="btn btn-sec" onClick={() => clearSelectedLinks('soft')} data-htip={t('g.clearSelectedSoftLinksTip')}>{t('g.clearSelectedSoftLinks')}</button>
-      <button data-testid="gantt-clear-selected-hard-links" className="btn btn-sec" onClick={() => clearSelectedLinks('hard')} data-htip={t('g.clearSelectedHardLinksTip')}>{t('g.clearSelectedHardLinks')}</button>
       <button data-testid="gantt-clear-selected-links" className="btn btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')}>{t('g.clearSelectedLinks')}</button>
     </SelectionActionBar>
     {showAssignModal && <AssignModal

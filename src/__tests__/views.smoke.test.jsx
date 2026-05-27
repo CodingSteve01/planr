@@ -273,49 +273,6 @@ describe('view smoke', () => {
     expect(onRemoveDep).toHaveBeenCalledWith('P1.3', 'P1.2');
   });
 
-  it('GanttView can remove only soft links for a rectangle selection', () => {
-    localStorage.setItem('planr_gantt_group', 'thread');
-    localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ thread: [] }));
-    const onTaskUpdate = vi.fn();
-    const selectionTree = [
-      { id: 'P1', name: 'Project', team: 'T1', best: 0, factor: 1.5, status: 'open', deps: [], assign: [] },
-      { id: 'P1.0', name: 'External predecessor', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], assign: [] },
-      { id: 'P1.1', name: 'First', team: 'T1', best: 2, factor: 1, status: 'open', deps: ['P1.0'], softDeps: [], assign: [] },
-      { id: 'P1.2', name: 'Second', team: 'T1', best: 2, factor: 1, status: 'open', deps: [], softDeps: ['P1.1'], assign: [] },
-      { id: 'P1.3', name: 'Outside successor', team: 'T1', best: 2, factor: 1, status: 'open', deps: ['P1.2'], softDeps: [], assign: [] },
-    ];
-    const selectionScheduled = selectionTree
-      .filter(item => item.id !== 'P1')
-      .map((item, idx) => ({
-        ...item,
-        treeId: item.id,
-        startWi: 0,
-        endWi: 0,
-        startD: new Date('2026-01-05'),
-        endD: new Date('2026-01-05'),
-        assign: [],
-        _selectionOrder: idx,
-      }));
-    const { container, getByTestId } = wrap(
-      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={onTaskUpdate} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
-    );
-    const timeline = getByTestId('gantt-timeline');
-    const shell = container.querySelector('.gantt');
-
-    fireEvent.mouseDown(timeline, { button: 0, clientX: 0, clientY: 84 });
-    fireEvent.mouseMove(shell, { clientX: 130, clientY: 150 });
-    fireEvent.mouseUp(shell);
-    fireEvent.click(getByTestId('gantt-clear-selected-soft-links'));
-
-    expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.2', deps: [], softDeps: [] }));
-    expect(onTaskUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.1', deps: [], softDeps: [] }));
-    expect(onTaskUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'P1.3', deps: [], softDeps: [] }));
-  });
 
   it('GanttView clear-all links wipes deps + softDeps on every affected task (no legacy parallel flag)', () => {
     localStorage.setItem('planr_gantt_group', 'thread');
