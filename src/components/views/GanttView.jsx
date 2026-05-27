@@ -1026,54 +1026,59 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [visibleTaskIds]);
-  // Z-order style reorder for the current multi-selection. Walks the visible
-  // task list, lifts the selected ids out, splices them back in at the new
-  // position (first / up / down / last), then rewrites `seq` values 10, 20,
-  // 30, … so the scheduler picks up the new global order.
+  // Z-order style reorder for the current multi-selection. Scoped per-team:
+  // for each team that has selected items, sort the team's leaves by current
+  // seq, splice the selected ones at the new position, then rewrite seq in
+  // dense steps of 5 across the whole team. Steps of 5 leave room for later
+  // up/down nudges without renumbering everyone.
   const reorderSelectionInTime = (dir) => {
     if (!onTaskUpdate || selectedTaskIds.length === 0) return;
-    const ordered = visibleRows
-      .filter(r => r?.type === 'task' && r.s)
-      .map(r => r.s.treeId || r.s.id);
-    if (!ordered.length) return;
     const sel = new Set(selectedTaskIds);
-    const selectedInOrder = ordered.filter(id => sel.has(id));
-    const others = ordered.filter(id => !sel.has(id));
-    let next = [];
-    if (dir === 'first') {
-      next = [...selectedInOrder, ...others];
-    } else if (dir === 'last') {
-      next = [...others, ...selectedInOrder];
-    } else if (dir === 'up') {
-      const firstSelectedIdx = ordered.findIndex(id => sel.has(id));
-      if (firstSelectedIdx <= 0) return;
-      next = ordered.slice();
-      // Move every selected one slot up, keeping the relative order of
-      // unselected neighbours intact. Walk from top so swaps cascade.
-      for (let i = 1; i < next.length; i++) {
-        if (sel.has(next[i]) && !sel.has(next[i - 1])) {
-          [next[i - 1], next[i]] = [next[i], next[i - 1]];
-        }
-      }
-    } else if (dir === 'down') {
-      const lastSelectedIdx = ordered.length - 1 - [...ordered].reverse().findIndex(id => sel.has(id));
-      if (lastSelectedIdx === ordered.length - 1) return;
-      next = ordered.slice();
-      for (let i = next.length - 2; i >= 0; i--) {
-        if (sel.has(next[i]) && !sel.has(next[i + 1])) {
-          [next[i + 1], next[i]] = [next[i], next[i + 1]];
-        }
-      }
-    } else {
-      return;
-    }
-    // Rewrite seq in dense steps so future reorders have room to slide.
-    next.forEach((id, idx) => {
+    const byTeam = new Map();
+    selectedTaskIds.forEach(id => {
       const node = iMap[id];
-      if (!node) return;
-      const newSeq = (idx + 1) * 10;
-      if (node.seq === newSeq) return;
-      onTaskUpdate({ ...node, seq: newSeq });
+      if (!node || !leafIdSet.has(id)) return;
+      const teamKey = node.team || '';
+      if (!byTeam.has(teamKey)) byTeam.set(teamKey, new Set());
+      byTeam.get(teamKey).add(id);
+    });
+    byTeam.forEach((selIds, teamKey) => {
+      const teamLeaves = (tree || [])
+        .filter(n => leafIdSet.has(n.id) && (n.team || '') === teamKey)
+        .sort((a, b) => {
+          const aSeq = a.seq ?? a.displayOrder ?? 0;
+          const bSeq = b.seq ?? b.displayOrder ?? 0;
+          return aSeq - bSeq || a.id.localeCompare(b.id);
+        });
+      if (!teamLeaves.length) return;
+      const orderedIds = teamLeaves.map(n => n.id);
+      const selectedInOrder = orderedIds.filter(id => selIds.has(id));
+      const others = orderedIds.filter(id => !selIds.has(id));
+      let next = [];
+      if (dir === 'first') next = [...selectedInOrder, ...others];
+      else if (dir === 'last') next = [...others, ...selectedInOrder];
+      else if (dir === 'up') {
+        next = orderedIds.slice();
+        for (let i = 1; i < next.length; i++) {
+          if (selIds.has(next[i]) && !selIds.has(next[i - 1])) {
+            [next[i - 1], next[i]] = [next[i], next[i - 1]];
+          }
+        }
+      } else if (dir === 'down') {
+        next = orderedIds.slice();
+        for (let i = next.length - 2; i >= 0; i--) {
+          if (selIds.has(next[i]) && !selIds.has(next[i + 1])) {
+            [next[i + 1], next[i]] = [next[i], next[i + 1]];
+          }
+        }
+      } else return;
+      next.forEach((id, idx) => {
+        const node = iMap[id];
+        if (!node) return;
+        const newSeq = (idx + 1) * 5;
+        if (node.seq === newSeq) return;
+        onTaskUpdate({ ...node, seq: newSeq });
+      });
     });
   };
   const linkSelectedInOrder = () => {
