@@ -53,104 +53,25 @@ function completedWindowOf(item, today = localDate(new Date())) {
   return { start, end };
 }
 
-function countWorkDaysInWindow(start, end, wdSet) {
-  let count = 0;
-  for (const day of eachDayInclusive(iso(start), iso(end))) {
-    if (wdSet.has(day.getDay())) count++;
-  }
-  return Math.max(1, count);
-}
-
-function endAfterWorkDays(start, days, wdSet) {
-  let cursor = localDate(start);
-  let counted = 0;
-  let guard = 0;
-  while (guard < 4000) {
-    if (wdSet.has(cursor.getDay())) counted++;
-    if (counted >= days) return cursor;
-    cursor = addD(cursor, 1);
-    guard++;
-  }
-  return cursor;
-}
-
-function startBeforeWorkDays(end, days, wdSet) {
-  let cursor = localDate(end);
-  let counted = 0;
-  let guard = 0;
-  while (guard < 4000) {
-    if (wdSet.has(cursor.getDay())) counted++;
-    if (counted >= days) return cursor;
-    cursor = addD(cursor, -1);
-    guard++;
-  }
-  return cursor;
-}
-
-export function normalizeCompletedWindows(tree, { workDays, now } = {}) {
+export function normalizeCompletedWindows(tree, { workDays: _workDays, now } = {}) {
+  // Trust the recorded window as-is. Earlier versions cascaded done items
+  // behind their done predecessors and then clamped against today, which hid
+  // the actual recorded dates and snapped bars onto "today minus duration"
+  // whenever a predecessor's recorded end ran late. Users record history
+  // deliberately; anomalies should be visible, not auto-corrected.
   const rows = tree || [];
-  const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
   const today = localDate(now || new Date());
-  const doneLeaves = rows
-    .filter(item => item?.status === 'done' && isLeafNode(rows, item.id))
-    .filter(item => completedWindowOf(item, today));
-  const doneById = new Map(doneLeaves.map(item => [item.id, item]));
   const windows = new Map();
-  const visiting = new Set();
-
-  const originalWindow = (item) => {
+  rows.forEach(item => {
+    if (!item?.id || item.status !== 'done' || !isLeafNode(rows, item.id)) return;
     const original = completedWindowOf(item, today);
-    if (!original) return null;
-    return {
+    if (!original) return;
+    windows.set(item.id, {
       start: iso(original.start),
       end: iso(original.end),
       adjusted: false,
-    };
-  };
-
-  const visit = (item) => {
-    if (!item?.id) return null;
-    if (windows.has(item.id)) return windows.get(item.id);
-    if (visiting.has(item.id)) {
-      const fallback = originalWindow(item);
-      if (fallback) windows.set(item.id, fallback);
-      return fallback;
-    }
-
-    const original = completedWindowOf(item, today);
-    if (!original) return null;
-
-    visiting.add(item.id);
-    let start = new Date(original.start);
-    const duration = countWorkDaysInWindow(original.start, original.end, wdSet);
-
-    const depIds = effectiveDeps(rows, item)
-      .flatMap(depId => resolveToLeafIds(rows, depId))
-      .filter(depId => depId !== item.id && doneById.has(depId));
-
-    for (const depId of depIds) {
-      const depWindow = visit(doneById.get(depId));
-      if (!depWindow?.end) continue;
-      const requiredStart = addWorkDays(localDate(depWindow.end), 1, wdSet);
-      if (requiredStart > start) start = requiredStart;
-    }
-
-    let end = endAfterWorkDays(start, duration, wdSet);
-    if (end > today) {
-      end = new Date(today);
-      start = startBeforeWorkDays(end, duration, wdSet);
-    }
-    const normalized = {
-      start: iso(start),
-      end: iso(end),
-      adjusted: iso(start) !== iso(original.start) || iso(end) !== iso(original.end),
-    };
-    windows.set(item.id, normalized);
-    visiting.delete(item.id);
-    return normalized;
-  };
-
-  doneLeaves.forEach(visit);
+    });
+  });
   return windows;
 }
 
