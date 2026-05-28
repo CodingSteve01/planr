@@ -799,3 +799,31 @@ describe('schedule(): fixedDurationDays', () => {
     expect(iso(second.startD)).toBe('2026-01-08');
   });
 });
+
+describe('schedule(): seq drives global tiebreak, displayOrder does not', () => {
+  // Regression: in the venneker plan P1.1.4.3 (seq 680, displayOrder 1 under
+  // its parent) was scheduled BEFORE P1.1.1.3.14 (seq 330, displayOrder 14
+  // under a different parent), because the tiebreak read displayOrder first.
+  // displayOrder is sibling-local — comparing it across parents is wrong.
+  // After the fix, tiebreak is `seq ?? 0` and the lower seq wins.
+  const fe = { id: 'F1', name: 'Frontend Dev', team: 'FE', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('lower seq schedules first across different parents', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1.1.3', name: 'Bestand', team: 'FE', best: 0, displayOrder: 3 },
+      { id: 'P1.1.1.3.14', name: 'Schweinebuch FE', team: 'FE',
+        best: 14, factor: 1.6, prio: 4, seq: 330, displayOrder: 14, status: 'open' },
+      { id: 'P1.1.4', name: 'PWA', team: 'FE', best: 0, displayOrder: 4 },
+      { id: 'P1.1.4.3', name: 'Spike PWA', team: 'FE',
+        best: 8, factor: 1.5, prio: 4, seq: 680, displayOrder: 1, status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [fe] });
+    const a = results.find(r => r.id === 'P1.1.1.3.14');
+    const b = results.find(r => r.id === 'P1.1.4.3');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    // seq 330 must place before seq 680, even though displayOrder is 14 vs 1.
+    expect(a.startD.getTime()).toBeLessThan(b.startD.getTime());
+  });
+});
