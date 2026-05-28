@@ -1031,9 +1031,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   // seq, splice the selected ones at the new position, then rewrite seq in
   // dense steps of 5 across the whole team. Steps of 5 leave room for later
   // up/down nudges without renumbering everyone.
+  //
+  // ⏮/⏭ also sync the selection's prio to the destination neighbourhood
+  // (min/max of the team's non-selected leaves) so the scheduler actually
+  // moves the bars — seq alone is only a tiebreak, prio dominates the sort.
+  // ◀/▶ stay seq-only: small nudges should not silently change priority.
   const reorderSelectionInTime = (dir) => {
     if (!onTaskUpdate || selectedTaskIds.length === 0) return;
-    const sel = new Set(selectedTaskIds);
     const byTeam = new Map();
     selectedTaskIds.forEach(id => {
       const node = iMap[id];
@@ -1052,11 +1056,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         });
       if (!teamLeaves.length) return;
       const orderedIds = teamLeaves.map(n => n.id);
+      const others = teamLeaves.filter(n => !selIds.has(n.id));
+      // Target prio for the extreme actions. Scheduler treats undefined as 4.
+      let targetPrio = null;
+      if (dir === 'last' && others.length) {
+        targetPrio = others.reduce((m, n) => Math.max(m, n.prio || 4), 1);
+      } else if (dir === 'first' && others.length) {
+        targetPrio = others.reduce((m, n) => Math.min(m, n.prio || 4), 4);
+      }
       const selectedInOrder = orderedIds.filter(id => selIds.has(id));
-      const others = orderedIds.filter(id => !selIds.has(id));
+      const othersOrdered = orderedIds.filter(id => !selIds.has(id));
       let next = [];
-      if (dir === 'first') next = [...selectedInOrder, ...others];
-      else if (dir === 'last') next = [...others, ...selectedInOrder];
+      if (dir === 'first') next = [...selectedInOrder, ...othersOrdered];
+      else if (dir === 'last') next = [...othersOrdered, ...selectedInOrder];
       else if (dir === 'up') {
         next = orderedIds.slice();
         for (let i = 1; i < next.length; i++) {
@@ -1076,8 +1088,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const node = iMap[id];
         if (!node) return;
         const newSeq = (idx + 1) * 5;
-        if (node.seq === newSeq) return;
-        onTaskUpdate({ ...node, seq: newSeq });
+        const patch = { ...node };
+        let changed = false;
+        if (node.seq !== newSeq) { patch.seq = newSeq; changed = true; }
+        // Only selected items get the prio sync; others keep their own prio.
+        if (targetPrio != null && selIds.has(id) && (node.prio || 4) !== targetPrio) {
+          patch.prio = targetPrio;
+          changed = true;
+        }
+        if (changed) onTaskUpdate(patch);
       });
     });
   };
@@ -1978,15 +1997,25 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const prevSeq = prev?.seq || prev?.displayOrder || (clamped) * 10;
               const nextSeq = next?.seq || next?.displayOrder || (clamped + 2) * 10;
               const newSeq = Math.round((prevSeq + nextSeq) / 2) || (prevSeq + 5);
+              // Match the prio of whichever neighbour we land next to so the
+              // scheduler honours the new position. Without this, dragging a
+              // prio-3 bar past prio-4 neighbours snaps back via prio sort.
+              const targetPrio = (prev?.prio) || (next?.prio) || null;
               const node = iMap[d.treeId || d.id];
-              if (node) onTaskUpdate({ ...node, seq: newSeq });
+              if (node) {
+                const patch = { ...node, seq: newSeq };
+                if (targetPrio != null && (node.prio || 4) !== targetPrio) patch.prio = targetPrio;
+                onTaskUpdate(patch);
+              }
               // Multi-row drag: keep the rest of the current selection together
               // by spacing them around `newSeq` in their visible order.
               if (selectedIds.has(d.id) && selectedTaskIds.length > 1) {
                 const ordered = selectedTaskIds.filter(id => id !== d.id);
                 ordered.forEach((id, i) => {
                   const n = iMap[id]; if (!n) return;
-                  onTaskUpdate({ ...n, seq: newSeq + (i + 1) });
+                  const patch = { ...n, seq: newSeq + (i + 1) };
+                  if (targetPrio != null && (n.prio || 4) !== targetPrio) patch.prio = targetPrio;
+                  onTaskUpdate(patch);
                 });
               }
             }
