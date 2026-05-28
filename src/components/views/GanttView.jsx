@@ -111,6 +111,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [pinnedLineKey, setPinnedLineKey] = useState(null); // sticky-selected dep line — survives mouse leave
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [reorderHint, setReorderHint] = useState(null); // transient explainer after a z-order click
   const [selectRect, setSelectRect] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   // Anchor + most-recent shift-range track standard list semantics:
@@ -1080,6 +1081,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         onTaskUpdate({ ...node, seq: newSeq });
       });
     });
+    // Inline hint — explain the seq-vs-prio caveat after the click so the
+    // user understands why the bars might not visibly move.
+    const msg = (dir === 'first' || dir === 'last')
+      ? t('g.reorderHintExtreme')
+      : t('g.reorderHintNudge');
+    setReorderHint(msg);
+    setTimeout(() => setReorderHint(h => (h === msg ? null : h)), 7000);
   };
   const linkSelectedInOrder = () => {
     selectedTaskIds.forEach((id, index) => {
@@ -3025,6 +3033,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏭</button>
       </span>
+      {reorderHint && <span data-testid="gantt-reorder-hint" style={{ fontSize: 11, color: 'var(--tx2)', fontStyle: 'italic', maxWidth: 360, lineHeight: 1.3 }}>{reorderHint}</span>}
       <button
         type="button"
         className="sab-assign-trigger"
