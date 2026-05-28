@@ -152,11 +152,12 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const aDue = a.due ? a.due : '9999-99-99';
     const bDue = b.due ? b.due : '9999-99-99';
     // Tiebreak order: prio → assigned-first → due → manual rank → id.
-    // `displayOrder` is what tree/Gantt D&D writes (1, 2, 3, … per sibling
-    // group); legacy `seq` still works for old plans. Either lets the
-    // user say "this one first" without touching deps.
-    const aRank = (a.displayOrder ?? a.seq ?? 0);
-    const bRank = (b.displayOrder ?? b.seq ?? 0);
+    // `seq` is the global manual order written by Gantt D&D and the
+    // selection z-order buttons. `displayOrder` is intentionally NOT used
+    // here — it is sibling-local (1..N per parent in the TreeView) and
+    // would mis-compare items from different parents.
+    const aRank = (a.seq ?? 0);
+    const bRank = (b.seq ?? 0);
     return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || aRank - bRank || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
