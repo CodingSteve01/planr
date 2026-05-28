@@ -111,7 +111,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const [pinnedLineKey, setPinnedLineKey] = useState(null); // sticky-selected dep line — survives mouse leave
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [reorderHint, setReorderHint] = useState(null); // transient explainer after a z-order click
   const [selectRect, setSelectRect] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   // Anchor + most-recent shift-range track standard list semantics:
@@ -1081,13 +1080,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         onTaskUpdate({ ...node, seq: newSeq });
       });
     });
-    // Inline hint — explain the seq-vs-prio caveat after the click so the
-    // user understands why the bars might not visibly move.
-    const msg = (dir === 'first' || dir === 'last')
-      ? t('g.reorderHintExtreme')
-      : t('g.reorderHintNudge');
-    setReorderHint(msg);
-    setTimeout(() => setReorderHint(h => (h === msg ? null : h)), 7000);
+  };
+  // Bulk prio nudge for the current selection. step = -1 → more urgent
+  // (lower number), +1 → less urgent. Clamped to 1..4. This is the real
+  // lever when z-order alone is not enough to push a group past competing
+  // work — prio dominates the scheduler sort.
+  const adjustSelectionPrio = (step) => {
+    if (!onTaskUpdate) return;
+    selectedTaskIds.forEach(id => {
+      const node = iMap[id];
+      if (!node) return;
+      const current = node.prio || 2;
+      const next = Math.max(1, Math.min(4, current + step));
+      if (next === current) return;
+      onTaskUpdate({ ...node, prio: next });
+    });
   };
   const linkSelectedInOrder = () => {
     selectedTaskIds.forEach((id, index) => {
@@ -2764,6 +2771,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 </div>}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                   {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
+                  {!isSummary && node?.prio != null && node.prio !== 2 && (() => {
+                    // Prio badge: ⏫1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
+                    // Surface prio inline so the scheduler order is legible without opening
+                    // the modal. Default (2) stays hidden to reduce noise.
+                    const ICON = { 1: '⏫', 3: '▬', 4: '▼' };
+                    const LABEL = { 1: 'Critical', 3: 'Medium', 4: 'Low' };
+                    const ic = ICON[node.prio]; if (!ic) return null;
+                    return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
+                      data-htip={`Priority ${node.prio} (${LABEL[node.prio]}) — lower numbers schedule first`}>{ic}</span>;
+                  })()}
                   {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
                   {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                     data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
@@ -3041,7 +3058,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏭</button>
       </span>
-      {reorderHint && <span data-testid="gantt-reorder-hint" style={{ fontSize: 11, color: 'var(--tx2)', fontStyle: 'italic', maxWidth: 360, lineHeight: 1.3 }}>{reorderHint}</span>}
+      <span style={{ display: 'inline-flex', gap: 2 }}>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏫</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏬</button>
+      </span>
       <button
         type="button"
         className="sab-assign-trigger"
