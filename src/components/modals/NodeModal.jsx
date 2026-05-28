@@ -126,7 +126,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     const completedAt = (source.completedAt && source.completedAt <= today) ? source.completedAt : today;
     const completedEnd = (source.completedEnd && source.completedEnd <= completedAt) ? source.completedEnd : completedAt;
     const patch = { status: 'done', progress: 100, completedAt, completedEnd };
-    if (source.completedStart && source.completedStart <= completedEnd) patch.completedStart = source.completedStart;
+    // Seed completedStart so the done-bar has a draggable left edge:
+    // explicit value > plannedStart from last schedule > completedEnd (1-day task).
+    const seededStart = source.completedStart || source.plannedStart || completedEnd;
+    if (seededStart && seededStart <= completedEnd) patch.completedStart = seededStart;
     return patch;
   };
   const setCompletion = patch => setF(current => {

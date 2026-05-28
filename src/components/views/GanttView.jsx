@@ -1837,7 +1837,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       } else if (d.kind === 'resizeEnd') {
         const delta = Math.round(dx / resizePxPerDay);
         setDDelta(Math.max(d.minDelta || 0, delta));
-      } else if (d.canPin) {
+      } else if (d.kind === 'resizeEndDone' || d.kind === 'resizeStartDone') {
+        // Done-bar resize uses the same px-per-unit as the move handlers
+        // (day mode → days, week mode → weeks). Drop handler multiplies
+        // by 7 in week mode and clamps against start/end + today.
+        const stepPx = showDays ? DPX : WPX;
+        setDDelta(Math.round(dx / stepPx));
+      } else if (d.canPin || d.canMoveDone) {
+        // canPin = open/wip bars (drag = set pinnedStart).
+        // canMoveDone = done bars (drag = shift completedStart/End block).
         const stepPx = showDays ? DPX : WPX;
         setDDelta(Math.round(dx / stepPx));
       }
