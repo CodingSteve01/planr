@@ -49,8 +49,11 @@ function footerBuilder({ meta, kind, dateStr }) {
 
 const STYLES = {
   h1: { fontSize: 20, bold: true, color: '#1a1e2a', margin: [0, 0, 0, 2] },
-  h2: { fontSize: 14, bold: true, color: '#1d4ed8', margin: [0, 14, 0, 6] },
-  h3: { fontSize: 11, bold: true, color: '#4a5268', margin: [0, 8, 0, 4] },
+  // headlineLevel: pdfmake honors this when deciding page breaks — a heading
+  // that would land alone at the bottom of a page is pushed to the next page
+  // so it stays with the table/content that follows it.
+  h2: { fontSize: 14, bold: true, color: '#1d4ed8', margin: [0, 14, 0, 6], headlineLevel: 1 },
+  h3: { fontSize: 11, bold: true, color: '#4a5268', margin: [0, 8, 0, 4], headlineLevel: 2 },
   sub: { fontSize: 10, color: '#7a839a', margin: [0, 0, 0, 10] },
   cap: { fontSize: 8.5, color: '#7a839a' },
   th: { bold: true, fontSize: 9, color: '#1a1e2a', fillColor: '#edf2fa' },
@@ -114,14 +117,23 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
   );
   // The roadmap CSS uses `stroke:var(--bg,#0e1116)` with `stroke-width:3.4`
-  // on .rm-abbrev. On a white PDF background, --bg resolves to white — and a
-  // 3.4px white halo on a 10.5px glyph engulfs the colored fill, making the
-  // station label literally white-on-white. Override the rule with a thin
-  // halo and a dark fallback fill so labels stay readable on both white
-  // background and over colored route segments.
+  // on .rm-abbrev. Browser respects `paint-order: stroke fill` so the colored
+  // fill ends up on top of the halo. svg-to-pdfkit (pdfmake's SVG renderer)
+  // does NOT honor paint-order — it always paints fill first, stroke last —
+  // so the white stroke ends up covering the colored fill, making every
+  // station label literally white-on-white. Also: 'JetBrains Mono' is not
+  // registered with pdfmake; svg-to-pdfkit silently swaps fonts which can
+  // suppress the text. Drop the stroke entirely and use Roboto (the bundled
+  // VFS font) so the labels actually render and stay readable.
   patched = patched.replace(
     /\.rm-abbrev\{[^}]*\}/,
-    `.rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:#1a1e2a;paint-order:stroke fill;stroke:#ffffff;stroke-width:1.6;stroke-linejoin:round}`,
+    `.rm-abbrev{font:700 10.5px/1 Roboto,sans-serif;fill:#1a1e2a;stroke:none}`,
+  );
+  // The end-of-line route badges also pull JetBrains Mono — keep the white
+  // fill but pin them to Roboto so the text doesn't disappear.
+  patched = patched.replace(
+    /\.rm-badge\{[^}]*\}/,
+    `.rm-badge{font:800 13px/1 Roboto,sans-serif;fill:#fff;letter-spacing:.04em}`,
   );
   // ⊕ NEU sub-badge: pdfmake's SVG renderer falls back to a font that often
   // lacks U+2295 → renders as a missing-glyph box. Plain + works everywhere.
@@ -159,8 +171,8 @@ function buildRoadmapSvgForPdf(ctx) {
 function truncateStr(s, n) { return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || ''); }
 function buildRoadmapLegendPdf(model) {
   if (!model?.lines?.length) return null;
-  // ◐ missing from pdfmake's Roboto subset → use ◆ for WIP.
-  const statusGlyph = (s) => s === 'done' ? '●' : s === 'wip' ? '◆' : '○';
+  // ◐ and ◆ both missing from pdfmake's Roboto. ● + amber color for WIP.
+  const statusGlyph = (s) => s === 'done' ? '●' : s === 'wip' ? '●' : '○';
   const columns = model.lines.map(line => {
     const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
     if (!allStations.length) return { text: '', width: '*' };
@@ -265,9 +277,10 @@ export async function exportSummaryPDF(ctx, options = {}) {
       table: {
         widths: ['*'],
         body: risks.map(r => ([{
-          // ⚠ ⚡ ℹ aren't in pdfmake's bundled Roboto → render as missing-glyph
-          // boxes. Stick to symbols Roboto definitely ships.
-          text: (r.severity === 'critical' ? '▲ ' : r.severity === 'high' ? '▲ ' : '■ ') + r.text,
+          // Bundled Roboto in pdfmake misses ⚠ ⚡ ℹ ▲ ◆ ★. Confirmed-working
+          // glyphs in the VFS subset: ● ○ ■ ✓ · plus Latin. Use ■ for all
+          // severities; color carries the urgency.
+          text: (r.severity === 'critical' ? '■ ' : r.severity === 'high' ? '■ ' : '■ ') + r.text,
           fontSize: 10,
           color: r.severity === 'critical' ? '#b91c1c' : r.severity === 'high' ? '#a16207' : '#475467',
           fillColor: r.severity === 'critical' ? '#fee2e2' : r.severity === 'high' ? '#fef3c7' : '#f0f2f5',
@@ -296,9 +309,9 @@ export async function exportSummaryPDF(ctx, options = {}) {
     [t('Confidence', 'Sicherheit'), 'Items', 'PT', t('Description', 'Beschreibung')],
     [
       [{ text: '● Committed', color: '#15803d' }, cc.committed, ccPt.committed.toFixed(0), t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')],
-      // ◐ (U+25D0) is missing from pdfmake's Roboto; ◆ is a Roboto glyph that
-      // still reads as "mid-confidence" between filled ● and empty ○.
-      [{ text: '◆ Estimated', color: '#a16207' }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
+      // ◐ and ◆ are both missing from pdfmake's Roboto. Reuse ● with amber so
+      // Estimated stays visually distinct from Committed via color alone.
+      [{ text: '● Estimated', color: '#a16207' }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
       [{ text: '○ Exploratory', color: '#7a839a' }, cc.exploratory, ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?', t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')],
     ],
     [90, 50, 50, '*'],
@@ -342,8 +355,8 @@ export async function exportSummaryPDF(ctx, options = {}) {
             const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
             const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
             const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
-            // ◐ missing in pdfmake Roboto → use ◆ as the WIP marker; ✓ and ○ are safe.
-            const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◆' : '○';
+            // ◐ ◆ both missing in pdfmake Roboto. ● + amber color marks WIP.
+            const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '●' : '○';
             return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
           }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
@@ -362,7 +375,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
                   { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
                   { text: r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—', fontSize: 8 },
                   { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
-                  { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? '#16a34a' : r.status === '◆' ? '#d97706' : '#7a839a' },
+                  { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? '#16a34a' : r.status === '●' ? '#d97706' : '#7a839a' },
                 ]),
                 [45, 80, 60, 20],
               ),
@@ -397,7 +410,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
           g.date || '—',
           (rd?.prog || 0) + '% (' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ')',
           rd?.endD ? iso(rd.endD) : '—',
-          isLate ? { text: '▲ ' + t('AT RISK', 'GEFÄHRDET'), color: '#dc2626', bold: true } : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: '#16a34a' } : '—',
+          isLate ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: '#dc2626', bold: true } : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: '#16a34a' } : '—',
         ];
       }),
       [40, '*', 70, 80, 70, 80],
@@ -567,14 +580,14 @@ export async function exportTodoPDF(ctx, horizonDays) {
           teamName(s.team),
           s.effort?.toFixed(1) || '—',
           s.status === 'wip' ? { text: '● WIP', color: '#d97706', bold: true } : { text: t('Open', 'Offen'), color: '#475467' },
-          { text: conf === 'committed' ? '●' : conf === 'estimated' ? '◆' : '○', color: conf === 'committed' ? '#15803d' : conf === 'estimated' ? '#a16207' : '#7a839a', alignment: 'center' },
+          { text: conf === 'committed' ? '●' : conf === 'estimated' ? '●' : '○', color: conf === 'committed' ? '#15803d' : conf === 'estimated' ? '#a16207' : '#7a839a', alignment: 'center' },
         ];
       }),
       [75, 75, 45, '*', 80, 40, 50, 25],
     ));
   });
 
-  content.push({ text: t('● Committed · ◆ Estimated · ○ Exploratory (horizon-aware dates)', '● Verbindlich · ◆ Geschätzt · ○ Explorativ (horizontgerechte Daten)'), style: 'cap', margin: [0, 4, 0, 0] });
+  content.push({ text: t('● Committed (green) · ● Estimated (amber) · ○ Exploratory (horizon-aware dates)', '● Verbindlich (grün) · ● Geschätzt (amber) · ○ Explorativ (horizontgerechte Daten)'), style: 'cap', margin: [0, 4, 0, 0] });
 
   const dd = {
     pageSize: 'A4',
@@ -600,8 +613,10 @@ export async function exportWhatWhenPDF(ctx) {
   const pdfMake = await loadPdfMake();
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const now = new Date();
-  // Emoji aren't in pdfmake's bundled Roboto → swap for Roboto-safe glyphs.
-  const GT = { goal: '★', painpoint: '▲', deadline: '■' };
+  // Emoji and ★ ▲ ◆ aren't in pdfmake's bundled Roboto. ● ○ ■ ✓ are safe.
+  // Goals get ● bold, painpoints get ■ amber, deadlines get ■ red — set by
+  // the surrounding bold/color attributes downstream.
+  const GT = { goal: '●', painpoint: '■', deadline: '■' };
 
   // Aggregate per root: projected end, worst confidence, PT, teams-involved.
   const CONF_ORDER = { committed: 0, estimated: 1, exploratory: 2 };
@@ -660,19 +675,19 @@ export async function exportWhatWhenPDF(ctx) {
             rd.type ? { text: GT[rd.type] + ' ', fontSize: 10 } : '',
             { text: rd.name, bold: true },
             rd.type === 'deadline' && rd.date ? { text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')', fontSize: 8, color: deadlineLate ? '#b91c1c' : '#7a839a' } : '',
-            deadlineLate ? { text: '  ▲', color: '#b91c1c', bold: true } : '',
+            deadlineLate ? { text: '  ■', color: '#b91c1c', bold: true } : '',
           ],
         },
         { text: teamNames, fontSize: 9 },
         { text: rd.prog + '% (' + rd.doneCount + '/' + rd.leafCount + ')', fontSize: 9 },
         { text: rd.pt.toFixed(0), fontSize: 9 },
-        { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '◆ ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? '#15803d' : worst === 'estimated' ? '#a16207' : '#7a839a' },
+        { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '● ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? '#15803d' : worst === 'estimated' ? '#a16207' : '#7a839a' },
       ]),
       [90, 45, '*', 100, 80, 35, 85],
     ));
   });
 
-  content.push({ text: t('● Committed: person assigned, solid estimate · ◆ Estimated: effort known, no person · ○ Exploratory: scope unclear · ▲ deadline at risk', '● Verbindlich: Person zugewiesen, belastbare Schätzung · ◆ Geschätzt: Aufwand bekannt, keine Person · ○ Explorativ: Scope unklar · ▲ Deadline gefährdet'), style: 'cap', margin: [0, 6, 0, 0] });
+  content.push({ text: t('● Committed (green): person assigned, solid estimate · ● Estimated (amber): effort known, no person · ○ Exploratory: scope unclear · ■ deadline at risk', '● Verbindlich (grün): Person zugewiesen, belastbare Schätzung · ● Geschätzt (amber): Aufwand bekannt, keine Person · ○ Explorativ: Scope unklar · ■ Deadline gefährdet'), style: 'cap', margin: [0, 6, 0, 0] });
 
   const dd = {
     pageSize: 'A4',
