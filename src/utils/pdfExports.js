@@ -159,8 +159,17 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
 }
 
 function buildRoadmapSvgForPdf(ctx) {
-  const { tree, scheduled, stats } = ctx;
-  const svgStr = renderRoadmapSvg({ tree, scheduled, stats });
+  const { tree, scheduled, stats, diff, horizonIds, horizonEnd, futureProgressByRootId, roadmapAssignment } = ctx;
+  // Forward every prop the on-screen Roadmap (Roadmap.jsx:26-28) feeds into
+  // renderRoadmapSvg. Without these the PDF re-computes assignment from
+  // scratch, drops diff/horizon overlays, and rebuilds train positions —
+  // making the export disagree with what the user sees on screen.
+  const svgStr = renderRoadmapSvg({
+    tree, scheduled, stats,
+    diff, horizonIds, horizonEnd, futureProgressByRootId,
+    assignment: roadmapAssignment,
+    expandedLegendIds: new Set(),
+  });
   return prepareRoadmapSvg(svgStr, 1400, 800);
 }
 
@@ -317,12 +326,22 @@ export async function exportSummaryPDF(ctx, options = {}) {
     [90, 50, 50, '*'],
   ));
 
+  // Same props as the SVG render — keeps the legend line order, colors,
+  // station progress, and diff overlays in lockstep with the on-screen
+  // Roadmap.jsx instead of letting computeRoadmapModel re-derive them.
+  const rmModelArgs = {
+    tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats,
+    diff: ctx.diff, horizonIds: ctx.horizonIds, horizonEnd: ctx.horizonEnd,
+    futureProgressByRootId: ctx.futureProgressByRootId,
+    assignment: ctx.roadmapAssignment || null,
+    expandedLegendIds: new Set(),
+  };
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
     content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
     // Legend mirrors the Overview-tab block: per-line column with station rows.
     const { computeRoadmapModel } = await import('./roadmap.js');
-    const rmModel = computeRoadmapModel({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats });
+    const rmModel = computeRoadmapModel(rmModelArgs);
     const legendRows = buildRoadmapLegendPdf(rmModel);
     if (legendRows) legendRows.forEach(r => content.push(r));
   }
@@ -332,7 +351,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
   if (includeTimetable) {
     try {
       const { computeRoadmapModel } = await import('./roadmap.js');
-      const rmModel = computeRoadmapModel({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats });
+      const rmModel = computeRoadmapModel(rmModelArgs);
       if (rmModel?.lines?.length) {
         content.push({ text: t('Timetable', 'Fahrplan'), style: 'h2' });
         content.push({ text: t('Station abbreviations reference the Subway-Map legend above.', 'Stations-Kürzel verweisen auf die Legende der Subway-Map oben.'), style: 'cap', margin: [0, 0, 0, 8] });

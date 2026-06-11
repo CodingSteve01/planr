@@ -2173,8 +2173,16 @@ export default function App() {
     setSaved(false);
   }
 
-  // Export context — shared data bag for all export functions in utils/exports.js
-  const _exportCtx = () => ({ data, tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang: _lang });
+  // Export context — shared data bag for all export functions in utils/exports.js.
+  // diff / horizonIds / horizonEnd / futureProgressByRootId / roadmapAssignment
+  // must be forwarded so the PDF Subway-Map renders the SAME line assignments
+  // and overlays as the on-screen Roadmap.jsx — otherwise the export shows a
+  // re-computed assignment and projects land on different lines.
+  const _exportCtx = () => ({
+    data, tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang: _lang,
+    diff, horizonIds, horizonEnd, futureProgressByRootId,
+    roadmapAssignment: data?.roadmapAssignment || null,
+  });
   const isMdFile = fileName?.endsWith('.md');
   // Build the file content together with any new history events. The events
   // capture the delta between the leaf state at the last successful persist
