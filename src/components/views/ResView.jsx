@@ -533,6 +533,16 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   const [editingVacIdx, setEditingVacIdx]     = useState(null);
   const [editingPlanId, setEditingPlanId]     = useState(null);
   const editingPlan = editingPlanId != null ? meetingPlans.find(p => p.id === editingPlanId) : null;
+  // Offboarded toggle — persisted so the view sticks across navigations.
+  // Default off: most planning happens against the current roster.
+  const [showOffboarded, setShowOffboarded] = useState(() => {
+    try { return localStorage.getItem('planr_res_show_offboarded') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('planr_res_show_offboarded', showOffboarded ? '1' : '0'); } catch { /* ignore */ }
+  }, [showOffboarded]);
+  const todayIso = iso(new Date());
+  const isOffboarded = m => !!m.end && m.end < todayIso;
 
   // Apply the global topbar filters. personFilter pins to one member; the
   // visible team set narrows to that member's team. teamFilter pins the team
@@ -540,6 +550,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   const fMembers = members.filter(m => {
     if (personFilter && m.id !== personFilter) return false;
     if (teamFilter && (m.team || '') !== teamFilter) return false;
+    if (!showOffboarded && isOffboarded(m)) return false;
     return true;
   });
   const visibleMemberIds = new Set(fMembers.map(m => m.id));
@@ -548,6 +559,12 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
     if (personFilter) {
       const p = members.find(x => x.id === personFilter);
       if (p && p.team !== tm.id) return false;
+    }
+    // Hide team when every member is offboarded and the toggle is off.
+    // Empty teams (no members at all) still show so they can be populated.
+    if (!showOffboarded) {
+      const teamMembers = members.filter(m => (m.team || '') === tm.id);
+      if (teamMembers.length > 0 && teamMembers.every(isOffboarded)) return false;
     }
     return true;
   });
@@ -611,6 +628,13 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
         <div style={{ flex: 1 }} />
+        {(section === 'members' || section === 'teams') && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--tx2)', cursor: 'pointer', marginRight: 8 }}
+            data-htip={t('q.includeOffboardedTip')}>
+            <input type="checkbox" checked={showOffboarded} onChange={e => setShowOffboarded(e.target.checked)} style={{ margin: 0 }} />
+            {t('q.includeOffboarded')}
+          </label>
+        )}
         {section === 'teams' && <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>{t('rv.addTeam')}</button>}
         {section === 'vacations' && <button className="btn btn-sec btn-sm" onClick={addVacation}>{t('rv.addVacation')}</button>}
         {section === 'plans' && <button className="btn btn-sec btn-sm" onClick={() => {
