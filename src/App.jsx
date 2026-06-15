@@ -2840,6 +2840,7 @@ export default function App() {
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onlyChanged={diffOnlyChanged}
               horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
+              roadmapAssignment={data?.roadmapAssignment || null}
               onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder}
               onTaskUpdate={onGanttTaskUpdate}

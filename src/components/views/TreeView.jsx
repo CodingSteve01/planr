@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
+import { getLineColor } from '../../utils/roadmap.js';
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
@@ -17,7 +18,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onQuickAdd, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onQuickAdd, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -367,6 +368,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           // "only with changes" filter so the two views stay in sync.
           const diffBadge = computeDiffBadge(r);
           const dropHere = orderDrop?.targetId === r.id && canDropOrder(orderDrop.dragId, r.id) ? orderDrop.position : '';
+          // Subway-Map line color for root items — same hex the Roadmap view
+          // assigns to the line's start/end badges. Falls back to null when no
+          // assignment has been computed yet (user hasn't opened Subway view).
+          // For child rows we colorize the leading root segment of the id
+          // (e.g. the "P1" in "P1.2.3") so the chain back to the line stays
+          // visible without spamming color on every cell.
+          const rootIdSeg = r.id.split('.')[0];
+          const lineColor = getLineColor(rootIdSeg, roadmapAssignment);
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             onClick={e => onSelect(r, e, filt.map(x => x.id))}
@@ -393,7 +402,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   setOrderDrop({ dragId: r.id, targetId: null, position: 'before' });
                 }}
                 onDragEnd={() => setOrderDrop(null)}>⋮⋮</span>}
-              <span className="tid">{r.id}</span>
+              {d === 1 && lineColor
+                ? <span className="tid" style={{ background: lineColor, color: '#fff', padding: '1px 6px', borderRadius: 3, fontWeight: 700, letterSpacing: '.02em' }} data-htip={`Subway-Map line ${rootIdSeg}`}>{r.id}</span>
+                : lineColor
+                  ? <span className="tid"><span style={{ color: lineColor, fontWeight: 600 }}>{rootIdSeg}</span>{r.id.slice(rootIdSeg.length)}</span>
+                  : <span className="tid">{r.id}</span>}
             </td>
 
             {/* Name column — flex container so badges wrap as a single trailing

@@ -7,6 +7,16 @@ import { normalizeCompletedWindows } from './completion.js';
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
+// Looks up the Subway-Map line color for a top-level root id. Returns null
+// when no assignment has been computed yet (user hasn't opened the Subway
+// view) so the caller can fall back to its default styling.
+export function getLineColor(rootId, assignment) {
+  if (!rootId || !assignment) return null;
+  const stored = assignment[rootId];
+  if (stored?.colorIdx == null) return null;
+  return PALETTE[stored.colorIdx % PALETTE.length];
+}
+
 const DAY = 864e5;
 
 // ─── Fixed metro route network (1400×800 canvas) ─────────────────────────────
@@ -982,7 +992,13 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
 
-    const reachedT = trainT;
+    // Train rides between ROUTE_T_LO and ROUTE_T_HI (0.04..0.96) so badges
+    // at the route endpoints stay visually clear. When a line is 100% done
+    // there is no train glyph to clear, and the user expects the colored
+    // route to reach the very end badge — not stop at the last station's
+    // route-T (0.96). Extend reachedT to 1.0 in that case so the traveled
+    // path covers the route from badge to badge.
+    const reachedT = line.progress >= 1 ? 1 : trainT;
     const trainPt = pointAtFraction(route, trainT);
     const ghostPt = pointAtFraction(route, ghostT);
 
