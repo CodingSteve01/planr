@@ -46,6 +46,14 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const wip = lvs.filter(r => r.status === 'wip').length;
   const open = lvs.filter(r => r.status === 'open').length;
   const tR = lvs.reduce((s, r) => s + (scheduleEffort(r) || 0), 0);
+  // Absolute realistic PT delivered. The percentage above drops when new
+  // scope lands; this number only ever goes up as work gets done, so users
+  // can see real progress even while the % is being diluted by scope growth.
+  const doneR = useMemo(() => {
+    let acc = 0;
+    for (const lf of lvs) acc += (scheduleEffort(lf) || 0) * (leafProgress(lf) / 100);
+    return acc;
+  }, [lvs]);
   const prog = useMemo(() => {
     let total = 0;
     let progressed = 0;
@@ -119,6 +127,22 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     return total > 0 ? (progressed / total) * 100 : 0;
   }, [diff?.pastLeafState, historyEvents, sinceDate, lvs]);
   const overallDelta = pastOverallProg != null ? prog - pastOverallProg : null;
+  // Scope delta — PT added/removed since the diff cutoff. We only know which
+  // leaves existed at the cutoff (history tracks add/remove + status), not
+  // what their estimates were back then, so this approximates by summing
+  // *current* effort for leaves that did exist at the cutoff and comparing
+  // to the current total. Net result: shows scope growth from new items and
+  // (with sign flip) work removed. Estimate-only edits silently vanish.
+  const scopeDelta = useMemo(() => {
+    if (!sinceDate) return null;
+    const past = diff?.pastLeafState || (historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null);
+    if (!past) return null;
+    let pastTotal = 0;
+    for (const lf of lvs) {
+      if (past.has(lf.id)) pastTotal += scheduleEffort(lf) || 0;
+    }
+    return tR - pastTotal;
+  }, [diff?.pastLeafState, historyEvents, sinceDate, lvs, tR]);
   const futureOverallProg = useMemo(() => {
     if (!futureProgressByRootId) return null;
     const roots = tree.filter(r => !r.id.includes('.'));
@@ -177,6 +201,22 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             background: '#3b82f6', border: '1px solid rgba(147,197,253,.55)',
             borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
           Plan {progressPctLabel(futureOverallProg)}%
+        </span>
+      )}
+      <span data-htip={t('s.donePtTip', Math.round(doneR), Math.round(tR))}
+        style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--gr)',
+          background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.45)',
+          borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
+        {t('s.donePt', Math.round(doneR))}
+      </span>
+      {scopeDelta != null && Math.abs(scopeDelta) >= 1 && (
+        <span data-htip={t('s.scopeDeltaTip')}
+          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700,
+            color: scopeDelta >= 0 ? '#d97706' : 'var(--gr)',
+            background: scopeDelta >= 0 ? 'rgba(245,158,11,.10)' : 'rgba(34,197,94,.10)',
+            border: `1px solid ${scopeDelta >= 0 ? 'rgba(245,158,11,.45)' : 'rgba(34,197,94,.45)'}`,
+            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
+          {t('s.scopeDelta', (scopeDelta >= 0 ? '+' : '') + Math.round(scopeDelta), iso(sinceDate))}
         </span>
       )}
       <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
