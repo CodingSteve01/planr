@@ -134,6 +134,16 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     patch.completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
     return patch;
   };
+  // open → wip: record the actual start so Soll/Ist has an Ist-Start the moment
+  // work begins (instead of only back-filling it on completion). Prefer an
+  // already-set completedStart, then the scheduled plannedStart, else today —
+  // never a future date. No-op once completedStart exists.
+  const wipStartSeed = source => {
+    if (source.completedStart) return source.completedStart;
+    const today = iso(new Date());
+    const cand = source.plannedStart;
+    return (cand && cand <= today) ? cand : today;
+  };
   const setCompletion = patch => setF(current => {
     const next = { ...current, ...patch };
     if (patch.completedAt !== undefined) {
@@ -374,7 +384,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 return ({ ...x, ...donePatch(x) });
               });
               else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
-              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50 }));
+              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50, completedStart: wipStartSeed(x) }));
             }} />
           </div>
           <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
@@ -386,7 +396,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                   if (v >= 100 && x.status !== 'done') {
                     Object.assign(next, donePatch(x));
                   }
-                  else if (v > 0 && v < 100 && x.status !== 'wip') next.status = 'wip';
+                  else if (v > 0 && v < 100 && x.status !== 'wip') { next.status = 'wip'; next.completedStart = wipStartSeed(x); }
                   else if (v === 0 && x.status !== 'open') next.status = 'open';
                   return next;
                 });
@@ -540,7 +550,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
           <div className="frow">
             <div className="field"><label>{t('qe.completedStart')}</label>
-              <input type="date" value={f.completedStart || ''} disabled={f.status !== 'done'} onChange={e => setCompletion({ completedStart: e.target.value })} />
+              <input type="date" value={f.completedStart || ''} disabled={f.status === 'open'} onChange={e => setCompletion({ completedStart: e.target.value })} />
             </div>
             <div className="field"><label>{t('qe.completedEnd')}</label>
               <input type="date" value={f.completedEnd || ''} disabled={f.status !== 'done'} onChange={e => setCompletion({ completedEnd: e.target.value })} />

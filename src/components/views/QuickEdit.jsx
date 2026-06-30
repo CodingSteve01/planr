@@ -137,6 +137,15 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     patch.completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
     return patch;
   };
+  // open → wip: stamp the actual start so Soll/Ist has an Ist-Start as soon as
+  // work begins. Prefer existing completedStart, then plannedStart, else today;
+  // never a future date. No-op once completedStart is set.
+  const wipStartSeed = (source = f) => {
+    if (source.completedStart) return source.completedStart;
+    const today = iso(new Date());
+    const cand = source.plannedStart;
+    return (cand && cand <= today) ? cand : today;
+  };
 
   const patchCompletion = patch => {
     const next = { ...f, ...patch };
@@ -349,7 +358,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               patchNode(donePatch());
             }
             else if (value === 'open') patchNode({ status: 'open', progress: 0 });
-            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50 });
+            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50, completedStart: wipStartSeed() });
           }} />
         </div>
         {/* Slider buffers locally on every onChange (so the thumb tracks) but
@@ -363,7 +372,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             if (value >= 100 && f.status !== 'done') {
               Object.assign(next, donePatch());
             }
-            else if (value > 0 && value < 100 && f.status !== 'wip') next.status = 'wip';
+            else if (value > 0 && value < 100 && f.status !== 'wip') { next.status = 'wip'; next.completedStart = wipStartSeed(); }
             else if (value === 0 && f.status !== 'open') next.status = 'open';
             bufferNode(next);
           }}
@@ -518,7 +527,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         <div className="frow">
           <div className="field"><label>{t('qe.completedStart')}</label>
-            <input type="date" value={f.completedStart || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedStart: e.target.value })} />
+            <input type="date" value={f.completedStart || ''} disabled={f.status === 'open'} onChange={e => patchCompletion({ completedStart: e.target.value })} />
           </div>
           <div className="field"><label>{t('qe.completedEnd')}</label>
             <input type="date" value={f.completedEnd || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedEnd: e.target.value })} />
