@@ -380,8 +380,16 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         const dlDate = dl.date ? new Date(dl.date) : null;
         const isLate = maxEnd && dlDate && dlDate < maxEnd;
         const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
-        const gpDone = gp ? gp.needed.filter(id => tree.find(x => x.id === id)?.status === 'done').length : 0;
-        const gpProg = gp && gp.needed.length ? Math.round(gpDone / gp.needed.length * 100) : 0;
+        // Count the goal's OWN leaf work packages (concrete tasks), matching
+        // the PDF report (report.js childLeaves). Earlier this used gp.needed,
+        // which folds in transitive dependencies from *other* goals and so
+        // inflated the denominator beyond this goal's own scope. leafNodes is
+        // derived from the live tree, so newly added tasks bump the count
+        // automatically.
+        const goalLeaves = lvs.filter(l => l.id === dl.id || l.id.startsWith(dl.id + '.'));
+        const gpTotal = goalLeaves.length;
+        const gpDone = goalLeaves.filter(l => l.status === 'done').length;
+        const gpProg = gpTotal ? Math.round(gpDone / gpTotal * 100) : 0;
         const borderC = dl.type === 'painpoint' ? 'var(--am)' : isLate ? 'var(--re)' : BC[dl.type] || 'var(--b)';
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
@@ -404,7 +412,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           )}
           {gp && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
-              <span>{t('s.tasksDone', gpDone + '/' + gp.needed.length, gp.critical.size)}</span>
+              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp.critical.size)}</span>
               <span>{gpProg}%</span>
             </div>
             <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>

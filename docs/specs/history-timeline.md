@@ -28,6 +28,18 @@ When `operatingDate != today`, the entire app reads from a *replayed* snapshot:
 3. **Subway / Gantt / NetGraph / ResView** — all consume the replayed tree + replayed scheduler output. They render the snapshot.
 4. **Diff overlay** — defaults to comparing `operatingDate` vs `today` ("what changed since this point") instead of a fixed sinceDate.
 
+### Period diff & newly added tasks
+
+`computeDiff` seeds a synthetic baseline from any dated bars (`completedStart` /
+`plannedStart` / …) so legacy/imported files without a history block still have
+a usable "past state". That backfill emits a `kind=added` event for each leaf at
+the project baseline — **except** for leaves that already carry a real
+`kind=added` event in the history block. Without that exception a task created
+inside the diff window would be backdated to the baseline and never surface as
+new in a period comparison (it would look like it had always existed). Goal
+"N/M" counts read the live tree, so a newly added leaf bumps the denominator
+immediately.
+
 ## What edits do while back-dated
 
 Edits made in time-travel mode are **retroactive**: the change is recorded as having happened *at the operating date*.

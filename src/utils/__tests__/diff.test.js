@@ -55,6 +55,31 @@ describe('computeDiff historical fallback', () => {
     expect(diff.pastProgressByRootId.P1).toBeGreaterThan(0.45);
   });
 
+  test('task added in-window surfaces as new even when older leaves have dated bars', () => {
+    // Regression: the synthetic baseline backfill used to emit a `kind=added`
+    // event for EVERY leaf at the project baseline, backdating genuinely-new
+    // tasks so they looked pre-existing and never showed up in the period diff.
+    const tree = [
+      { id: 'P4', name: 'Goal', type: 'goal', status: 'wip', best: 0 },
+      { id: 'P4.1', name: 'Old done work', status: 'done', best: 5, factor: 1, completedStart: '2026-01-10', completedEnd: '2026-01-15' },
+      { id: 'P4.2', name: 'Brand new task', status: 'open', best: 5, factor: 1 },
+    ];
+    const historyEvents = [
+      { ts: '2026-01-15T18:00:00.000Z', id: 'P4.1', status: 'done', progress: 100, completedAt: '2026-01-15' },
+      { ts: '2026-06-25T08:00:00.000Z', id: 'P4.2', kind: 'added', status: 'open', progress: 0 },
+    ];
+
+    const diff = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-06-01'),
+    });
+
+    expect(diff).not.toBeNull();
+    expect(diff.changedInWindowIds).toContain('P4.2');
+    expect(diff.doneInWindowIds).not.toContain('P4.1');
+  });
+
   test('post-cutoff imported completion uses completedAt, not import time', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'done', best: 0 },

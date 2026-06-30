@@ -107,8 +107,14 @@ function _leafNodes(tree) {
 // and later imported append-only history. Seed enough history from those bars so
 // "diff since date" has a reliable pre-import past state; later real events still
 // win because they are replayed after these baseline events.
-function _syntheticHistoryFromActualBars(tree) {
-  const leaves = _leafNodes(tree);
+//
+// `realAddedIds` lists leaves that already carry an authoritative `kind=added`
+// event in the real history. Those are SKIPPED entirely here: backdating them to
+// the project baseline would make genuinely-new tasks (added inside the diff
+// window) look like they always existed, so they'd never surface as "new" in a
+// period comparison. Real history wins for them.
+function _syntheticHistoryFromActualBars(tree, realAddedIds = new Set()) {
+  const leaves = _leafNodes(tree).filter(leaf => !realAddedIds.has(leaf.id));
   const datedLeaves = leaves.filter(leaf =>
     leaf.completedStart || leaf.completedAt || leaf.completedEnd || leaf.plannedStart || leaf.pinnedStart);
   if (!datedLeaves.length) return [];
@@ -161,7 +167,8 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     return null;
   }
   const realHistory = Array.isArray(historyEvents) ? historyEvents : [];
-  const syntheticHistory = _syntheticHistoryFromActualBars(tree);
+  const realAddedIds = new Set(realHistory.filter(ev => ev?.kind === 'added' && ev.id).map(ev => ev.id));
+  const syntheticHistory = _syntheticHistoryFromActualBars(tree, realAddedIds);
   const syntheticCompletionHistory = _syntheticHistoryFromCompletionEvents(realHistory);
   const effectiveHistory = [...syntheticHistory, ...syntheticCompletionHistory, ...realHistory];
   if (!effectiveHistory.length) {

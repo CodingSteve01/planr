@@ -94,6 +94,18 @@ A node is a leaf iff no other node has it as a prefix-parent. `isLeafNode(tree, 
 - **Leaves**: explicit `progress` 0-100, or derived from status (`done` = 100, `wip` = 50, else 0)
 - **Parents**: weighted average of leaf progress, weights = realistic effort (`best × factor`). Cascades up through all ancestors via `treeStats(tree)`.
 
+#### Goal / root "N/M" completion count
+
+Everywhere a goal/painpoint/deadline root shows a `done/total` fraction (PDF
+report, Summary Focus cards, Roadmap stations) the count is the root's **own
+descendant leaves** — the concrete work packages, not direct children and not
+all intermediate nodes. `report.js` uses `childLeaves` (`lvs.filter(l => l.id ===
+root.id || l.id.startsWith(root.id + '.'))`); `SumView` mirrors it. Counts read
+the live tree, so adding a task under a goal raises its `M` immediately. (The
+Focus card's critical-path chips still use the dependency-aware `goalCpm` scope,
+which can pull in leaves from other goals — that is intentional and separate
+from the completion count.)
+
 ### Confidence inheritance
 
 - **Leaves**: auto-derived by `computeConfidence()` from assignment, estimate, and risk factors. Can be overridden by setting the `confidence` field explicitly.
