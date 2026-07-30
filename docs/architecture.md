@@ -57,7 +57,9 @@ src/
     fileHandleStore.js     — File System Access API persistence layer
     exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
     markdown.js            — Markdown serialization (parseMdToProject, buildMarkdownText)
-    report.js              — HTML report generation (bilingual, auto-print)
+    report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
+    pdfExports.js          — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when)
+    progress.js            — single source of truth for aggregate progress % / PT + formatting
   i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
 docs/                      — this directory
 data/                      — gitignored private project data

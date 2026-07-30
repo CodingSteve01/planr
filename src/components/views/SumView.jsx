@@ -1,6 +1,6 @@
 import { useMemo, useState, memo } from "react";
 import { TBadge } from '../shared/Badges.jsx';
-import { leafNodes, leafProgress, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
+import { leafNodes, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
 import { GT, GL } from '../../constants.js';
@@ -12,31 +12,12 @@ import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
 import { ViewFilters } from '../shared/ViewFilters.jsx';
 import { aggregateSollIst } from '../../utils/sollIst.js';
+// Shared with the HTML report and every PDF export — one formula, one format,
+// so screen and export can never print different percentages.
+import { MIN_VISIBLE_PROGRESS_DELTA_PCT, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
-const MIN_VISIBLE_PROGRESS_DELTA_PCT = 0.005;
-
-function trim1(value) {
-  return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
-}
-
-function trim2(value) {
-  return (Math.round(value * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
-}
-
-function progressPctLabel(value) {
-  return trim1(Math.max(0, Math.min(100, Number(value) || 0)));
-}
-
-function progressDeltaLabel(deltaPct) {
-  const delta = Number(deltaPct) || 0;
-  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA_PCT) return '0%';
-  const sign = delta > 0 ? '+' : '-';
-  const abs = Math.abs(delta);
-  if (abs >= 0.1) return `${sign}${trim1(abs)}%`;
-  return `${sign}${trim2(abs)}%`;
-}
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
@@ -45,25 +26,12 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
   const open = lvs.filter(r => r.status === 'open').length;
-  const tR = lvs.reduce((s, r) => s + (scheduleEffort(r) || 0), 0);
+  const tR = useMemo(() => totalEffort(lvs), [lvs]);
   // Absolute realistic PT delivered. The percentage above drops when new
   // scope lands; this number only ever goes up as work gets done, so users
   // can see real progress even while the % is being diluted by scope growth.
-  const doneR = useMemo(() => {
-    let acc = 0;
-    for (const lf of lvs) acc += (scheduleEffort(lf) || 0) * (leafProgress(lf) / 100);
-    return acc;
-  }, [lvs]);
-  const prog = useMemo(() => {
-    let total = 0;
-    let progressed = 0;
-    for (const lf of lvs) {
-      const effort = scheduleEffort(lf) || 1;
-      total += effort;
-      progressed += effort * (leafProgress(lf) / 100);
-    }
-    return total > 0 ? (progressed / total) * 100 : 0;
-  }, [lvs]);
+  const doneR = useMemo(() => deliveredEffort(lvs), [lvs]);
+  const prog = useMemo(() => effortWeightedProgress(lvs).pct, [lvs]);
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
@@ -115,16 +83,14 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     if (!sinceDate) return null;
     const past = diff?.pastLeafState || (historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null);
     if (!past) return null;
-    let total = 0, progressed = 0;
-    for (const lf of lvs) {
-      const effort = scheduleEffort(lf) || 1;
-      total += effort;
+    // Same weighting as the live figure, only the per-leaf progress lookup
+    // swaps to the historical state.
+    return effortWeightedProgress(lvs, lf => {
       const p = past.get(lf.id);
-      const pastDone = p?.status === 'done';
-      const pastProg = p ? Math.min(pastDone ? 100 : 99, Math.max(0, p.progress || 0)) : 0;
-      progressed += effort * (pastDone ? 1 : pastProg / 100);
-    }
-    return total > 0 ? (progressed / total) * 100 : 0;
+      if (!p) return 0;
+      if (p.status === 'done') return 100;
+      return Math.min(99, Math.max(0, p.progress || 0));
+    }).pct;
   }, [diff?.pastLeafState, historyEvents, sinceDate, lvs]);
   const overallDelta = pastOverallProg != null ? prog - pastOverallProg : null;
   // Scope delta — PT added/removed since the diff cutoff. We only know which

@@ -4,7 +4,7 @@ import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
 import { renderRoadmapSvg } from './roadmap.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
-import { re } from './scheduler.js';
+import { totalEffort } from './progress.js';
 import { formatPhaseToken } from './phases.js';
 
 function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
@@ -245,7 +245,9 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
-  const { meta, t, dateStr, done, wip, open, totalPt, prog, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, confidence, members, lvs, scheduled, teams } = m;
+  const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, confidence, members, lvs, scheduled, teams } = m;
+  // Progress bar geometry must never diverge from the printed number.
+  const progPct = Math.max(0, Math.min(100, prog));
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
   const kpiBlock = (label, value, color = '#1a1e2a') => ({
@@ -256,10 +258,11 @@ export async function exportSummaryPDF(ctx, options = {}) {
     margin: [0, 0, 0, 0],
   });
   const kpis = [
-    kpiBlock(t('Progress', 'Fortschritt'), prog + '%', '#16a34a'),
+    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', '#16a34a'),
     kpiBlock(t('Items', 'Items'), lvs.length),
     kpiBlock(t('Done', 'Erledigt'), done, '#16a34a'),
     kpiBlock(t('Open', 'Offen'), wip + open, '#d97706'),
+    kpiBlock(t('PT done', 'PT erledigt'), Math.round(donePt), '#16a34a'),
     kpiBlock(t('Total PT', 'Gesamt PT'), totalPt.toFixed(0)),
     kpiBlock(t('People', 'Personen'), members.length),
     kpiBlock(t('Projected End', 'Voraussichtl. Ende'), projectEnd ? iso(projectEnd) : '—'),
@@ -274,7 +277,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     {
       canvas: [
         { type: 'rect', x: 0, y: 0, w: 760, h: 8, r: 2, color: '#e5e8ee' },
-        { type: 'rect', x: 0, y: 0, w: 760 * prog / 100, h: 8, r: 2, color: '#16a34a' },
+        { type: 'rect', x: 0, y: 0, w: 760 * progPct / 100, h: 8, r: 2, color: '#16a34a' },
       ],
       margin: [0, 0, 0, 10],
     },
@@ -448,7 +451,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
           const total = tc.committed + tc.unassigned;
           const wBar = 340;
           const memStack = tc.members.map(mb => {
-            const pp = lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(mb.id)).reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+            const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(mb.id)));
             return { columns: [{ text: mb.name + (mb.cap < 1 ? ' (' + Math.round(mb.cap * 100) + '%)' : ''), fontSize: 9 }, { text: pp.toFixed(0) + ' PT', fontSize: 9, alignment: 'right' }], columnGap: 4 };
           });
           const barCanvas = total > 0 ? {

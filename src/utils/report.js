@@ -1,7 +1,8 @@
 // Generates a self-contained HTML project report.
 // Opens in a new tab and auto-triggers the print dialog (→ save as PDF).
 import { iso, isoWeek, isoWeekYear } from './date.js';
-import { leafNodes, re, resolveToLeafIds } from './scheduler.js';
+import { leafNodes, scheduleEffort } from './scheduler.js';
+import { deliveredEffort, effortWeightedProgress, progressPctLabel, totalEffort } from './progress.js';
 import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineScopedScheduledItems } from './deadlines.js';
 import { deriveCap } from './capacity.js';
@@ -47,8 +48,13 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
   const open = lvs.filter(r => r.status === 'open').length;
-  const totalPt = lvs.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-  const prog = lvs.length ? Math.round(done / lvs.length * 100) : 0;
+  // Effort-weighted, phase-aware progress — identical maths and identical
+  // formatting to the Overview KPI row (utils/progress.js). Never count done
+  // leaves here: that produced export percentages that contradicted the screen.
+  const totalPt = totalEffort(lvs);
+  const prog = effortWeightedProgress(lvs).pct;
+  const progLabel = progressPctLabel(prog);
+  const donePt = deliveredEffort(lvs);
 
   // Project end = latest scheduled end across ALL items (the real scheduler output)
   const projectEnd = scheduled.length ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
@@ -61,16 +67,21 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     const startD = childScheduled.length ? childScheduled.reduce((m, s) => s.startD < m ? s.startD : m, new Date()) : null;
     const childLeaves = lvs.filter(l => l.id === root.id || l.id.startsWith(root.id + '.'));
     const doneC = childLeaves.filter(l => l.status === 'done').length;
+    // Count-based per-goal progress on purpose: the Overview goal cards and the
+    // "Top items" table show N/M done, so exports must show the same ratio.
+    // `progEffort` carries the effort-weighted figure for callers that need it.
     const progC = childLeaves.length ? Math.round(doneC / childLeaves.length * 100) : 0;
-    const pt = childLeaves.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-    return { ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC, prog: progC, pt, conf: confidence[root.id] || 'committed' };
+    const pt = totalEffort(childLeaves);
+    return { ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC, prog: progC, progEffort: effortWeightedProgress(childLeaves).pct, pt, conf: confidence[root.id] || 'committed' };
   });
 
   // Confidence
   const cc = { committed: 0, estimated: 0, exploratory: 0 };
   const ccPt = { committed: 0, estimated: 0, exploratory: 0 };
   lvs.filter(r => r.status !== 'done').forEach(r => {
-    const c = confidence[r.id] || 'committed'; cc[c]++; ccPt[c] += re(r.best || 0, r.factor || 1.5);
+    // scheduleEffort, not re(): honors fixed-duration tasks exactly like the
+    // Planning-Confidence block in Overview / PlanReview.
+    const c = confidence[r.id] || 'committed'; cc[c]++; ccPt[c] += scheduleEffort(r) || 0;
   });
   const ccTotal = cc.committed + cc.estimated + cc.exploratory;
 
@@ -80,7 +91,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   members.forEach(m => { if (teamCap[m.team]) teamCap[m.team].members.push(m); });
   lvs.filter(r => r.status !== 'done').forEach(r => {
     if (!teamCap[r.team]) return;
-    const pt = re(r.best || 0, r.factor || 1.5);
+    const pt = scheduleEffort(r) || 0;
     if ((r.assign || []).length > 0) teamCap[r.team].committed += pt;
     else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
   });
@@ -113,9 +124,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     : 365;
   const projectSpanYears = projectSpanDays / 365;
   members.forEach(m => {
-    const primaryPt = lvs
-      .filter(r => r.status !== 'done' && (r.assign || []).includes(m.id))
-      .reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+    const primaryPt = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
     const parallelPt = 0;
     const capDays = deriveCap(m, { plans: data?.meetingPlans || [], teams }) * 220 * projectSpanYears;
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
@@ -181,6 +190,8 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     open,
     totalPt,
     prog,
+    progLabel,
+    donePt,
     projectEnd,
     roots,
     rootData,
@@ -216,6 +227,8 @@ export function generateReport(ctx) {
     open,
     totalPt,
     prog,
+    progLabel,
+    donePt,
     projectEnd,
     roots,
     rootData,
@@ -280,10 +293,11 @@ tr:nth-child(even) td{background:#fafbfd}
 
   // ── 2. KPIs ──
   h += `<h2>${t('Key Figures','Kennzahlen')}</h2><div class="kpi-row">`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${prog}%</div><div class="kpi-l">${t('Progress','Fortschritt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${progLabel}%</div><div class="kpi-l">${t('Progress','Fortschritt')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${lvs.length}</div><div class="kpi-l">${t('Items','Items')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${done}</div><div class="kpi-l">${t('Done','Erledigt')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v" style="color:#d97706">${wip+open}</div><div class="kpi-l">${t('Open','Offen')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${Math.round(donePt)}</div><div class="kpi-l">${t('PT done','PT erledigt')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${totalPt.toFixed(0)}</div><div class="kpi-l">${t('Total PT','Gesamt PT')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${members.length}</div><div class="kpi-l">${t('People','Personen')}</div></div>`;
   if (projectEnd) h += `<div class="kpi"><div class="kpi-v mono">${iso(projectEnd)}</div><div class="kpi-l">${t('Projected End','Voraussichtl. Ende')}</div></div>`;
@@ -376,7 +390,7 @@ tr:nth-child(even) td{background:#fafbfd}
     h += `<div style="border:1px solid #e0e4ea;border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
     h += `<h3 style="color:${tc.color};margin:0 0 4px">${tc.name}</h3>`;
     tc.members.forEach(m => {
-      const pp = lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)).reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
+      const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
       h += `<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:1px"><span>${m.name}${m.cap < 1 ? ` (${Math.round(m.cap*100)}%)` : ''}</span><span class="mono">${pp.toFixed(0)} PT</span></div>`;
     });
     if (total > 0) {

@@ -172,6 +172,21 @@ Four PDF variants:
 | `exportWhatWhenPDF` | "What comes when" — horizon-aware | Items grouped into buckets (week / month / quarter). Near-term items show exact dates, far-term or uncertain items collapse to coarser granularity |
 | `exportTodoPDF` | Sprint / TODO list for a chosen horizon | Tasks per person within N days, with horizon-adjusted date labels and confidence badges (●/◐/○) |
 
+#### Numbers must match the screen
+
+Every export gets its aggregate figures from `buildReportModel()` (`src/utils/report.js`), which in turn uses `src/utils/progress.js` — the same module the Overview KPI row renders from. That module owns both the maths and the formatting:
+
+| Figure | Definition | Helper |
+|---|---|---|
+| Progress % | effort-weighted, phase-aware: weight = `scheduleEffort` (fixed duration days, else realistic PT), per-leaf progress = `leafProgress` (phases > manual `progress` > status, capped at 99 % while not done) | `effortWeightedProgress()` |
+| PT done | same weighting, absolute — only ever grows, so scope growth doesn't hide delivery | `deliveredEffort()` |
+| Total PT | sum of `scheduleEffort` over all leaves | `totalEffort()` |
+| Label format | one decimal, trailing `.0` trimmed (`26.8%`, `40%`) | `progressPctLabel()` |
+
+Per-goal figures stay the `N/M done` ratio (`rootData.prog`) because the Overview goal cards and the "Top items" table show that ratio; the effort-weighted variant is available as `rootData.progEffort`.
+
+Never compute an aggregate percentage inline in an export. Counting done leaves (`done / total`) is *not* the headline figure — that mismatch once made the Management Summary PDF disagree with the screen (regression test: `src/utils/__tests__/report.test.js`).
+
 **Horizon-aware date labels** (`horizonLabel`, `horizonBucket` in `pdfExports.js`): the label granularity is the *fuzzier* of (distance from today) and (planning confidence). Rules:
 
 - `committed` and ≤14 days away → exact `YYYY-MM-DD`
