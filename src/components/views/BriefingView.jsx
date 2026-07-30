@@ -3,6 +3,7 @@ import { iso, localDate, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
 import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
+import { deadlineStatus } from '../../utils/timeline.js';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
@@ -180,6 +181,9 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
     // Root items whose projected end exceeds their deadline
     tree.filter(r => !r.id.includes('.') && r.date).forEach(r => {
       if (r.status === 'done') return;
+      // Finished work can't be at risk — the shared state machine also catches
+      // roots whose own status was never flipped to done (utils/timeline.js).
+      if (deadlineStatus(tree, scheduled, r)?.allDone) return;
       const dl = localDate(r.date);
       const linked = r.type === 'deadline'
         ? deadlineScopedScheduledItems(tree, filteredScheduled, r.id)
@@ -190,7 +194,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
       }
     });
     return items;
-  }, [tree, filteredScheduled, now, confidence, stats]);
+  }, [tree, scheduled, filteredScheduled, now, confidence, stats]);
 
   const today = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 

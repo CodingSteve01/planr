@@ -183,6 +183,8 @@ Every export gets its aggregate figures from `buildReportModel()` (`src/utils/re
 | Total PT | sum of `scheduleEffort` over all leaves | `totalEffort()` |
 | Label format | one decimal, trailing `.0` trimmed (`26.8%`, `40%`) | `progressPctLabel()` |
 
+Deadline/goal badges follow the same rule via `deadlineStates` (from `deadlineStatus()`, `src/utils/timeline.js`): the exported Risk column and the risk list show `at risk` only for *open* work, and `done` / `done · late` for finished work — identical to the Overview cards.
+
 Per-goal figures stay the `N/M done` ratio (`rootData.prog`) because the Overview goal cards and the "Top items" table show that ratio; the effort-weighted variant is available as `rootData.progEffort`.
 
 Never compute an aggregate percentage inline in an export. Counting done leaves (`done / total`) is *not* the headline figure — that mismatch once made the Management Summary PDF disagree with the screen (regression test: `src/utils/__tests__/report.test.js`).

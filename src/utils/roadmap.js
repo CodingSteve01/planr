@@ -1,8 +1,8 @@
 // ─── Metro/Subway Roadmap Renderer ────────────────────────────────────────────
 // Each project becomes a colored subway line. Stations are depth-2 milestones.
 // Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
-import { deadlineScopedScheduledItems } from './deadlines.js';
-import { leafProgress, scheduleEffort } from './scheduler.js';
+import { deadlineStatus } from './timeline.js';
+import { leafProgress, resolveToLeafIds, scheduleEffort } from './scheduler.js';
 import { normalizeCompletedWindows } from './completion.js';
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -664,13 +664,18 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => !max || s.endDate > max ? s.endDate : max, null);
     const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => !min || s.anchorDate < min ? s.anchorDate : min, null);
     const rootStats = stats?.[root.id];
-    const deadlineScheduled = root.type === 'deadline' ? deadlineScopedScheduledItems(tree, scheduled, root.id) : [];
-    const deadlineEnd = deadlineScheduled.length
-      ? deadlineScheduled.reduce((max, item) => item.endD > max ? item.endD : max, new Date(0))
-      : null;
+    // "At risk" is a forecast — once every scoped leaf is done there is nothing
+    // left to miss, so the line drops the red GEFÄHRDET badge (deadlineStatus
+    // in utils/timeline.js is the shared state machine).
+    const rootState = root.type === 'deadline' ? deadlineStatus(tree, scheduled, root) : null;
+    const allDoneUnderRoot = root.type !== 'deadline'
+      && (() => {
+        const leaves = resolveToLeafIds(tree, root.id).map(id => tree.find(r => r.id === id)).filter(Boolean);
+        return leaves.length > 0 && leaves.every(l => l.status === 'done');
+      })();
     const atRisk = root.type === 'deadline'
-      ? !!(root.date && deadlineEnd && deadlineEnd > new Date(root.date))
-      : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date));
+      ? !!rootState?.isLate
+      : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
 
     // Duration in days for route-length matching
     const durationDays = rootEarliest && rootLatest

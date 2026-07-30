@@ -180,7 +180,7 @@ If a task has `decideBy`, a 45°-rotated diamond appears on its row at that week
 
 Below the bar area:
 
-- **Deadline badges** per goal — green "on track", red "at risk", or yellow plain
+- **Deadline badges** per goal — green "on track" / "done", amber "done · late", red "at risk", or yellow plain. States come from `deadlineStatus()` in [`src/utils/timeline.js`](../src/utils/timeline.js); "at risk" is a *forecast*, so a deadline whose scoped work is finished never shows red (see [features.md](features.md))
 - **Critical path: N** — click to toggle dim-non-critical mode
 - **N no estimate** — count of unestimated leaves (they're listed but uncheduled)
 - **Planning horizon legend** — explicit H1 / H2 / H3 reminder so the confidence model is visible without prior training

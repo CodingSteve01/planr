@@ -127,3 +127,64 @@ describe('export parity: screen figures === exported figures', () => {
     expect(m.donePt).toBeCloseTo(11, 6);
   });
 });
+
+// A deadline whose work finished after the date. Screen and exports must both
+// report it as completed-late, not as an open risk.
+const DONE_LATE_TREE = [
+  { id: 'D1', name: 'Umfirmierung', type: 'deadline', date: '2026-07-01', status: 'done', team: 'T1' },
+  { id: 'D1.1', name: 'Register', status: 'done', best: 4, factor: 1, team: 'T1', assign: ['m1'],
+    completedStart: '2026-03-26', completedEnd: '2026-07-09' },
+];
+const DONE_LATE_SCHEDULED = [
+  { id: 'D1.1', treeId: 'D1.1', name: 'Register', status: 'done', team: 'T1', person: 'Anna', personId: 'm1',
+    effort: 4, startD: d('2026-03-26'), endD: d('2026-07-09'), workingDaysInWindow: 4 },
+];
+
+function doneLateCtx() {
+  return {
+    data: {}, tree: DONE_LATE_TREE, members: MEMBERS, teams: TEAMS, scheduled: DONE_LATE_SCHEDULED,
+    weeks: [], cpSet: new Set(), goalPaths: {}, stats: treeStats(DONE_LATE_TREE),
+    confidence: {}, meta: { name: 'Parity', planStart: '2026-01-05' }, lang: 'de',
+  };
+}
+
+describe('a completed deadline is not reported as at risk', () => {
+  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  afterEach(() => cleanup());
+
+  // The provider defaults to English, so assert against the EN labels here;
+  // the export assertions below run with lang: 'de'.
+  it('Overview shows the done-late badge instead of AT RISK', () => {
+    const { container } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <SumView tree={DONE_LATE_TREE} scheduled={DONE_LATE_SCHEDULED}
+            goals={DONE_LATE_TREE.filter(r => r.type)} members={MEMBERS} teams={TEAMS}
+            cpSet={new Set()} goalPaths={{ D1: { critical: new Set(), needed: new Set() } }}
+            stats={treeStats(DONE_LATE_TREE)} confidence={{}}
+            onNavigate={() => {}} onOpenItem={() => {}} onExportTodo={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+    expect(container.textContent).not.toContain('AT RISK');
+    expect(container.textContent).toContain('DONE · late');
+  });
+
+  it('the Management Summary PDF reports it as done, with no deadline risk entry', async () => {
+    const m = buildReportModel(doneLateCtx());
+    expect(m.deadlineStates.D1.state).toBe('doneLate');
+    expect(m.risks.filter(r => /Deadline/.test(r.text))).toHaveLength(0);
+
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(doneLateCtx(), { includeTimetable: false });
+    const texts = flattenPdfText(captured[0].content).join(' | ');
+    expect(texts).not.toContain('GEFÄHRDET');
+    expect(texts).toContain('abgeschl. · verspätet');
+  });
+
+  it('the HTML report reports it as done too', () => {
+    const html = generateReport(doneLateCtx());
+    expect(html).not.toContain('GEFÄHRDET');
+    expect(html).toContain('abgeschlossen · verspätet');
+  });
+});

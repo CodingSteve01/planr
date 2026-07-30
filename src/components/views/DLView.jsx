@@ -1,7 +1,7 @@
 import { fmtDate, diffDays, iso } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
-import { summarizeNodeTimeline } from '../../utils/timeline.js';
+import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
@@ -31,7 +31,10 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
             ? (timeline?.deadline?.end || timeline?.period?.end || null)
             : (timeline?.period?.end || (childSch.length > 0 ? childSch.reduce((m,sc)=>sc.endD>m?sc.endD:m,new Date(0)) : null));
           const dlDate = r.date ? new Date(r.date) : null;
-          const isLate = maxEnd && dlDate && maxEnd > dlDate;
+          // Shared state machine (utils/timeline.js): completed work reports
+          // done / done-late instead of an "at risk" alarm.
+          const dlState = deadlineStatus(tree, scheduled, r, timeline);
+          const isLate = !!dlState?.isLate;
           const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
           const isDeadline = r.type === 'deadline';
           return<div key={r.id} className={`goal-card t-${r.type}`}>
@@ -40,8 +43,10 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
               <span className="dl-name">{r.name}</span>
               {isDeadline&&dlDate&&<span className="dl-date">{fmtDate(r.date)}</span>}
               {isDeadline&&daysLeft!=null&&daysLeft>=0&&<span className="badge bo">{daysLeft}d left</span>}
-              {isDeadline&&isLate&&<span className="badge bc">⚠ late</span>}
-              {isDeadline&&!isLate&&maxEnd&&<span className="badge bd">✓ On track</span>}
+              {isDeadline&&isLate&&<span className="badge bc">⚠ {t('s.atRisk')}</span>}
+              {isDeadline&&dlState?.state==='doneLate'&&<span className="badge bh" data-htip={t('s.deadlineDoneLateTip', r.date)}>✓ {t('s.deadlineDoneLate')}</span>}
+              {isDeadline&&dlState?.state==='done'&&<span className="badge bd" data-htip={t('s.deadlineDoneTip')}>✓ {t('s.deadlineDone')}</span>}
+              {isDeadline&&dlState?.state==='onTrack'&&maxEnd&&<span className="badge bd">✓ {t('s.onTrack')}</span>}
               {childSch.length>0&&<span className="badge bo">{childSch.length} scheduled</span>}
             </div>
             {r.description&&<div style={{fontSize:11,color:'var(--tx3)'}}>{r.description}</div>}

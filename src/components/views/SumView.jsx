@@ -5,7 +5,7 @@ import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
 import { GT, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
-import { summarizeNodeTimeline } from '../../utils/timeline.js';
+import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 import { TimetableView } from './TimetableView.jsx';
@@ -282,12 +282,10 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         const deps = n?.deps || [];
         return deps.some(d => { const dt = tree.find(r => r.id === d); return dt && dt.status !== 'done'; });
       });
-      const deadlinesAtRisk = goals.filter(g => {
-        if (g.type !== 'deadline' || !g.date) return false;
-        const linked = deadlineScopedScheduledItems(tree, scheduled, g.id);
-        const maxEnd = linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
-        return maxEnd && new Date(g.date) < maxEnd;
-      });
+      // Completed deadlines never count as a pulse-check warning — the work is
+      // delivered, so there is no action left to take.
+      const deadlinesAtRisk = goals.filter(g => g.type === 'deadline'
+        && deadlineStatus(tree, scheduled, g, timelineById[g.id])?.isLate);
       const checks = [
         h1NoAssign.length > 0 && { warn: true, text: t('pc.h1NoPerson', h1NoAssign.length), items: h1NoAssign },
         h1NoEstimate.length > 0 && { warn: true, text: t('pc.h1NoEstimate', h1NoEstimate.length), items: h1NoEstimate },
@@ -340,11 +338,13 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         const linked = dl.type === 'deadline'
           ? deadlineScopedScheduledItems(tree, scheduled, dl.id)
           : scheduled.filter(s => s.id.startsWith(dl.id + '.'));
-        const maxEnd = dl.type === 'deadline'
-          ? (timeline?.deadline?.end || timeline?.period?.end || null)
-          : (timeline?.period?.end || (linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null));
+        // Shared with Deadlines, Gantt, Subway-Map, report and PDFs — finished
+        // work reports done/doneLate instead of an "at risk" alarm.
+        const dlState = deadlineStatus(tree, scheduled, dl, timeline);
+        const maxEnd = dlState?.end
+          || (dl.type !== 'deadline' && linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null);
         const dlDate = dl.date ? new Date(dl.date) : null;
-        const isLate = maxEnd && dlDate && dlDate < maxEnd;
+        const isLate = !!dlState?.isLate;
         const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
         // Count the goal's OWN leaf work packages (concrete tasks), matching
         // the PDF report (report.js childLeaves). Earlier this used gp.needed,
@@ -365,7 +365,12 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
             <span style={{ marginLeft: 'auto' }}>
-              {dl.type === 'deadline' && isLate ? <span className="badge bc">{t('s.atRisk')}</span> : dl.type === 'deadline' && maxEnd ? <span className="badge bd">{t('s.onTrack')}</span> : null}
+              {dl.type === 'deadline' && (
+                dlState?.state === 'atRisk' ? <span className="badge bc">{t('s.atRisk')}</span>
+                  : dlState?.state === 'doneLate' ? <span className="badge bh" data-htip={t('s.deadlineDoneLateTip', dl.date)}>{t('s.deadlineDoneLate')}</span>
+                    : dlState?.state === 'done' ? <span className="badge bd" data-htip={t('s.deadlineDoneTip')}>{t('s.deadlineDone')}</span>
+                      : maxEnd ? <span className="badge bd">{t('s.onTrack')}</span> : null
+              )}
               {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
             </span>
           </div>

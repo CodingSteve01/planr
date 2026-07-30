@@ -1,5 +1,5 @@
 import { localDate } from './date.js';
-import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './deadlines.js';
+import { deadlineRootIdForNode, deadlineScopedLeafIds, isDeadlineRelevantForRoot } from './deadlines.js';
 import { isLeafNode, resolveToLeafIds } from './scheduler.js';
 
 function asNode(tree, nodeOrId) {
@@ -68,6 +68,54 @@ function leafWindows(node, scheduledMap) {
     period: actual || leafScheduledWindow(node, scheduledMap) || planned,
     planned,
     actual,
+  };
+}
+
+// ── Deadline / goal state ───────────────────────────────────────────────────
+// Single source of truth for "is this thing at risk?" — used by Overview,
+// Deadlines, Gantt, Subway-Map, the HTML report and every PDF.
+//
+// The key distinction: "at risk" is a *forecast*. Once all scoped work is done
+// there is nothing left to be at risk of, so finished work reports `done` (or
+// `doneLate` when it actually landed after the date) instead of a red alarm.
+// `isLate` is intentionally the forecast-only flag so red badges calm down the
+// moment the work completes.
+export const DEADLINE_STATES = ['unscheduled', 'onTrack', 'atRisk', 'done', 'doneLate'];
+
+export function deadlineStatus(tree, scheduled, nodeOrId, timelineHint = null) {
+  const node = asNode(tree, nodeOrId);
+  if (!node) return null;
+  const timeline = timelineHint || summarizeNodeTimeline(tree, scheduled, node);
+  const isDeadline = node.type === 'deadline';
+  // Deadline nodes only count leaves that are marked deadline-relevant; other
+  // roots count everything below them.
+  const scopedIds = isDeadline
+    ? deadlineScopedLeafIds(tree, node.id)
+    : (isLeafNode(tree, node.id) ? [node.id] : resolveToLeafIds(tree, node.id));
+  const scopedLeaves = scopedIds.map(id => (tree || []).find(r => r.id === id)).filter(Boolean);
+  const doneCount = scopedLeaves.filter(l => l.status === 'done').length;
+  const allDone = scopedLeaves.length > 0 && doneCount === scopedLeaves.length;
+  // For done work the timeline's period end is the *actual* completion end, so
+  // `doneLate` reflects reality rather than an obsolete forecast.
+  const end = (isDeadline ? timeline?.deadline?.end : null) || timeline?.period?.end || null;
+  const dateD = node.date ? localDate(node.date) : null;
+  const missed = !!(end && dateD && dateD < end);
+  const state = !end ? 'unscheduled'
+    : allDone ? (missed ? 'doneLate' : 'done')
+      : missed ? 'atRisk' : 'onTrack';
+  return {
+    node,
+    date: node.date || '',
+    dateD,
+    end,
+    leafCount: scopedLeaves.length,
+    doneCount,
+    allDone,
+    state,
+    // Forecast-only: never true for completed work.
+    isLate: state === 'atRisk',
+    // Historical fact: the (projected or actual) end is past the date.
+    missed,
   };
 }
 

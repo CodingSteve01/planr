@@ -4,7 +4,7 @@ import { iso, isoWeek, isoWeekYear } from './date.js';
 import { leafNodes, scheduleEffort } from './scheduler.js';
 import { deliveredEffort, effortWeightedProgress, progressPctLabel, totalEffort } from './progress.js';
 import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
-import { deadlineScopedScheduledItems } from './deadlines.js';
+import { deadlineStatus } from './timeline.js';
 import { deriveCap } from './capacity.js';
 
 function parseHexColor(color) {
@@ -101,14 +101,20 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
 
   // Risks & bottlenecks
   const risks = [];
-  // 1. Deadlines at risk
+  // 1. Deadlines at risk. Only *open* deadlines can be at risk — one whose
+  //    scoped work is finished is history, not a risk, and flagging it red
+  //    misreports delivered work as a problem (deadlineStatus, utils/timeline.js).
+  //    States are keyed by root id for every typed root, so the Goals &
+  //    Deadlines table badge and this risk list can never contradict.
+  const deadlineStates = {};
+  roots.filter(r => r.type).forEach(root => {
+    deadlineStates[root.id] = deadlineStatus(tree, scheduled, root);
+  });
   roots.filter(r => r.type === 'deadline' && r.date).forEach(dl => {
-    const deadlineScheduled = deadlineScopedScheduledItems(tree, scheduled, dl.id);
-    const deadlineEnd = deadlineScheduled.length ? deadlineScheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
-    if (deadlineEnd && new Date(dl.date) < deadlineEnd) {
-      const daysLate = Math.round((deadlineEnd - new Date(dl.date)) / 86400000);
-      risks.push({ severity: 'critical', text: t(`Deadline "${dl.name}" (${dl.date}) is projected to be ${daysLate} days late (scheduled end: ${iso(deadlineEnd)})`, `Deadline „${dl.name}" (${dl.date}) wird voraussichtlich ${daysLate} Tage verspätet (geplantes Ende: ${iso(deadlineEnd)})`) });
-    }
+    const ds = deadlineStates[dl.id];
+    if (!ds?.isLate || !ds.end) return;
+    const daysLate = Math.round((ds.end - ds.dateD) / 86400000);
+    risks.push({ severity: 'critical', text: t(`Deadline "${dl.name}" (${dl.date}) is projected to be ${daysLate} days late (scheduled end: ${iso(ds.end)})`, `Deadline „${dl.name}" (${dl.date}) wird voraussichtlich ${daysLate} Tage verspätet (geplantes Ende: ${iso(ds.end)})`) });
   });
   // 2. Exploratory items on critical path
   const expOnCp = cpItems.filter(s => confidence[s.id] === 'exploratory');
@@ -201,6 +207,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     teamCap,
     cpItems,
     risks,
+    deadlineStates,
     tree,
     members,
     teams,
@@ -238,6 +245,7 @@ export function generateReport(ctx) {
     teamCap,
     cpItems,
     risks,
+    deadlineStates,
     tree,
     members,
     teams,
@@ -374,11 +382,17 @@ tr:nth-child(even) td{background:#fafbfd}
     h += `<table><tr><th></th><th>${t('Name','Name')}</th><th>${t('Deadline','Deadline')}</th><th>${t('Progress','Fortschritt')}</th><th>${t('Scheduled End','Geplantes Ende')}</th><th>${t('Risk','Risiko')}</th></tr>`;
     goals.forEach(g => {
       const rd = rootData.find(x => x.id === g.id);
-      const isLate = rd?.endD && g.date && new Date(g.date) < rd.endD;
+      // Same state machine as the Overview cards: finished work reports done,
+      // never "at risk".
+      const ds = deadlineStates[g.id];
+      const risk = ds?.state === 'atRisk' ? `<span style="color:#dc2626;font-weight:700">⚠ ${t('AT RISK','GEFÄHRDET')}</span>`
+        : ds?.state === 'doneLate' ? `<span style="color:#a16207;font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
+          : ds?.state === 'done' ? `<span style="color:#16a34a;font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
+            : rd?.endD ? `<span style="color:#16a34a">✓ ${t('on track','im Plan')}</span>` : '—';
       h += `<tr><td>${GT[g.type]||''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:#7a839a;font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
       h += `<td class="mono">${g.date||'—'}</td><td>${rd?.prog||0}% (${rd?.doneCount||0}/${rd?.leafCount||0})</td>`;
       h += `<td class="mono">${rd?.endD ? iso(rd.endD) : '—'}</td>`;
-      h += `<td>${isLate ? `<span style="color:#dc2626;font-weight:700">⚠ ${t('AT RISK','GEFÄHRDET')}</span>` : rd?.endD ? `<span style="color:#16a34a">✓ ${t('on track','im Plan')}</span>` : '—'}</td></tr>`;
+      h += `<td>${risk}</td></tr>`;
     });
     h += `</table>`;
   }

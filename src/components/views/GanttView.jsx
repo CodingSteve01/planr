@@ -5,6 +5,7 @@ import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/compl
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
 import { buildThreadStructure } from '../../utils/threads.js';
+import { deadlineStatus } from '../../utils/timeline.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { chainShorts, hasChain, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -917,9 +918,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const x = dateToX(dateD);
     const wi = weekIndexOfDate(dateD);
     const linked = scheduled.filter(s => s.id.startsWith(dl.id + '.'));
-    const maxEnd = linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
-    const isLate = maxEnd && dateD < maxEnd;
-    return { ...dl, wi, x, dateD, isLate, maxEnd };
+    // Shared state machine (utils/timeline.js): finished work is never "late".
+    const ds = deadlineStatus(tree, scheduled, dl);
+    const maxEnd = ds?.end || (linked.length ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null);
+    const isLate = !!ds?.isLate;
+    return { ...dl, wi, x, dateD, isLate, maxEnd, dlState: ds?.state || 'unscheduled' };
   });
   const now = new Date();
   const todayIso = iso(now);
@@ -3056,9 +3059,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         <button data-testid="gantt-clear-selection" className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelection')}</button>
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
-      {dlL.map(dl => <span key={dl.id} className={`badge ${dl.isLate ? 'bc' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh'}`}>
-        {dl.isLate ? '! ' : dl.maxEnd ? '' : ''}{dl.name} {dl.date}{dl.isLate ? ` ${t('s.atRisk')}` : dl.maxEnd ? ` ${t('s.onTrack')}` : ''}
-      </span>)}
+      {dlL.map(dl => {
+        const suffix = dl.isLate ? ` ${t('s.atRisk')}`
+          : dl.dlState === 'doneLate' ? ` ${t('s.deadlineDoneLate')}`
+            : dl.dlState === 'done' ? ` ${t('s.deadlineDone')}`
+              : dl.maxEnd ? ` ${t('s.onTrack')}` : '';
+        const cls = dl.isLate ? 'bc'
+          : dl.dlState === 'doneLate' ? 'bh'
+            : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh';
+        return <span key={dl.id} className={`badge ${cls}`}>
+          {dl.isLate ? '! ' : ''}{dl.name} {dl.date}{suffix}
+        </span>;
+      })}
       {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items again.' : 'Click to show only the critical track of the current scope. Non-critical rows and non-critical dependency arrows are hidden.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
       {unestimatedCount > 0 && <span className="badge bw" data-htip="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}

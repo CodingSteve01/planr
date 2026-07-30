@@ -245,7 +245,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
-  const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, confidence, members, lvs, scheduled, teams } = m;
+  const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, deadlineStates, confidence, members, lvs, scheduled, teams } = m;
   // Progress bar geometry must never diverge from the printed number.
   const progPct = Math.max(0, Math.min(100, prog));
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
@@ -425,14 +425,23 @@ export async function exportSummaryPDF(ctx, options = {}) {
       ['ID', t('Name', 'Name'), t('Deadline', 'Deadline'), t('Progress', 'Fortschritt'), t('Scheduled End', 'Geplantes Ende'), t('Risk', 'Risiko')],
       goals.map(g => {
         const rd = rootData.find(x => x.id === g.id);
-        const isLate = rd?.endD && g.date && new Date(g.date) < rd.endD;
+        // Same state machine as the Overview cards (utils/timeline.js):
+        // completed work is reported as done, never as "at risk".
+        const ds = deadlineStates?.[g.id];
+        const riskCell = ds?.state === 'atRisk'
+          ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: '#dc2626', bold: true }
+          : ds?.state === 'doneLate'
+            ? { text: '✓ ' + t('done · late', 'abgeschl. · verspätet'), color: '#a16207', bold: true }
+            : ds?.state === 'done'
+              ? { text: '✓ ' + t('done', 'abgeschlossen'), color: '#16a34a', bold: true }
+              : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: '#16a34a' } : '—';
         return [
           g.id,
           { text: g.name, bold: true },
           g.date || '—',
           (rd?.prog || 0) + '% (' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ')',
           rd?.endD ? iso(rd.endD) : '—',
-          isLate ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: '#dc2626', bold: true } : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: '#16a34a' } : '—',
+          riskCell,
         ];
       }),
       [40, '*', 70, 80, 70, 80],
@@ -630,7 +639,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
 // Confidence aggregate = worst confidence among the root's open leaves.
 export async function exportWhatWhenPDF(ctx) {
   const m = buildReportModel(ctx);
-  const { meta, t, dateStr, scheduled, tree, teams, confidence, rootData, lvs } = m;
+  const { meta, t, dateStr, scheduled, tree, teams, confidence, rootData, lvs, deadlineStates } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
   const pdfMake = await loadPdfMake();
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
@@ -655,13 +664,17 @@ export async function exportWhatWhenPDF(ctx) {
       });
       // Teams involved
       const teamIds = [...new Set(scheduled.filter(s => s.id === rd.id || s.id.startsWith(rd.id + '.')).map(s => s.team).filter(Boolean))];
-      const deadlineLate = rd.type === 'deadline' && rd.date && new Date(rd.date) < rd.endD;
+      // Forecast-only: a finished deadline is not "late", it is delivered.
+      const ds = deadlineStates?.[rd.id];
+      const deadlineLate = ds?.state === 'atRisk';
+      const deadlineDone = ds?.state === 'done' || ds?.state === 'doneLate';
       return {
         rd,
         worst,
         teamIds,
         teamNames: teamIds.map(teamName).join(', ') || '—',
         deadlineLate,
+        deadlineDone,
       };
     });
 
@@ -689,7 +702,7 @@ export async function exportWhatWhenPDF(ctx) {
     bucket.items.sort((a, b) => (a.rd.endD || 0) - (b.rd.endD || 0));
     content.push(headerTable(
       [t('Projected End', 'Ende prognost.'), 'ID', t('Topic', 'Thema'), t('Teams', 'Teams'), t('Progress', 'Fortschritt'), 'PT', 'Conf.'],
-      bucket.items.map(({ rd, worst, teamNames, deadlineLate }) => [
+      bucket.items.map(({ rd, worst, teamNames, deadlineLate, deadlineDone }) => [
         { text: horizonLabel(rd.endD, worst, m.de, now), fontSize: 9 },
         { text: rd.id, fontSize: 9 },
         {
@@ -697,7 +710,7 @@ export async function exportWhatWhenPDF(ctx) {
             rd.type ? { text: GT[rd.type] + ' ', fontSize: 10 } : '',
             { text: rd.name, bold: true },
             rd.type === 'deadline' && rd.date ? { text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')', fontSize: 8, color: deadlineLate ? '#b91c1c' : '#7a839a' } : '',
-            deadlineLate ? { text: '  ■', color: '#b91c1c', bold: true } : '',
+            deadlineLate ? { text: '  ■', color: '#b91c1c', bold: true } : deadlineDone ? { text: '  ✓', color: '#16a34a', bold: true } : '',
           ],
         },
         { text: teamNames, fontSize: 9 },

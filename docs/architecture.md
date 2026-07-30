@@ -60,6 +60,7 @@ src/
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
     pdfExports.js          — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when)
     progress.js            — single source of truth for aggregate progress % / PT + formatting
+    timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
   i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
 docs/                      — this directory
 data/                      — gitignored private project data
