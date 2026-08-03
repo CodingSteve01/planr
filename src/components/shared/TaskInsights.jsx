@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { isLeafNode, leafNodes, parentId, re } from '../../utils/scheduler.js';
+import { isLeafNode, leafNodes, leafProgress, parentId, re } from '../../utils/scheduler.js';
+import { aggregateProgressPct, progressPctLabel } from '../../utils/progress.js';
 import { iso, diffDays, localDate } from '../../utils/date.js';
 import { resolveUri } from '../../utils/customFields.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -96,9 +97,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   const openUnder = useMemo(() => leafsUnder.filter(l => l.status === 'open').length, [leafsUnder]);
   const leafCount = leafsUnder.length;
 
-  const progPct = !isLeaf
-    ? (leafCount ? Math.round(doneUnder / leafCount * 100) : 0)
-    : (node.progress ?? (node.status === 'done' ? 100 : 0));
+  // Effort-weighted for parents, phase-aware for leaves — utils/progress.js is
+  // the single formula, so this panel agrees with the tree grid, the
+  // Subway-Map and the exports. `node.progress` alone ignored phases and
+  // done/total ignored task size; both printed their own private number here.
+  const progPct = isLeaf ? leafProgress(node) : aggregateProgressPct(leafsUnder);
 
   const status = node.status || 'open';
 
@@ -241,9 +244,9 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         <span style={{ fontWeight: 700, color: statusColor, fontSize: 13 }}>
           {S_DOT[status]} {t(S_LABEL[status] || status)}
         </span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{progPct}%</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{progressPctLabel(progPct)}%</span>
         <div style={{ flex: '1 1 80px', height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 60 }}>
-          <div style={{ width: `${progPct}%`, height: '100%', background: progPct >= 100 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }} />
+          <div style={{ width: `${progPct}%`, height: '100%', background: progPct >= 99.95 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }} />
         </div>
         <span style={{ color: confColor, fontSize: 11, fontFamily: 'var(--mono)' }}>{confDot} {confLabel}</span>
       </div>

@@ -4,7 +4,7 @@ import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
 import { renderRoadmapSvg } from './roadmap.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
-import { totalEffort } from './progress.js';
+import { progressPctLabel, totalEffort } from './progress.js';
 import { formatPhaseToken } from './phases.js';
 
 function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
@@ -439,7 +439,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
           g.id,
           { text: g.name, bold: true },
           g.date || '—',
-          (rd?.prog || 0) + '% (' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ')',
+          progressPctLabel(rd?.prog || 0) + '%  ·  ' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ' ' + t('tasks', 'Aufgaben'),
           rd?.endD ? iso(rd.endD) : '—',
           riskCell,
         ];
@@ -714,7 +714,7 @@ export async function exportWhatWhenPDF(ctx) {
           ],
         },
         { text: teamNames, fontSize: 9 },
-        { text: rd.prog + '% (' + rd.doneCount + '/' + rd.leafCount + ')', fontSize: 9 },
+        { text: progressPctLabel(rd.prog) + '%  ·  ' + rd.doneCount + '/' + rd.leafCount, fontSize: 9 },
         { text: rd.pt.toFixed(0), fontSize: 9 },
         { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '● ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? '#15803d' : worst === 'estimated' ? '#a16207' : '#7a839a' },
       ]),

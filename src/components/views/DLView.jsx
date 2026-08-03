@@ -2,6 +2,7 @@ import { fmtDate, diffDays, iso } from '../../utils/date.js';
 import { GT, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
+import { progressPctLabel } from '../../utils/progress.js';
 import { useT } from '../../i18n.jsx';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
@@ -56,7 +57,7 @@ export function DLView({goals,scheduled,tree=[],stats={},onEdit}){
             </div>}
             {prog>0&&<div style={{marginTop:6}}>
               <div className="prog-wrap" style={{height:4}}><div className="prog-fill" style={{width:`${prog}%`,background:r.severity==='critical'?'var(--re)':'var(--am)'}} /></div>
-              <div style={{fontSize:9,color:'var(--tx3)',marginTop:2,fontFamily:'var(--mono)'}}>{prog}% complete</div>
+              <div style={{fontSize:9,color:'var(--tx3)',marginTop:2,fontFamily:'var(--mono)'}}>{progressPctLabel(prog)}% complete</div>
             </div>}
           </div>;
         })}

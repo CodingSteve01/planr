@@ -3,6 +3,7 @@
 // Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
 import { deadlineStatus } from './timeline.js';
 import { leafProgress, resolveToLeafIds, scheduleEffort } from './scheduler.js';
+import { aggregateProgressPct } from './progress.js';
 import { normalizeCompletedWindows } from './completion.js';
 
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -178,14 +179,13 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
     let earliestStart = null;
     let latestEnd = null;
     let totalEffort = 0;
-    let progressedEffort = 0;
+    const leafRows = [];
 
     leafIds.forEach(id => {
       const n = nodeMap[id];
       if (n?.status === 'done') done++;
-      const effort = scheduleEffort(n) || 1;
-      totalEffort += effort;
-      progressedEffort += effort * (leafProgress(n) / 100);
+      if (n) leafRows.push(n);
+      totalEffort += scheduleEffort(n) || 1;
       const sched = schedMap[id];
       // For DONE items prefer the actual completion dates (`completedStart` /
       // `completedEnd`) so past work lands at its real past timestamp on the
@@ -223,9 +223,11 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
     if (!earliestStart && ownDate) earliestStart = ownDate;
     if (!latestEnd && ownDate) latestEnd = ownDate;
 
-    const progressPct = totalEffort > 0
-      ? (progressedEffort / totalEffort) * 100
-      : (stats?.[node.id]?._progress ?? (leafIds.length ? done / leafIds.length * 100 : 0));
+    // Same helper the tree grid, the goal cards and every export use, so the
+    // train position can never contradict the percentage printed elsewhere.
+    const progressPct = leafRows.length
+      ? aggregateProgressPct(leafRows)
+      : (stats?.[node.id]?._progress ?? 0);
     result[node.id] = {
       total: leafIds.length,
       done,

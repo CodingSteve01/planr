@@ -14,7 +14,7 @@ import { ViewFilters } from '../shared/ViewFilters.jsx';
 import { aggregateSollIst } from '../../utils/sollIst.js';
 // Shared with the HTML report and every PDF export — one formula, one format,
 // so screen and export can never print different percentages.
-import { MIN_VISIBLE_PROGRESS_DELTA_PCT, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
+import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
@@ -31,7 +31,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   // scope lands; this number only ever goes up as work gets done, so users
   // can see real progress even while the % is being diluted by scope growth.
   const doneR = useMemo(() => deliveredEffort(lvs), [lvs]);
-  const prog = useMemo(() => effortWeightedProgress(lvs).pct, [lvs]);
+  const prog = useMemo(() => aggregateProgressPct(lvs), [lvs]);
   const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
@@ -355,7 +355,10 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         const goalLeaves = lvs.filter(l => l.id === dl.id || l.id.startsWith(dl.id + '.'));
         const gpTotal = goalLeaves.length;
         const gpDone = goalLeaves.filter(l => l.status === 'done').length;
-        const gpProg = gpTotal ? Math.round(gpDone / gpTotal * 100) : 0;
+        // Effort-weighted (utils/progress.js) — the same figure the Subway-Map
+        // train sits at and the PDF prints. The N/M next to it stays a task
+        // count; the two answer different questions and will differ.
+        const gpProg = aggregateProgressPct(goalLeaves);
         const borderC = dl.type === 'painpoint' ? 'var(--am)' : isLate ? 'var(--re)' : BC[dl.type] || 'var(--b)';
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
@@ -384,7 +387,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           {gp && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
               <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp.critical.size)}</span>
-              <span>{gpProg}%</span>
+              <span data-htip={t('s.progressTip', progressPctLabel(gpProg))}>{progressPctLabel(gpProg)}%</span>
             </div>
             <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
             {gp.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -405,13 +408,13 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           const timeline = timelineById[r.id];
           const leaves = lvs.filter(c => c.id === r.id || c.id.startsWith(r.id + '.'));
           const done = leaves.filter(l => l.status === 'done').length;
-          const prog = leaves.length > 0 ? Math.round(done / leaves.length * 100) : 0;
+          const prog = aggregateProgressPct(leaves);
           return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}>
             <td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{s._r > 0 ? s._r.toFixed(0) + 'd' : ''}</td>
             <td className="nc"><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog === 100 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
-              <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>{done}/{leaves.length}</span>
+              <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog >= 99.95 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
+              <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }} data-htip={t('s.progressTip', progressPctLabel(prog))}>{progressPctLabel(prog)}% · {done}/{leaves.length}</span>
             </div></td>
             <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: timeline?.period?.end ? 'var(--tx)' : 'var(--tx3)' }}>
               {timeline?.period?.end ? timeline.period.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}

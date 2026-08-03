@@ -2,6 +2,10 @@ import { addD, iso, addWorkDays, localDate, eachDayInclusive, normalizeVacation 
 import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
 import { deriveCap, memberAtDate } from './capacity.js';
+// Cyclic by design: progress.js needs leafProgress/scheduleEffort from here and
+// treeStats needs the one aggregate formula from there. Both sides only touch
+// the other at call time, so the cycle resolves cleanly.
+import { aggregateProgressPct } from './progress.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
@@ -1389,19 +1393,27 @@ export function treeStats(tree) {
       m[r.id]._r = effort;
       m[r.id]._w = effort;
       m[r.id]._progress = leafProgress(r);
+      m[r.id]._leafCount = 1;
+      m[r.id]._doneCount = r.status === 'done' ? 1 : 0;
     } else {
       const ch = directChildren(tree, r.id);
       m[r.id]._b = ch.reduce((s, c) => s + (m[c.id]?._b || 0), 0);
       m[r.id]._r = ch.reduce((s, c) => s + (m[c.id]?._r || 0), 0);
       m[r.id]._w = ch.reduce((s, c) => s + (m[c.id]?._w || 0), 0);
-      // Weighted progress: by realistic effort (fall back to equal weight)
+      // One shared formula for every aggregate percentage in the app
+      // (utils/progress.js). Inlining the maths here is what let the tree grid,
+      // the Subway-Map, the goal cards and the PDF drift apart.
       const leaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.'));
       if (leaves.length) {
-        const totalEff = leaves.reduce((s, l) => s + (m[l.id]?._r || 1), 0);
-        const weightedProg = leaves.reduce((s, l) => s + (m[l.id]?._progress || 0) * (m[l.id]?._r || 1), 0);
         const done = leaves.filter(l => l.status === 'done').length;
-        const rawProgress = Math.round(weightedProg / Math.max(totalEff, 1));
-        m[r.id]._progress = done === leaves.length ? rawProgress : Math.min(99, rawProgress);
+        // Unrounded on purpose: the display sites format with
+        // progressPctLabel (one decimal). Rounding here made the tree grid
+        // print 45 % where the Subway-Map printed 44.5 % for the same scope.
+        m[r.id]._progress = aggregateProgressPct(leaves);
+        // Full subtree counts, so a view rendering a filtered tree (hide-done)
+        // can still label the unfiltered scope instead of a shrunken one.
+        m[r.id]._leafCount = leaves.length;
+        m[r.id]._doneCount = done;
         const wip = leaves.filter(l => l.status === 'wip').length;
         m[r.id]._autoStatus = done === leaves.length ? 'done' : (done > 0 || wip > 0 || m[r.id]._progress > 0) ? 'wip' : 'open';
       }

@@ -70,12 +70,15 @@ describe('buildReportModel progress parity with the on-screen KPI row', () => {
     expect(m.totalPt).toBeGreaterThan(0);
   });
 
-  test('per-goal progress stays the N/M ratio shown on the goal cards', () => {
+  test('per-goal progress is effort-weighted, not the done/total ratio', () => {
     const m = buildReportModel(ctx());
     const root = m.rootData.find(r => r.id === 'P1');
+    // The task count stays available as a count …
     expect(root.doneCount).toBe(1);
     expect(root.leafCount).toBe(3);
-    expect(root.prog).toBe(33);
-    expect(root.progEffort).toBeCloseTo(11 / 41 * 100, 6);
+    // … but the percentage weighs work, not headcount. done/total would be
+    // 33 % here; only 11 of 41 PT are actually delivered.
+    expect(root.prog).not.toBe(33);
+    expect(root.prog).toBeCloseTo(11 / 41 * 100, 6);
   });
 });
