@@ -56,6 +56,22 @@ export function effortWeightedProgress(leaves, progressOf = leafProgress) {
   };
 }
 
+// THE percentage for any scope that is more than one task: a subtree, a goal,
+// a Subway-line, a whole plan. Effort-weighted and phase-aware (see above), and
+// it never claims 100 % while a leaf is still open — the rule leafProgress
+// applies to a single task, lifted to a group of them.
+//
+// `done / total` is a DIFFERENT number: it answers "how many tasks", not "how
+// much work". A 45 PT rebuild and a 1 PT typo fix count the same there, which
+// is why the count-based figure drifted metres away from the Subway-Map. Print
+// the count as a count ("21/51"), never as the percentage.
+export function aggregateProgressPct(leaves) {
+  const list = leaves || [];
+  if (!list.length) return 0;
+  const pct = effortWeightedProgress(list).pct;
+  return list.every(lf => lf?.status === 'done') ? pct : Math.min(pct, 99);
+}
+
 // Absolute PT delivered (partial progress counts). Unlike the percentage this
 // only ever grows, so it stays meaningful while scope is added.
 export function deliveredEffort(leaves) {

@@ -121,6 +121,33 @@ describe('export parity: screen figures === exported figures', () => {
     expect(m.progLabel).toBe('22.4');
   });
 
+  it('the goal card percentage on screen is the one the PDF goal table prints', async () => {
+    const { container } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <SumView tree={TREE} scheduled={SCHEDULED} goals={TREE.filter(r => r.type)}
+            members={MEMBERS} teams={TEAMS} cpSet={new Set()}
+            goalPaths={{ P1: { critical: new Set(), needed: new Set() } }}
+            stats={treeStats(TREE)} confidence={{}}
+            onNavigate={() => {}} onOpenItem={() => {}} onExportTodo={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+    // The goal card renders "1/5 tasks done · …" and its percentage next to it.
+    const card = container.textContent.match(/1\/5[^%]*?(\d+(?:\.\d+)?)%/);
+    expect(card, 'no goal card percentage rendered').toBeTruthy();
+    const cardPct = card[1];
+    // Not the done-count ratio (1 of 5 leaves = 20 %).
+    expect(cardPct).not.toBe('20');
+
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(ctx(), { includeTimetable: false });
+    const texts = flattenPdfText(captured[0].content);
+    const goalCell = texts.find(s => s.includes('1/5'));
+    expect(goalCell, 'no goal row in the PDF').toBeTruthy();
+    expect(goalCell).toContain(cardPct + '%');
+  });
+
   it('Total PT in the export counts fixed-duration work like the screen does', () => {
     const m = buildReportModel(ctx());
     expect(m.totalPt).toBeCloseTo(1 + 20 + 20 + 7, 6);

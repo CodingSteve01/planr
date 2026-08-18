@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { getLineColor } from '../../utils/roadmap.js';
+import { progressPctLabel } from '../../utils/progress.js';
 import { GT } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
@@ -503,7 +504,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               })()}
 
               {/* Collapsed children count */}
-              {isCollapsed && <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>({leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length} leafs)</span>}
+              {/* Collapsed leaf count comes from stats, which is built on the
+                  UNFILTERED tree. Counting the local `tree` prop instead
+                  reported the post-filter remainder ("30 leafs" for a 51-leaf
+                  package with hide-done on) next to a full-tree percentage. */}
+              {isCollapsed && (() => {
+                const visibleLeaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length;
+                const allLeaves = s._leafCount ?? visibleLeaves;
+                return <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                  data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}>
+                  ({allLeaves} leafs{visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''})
+                </span>;
+              })()}
 
               </div>
               {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
@@ -513,7 +525,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{effortDays}</td>
 
             {/* Progress */}
-            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 100 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${prog}%` : ''}</td>
+            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
 
             {/* Schedule range — start to end */}
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>

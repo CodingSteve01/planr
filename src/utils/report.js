@@ -2,7 +2,7 @@
 // Opens in a new tab and auto-triggers the print dialog (→ save as PDF).
 import { iso, isoWeek, isoWeekYear } from './date.js';
 import { leafNodes, scheduleEffort } from './scheduler.js';
-import { deliveredEffort, effortWeightedProgress, progressPctLabel, totalEffort } from './progress.js';
+import { aggregateProgressPct, deliveredEffort, progressPctLabel, totalEffort } from './progress.js';
 import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineStatus } from './timeline.js';
 import { deriveCap } from './capacity.js';
@@ -52,7 +52,7 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
   // formatting to the Overview KPI row (utils/progress.js). Never count done
   // leaves here: that produced export percentages that contradicted the screen.
   const totalPt = totalEffort(lvs);
-  const prog = effortWeightedProgress(lvs).pct;
+  const prog = aggregateProgressPct(lvs);
   const progLabel = progressPctLabel(prog);
   const donePt = deliveredEffort(lvs);
 
@@ -67,12 +67,13 @@ export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet
     const startD = childScheduled.length ? childScheduled.reduce((m, s) => s.startD < m ? s.startD : m, new Date()) : null;
     const childLeaves = lvs.filter(l => l.id === root.id || l.id.startsWith(root.id + '.'));
     const doneC = childLeaves.filter(l => l.status === 'done').length;
-    // Count-based per-goal progress on purpose: the Overview goal cards and the
-    // "Top items" table show N/M done, so exports must show the same ratio.
-    // `progEffort` carries the effort-weighted figure for callers that need it.
-    const progC = childLeaves.length ? Math.round(doneC / childLeaves.length * 100) : 0;
+    // Effort-weighted, exactly like the Subway-Map train and the Overview goal
+    // cards (utils/progress.js). It used to be doneC/leafCount here, which
+    // weighted a 45 PT rebuild the same as a 1 PT typo fix and so reported a
+    // materially different number to management than the screen showed.
+    // doneCount/leafCount stay available as what they are: a task count.
     const pt = totalEffort(childLeaves);
-    return { ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC, prog: progC, progEffort: effortWeightedProgress(childLeaves).pct, pt, conf: confidence[root.id] || 'committed' };
+    return { ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC, prog: aggregateProgressPct(childLeaves), pt, conf: confidence[root.id] || 'committed' };
   });
 
   // Confidence
@@ -390,7 +391,7 @@ tr:nth-child(even) td{background:#fafbfd}
           : ds?.state === 'done' ? `<span style="color:#16a34a;font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
             : rd?.endD ? `<span style="color:#16a34a">✓ ${t('on track','im Plan')}</span>` : '—';
       h += `<tr><td>${GT[g.type]||''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:#7a839a;font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
-      h += `<td class="mono">${g.date||'—'}</td><td>${rd?.prog||0}% (${rd?.doneCount||0}/${rd?.leafCount||0})</td>`;
+      h += `<td class="mono">${g.date||'—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:#7a839a">· ${rd?.doneCount||0}/${rd?.leafCount||0} ${t('tasks','Aufgaben')}</span></td>`;
       h += `<td class="mono">${rd?.endD ? iso(rd.endD) : '—'}</td>`;
       h += `<td>${risk}</td></tr>`;
     });

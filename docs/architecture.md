@@ -60,6 +60,8 @@ src/
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
     pdfExports.js          — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when)
     progress.js            — single source of truth for aggregate progress % / PT + formatting
+                             (aggregateProgressPct is THE percentage for any multi-task scope;
+                              scheduler.treeStats imports it back — a deliberate call-time cycle)
     timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
   i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
 docs/                      — this directory
