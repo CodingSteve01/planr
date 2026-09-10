@@ -85,6 +85,15 @@ describe('JiraSyncModal', () => {
     expect(screen.getByText('Only in the plan')).toBeTruthy();
   });
 
+  it('counts one ticket and one skipped line in the singular', () => {
+    mount();
+    fireEvent.click(screen.getByText('Compare'));
+
+    paste('Issue key,Status\nNA-385,Done\nmuell,Done');
+
+    expect(screen.getByText('1 ticket recognised · 1 line skipped')).toBeTruthy();
+  });
+
   it('explains an unusable paste instead of failing silently', () => {
     mount();
     fireEvent.click(screen.getByText('Compare'));

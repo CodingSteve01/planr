@@ -511,8 +511,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           <button className="btn btn-xs btn-sec" style={{ padding: '3px 8px', fontSize: 10 }}
             onClick={() => setShowArchived(true)}
             data-htip={t('arch.pillTip', [
-              archive.roots.length ? t('arch.roots', archive.roots.length) : '',
-              archive.members.length ? t('arch.members', archive.members.length) : '',
+              archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
+              archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
             ].filter(Boolean).join(' · '))}>
             {t('arch.pill', archive.count)}
           </button>

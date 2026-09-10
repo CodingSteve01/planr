@@ -112,9 +112,11 @@ export function JiraSyncModal({ tree = [], customFields, onApplyStatus, onOpenIt
     if (!parsed) return null;
     if (parsed.error === 'noKeyColumn') return { tone: 'var(--re)', text: t('js.errNoKey') };
     if (parsed.error === 'noRows') return { tone: 'var(--re)', text: t('js.errNoRows') };
+    const plural = (base, n) => t(n === 1 ? `${base}1` : base, n);
     return {
       tone: 'var(--tx3)',
-      text: t('js.parsed', parsed.rows.length) + (parsed.skipped ? ` · ${t('js.skipped', parsed.skipped)}` : ''),
+      text: plural('js.parsed', parsed.rows.length)
+        + (parsed.skipped ? ` · ${plural('js.skipped', parsed.skipped)}` : ''),
     };
   })();
 

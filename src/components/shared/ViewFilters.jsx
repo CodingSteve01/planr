@@ -77,6 +77,11 @@ export function ViewFilters({
     else parts.push(`▶ ${t('horizon.days', horizonDays)}`);
   }
   if (showHideDoneInner && hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
+  const archiveSummary = archive?.count
+    ? [archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
+       archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
+      ].filter(Boolean).join(' · ')
+    : '';
   if (archiveHiding) parts.push(`📦 ${archive.count}`);
   const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
 
@@ -143,10 +148,7 @@ export function ViewFilters({
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
                   padding: '1px 5px', borderRadius: 3, background: 'rgba(148,163,184,.18)', color: 'var(--tx2)' }}>📦 {t('arch.section')}</span>
                 <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
-                  {archive?.count
-                    ? [archive.roots.length ? t('arch.roots', archive.roots.length) : '',
-                       archive.members.length ? t('arch.members', archive.members.length) : ''].filter(Boolean).join(' · ')
-                    : ''}
+                  {archiveSummary}
                 </span>
               </div>
               <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 6, fontStyle: 'italic' }}>{t('arch.desc')}</div>
@@ -170,13 +172,20 @@ export function ViewFilters({
               {!archive?.count && (
                 <div style={{ fontSize: 9, color: 'var(--tx3)', marginTop: 5 }}>{t('arch.none')}</div>
               )}
-              {!!archive?.roots?.length && (
-                <div style={{ marginTop: 6, maxHeight: 92, overflow: 'auto' }}>
+              {!!archive?.count && (
+                <div style={{ marginTop: 6, maxHeight: 108, overflow: 'auto' }}>
                   {archive.roots.map(root => (
                     <div key={root.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>{root.id}</span>
                       <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root.name}</span>
                       <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', root.ageDays)}</span>
+                    </div>
+                  ))}
+                  {archive.members.map(member => (
+                    <div key={member.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>👤</span>
+                      <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', member.ageDays)}</span>
                     </div>
                   ))}
                 </div>
