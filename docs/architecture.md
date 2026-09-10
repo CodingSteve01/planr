@@ -51,8 +51,10 @@ src/
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
   utils/
-    scheduler.js           — auto-scheduling engine + computeConfidence() — see docs/scheduler.md
+    scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
     archive.js             — which roots / members are long-finished ("old news"); display filter only
+    exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
+    projectRoadmap.js      — single-project roadmap: calendar rows instead of a metro line
     jiraSync.js            — Jira table parsing + plan-vs-board reconciliation
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
@@ -131,6 +133,63 @@ every 5s:
     read file, parse, setData
     setLastSavedAt = file.lastModified
 ```
+
+## Tree index (why the app stays responsive)
+
+`isLeafNode`, `hasChildren`, `directChildren`, `leafNodes` and
+`resolveToLeafIds` in [scheduler.js](../src/utils/scheduler.js) are called from
+inside loops all over the app. Each one used to re-scan the whole tree array,
+so the callers multiplied out badly — `treeStats` rebuilt the entire leaf list
+once per parent node, making it **O(n³)**, and the roadmap model resolved leaves
+per node the same way. On a 250-item plan one recompute cost ~2.3 s, and every
+edit triggered two of them (the derive memos plus the `deriveParentStatuses`
+effect). That is what "the whole app hangs" was.
+
+`treeIndex(tree)` derives the structure once — `byId`, `childIds`, the leaf
+list, and a memoized descendant-leaf list per node — and caches it in a
+`WeakMap` keyed by the **array identity**. Every mutation here produces a new
+array (functional `setData` + `map`/`filter`), so a changed tree can never hit a
+stale entry, and old trees stay collectable. Same public signatures, same
+results, same ordering; the helpers just consult the index.
+
+Measured on a 248-node plan (`src/utils/__tests__/treeIndex.test.js` guards it):
+
+| | before | after |
+|---|---|---|
+| `treeStats` | 673 ms | 0.8 ms |
+| `computeRoadmapModel` | 783 ms | 4.2 ms |
+| `rootCpm` | 123 ms | 1.0 ms |
+| `computeConfidence` | 27 ms | 0.3 ms |
+| `scanArchive` | 14 ms | 0.1 ms |
+| whole chain | **~2.3 s** | **~7 ms** |
+
+Two rules follow from this:
+
+- **Never mutate a tree array in place** once it is (or is about to become)
+  state. The parser in `App.jsx` pushes into a local array, which is fine
+  because nothing reads an index off a half-built tree.
+- **Do not mutate what these helpers return.** `leafNodes` and
+  `descendantLeaves` hand back the cached arrays; copy before sorting.
+
+## Export scope
+
+Views render filtered copies of the tree; exports must not. The guarantee is
+structural, in [exportCtx.js](../src/utils/exportCtx.js):
+
+- `buildExportCtx({ data, scheduled, … })` derives `tree`, `members`, `teams`,
+  `vacations`, `meta` and `roadmapAssignment` **from `data`**. `App._exportCtx`
+  deliberately does not pass them, so `activeTree` / `visibleTree` cannot reach
+  an export by accident.
+- `projectScopedCtx(ctx, label)` runs at the entry of all four PDFs and of
+  `buildReportModel` (which the HTML report and the DOCX export both route
+  through). A hand-built ctx carrying a filtered tree is repaired, not
+  rejected — the user asked for a document, and the correct document is the
+  complete one — and the repair is logged.
+- `scheduled` / `stats` / `cpSet` / `goalPaths` cannot be re-derived here (they
+  need the scheduler, holidays and work days). They are computed from the full
+  tree in `App.jsx`, and [exportScope.test.jsx](../src/__tests__/exportScope.test.jsx)
+  pins the result: with filters active, every surface still prints the
+  full-plan figure, and each PDF is byte-identical when handed a filtered ctx.
 
 ## Critical path
 

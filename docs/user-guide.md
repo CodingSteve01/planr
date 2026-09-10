@@ -160,12 +160,20 @@ You see this in the Gantt footer and in the Summary view, so the application tea
 
 Two controls, both in the Overview:
 
-- **Line picker** (above the map) — `Alle Linien` plus one chip per project in
-  its own line colour. Click a chip to show that project **alone** as a single
-  subway line; click it again (or `Alle Linien`) to go back. The soloed line
-  keeps its colour but gets the longest route, so its stations spread out and
-  the labels are readable. The Fahrplan follows the same choice. Use this when
-  you want to talk about one project without eight lines crossing the picture.
+- **Line picker** (above the map) — the searchable dropdown next to
+  Subway-Map / Fahrplan, `Alle Linien` by default. Pick a project and the map
+  switches to a **real roadmap for that project**: one row per work package on
+  a month axis, sized by its actual dates, with its tasks as stops, today as a
+  green line and the deadline (if there is one) in red. Rows and stops hover
+  and click exactly like stations do. Pick `Alle Linien` (or the same project
+  again) to go back to the subway map. The Fahrplan follows the same choice.
+  Use this when you want to talk about one project rather than compare eight.
+  The same view goes into the Management Summary PDF — one page per project.
+
+- **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
+  mouse wheel over the map. Above 100 % you can drag the map with the mouse or
+  scroll it in both directions, so a crowded plan is readable instead of tiny.
+  Plain scrolling still moves the page.
 
 - **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and
@@ -183,6 +191,13 @@ Two controls, both in the Overview:
 
   A finished project with no recorded completion date anywhere below it is never
   archived — Planr cannot tell whether that was last week or in 2019.
+
+  **Exports ignore all of this.** The PDFs (including the per-project roadmap
+  pages), the HTML report and the Word export always cover the whole plan,
+  whatever the screen is currently filtering —
+  including the archived projects, and including projects hidden because you
+  are looking at a single-project roadmap. Someone reading a PDF cannot tell
+  that a project is missing, so the export is never allowed to leave one out.
 
 ### Review and presentation filters (⚙ Filter)
 

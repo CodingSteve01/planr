@@ -6,6 +6,7 @@ import { aggregateProgressPct, deliveredEffort, progressPctLabel, totalEffort } 
 import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineStatus } from './timeline.js';
 import { deriveCap } from './capacity.js';
+import { projectScopedCtx } from './exportCtx.js';
 
 function parseHexColor(color) {
   const hex = String(color || '').trim();
@@ -34,7 +35,12 @@ function mixWithWhite(color, amount = 0) {
   return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
 }
 
-export function buildReportModel({ tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data }) {
+export function buildReportModel(rawCtx) {
+  // Same guard as the PDFs: a report covers the plan, not the current view.
+  // generateReport and the DOCX export both route through here, so guarding
+  // this one function covers every HTML/Word surface.
+  const { tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data } =
+    projectScopedCtx(rawCtx, 'buildReportModel');
   const de = lang === 'de';
   const t = (en, deTxt) => de ? deTxt : en;
   const tn = id => teams.find(x => x.id === id)?.name || id || '';

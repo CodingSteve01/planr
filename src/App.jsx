@@ -13,6 +13,7 @@ import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
+import { buildExportCtx } from './utils/exportCtx.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
@@ -2231,10 +2232,13 @@ export default function App() {
   // must be forwarded so the PDF Subway-Map renders the SAME line assignments
   // and overlays as the on-screen Roadmap.jsx — otherwise the export shows a
   // re-computed assignment and projects land on different lines.
-  const _exportCtx = () => ({
-    data, tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang: _lang,
+  // NOTE: tree / members / teams / meta / roadmapAssignment are deliberately
+  // NOT passed — buildExportCtx reads them off `data`, so the filtered view
+  // copies (activeTree, visibleTree, …) can never reach an export. See
+  // utils/exportCtx.js.
+  const _exportCtx = () => buildExportCtx({
+    data, scheduled, weeks, cpSet, goalPaths, stats, confidence, lang: _lang,
     diff, horizonIds, horizonEnd, futureProgressByRootId,
-    roadmapAssignment: data?.roadmapAssignment || null,
   });
   const isMdFile = fileName?.endsWith('.md');
   // Build the file content together with any new history events. The events

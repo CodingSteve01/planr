@@ -198,6 +198,59 @@ Never compute an aggregate percentage inline in an export. Counting done leaves 
 
 This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
 
+### Project roadmap pages (Management Summary)
+
+After the Subway-Map, the Management Summary appends one **project roadmap**
+page per top-level project — the same calendar view the Overview shows for a
+single project (`utils/projectRoadmap.js`): packages as rows on a month axis,
+tasks as stops, today and the deadline as lines. Toggle: `+ Projekt-Roadmaps`
+on the Management Summary card, on by default.
+
+Rendered for *every* root, never only the one currently picked on screen —
+see the scope rule below. `prepareProjectRoadmapSvg` pins the SVG size and
+rewrites the theme variables and web fonts to print colours and Roboto,
+because pdfmake's SVG renderer resolves neither and silently blanks the text
+otherwise; a test asserts no `var(--…)` or unregistered font survives into the
+document.
+
+### Fonts: only Roboto exists
+
+pdfmake bundles one font family and draws a missing-glyph box — silently — for
+anything it does not cover. Several characters this app uses every day are
+outside it: `✓ → ◐ ⚠ ⊕ ▪` and every emoji.
+
+[`src/utils/pdfGlyphs.js`](../src/utils/pdfGlyphs.js) holds the **real cmap of
+the bundled `Roboto-Regular`** (927 code points, 82 ranges) plus a substitution
+table checked against it. `sanitizePdfDoc` runs over every docDefinition right
+before `createPdf`; the roadmap SVG preparers apply the same table by hand,
+because embedded SVG deliberately bypasses the doc pass (svg-to-pdfkit does its
+own text handling).
+
+`src/__tests__/pdfGlyphs.test.jsx` walks all four PDFs and fails on any
+character outside that set.
+
+To regenerate the ranges after a pdfmake upgrade, read the cmap of
+`node_modules/pdfmake/build/vfs_fonts.js` → `Roboto-Regular.ttf` (base64 TTF,
+format-4 cmap) and re-emit the sorted code points as ranges.
+
+### Scope: exports describe the plan, not the screen
+
+Every export goes through `buildExportCtx` / `projectScopedCtx`
+([`src/utils/exportCtx.js`](../src/utils/exportCtx.js)), which take the
+plan-shaped fields from `data` rather than from whatever the views are
+rendering. So none of the display filters — hide-done, root/team/person, the
+archive filter, single-project roadmap mode — can shrink a PDF, the HTML
+report or the Word export.
+
+This is enforced rather than documented-and-hoped: `App._exportCtx` cannot pass
+a tree at all, the four PDF entry points and `buildReportModel` re-derive it
+defensively (and `console.warn` if they had to), and
+[`src/__tests__/exportScope.test.jsx`](../src/__tests__/exportScope.test.jsx)
+asserts that a deliberately filtered context produces byte-identical output.
+
+The reason is asymmetric risk: a reader of a PDF has no way to notice that a
+project is missing or that a percentage was taken over a subset.
+
 ### Jira reconcile (`src/utils/jiraSync.js`)
 
 Not an export — the way back. **Export… → Jira-Abgleich** opens a dialog with two halves:

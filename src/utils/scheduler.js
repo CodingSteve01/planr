@@ -28,28 +28,96 @@ export function derivePhaseStatus(phases) {
   return { status: 'open', progress: 0 };
 }
 
+// ── Tree index ────────────────────────────────────────────────────────────
+// The four helpers below are called from inside loops all over the app —
+// treeStats, the roadmap model, CPM, the tree grid, every detail panel. Each
+// one used to re-scan the whole array (`isLeafNode` → `tree.some`, and
+// `leafNodes` → n × that), which made a single recompute of a 250-item plan
+// cost seconds: treeStats alone was O(n³) because it rebuilt the leaf list
+// once per parent node.
+//
+// So derive the structure once per tree array and cache it by array identity.
+// Every mutation in this app produces a NEW array (functional setData +
+// map/filter), so identity is a sound cache key: a changed tree can never hit
+// a stale entry, and a WeakMap lets old trees be collected. The parser in
+// App.jsx does push into a local array, but only before that array becomes
+// state — nothing reads an index off a half-built tree.
+const treeIndexCache = new WeakMap();
+const EMPTY_INDEX = { byId: new Map(), childIds: new Map(), leaves: [], leafIds: new Set(), descLeaves: new Map() };
+
+export function treeIndex(tree) {
+  if (!Array.isArray(tree) || !tree.length) return EMPTY_INDEX;
+  const cached = treeIndexCache.get(tree);
+  if (cached) return cached;
+  const byId = new Map();
+  const childIds = new Map();
+  for (const node of tree) {
+    if (!node?.id) continue;
+    byId.set(node.id, node);
+  }
+  for (const node of tree) {
+    if (!node?.id) continue;
+    const pid = parentId(node.id);
+    const list = childIds.get(pid);
+    if (list) list.push(node.id);
+    else childIds.set(pid, [node.id]);
+  }
+  const leaves = tree.filter(node => node?.id && !childIds.has(node.id));
+  const index = {
+    byId,
+    childIds,
+    leaves,
+    leafIds: new Set(leaves.map(node => node.id)),
+    descLeaves: new Map(),
+  };
+  treeIndexCache.set(tree, index);
+  return index;
+}
+
 export function directChildren(tree, id) {
-  return tree.filter(r => parentId(r.id) === id);
+  const index = treeIndex(tree);
+  const ids = index.childIds.get(id);
+  if (!ids) return [];
+  return ids.map(childId => index.byId.get(childId)).filter(Boolean);
 }
 
 export function hasChildren(tree, id) {
-  return tree.some(r => parentId(r.id) === id);
+  return treeIndex(tree).childIds.has(id);
 }
 
 export function isLeafNode(tree, nodeOrId) {
   const id = typeof nodeOrId === 'string' ? nodeOrId : nodeOrId?.id;
-  return !!id && !hasChildren(tree, id);
+  if (!id) return false;
+  const index = treeIndex(tree);
+  // An id that isn't in this tree at all counts as a leaf, matching the old
+  // "nothing claims it as a parent" behaviour.
+  return !index.childIds.has(id);
 }
 
 export function leafNodes(tree) {
-  return tree.filter(r => isLeafNode(tree, r.id));
+  return treeIndex(tree).leaves;
+}
+
+// Leaves strictly below `id`, in tree order — memoized per node, so the
+// callers that ask for it once per rendered row stay linear overall.
+// Prefix-filters the leaf list rather than walking children, so the result
+// order matches the tree array exactly, as the old implementation did.
+export function descendantLeaves(tree, id) {
+  if (!id) return [];
+  const index = treeIndex(tree);
+  const cached = index.descLeaves.get(id);
+  if (cached) return cached;
+  const prefix = id + '.';
+  const out = index.leaves.filter(leaf => leaf.id.startsWith(prefix));
+  index.descLeaves.set(id, out);
+  return out;
 }
 
 export function resolveToLeafIds(tree, id) {
-  const item = typeof id === 'string' ? tree.find(r => r.id === id) : id;
+  const item = typeof id === 'string' ? treeIndex(tree).byId.get(id) : id;
   if (!item) return [];
   if (isLeafNode(tree, item.id)) return [item.id];
-  return leafNodes(tree).filter(l => l.id.startsWith(item.id + '.')).map(l => l.id);
+  return descendantLeaves(tree, item.id).map(leaf => leaf.id);
 }
 
 // ps = viewStart (rendering start, may be before planStart for pre-started tasks)
@@ -1403,7 +1471,7 @@ export function treeStats(tree) {
       // One shared formula for every aggregate percentage in the app
       // (utils/progress.js). Inlining the maths here is what let the tree grid,
       // the Subway-Map, the goal cards and the PDF drift apart.
-      const leaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.'));
+      const leaves = descendantLeaves(tree, r.id);
       if (leaves.length) {
         const done = leaves.filter(l => l.status === 'done').length;
         // Unrounded on purpose: the display sites format with

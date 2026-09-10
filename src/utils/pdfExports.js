@@ -2,7 +2,10 @@
 // All PDFs carry: project name, kind, generation date in footer.
 import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
-import { renderRoadmapSvg } from './roadmap.js';
+import { renderRoadmapSvg, getLineColor } from './roadmap.js';
+import { computeProjectRoadmap, renderProjectRoadmapSvg } from './projectRoadmap.js';
+import { projectScopedCtx } from './exportCtx.js';
+import { sanitizePdfDoc, PDF_GLYPH_MAP } from './pdfGlyphs.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
 import { progressPctLabel, totalEffort } from './progress.js';
 import { formatPhaseToken } from './phases.js';
@@ -135,9 +138,12 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     /\.rm-badge\{[^}]*\}/,
     `.rm-badge{font:800 13px/1 Roboto,sans-serif;fill:#fff;letter-spacing:.04em}`,
   );
-  // ⊕ NEU sub-badge: pdfmake's SVG renderer falls back to a font that often
-  // lacks U+2295 → renders as a missing-glyph box. Plain + works everywhere.
-  patched = patched.replace(/⊕ NEU/g, '+ NEU');
+  // Symbols the bundled Roboto does not carry render as a missing-glyph box.
+  // Embedded SVG bypasses the docDefinition sanitizer (svg-to-pdfkit does its
+  // own text handling), so apply the same substitution table by hand here.
+  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => {
+    patched = patched.split(from).join(to);
+  });
   return patched
     .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
     .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
@@ -156,6 +162,37 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     .replace(/var\(--b[^)]*\)/g, '#e0e4ea')
     .replace(/var\(--re[^)]*\)/g, '#ef4444')
     .replace(/var\(--ac[^)]*\)/g, '#2563eb');
+}
+
+// Same job as prepareRoadmapSvg, for the project-roadmap renderer: pin the
+// size, resolve the theme variables to print colours and drop the fonts
+// pdfmake does not carry. Kept separate because this SVG has its own class
+// names and a variable height.
+function prepareProjectRoadmapSvg(svgStr, height) {
+  if (!svgStr || !svgStr.startsWith('<svg')) return null;
+  const H = Math.max(120, Math.round(height || 320));
+  return swapUnsupportedGlyphs(svgStr)
+    .replace(/^<svg [^>]*>/, `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="${H}" viewBox="0 0 1400 ${H}" preserveAspectRatio="xMidYMid meet">`)
+    // svg-to-pdfkit only has the bundled Roboto — anything else silently
+    // drops the text (see prepareRoadmapSvg).
+    .replace(/'JetBrains Mono',ui-monospace,monospace/g, 'Roboto,sans-serif')
+    .replace(/'Inter',system-ui,sans-serif/g, 'Roboto,sans-serif')
+    .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
+    .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
+    .replace(/var\(--tx3,([^)]*)\)/g, '#475467')
+    .replace(/var\(--bg2,([^)]*)\)/g, '#f8f9fc')
+    .replace(/var\(--bg,([^)]*)\)/g, '#ffffff')
+    .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
+    .replace(/var\(--b,([^)]*)\)/g, '#e0e4ea')
+    .replace(/var\(--[a-z0-9]+[^)]*\)/g, '#1a1e2a');
+}
+
+// Same substitution pass the docDefinition gets, for the glyphs that can end
+// up inside an SVG label (a task called "Release → UAT", say).
+function swapUnsupportedGlyphs(svgStr) {
+  let out = svgStr;
+  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => { out = out.split(from).join(to); });
+  return out;
 }
 
 function buildRoadmapSvgForPdf(ctx) {
@@ -241,7 +278,8 @@ async function rasterizeGantt(ctx, scale = 3) {
 
 // ── Summary (Management) PDF ────────────────────────────────────────────────
 export async function exportSummaryPDF(ctx, options = {}) {
-  const { includeTimetable = true } = options;
+  ctx = projectScopedCtx(ctx, 'exportSummaryPDF');
+  const { includeTimetable = true, includeProjectRoadmaps = true } = options;
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
@@ -347,6 +385,48 @@ export async function exportSummaryPDF(ctx, options = {}) {
     const rmModel = computeRoadmapModel(rmModelArgs);
     const legendRows = buildRoadmapLegendPdf(rmModel);
     if (legendRows) legendRows.forEach(r => content.push(r));
+  }
+
+  // ── Per-project roadmaps ────────────────────────────────────────────────
+  // The subway map compares projects; these pages describe one each — the same
+  // calendar view the Overview shows when a single project is picked, rendered
+  // for EVERY root, because an export covers the whole plan (utils/exportCtx.js)
+  // and must not depend on what the screen happens to be showing.
+  if (includeProjectRoadmaps) {
+    const roots = (ctx.tree || []).filter(node => node?.id && !node.id.includes('.'));
+    const labels = {
+      months: t('Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec', 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez'),
+      tasks: t('tasks', 'Aufgaben'),
+      today: t('today', 'heute'),
+      deadline: t('Deadline', 'Deadline'),
+      noDates: t('no dates yet', 'noch keine Termine'),
+      stateDone: t('done', 'erledigt'),
+      stateWip: t('in progress', 'in Bearbeitung'),
+      stateOpen: t('open', 'offen'),
+    };
+    let first = true;
+    roots.forEach(root => {
+      const model = computeProjectRoadmap({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats, rootId: root.id });
+      if (!model?.rows?.length) return;
+      const svgStr = renderProjectRoadmapSvg({
+        tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats, rootId: root.id,
+        color: getLineColor(root.id, ctx.roadmapAssignment) || '#2563eb',
+        labels,
+      });
+      const prepared = prepareProjectRoadmapSvg(svgStr, model.height);
+      if (!prepared) return;
+      if (first) {
+        content.push({ text: t('Project roadmaps', 'Projekt-Roadmaps'), style: 'h2', pageBreak: 'before' });
+        content.push({
+          text: t('One row per work package, on a calendar. Stops are the individual tasks.',
+            'Eine Zeile je Arbeitspaket, auf dem Kalender. Haltestellen sind die einzelnen Aufgaben.'),
+          style: 'cap', margin: [0, 0, 0, 8],
+        });
+        first = false;
+      }
+      // Scale to the text width, keeping the aspect ratio of the model height.
+      content.push({ svg: prepared, width: 760, margin: [0, 0, 0, 14] });
+    });
   }
 
   // Optional Fahrplan section — chronological station timetable for each line.
@@ -512,11 +592,12 @@ export async function exportSummaryPDF(ctx, options = {}) {
     footer: footerBuilder({ meta, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
 }
 
 // ── Gantt PDF ───────────────────────────────────────────────────────────────
 export async function exportGanttPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportGanttPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, weeks, teams } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
@@ -563,11 +644,12 @@ export async function exportGanttPDF(ctx) {
     footer: footerBuilder({ meta, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
 }
 
 // ── TODO / Sprint PDF ───────────────────────────────────────────────────────
 export async function exportTodoPDF(ctx, horizonDays) {
+  ctx = projectScopedCtx(ctx, 'exportTodoPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
@@ -630,7 +712,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     footer: footerBuilder({ meta, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
 }
 
 // ── "What comes when" PDF — horizon-aware buckets, TOPIC level ──────────────
@@ -638,6 +720,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
 // root's projected end date (max endD of all descendant scheduled items).
 // Confidence aggregate = worst confidence among the root's open leaves.
 export async function exportWhatWhenPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportWhatWhenPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence, rootData, lvs, deadlineStates } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
@@ -734,5 +817,5 @@ export async function exportWhatWhenPDF(ctx) {
     footer: footerBuilder({ meta, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');
 }

@@ -9,6 +9,7 @@ import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 import { getLineColor } from '../../utils/roadmap.js';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { stripArchivedRoots } from '../../utils/archive.js';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
@@ -494,7 +495,25 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
         <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
-        <span style={{ marginLeft: 12 }}>
+        {solo && soloNode && (
+          // Colour dot so the picked project is still visibly "that line on
+          // the map"; the dropdown label carries the name, so no extra prose.
+          <span style={{ width: 9, height: 9, borderRadius: 2, marginLeft: 8, flexShrink: 0,
+            background: getLineColor(solo, roadmapAssignment) || 'var(--tx3)' }} />
+        )}
+        {roots.length > 1 && (
+          <span style={{ width: 190, marginLeft: 8 }} data-htip={t('rm.lineTip')} data-testid="roadmap-line-picker">
+            <SearchSelect
+              value={solo}
+              options={roots.map(root => ({ id: root.id, label: root.name || root.id }))}
+              onSelect={id => setSolo(id === solo ? '' : id)}
+              placeholder={t('rm.allLines')}
+              allowEmpty
+              emptyLabel={t('rm.allLines')}
+              showIds />
+          </span>
+        )}
+        <span style={{ marginLeft: 8 }}>
           <ViewFilters
             sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
             diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
@@ -520,40 +539,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         {/* hideDone toggle lives in the App-level subtoolbar / popup, not
             here — Summary's tt.map view doesn't filter rows by status. */}
       </div>
-      {/* Line picker — "all lines" plus one chip per project, in its own line
-          colour so the chip and the line on the map are recognisably the
-          same thing. Also drives the Fahrplan, which scopes to the same set. */}
-      {roots.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-          <button className={`btn btn-xs ${solo ? 'btn-sec' : 'btn-pri'}`}
-            style={{ padding: '3px 9px', fontSize: 10 }}
-            onClick={() => setSolo('')}>{t('rm.allLines')}</button>
-          {roots.map(root => {
-            const color = getLineColor(root.id, roadmapAssignment);
-            const on = solo === root.id;
-            return (
-              <button key={root.id}
-                className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
-                style={{ padding: '3px 9px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
-                  borderColor: color && on ? color : undefined,
-                  background: on && color ? color : undefined,
-                  color: on && color ? '#fff' : undefined }}
-                data-htip={t('rm.lineTip')}
-                onClick={() => setSolo(root.id)}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, flexShrink: 0,
-                  background: color || 'var(--tx3)', boxShadow: on ? '0 0 0 1px rgba(255,255,255,.7)' : undefined }} />
-                <span style={{ fontFamily: 'var(--mono)' }}>{root.id}</span>
-                <span style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {solo && soloNode && (
-        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>
-          {t('rm.soloNote', `${soloNode.id} ${soloNode.name || ''}`.trim())}
-        </div>
-      )}
+
       {view === 'map' && diff && (
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
             border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
@@ -667,6 +653,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
             horizonIds={horizonIds} horizonEnd={horizonEnd}
             futureProgressByRootId={futureProgressByRootId}
             assignment={mapAssignment}
+            soloRootId={solo || null}
+            lineColor={solo ? getLineColor(solo, roadmapAssignment) : null}
             onAssignmentChange={solo ? null : onAssignmentChange} />
         : <TimetableView tree={mapTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />

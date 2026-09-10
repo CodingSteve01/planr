@@ -59,11 +59,12 @@ export function ViewFilters({
   if (!showDiff && !showHorizon && !showHideDone && !showArchive) return null;
 
   const showHideDoneInner = typeof setHideDone === 'function';
-  // Archiving is on by default, so it counts as an active filter only while it
-  // is actually hiding something.
-  const archiveHiding = showArchive && !showArchived && !!archive?.count;
+  // The trigger counts only the Review/Plan overlays (and hide-done). The
+  // archive section lives in this popup because it needs a home for its day
+  // threshold, but its *state* is announced by the chip / pill next to the
+  // trigger — counting it here as well just said the same thing twice.
   const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0)
-    + (showHideDoneInner && hideDone ? 1 : 0) + (archiveHiding ? 1 : 0);
+    + (showHideDoneInner && hideDone ? 1 : 0);
 
   // Summary string on the trigger: "—" when no filter, otherwise a compact
   // marker like "Δ14T · ▶+30T" so the user reads the state without opening.
@@ -82,7 +83,6 @@ export function ViewFilters({
        archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
       ].filter(Boolean).join(' · ')
     : '';
-  if (archiveHiding) parts.push(`📦 ${archive.count}`);
   const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
 
   const presetBtn = (current, val, label, onClick) => (
@@ -144,33 +144,33 @@ export function ViewFilters({
           )}
           {showArchive && (
             <section style={{ marginBottom: 12 }}>
+              {/* Header row carries the toggle itself — the explanation lives in
+                  its tooltip rather than as a paragraph nobody re-reads. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                  padding: '1px 5px', borderRadius: 3, background: 'rgba(148,163,184,.18)', color: 'var(--tx2)' }}>📦 {t('arch.section')}</span>
+                  padding: '1px 5px', borderRadius: 3, background: 'rgba(148,163,184,.18)', color: 'var(--tx2)' }}
+                  data-htip={t('arch.desc')}>📦 {t('arch.section')}</span>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${showArchived ? 'btn-pri' : 'btn-sec'}`}
+                  aria-pressed={!!showArchived}
+                  data-htip={t('arch.desc')}
+                  onClick={() => setShowArchived(!showArchived)}
+                  style={{ padding: '3px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                >
+                  <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>{showArchived ? '☑' : '☐'}</span>
+                  {t('arch.show')}
+                </button>
                 <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
-                  {archiveSummary}
+                  {archiveSummary || t('arch.none')}
                 </span>
               </div>
-              <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 6, fontStyle: 'italic' }}>{t('arch.desc')}</div>
-              <button
-                type="button"
-                className={`btn btn-xs ${showArchived ? 'btn-pri' : 'btn-sec'}`}
-                aria-pressed={!!showArchived}
-                onClick={() => setShowArchived(!showArchived)}
-                style={{ padding: '4px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}
-              >
-                <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>{showArchived ? '☑' : '☐'}</span>
-                {t('arch.show')}
-              </button>
               {typeof setArchiveDays === 'function' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('arch.olderThan')}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, color: 'var(--tx3)' }} data-htip={t('arch.olderThanTip')}>{t('arch.olderThan')}</span>
                   {ARCHIVE_DAY_PRESETS.map(days => presetBtn(String(archiveDays), String(days), t('arch.days', days),
                     val => setArchiveDays(Number(val))))}
                 </div>
-              )}
-              {!archive?.count && (
-                <div style={{ fontSize: 9, color: 'var(--tx3)', marginTop: 5 }}>{t('arch.none')}</div>
               )}
               {!!archive?.count && (
                 <div style={{ marginTop: 6, maxHeight: 108, overflow: 'auto' }}>
