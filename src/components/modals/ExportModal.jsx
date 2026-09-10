@@ -48,6 +48,7 @@ export function ExportModal({
   tab,
   onClose,
   onOpenJira,
+  onOpenJiraSync,
   onSummaryPDF,
   onGanttPDF,
   onWhatWhenPDF,
@@ -138,6 +139,10 @@ export function ExportModal({
           <Card cat="tool" title="Jira-Export"
             desc="Konfigurierbarer CSV-Export mit Epic/Story/Task-Mapping."
             action={<button className="btn btn-pri btn-sm" onClick={() => { onClose(); onOpenJira(); }}>Dialog</button>} />
+
+          <Card cat="tool" title="Jira-Abgleich"
+            desc="Drift zwischen Plan und Board finden: Status, Umbenennungen, fehlende Tickets. Jira-Tabelle einfügen, Status übernehmen."
+            action={<button className="btn btn-pri btn-sm" onClick={() => { onClose(); onOpenJiraSync(); }}>Dialog</button>} />
 
           <Card cat="tool" title="Sprint (Markdown)"
             desc="TODO-Liste als Markdown – für Issue-Tracker oder Docs."

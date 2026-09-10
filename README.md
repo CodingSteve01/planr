@@ -65,7 +65,9 @@ The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/
 - **Transparent capacity from meetings (unique)** — cap isn't a made-up percentage. Define a team-level or member-level meeting plan (daily standup, biweekly retro, monthly all-hands…) and the scheduler subtracts their weekly-equivalent hours from the 40 h FTE baseline. Auditable, honest, and inherits through team assignment.
 - **Real-vector PDF + DOCX exports** — management summary, hi-res Gantt, horizon-aware "What comes when", and per-person TODO PDFs, generated via pdfmake (selectable text, real tables). Word export via html-to-docx for Confluence import — keeps the subway chart, team capacity cards, critical path.
 - **Horizon-aware dates** — near-term items render exact dates, mid-term compress to weeks, far-term to months, exploratory to quarters. Honest granularity — don't pretend precision that isn't there.
-- **Metro-style Roadmap** — SVG subway map: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress. Exports vector-clean into PDF.
+- **Metro-style Roadmap** — SVG subway map: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress. Exports vector-clean into PDF. Any single project can be shown alone as its own line when eight of them get busy.
+- **Jira reconcile (not just export)** — paste a Jira table (CSV, TSV or a copied search result, EN or DE headers) and get the drift: status differences you can accept per row, renamed tickets, tickets nobody planned, plan items no longer in Jira. Plus a paste-free check for open work without a ticket and keys used twice.
+- **Archive filter** — projects finished long ago and people who left long ago drop off the map, tree, Gantt and dropdowns by default, without leaving the totals. A finished project stays 100 % finished; only the screen gets quieter.
 
 ### Standard planner features
 
@@ -85,7 +87,7 @@ The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/
 - **Global search** — Ctrl/Cmd+F with cycling, debounced propagation, keyboard-nav in all SearchSelects
 - **Bilingual (EN/DE)** — full i18n with language selector
 - **Dark / light mode** — manual toggle (Auto / Dark / Light)
-- **Unit tests** — `npm test` runs vitest suites covering capacity, scheduler (cascade, cross-team, cycles, pinned, parallel, multi-assign, dep regressions), handoff chain rendering, and date helpers
+- **Unit tests** — `npm test` runs vitest suites covering capacity, scheduler (cascade, cross-team, cycles, pinned, parallel, multi-assign, dep regressions), handoff chain rendering, date helpers, archive/Jira reconcile logic, view filter scoping, and screen-vs-export parity
 
 Full list in [docs/features.md](docs/features.md).
 
