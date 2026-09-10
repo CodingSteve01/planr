@@ -1022,11 +1022,178 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     };
   });
 
+  // ── Cross-line station separation ────────────────────────────────────────
+  // The parallel-rail pass above keeps whole ROUTES apart, but routes still
+  // cross — and where they cross, a station of one line can land on top of a
+  // station of another. Two unrelated milestones sharing one dot is the least
+  // intuitive thing this map can do.
+  //
+  // A station cannot simply be moved in 2D: it has to stay on its own line. So
+  // nudge it ALONG its route instead, by shifting its `t`. Two constraints
+  // make that safe:
+  //   * a station stays between its neighbours on the same line, so the
+  //     chronological order along a line never changes,
+  //   * a station stays on its own side of the train — done stations behind
+  //     it, unfinished ones ahead — because that is what the map means.
+  // Anything that cannot move far enough keeps its position; a slightly close
+  // pair is much better than a reordered line.
+  separateStationsAcrossLines(positionedLines);
+
   return {
     lines: positionedLines,
     nodeMap,
     _assignment: assignmentOut,
   };
+}
+
+const STATION_MIN_GAP = 21;   // px — two dots closer than this read as one
+const STATION_T_EPS = 0.004;  // keep a hair of daylight between same-line stops
+
+function separateStationsAcrossLines(lines) {
+  if (!lines || lines.length < 2) return;
+
+  // Flat view of every station, with the bounds it may move within.
+  const entries = [];
+  lines.forEach((line, lineIdx) => {
+    const ordered = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
+    const routeLen = Math.max(1, routeLength(line.route));
+    ordered.forEach((station, idx) => {
+      const prev = ordered[idx - 1];
+      const next = ordered[idx + 1];
+      // Own side of the train: a done station must not slide past it, and an
+      // unfinished one must not slide behind it.
+      const bandLo = station.allDone ? ROUTE_T_LO : Math.max(ROUTE_T_LO, line.trainT);
+      const bandHi = station.allDone ? Math.min(ROUTE_T_HI, line.trainT) : ROUTE_T_HI;
+      entries.push({
+        station,
+        lineIdx,
+        route: line.route,
+        routeLen,
+        lo: Math.max(bandLo, prev ? prev.t + STATION_T_EPS : bandLo),
+        hi: Math.min(bandHi, next ? next.t - STATION_T_EPS : bandHi),
+      });
+    });
+  });
+  if (entries.length < 2) return;
+
+  const tangentAt = (route, t) => {
+    const h = 0.004;
+    const a = pointAtFraction(route, clamp(t - h, 0, 1));
+    const b = pointAtFraction(route, clamp(t + h, 0, 1));
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { tx: (b.x - a.x) / len, ty: (b.y - a.y) / len };
+  };
+
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = 0;
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const a = entries[i];
+        const b = entries[j];
+        if (a.lineIdx === b.lineIdx) continue;
+        const dx = b.station.x - a.station.x;
+        const dy = b.station.y - a.station.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= STATION_MIN_GAP) continue;
+
+        // Split the deficit between the two, each along its own route.
+        const need = (STATION_MIN_GAP - dist) / 2 + 0.5;
+        const ux = dist > 0.001 ? dx / dist : 1;
+        const uy = dist > 0.001 ? dy / dist : 0;
+        [[a, -1], [b, 1]].forEach(([entry, sign]) => {
+          const { tx, ty } = tangentAt(entry.route, entry.station.t);
+          // How much of the push direction actually runs along this route?
+          const along = sign * (ux * tx + uy * ty);
+          if (Math.abs(along) < 0.15) return;   // route runs across the push — cannot help
+          const deltaT = (need * Math.sign(along)) / entry.routeLen;
+          const nextT = clamp(entry.station.t + deltaT, entry.lo, entry.hi);
+          if (Math.abs(nextT - entry.station.t) < 1e-6) return;
+          entry.station.t = nextT;
+          const pt = pointAtFraction(entry.route, nextT);
+          entry.station.x = pt.x;
+          entry.station.y = pt.y;
+          moved++;
+        });
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+// ─── Station label placement ──────────────────────────────────────────────
+// Every station used to print its abbreviation at a fixed (+8, -8) offset.
+// With 60+ stations on one canvas that guarantees collisions: two labels of
+// different lines print over each other ("PRI2PRI1UPP"), or a label lands on
+// another line's dot. The label is the only thing on the map that names a
+// station without hovering, so an unreadable one is worse than none.
+//
+// So place them globally instead: try a handful of offsets per station, take
+// the first that hits neither another label nor any station dot, and drop the
+// label entirely if none fits — the tooltip still carries the full name.
+// Important stations are placed first so they get the prime slot.
+const LABEL_CH_W = 6.4;   // px per character at 10.5px JetBrains Mono
+const LABEL_H = 12;
+const DOT_KEEPOUT = 9;    // px — biggest station glyph plus a little air
+const LABEL_SLOTS = [
+  { dx: 8, dy: -8, anchor: 'start' },
+  { dx: -8, dy: -8, anchor: 'end' },
+  { dx: 8, dy: 15, anchor: 'start' },
+  { dx: -8, dy: 15, anchor: 'end' },
+  { dx: 0, dy: -19, anchor: 'middle' },
+  { dx: 0, dy: 24, anchor: 'middle' },
+];
+
+const boxesOverlap = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+function labelBox(x, y, width, anchor) {
+  const x0 = anchor === 'start' ? x : anchor === 'end' ? x - width : x - width / 2;
+  return { x0: x0 - 2, x1: x0 + width + 2, y0: y - LABEL_H + 2, y1: y + 3 };
+}
+
+export function placeStationLabels(lines, isVisible = () => true) {
+  const placement = new Map();
+  const occupied = [];
+  const candidates = [];
+
+  lines.forEach((line, lineIdx) => {
+    [...line.majorStations, ...line.minorStations].forEach(station => {
+      // Dots are obstacles whether or not they carry a label — except for the
+      // station's OWN dot. A label always sits next to its dot, so counting
+      // that as a collision would push every label into the same far slot and
+      // break the association it exists to make.
+      occupied.push({
+        owner: station.id,
+        x0: station.x - DOT_KEEPOUT, x1: station.x + DOT_KEEPOUT,
+        y0: station.y - DOT_KEEPOUT, y1: station.y + DOT_KEEPOUT,
+      });
+      if (!isVisible(line, station)) return;
+      const isCurrent = station.id === line.currentId && !station.allDone;
+      candidates.push({
+        station, lineIdx,
+        // 0 = the station the train is approaching, 1 = a real milestone,
+        // 2 = a minor stop. Ties break by position for stable output.
+        priority: isCurrent ? 0 : station.kind === 'major' ? 1 : 2,
+      });
+    });
+  });
+
+  candidates.sort((a, b) => a.priority - b.priority || a.lineIdx - b.lineIdx || a.station.t - b.station.t);
+
+  candidates.forEach(({ station }) => {
+    const width = String(station.abbrev || '').length * LABEL_CH_W + 4;
+    const slot = LABEL_SLOTS
+      .map(({ dx, dy, anchor }) => ({ x: station.x + dx, y: station.y + dy, anchor }))
+      .filter(pos => pos.x > 6 && pos.x < SVG_W - 6 && pos.y > 12 && pos.y < SVG_H - 6)
+      .find(pos => {
+        const box = labelBox(pos.x, pos.y, width, pos.anchor);
+        return !occupied.some(other => other.owner !== station.id && boxesOverlap(box, other));
+      });
+    if (!slot) return;   // no room — the tooltip is the fallback
+    occupied.push({ owner: station.id, ...labelBox(slot.x, slot.y, width, slot.anchor) });
+    placement.set(station.id, slot);
+  });
+
+  return placement;
 }
 
 // ─── renderRoadmapSvg ─────────────────────────────────────────────────────────
@@ -1062,6 +1229,16 @@ export function renderRoadmapSvg(args) {
   const hasFuture = Object.keys(futureProgress).length > 0;
   const expandedLegendIds = args.expandedLegendIds instanceof Set ? args.expandedLegendIds
     : Array.isArray(args.expandedLegendIds) ? new Set(args.expandedLegendIds) : new Set();
+  // Mirrors the per-station label conditions in the render loops below, so the
+  // placement pass reserves space for exactly the labels that get drawn.
+  const stationLabelPlacement = placeStationLabels(lines, (line, station) => {
+    const isDone = station.allDone;
+    const isCurrent = station.id === line.currentId && !isDone;
+    if (station.kind !== 'major') return isCurrent;
+    const reachedInWindow = changedInWindow.size > 0
+      && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+    return !diffMode || isDone || isCurrent || reachedInWindow;
+  });
   const out = [];
 
   const renderLaneDeltaLabel = (route, fromT, toT, label, fill) => {
@@ -1254,8 +1431,9 @@ export function renderRoadmapSvg(args) {
       // Abbreviation label
       const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
       const showLabel = !diffMode || isDone || isCurrent || reachedInWindow;
-      if (showLabel) {
-        out.push(`<text x="${(station.x + 8).toFixed(1)}" y="${(station.y - 8).toFixed(1)}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      const place = stationLabelPlacement.get(station.id);
+      if (showLabel && place) {
+        out.push(`<text x="${place.x.toFixed(1)}" y="${place.y.toFixed(1)}" text-anchor="${place.anchor}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
       }
     });
 
@@ -1277,8 +1455,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.5" opacity="${isCurrent ? 1 : 0.7}"/>`);
       }
 
-      if (isCurrent) {
-        out.push(`<text x="${(station.x + 5).toFixed(1)}" y="${(station.y - 5).toFixed(1)}" class="rm-abbrev rm-abbrev-active" fill="${color}">${esc(station.abbrev)}</text>`);
+      const minorPlace = stationLabelPlacement.get(station.id);
+      if (isCurrent && minorPlace) {
+        out.push(`<text x="${minorPlace.x.toFixed(1)}" y="${minorPlace.y.toFixed(1)}" text-anchor="${minorPlace.anchor}" class="rm-abbrev rm-abbrev-active" fill="${color}">${esc(station.abbrev)}</text>`);
       }
       if (!inHorizon) out.push(`</g>`);
     });
