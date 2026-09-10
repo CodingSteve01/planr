@@ -3,6 +3,7 @@
 import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
 import { renderRoadmapSvg } from './roadmap.js';
+import { projectScopedCtx } from './exportCtx.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
 import { progressPctLabel, totalEffort } from './progress.js';
 import { formatPhaseToken } from './phases.js';
@@ -241,6 +242,7 @@ async function rasterizeGantt(ctx, scale = 3) {
 
 // ── Summary (Management) PDF ────────────────────────────────────────────────
 export async function exportSummaryPDF(ctx, options = {}) {
+  ctx = projectScopedCtx(ctx, 'exportSummaryPDF');
   const { includeTimetable = true } = options;
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
@@ -517,6 +519,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
 
 // ── Gantt PDF ───────────────────────────────────────────────────────────────
 export async function exportGanttPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportGanttPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, weeks, teams } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
@@ -568,6 +571,7 @@ export async function exportGanttPDF(ctx) {
 
 // ── TODO / Sprint PDF ───────────────────────────────────────────────────────
 export async function exportTodoPDF(ctx, horizonDays) {
+  ctx = projectScopedCtx(ctx, 'exportTodoPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
@@ -638,6 +642,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
 // root's projected end date (max endD of all descendant scheduled items).
 // Confidence aggregate = worst confidence among the root's open leaves.
 export async function exportWhatWhenPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportWhatWhenPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence, rootData, lvs, deadlineStates } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }

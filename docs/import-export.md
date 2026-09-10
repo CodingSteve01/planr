@@ -198,6 +198,24 @@ Never compute an aggregate percentage inline in an export. Counting done leaves 
 
 This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
 
+### Scope: exports describe the plan, not the screen
+
+Every export goes through `buildExportCtx` / `projectScopedCtx`
+([`src/utils/exportCtx.js`](../src/utils/exportCtx.js)), which take the
+plan-shaped fields from `data` rather than from whatever the views are
+rendering. So none of the display filters — hide-done, root/team/person, the
+archive filter, single-project roadmap mode — can shrink a PDF, the HTML
+report or the Word export.
+
+This is enforced rather than documented-and-hoped: `App._exportCtx` cannot pass
+a tree at all, the four PDF entry points and `buildReportModel` re-derive it
+defensively (and `console.warn` if they had to), and
+[`src/__tests__/exportScope.test.jsx`](../src/__tests__/exportScope.test.jsx)
+asserts that a deliberately filtered context produces byte-identical output.
+
+The reason is asymmetric risk: a reader of a PDF has no way to notice that a
+project is missing or that a percentage was taken over a subset.
+
 ### Jira reconcile (`src/utils/jiraSync.js`)
 
 Not an export — the way back. **Export… → Jira-Abgleich** opens a dialog with two halves:

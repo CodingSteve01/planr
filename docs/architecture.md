@@ -53,6 +53,8 @@ src/
   utils/
     scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
     archive.js             — which roots / members are long-finished ("old news"); display filter only
+    exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
+    projectRoadmap.js      — single-project roadmap: calendar rows instead of a metro line
     jiraSync.js            — Jira table parsing + plan-vs-board reconciliation
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
@@ -168,6 +170,26 @@ Two rules follow from this:
   because nothing reads an index off a half-built tree.
 - **Do not mutate what these helpers return.** `leafNodes` and
   `descendantLeaves` hand back the cached arrays; copy before sorting.
+
+## Export scope
+
+Views render filtered copies of the tree; exports must not. The guarantee is
+structural, in [exportCtx.js](../src/utils/exportCtx.js):
+
+- `buildExportCtx({ data, scheduled, … })` derives `tree`, `members`, `teams`,
+  `vacations`, `meta` and `roadmapAssignment` **from `data`**. `App._exportCtx`
+  deliberately does not pass them, so `activeTree` / `visibleTree` cannot reach
+  an export by accident.
+- `projectScopedCtx(ctx, label)` runs at the entry of all four PDFs and of
+  `buildReportModel` (which the HTML report and the DOCX export both route
+  through). A hand-built ctx carrying a filtered tree is repaired, not
+  rejected — the user asked for a document, and the correct document is the
+  complete one — and the repair is logged.
+- `scheduled` / `stats` / `cpSet` / `goalPaths` cannot be re-derived here (they
+  need the scheduler, holidays and work days). They are computed from the full
+  tree in `App.jsx`, and [exportScope.test.jsx](../src/__tests__/exportScope.test.jsx)
+  pins the result: with filters active, every surface still prints the
+  full-plan figure, and each PDF is byte-identical when handed a filtered ctx.
 
 ## Critical path
 
