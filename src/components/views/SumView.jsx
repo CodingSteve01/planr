@@ -653,6 +653,8 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
             horizonIds={horizonIds} horizonEnd={horizonEnd}
             futureProgressByRootId={futureProgressByRootId}
             assignment={mapAssignment}
+            soloRootId={solo || null}
+            lineColor={solo ? getLineColor(solo, roadmapAssignment) : null}
             onAssignmentChange={solo ? null : onAssignmentChange} />
         : <TimetableView tree={mapTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />

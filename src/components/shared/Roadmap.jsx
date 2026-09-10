@@ -1,8 +1,9 @@
 import { useMemo, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react';
 import { renderRoadmapSvg, computeRoadmapModel } from '../../utils/roadmap.js';
+import { renderProjectRoadmapSvg } from '../../utils/projectRoadmap.js';
 import { useT } from '../../i18n.jsx';
 
-export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null }) {
+export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
   const { t } = useT();
   const [expandedLegendIds, setExpandedLegendIds] = useState(() => new Set());
   // Pass raw template strings (with {0}) so roadmap.js can substitute the percentage itself.
@@ -17,6 +18,15 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     plannedPos: t('horizon.plannedPos'),
     showMore: t('rm.showMore'),
     showLess: t('rm.showLess'),
+    // Single-project roadmap (utils/projectRoadmap.js)
+    months: t('rm.months'),
+    tasks: t('rm.tasks'),
+    today: t('rm.today'),
+    deadline: t('rm.deadlineShort'),
+    noDates: t('rm.noDates'),
+    stateDone: t('rm.stateDone'),
+    stateWip: t('rm.stateWip'),
+    stateOpen: t('rm.stateOpen'),
   }), [t]);
   // Two-step: compute model once so we can inspect its `_assignment` map,
   // then build the SVG from the same args. Lets the parent (App.jsx)
@@ -26,8 +36,12 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   const renderArgs = useMemo(() => ({
     tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment, expandedLegendIds,
   }), [tree, scheduled, stats, labels, diff, horizonIds, horizonEnd, futureProgressByRootId, assignment, expandedLegendIds]);
-  const model = useMemo(() => computeRoadmapModel(renderArgs), [renderArgs]);
-  const svg = useMemo(() => renderRoadmapSvg({ ...renderArgs }), [renderArgs]);
+  // One project on its own is a calendar, not a metro line — different
+  // renderer, same tooltip/click contract. See utils/projectRoadmap.js.
+  const model = useMemo(() => (soloRootId ? null : computeRoadmapModel(renderArgs)), [renderArgs, soloRootId]);
+  const svg = useMemo(() => (soloRootId
+    ? renderProjectRoadmapSvg({ tree, scheduled, stats, rootId: soloRootId, color: lineColor || undefined, labels })
+    : renderRoadmapSvg({ ...renderArgs })), [renderArgs, soloRootId, tree, scheduled, stats, lineColor, labels]);
   // Detect "stored assignment differs from what we just computed" — happens
   // on the first render of a plan that has no mapping yet, or when a new
   // root entered the tree and grabbed a fresh slot.

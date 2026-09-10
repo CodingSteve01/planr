@@ -531,6 +531,14 @@ const en = {
   'arch.ageDays': '{0} d ago',
   // ── Roadmap: single-line mode ──
   'rm.allLines': 'All lines',
+  'rm.months': 'Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec',
+  'rm.tasks': 'tasks',
+  'rm.today': 'today',
+  'rm.deadlineShort': 'Deadline',
+  'rm.noDates': 'no dates yet',
+  'rm.stateDone': 'done',
+  'rm.stateWip': 'in progress',
+  'rm.stateOpen': 'open',
   'rm.lineTip': 'Show one project on its own as a single roadmap line — the other lines are hidden, nothing else changes',
   // ── Jira reconcile ──
   'js.title': 'Jira reconcile',
@@ -1318,6 +1326,14 @@ const de = {
   'arch.ageDays': 'vor {0} T',
   // ── Roadmap: einzelne Linie ──
   'rm.allLines': 'Alle Linien',
+  'rm.months': 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez',
+  'rm.tasks': 'Aufgaben',
+  'rm.today': 'heute',
+  'rm.deadlineShort': 'Deadline',
+  'rm.noDates': 'noch keine Termine',
+  'rm.stateDone': 'erledigt',
+  'rm.stateWip': 'in Bearbeitung',
+  'rm.stateOpen': 'offen',
   'rm.lineTip': 'Ein Projekt allein als eigene Roadmap-Linie zeigen — die anderen Linien sind ausgeblendet, sonst ändert sich nichts',
   // ── Jira-Abgleich ──
   'js.title': 'Jira-Abgleich',
