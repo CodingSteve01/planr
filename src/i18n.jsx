@@ -520,7 +520,8 @@ const en = {
   'arch.olderThan': 'Finished / gone for at least',
   'arch.days': '{0} d',
   'arch.short': 'Archive',
-  'arch.none': 'Nothing old enough to archive yet.',
+  'arch.none': 'nothing yet',
+  'arch.olderThanTip': 'How long a project has to have been finished (or a person gone) before it drops off the screen.',
   'arch.roots': '{0} projects',
   'arch.root': '1 project',
   'arch.members': '{0} people',
@@ -530,8 +531,7 @@ const en = {
   'arch.ageDays': '{0} d ago',
   // ── Roadmap: single-line mode ──
   'rm.allLines': 'All lines',
-  'rm.lineTip': 'Show this project on its own as a single roadmap line',
-  'rm.soloNote': 'Single line — {0}. The other projects are hidden, nothing else changed.',
+  'rm.lineTip': 'Show one project on its own as a single roadmap line — the other lines are hidden, nothing else changes',
   // ── Jira reconcile ──
   'js.title': 'Jira reconcile',
   'js.fieldHint': 'Matching on the custom field “{0}”.',
@@ -1307,7 +1307,8 @@ const de = {
   'arch.olderThan': 'Fertig / weg seit mindestens',
   'arch.days': '{0} T',
   'arch.short': 'Archiv',
-  'arch.none': 'Noch nichts alt genug fürs Archiv.',
+  'arch.none': 'noch nichts',
+  'arch.olderThanTip': 'Wie lange ein Projekt fertig (oder eine Person weg) sein muss, bevor es vom Bildschirm verschwindet.',
   'arch.roots': '{0} Projekte',
   'arch.root': '1 Projekt',
   'arch.members': '{0} Personen',
@@ -1317,8 +1318,7 @@ const de = {
   'arch.ageDays': 'vor {0} T',
   // ── Roadmap: einzelne Linie ──
   'rm.allLines': 'Alle Linien',
-  'rm.lineTip': 'Dieses Projekt allein als eigene Roadmap-Linie zeigen',
-  'rm.soloNote': 'Einzelne Linie — {0}. Die anderen Projekte sind ausgeblendet, sonst ändert sich nichts.',
+  'rm.lineTip': 'Ein Projekt allein als eigene Roadmap-Linie zeigen — die anderen Linien sind ausgeblendet, sonst ändert sich nichts',
   // ── Jira-Abgleich ──
   'js.title': 'Jira-Abgleich',
   'js.fieldHint': 'Abgleich über das Custom-Field „{0}“.',

@@ -160,12 +160,14 @@ You see this in the Gantt footer and in the Summary view, so the application tea
 
 Two controls, both in the Overview:
 
-- **Line picker** (above the map) — `Alle Linien` plus one chip per project in
-  its own line colour. Click a chip to show that project **alone** as a single
-  subway line; click it again (or `Alle Linien`) to go back. The soloed line
-  keeps its colour but gets the longest route, so its stations spread out and
-  the labels are readable. The Fahrplan follows the same choice. Use this when
-  you want to talk about one project without eight lines crossing the picture.
+- **Line picker** (above the map) — the searchable dropdown next to
+  Subway-Map / Fahrplan, `Alle Linien` by default. Pick a project to show it
+  **alone** as a single subway line; pick `Alle Linien` (or the same project
+  again) to go back. A colour dot next to the dropdown shows which line you are
+  looking at. The soloed line keeps its colour but gets the longest route, so
+  its stations spread out and the labels are readable. The Fahrplan follows the
+  same choice. Use this when you want to talk about one project without eight
+  lines crossing the picture.
 
 - **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and

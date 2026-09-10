@@ -113,37 +113,46 @@ describe('Overview archive filter', () => {
 describe('Overview single-line mode', () => {
   beforeEach(() => { cleanup(); localStorage.clear(); });
 
-  const chipFor = (container, id, name) => [...container.querySelectorAll('button')]
-    .find(button => button.textContent.includes(id) && button.textContent.includes(name));
+  // The line picker is a SearchSelect: focus the input to open it, then click
+  // the row. Its popup portals to document.body, hence the document query.
+  const openPicker = () => fireEvent.focus(screen.getByTestId('roadmap-line-picker').querySelector('input'));
+  const pickLine = name => {
+    openPicker();
+    fireEvent.click([...document.querySelectorAll('[data-ss-idx]')].find(row => row.textContent.includes(name)));
+  };
+  // Row 0 is the "— All lines —" empty row.
+  const clearLine = () => {
+    openPicker();
+    fireEvent.click([...document.querySelectorAll('[data-ss-idx="0"]')].pop());
+  };
 
   it('reduces the roadmap to the selected project', () => {
     const { container } = mount({ showArchived: true });
     expect(mapRoots()).toEqual(['A1', 'Z1']);
 
-    fireEvent.click(chipFor(container, 'Z1', 'Alte Umfirmierung'));
+    pickLine('Alte Umfirmierung');
 
     expect(mapRoots()).toEqual(['Z1']);
-    expect(container.textContent).toContain('Single line');
   });
 
   it('goes back to every line via "All lines" and remembers the choice', () => {
     const { container } = mount({ showArchived: true });
 
-    fireEvent.click(chipFor(container, 'Z1', 'Alte Umfirmierung'));
+    pickLine('Alte Umfirmierung');
     expect(localStorage.getItem('planr_roadmap_solo')).toBe('Z1');
 
-    fireEvent.click(screen.getByText('All lines'));
+    clearLine();
     expect(localStorage.getItem('planr_roadmap_solo')).toBe('');
     expect(mapRoots()).toEqual(['A1', 'Z1']);
   });
 
-  it('clicking the active line again releases it', () => {
+  it('picking the active line again releases it', () => {
     const { container } = mount({ showArchived: true });
 
-    fireEvent.click(chipFor(container, 'A1', 'Live Plattform'));
+    pickLine('Live Plattform');
     expect(localStorage.getItem('planr_roadmap_solo')).toBe('A1');
 
-    fireEvent.click(chipFor(container, 'A1', 'Live Plattform'));
+    pickLine('Live Plattform');
     expect(localStorage.getItem('planr_roadmap_solo')).toBe('');
   });
 
@@ -156,7 +165,7 @@ describe('Overview single-line mode', () => {
     });
     expect(mapPersists()).toBe(true);
 
-    fireEvent.click(chipFor(container, 'A1', 'Live Plattform'));
+    pickLine('Live Plattform');
 
     expect(mapPersists()).toBe(false);
   });
