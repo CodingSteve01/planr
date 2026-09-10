@@ -75,6 +75,17 @@ function baseCtx(extra = {}) {
   });
 }
 
+// Every `{ svg: '<svg …>' }` node pdfmake was handed.
+function collectPdfSvgs(node, out = []) {
+  if (node == null || typeof node !== 'object') return out;
+  if (Array.isArray(node)) { node.forEach(n => collectPdfSvgs(n, out)); return out; }
+  if (typeof node.svg === 'string') out.push(node.svg);
+  Object.values(node).forEach(value => {
+    if (value && typeof value === 'object') collectPdfSvgs(value, out);
+  });
+  return out;
+}
+
 function flattenPdfText(node, out = []) {
   if (node == null) return out;
   if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out; }
@@ -198,6 +209,45 @@ describe('every export surface covers the archived project', () => {
 
     expect(honest[0]).toBe(`${Math.round(FULL_PCT * 10) / 10}%`);
     expect(sneaky).toEqual(honest);
+  });
+
+  it('appends a project roadmap page per project, archived ones included', async () => {
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(baseCtx(), { includeTimetable: false, includeProjectRoadmaps: true });
+
+    const svgs = collectPdfSvgs(captured[0].content);
+    // One subway map plus one calendar per project — and the calendars carry
+    // the project titles, so a missing project is visible in the assertion.
+    const projectPages = svgs.filter(svg => svg.includes('·'));
+    expect(projectPages.some(svg => svg.includes('Fundament Plattform'))).toBe(true);
+    expect(projectPages.some(svg => svg.includes('Alte Umfirmierung'))).toBe(true);
+
+    const texts = flattenPdfText(captured[0].content).join(' | ');
+    expect(texts).toContain('Projekt-Roadmaps');
+  });
+
+  it('leaves them out when the option is off', async () => {
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(baseCtx(), { includeTimetable: false, includeProjectRoadmaps: false });
+
+    expect(flattenPdfText(captured[0].content).join(' | ')).not.toContain('Projekt-Roadmaps');
+  });
+
+  it('the project roadmap pages carry no unresolved theme variables or web fonts', async () => {
+    // pdfmake's SVG renderer resolves neither CSS custom properties nor fonts
+    // it has not registered — either one silently blanks the text.
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(baseCtx(), { includeTimetable: false, includeProjectRoadmaps: true });
+
+    const projectPages = collectPdfSvgs(captured[0].content).filter(svg => svg.includes('pr-title'));
+    expect(projectPages.length).toBeGreaterThan(0);
+    projectPages.forEach(svg => {
+      expect(svg).not.toContain('var(--');
+      expect(svg).not.toContain('JetBrains Mono');
+      expect(svg).not.toContain("'Inter'");
+      // Fixed size, so pdfmake scales it instead of guessing.
+      expect(svg).toMatch(/^<svg [^>]*width="1400" height="\d+"/);
+    });
   });
 
   it('the exported roadmap keeps every line, including the archived one', async () => {

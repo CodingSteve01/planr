@@ -66,6 +66,7 @@ export function ExportModal({
   const [todoH, setTodoH] = useState(30);
   const [sprintH, setSprintH] = useState(30);
   const [includeTimetable, setIncludeTimetable] = useState(true);
+  const [includeProjectRoadmaps, setIncludeProjectRoadmaps] = useState(true);
   const [busy, setBusy] = useState(null);
   const [done, setDone] = useState({});  // key → ts of last success
 
@@ -109,16 +110,22 @@ export function ExportModal({
           marginBottom: 4,
         }}>
           <Card cat="pdf" title="Management Summary"
-            desc="Kennzahlen, Risiken, Subway-Map + optional Fahrplan, Critical Path, Team-Capacity."
-            action={<>
+            desc="Kennzahlen, Risiken, Subway-Map, Projekt-Roadmap je Projekt + optional Fahrplan, Critical Path, Team-Capacity."
+            action={<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
                 data-htip={t('tt.plusTimetableTip')}>
                 <input type="checkbox" checked={includeTimetable}
                   onChange={e => setIncludeTimetable(e.target.checked)} />
                 {t('tt.plusTimetable')}
               </label>
-              {B('sum', 'PDF', () => onSummaryPDF({ includeTimetable }))}
-            </>} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
+                data-htip={t('rm.plusProjectRoadmapsTip')}>
+                <input type="checkbox" checked={includeProjectRoadmaps}
+                  onChange={e => setIncludeProjectRoadmaps(e.target.checked)} />
+                {t('rm.plusProjectRoadmaps')}
+              </label>
+              {B('sum', 'PDF', () => onSummaryPDF({ includeTimetable, includeProjectRoadmaps }))}
+            </div>} />
 
           <Card cat="pdf" title="Gantt / Zeitplan"
             desc="Hochauflösendes Timeline-Bild + vollständige Terminübersicht je Team."

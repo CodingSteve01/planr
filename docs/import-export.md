@@ -198,6 +198,21 @@ Never compute an aggregate percentage inline in an export. Counting done leaves 
 
 This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
 
+### Project roadmap pages (Management Summary)
+
+After the Subway-Map, the Management Summary appends one **project roadmap**
+page per top-level project — the same calendar view the Overview shows for a
+single project (`utils/projectRoadmap.js`): packages as rows on a month axis,
+tasks as stops, today and the deadline as lines. Toggle: `+ Projekt-Roadmaps`
+on the Management Summary card, on by default.
+
+Rendered for *every* root, never only the one currently picked on screen —
+see the scope rule below. `prepareProjectRoadmapSvg` pins the SVG size and
+rewrites the theme variables and web fonts to print colours and Roboto,
+because pdfmake's SVG renderer resolves neither and silently blanks the text
+otherwise; a test asserts no `var(--…)` or unregistered font survives into the
+document.
+
 ### Scope: exports describe the plan, not the screen
 
 Every export goes through `buildExportCtx` / `projectScopedCtx`

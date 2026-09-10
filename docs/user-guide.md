@@ -168,6 +168,12 @@ Two controls, both in the Overview:
   and click exactly like stations do. Pick `Alle Linien` (or the same project
   again) to go back to the subway map. The Fahrplan follows the same choice.
   Use this when you want to talk about one project rather than compare eight.
+  The same view goes into the Management Summary PDF — one page per project.
+
+- **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
+  mouse wheel over the map. Above 100 % the map scrolls in both directions, so
+  a crowded plan is readable instead of tiny. Plain scrolling still moves the
+  page.
 
 - **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and
@@ -186,8 +192,9 @@ Two controls, both in the Overview:
   A finished project with no recorded completion date anywhere below it is never
   archived — Planr cannot tell whether that was last week or in 2019.
 
-  **Exports ignore all of this.** The PDFs, the HTML report and the Word export
-  always cover the whole plan, whatever the screen is currently filtering —
+  **Exports ignore all of this.** The PDFs (including the per-project roadmap
+  pages), the HTML report and the Word export always cover the whole plan,
+  whatever the screen is currently filtering —
   including the archived projects, and including projects hidden because you
   are looking at a single-project roadmap. Someone reading a PDF cannot tell
   that a project is missing, so the export is never allowed to leave one out.
