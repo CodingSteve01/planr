@@ -259,7 +259,8 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
   // ── Today, and the deadline if there is one ──
   const todayX = x(model.today);
   out.push(`<line x1="${todayX.toFixed(1)}" y1="${gridTop - 8}" x2="${todayX.toFixed(1)}" y2="${gridBottom}" stroke="#22c55e" stroke-width="1.6" stroke-dasharray="4 3"/>`);
-  out.push(`<text class="pr-axis" x="${todayX.toFixed(1)}" y="${gridTop - 12}" text-anchor="middle" fill="#22c55e">${esc(labels.today || 'today')}</text>`);
+  // Above the month row, not on its baseline — the two collided ("Sepday").
+  out.push(`<text class="pr-axis" x="${todayX.toFixed(1)}" y="${axisY - 4}" text-anchor="middle" fill="#22c55e">${esc(labels.today || 'today')}</text>`);
   if (model.deadline) {
     const dx = x(model.deadline);
     out.push(`<line x1="${dx.toFixed(1)}" y1="${gridTop - 8}" x2="${dx.toFixed(1)}" y2="${gridBottom}" stroke="#f43f5e" stroke-width="1.6" stroke-dasharray="2 3"/>`);
@@ -272,7 +273,7 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
 
 function rowTooltip(row, labels, dateLabel) {
   const period = row.start && row.end ? `${dateLabel(row.start)} → ${dateLabel(row.end)}` : (labels.noDates || 'no dates yet');
-  return `html:<div><b>${esc(row.id)} ${esc(row.name)}</b><br/>${esc(period)}<br/>`
+  return `<div><b>${esc(row.id)} ${esc(row.name)}</b><br/>${esc(period)}<br/>`
     + `${progressPctLabel(row.progress)}% · ${row.doneCount}/${row.leafCount} ${esc(labels.tasks || 'tasks')}</div>`;
 }
 
@@ -283,7 +284,7 @@ function stopTooltip(stop, labels, dateLabel) {
   const window = stop.start && stop.end && +stop.start !== +stop.end
     ? `${dateLabel(stop.start)} → ${dateLabel(stop.end)}`
     : dateLabel(stop.end);
-  return `html:<div><b>${esc(stop.id)} ${esc(stop.name)}</b><br/>${esc(window)}<br/>${esc(state)}`
+  return `<div><b>${esc(stop.id)} ${esc(stop.name)}</b><br/>${esc(window)}<br/>${esc(state)}`
     + `${stop.effort ? ` · ${Math.round(stop.effort)} PT` : ''}</div>`;
 }
 

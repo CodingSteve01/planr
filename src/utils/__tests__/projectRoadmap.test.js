@@ -139,6 +139,13 @@ describe('renderProjectRoadmapSvg', () => {
     expect(shared).toBe(progressPctLabel(stats.D1._progress));
   });
 
+  test('the today marker does not share a baseline with the month axis', () => {
+    // They used to overlap into "Sepday".
+    const todayY = Number(svg.match(/y="([\d.]+)" text-anchor="middle" fill="#22c55e"/)[1]);
+    const monthY = Number(svg.match(/class="pr-axis" x="[\d.]+" y="([\d.]+)" fill="var\(--tx3/)[1]);
+    expect(Math.abs(todayY - monthY)).toBeGreaterThan(6);
+  });
+
   test('marks today and the deadline, in the caller language', () => {
     expect(svg).toContain('heute');
     expect(svg).toContain('2027-01-01');
@@ -151,7 +158,10 @@ describe('renderProjectRoadmapSvg', () => {
     const ids = [...svg.matchAll(/data-item-id="([^"]+)"/g)].map(m => m[1]);
     model.rows.forEach(row => expect(ids).toContain(row.id));
     model.rows.flatMap(r => r.milestones).forEach(stop => expect(ids).toContain(stop.id));
-    expect(svg).toContain('data-tip="html:');
+    // Roadmap.jsx injects data-tip into innerHTML directly — a literal "html:"
+    // marker (the data-htip convention) would be printed as text.
+    expect(svg).toContain('data-tip="&lt;div&gt;');
+    expect(svg).not.toContain('html:');
   });
 
   test('escapes names instead of letting them break the svg', () => {
