@@ -3,6 +3,13 @@ import { renderRoadmapSvg, computeRoadmapModel } from '../../utils/roadmap.js';
 import { renderProjectRoadmapSvg } from '../../utils/projectRoadmap.js';
 import { useT } from '../../i18n.jsx';
 
+const ZOOM_KEY = 'planr_roadmap_zoom';
+const ZOOM_MAX = 4;
+const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
+const ZOOM_BTN = { width: 22, height: 20, padding: 0, fontSize: 13, lineHeight: 1, fontWeight: 700 };
+const nextStep = current => ZOOM_STEPS.find(step => step > current + 1e-6) ?? ZOOM_MAX;
+const prevStep = current => [...ZOOM_STEPS].reverse().find(step => step < current - 1e-6) ?? 1;
+
 export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
   const { t } = useT();
   const [expandedLegendIds, setExpandedLegendIds] = useState(() => new Set());
@@ -63,6 +70,60 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
   const tipRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  // ── Zoom / pan ───────────────────────────────────────────────────────────
+  // Both renderers draw a fixed-width SVG scaled to the container, which on a
+  // dense plan means squinting. Zoom widens the drawing past the container and
+  // lets it scroll — page-zoom semantics, so labels grow with the map and
+  // nothing re-lays-out (a re-layout at every zoom step would move stations
+  // around while the user is trying to read one).
+  const [zoom, setZoom] = useState(() => {
+    try { return Math.min(4, Math.max(1, parseFloat(localStorage.getItem(ZOOM_KEY)) || 1)); } catch { return 1; }
+  });
+  // `next` is a function of the previous zoom, not a value: two clicks in the
+  // same tick would otherwise both compute their step from the same stale
+  // closure and only advance once.
+  const applyZoom = useCallback((next, anchor = null) => {
+    setZoom(prev => {
+      const raw = typeof next === 'function' ? next(prev) : next;
+      const clamped = Math.min(ZOOM_MAX, Math.max(1, Math.round(raw * 100) / 100));
+      if (clamped === prev) return prev;
+      const box = scrollRef.current;
+      if (box) {
+        // Keep whatever sits under the cursor (or the viewport centre) put.
+        const ax = anchor?.x ?? box.clientWidth / 2;
+        const ay = anchor?.y ?? box.clientHeight / 2;
+        const fx = (box.scrollLeft + ax) / Math.max(1, box.scrollWidth);
+        const fy = (box.scrollTop + ay) / Math.max(1, box.scrollHeight);
+        requestAnimationFrame(() => {
+          if (!scrollRef.current) return;
+          scrollRef.current.scrollLeft = fx * scrollRef.current.scrollWidth - ax;
+          scrollRef.current.scrollTop = fy * scrollRef.current.scrollHeight - ay;
+        });
+      }
+      try { localStorage.setItem(ZOOM_KEY, String(clamped)); } catch { /* noop */ }
+      return clamped;
+    });
+  }, []);
+  const onWheel = useCallback(e => {
+    if (!e.ctrlKey && !e.metaKey) return;   // plain wheel keeps scrolling the page
+    e.preventDefault();
+    const box = scrollRef.current;
+    const rect = box?.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    applyZoom(prev => prev * factor, rect
+      ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      : null);
+  }, [applyZoom]);
+  // A non-passive listener is the only way to preventDefault a wheel event and
+  // stop the browser zooming the whole page instead.
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box) return;
+    box.addEventListener('wheel', onWheel, { passive: false });
+    return () => box.removeEventListener('wheel', onWheel);
+  }, [onWheel]);
 
   const onMove = useCallback(e => {
     const g = e.target.closest('[data-tip]');
@@ -126,11 +187,39 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   }, [tip]);
 
   if (!svg) return null;
+  const zoomed = zoom > 1;
   return (
     <div ref={ref} style={{ marginBottom: 20, position: 'relative' }}
       onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>
       <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
-      <div dangerouslySetInnerHTML={{ __html: svg }} />
+      {/* Zoom controls sit over the map's top-right corner so they cost no
+          vertical space in the already-busy Overview toolbar. */}
+      <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 3, alignItems: 'center' }}>
+        {zoomed && (
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', marginRight: 2 }}>
+            {Math.round(zoom * 100)}%
+          </span>
+        )}
+        <button type="button" className="btn btn-xs btn-sec" style={ZOOM_BTN}
+          data-htip={t('rm.zoomOutTip')} disabled={zoom <= 1}
+          onClick={() => applyZoom(prevStep)}>−</button>
+        <button type="button" className="btn btn-xs btn-sec" style={ZOOM_BTN}
+          data-htip={t('rm.zoomInTip')} disabled={zoom >= ZOOM_MAX}
+          onClick={() => applyZoom(nextStep)}>+</button>
+        {zoomed && (
+          <button type="button" className="btn btn-xs btn-sec" style={{ ...ZOOM_BTN, width: 'auto', padding: '0 6px' }}
+            data-htip={t('rm.zoomFitTip')} onClick={() => applyZoom(1)}>{t('rm.zoomFit')}</button>
+        )}
+      </div>
+      <div ref={scrollRef}
+        style={zoomed
+          ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain' }
+          : { overflow: 'visible' }}>
+        <div style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined}
+          dangerouslySetInnerHTML={{ __html: svg }} />
+      </div>
+      {/* Tooltip lives OUTSIDE the scroll container: its coordinates come from
+          the visible box, so they must not be shifted by scrollLeft/Top. */}
       {tip && (
         <div
           ref={tipRef}
