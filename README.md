@@ -87,7 +87,7 @@ The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/
 - **Global search** — Ctrl/Cmd+F with cycling, debounced propagation, keyboard-nav in all SearchSelects
 - **Bilingual (EN/DE)** — full i18n with language selector
 - **Dark / light mode** — manual toggle (Auto / Dark / Light)
-- **Unit tests** — `npm test` runs vitest suites covering capacity, scheduler (cascade, cross-team, cycles, pinned, parallel, multi-assign, dep regressions), handoff chain rendering, date helpers, archive/Jira reconcile logic, view filter scoping, and screen-vs-export parity
+- **Unit tests** — `npm test` runs vitest suites covering capacity, scheduler (cascade, cross-team, cycles, pinned, parallel, multi-assign, dep regressions), handoff chain rendering, date helpers, archive/Jira reconcile logic, view filter scoping, screen-vs-export parity, and a derive-cost guard rail so the tree helpers can't go quadratic again
 
 Full list in [docs/features.md](docs/features.md).
 
