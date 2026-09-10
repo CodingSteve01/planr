@@ -5,6 +5,7 @@ import { buildReportModel } from './report.js';
 import { renderRoadmapSvg, getLineColor } from './roadmap.js';
 import { computeProjectRoadmap, renderProjectRoadmapSvg } from './projectRoadmap.js';
 import { projectScopedCtx } from './exportCtx.js';
+import { sanitizePdfDoc, PDF_GLYPH_MAP } from './pdfGlyphs.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
 import { progressPctLabel, totalEffort } from './progress.js';
 import { formatPhaseToken } from './phases.js';
@@ -137,9 +138,12 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     /\.rm-badge\{[^}]*\}/,
     `.rm-badge{font:800 13px/1 Roboto,sans-serif;fill:#fff;letter-spacing:.04em}`,
   );
-  // ⊕ NEU sub-badge: pdfmake's SVG renderer falls back to a font that often
-  // lacks U+2295 → renders as a missing-glyph box. Plain + works everywhere.
-  patched = patched.replace(/⊕ NEU/g, '+ NEU');
+  // Symbols the bundled Roboto does not carry render as a missing-glyph box.
+  // Embedded SVG bypasses the docDefinition sanitizer (svg-to-pdfkit does its
+  // own text handling), so apply the same substitution table by hand here.
+  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => {
+    patched = patched.split(from).join(to);
+  });
   return patched
     .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
     .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
@@ -167,7 +171,7 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
 function prepareProjectRoadmapSvg(svgStr, height) {
   if (!svgStr || !svgStr.startsWith('<svg')) return null;
   const H = Math.max(120, Math.round(height || 320));
-  return svgStr
+  return swapUnsupportedGlyphs(svgStr)
     .replace(/^<svg [^>]*>/, `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="${H}" viewBox="0 0 1400 ${H}" preserveAspectRatio="xMidYMid meet">`)
     // svg-to-pdfkit only has the bundled Roboto — anything else silently
     // drops the text (see prepareRoadmapSvg).
@@ -181,6 +185,14 @@ function prepareProjectRoadmapSvg(svgStr, height) {
     .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
     .replace(/var\(--b,([^)]*)\)/g, '#e0e4ea')
     .replace(/var\(--[a-z0-9]+[^)]*\)/g, '#1a1e2a');
+}
+
+// Same substitution pass the docDefinition gets, for the glyphs that can end
+// up inside an SVG label (a task called "Release → UAT", say).
+function swapUnsupportedGlyphs(svgStr) {
+  let out = svgStr;
+  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => { out = out.split(from).join(to); });
+  return out;
 }
 
 function buildRoadmapSvgForPdf(ctx) {
@@ -580,7 +592,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     footer: footerBuilder({ meta, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
 }
 
 // ── Gantt PDF ───────────────────────────────────────────────────────────────
@@ -632,7 +644,7 @@ export async function exportGanttPDF(ctx) {
     footer: footerBuilder({ meta, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
 }
 
 // ── TODO / Sprint PDF ───────────────────────────────────────────────────────
@@ -700,7 +712,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     footer: footerBuilder({ meta, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
 }
 
 // ── "What comes when" PDF — horizon-aware buckets, TOPIC level ──────────────
@@ -805,5 +817,5 @@ export async function exportWhatWhenPDF(ctx) {
     footer: footerBuilder({ meta, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,
   };
-  pdfMake.createPdf(dd).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');
+  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');
 }
