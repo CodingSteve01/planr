@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n.jsx';
+import { ARCHIVE_DAY_PRESETS } from '../../utils/archive.js';
 
 // Unified "view filter" popup. Consolidates the Sprint Review (diff) and
 // Planning Horizon (forward) filters into a single trigger with a badge
@@ -19,6 +20,8 @@ export function ViewFilters({
   horizonOnlyPlanned, persistHorizonOnly,
   // Status (hide done)
   hideDone, setHideDone,
+  // Archive (long-finished projects / long-offboarded people)
+  archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays,
 }) {
   // Diff (past review) and Horizon (future plan) are mutually exclusive: a
   // single screen can only tell one of those stories cleanly at a time, so
@@ -50,10 +53,17 @@ export function ViewFilters({
   const showDiff = !!persistSince && hasHistory;
   const showHorizon = !!persistHorizon;
   const showHideDone = typeof setHideDone === 'function';
-  if (!showDiff && !showHorizon && !showHideDone) return null;
+  // The archive section is only worth showing where the caller can act on it
+  // AND something is actually old enough to archive.
+  const showArchive = typeof setShowArchived === 'function';
+  if (!showDiff && !showHorizon && !showHideDone && !showArchive) return null;
 
   const showHideDoneInner = typeof setHideDone === 'function';
-  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0) + (showHideDoneInner && hideDone ? 1 : 0);
+  // Archiving is on by default, so it counts as an active filter only while it
+  // is actually hiding something.
+  const archiveHiding = showArchive && !showArchived && !!archive?.count;
+  const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0)
+    + (showHideDoneInner && hideDone ? 1 : 0) + (archiveHiding ? 1 : 0);
 
   // Summary string on the trigger: "—" when no filter, otherwise a compact
   // marker like "Δ14T · ▶+30T" so the user reads the state without opening.
@@ -67,6 +77,12 @@ export function ViewFilters({
     else parts.push(`▶ ${t('horizon.days', horizonDays)}`);
   }
   if (showHideDoneInner && hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
+  const archiveSummary = archive?.count
+    ? [archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
+       archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
+      ].filter(Boolean).join(' · ')
+    : '';
+  if (archiveHiding) parts.push(`📦 ${archive.count}`);
   const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
 
   const presetBtn = (current, val, label, onClick) => (
@@ -126,7 +142,57 @@ export function ViewFilters({
               </button>
             </section>
           )}
-          {showHideDone && (showDiff || showHorizon) && (
+          {showArchive && (
+            <section style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+                  padding: '1px 5px', borderRadius: 3, background: 'rgba(148,163,184,.18)', color: 'var(--tx2)' }}>📦 {t('arch.section')}</span>
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+                  {archiveSummary}
+                </span>
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 6, fontStyle: 'italic' }}>{t('arch.desc')}</div>
+              <button
+                type="button"
+                className={`btn btn-xs ${showArchived ? 'btn-pri' : 'btn-sec'}`}
+                aria-pressed={!!showArchived}
+                onClick={() => setShowArchived(!showArchived)}
+                style={{ padding: '4px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6 }}
+              >
+                <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>{showArchived ? '☑' : '☐'}</span>
+                {t('arch.show')}
+              </button>
+              {typeof setArchiveDays === 'function' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('arch.olderThan')}</span>
+                  {ARCHIVE_DAY_PRESETS.map(days => presetBtn(String(archiveDays), String(days), t('arch.days', days),
+                    val => setArchiveDays(Number(val))))}
+                </div>
+              )}
+              {!archive?.count && (
+                <div style={{ fontSize: 9, color: 'var(--tx3)', marginTop: 5 }}>{t('arch.none')}</div>
+              )}
+              {!!archive?.count && (
+                <div style={{ marginTop: 6, maxHeight: 108, overflow: 'auto' }}>
+                  {archive.roots.map(root => (
+                    <div key={root.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>{root.id}</span>
+                      <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root.name}</span>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', root.ageDays)}</span>
+                    </div>
+                  ))}
+                  {archive.members.map(member => (
+                    <div key={member.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>👤</span>
+                      <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', member.ageDays)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          {(showArchive || showHideDone) && (showDiff || showHorizon) && (
             <div style={{ height: 1, background: 'var(--b)', margin: '4px 0 12px' }} />
           )}
 

@@ -156,6 +156,34 @@ The app also communicates the **three planning horizons** more explicitly now, b
 
 You see this in the Gantt footer and in the Summary view, so the application teaches the rule while you plan instead of expecting you to remember it.
 
+### Keeping the roadmap readable
+
+Two controls, both in the Overview:
+
+- **Line picker** (above the map) — `Alle Linien` plus one chip per project in
+  its own line colour. Click a chip to show that project **alone** as a single
+  subway line; click it again (or `Alle Linien`) to go back. The soloed line
+  keeps its colour but gets the longest route, so its stations spread out and
+  the labels are readable. The Fahrplan follows the same choice. Use this when
+  you want to talk about one project without eight lines crossing the picture.
+
+- **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
+  projects whose work has been finished for longer than N days (default 90) and
+  people who offboarded that long ago. **On by default**, because a plan that
+  has been running for a year should open on the work that is still live. The
+  threshold is right there in the popup: 30 days catches last quarter's
+  projects, 180 keeps almost everything.
+
+  What archiving does **not** do: change any number. The headline percentage,
+  the PT total and the leaf counts keep counting the archived work — a finished
+  project stays finished. Exports (PDF, Word, HTML report) also stay complete;
+  they are documents of record. Only the map, tree, Gantt, network, goal cards
+  and the person dropdown get shorter, and the `📦 N archiviert` chip always
+  says how much, one click away from showing it again.
+
+  A finished project with no recorded completion date anywhere below it is never
+  archived — Planr cannot tell whether that was last week or in 2019.
+
 ### Review and presentation filters (⚙ Filter)
 
 The sub-toolbar carries a single **⚙ Filter** chip that opens a popup with two sections; both are global, persisted in localStorage, and affect every view at once:
@@ -185,6 +213,33 @@ Every done leaf carries `best` + `factor` (the estimate) plus `completedStart` +
   - **Top überzogen** / **Top unterboten** — three biggest outliers each, clickable to drill into the task.
 
 Treat the ratio as a learning signal, not as a target. The same retro panel surfaces both the systemic over/underrun and the individual outliers so you can decide whether to revise the size catalogue's factor, re-estimate certain task types, or just accept that one outlier and move on.
+
+### Keeping Jira and Planr in sync
+
+The Jira export creates tickets; **Export… → Jira-Abgleich** is how you find out
+what drifted afterwards. It matches plan items to tickets through the Jira-key
+custom field (`{cv.jira:NA-385}` in the markdown), so make sure your work
+packages carry that field.
+
+1. **Verknüpfung** answers, with no input at all: which open work packages have
+   no ticket (they will never show up in Jira — use the Jira export to create
+   them), and which Jira key is sitting on two plan items.
+
+2. **Abgleich** takes a pasted Jira table: the CSV from Jira's *Export*, a
+   copied search result, or just `NA-385⇥Done` lines. English and German column
+   names both work. You get four lists:
+   - **Status-Drift** — Jira says done, the plan says in progress. Jira counts
+     as the truth here; untick any row you disagree with, then
+     **Status übernehmen** writes the rest into the plan (progress moves with
+     the status, and the done-date is stamped as usual).
+   - **Umbenannt** — the titles diverged. Reported only, never auto-applied;
+     you decide which name is right.
+   - **Nur in Jira** — tickets nobody planned. Either plan them or close them.
+   - **Nur im Plan** — linked items missing from the export: deleted in Jira, or
+     simply outside the query you pasted.
+
+An unrecognised Jira workflow status is always read as *open*, never as done —
+so a custom status can never silently mark work finished.
 
 ## 9. Adjust
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript, no test suite. The design goals are: understandable in one sitting, hackable without ceremony, deployable as static files.
+Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript. The design goals are: understandable in one sitting, hackable without ceremony, deployable as static files.
 
 ## Tech stack
 
@@ -39,6 +39,7 @@ src/
       Onboard.jsx          — first-launch onboarding
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
+      JiraSyncModal.jsx    — Jira reconcile (link check + paste-and-compare)
       AddModal.jsx         — add a new tree item
       EstimationWizard.jsx — PERT 3-point wizard
       SettingsModal.jsx    — theme, file handle, etc.
@@ -51,6 +52,8 @@ src/
       Badges.jsx           — status/severity/priority badges
   utils/
     scheduler.js           — auto-scheduling engine + computeConfidence() — see docs/scheduler.md
+    archive.js             — which roots / members are long-finished ("old news"); display filter only
+    jiraSync.js            — Jira table parsing + plan-vs-board reconciliation
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
     holidays.js            — NRW holiday algorithm + week grid builder
@@ -93,6 +96,19 @@ Derived values via `useMemo`:
 - `shortNamesMap` — member short-name lookup
 - `weeks` — week grid from the scheduler
 - `confidenceMap` — per-item confidence (auto-derived via `computeConfidence()`, with manual overrides)
+- `archive` — `scanArchive({tree, members, days})`: long-finished roots + long-offboarded members
+- `activeTree` / `activeScheduled` / `activeMembers` — the archive-filtered copies the views render
+
+### Display filters vs. facts
+
+`tree`, `stats`, `scheduled` and `goals` always describe the **whole** plan. The
+filters (`hideDone`, the archive filter, root/team/person) produce *separate*
+derived copies (`activeTree` → `visibleTree` → `visibleTreeForViews`) that only
+the views consume. Aggregates therefore never move when the user changes what
+is on screen — archiving a finished project must not make the project look less
+finished. The one deliberate exception is `viewStats`, which re-aggregates for
+the hide-done tree so a filtered view can still show sub-totals for what it
+renders.
 
 Every mutation goes through `setData(d => ...)` with a functional updater. Functions like `updateNode`, `removeDep`, `addDep` always read the latest tree state from the functional updater argument — no stale-closure overwrites.
 
@@ -152,7 +168,7 @@ Export-related logic has been extracted from `App.jsx` into dedicated modules:
 - **No PropTypes** — prop shapes are self-documenting through destructuring at the top of each component.
 - **Functional `setData` updaters everywhere** — avoids stale-closure bugs in mutation callbacks that fire in rapid succession (e.g. deleting two Gantt arrows in the same tick).
 - **Targeted mutation helpers (`removeDep`, `addDep`)** — touch only the fields they own. Never overwrite an entire node object based on a stale snapshot.
-- **No tests** — manual QA in the browser; no test suite to maintain.
+- **Vitest, not a test pyramid** — pure logic (`src/utils/__tests__/`) is tested directly; views get happy-dom smoke and behaviour tests (`src/__tests__/`) for the invariants that keep breaking silently — progress/export parity, filter scoping. Everything else is manual QA in the browser. `npm test` runs the suite.
 - **Module size target: &lt; 400 LOC** — not strictly enforced. `App.jsx` and `NetGraph.jsx` are currently larger; splits are on the backlog.
 
 ## Known issues / backlog

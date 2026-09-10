@@ -198,6 +198,54 @@ Never compute an aggregate percentage inline in an export. Counting done leaves 
 
 This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
 
+### Jira reconcile (`src/utils/jiraSync.js`)
+
+Not an export — the way back. **Export… → Jira-Abgleich** opens a dialog with two halves:
+
+**Verknüpfung (link check)** needs no input. It reads the Jira-key custom field
+(auto-detected: a field whose id or name matches `jira` / `issue key` / `ticket`
+/ `vorgang`, else whatever key the tree already uses) and reports:
+
+- how many plan items carry a key,
+- open **leaves** without one — these can never appear in Jira; parents are
+  epic-level and legitimately unlinked, done items are history nobody looks up,
+- the same key sitting on two plan items, whose status will always disagree with
+  one of them. Keys are compared upper-cased and trimmed, so `na-266` and
+  `NA-266` are one ticket.
+
+**Abgleich (compare)** takes a pasted Jira table:
+
+```
+Issue key,Summary,Status,Assignee
+NA-385,"DMS anpassen, inkl. Zugferd",Done,Steffen Lüling
+```
+
+Parsing is deliberately forgiving — refusing input over a delimiter guess would
+defeat the point:
+
+| Input | Handled |
+|---|---|
+| Delimiter | tab, `;`, `,` or `|`, guessed from the header line outside quotes |
+| Quoting | `"a, b"` and `""` escapes |
+| Column names | EN + DE (`Issue key` / `Vorgangsschlüssel`, `Summary` / `Zusammenfassung`, `Status`, `Assignee` / `Bearbeiter`, plus the `Planr ID` the Jira export writes) |
+| Ambiguity | exact alias beats contains-match, so `Status Category` never wins over `Status` |
+| No header | first column that looks like `ABC-123` becomes the key column; a two-column paste is read as key + status |
+| Junk | non-key and duplicate lines are counted as skipped, never fatal |
+
+Jira status text maps onto Planr's three states by substring, in both languages
+(`done/erledigt/closed/resolved/abgeschlossen/released/…` → `done`;
+`progress/arbeit/bearbeitung/review/test/…` → `wip`). **Anything unrecognised
+falls back to `open`** — the conservative direction, since it can never silently
+mark work as finished.
+
+The result lists status drift (Jira treated as the source of truth, each row
+opt-out via checkbox), renamed tickets (reported only — never auto-applied),
+tickets with no plan item, and linked plan items missing from the paste. Applying
+writes `status` + `progress` on the affected leaves (`done` → 100, `open` → 0,
+`wip` → keeps recorded partial progress, else 50); parent statuses and the
+done-window metadata are then derived by the same effects that handle a hand
+edit.
+
 ### Word Report (`src/utils/exports.js` → `exportReportDocx`)
 
 Runs the same `generateReport()` HTML through [`@turbodocx/html-to-docx`](https://github.com/TurboDocx/html-to-docx). Output is one-to-one with the Management Summary PDF: key figures, risks, planning confidence, roadmap (rasterized to a hi-res PNG and embedded as `<img>`), goals/deadlines, team capacity cards, critical path, detailed schedule per team.

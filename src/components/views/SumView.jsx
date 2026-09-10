@@ -8,6 +8,8 @@ import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
+import { getLineColor } from '../../utils/roadmap.js';
+import { stripArchivedRoots } from '../../utils/archive.js';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
 import { ViewFilters } from '../shared/ViewFilters.jsx';
@@ -19,9 +21,22 @@ import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, 
 const ORDER = ['goal', 'painpoint', 'deadline'];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
+  // Archive is a *display* filter: the header percentage, PT and leaf counts
+  // below still read the full tree, so archiving a finished project never
+  // changes what the project has achieved. Only the map, the Fahrplan and the
+  // goal cards drop the archived lines.
+  const archivedRootIds = (!showArchived && archive?.rootIds?.size) ? archive.rootIds : null;
+  const activeTree = useMemo(
+    () => (archivedRootIds ? stripArchivedRoots(tree, archivedRootIds) : tree),
+    [tree, archivedRootIds],
+  );
+  const activeGoals = useMemo(
+    () => (archivedRootIds ? goals.filter(goal => !archivedRootIds.has(goal.id)) : goals),
+    [goals, archivedRootIds],
+  );
   const lvs = leafNodes(tree);
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
@@ -70,7 +85,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     [tree, scheduled],
   );
 
-  const grouped = ORDER.map(tp => ({ type: tp, items: goals.filter(g => g.type === tp) })).filter(g => g.items.length);
+  const grouped = ORDER.map(tp => ({ type: tp, items: activeGoals.filter(g => g.type === tp) })).filter(g => g.items.length);
 
   // `sinceDays`, `persistSince`, `sinceDate` now flow in from App.jsx so the
   // diff state is shared across all views (Roadmap, Tree, Timetable, Gantt,
@@ -228,9 +243,11 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     </div>
 
     {/* Roadmap + Fahrplan — switchable sub-views sharing the same data. */}
-    <RoadmapSwitcher tree={tree} scheduled={scheduled} stats={stats} goals={goals}
+    <RoadmapSwitcher tree={activeTree} scheduled={scheduled} stats={stats} goals={activeGoals}
       teams={teams} members={members} onOpenItem={onOpenItem}
       historyEvents={historyEvents}
+      archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+      archiveDays={archiveDays} setArchiveDays={setArchiveDays}
       sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
       diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
       horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
@@ -426,7 +443,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   </div>;
 }
 
-function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null }) {
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays }) {
   const { t } = useT();
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
@@ -435,6 +452,38 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     setView(v);
     try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
   };
+  // Single-line mode: eight lines crossing one 1400×800 canvas is a network
+  // diagram, not a roadmap. Picking one root shows that project as its own
+  // line — same stations, same train, room to read the labels.
+  const [soloRoot, setSoloRoot] = useState(() => {
+    try { return localStorage.getItem('planr_roadmap_solo') || ''; } catch { return ''; }
+  });
+  const roots = useMemo(() => tree.filter(node => !String(node.id).includes('.')), [tree]);
+  // A stored solo root that no longer exists (renamed, deleted, archived)
+  // must not blank the map.
+  const solo = soloRoot && roots.some(root => root.id === soloRoot) ? soloRoot : '';
+  const setSolo = id => {
+    const next = id === solo ? '' : id;
+    setSoloRoot(next);
+    try { localStorage.setItem('planr_roadmap_solo', next); } catch { /* noop */ }
+  };
+  const soloNode = solo ? roots.find(root => root.id === solo) : null;
+  const mapTree = useMemo(
+    () => (solo ? tree.filter(node => node.id === solo || String(node.id).startsWith(solo + '.')) : tree),
+    [tree, solo],
+  );
+  const mapGoals = useMemo(
+    () => (solo ? goals.filter(goal => goal.id === solo) : goals),
+    [goals, solo],
+  );
+  // Keep the line's colour (that is its identity across the plan) but drop the
+  // stored route so the lone line gets the longest, most legible one instead
+  // of whatever corner it occupies in the full map.
+  const mapAssignment = useMemo(() => {
+    if (!solo) return roadmapAssignment;
+    const colorIdx = roadmapAssignment?.[solo]?.colorIdx;
+    return colorIdx == null ? null : { [solo]: { colorIdx } };
+  }, [roadmapAssignment, solo]);
   // diff comes in from App.jsx — same precomputed bag every view uses, so
   // Roadmap, Timetable, Tree, Gantt and Network stay in sync.
 
@@ -452,11 +501,59 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
             hasHistory={historyEvents.length > 0}
             horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
             horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+            archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+            archiveDays={archiveDays} setArchiveDays={setArchiveDays}
           />
         </span>
+        {/* Archived count stays visible next to the filters so a shorter map
+            is never a silent omission. */}
+        {!!archive?.count && !showArchived && typeof setShowArchived === 'function' && (
+          <button className="btn btn-xs btn-sec" style={{ padding: '3px 8px', fontSize: 10 }}
+            onClick={() => setShowArchived(true)}
+            data-htip={t('arch.pillTip', [
+              archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
+              archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
+            ].filter(Boolean).join(' · '))}>
+            {t('arch.pill', archive.count)}
+          </button>
+        )}
         {/* hideDone toggle lives in the App-level subtoolbar / popup, not
             here — Summary's tt.map view doesn't filter rows by status. */}
       </div>
+      {/* Line picker — "all lines" plus one chip per project, in its own line
+          colour so the chip and the line on the map are recognisably the
+          same thing. Also drives the Fahrplan, which scopes to the same set. */}
+      {roots.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+          <button className={`btn btn-xs ${solo ? 'btn-sec' : 'btn-pri'}`}
+            style={{ padding: '3px 9px', fontSize: 10 }}
+            onClick={() => setSolo('')}>{t('rm.allLines')}</button>
+          {roots.map(root => {
+            const color = getLineColor(root.id, roadmapAssignment);
+            const on = solo === root.id;
+            return (
+              <button key={root.id}
+                className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
+                style={{ padding: '3px 9px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
+                  borderColor: color && on ? color : undefined,
+                  background: on && color ? color : undefined,
+                  color: on && color ? '#fff' : undefined }}
+                data-htip={t('rm.lineTip')}
+                onClick={() => setSolo(root.id)}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, flexShrink: 0,
+                  background: color || 'var(--tx3)', boxShadow: on ? '0 0 0 1px rgba(255,255,255,.7)' : undefined }} />
+                <span style={{ fontFamily: 'var(--mono)' }}>{root.id}</span>
+                <span style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {solo && soloNode && (
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>
+          {t('rm.soloNote', `${soloNode.id} ${soloNode.name || ''}`.trim())}
+        </div>
+      )}
       {view === 'map' && diff && (
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
             border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
@@ -562,13 +659,16 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           </div>
         );
       })()}
+      {/* Single-line mode hands the renderer a deliberately partial assignment
+          (colour only, no route), so persisting what it computes from that
+          would move the line in the full map — hence no onAssignmentChange. */}
       {view === 'map'
-        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff}
+        ? <Roadmap tree={mapTree} scheduled={scheduled} goals={mapGoals} stats={stats} onOpenItem={onOpenItem} diff={diff}
             horizonIds={horizonIds} horizonEnd={horizonEnd}
             futureProgressByRootId={futureProgressByRootId}
-            assignment={roadmapAssignment}
-            onAssignmentChange={onAssignmentChange} />
-        : <TimetableView tree={tree} scheduled={scheduled} stats={stats} teams={teams} members={members}
+            assignment={mapAssignment}
+            onAssignmentChange={solo ? null : onAssignmentChange} />
+        : <TimetableView tree={mapTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />
       }
     </div>

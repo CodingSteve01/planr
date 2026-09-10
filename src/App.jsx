@@ -12,6 +12,7 @@ import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
+import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
@@ -38,6 +39,7 @@ import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
+import { JiraSyncModal } from './components/modals/JiraSyncModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
@@ -228,6 +230,14 @@ export default function App() {
   const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
   const [personFilter, setPersonFilter] = useState(() => { try { return localStorage.getItem('planr_person_filter') || ''; } catch { return ''; } });
   const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
+  // Archive filter — see utils/archive.js. Default ON (i.e. archived hidden):
+  // a plan that has been running for a year should open on the work that is
+  // still live, not on last spring's finished projects.
+  const [showArchived, setShowArchived] = useState(() => { try { return localStorage.getItem('planr_show_archived') === 'true'; } catch { return false; } });
+  const [archiveDays, setArchiveDays] = useState(() => {
+    try { const v = parseInt(localStorage.getItem('planr_archive_days'), 10); return Number.isFinite(v) && v > 0 ? v : ARCHIVE_DEFAULT_DAYS; }
+    catch { return ARCHIVE_DEFAULT_DAYS; }
+  });
   const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => { try { return localStorage.getItem('planr_only_auto') === 'true'; } catch { return false; } });
   const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
   const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
@@ -248,6 +258,8 @@ export default function App() {
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
   useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
+  useEffect(() => { try { localStorage.setItem('planr_show_archived', String(showArchived)); } catch {} }, [showArchived]);
+  useEffect(() => { try { localStorage.setItem('planr_archive_days', String(archiveDays)); } catch {} }, [archiveDays]);
   useEffect(() => { try { localStorage.setItem('planr_team_filter', teamFilter); } catch {} }, [teamFilter]);
   useEffect(() => { try { localStorage.setItem('planr_root_filter', rootFilter); } catch {} }, [rootFilter]);
   useEffect(() => { try { localStorage.setItem('planr_person_filter', personFilter); } catch {} }, [personFilter]);
@@ -1214,11 +1226,31 @@ export default function App() {
   const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
+  // ── Archive layer ────────────────────────────────────────────────────────
+  // Long-finished projects and long-gone people are dropped from what the
+  // views render, but NOT from `tree` / `stats` / `scheduled`. The headline
+  // percentage and PT totals keep counting them — archiving a finished
+  // project must never make the project look less finished.
+  const archive = useMemo(
+    () => scanArchive({ tree, members, days: archiveDays }),
+    [tree, members, archiveDays],
+  );
+  const activeTree = useMemo(
+    () => (showArchived ? tree : stripArchivedRoots(tree, archive.rootIds)),
+    [tree, showArchived, archive.rootIds],
+  );
+  const activeMembers = useMemo(
+    () => (showArchived ? members : stripArchivedMembers(members, archive.memberIds)),
+    [members, showArchived, archive.memberIds],
+  );
   const visibleTree = useMemo(() => {
-    if (!hideDone) return tree;
-    const byId = Object.fromEntries(tree.map(r => [r.id, r]));
+    // Archive first, then hide-done: both are display filters over the same
+    // tree, and the archive set is the coarser of the two.
+    const source = activeTree;
+    if (!hideDone) return source;
+    const byId = Object.fromEntries(source.map(r => [r.id, r]));
     const byParent = {};
-    tree.forEach(r => {
+    source.forEach(r => {
       const pid = r.id.split('.').slice(0, -1).join('.');
       if (!byParent[pid]) byParent[pid] = [];
       byParent[pid].push(r);
@@ -1244,8 +1276,8 @@ export default function App() {
       return hasVisibleChild;
     };
     (byParent[''] || []).forEach(root => visit(root.id));
-    return tree.filter(r => keep.has(r.id));
-  }, [tree, hideDone]);
+    return source.filter(r => keep.has(r.id));
+  }, [activeTree, hideDone]);
   const visibleIdSet = useMemo(() => new Set(visibleTree.map(r => r.id)), [visibleTree]);
   const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
   const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
@@ -1625,7 +1657,10 @@ export default function App() {
   const visibleTreeForViews = useMemo(() => {
     if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
     const keep = new Set(quickFilteredNetTree.map(r => r.id));
-    const byId = Object.fromEntries(tree.map(r => [r.id, r]));
+    // Re-add done items that moved inside the review window. Sourced from
+    // activeTree, so a diff window can't drag an archived project back onto
+    // the screen.
+    const byId = Object.fromEntries(activeTree.map(r => [r.id, r]));
     diffChangedSet.forEach(id => {
       const node = byId[id];
       if (!node || node.status !== 'done') return;
@@ -1633,8 +1668,8 @@ export default function App() {
       const parts = id.split('.');
       for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
     });
-    return tree.filter(r => keep.has(r.id));
-  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, tree]);
+    return activeTree.filter(r => keep.has(r.id));
+  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
   const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
   const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
   const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
@@ -1644,6 +1679,14 @@ export default function App() {
     enrichParentSchedules(s, visibleTreeForViews, viewScheduled);
     return s;
   }, [hideDone, stats, visibleTreeForViews, viewScheduled]);
+  // Gantt reads `scheduled` directly (not the view tree), so it needs its own
+  // archive-filtered copy — same reason the tree gets one.
+  const activeScheduled = useMemo(
+    () => (showArchived || !archive.rootIds.size
+      ? scheduled
+      : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
+    [scheduled, showArchived, archive.rootIds],
+  );
   const viewCpSet = cpData.critical;
   const viewCpEdges = cpData.edges;
   const viewGoalPaths = goalPaths;
@@ -1807,6 +1850,16 @@ export default function App() {
     setData(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
     setSaved(false);
   }
+  // Bulk status write from the Jira reconcile dialog. Patches carry whole
+  // nodes (see utils/jiraSync.js statusPatches); parent statuses and the
+  // done-window metadata are filled in by the effects that already watch the
+  // tree, exactly as with a hand edit.
+  const onJiraApplyStatus = useStableCallback(patches => {
+    if (!patches?.length) return;
+    const byId = new Map(patches.map(patch => [patch.id, patch]));
+    setData(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
+    setSaved(false);
+  });
   // Targeted dep mutations: read current tree state and touch ONLY the deps field.
   // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
   // out unrelated field changes that happened after the callback was created.
@@ -2376,8 +2429,24 @@ export default function App() {
   // computed {rootId → routeIdx, colorIdx} differs from what's stored
   // (first render of a fresh plan, or a new root entered). Locks the
   // layout so projects keep their colour + lane across data edits.
-  const onRoadmapAssignmentChange = useStableCallback(assignment => {
-    setData(d => ({ ...d, roadmapAssignment: assignment }));
+  const onRoadmapAssignmentChange = useStableCallback(computed => {
+    // Merge, never replace. The Roadmap only ever sees the *rendered* tree,
+    // which can be a subset (archive filter, single-line mode) — replacing
+    // would drop the colours and routes of every project that happens to be
+    // hidden right now. Stored entries win; computed values only fill gaps
+    // for roots that have no mapping yet.
+    setData(d => {
+      const prev = d.roadmapAssignment || {};
+      const rootIds = new Set((d.tree || []).filter(r => !r.id.includes('.')).map(r => r.id));
+      const merged = {};
+      Object.keys(prev).forEach(id => { if (rootIds.has(id)) merged[id] = prev[id]; });
+      Object.keys(computed || {}).forEach(id => { if (rootIds.has(id) && !merged[id]) merged[id] = computed[id]; });
+      const unchanged = Object.keys(merged).length === Object.keys(prev).length
+        && Object.keys(merged).every(id => prev[id]
+          && prev[id].routeIdx === merged[id].routeIdx
+          && prev[id].colorIdx === merged[id].colorIdx);
+      return unchanged ? d : { ...d, roadmapAssignment: merged };
+    });
   });
   const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
   const onResMeetingPlansUpd = useStableCallback(v => setD('meetingPlans', v));
@@ -2479,6 +2548,8 @@ export default function App() {
     _t('new.confidence'),
     _t('new.dragLink'),
     _t('new.planReview'),
+    _t('new.archive'),
+    _t('new.jiraSync'),
     // TODO: add Network Graph improvements once documented
   ];
 
@@ -2764,12 +2835,19 @@ export default function App() {
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
-      <div style={{ width: 130 }}><SearchSelect value={personFilter} options={members.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      <div style={{ width: 130 }}><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
       {/* Quick-filter chip group — toggles in-memory predicates against the
           shared filtered tree. Cheap to render, persistent via localStorage.
           Hide-done lives here too, not buried in the Review/Plan popup. */}
       <span style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
         <button type="button" className={`chip${hideDone ? ' on' : ''}`} onClick={() => setHideDone(v => !v)} data-htip={_t('chip.hideDoneTip')}>{_t('chip.hideDone')}</button>
+        {/* Archive chip only appears when something is actually archived —
+            a dead toggle on a young plan is just noise. `on` means "archive
+            is being shown", matching the other chips' show-more semantics. */}
+        {archive.count > 0 && (
+          <button type="button" className={`chip${showArchived ? ' on' : ''}`} onClick={() => setShowArchived(v => !v)}
+            data-htip={_t('arch.chipTip')}>{_t('arch.pill', archive.count)}</button>
+        )}
         <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip={_t('chip.autoTip')}>{_t('chip.auto')}</button>
         <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip={_t('chip.overdueTip')}>{_t('chip.overdue')}</button>
         <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip={_t('chip.unestimatedTip')}>{_t('chip.unestimated')}</button>
@@ -2786,6 +2864,8 @@ export default function App() {
         horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
         horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
         hideDone={hideDone}
+        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
       />
       <div style={{ flex: 1 }} />
       {tab !== 'plan' && <SearchBox
@@ -2809,6 +2889,8 @@ export default function App() {
         workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))}
         roadmapAssignment={data?.roadmapAssignment || null}
         onAssignmentChange={onRoadmapAssignmentChange}
+        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
         onNavigate={onSumNavigate}
         onOpenItem={onSumOpenItem}
         onExportTodo={onSumExportTodo} /></div>}
@@ -2870,8 +2952,8 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={scheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={tree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></div>}
-      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></div>}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}
@@ -2940,10 +3022,15 @@ export default function App() {
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
     {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
+    {modal === 'jirasync' && <JiraSyncModal tree={tree} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+      onApplyStatus={onJiraApplyStatus}
+      onOpenItem={id => { const node = tree.find(r => r.id === id); if (!node) { setModal(null); return; } setSel(node); setMN(node); setModal('node'); }}
+      onClose={() => setModal(null)} />}
     {modal === 'export' && <ExportModal
       tab={tab}
       onClose={() => setModal(null)}
       onOpenJira={() => setModal('jira')}
+      onOpenJiraSync={() => setModal('jirasync')}
       onSummaryPDF={(opts) => exportSummaryPDF(_exportCtx(), opts)}
       onGanttPDF={() => exportGanttPDF(_exportCtx())}
       onWhatWhenPDF={() => exportWhatWhenPDF(_exportCtx())}
