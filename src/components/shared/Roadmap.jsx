@@ -6,7 +6,7 @@ import { useT } from '../../i18n.jsx';
 const ZOOM_KEY = 'planr_roadmap_zoom';
 const ZOOM_MAX = 4;
 const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
-const ZOOM_BTN = { width: 22, height: 20, padding: 0, fontSize: 13, lineHeight: 1, fontWeight: 700 };
+const ZOOM_BTN = { padding: '2px 7px', fontSize: 10 };   // same shape as the Gantt footer's zoom group
 const nextStep = current => ZOOM_STEPS.find(step => step > current + 1e-6) ?? ZOOM_MAX;
 const prevStep = current => [...ZOOM_STEPS].reverse().find(step => step < current - 1e-6) ?? 1;
 
@@ -116,6 +116,40 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
       ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
       : null);
   }, [applyZoom]);
+  // Drag to pan. The grab cursor promised this and nothing implemented it, so
+  // the map could only be moved by trackpad gestures — fine if you own a
+  // trackpad, a dead end with a mouse. Pointer events cover both plus touch.
+  const dragRef = useRef(null);
+  const onPointerDown = useCallback(e => {
+    if (zoom <= 1 || e.button !== 0) return;
+    const box = scrollRef.current;
+    if (!box) return;
+    dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop, moved: false };
+    box.setPointerCapture?.(e.pointerId);
+  }, [zoom]);
+  const onPointerMove = useCallback(e => {
+    const drag = dragRef.current;
+    const box = scrollRef.current;
+    if (!drag || !box || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 3) return;   // let a click stay a click
+    drag.moved = true;
+    box.scrollLeft = drag.left - dx;
+    box.scrollTop = drag.top - dy;
+  }, []);
+  const endDrag = useCallback(e => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    scrollRef.current?.releasePointerCapture?.(drag.id);
+    // Remember for one tick whether this was a drag, so the click handler can
+    // ignore the pointerup that ends a pan instead of opening an item.
+    dragWasPan.current = drag.moved;
+    dragRef.current = null;
+    if (drag.moved) e?.preventDefault?.();
+  }, []);
+  const dragWasPan = useRef(false);
+
   // A non-passive listener is the only way to preventDefault a wheel event and
   // stop the browser zooming the whole page instead.
   useEffect(() => {
@@ -149,6 +183,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   const onLeave = useCallback(() => setTip(null), []);
 
   const onClick = useCallback(e => {
+    if (dragWasPan.current) { dragWasPan.current = false; return; }
     const toggle = e.target.closest('[data-rm-toggle]');
     if (toggle) {
       const id = toggle.getAttribute('data-rm-toggle');
@@ -194,26 +229,36 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
       <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
       {/* Zoom controls sit over the map's top-right corner so they cost no
           vertical space in the already-busy Overview toolbar. */}
-      <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 3, alignItems: 'center' }}>
-        {zoomed && (
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', marginRight: 2 }}>
-            {Math.round(zoom * 100)}%
-          </span>
-        )}
-        <button type="button" className="btn btn-xs btn-sec" style={ZOOM_BTN}
+      {/* Sits over the map's top-right corner so it costs no vertical space in
+          the already-busy Overview toolbar — hence its own background, or it
+          would be unreadable over a panned map. */}
+      <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 4, alignItems: 'center',
+        background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '3px 5px' }}
+        data-htip={t('rm.zoomInTip')}>
+        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+          {t('g.zoom')}
+        </span>
+        <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}
           data-htip={t('rm.zoomOutTip')} disabled={zoom <= 1}
           onClick={() => applyZoom(prevStep)}>−</button>
-        <button type="button" className="btn btn-xs btn-sec" style={ZOOM_BTN}
+        <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}
           data-htip={t('rm.zoomInTip')} disabled={zoom >= ZOOM_MAX}
           onClick={() => applyZoom(nextStep)}>+</button>
-        {zoomed && (
-          <button type="button" className="btn btn-xs btn-sec" style={{ ...ZOOM_BTN, width: 'auto', padding: '0 6px' }}
+        {zoomed && <>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}
             data-htip={t('rm.zoomFitTip')} onClick={() => applyZoom(1)}>{t('rm.zoomFit')}</button>
-        )}
+        </>}
       </div>
       <div ref={scrollRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         style={zoomed
-          ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain' }
+          ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain', touchAction: 'none' }
           : { overflow: 'visible' }}>
         <div style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined}
           dangerouslySetInnerHTML={{ __html: svg }} />

@@ -171,9 +171,9 @@ Two controls, both in the Overview:
   The same view goes into the Management Summary PDF — one page per project.
 
 - **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
-  mouse wheel over the map. Above 100 % the map scrolls in both directions, so
-  a crowded plan is readable instead of tiny. Plain scrolling still moves the
-  page.
+  mouse wheel over the map. Above 100 % you can drag the map with the mouse or
+  scroll it in both directions, so a crowded plan is readable instead of tiny.
+  Plain scrolling still moves the page.
 
 - **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and
