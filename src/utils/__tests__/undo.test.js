@@ -231,3 +231,35 @@ describe('canUndo / canRedo', () => {
     expect(canRedo(null)).toBe(false);
   });
 });
+
+// Regression guard for the review fix: the snapshot must be the state that was
+// current when the mutation fired, not whatever a stale closure was holding.
+// App.jsx reads it from a ref for this reason; here we pin the model's half of
+// the contract — pushing twice outside the coalescing window keeps BOTH states,
+// so undo walks back one edit at a time instead of skipping one.
+describe('snapshots are per-edit, not per-burst', () => {
+  test('two pushes outside the coalescing window are two undo steps', () => {
+    const s0 = { n: 0 }, s1 = { n: 1 }, s2 = { n: 2 };
+    let h = createHistory();
+    h = push(h, s0, { coalesceMs: 300 });
+    h.lastPushAt -= 1000;                      // simulate "a second later"
+    h = push(h, s1, { coalesceMs: 300 });
+
+    let r = undo(h, s2);
+    expect(r.snapshot).toBe(s1);
+    r = undo(r.history, s1);
+    expect(r.snapshot).toBe(s0);
+    expect(canUndo(r.history)).toBe(false);
+  });
+
+  test('a burst collapses to the state from before the burst', () => {
+    const before = { n: 0 };
+    let h = createHistory();
+    h = push(h, before, { coalesceMs: 300 });
+    h = push(h, { n: 1 }, { coalesceMs: 300 });   // same burst
+    h = push(h, { n: 2 }, { coalesceMs: 300 });   // same burst
+
+    expect(h.past).toHaveLength(1);
+    expect(undo(h, { n: 3 }).snapshot).toBe(before);
+  });
+});

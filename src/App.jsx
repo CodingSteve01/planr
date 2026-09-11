@@ -256,8 +256,18 @@ export default function App() {
   // new project, snapshot restore) calls resetHistory() instead.
   const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
   function resetHistory() { setHistory(createHistory({ limit: 100 })); }
+  // Always the data of the latest completed render — see mutate() below.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  // The snapshot comes from a ref, not from the render closure. This file's
+  // mutation helpers are deliberately written as functional updaters because
+  // callbacks fired in rapid succession would otherwise see a stale `data`
+  // (see the comments on updateNode / removeDep) — and a stale SNAPSHOT is
+  // the same bug wearing a different hat: ⌘Z would jump back further than the
+  // one edit the user just made. Coalescing hides it most of the time, which
+  // is exactly what would make it hard to find later.
   function mutate(updater) {
-    setHistory(h => pushHistory(h, data, { coalesceMs: 300 }));
+    setHistory(h => pushHistory(h, dataRef.current, { coalesceMs: 300 }));
     setData(updater);
     setSaved(false);
   }
