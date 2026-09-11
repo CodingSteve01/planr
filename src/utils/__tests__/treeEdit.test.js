@@ -9,6 +9,7 @@ import {
   moveStep,
   visibleSiblingTarget,
   visibleIndentTarget,
+  scrollAdjustment,
   nextStatus,
   resolveSize,
   fieldPatchForKey,
@@ -411,5 +412,55 @@ describe('compareSiblings is the one order', () => {
 
   it('reads the last segment, so nesting does not change the rule', () => {
     expect(order([{ id: 'P1.10' }, { id: 'P1.2' }])).toEqual(['P1.2', 'P1.10']);
+  });
+});
+
+// ── scrollAdjustment ──────────────────────────────────────────────────────
+// Reported: "it doesn't scroll to the focused row the way you'd expect."
+// The old check asked whether the row was inside the WINDOW, but the tree
+// scrolls a container that starts below the topbar, the tab bar and the
+// sub-toolbar. Measured in the browser: container top at y=160, cursor row
+// at y=36 — behind the chrome, invisible, and `top >= 0` said "fine".
+describe('scrollAdjustment keeps the cursor inside its container', () => {
+  // A container occupying y=160..768, with a 30px sticky table head.
+  const box = { boxTop: 160, boxBottom: 768, headBottom: 190, margin: 34 };
+
+  it('does nothing when the row is comfortably inside', () => {
+    expect(scrollAdjustment({ ...box, rowTop: 400, rowBottom: 428 })).toBe(0);
+  });
+
+  it('scrolls up when the row sits above the container — the reported case', () => {
+    // y=36 is inside the WINDOW and outside the container. The old rule
+    // called this visible and did nothing.
+    const delta = scrollAdjustment({ ...box, rowTop: 36, rowBottom: 64 });
+    expect(delta).toBeLessThan(0);
+    // Lands it below the sticky head plus the margin, not flush against it.
+    expect(36 - delta).toBe(190 + 34);
+  });
+
+  it('counts a row hidden behind the sticky head as hidden', () => {
+    // Inside the container (>=160) but under the head (<190).
+    const delta = scrollAdjustment({ ...box, rowTop: 170, rowBottom: 198 });
+    expect(delta).toBeLessThan(0);
+    expect(170 - delta).toBe(224);
+  });
+
+  it('scrolls down when the row runs past the bottom, leaving room after it', () => {
+    const delta = scrollAdjustment({ ...box, rowTop: 750, rowBottom: 778 });
+    expect(delta).toBeGreaterThan(0);
+    // Bottom ends exactly one margin above the container's edge — the old
+    // `block: 'nearest'` glued it to the edge with nothing visible after.
+    expect(778 - delta).toBe(768 - 34);
+  });
+
+  it('falls back to the container edge when nothing is sticky', () => {
+    const delta = scrollAdjustment({ boxTop: 100, boxBottom: 500, rowTop: 60, rowBottom: 88, margin: 0 });
+    expect(60 - delta).toBe(100);
+  });
+
+  it('ignores a head that is not actually sticking', () => {
+    // Scrolled away upward: its bottom is above the container's top.
+    const delta = scrollAdjustment({ boxTop: 160, boxBottom: 768, headBottom: -537, margin: 0, rowTop: 120, rowBottom: 148 });
+    expect(120 - delta).toBe(160);
   });
 });

@@ -178,6 +178,32 @@ export function visibleSiblingTarget(visibleIds, id, direction) {
   return null;
 }
 
+// ── Keeping the cursor on screen ─────────────────────────────────────────
+// How far to scroll so a row is comfortably inside its scroll container.
+// Pure geometry, because the version this replaces got the geometry wrong
+// in a way no test could see: it asked whether the row was inside the
+// WINDOW, but the tree scrolls a container that starts below the topbar,
+// the tab bar and the sub-toolbar. A row that had scrolled up behind that
+// chrome still reported `top >= 0` and counted as visible — moving the
+// cursor up, it just vanished and nothing scrolled (measured: container
+// top at y=160, cursor row at y=36).
+//
+// `headBottom` is the sticky table head, which hides rows just as
+// effectively as the chrome above the container. `margin` leaves a row's
+// worth of room so the cursor is not glued to the edge with nothing
+// visible after it.
+//
+// Returns the delta to add to scrollTop — 0 when the row already sits in
+// the comfortable band.
+export function scrollAdjustment({ rowTop, rowBottom, boxTop, boxBottom, headBottom = null, margin = 0 }) {
+  const obstructed = headBottom != null && headBottom > boxTop ? headBottom : boxTop;
+  const topLimit = obstructed + margin;
+  const bottomLimit = boxBottom - margin;
+  if (rowTop < topLimit) return -(topLimit - rowTop);
+  if (rowBottom > bottomLimit) return rowBottom - bottomLimit;
+  return 0;
+}
+
 // ── Field shortcuts: 1–4 priority, S/M/L/X size, Space status ─────────────
 export const STATUS_CYCLE = { open: 'wip', wip: 'done', done: 'open' };
 const STATUS_CYCLE_BACK = { open: 'done', wip: 'open', done: 'wip' };

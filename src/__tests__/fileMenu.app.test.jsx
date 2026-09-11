@@ -104,6 +104,10 @@ describe('the file operations have a visible home', () => {
     renderApp();
     await screen.findByTestId('file-menu-trigger');
 
+    // The palette ignores `/` while focus is in a field (there it is just a
+    // character). Anything focused from an earlier interaction would make
+    // this silently not open — which it did, once, in a full run.
+    document.activeElement?.blur?.();
     fireEvent.keyDown(window, { key: '/' });
     const palette = await screen.findByTestId('command-palette');
     const text = palette.textContent;
@@ -126,6 +130,7 @@ describe('the palette is scannable, not a wall of text', () => {
   it('gives every command an icon', async () => {
     renderApp();
     await screen.findByTestId('file-menu-trigger');
+    document.activeElement?.blur?.();
     fireEvent.keyDown(window, { key: '/' });
 
     const rows = [...(await screen.findByTestId('command-palette')).querySelectorAll('[role="option"]')];
