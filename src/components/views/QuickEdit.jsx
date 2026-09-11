@@ -229,7 +229,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     return inherited;
   })();
 
-  // Direct successors (read-only Nachfolger list): every other task whose
+  // Direct successors (read-only Successors list): every other task whose
   // deps OR softDeps point to *this* node. Doesn't follow ancestor chains —
   // only the explicit graph edges, which is what the user drew.
   const directSuccessors = (() => {

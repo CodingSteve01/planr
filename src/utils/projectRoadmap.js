@@ -105,14 +105,27 @@ export function computeProjectRoadmap({ tree = [], scheduled = [], stats = {}, r
     };
   });
 
-  // Axis span: every date on the board, plus today so the marker is never off
-  // the canvas, snapped out to whole months.
+  // Axis span: every date THIS roadmap's own rows actually touch — never
+  // padded out to "today" unconditionally. A project that already finished,
+  // or one that has not started yet, has a real span of its own; stretching
+  // the axis to always include today filled a large fraction of the chart
+  // with dead space that had nothing to do with the project (and, since the
+  // Plan-mode view fits its width to the axis, a wider-than-necessary axis
+  // means every row and label draws smaller than it needs to).
   const dates = [];
   rows.forEach(row => { if (row.start) dates.push(+row.start); if (row.end) dates.push(+row.end); });
   rows.forEach(row => row.milestones.forEach(m => { if (m.end) dates.push(+m.end); }));
   const deadline = toDate(root.date);
   if (deadline) dates.push(+deadline);
-  dates.push(+today);
+  // Today only ever NARROWS-in, never widens: it is included when the
+  // project's own dates already bracket it (so an ongoing project still
+  // shows a "today" line), and left out when they don't (a finished or
+  // not-yet-started project draws exactly its own timeline). With no dates
+  // at all there is nothing to draw a roadmap over, so today is the only
+  // option left.
+  if (!dates.length || (+today >= Math.min(...dates) && +today <= Math.max(...dates))) {
+    dates.push(+today);
+  }
   if (!dates.length) return null;
 
   const axisStart = startOfMonth(new Date(Math.min(...dates)));
@@ -257,10 +270,14 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
   });
 
   // ── Today, and the deadline if there is one ──
-  const todayX = x(model.today);
-  out.push(`<line x1="${todayX.toFixed(1)}" y1="${gridTop - 8}" x2="${todayX.toFixed(1)}" y2="${gridBottom}" stroke="#22c55e" stroke-width="1.6" stroke-dasharray="4 3"/>`);
-  // Above the month row, not on its baseline — the two collided ("Sepday").
-  out.push(`<text class="pr-axis" x="${todayX.toFixed(1)}" y="${axisY - 4}" text-anchor="middle" fill="#22c55e">${esc(labels.today || 'today')}</text>`);
+  // Today no longer always falls inside [axisStart, axisEnd] (see above) —
+  // draw the line only when it actually does, or it lands off the plot.
+  if (model.today >= model.axisStart && model.today <= model.axisEnd) {
+    const todayX = x(model.today);
+    out.push(`<line x1="${todayX.toFixed(1)}" y1="${gridTop - 8}" x2="${todayX.toFixed(1)}" y2="${gridBottom}" stroke="#22c55e" stroke-width="1.6" stroke-dasharray="4 3"/>`);
+    // Above the month row, not on its baseline — the two collided ("Sepday").
+    out.push(`<text class="pr-axis" x="${todayX.toFixed(1)}" y="${axisY - 4}" text-anchor="middle" fill="#22c55e">${esc(labels.today || 'today')}</text>`);
+  }
   if (model.deadline) {
     const dx = x(model.deadline);
     out.push(`<line x1="${dx.toFixed(1)}" y1="${gridTop - 8}" x2="${dx.toFixed(1)}" y2="${gridBottom}" stroke="#f43f5e" stroke-width="1.6" stroke-dasharray="2 3"/>`);

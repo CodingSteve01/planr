@@ -329,7 +329,7 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
     const root = tree.find(x => x.id === rootId);
     const estimate = r.best ? `${Math.round(r.best * (r.factor || 1.5))}d` : '';
     const phases = r.phases?.length ? r.phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ') : '';
-    const desc = [r.note, phases ? `Phasen: ${phases}` : ''].filter(Boolean).join('\n');
+    const desc = [r.note, phases ? `Phases: ${phases}` : ''].filter(Boolean).join('\n');
     const issueKey = jiraFieldId && r.customValues?.[jiraFieldId] ? String(r.customValues[jiraFieldId]) : '';
     return [esc(r.name), esc(desc), 'Task', PRIO[r.prio] || 'Medium', esc(teamName), esc(teamName), estimate, esc(assignee), esc(root?.name || rootId), esc(issueKey), r.id].join(',');
   });

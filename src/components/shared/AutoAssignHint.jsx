@@ -9,7 +9,7 @@ import { useT } from '../../i18n.jsx';
  *   node      — the tree node (needs .id, .assign)
  *   scheduled — full scheduled array (to find the auto-assign entry)
  *   members   — all members (to resolve personId → name)
- *   onAccept  — callback({assign, team}) when user clicks "Übernehmen"
+ *   onAccept  — callback({assign, team}) when user clicks "Accept"
  */
 export function AutoAssignHint({ node, scheduled, members, onAccept }) {
   const { t } = useT();

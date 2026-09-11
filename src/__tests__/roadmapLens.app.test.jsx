@@ -190,6 +190,35 @@ describe('Plan mode: project lens beside the Gantt', () => {
 
     expect(pickerInput().value).toBe('Website Relaunch');
   });
+
+  it('shows a year on the first tick even when the axis does not start in January', async () => {
+    // Reported: a project starting mid-year had no year anywhere on the
+    // axis — it used to print one only on a January tick, and a roadmap
+    // that opens on "Jul Aug Sep Oct Nov" with no year is not orientable.
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Autumn Launch', type: 'goal', status: 'open' },
+        {
+          id: 'P1.1', name: 'Build', status: 'open', team: 'T1',
+          best: 20, factor: 1.5, assign: [], deps: [],
+          pinnedStart: '2026-09-01',
+        },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Autumn axis', planStart: '2026-01-01', planEnd: '2027-06-01' },
+    }));
+    renderApp();
+    await goToPlanMode();
+    await goToRoadmapTab();
+
+    const ticks = [...document.querySelectorAll('.pr-tick-lbl')].map(el => el.textContent);
+    expect(ticks.length, 'no month ticks rendered').toBeGreaterThan(0);
+    expect(ticks[0], 'first tick carries no year').toMatch(/’\d{2}$/);
+    // And it is not (only) because the axis happens to start in January.
+    expect(ticks[0]).not.toMatch(/^Jan /);
+  });
 });
 
 describe('Review mode: the portfolio lens has no per-project picker', () => {

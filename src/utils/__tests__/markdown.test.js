@@ -123,7 +123,7 @@ describe('buildMarkdownText: task serialisation', () => {
         meetingPlans: [{ id: 'p1', name: 'Eng', meetings: [] }],
       },
     });
-    expect(md).toMatch(/\*Meeting-Plan: 2026-07-01→\[plans:Eng\]\*/);
+    expect(md).toMatch(/\*Meeting plan: 2026-07-01→\[plans:Eng\]\*/);
   });
 
   test('handoff-plan emitted as sub-bullet with stages', () => {
@@ -176,7 +176,7 @@ describe('buildMarkdownText: task serialisation', () => {
 
     const md = buildMarkdownText({ ...base, tree });
     const line = md.split('\n').find(l => l.includes('**P1.1**'));
-    const depLine = md.split('\n').find(l => l.includes('*Benötigt:'));
+    const depLine = md.split('\n').find(l => l.includes('*Requires:'));
 
     expect(line).toMatch(/\{[^}]*done:2026-04-10/);
     expect(line).toMatch(/\{[^}]*done-start:2026-04-08/);
@@ -221,5 +221,69 @@ describe('buildMarkdownText: task serialisation', () => {
     };
 
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+  });
+});
+
+// ── Sub-bullet tags: renamed to English, old files still load ──────────────
+// The persisted .md format used four German tag words — *Benötigt:* (deps),
+// *Cap-Plan:*, *Meeting-Plan:*, *Phasen:* — baked directly into the file
+// format itself, not just UI copy. The writer above now emits the English
+// names (*Requires:*, *Capacity plan:*, *Meeting plan:*, *Phases:*); the
+// READER in App.jsx's parseMdToProject accepts both forms, so a file saved
+// by an older build keeps loading unchanged.
+//
+// parseMdToProject is a closure inside the App component (not exported), so
+// this checks the exact same regex literals shipped in App.jsx rather than
+// driving a full file-load through the rendered app. If either drifts from
+// the other, this test and the app disagree — keep them in sync by eye.
+describe('sub-bullet tag rename is backward compatible', () => {
+  // Copied verbatim from App.jsx's parseMdToProject.
+  const CAP_PLAN = /^\s*\*(?:Capacity plan|Cap-Plan):\s*(.+?)\*\s*$/;
+  const MEETING_PLAN = /^\s*\*(?:Meeting plan|Meeting-Plan):\s*(.+?)\*\s*$/;
+  const REQUIRES = /^\*(?:Requires|Benötigt):\s*(.+?)\*$/;
+  const PHASES = /^\*(?:Phases?|Phasen):\s*(.+?)\*$/;
+
+  test.each([
+    ['capacity plan', CAP_PLAN, '  *Capacity plan: 2026-09-01→50%*'],
+    ['capacity plan, pre-rename', CAP_PLAN, '  *Cap-Plan: 2026-09-01→50%*'],
+    ['meeting plan', MEETING_PLAN, '  *Meeting plan: 2026-06-01→[Standup 0.5h/d]*'],
+    ['meeting plan, pre-rename', MEETING_PLAN, '  *Meeting-Plan: 2026-06-01→[Standup 0.5h/d]*'],
+    ['deps', REQUIRES, '*Requires: P1.1*'],
+    ['deps, pre-rename', REQUIRES, '*Benötigt: P1.1*'],
+    ['phases', PHASES, '*Phases: ✅RE, 🟡Dev*'],
+    ['phases, pre-rename plural', PHASES, '*Phasen: ✅RE, 🟡Dev*'],
+    ['phases, pre-rename singular', PHASES, '*Phase: ✅RE*'],
+  ])('%s: %s matches and captures the body', (_label, re, line) => {
+    const m = line.match(re);
+    expect(m, `did not match: ${line}`).toBeTruthy();
+    expect(m[1].length).toBeGreaterThan(0);
+  });
+
+  test('the writer only ever emits the new English tags', () => {
+    const base = {
+      meta: { name: 'X', planStart: '2026-01-05', planEnd: '2026-12-31', version: '2' },
+      teams: [{ id: 'T1', name: 'Backend', color: '#10b981' }],
+      vacations: [],
+    };
+    const md = buildMarkdownText({
+      ...base,
+      tree: [
+        { id: 'P1', name: 'Root', team: 'T1', best: 0 },
+        { id: 'P1.1', name: 'A', team: 'T1', best: 1, factor: 1, status: 'open',
+          phases: [{ id: 'ph1', name: 'RE', status: 'done' }] },
+        { id: 'P1.2', name: 'B', team: 'T1', best: 1, factor: 1, status: 'open', deps: ['P1.1'] },
+      ],
+      members: [{
+        id: 'M1', name: 'Alex', team: 'T1', capMode: 'derived', weeklyHours: 40,
+        capChanges: [{ from: '2026-09-01', cap: 0.5 }],
+        meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
+      }],
+      data: { meetingPlans: [{ id: 'p1', name: 'Eng', meetings: [] }] },
+    });
+    expect(md).toContain('*Requires: P1.1*');
+    expect(md).toContain('*Phases: ');
+    expect(md).toContain('*Capacity plan: ');
+    expect(md).toContain('*Meeting plan: ');
+    expect(md).not.toMatch(/\*Benötigt:|\*Cap-Plan:|\*Meeting-Plan:|\*Phasen:/);
   });
 });

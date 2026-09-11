@@ -865,8 +865,10 @@ export default function App() {
           lastItem.capMode = 'derived';
           if (lastItem.weeklyHours == null) lastItem.weeklyHours = 40;
         }
-        // Sub-bullet for capacity changes: *Cap-Plan: 2026-09-01→50%, 2027-01-01→100%30h/w*
-        const cp = line.match(/^\s*\*Cap-Plan:\s*(.+?)\*\s*$/);
+        // Sub-bullet for capacity changes: *Capacity plan: 2026-09-01→50%, 2027-01-01→100%30h/w*
+        // Also accepts the pre-rename tag (*Cap-Plan:*) so files saved by an
+        // older build keep loading unchanged.
+        const cp = line.match(/^\s*\*(?:Capacity plan|Cap-Plan):\s*(.+?)\*\s*$/);
         if (cp && lastItem && mems[mems.length - 1] === lastItem) {
           const out = [];
           for (const raw of cp[1].split(',').map(s => s.trim()).filter(Boolean)) {
@@ -884,8 +886,9 @@ export default function App() {
           return;
         }
         // Sub-bullet for scheduled meeting overrides:
-        // *Meeting-Plan: 2026-06-01→[plans:dev+lead, Standup 0.5h/d]; 2027-01-01→[...]*
-        const mp = line.match(/^\s*\*Meeting-Plan:\s*(.+?)\*\s*$/);
+        // *Meeting plan: 2026-06-01→[plans:dev+lead, Standup 0.5h/d]; 2027-01-01→[...]*
+        // Also accepts the pre-rename tag (*Meeting-Plan:*) — see Cap-Plan above.
+        const mp = line.match(/^\s*\*(?:Meeting plan|Meeting-Plan):\s*(.+?)\*\s*$/);
         if (mp && lastItem && mems[mems.length - 1] === lastItem) {
           const out = [];
           for (const seg of mp[1].split(';').map(s => s.trim()).filter(Boolean)) {
@@ -972,7 +975,9 @@ export default function App() {
         if (lastItem) {
           const trimmed = line.trim();
           if (!trimmed) return;
-          const depM = trimmed.match(/^\*Benötigt:\s*(.+?)\*$/);
+          // Accepts the pre-rename German tag (*Benötigt:*) too, so a file
+          // saved before this rename still loads its dependencies.
+          const depM = trimmed.match(/^\*(?:Requires|Benötigt):\s*(.+?)\*$/);
           if (depM) {
             const items = depM[1].split(',').map(s => s.trim()).filter(Boolean);
             // All deps are hard now. Old `~id` markers (soft) still parse,
@@ -990,8 +995,9 @@ export default function App() {
             if (Object.keys(labels).length) lastItem._depLabels = labels;
             return;
           }
-          // Parse phases line: *Phasen: ✅RE, 🟡Development(Frontend), ○Test(QA)*
-          const phaseM = trimmed.match(/^\*Phasen?:\s*(.+?)\*$/);
+          // Parse phases line: *Phases: ✅RE, 🟡Development(Frontend), ○Test(QA)*
+          // `Phasen?` also matches the pre-rename tags (*Phase:*/*Phasen:*).
+          const phaseM = trimmed.match(/^\*(?:Phases?|Phasen):\s*(.+?)\*$/);
           if (phaseM) {
             const phaseItems = phaseM[1].split(',').map(s => s.trim());
             lastItem.phases = phaseItems.map(pi => parsePhaseToken(pi));

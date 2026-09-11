@@ -1601,7 +1601,7 @@ const de = {
   'ins.phases': 'Phasen',
   'ins.deps': 'Abhängigkeiten',
   'ins.inheritedDeps': 'Vom Parent geerbt',
-  'ins.inheritedDepTip': 'Geerbt von {0} — entferne dort `Benötigt: {1}` wenn diese Aufgabe nicht warten soll.',
+  'ins.inheritedDepTip': 'Geerbt von {0} — entferne dort `Requires: {1}` wenn diese Aufgabe nicht warten soll.',
   'ins.editSection': 'Bearbeiten',
   'ins.phaseToggle': 'Klick ändert Status',
   'ins.autoAssigned': 'Auto-zugewiesen',
