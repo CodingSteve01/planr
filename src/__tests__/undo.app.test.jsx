@@ -52,7 +52,14 @@ async function goToTreeTab() {
 describe('Undo/redo integration', () => {
   beforeEach(() => {
     cleanup();
-    try { localStorage.clear(); localStorage.setItem('planr_lang', 'en'); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+      localStorage.setItem('planr_lang', 'en');
+      // Since the mode shell landed, the tab bar shows only the active mode's
+      // tabs — the Work Tree belongs to Build, so say so rather than relying
+      // on whichever mode happens to be the default.
+      localStorage.setItem('planr_mode', 'build');
+    } catch { /* ignore */ }
     seedProject();
   });
   afterEach(() => {
