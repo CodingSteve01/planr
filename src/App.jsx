@@ -22,6 +22,7 @@ import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, pha
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
+import { MODES, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
@@ -48,6 +49,8 @@ import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
+import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
+import { ReportView } from './components/views/ReportView.jsx';
 
 // useEvent shim — stable callback ref that always invokes the latest closure.
 // Lets us pass App-defined functions to React.memo'd children without busting
@@ -200,6 +203,15 @@ export function buildMemberShortMap(members) {
   return map;
 }
 
+// Every tab the app shell knows about — single source of truth for both the
+// tab bar (built below with i18n labels) and the mode guard test
+// (src/utils/__tests__/modes.test.js) that checks every one of these is
+// reachable from at least one mode. 'report' is new in this phase — the
+// former Export modal, now a normal Report-mode view (see ReportView.jsx).
+export const TAB_IDS = ['summary', 'briefing', 'plan', 'tree', 'gantt', 'net', 'resources', 'holidays', 'report'];
+// Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
+const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
+
 export default function App() {
   const { t: _t, lang: _lang } = useT();
   const [data, setData] = useState(() => loadLocalProject());
@@ -211,6 +223,20 @@ export default function App() {
   // skips its reconciliation entirely — no input-lag cascade.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
   useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
+  // Mode state (docs/principles.md, principle 1): which of the five modes is
+  // active. Falls back to whichever mode owns the persisted tab so a user
+  // who last had e.g. "resources" open before modes existed doesn't get
+  // silently reset to Build.
+  const [mode, _setMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('planr_mode');
+      if (saved && isValidMode(saved)) return saved;
+    } catch { /* ignore */ }
+    return modeForTab(tab).id;
+  });
+  const setMode = m => { _setMode(m); try { localStorage.setItem('planr_mode', m); } catch {} };
+  // Switching mode always selects that mode's default tab (task spec).
+  const switchMode = m => { setMode(m); setTab(getMode(m).defaultTab); };
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -2583,16 +2609,18 @@ export default function App() {
 
   // "New!" badge: shown on tabs until the user dismisses the new-feature popover
   const showNewBadge = showNewFeat;
-  const TABS = [
-    { id: 'summary', label: _t('tab.summary'), isNew: showNewBadge },
-    { id: 'briefing', label: _t('tab.briefing') },
-    { id: 'plan', label: _t('tab.plan'), isNew: showNewBadge },
-    { id: 'tree', label: _t('tab.tree') },
-    { id: 'gantt', label: _t('tab.gantt'), isNew: showNewBadge },
-    { id: 'net', label: _t('tab.net') },
-    { id: 'resources', label: _t('tab.resources') },
-    { id: 'holidays', label: _t('tab.holidays') },
-  ];
+  const TABS = TAB_IDS.map(id => ({
+    id,
+    label: _t(`tab.${id}`),
+    isNew: showNewBadge && NEW_BADGE_TAB_IDS.has(id),
+  }));
+  // The tab bar shows only the active mode's tabs, plus whatever tab the
+  // user currently has open (even if it belongs to a different mode) — so
+  // jumping to a view from the palette never traps you with no way back to
+  // where you were (task spec: "nothing becomes unreachable").
+  const modeTabIds = getMode(mode).tabs;
+  const visibleTabIds = modeTabIds.includes(tab) ? modeTabIds : [...modeTabIds, tab];
+  const visibleTabs = TABS.filter(t => visibleTabIds.includes(t.id));
 
   // ── Tour steps (resolved at render time so they pick up the active language) ──
   const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
@@ -2808,8 +2836,50 @@ export default function App() {
     </div>;
   };
 
+  // Shared between the Export dialog and Report mode (ReportView.jsx) — both
+  // render the same ExportCards grid with the same handlers, so this object
+  // is built once and spread into whichever one is mounted.
+  const exportHandlerProps = {
+    tab,
+    onOpenJira: () => setModal('jira'),
+    onOpenJiraSync: () => setModal('jirasync'),
+    onSummaryPDF: (opts) => exportSummaryPDF(_exportCtx(), opts),
+    onGanttPDF: () => exportGanttPDF(_exportCtx()),
+    onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
+    onTodoPDF: horizonDays => exportTodoPDF(_exportCtx(), horizonDays),
+    onReportDocx: () => exportReportDocx(_exportCtx()),
+    onSprintMarkdown: horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }),
+    onMermaid: () => exportMermaid(_exportCtx()),
+    onNetworkPNG: () => exportNetworkPNG(_exportCtx()),
+    onGanttPNG: () => exportGanttPNG(_exportCtx()),
+    onJSON: () => exportJSON(_exportCtx()),
+  };
+
+  // `/` command palette — every control displaced from the topbar (principle
+  // 4, tier 2), plus a jump to each mode and each view. One flat list; the
+  // palette itself groups by `group`/`groupLabel` and fuzzy-filters
+  // (src/utils/palette.js).
+  const fileGroup = _t('palette.group.file');
+  const modeGroup = _t('palette.group.modes');
+  const viewGroup = _t('palette.group.views');
+  const paletteCommands = [
+    { id: 'load', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, run: () => loadFromFile() },
+    { id: 'snapshots', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
+    { id: 'saveAs', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, run: () => saveToFile(true) },
+    // Export… now primarily means "go look at Report mode" — the export
+    // cards rendered as a normal view (ReportView.jsx). The old dialog stays
+    // one entry below so nothing that worked before stops working.
+    { id: 'export', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, run: () => switchMode('report') },
+    { id: 'exportDialog', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'newProject', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); } },
+    { id: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    ...MODES.map(m => ({ id: `mode.${m.id}`, labelKey: m.labelKey, group: 'mode', groupLabel: modeGroup, run: () => switchMode(m.id) })),
+    ...TAB_IDS.map(id => ({ id: `view.${id}`, labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
+  ];
+
   return <>
     <HoverTipProvider />
+    <CommandPalette commands={paletteCommands} />
     <div className="app">
     <div className="topbar">
       <span className="logo" data-htip="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
@@ -2867,20 +2937,32 @@ export default function App() {
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
-      <button className="btn btn-sec btn-sm" data-htip={_t('tour.helpTitle')}
-        onClick={startTour}>{_t('tour.help')}</button>
+      {/* Mode switch (docs/principles.md, principle 1) — sits between the
+          file/save pill (left) and the settings/palette buttons (right).
+          Everything the old button row did (Load / Snapshots / Save as /
+          Export… / New / Help) moved into the `/` palette; only Settings
+          keeps its own button. */}
+      <span style={{ display: 'inline-flex', gap: 4 }} role="tablist" aria-label={_t('mode.switchLabel')}>
+        {MODES.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={mode === m.id}
+            className={`chip${mode === m.id ? ' on' : ''}`}
+            data-htip={_t(m.tooltipKey)}
+            onClick={() => switchMode(m.id)}
+          >{_t(m.labelKey)}</button>
+        ))}
+      </span>
       <div className="vsep" />
-      <button className="btn btn-sec btn-sm" onClick={loadFromFile}>Load</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('snapshots')}
-        data-htip="Recover from a rolling JSON snapshot — last 20 saves are kept locally as a safety net.">↶ Snapshots</button>
-      <button className="btn btn-sec btn-sm" onClick={() => saveToFile(true)} data-htip="Save as (pick format: JSON or Markdown)">Save as</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('export')}>Export…</button>
-      <button className="btn btn-pri btn-sm" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); }}>New</button>
+      <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
+        onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">
-      {TABS.map(t => (
+      {visibleTabs.map(t => (
         <div
           key={t.id}
           className={`tab${tab === t.id ? ' on' : ''}`}
@@ -3032,6 +3114,7 @@ export default function App() {
         onTeamAdd={onResTeamAdd}
         onTeamDel={onResTeamDel} /></div>}
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
+      {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><ReportView {...exportHandlerProps} /></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
@@ -3088,20 +3171,8 @@ export default function App() {
       onOpenItem={id => { const node = tree.find(r => r.id === id); if (!node) { setModal(null); return; } setSel(node); setMN(node); setModal('node'); }}
       onClose={() => setModal(null)} />}
     {modal === 'export' && <ExportModal
-      tab={tab}
       onClose={() => setModal(null)}
-      onOpenJira={() => setModal('jira')}
-      onOpenJiraSync={() => setModal('jirasync')}
-      onSummaryPDF={(opts) => exportSummaryPDF(_exportCtx(), opts)}
-      onGanttPDF={() => exportGanttPDF(_exportCtx())}
-      onWhatWhenPDF={() => exportWhatWhenPDF(_exportCtx())}
-      onTodoPDF={horizonDays => exportTodoPDF(_exportCtx(), horizonDays)}
-      onReportDocx={() => exportReportDocx(_exportCtx())}
-      onSprintMarkdown={horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays })}
-      onMermaid={() => exportMermaid(_exportCtx())}
-      onNetworkPNG={() => exportNetworkPNG(_exportCtx())}
-      onGanttPNG={() => exportGanttPNG(_exportCtx())}
-      onJSON={() => exportJSON(_exportCtx())}
+      {...exportHandlerProps}
     />}
 
     {/* ── Onboarding tour ── */}
