@@ -75,8 +75,20 @@ describe('the table and the app agree', () => {
   // `withKey(..., 'typo')` silently renders no hint — deliberate, so a typo
   // never breaks a tooltip — which is precisely why it needs catching here.
   it('every id used by a withKey/keyHint call exists in the table', () => {
-    const used = [...ALL_SOURCE.matchAll(/\b(?:withKey|keyHint)\([\s\S]*?,\s*'([^']+)'\)/g)]
+    // Capture one call's argument list at a time — `[^()]*` with a single
+    // level of nesting allowed, so the match cannot run past the closing
+    // paren. An earlier `[\s\S]*?,\s*'([^']+)'` version could: given a
+    // single-argument `keyHint(cmd.key)` it kept scanning forward through
+    // unrelated code until it found some other `, 'string')` and reported
+    // that as a shortcut id.
+    const calls = [...ALL_SOURCE.matchAll(/\b(?:withKey|keyHint)\(((?:[^()']|'[^']*')*(?:\((?:[^()']|'[^']*')*\)(?:[^()']|'[^']*')*)*)\)/g)]
       .map(m => m[1]);
+    // The id is the last quoted literal in the argument list; a call that
+    // passes a variable (`keyHint(item.key)`) has none and is skipped — it
+    // cannot be checked statically.
+    const used = calls
+      .map(args => [...args.matchAll(/'([^']+)'/g)].pop()?.[1])
+      .filter(Boolean);
     expect(used.length, 'no withKey call found — has the helper been renamed?').toBeGreaterThan(5);
     const unknown = [...new Set(used)].filter(id => !shortcut(id));
     expect(unknown).toEqual([]);
