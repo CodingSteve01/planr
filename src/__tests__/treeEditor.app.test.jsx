@@ -678,6 +678,47 @@ describe('the tree editor writes through to the plan', () => {
     await waitFor(() => expect(insights()).toBe('wip'));
   });
 
+  it('a cached row still repaints when its own data changes', async () => {
+    // Rows are cached by signature so that moving the cursor does not
+    // re-render every visible row — measured at 82 ms per arrow press on a
+    // 300-row plan before, no measurable task after. The risk that buys is
+    // the opposite failure: a row that quietly stops updating. This pins the
+    // three writes that must always come through.
+    renderApp();
+    await selectRow('P1.2');
+
+    await press(grid(), '1');
+    await waitFor(() => expect(nodeById('P1.2').prio).toBe('1'));
+
+    await press(grid(), ' ');
+    await waitFor(() => expect(nodeById('P1.2').status).toBe('wip'));
+
+    await press(grid(), 'Enter');
+    const input = screen.getByTestId('tree-name-input-P1.2');
+    await act(async () => { fireEvent.change(input, { target: { value: 'Repainted' } }); });
+    await press(input, 'Enter');
+    const trailing = document.querySelector('tr input[data-testid^="tree-name-input-"]');
+    if (trailing) await press(trailing, 'Escape');
+    await waitFor(() => expect(hasName('Repainted')).toBe(true));
+
+    // And the neighbour that was never touched is still itself.
+    expect(nameOf('P1.1')).toContain('Prices');
+  });
+
+  it('the cursor highlight moves off the old row, not just onto the new one', async () => {
+    renderApp();
+    await selectRow('P1.1');
+    await waitFor(() => expect(document.querySelectorAll('tr.sel')).toHaveLength(1));
+
+    await press(grid(), 'ArrowDown');
+
+    await waitFor(() => {
+      const sel = [...document.querySelectorAll('tr.sel')];
+      expect(sel, 'exactly one row must be highlighted').toHaveLength(1);
+      expect(sel[0].textContent).toContain('P1.2');
+    });
+  });
+
   it('⇧← collapses everything and ⇧→ expands it again', async () => {
     renderApp();
     await selectRow('P1');

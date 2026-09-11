@@ -38,10 +38,10 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileN
   // `key` is a shortcuts.js id where one exists, so the menu teaches the
   // keystroke at the control instead of in a separate list.
   const items = [
-    { id: 'load', icon: '📂', label: t('palette.load'), run: onLoad },
-    { id: 'saveAs', icon: '💾', label: t('palette.saveAs'), run: onSaveAs, key: 'save' },
+    { id: 'load', icon: '📂', label: t('palette.load'), run: onLoad, key: 'open' },
+    { id: 'saveAs', icon: '💾', label: t('palette.saveAs'), run: onSaveAs, key: 'saveAs' },
     { id: 'snapshots', icon: '↶', label: t('palette.snapshots'), run: onSnapshots },
-    { id: 'export', icon: '📤', label: t('palette.export'), run: onExport },
+    { id: 'export', icon: '📤', label: t('palette.export'), run: onExport, key: 'export' },
     { id: 'new', icon: '✧', label: t('palette.newProject'), run: onNew, separated: true },
   ];
 

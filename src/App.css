@@ -34,7 +34,23 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--b3);border-radius:3px;}
 .app{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
-.topbar{display:flex;align-items:center;gap:8px;padding:4px 16px;min-height:44px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:wrap;}
+/* One row, always. It used to `flex-wrap: wrap`, and the save status
+   rewrites its own text every few seconds ("saving…" → "all saved · 14:32"
+   → "unsaved · saving in 3s"), so on a narrow window the whole header kept
+   re-sorting itself while you were working — the controls you were aiming
+   at moved. Now the file/save group (.topbar-file) absorbs the width and
+   truncates; everything to the right of it holds its position. */
+.topbar{display:flex;align-items:center;gap:8px;padding:4px 16px;min-height:44px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:nowrap;}
+.topbar > *{flex-shrink:0;}
+.topbar-file{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;overflow:hidden;}
+.topbar-file > *{flex-shrink:0;}
+/* The status text is the part that changes length on its own. Reserving a
+   stable width keeps its own updates from nudging anything. */
+.topbar-status{display:inline-flex;align-items:center;gap:6px;min-width:132px;}
+/* First to go when the window gets genuinely narrow: a count you can also
+   read off the Overview. */
+@media (max-width: 1100px){ .topbar-count,.topbar-count + .vsep{display:none;} }
+@media (max-width: 900px){ .topbar-file{flex:0 1 160px;} }
 .logo{font-size:15px;font-weight:700;letter-spacing:-.5px;cursor:pointer;user-select:none;}
 .logo-dot{color:var(--ac);}
 .vsep{width:1px;height:18px;background:var(--b2);flex-shrink:0;}

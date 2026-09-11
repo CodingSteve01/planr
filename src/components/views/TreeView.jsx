@@ -47,6 +47,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const editCellRef = useRef(null);
   const teamSelRef = useRef(null);
   const wasEditingRef = useRef(false);
+  // id → { sig, el } for the row cache; see the comment at the row map.
+  const rowCacheRef = useRef(new Map());
   const containerRef = useRef(null);
   const editInputRef = useRef(null);
   // Guards against handleEditBlur double-committing when Enter/Escape
@@ -832,76 +834,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onPasteRows(selected.id, rows);
   }
 
-  return <div
-    ref={containerRef}
-    tabIndex={0}
-    onKeyDown={handleContainerKeyDown}
-    onPaste={handlePaste}
-    style={{ outline: 'none' }}
-    data-testid="tree-editor-surface">
-    <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
-      <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={withKey(hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll'), 'collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
-      <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={withKey(hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll'), 'expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
-      {/* One help affordance, not two. The shortcuts used to be printed above
-          the table as a dense line of glyphs, and the symbol legend was a
-          separate hover-only `?` beside it — same question, two places. Both
-          now open the same dialog, under the key that opens it. */}
-      <button className="btn btn-sec btn-xs" data-testid="tree-keymap-btn"
-        onClick={() => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT))}
-        data-htip={withKey(t('km.title'), 'keymap')}
-        style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>?</button>
-      {/* Diff picker lives in the App-level sub-toolbar so it stays
-          available next to the root/team/person filters. Toggling the
-          "Only changed" checkbox there reaches this view via the
-          `onlyChanged` prop. */}
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
-    </div>
-
-    {/* Contextual action row — only when a single item is selected. Acts on that item. */}
-    {selected?.id && selPos && (
-      <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 33, zIndex: 10 }}>
-        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
-        <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
-        <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
-        {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
-        {toolBtn(`✎ ${t('tv.rename')}`, withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id))}
-        {onInsertAfter && toolBtn(`+ ${t('tv.newRow')}`, withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id))}
-        {onInsertChild && toolBtn(`↳ ${t('tv.newChild')}`, withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id))}
-        {/* Re-parent — the mouse twin of Tab / ⇧Tab. `null` from the helper
-            means the move is a no-op here (already at the top level, or no
-            previous sibling to become the new parent), so the button is
-            disabled rather than silently doing nothing. Note '' is a valid
-            target (the root), which is why this tests against null. */}
-        {onMove && <>
-          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('⇤', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null)}
-          {toolBtn('⇥', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null)}
-        </>}
-        {onReorder && selPos.count > 1 && <>
-          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('⤒ First', withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'))}
-          {toolBtn('▲ Up', withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !visibleSiblingTarget(visibleIds, selected.id, 'up'))}
-          {toolBtn('▼ Down', withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !visibleSiblingTarget(visibleIds, selected.id, 'down'))}
-          {toolBtn('⤓ Last', withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'))}
-        </>}
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-sec btn-xs" onClick={() => onDelete(selected.id)}
-          data-htip={withKey((hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id)), 'delete')}
-          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
-      </div>
-    )}
-    <table className="tree-tbl">
-      <thead><tr>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>ID</th>
-        <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>Name</th>
-        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Effort</th>
-        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Schedule</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
-      </tr></thead>
-      <tbody>
-        {filt.map((r, idx) => {
-          const s = stats[r.id] || r;
+  // The row itself. Called only for rows whose signature changed — see
+  // the cache at the call site.
+  function renderRow(r, idx) {
+    const s = stats[r.id] || r;
           const isLeaf = isLeafNode(tree, r.id);
           const isCp = isLeaf && cpSet?.has(r.id);
           const childNodes = hasChildren(tree, r.id);
@@ -1203,6 +1139,112 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               </span>
             </td>
           </tr>;
+  }
+
+  return <div
+    ref={containerRef}
+    tabIndex={0}
+    onKeyDown={handleContainerKeyDown}
+    onPaste={handlePaste}
+    style={{ outline: 'none' }}
+    data-testid="tree-editor-surface">
+    <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+      <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={withKey(hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll'), 'collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
+      <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={withKey(hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll'), 'expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
+      {/* One help affordance, not two. The shortcuts used to be printed above
+          the table as a dense line of glyphs, and the symbol legend was a
+          separate hover-only `?` beside it — same question, two places. Both
+          now open the same dialog, under the key that opens it. */}
+      <button className="btn btn-sec btn-xs" data-testid="tree-keymap-btn"
+        onClick={() => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT))}
+        data-htip={withKey(t('km.title'), 'keymap')}
+        style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>?</button>
+      {/* Diff picker lives in the App-level sub-toolbar so it stays
+          available next to the root/team/person filters. Toggling the
+          "Only changed" checkbox there reaches this view via the
+          `onlyChanged` prop. */}
+      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
+    </div>
+
+    {/* Contextual action row — only when a single item is selected. Acts on that item. */}
+    {selected?.id && selPos && (
+      <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 33, zIndex: 10 }}>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+        {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
+        {toolBtn(`✎ ${t('tv.rename')}`, withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id))}
+        {onInsertAfter && toolBtn(`+ ${t('tv.newRow')}`, withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id))}
+        {onInsertChild && toolBtn(`↳ ${t('tv.newChild')}`, withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id))}
+        {/* Re-parent — the mouse twin of Tab / ⇧Tab. `null` from the helper
+            means the move is a no-op here (already at the top level, or no
+            previous sibling to become the new parent), so the button is
+            disabled rather than silently doing nothing. Note '' is a valid
+            target (the root), which is why this tests against null. */}
+        {onMove && <>
+          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
+          {toolBtn('⇤', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null)}
+          {toolBtn('⇥', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null)}
+        </>}
+        {onReorder && selPos.count > 1 && <>
+          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
+          {toolBtn('⤒ First', withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'))}
+          {toolBtn('▲ Up', withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !visibleSiblingTarget(visibleIds, selected.id, 'up'))}
+          {toolBtn('▼ Down', withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !visibleSiblingTarget(visibleIds, selected.id, 'down'))}
+          {toolBtn('⤓ Last', withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'))}
+        </>}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-sec btn-xs" onClick={() => onDelete(selected.id)}
+          data-htip={withKey((hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id)), 'delete')}
+          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
+      </div>
+    )}
+    <table className="tree-tbl">
+      <thead><tr>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>ID</th>
+        <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>Name</th>
+        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Effort</th>
+        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Schedule</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
+      </tr></thead>
+      <tbody>
+        {filt.map((r, idx) => {
+          // ── Why this row is cached ────────────────────────────────────
+          // Moving the cursor one row changes exactly two rows, but it
+          // re-rendered every visible one: measured at 82 ms per arrow press
+          // on a 300-row plan (13 rows: no long task at all — the cost
+          // scales with what is on screen, which is what ruled out saving,
+          // syncing and the side panel). Holding the key queues presses at
+          // 82 ms each, which is where "half a second to a second behind"
+          // comes from.
+          //
+          // React bails out of re-rendering a subtree when it is handed the
+          // SAME element reference, so unchanged rows return their previous
+          // element. The signature below therefore has to name everything
+          // this row's output reads — anything missed here shows up as a
+          // row that quietly stops updating, which is worse than the lag.
+          // Per-row state is kept per-row on purpose: taking `editing` or
+          // `orderDrop` whole would rebuild all rows on every keystroke of
+          // a rename.
+          const isSel = selected?.id === r.id;
+          const isEditingRow = editing?.id === r.id;
+          const dropOn = orderDrop?.targetId === r.id && canDropOrder(orderDrop.dragId, r.id) ? orderDrop.position : '';
+          const sig = [
+            r, idx, isSel, multiSel?.has(r.id), collapsed.has(r.id),
+            isEditingRow ? editing.draft : false,
+            dropOn, search && idx === 0,
+            // Anything shared that changes the row's content.
+            stats, sMap, scheduleRangeById, cpSet, cpLabels, roadmapAssignment,
+            customFields, teams, sizeCatalogue, tree, t,
+          ];
+          const cached = rowCacheRef.current.get(r.id);
+          if (cached && cached.sig.length === sig.length && cached.sig.every((v, i) => v === sig[i])) {
+            return cached.el;
+          }
+          const el = renderRow(r, idx);
+          rowCacheRef.current.set(r.id, { sig, el });
+          return el;
         })}
       </tbody>
     </table>
