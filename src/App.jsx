@@ -1323,10 +1323,29 @@ export default function App() {
   }
   // Accept both .json and .md files
 
-  // Global keyboard shortcuts: Ctrl/Cmd+S → save, Ctrl/Cmd+F → focus search,
-  // Ctrl/Cmd+Z → undo, Shift+Ctrl/Cmd+Z or Ctrl+Y → redo.
+  // Global keyboard shortcuts. The file ones are the platform conventions
+  // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
+  // ⌘E export, ⌘, settings — declared in utils/shortcuts.js so the keymap
+  // and the menus name exactly what is bound here.
+  //
+  // ⌘N (new) is deliberately NOT bound: browsers keep it for "new window"
+  // and never deliver it to the page, so binding it would look like a
+  // feature and do nothing. New project lives in the File menu and the
+  // palette instead.
   useEffect(() => {
     const h = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      const key = (e.key || '').toLowerCase();
+      // Never steal a file shortcut from a text field the user is typing in
+      // — except Save, which people expect to work from anywhere.
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
+
+      if (mod && key === 's' && e.shiftKey) { e.preventDefault(); saveToFile(true); return; }
+      if (mod && key === 'o' && !typing) { e.preventDefault(); loadFromFile(); return; }
+      if (mod && key === 'e' && !typing) { e.preventDefault(); switchMode('report'); return; }
+      if (mod && e.key === ',' && !typing) { e.preventDefault(); setModal('settings'); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         // Only intercept when a searchable view is active
@@ -3018,13 +3037,13 @@ export default function App() {
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
   const paletteCommands = [
-    { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, run: () => loadFromFile() },
+    { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
     { id: 'snapshots', icon: '↶', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
-    { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'save', run: () => saveToFile(true) },
+    { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
     // Export… now primarily means "go look at Report mode" — the export
     // cards rendered as a normal view (ReportView.jsx). The old dialog stays
     // one entry below so nothing that worked before stops working.
-    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, run: () => switchMode('report') },
+    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => switchMode('report') },
     { id: 'exportDialog', icon: '📄', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
     { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
@@ -3044,7 +3063,14 @@ export default function App() {
           whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
       <span className="logo">Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {/* One shrinkable group for everything file/save related. The bar used
+          to wrap, and the save status changes its own text constantly
+          ("saving…" → "all saved · 14:32" → "unsaved · saving in 3s"), so on
+          a narrow window the whole header kept re-sorting itself while you
+          worked. Now this group absorbs the width instead: it truncates, the
+          controls on the right never move. */}
+      <span className="topbar-file">
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
         <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
       </span>
@@ -3081,7 +3107,7 @@ export default function App() {
           color = 'var(--am)';
           tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
         }
-        return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        return <span className="topbar-status" style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
           data-htip={tip}
           onClick={() => { if (clickable) saveToFile(true); }}>
           {text}
@@ -3092,10 +3118,11 @@ export default function App() {
           </span>}
         </span>;
       })()}
+      </span>
       <button className="btn btn-sec btn-xs" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}>↶</button>
       <button className="btn btn-sec btn-xs" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}>↷</button>
       <div className="vsep" />
-      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
+      <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
       {/* Mode switch (docs/principles.md, principle 1) — sits between the
           file/save pill (left) and the settings/palette buttons (right).
@@ -3131,7 +3158,8 @@ export default function App() {
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}
+        data-htip={withKey(_t('set.title'), 'settings')}>⚙ Settings</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">

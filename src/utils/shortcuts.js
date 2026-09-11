@@ -32,7 +32,11 @@ export const SCOPES = ['global', 'tree', 'treeEdit', 'gantt'];
 
 export const SHORTCUTS = [
   // ── Global — live everywhere, handled in App.jsx ──────────────────────
+  { id: 'open', scope: 'global', keys: [`${MOD}O`], labelKey: 'sc.open' },
   { id: 'save', scope: 'global', keys: [`${MOD}S`], labelKey: 'sc.save' },
+  { id: 'saveAs', scope: 'global', keys: [`⇧${MOD}S`], labelKey: 'sc.saveAs' },
+  { id: 'export', scope: 'global', keys: [`${MOD}E`], labelKey: 'sc.export' },
+  { id: 'settings', scope: 'global', keys: [`${MOD},`], labelKey: 'sc.settings' },
   { id: 'undo', scope: 'global', keys: [`${MOD}Z`], labelKey: 'sc.undo' },
   { id: 'redo', scope: 'global', keys: [`⇧${MOD}Z`], labelKey: 'sc.redo' },
   { id: 'palette', scope: 'global', keys: ['/', `${MOD}K`], labelKey: 'sc.palette' },
