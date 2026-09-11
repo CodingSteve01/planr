@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../../i18n.jsx';
 
 // Lists rolling JSON snapshots from localStorage so the user can recover from
 // a corrupted on-disk markdown file. Snapshots are written by App.jsx on
@@ -28,6 +29,7 @@ function summarize(data) {
 }
 
 export function SnapshotModal({ onClose, onRestore, onExportJson }) {
+  const { t } = useT();
   const [snaps, setSnaps] = useState(() => loadSnapshots());
 
   useEffect(() => {
@@ -73,10 +75,10 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
                   </div>
                 </div>
                 <button className="btn btn-sec btn-xs"
-                  data-htip="Download this snapshot as a .json file"
+                  data-htip={t('snap.downloadTip')}
                   onClick={() => onExportJson?.(snap)}>↓ JSON</button>
                 <button className="btn btn-pri btn-xs"
-                  data-htip="Replace current project with this snapshot"
+                  data-htip={t('snap.restoreTip')}
                   onClick={() => onRestore?.(snap)}>↶ Restore</button>
               </li>
             ))}

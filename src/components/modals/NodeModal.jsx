@@ -18,8 +18,8 @@ import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 
-// REASON_TIP is built inside the component using t() — see reasonTip below
-const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
+// REASON_TIP and the confidence label are built inside the component using
+// t() — see reasonTip below (the label reuses the global conf.* keys).
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
@@ -440,7 +440,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               </div>
             )}
             {isLeaf && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.parallelTip') || 'Darf parallel zu anderen Tasks dieser Person laufen (überspringt Person-Queue, wenn keine Vorgänger)'}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.parallelTip')}>
                 <span>{t('qe.parallel') || 'Parallel'}</span>
                 <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked || undefined)} /><span className="slider" /></label>
               </div>
@@ -509,8 +509,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               const reason = confReasons[node.id];
               const isAuto = !f.confidence;
               return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--r)', border: `1px solid ${CONF_COLOR[eff]}`, fontSize: 10, color: CONF_COLOR[eff], cursor: 'help', whiteSpace: 'nowrap' }}
-                data-htip={`${CONF_LABEL[eff]} — ${REASON_TIP[reason] || '?'}`}>
-                {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {CONF_LABEL[eff]}
+                data-htip={`${t(`conf.${eff}`)} — ${REASON_TIP[reason] || '?'}`}>
+                {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {t(`conf.${eff}`)}
               </span>;
             })()}
           </div>

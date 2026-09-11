@@ -64,7 +64,7 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
               value={team || ''}
               options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
               onSelect={v => { setTeam(v); setTeamClear(false); }}
-              placeholder={t('assign.teamPlaceholder') || 'Team wählen…'}
+              placeholder={t('assign.teamPlaceholder')}
             />
           </div>
         </div>
@@ -97,7 +97,7 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
               value=""
               options={remainingMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
               onSelect={addPerson}
-              placeholder={t('assign.personPlaceholder') || 'Person hinzufügen…'}
+              placeholder={t('assign.personPlaceholder')}
             />
           </div>
         </div>

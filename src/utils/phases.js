@@ -89,6 +89,73 @@ export function phaseProgress(phases) {
   return Math.round(progress * 100);
 }
 
+// ── Walking the phases, one keypress at a time ───────────────────────────
+// A leaf with phases derives its progress FROM them (see leafProgress in
+// scheduler.js: "phases are the single source of truth when present"). So
+// cycling such a task's `status` writes a number nothing reads — which is
+// why Space appeared to do nothing on a task with phases.
+//
+// The serial model: the CURRENT phase is the first one that isn't done.
+// Each press moves it one step along open → wip → done; finishing it makes
+// the next phase current. Past the last phase the whole list wraps back to
+// open, mirroring the open → wip → done → open cycle a phase-less task has.
+// `back` walks the same path in reverse.
+//
+// Returns a new phase array, or null when there is nothing to do (no phases,
+// or already at the very start going backwards).
+export function advancePhases(phases, back = false) {
+  const list = normalizePhases(phases);
+  if (!list.length) return null;
+  const next = list.map(phase => ({ ...phase }));
+  const current = next.findIndex(phase => phase.status !== 'done');
+
+  if (!back) {
+    // Everything done → wrap to the start, the same way done → open does.
+    if (current < 0) { next.forEach(phase => { phase.status = 'open'; }); return next; }
+    next[current].status = next[current].status === 'open' ? 'wip' : 'done';
+    return next;
+  }
+
+  // Everything done → reopen the last one, the exact inverse of finishing it.
+  if (current < 0) { next[next.length - 1].status = 'wip'; return next; }
+  if (next[current].status === 'wip') { next[current].status = 'open'; return next; }
+  // The current phase is untouched, so the previous step was "finished the
+  // one before it" — undo that.
+  if (current === 0) return null;
+  next[current - 1].status = 'wip';
+  return next;
+}
+
+// The task status a phase list implies. Null when there are no phases, so a
+// caller can tell "no opinion" from "open".
+export function statusFromPhases(phases) {
+  const list = normalizePhases(phases);
+  if (!list.length) return null;
+  if (list.every(phase => phase.status === 'done')) return 'done';
+  if (list.every(phase => phase.status === 'open')) return 'open';
+  return 'wip';
+}
+
+// The phase a keypress would act on next — what the UI should point at.
+export function currentPhase(phases) {
+  const list = normalizePhases(phases);
+  if (!list.length) return null;
+  return list.find(phase => phase.status !== 'done') || null;
+}
+
+// Jump straight to a phase: everything before it done, it in progress,
+// everything after it open. The mouse twin of holding Space — and the reason
+// the row editor shows the phase list where a phase-less task shows Status.
+export function setPhaseCursor(phases, phaseId) {
+  const list = normalizePhases(phases);
+  const target = list.findIndex(phase => phase.id === phaseId);
+  if (target < 0) return null;
+  return list.map((phase, idx) => ({
+    ...phase,
+    status: idx < target ? 'done' : idx === target ? 'wip' : 'open',
+  }));
+}
+
 export function phaseTeamLabel(phase, teams) {
   return phaseTeamIds(phase)
     .map(id => teams?.find(team => team.id === id)?.name || id)

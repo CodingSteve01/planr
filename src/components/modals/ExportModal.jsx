@@ -6,12 +6,13 @@ import { ExportCards } from '../shared/ExportCards.jsx';
 // ("Export… (dialog)") this phase for anyone who prefers a modal over
 // switching to Report mode. The card grid itself lives in ExportCards.jsx,
 // shared with ReportView.jsx, so this file only owns the modal chrome and
-// closes itself before handing off to the Jira dialogs.
+// closes itself before handing off to the Jira export dialog. (Jira
+// reconcile — the return path — no longer lives behind a dialog; see Run
+// mode's drift section in BriefingView.jsx.)
 export function ExportModal({
   tab,
   onClose,
   onOpenJira,
-  onOpenJiraSync,
   onSummaryPDF,
   onGanttPDF,
   onWhatWhenPDF,
@@ -33,7 +34,6 @@ export function ExportModal({
         <ExportCards
           tab={tab}
           onOpenJira={() => { onClose(); onOpenJira(); }}
-          onOpenJiraSync={() => { onClose(); onOpenJiraSync(); }}
           onSummaryPDF={onSummaryPDF}
           onGanttPDF={onGanttPDF}
           onWhatWhenPDF={onWhatWhenPDF}

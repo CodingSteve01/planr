@@ -31,7 +31,7 @@ export function CustomFieldInput({ field, value, onChange }) {
       <LazyInput
         style={{ flex: 1 }}
         value={v}
-        placeholder={field.uriTemplate ? 'e.g. PROJ-123' : 'https://…'}
+        placeholder={field.uriTemplate ? t('cf.uriValuePlaceholder') : 'https://…'}
         onCommit={onChange}
       />
       {url && <a

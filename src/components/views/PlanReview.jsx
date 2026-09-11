@@ -1,5 +1,5 @@
 import { useMemo, useState, memo } from 'react';
-import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus } from '../../utils/scheduler.js';
+import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -58,12 +58,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
   };
 
   function isReady(id) {
-    const item = iMap[id]; if (!item) return true;
-    const parts = id.split('.');
-    const ancestors = [];
-    for (let i = 1; i < parts.length; i++) ancestors.push(parts.slice(0, i).join('.'));
-    const allDeps = [...new Set([...(item.deps || []), ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
-    return allDeps.every(d => resolveToLeafIds(tree, d).every(dl => doneSet.has(dl)));
+    return isDepsReady(tree, doneSet, iMap[id]);
   }
 
   const confCounts = useMemo(() => {

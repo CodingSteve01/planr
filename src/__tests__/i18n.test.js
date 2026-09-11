@@ -61,7 +61,9 @@ const TRANSLATED_FILES = [
   'components/shared/ExportCards.jsx',
   'components/shared/CommandPalette.jsx',
   'components/views/ReportView.jsx',
+  'components/views/BriefingView.jsx',
   'utils/modes.js',
+  'components/shared/RoadmapLens.jsx',
 ];
 
 // A JSX text node or a title/desc/placeholder attribute holding prose — two
@@ -77,6 +79,57 @@ describe('the reworked surfaces have no hardcoded display text', () => {
       ...[...src.matchAll(PROSE_ATTR)].map(m => m[1]),
       ...[...src.matchAll(PROSE_NODE)].map(m => m[1]),
     ].filter(text => !/^https?:/.test(text));
+
+    expect(found).toEqual([]);
+  });
+});
+
+// Files where the tooltip attributes (data-htip / title / placeholder) were
+// swept for hardcoded prose and routed through t(). Narrower than
+// TRANSLATED_FILES above: these files still carry pre-existing hardcoded
+// JSX text elsewhere (visible labels, not tooltips) that is out of scope for
+// this pass, so the full PROSE_NODE check would fail on them for reasons
+// unrelated to what this guard is for. Add a file here whenever its
+// tooltips get swept.
+const TOOLTIP_TRANSLATED_FILES = [
+  'App.jsx',
+  'components/views/GanttView.jsx',
+  'components/views/QuickEdit.jsx',
+  'components/views/ResView.jsx',
+  'components/views/TreeView.jsx',
+  'components/views/SumView.jsx',
+  'components/views/NetGraph.jsx',
+  'components/shared/TaskInsights.jsx',
+  'components/shared/SearchBox.jsx',
+  'components/shared/HandoffPlanEditor.jsx',
+  'components/shared/CustomFieldInput.jsx',
+  'components/shared/ResourceLoadMatrix.jsx',
+  'components/shared/SelectionActionBar.jsx',
+  'components/shared/ItemHistoryTimeline.jsx',
+  'components/modals/AddModal.jsx',
+  'components/modals/SnapshotModal.jsx',
+  'components/modals/SettingsModal.jsx',
+  'components/modals/EstimationWizard.jsx',
+  'components/modals/AssignModal.jsx',
+  'components/modals/NewProjModal.jsx',
+  'components/modals/NodeModal.jsx',
+];
+
+// A literal string — not a t(...) call — sitting directly in one of the
+// three tooltip attributes, as either `attr="text"` or `attr={'text'}`.
+// This is the exact regression the tooltip pass exists to prevent: someone
+// typing `data-htip="New tooltip"` instead of `data-htip={t('x.y')}`. It
+// won't catch every possible form (a hardcoded template literal or ternary
+// branch slips through, same limitation PROSE_ATTR already has above), but
+// it catches the common case cheaply.
+const PROSE_TOOLTIP_ATTR = /(?:data-htip|title|placeholder)=(?:"([A-Za-zÄÖÜäöüß][^"{}]*\s[^"{}]*)"|\{'([A-Za-zÄÖÜäöüß][^'{}]*\s[^'{}]*)'\})/g;
+
+describe('the translated tooltips have no hardcoded display text', () => {
+  it.each(TOOLTIP_TRANSLATED_FILES)('%s', file => {
+    const src = readFileSync(join(SRC, file), 'utf8');
+    const found = [...src.matchAll(PROSE_TOOLTIP_ATTR)]
+      .map(m => m[1] || m[2])
+      .filter(text => !/^https?:/.test(text));
 
     expect(found).toEqual([]);
   });

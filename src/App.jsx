@@ -15,7 +15,8 @@ import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { buildPasteNodes, compareSiblings } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -23,10 +24,11 @@ import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
+import { withKey } from './utils/shortcuts.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
-import { TreeView } from './components/views/TreeView.jsx';
+import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
@@ -42,7 +44,6 @@ import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
-import { JiraSyncModal } from './components/modals/JiraSyncModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
@@ -50,7 +51,9 @@ import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
+import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
+import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 
 // useEvent shim — stable callback ref that always invokes the latest closure.
 // Lets us pass App-defined functions to React.memo'd children without busting
@@ -236,7 +239,7 @@ export function buildMemberShortMap(members) {
 // (src/utils/__tests__/modes.test.js) that checks every one of these is
 // reachable from at least one mode. 'report' is new in this phase — the
 // former Export modal, now a normal Report-mode view (see ReportView.jsx).
-export const TAB_IDS = ['summary', 'briefing', 'plan', 'tree', 'gantt', 'net', 'resources', 'holidays', 'report'];
+export const TAB_IDS = ['summary', 'briefing', 'plan', 'tree', 'gantt', 'roadmap', 'net', 'resources', 'holidays', 'report'];
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 
@@ -261,6 +264,14 @@ export default function App() {
   const setMode = m => { _setMode(m); try { localStorage.setItem('planr_mode', m); } catch {} };
   // Switching mode always selects that mode's default tab (task spec).
   const switchMode = m => { setMode(m); setTab(getMode(m).defaultTab); };
+  // Plan mode's project lens (RoadmapLens.jsx) — a calendar-style roadmap for
+  // one project, shown beside the Gantt. Both bits of state are local to the
+  // shell (not the plan file): which project is focused, and whether the
+  // panel is open at all. Persisted so the choice survives a reload.
+  const [ganttRoadmapFocus, _setGanttRoadmapFocus] = useState(() => {
+    try { return localStorage.getItem('planr_gantt_roadmap_focus') || ''; } catch { return ''; }
+  });
+  const setGanttRoadmapFocus = id => { _setGanttRoadmapFocus(id); try { localStorage.setItem('planr_gantt_roadmap_focus', id || ''); } catch {} };
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -1588,7 +1599,7 @@ export default function App() {
   const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
   const sinceDate = useMemo(() => parseSinceValue(sinceDays), [sinceDays]);
   // "Only with changes" filter — currently consumed by TreeView. Lives at app
-  // level so the toggle inside the global DiffPicker popup stays the only
+  // level so the toggle inside the global ViewFilters popup stays the only
   // place to flip it.
   const [diffOnlyChanged, setDiffOnlyChanged] = useState(() => {
     try { return localStorage.getItem('planr_diff_only_changed') === 'true'; } catch { return false; }
@@ -1957,10 +1968,10 @@ export default function App() {
     }
     mutate(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
   }
-  // Bulk status write from the Jira reconcile dialog. Patches carry whole
-  // nodes (see utils/jiraSync.js statusPatches); parent statuses and the
-  // done-window metadata are filled in by the effects that already watch the
-  // tree, exactly as with a hand edit.
+  // Bulk status write from Run mode's Jira drift rows (BriefingView.jsx).
+  // Patches carry whole nodes (see utils/jiraSync.js statusPatches); parent
+  // statuses and the done-window metadata are filled in by the effects that
+  // already watch the tree, exactly as with a hand edit.
   const onJiraApplyStatus = useStableCallback(patches => {
     if (!patches?.length) return;
     const byId = new Map(patches.map(patch => [patch.id, patch]));
@@ -2007,7 +2018,17 @@ export default function App() {
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
   }
-  function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
+  // Functional, and prefix-safe. Two bugs lived in the one-liner this
+  // replaces, both harmless while deleting was a mouse trip behind a confirm
+  // and both reachable now that ⌫ deletes in one keystroke:
+  //   * it read `tree` from the render closure, so a delete chained after
+  //     another edit in the same tick overwrote that edit,
+  //   * `startsWith(id)` is not a subtree test — deleting "P1" also deleted
+  //     "P10" and "P12". Only `id` itself and `id + '.'` are descendants.
+  function deleteNode(id) {
+    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => r.id !== id && !r.id.startsWith(id + '.')) }));
+    setSel(null);
+  }
   // Materialize handoff segments as standalone tree tasks, chained by deps.
   // The primary task stays in place but is trimmed to its own consumed
   // effort (so the schedule no longer includes the handoff portion in its
@@ -2156,12 +2177,24 @@ export default function App() {
     next.splice(insertAt, 0, newTask);
     setD('tree', next);
   }
+  // Functional for the same reason as every other mutator here: the tree
+  // editor commits a rename and inserts the next row inside ONE keypress, and
+  // reading `tree` from the render closure made the insert write back a
+  // snapshot taken before the rename — silently throwing the typed name away.
+  // That is the exact failure the comments on updateNode and removeDep warn
+  // about; it just took a single-keystroke workflow to make it reachable.
   function addNode(node) {
     const pid = node.id.split('.').slice(0, -1).join('.');
-    const nt = [...tree];
-    if (!pid) { nt.push(node); }
-    else { let ins = -1; for (let i = nt.length - 1; i >= 0; i--) { if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) { ins = i + 1; break; } } ins >= 0 ? nt.splice(ins, 0, node) : nt.push(node); }
-    setD('tree', nt);
+    mutate(d => {
+      const nt = [...(d.tree || [])];
+      if (!pid) { nt.push(node); return { ...d, tree: nt }; }
+      let ins = -1;
+      for (let i = nt.length - 1; i >= 0; i--) {
+        if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) { ins = i + 1; break; }
+      }
+      if (ins >= 0) nt.splice(ins, 0, node); else nt.push(node);
+      return { ...d, tree: nt };
+    });
   }
 
   // Compute an ID map for moving/duplicating a subtree rooted at `nodeId` under `newParentId`.
@@ -2218,8 +2251,13 @@ export default function App() {
     const currentParent = nodeId.split('.').slice(0, -1).join('.');
     if (currentParent === newParentId) return; // no-op
     const idMap = computeIdMap(tree, nodeId, newParentId);
+    // The id map depends on STRUCTURE only, so computing it from the render
+    // closure is sound — but applying it must be functional, or a name
+    // written in the same tick (Tab straight out of the inline editor) is
+    // overwritten by this snapshot. That is exactly the bug addNode had.
+    const applyMove = src => {
     // Rename moved items AND update dep references in all other items
-    const renamed = tree.map(r => {
+    const renamed = src.map(r => {
       if (idMap[r.id] != null) {
         // Moved item — rename + remap any internal-subtree deps
         const newR = { ...r, id: idMap[r.id], deps: (r.deps || []).map(d => idMap[d] || d) };
@@ -2253,21 +2291,19 @@ export default function App() {
       }
       return ap.length - bp.length;
     });
-    setD('tree', renamed);
+    return renamed;
+    };
+    mutate(d => ({ ...d, tree: applyMove(d.tree || []) }));
     return idMap[nodeId];
   }
   // Reorder a node within its sibling list by writing persistent displayOrder
   // values. IDs and dependencies stay stable; the order round-trips as `ord:`.
   // Direction: 'up'|'down'|'first'|'last' or { targetId, position:'before'|'after' }.
   function reorderSibling(nodeId, direction) {
-    const rank = r => {
-      const explicit = typeof r.displayOrder === 'number' ? r.displayOrder : null;
-      if (explicit != null) return explicit;
-      return parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0;
-    };
-    const sameRootPrefix = (a, b) => (a.match(/^[A-Za-z]+/)?.[0] || '') === (b.match(/^[A-Za-z]+/)?.[0] || '');
     let changed = false;
-    const before = data;
+    // The snapshot undo will return to must be the state that is CURRENT, not
+    // the one this render closed over — see mutate() above.
+    const before = dataRef.current;
     setData(d => {
       const currentTree = d.tree || [];
       const node = currentTree.find(r => r.id === nodeId);
@@ -2276,10 +2312,19 @@ export default function App() {
       const isRoot = !parent;
       const siblings = currentTree
         .filter(r => {
-          if (isRoot) return !r.id.includes('.') && sameRootPrefix(r.id, nodeId);
+          // Every root is a sibling of every other root — which is how
+          // sortTree() lays them out and therefore how they appear on
+          // screen. This used to additionally require the same leading
+          // letters, so "Paket 1" (P4) could be reordered against P2 and P3
+          // but not past "Projekt Pr1": the button was enabled, the press
+          // did nothing, and there was no way to tell why.
+          if (isRoot) return !r.id.includes('.');
           return r.id.split('.').slice(0, -1).join('.') === parent;
         })
-        .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+        // compareSiblings, not a private rank function — this must be the
+        // SAME order sortTree puts on screen, or the indices below refer to a
+        // list the user never saw. See its comment in utils/treeEdit.js.
+        .sort(compareSiblings);
       const fromIdx = siblings.findIndex(s => s.id === nodeId);
       if (fromIdx < 0 || siblings.length <= 1) return d;
       let toIdx = fromIdx;
@@ -2499,13 +2544,81 @@ export default function App() {
       lastShiftRangeRef.current = null;
     }
   });
-  const onTreeQuickAdd = useStableCallback(parent => {
-    const id = nextChildId(tree, parent.id);
-    const node = { id, name: 'New child item', status: 'open', team: parent.team || '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [] };
-    addNode(node); setSel(node); setMultiSel(new Set()); setSideTab('overview');
-  });
   const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
   const onTreeReorder = useStableCallback((...a) => reorderSibling(...a));
+  // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
+  // Every one of these is a thin wrapper around the SAME mutate()-backed
+  // primitives the mouse-driven controls already use (moveNode, addNode,
+  // reorderSibling) — see docs/principles.md principle 2. Nothing here is a
+  // new write path; it's the existing ones, reachable without a modal.
+
+  // Tab / ⇧Tab re-parent — moveNode renumbers the moved subtree and every
+  // dependency reference to it, then hands back the node's new id (it
+  // changes on every re-parent); the cursor (selected) follows it so the
+  // next keypress still targets the right row.
+  const onTreeMove = useStableCallback((id, newParentId) => {
+    const newId = moveNode(id, newParentId);
+    if (newId) setSel({ id: newId });
+    return newId;   // the inline editor follows the row to its new id
+  });
+  // Enter, mid-edit: create an empty sibling directly after `afterId` (same
+  // parent) and hand back its id so TreeView can immediately edit it. Empty
+  // on purpose — see onTreeBulkDelete's neighbour, commitEdit in
+  // TreeView.jsx, for why an empty commit on a still-new row deletes it
+  // again instead of littering the tree.
+  const onTreeInsertAfter = useStableCallback(afterId => {
+    const pid = parentId(afterId);
+    const id = nextChildId(tree, pid);
+    // No priority — see buildPasteNodes in utils/treeEdit.js. The team IS
+    // inherited from the sibling: adding a row next to a Backend item almost
+    // always means another Backend item, and that is a fact about where you
+    // are, not a guess about what you meant.
+    const sibling = tree.find(r => r.id === afterId);
+    addNode({ id, name: '', status: 'open', team: sibling?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: pid ? pid.split('.').length + 1 : 1 });
+    reorderSibling(id, { targetId: afterId, position: 'after' });
+    return id;
+  });
+  // ⇧Enter: create an empty child under `parentIdArg` (mirrors onTreeQuickAdd
+  // above, but with an empty name — see onTreeInsertAfter).
+  const onTreeInsertChild = useStableCallback(parentIdArg => {
+    const id = nextChildId(tree, parentIdArg);
+    const parentNode = tree.find(r => r.id === parentIdArg);
+    addNode({ id, name: '', status: 'open', team: parentNode?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1 });
+    return id;
+  });
+  // ⌫/Delete on a multi-selection: deleteNode's `setD('tree', tree.filter(...))`
+  // reads `tree` from the render closure, so looping it per id inside one
+  // keypress would have each call overwrite the previous one's result — the
+  // "do not loop single updates" case principle 5's brief calls out. This is
+  // the one batched callback: a single functional mutate() over the whole
+  // id set, so it's correct AND one undo step.
+  const onTreeBulkDelete = useStableCallback(ids => {
+    if (!ids?.length) return;
+    // `startsWith(id)` alone is not a subtree test: it also matches P10 when
+    // deleting P1 (the bug just fixed in deleteNode). A node is in the set if
+    // it IS one of the ids, or sits strictly below one of them.
+    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => !ids.some(id => r.id === id || r.id.startsWith(id + '.'))) }));
+    setSel(null); setMultiSel(new Set());
+  });
+  // Paste a list: parse → build the whole batch of new nodes against a
+  // local working copy of the tree (utils/treeEdit.js buildPasteNodes, so
+  // ids don't collide within the pasted block itself) → splice them in with
+  // ONE mutate() call, right after the active row's own subtree.
+  const onTreePasteRows = useStableCallback((afterId, rows) => {
+    if (!rows?.length) return;
+    const pid = parentId(afterId);
+    mutate(d => {
+      const currentTree = d.tree || [];
+      const newNodes = buildPasteNodes(currentTree, pid, rows);
+      const next = currentTree.slice();
+      let insertAt = next.length;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) { insertAt = i + 1; break; }
+      }
+      next.splice(insertAt, 0, ...newNodes);
+      return { ...d, tree: next };
+    });
+  });
   const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
   const onGanttSeqUpdate = useStableCallback((...a) => onSeqUpdate(...a));
   const onGanttExtendViewStart = useStableCallback((...a) => extendViewStart(...a));
@@ -2515,10 +2628,6 @@ export default function App() {
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onNetAddDep = useStableCallback((fromId, toId) => {
-    const node = tree.find(r => r.id === fromId);
-    if (node) { const deps = [...new Set([...(node.deps || []), toId])]; updateNode({ ...node, deps }); }
-  });
   const onNetDeleteNode = useStableCallback(id => deleteNode(id));
   const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
   const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
@@ -2529,6 +2638,11 @@ export default function App() {
     else { setMN(node); setModal('node'); }
   });
   const onBriefingOpenItem = onSumOpenItem;
+  // Row-level status change from Run mode (attention list + per-person
+  // queues) — same updateNode() → mutate() path every other status control
+  // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one
+  // undo step either way.
+  const onBriefingUpdate = useStableCallback((...a) => updateNode(...a));
   // Reorganize tree layout: per-parent topological sort of children by
   // their dep + softDep edges so paths render top-to-bottom in the Gantt.
   // Manually-triggered so live edits don't shuffle the tree on the user.
@@ -2712,10 +2826,10 @@ export default function App() {
       </div>
       {bTab === 'overview' && <>
         {allLeaf && <div className="field"><label>Status{commonStatus == null ? ' (mixed)' : ''}</label>
-          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder="Choose status..." />
+          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder={_t('bulk.chooseStatus')} />
         </div>}
         <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ' (mixed)' : ''}</label>
-          <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder="(empty)" />
+          <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder={_t('bulk.notePlaceholder')} />
         </div>
         {anyNonRoot && <>
           {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
@@ -2766,14 +2880,14 @@ export default function App() {
       </>}
       {bTab === 'workflow' && <>
         <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ' (mixed)' : ''}</label>
-          <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder="Choose team..." allowEmpty />
+          <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder={_t('bulk.chooseTeam')} allowEmpty />
         </div>
         <div className="field"><label>{_t('qe.assignee')}</label>
           {(() => {
             const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
             return <>
               {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip="Remove from all selected" onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
+                {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip={_t('bulk.removeFromSelected')} onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}>×</span></span>; })}
               </div>}
               <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
             </>;
@@ -2812,7 +2926,7 @@ export default function App() {
           </div>
         </div>}
         <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ' (mixed)' : ''}</label>
-          <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder="Choose priority..." />
+          <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder={_t('bulk.choosePriority')} />
         </div>
         <div className="field"><label>{_t('qe.confidence')}</label>
           <div style={{ display: 'flex', gap: 3 }}>
@@ -2866,7 +2980,6 @@ export default function App() {
   const exportHandlerProps = {
     tab,
     onOpenJira: () => setModal('jira'),
-    onOpenJiraSync: () => setModal('jirasync'),
     onSummaryPDF: (opts) => exportSummaryPDF(_exportCtx(), opts),
     onGanttPDF: () => exportGanttPDF(_exportCtx()),
     onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
@@ -2897,6 +3010,7 @@ export default function App() {
     { id: 'exportDialog', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
     { id: 'newProject', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); } },
     { id: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    { id: 'keymap', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
     ...MODES.map(m => ({ id: `mode.${m.id}`, labelKey: m.labelKey, group: 'mode', groupLabel: modeGroup, run: () => switchMode(m.id) })),
     ...TAB_IDS.map(id => ({ id: `view.${id}`, labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
   ];
@@ -2904,19 +3018,23 @@ export default function App() {
   return <>
     <HoverTipProvider />
     <CommandPalette commands={paletteCommands} />
+    <KeyboardMap />
     <div className="app">
     <div className="topbar">
-      <span className="logo" data-htip="New project" onClick={() => { if (!saved && !confirm('Unsaved changes will be lost. Start new project?')) return; newProject(); }}>Planr<span className="logo-dot">.</span></span>
+      {/* Not a button. It was "New project" — the same command the / palette
+          carries, on a target nobody aims at deliberately, discarding the
+          whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
+      <span className="logo">Planr<span className="logo-dot">.</span></span>
       <div className="vsep" />
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
-        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? 'Unsaved changes' : (fileName && !fileSynced ? 'Saved locally — file on disk pending auto-save' : 'All changes saved')} />
+        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {fileName}
-        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={`Save now (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+S) — bypass the ${SAVE_DEBOUNCE_MS / 1000}s auto-save debounce`} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
-      <label data-htip={autoSave ? `Auto-save is ON — writes to disk ${SAVE_DEBOUNCE_MS / 1000}s after the last change. Click 💾 to save now.` : 'Auto-save is OFF — your changes only land in localStorage. Click 💾 (or Ctrl+S) to write to the file.'} className="toggle">
+      <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
         <span className="slider" />
       </label>
@@ -2925,25 +3043,25 @@ export default function App() {
         let text, color, tip, clickable = false;
         if (!fileName) {
           text = 'no file mounted'; color = 'var(--tx3)';
-          tip = 'Changes are kept in localStorage only. Use "Save as" to mount a file.';
+          tip = _t('app.save.pillNoFile');
         } else if (!fileWriteOk) {
           text = '⚠ click to re-mount'; color = 'var(--am)'; clickable = true;
-          tip = 'File permission was lost (typically after a page reload). Click to re-pick the file with a Save-As dialog — it will suggest the original filename.';
+          tip = _t('app.save.pillPermissionLost');
         } else if (!autoSave) {
           text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
           color = 'var(--tx3)';
-          tip = 'Auto-save is off. Use 💾 or Ctrl/Cmd+S to write to the file.';
+          tip = _t('app.save.pillAutoOff');
         } else if (saving) {
           text = 'saving…'; color = 'var(--ac)';
-          tip = 'Writing changes to the file now.';
+          tip = _t('app.save.pillSaving');
         } else if (fileSynced) {
           text = lastSavedAt ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'all saved';
           color = 'var(--gr)';
-          tip = 'No unsaved changes. The file on disk matches what you see.';
+          tip = _t('app.save.pillAllSaved');
         } else {
           text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
           color = 'var(--am)';
-          tip = `Changes are safe in localStorage and will be written to the file ${SAVE_DEBOUNCE_MS / 1000}s after your last edit. Press Ctrl/Cmd+S or click 💾 to save now.`;
+          tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
         }
         return <span style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           data-htip={tip}
@@ -2951,8 +3069,8 @@ export default function App() {
           {text}
           {externalChangeAvailable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
             <span style={{ color: 'var(--am)' }}>· file changed</span>
-            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} data-htip="Reload project from the file on disk (overwrites current in-memory state)">reload</button>
-            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} data-htip="Dismiss — ignore this external change">×</span>
+            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} data-htip={_t('app.save.reloadTip')}>reload</button>
+            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} data-htip={_t('app.save.dismissExternalTip')}>×</span>
           </span>}
         </span>;
       })()}
@@ -3042,6 +3160,10 @@ export default function App() {
         onResetIdx={() => setSearchIdx(0)}
         onPrev={() => setSearchIdx(i => i - 1)}
         onNext={() => setSearchIdx(i => i + 1)}
+        // Carries the committed query so the tree can wait for ITS rows to be
+        // that query's before moving the cursor — dispatching a bare event
+        // would land on the first row of the previous result.
+        onGoToResults={tab === 'tree' ? q => window.dispatchEvent(new CustomEvent(TREE_FOCUS_EVENT, { detail: { query: q } })) : undefined}
         committedSearch={search}
       />}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
@@ -3069,7 +3191,10 @@ export default function App() {
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
+        customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
         onOpenItem={onBriefingOpenItem}
+        onUpdate={onBriefingUpdate}
+        onApplyStatus={onJiraApplyStatus}
         onExportTodo={onSumExportTodo}
       /></div>}
       {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
@@ -3086,29 +3211,34 @@ export default function App() {
               onSelect={onTreeSelect}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+              sizes={data.sizes || []}
               historyEvents={data?.historyEvents || []}
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onlyChanged={diffOnlyChanged}
               horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
               roadmapAssignment={data?.roadmapAssignment || null}
-              onQuickAdd={onTreeQuickAdd}
               onDelete={onTreeDelete} onReorder={onTreeReorder}
               onTaskUpdate={onGanttTaskUpdate}
               onClearSelection={() => setMultiSel(new Set())}
-              onOpenBulkEdit={() => setBulkEditModalOpen(true)} />
+              onOpenBulkEdit={() => setBulkEditModalOpen(true)}
+              onMove={onTreeMove}
+              onInsertAfter={onTreeInsertAfter}
+              onInsertChild={onTreeInsertChild}
+              onBulkDelete={onTreeBulkDelete}
+              onPasteRows={onTreePasteRows} />
           }
         </div>
         {selected && <div className="side fade">
           {multiSel.size > 0 ? <>
             <div className="side-hdr">
               <h3>{multiSel.size} items selected</h3>
-              <button className="btn btn-sec btn-xs" onClick={() => setBulkEditModalOpen(true)} data-htip={_t('bulk.openModalTip') || 'Open bulk-edit dialog'}>{_t('bulk.openModal') || '⤢ Modal'}</button>
+              <button className="btn btn-sec btn-xs" onClick={() => setBulkEditModalOpen(true)} data-htip={_t('bulk.openModalTip')}>{_t('bulk.openModal')}</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}>×</button>
             </div>
             {renderBulkEditBody()}
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
-              <button className="btn btn-ghost btn-icon sm" data-htip="Full edit" onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
@@ -3120,13 +3250,34 @@ export default function App() {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+          <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
+        </div>
+      </div>}
+      {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
+          per-project roadmap, a TAB of its own beside the Gantt rather than a
+          panel hanging off it. It was a chip in the filter row opening a
+          380px sidebar, and nobody found it: a view is not a filter, and the
+          ask was for a roadmap *next to* the Gantt, in the same style. Same
+          data scope as the chart it sits beside (activeTree/activeScheduled:
+          rootFilter/team/person + archive applied). */}
+      {visitedTabs.has('roadmap') && <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
+        <RoadmapLens
+          tree={activeTree}
+          scheduled={activeScheduled}
+          stats={stats}
+          roadmapAssignment={data?.roadmapAssignment || null}
+          focusId={ganttRoadmapFocus}
+          onFocusChange={setGanttRoadmapFocus}
+          onOpenItem={onSumOpenItem}
+        />
+      </div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
-        onAddDep={onNetAddDep}
         onDeleteNode={onNetDeleteNode} /></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
@@ -3190,10 +3341,6 @@ export default function App() {
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
     {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
-    {modal === 'jirasync' && <JiraSyncModal tree={tree} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-      onApplyStatus={onJiraApplyStatus}
-      onOpenItem={id => { const node = tree.find(r => r.id === id); if (!node) { setModal(null); return; } setSel(node); setMN(node); setModal('node'); }}
-      onClose={() => setModal(null)} />}
     {modal === 'export' && <ExportModal
       onClose={() => setModal(null)}
       {...exportHandlerProps}

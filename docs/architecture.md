@@ -35,12 +35,12 @@ src/
       DLView.jsx           — deadlines / goals summary
       SumView.jsx          — per-goal progress summary
       QuickEdit.jsx        — sidebar editor (primary interaction)
-      PlanReview.jsx       — Planning Review tab (Decisions, Team Capacity, Blocked)
+      PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked)
+      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
       Onboard.jsx          — first-launch onboarding
       ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
-      JiraSyncModal.jsx    — Jira reconcile (link check + paste-and-compare)
       AddModal.jsx         — add a new tree item
       EstimationWizard.jsx — PERT 3-point wizard
       SettingsModal.jsx    — theme, file handle, etc.
@@ -58,10 +58,15 @@ src/
     modes.js                — the five modes as data + helpers (getMode, tabsForMode, modeForTab, …)
     palette.js               — pure command-palette filter/rank logic (filterCommands)
     scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
+    treeEdit.js             — pure logic for TreeView's keyboard model (row order, Tab/⌥ moves,
+                              field shortcuts, paste parsing) — see "Tree editor keyboard model" below
     archive.js             — which roots / members are long-finished ("old news"); display filter only
     exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
     projectRoadmap.js      — single-project roadmap: calendar rows instead of a metro line
-    jiraSync.js            — Jira table parsing + plan-vs-board reconciliation
+    jiraSync.js            — Jira table parsing + plan-vs-board reconciliation (consumed inline by
+                             Run mode's drift section now — no more standalone Jira dialog)
+    attention.js            — Run mode's ranked "what needs a look" feed (overdue/drift/at-risk/
+                             blocked/unestimated), built off scheduler.js's memoised tree index
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
     holidays.js            — NRW holiday algorithm + week grid builder
@@ -117,6 +122,30 @@ Every write to `data` falls into one of two buckets, and the difference is load-
 The undo history itself (`src/utils/undo.js`) is a small, pure `{ past, future }` model — `push`/`undo`/`redo`/`canUndo`/`canRedo` — with no dependency on React. Snapshots are the previous `data` object *references*, never deep clones: because every mutator already does `{ ...d, changedPart }` instead of touching `d` in place, two adjacent snapshots share every branch that didn't change, so keeping 100 of them costs little more than keeping one. `push` coalesces calls that land within 300 ms of each other into a single entry, so a progress-slider drag or a burst of status clicks costs the user one ⌘Z, not one per event; any *new* push clears the redo branch, same as every other editor.
 
 Loading a different document — opening a file, starting a new project, restoring a JSON snapshot — calls `resetHistory()` alongside `setData(...)`. The old undo stack describes edits to a document that's no longer on screen; keeping it around would let ⌘Z reach back into a plan you already closed.
+
+### Tree editor keyboard model
+
+Phase 4 (docs/principles.md principle 5, "Fast means reversible") adds the keyboard editing path in `TreeView.jsx` — it does not add a new write surface. Every keyboard action still resolves to one of App.jsx's existing `mutate()`-backed callbacks (`onTaskUpdate`, `onReorder`, `onDelete`, plus a handful of small new ones described below); `TreeView.jsx` never calls `setData` itself.
+
+**Where the cursor lives.** There is one keyboard cursor, and it is the existing `selected` prop (App.jsx state, already used by the sidebar and the contextual reorder/delete toolbar) — not a second, invisible concept. `↑`/`↓` compute the next row from the already-memoized `filt` array (the exact rows on screen — search/team/root/person/diff/horizon filters and collapse already applied) and call the existing `onSelect` prop with a synthesized event (`{shiftKey}`), the same callback mouse clicks use (`App.jsx`'s `onTreeSelect`) — so plain vs. shift-extend reuses its existing anchor/range logic instead of duplicating it. The one genuinely new piece of state is `editing` (`{ id, draft, isNew } | null`), local to `TreeView`: which row's name cell is currently a real `<input>` instead of a `<span>`, its in-progress text, and whether this row was created by this same keyboard session (so an empty commit deletes it instead of leaving a nameless row — see `commitEdit`/`cancelEdit` in `TreeView.jsx`). A `shiftCursorRef` (a ref, not state) tracks where a `⇧↑`/`⇇↓` run has reached, because `onTreeSelect`'s shift-extend keeps the anchor (`selected`) fixed for the whole run — without it, a second `⇧↓` would recompute "one past the anchor" instead of extending one row further.
+
+**Where the pure logic lives.** [`src/utils/treeEdit.js`](../src/utils/treeEdit.js) holds everything that doesn't need React or App.jsx state, unit-tested in [`src/utils/__tests__/treeEdit.test.js`](../src/utils/__tests__/treeEdit.test.js):
+
+- `sortTree(tree)` / `filterCollapsedRows(rows, collapsedIds)` — the parent-then-children, displayOrder-aware sort and the "hide rows under a collapsed ancestor" filter TreeView's `sorted`/`filt` memos already did inline; lifted out so the row order is one tested function instead of logic embedded in a component.
+- `siblingsOf(tree, id)` — the sibling group + rank a node belongs to (root items group by leading id-letter-prefix, exactly like `reorderSibling`/the ⤒▲▼⤓ toolbar in `App.jsx`/`TreeView.jsx` already do, so a no-op determination here never disagrees with what the App-level primitive would actually do).
+- `indentTarget(tree, id)` / `outdentTarget(id)` — the new parent id for Tab/⇧Tab, or `null` for a no-op (first child / already a root). Fed straight into the new `onMove` prop → App.jsx's existing `moveNode`.
+- `moveStep(tree, id, direction)` — `'up'`/`'down'` or `null` for ⌥↑/⌥↓, fed into the existing `onReorder` prop → `reorderSibling`.
+- `nextStatus`, `resolveSize`, `fieldPatchForKey` — the field-shortcut table (`1`–`4`, `S`/`M`/`L`/`X`, `Space`), resolving a project's `sizes` (falling back to `utils/sizes.js` `DEFAULT_SIZES`) case-insensitively and returning `null` (no-op) rather than inventing a size the project doesn't define.
+- `parsePastedRows(text)` / `buildPasteNodes(tree, parentId, rows)` — pasted text → `{name, depth}` rows (bullet-stripped, indentation clamped to at most one level deeper than the previous line) → full node objects with collision-free ids, computed against a local working copy of the tree so a whole pasted block gets correct ids in one pass.
+
+**The small new App.jsx callbacks.** Structure/creation needs a few thin wrappers alongside the existing ones, each still exactly one `mutate()`-shaped write:
+
+- `onTreeMove(id, newParentId)` — wraps `moveNode`; since re-parenting renumbers the moved node's id, it also updates `selected` to follow the new id so the next keypress still targets the right row.
+- `onTreeInsertAfter(afterId)` / `onTreeInsertChild(parentId)` — create one **empty-named** node (`addNode` +, for "after", a `reorderSibling` to place it directly below `afterId`) and return its id synchronously so `TreeView` can start editing it immediately. Empty on purpose: `TreeView`'s `commitEdit` deletes an empty-named row it just created instead of committing it, so a rapid Enter-Enter session never litters the tree with nameless rows.
+- `onTreeBulkDelete(ids)` — the one genuinely new *batched* callback. `deleteNode` (and `addNode`) compute their next tree from the render-closure `tree`, not from the functional `setData` argument, which is safe for one call per keypress but would silently drop all-but-the-last deletion if looped synchronously over a multi-selection. `onTreeBulkDelete` does the whole selection in one **functional** `mutate(d => ...)` instead — correct regardless of loop order, and (like every `mutate()` call) one undo step.
+- `onTreePasteRows(afterId, rows)` — same shape: `buildPasteNodes` runs once against `d.tree` inside a single functional `mutate()`, so a ten-line paste is one undo step, not ten.
+
+Applying a field (`1`–`4`, size, `Space`) to a multi-selection reuses the pattern the selection bar's own status buttons already use in `TreeView.jsx`: loop `onTaskUpdate` once per selected node. This is safe (unlike the delete case above) because `updateNode` — what `onTaskUpdate` ultimately calls — reads the tree from `mutate`'s functional updater argument, and safe *for undo* because `push()`'s 300 ms coalescing window (see above) collapses same-tick `mutate()` calls into the one entry that was on top when the burst started — the same reason a dragged slider or a burst of clicks already costs one ⌘Z, not one per event.
 
 ### Modes and the command palette
 

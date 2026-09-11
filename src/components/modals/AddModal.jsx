@@ -47,14 +47,14 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
       <h2>Add {isTopLevel ? 'focus item' : 'child item'}</h2>
       <div className="frow">
         <div className="field"><label>Parent</label>
-          <SearchSelect value={pid} options={parents} onSelect={v => setPid(v)} placeholder="— New top item —" />
+          <SearchSelect value={pid} options={parents} onSelect={v => setPid(v)} placeholder={t('add.newTopItemPlaceholder')} />
         </div>
         <div className="field" style={{ flex: '0 0 120px' }}><label>ID (auto)</label>
           <input value={autoId} readOnly style={{ opacity: .7, cursor: 'default' }} tabIndex={-1} />
           <p className="helper">Level {autoLvl}{parentNode ? ` under ${parentNode.id}` : ' — top level'}</p>
         </div>
       </div>
-      <div className="field"><label>Name</label><input value={f.name} onChange={e => s('name', e.target.value)} placeholder={isTopLevel ? 'Goal, painpoint, or deadline name' : 'Task name'} autoFocus /></div>
+      <div className="field"><label>Name</label><input value={f.name} onChange={e => s('name', e.target.value)} placeholder={isTopLevel ? t('add.namePlaceholderTop') : t('add.namePlaceholderChild')} autoFocus /></div>
 
       {isTopLevel && <>
         <div className="frow">
@@ -69,9 +69,9 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
           </div>}
           {f.type === 'deadline' && <div className="field" style={{ flex: '0 0 140px' }}><label>Date</label><input type="date" value={f.date} onChange={e => s('date', e.target.value)} /></div>}
         </div>
-        {f.type && <div className="field"><label>Description</label><input value={f.description} onChange={e => s('description', e.target.value)} placeholder="Why does this matter?" /></div>}
+        {f.type && <div className="field"><label>Description</label><input value={f.description} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
         <div className="field"><label>Team (optional)</label>
-          <SearchSelect value={f.team} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
+          <SearchSelect value={f.team} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => s('team', v)} placeholder={t('bulk.chooseTeam')} allowEmpty />
         </div>
         <div className="field"><label>{t('qe.assignee')}</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
@@ -92,7 +92,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
       {!isTopLevel && <>
         <div className="frow">
           <div className="field"><label>Team</label>
-            <SearchSelect value={f.team} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => s('team', v)} placeholder="Choose team..." allowEmpty />
+            <SearchSelect value={f.team} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => s('team', v)} placeholder={t('bulk.chooseTeam')} allowEmpty />
           </div>
           <div className="field"><label>Status</label>
             <SearchSelect value={f.status} options={[{ id: 'open', label: 'Open' }, { id: 'wip', label: 'In Progress' }, { id: 'done', label: 'Done' }]} onSelect={v => s('status', v)} />

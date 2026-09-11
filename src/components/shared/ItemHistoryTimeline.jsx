@@ -4,11 +4,13 @@ import {
   effectiveDateOfEvent,
   sortEventsByEffectiveDate,
 } from '../../utils/historyView.js';
+import { useT } from '../../i18n.jsx';
 
 // Simple read-only version-history list for one item. Heavy editing happens
 // elsewhere (global Time-Travel mode + raw delete here). Per-item tab is a
 // quiet timeline of what happened to this leaf, sorted by effective date.
 export function ItemHistoryTimeline({ item, events = [], onEventsChange }) {
+  const { t } = useT();
   const itemEvents = useMemo(
     () => sortEventsByEffectiveDate((events || []).filter(e => e.id === item?.id)),
     [events, item?.id],
@@ -49,7 +51,7 @@ export function ItemHistoryTimeline({ item, events = [], onEventsChange }) {
               className="btn btn-ghost btn-xs"
               disabled={!onEventsChange}
               onClick={() => removeAt(idx)}
-              data-htip="Delete this version entry"
+              data-htip={t('hist.deleteEntryTip')}
               style={{ color: 'var(--re)', padding: '0 4px', fontSize: 14 }}>×</button>
           </div>
         ))}

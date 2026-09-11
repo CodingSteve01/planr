@@ -52,7 +52,6 @@ function Card({ cat, title, desc, action, disabled }) {
 export function ExportCards({
   tab,
   onOpenJira,
-  onOpenJiraSync,
   onSummaryPDF,
   onGanttPDF,
   onWhatWhenPDF,
@@ -145,9 +144,9 @@ export function ExportCards({
         desc={t('ex.jira.desc')}
         action={<button className="btn btn-pri btn-sm" onClick={onOpenJira}>{t('ex.dialog')}</button>} />
 
-      <Card cat="tool" title={t('ex.jiraSync')}
-        desc={t('ex.jiraSync.desc')}
-        action={<button className="btn btn-pri btn-sm" onClick={onOpenJiraSync}>{t('ex.dialog')}</button>} />
+      {/* Jira reconcile (the return path) used to be a second dialog here —
+          it's now Run mode's drift section (BriefingView.jsx), acted on as
+          rows instead of opened as a dialog. See docs/features.md "Run mode". */}
 
       <Card cat="tool" title={t('ex.sprint')}
         desc={t('ex.sprint.desc')}

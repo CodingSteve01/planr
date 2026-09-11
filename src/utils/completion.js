@@ -176,3 +176,31 @@ export function deriveCompletedWindow({ item, completedAt, completedPersonId, me
     completedEnd: iso(endDate),
   };
 }
+
+// What a manual status change should also touch on the node, beyond the
+// status field itself — shared by QuickEdit's status dropdown/progress
+// slider and Run mode's row-level status control (utils/attention.js feeds
+// the rows, App.jsx's updateNode() does the actual write either way).
+//
+//   → done: progress snaps to 100 and completedAt/-End/-Start are stamped so
+//     the done-bar and Soll/Ist have real dates, never a future one.
+//   → wip:  completedStart is seeded (existing value, else plannedStart if
+//     not in the future, else today) so Soll/Ist has an Ist-Start the moment
+//     work begins, and progress keeps whatever partial value it had.
+//   → open: progress resets to 0; nothing else changes.
+export function statusChangePatch(node, status) {
+  const today = iso(new Date());
+  if (status === 'done') {
+    const completedAt = (node.completedAt && node.completedAt <= today) ? node.completedAt : today;
+    const completedEnd = (node.completedEnd && node.completedEnd <= completedAt) ? node.completedEnd : completedAt;
+    const seedCandidate = node.completedStart || node.plannedStart || completedEnd;
+    const completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
+    return { status: 'done', progress: 100, completedAt, completedEnd, completedStart };
+  }
+  if (status === 'wip') {
+    const completedStart = node.completedStart || ((node.plannedStart && node.plannedStart <= today) ? node.plannedStart : today);
+    const progress = (node.progress && node.progress > 0 && node.progress < 100) ? node.progress : 50;
+    return { status: 'wip', progress, completedStart };
+  }
+  return { status: 'open', progress: 0 };
+}

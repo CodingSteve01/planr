@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom';
 // clipping and z-index sandwiching (e.g. sticky modal footers covering the popup).
 // Position is computed from the wrapper's bounding rect; the popup auto-flips
 // upward when there isn't enough room below.
-export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —', showIds = false }) {
+export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —', showIds = false, compact = false, testId, inputRef }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
@@ -140,6 +140,8 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
 
   return <div ref={ref} style={{ position: 'relative' }}>
     <input
+      ref={inputRef}
+      data-testid={testId}
       value={open ? q : currentLabel}
       onChange={e => {
         const next = e.target.value;
@@ -154,10 +156,17 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
       onClick={() => { if (!open) { setOpen(true); setQ(''); setActiveIdx(0); } }}
       placeholder={isControlled ? (currentLabel || placeholder) : placeholder}
       readOnly={false}
-      style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: isControlled && !value && allowEmpty ? 'var(--tx3)' : 'var(--tx)', fontFamily: 'var(--font)', fontSize: 12, padding: '7px 10px', outline: 'none', cursor: 'pointer' }}
+      style={{
+        width: '100%', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)',
+        color: isControlled && !value && allowEmpty ? 'var(--tx3)' : 'var(--tx)',
+        fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer',
+        // `compact` is the in-table size — the panel padding is twice a
+        // table row's height and would push every row apart.
+        ...(compact ? { fontSize: 11, padding: '2px 5px', height: 21 } : { fontSize: 12, padding: '7px 10px' }),
+      }}
     />
     {open && createPortal(
-      <div ref={popupRef} style={{
+      <div ref={popupRef} data-searchselect-popup="" style={{
         position: 'fixed',
         top: popupPos.openUp ? 'auto' : popupPos.top,
         bottom: popupPos.openUp ? popupPos.bottom : 'auto',

@@ -19,8 +19,8 @@ export function SelectionActionBar({ count, onClear, children, testId = 'selecti
         className="sab-close"
         onClick={onClear}
         data-testid={`${testId}-clear`}
-        aria-label="Clear selection"
-        title="Clear selection">×</button>
+        aria-label={t('g.clearSelectionTip')}
+        title={t('g.clearSelectionTip')}>×</button>
     </div>
   );
 }

@@ -2243,9 +2243,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const todX = dateToX(now), h1X = dateToX(h1D), h2X = dateToX(h2D);
           return <div style={{ display: 'flex', height: 3, position: 'relative', overflow: 'hidden', width: tw }}>
             {todX > 0 && <div style={{ position: 'absolute', left: 0, width: todX, height: '100%', background: 'var(--bg3)' }} />}
-            {h1X > todX && <div style={{ position: 'absolute', left: Math.max(todX, 0), width: h1X - Math.max(todX, 0), height: '100%', background: 'var(--gr)', opacity: .5 }} data-htip={`H1 · ${h1Weeks}w — committed`} />}
-            {h2X > h1X && <div style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: .4 }} data-htip={`H2 · ${h2Weeks}w — estimated`} />}
-            <div style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: .15 }} data-htip="Beyond H2 — exploratory" />
+            {h1X > todX && <div style={{ position: 'absolute', left: Math.max(todX, 0), width: h1X - Math.max(todX, 0), height: '100%', background: 'var(--gr)', opacity: .5 }} data-htip={t('g.h1BandTip', h1Weeks)} />}
+            {h2X > h1X && <div style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: .4 }} data-htip={t('g.h2BandTip', h2Weeks)} />}
+            <div style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: .15 }} data-htip={t('g.beyondH2BandTip')} />
           </div>;
         })()}
       </div>
@@ -2332,7 +2332,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             })}
             {/* Pre-planStart zone: striped overlay for the rendering area before the scheduling horizon */}
             {(() => { const psX = planStart ? dateToX(new Date(planStart)) : 0;
-              return psX > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: psX, height: '100%', background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)', pointerEvents: 'none', zIndex: 1 }} data-htip="Before scheduling horizon — only pinned tasks appear here" /> : null;
+              return psX > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: psX, height: '100%', background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)', pointerEvents: 'none', zIndex: 1 }} data-htip={t('g.prePlanStartTip')} /> : null;
             })()}
             {/* Past zone: subtle dim overlay for everything before today */}
             {todayX > 0 && <div style={{ position: 'absolute', left: 0, top: 0, width: todayX, height: '100%', background: 'rgba(0,0,0,.06)', pointerEvents: 'none', zIndex: 1 }} />}
@@ -2345,9 +2345,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const h1X = dateToX(h1Date);
               const h2X = dateToX(h2Date);
               return <>
-                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} data-htip={`Horizon 1 (${h1Weeks}w) — items here should be committed`} />}
+                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} data-htip={t('g.h1LineTip', h1Weeks)} />}
                 {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X + 4, top: 2, fontSize: 8, color: 'var(--ac)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H1 · {h1Weeks}w</div>}
-                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} data-htip={`Horizon 2 (${h2Weeks}w) — items here should be at least estimated`} />}
+                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} data-htip={t('g.h2LineTip', h2Weeks)} />}
                 {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X + 4, top: 2, fontSize: 8, color: 'var(--am)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H2 · {h2Weeks}w</div>}
               </>;
             })()}
@@ -2357,7 +2357,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               // Backfill: gentle gradient fading from the deadline mast to the left, so the eye
               // naturally traces the runway leading up to the date. Capped at 8 weeks.
               const backfillW = Math.min(x, 8 * WPX);
-              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ' — AT RISK' : ''}`;
+              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ` — ${t('s.atRisk')}` : ''}`;
               return <React.Fragment key={dl.id}>
                 {backfillW > 0 && <div style={{ position: 'absolute', left: x - backfillW, top: 0, width: backfillW, height: '100%',
                   background: `linear-gradient(to right, transparent, ${dl.severity === 'critical' ? 'rgba(244,63,94,.14)' : 'rgba(245,158,11,.14)'})`,
@@ -2413,7 +2413,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             {dlL.map(dl => {
               const x = dl.x;
               const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
-              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ' — AT RISK' : ''}`;
+              const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ` — ${t('s.atRisk')}` : ''}`;
               return <React.Fragment key={`flag-${dl.id}`}>
                 <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: FLAG_ROW_H, background: col, opacity: .8, zIndex: 2 }} />
                 <div style={{ position: 'absolute', left: x, top: 1, display: 'flex', alignItems: 'center', maxWidth: 120, pointerEvents: 'auto', zIndex: 3 }} data-htip={titleStr}>
@@ -2611,8 +2611,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 const blockerPerson = blocker?.person || blocker?.personShort || '';
                 const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
                 const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
-                const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
-                return <div data-htip={`⏳ Wartet ${gapDays}d auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}
+                const meta = [blockerPerson, t('g.blockerEnds', endIso)].filter(Boolean).join(', ');
+                return <div data-htip={t('g.waitingForTip', gapDays, blockerLabel) + (meta ? ` (${meta})` : '')}
                   style={{
                     position: 'absolute', left: x1, top: 8, width: x2 - x1, height: 12, borderRadius: 3,
                     background: 'repeating-linear-gradient(45deg, rgba(245,158,11,.35) 0 4px, rgba(245,158,11,.10) 4px 8px)',
@@ -2718,7 +2718,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       background: isSummary ? 'rgba(127,127,127,.18)' : 'rgba(255,255,255,.18)',
                       borderRadius: isSummary ? '5px 0 0 5px' : '4px 0 0 4px',
                       pointerEvents: 'none',
-                    }} data-htip={`${prog}% done${past ? ` · prev ${past.progress || 0}%` : ''}`} />
+                    }} data-htip={t('g.progressDoneTip', prog) + (past ? t('g.progressPrevSuffix', past.progress || 0) : '')} />
                     {gained > 0 && (
                       <>
                         <div style={{
@@ -2726,7 +2726,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                           width: `${gained}%`,
                           background: 'rgba(245,158,11,.55)',
                           pointerEvents: 'none',
-                        }} data-htip={`+${Math.round(gained)}% in window`} />
+                        }} data-htip={t('g.progressGainedTip', Math.round(gained))} />
                         {/* Sharp tick at the past-progress position so the eye locks onto
                             "we started the window here". */}
                         <div style={{ position: 'absolute', left: `${pastProg}%`, top: 0, bottom: 0,
@@ -2809,14 +2809,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     // Surface prio inline so the scheduler order is legible without opening
                     // the modal. Default (2) stays hidden to reduce noise.
                     const ICON = { 1: '⏫', 3: '▬', 4: '▼' };
-                    const LABEL = { 1: 'Critical', 3: 'Medium', 4: 'Low' };
+                    const LABEL = { 1: t('critical'), 3: t('medium'), 4: t('low') };
                     const ic = ICON[node.prio]; if (!ic) return null;
                     return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
-                      data-htip={`Priority ${node.prio} (${LABEL[node.prio]}) — lower numbers schedule first`}>{ic}</span>;
+                      data-htip={t('g.prioTip', node.prio, LABEL[node.prio])}>{ic}</span>;
                   })()}
-                  {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip="Parallel — runs alongside other work (capacity bypass)">≡</span>}
+                  {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
                   {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
-                    data-htip={`${s.pinOverridden ? `Pin to ${node.pinnedStart} overridden by capacity. ` : `Pinned to ${node.pinnedStart}. `}Click to unpin.`}
+                    data-htip={`${s.pinOverridden ? t('g.pinOverriddenTip', node.pinnedStart) : t('g.pinnedTip', node.pinnedStart)} ${t('g.clickToUnpin')}`}
                     onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
                   {!isSummary && s.blockedBy && (() => {
                     const blocker = scheduled.find(x => x.id === s.blockedBy.id);
@@ -2824,9 +2824,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     const blockerPerson = blocker?.person || blocker?.personShort || '';
                     const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
                     const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
-                    const meta = [blockerPerson, `endet ${endIso}`].filter(Boolean).join(', ');
+                    const meta = [blockerPerson, t('g.blockerEnds', endIso)].filter(Boolean).join(', ');
                     return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
-                      data-htip={`Wartet auf ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
+                      data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
                   })()}
                   {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
                     data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
@@ -2894,13 +2894,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 <span className="g-link-connector-dot" onMouseDown={e => onLinkStart(e, linkTaskId)} onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>+</span>
               </div>}
               {/* Decision-by marker: diamond on the exact decide-by date */}
-              {decideX >= 0 && decideX <= tw && !isSummary && s.status !== 'done' && <div data-htip={`Decide by ${decideBy}${isDecideOverdue ? ' — OVERDUE' : ''}`}
+              {decideX >= 0 && decideX <= tw && !isSummary && s.status !== 'done' && <div data-htip={`${t('g.decideByTip', decideBy)}${isDecideOverdue ? ` — ${t('g.overdue')}` : ''}`}
                 style={{ position: 'absolute', left: decideX + DPX / 2 - 6, top: RH / 2 - 6, width: 12, height: 12, background: isDecideOverdue ? 'var(--re)' : 'var(--am)', transform: 'rotate(45deg)', border: '1px solid #000', zIndex: 4, pointerEvents: 'auto' }} />}
               {/* Due-date marker: vertical bar at the start of the exact due date. Solid red
                   when scheduler projects end past due or due is already in
                   the past + task unfinished. Otherwise dim red. */}
               {dueX >= 0 && dueX <= tw && !isSummary && s.status !== 'done' && <div
-                data-htip={`Due ${dueDate}${isDueOverdue ? ' — OVERDUE / projected end past due' : ''}`}
+                data-htip={`${t('g.dueTip', dueDate)}${isDueOverdue ? ` — ${t('g.overdue')} / ${t('ins.dueOverdueByPlan')}` : ''}`}
                 style={{ position: 'absolute', left: dueX, top: 2, width: 4, bottom: 2, background: isDueOverdue ? 'var(--re)' : 'rgba(220,38,38,0.55)', borderRadius: 2, zIndex: 4, pointerEvents: 'auto', boxShadow: isDueOverdue ? '0 0 8px rgba(220,38,38,0.7)' : 'none' }} />}
             </div>;
           })}
@@ -3040,13 +3040,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       </div>
     </div>
     <div className="gantt-footer">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={`Zoom: ${Math.round(WPX)} px / week. Day-level grid appears at ≥ 70 px/wk.`}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={t('g.zoomFooterTip', Math.round(WPX))}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
         <button className={`btn btn-xs ${zoomMode === 'month' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(MONTH_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.month')}</button>
         <button className={`btn btn-xs ${zoomMode === 'week' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
         <button className={`btn btn-xs ${zoomMode === 'day' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip="Zoom out" style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip="Zoom in" style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip={t('g.zoomOutTip')} style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip={t('g.zoomInTip')} style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
         <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
       </div>
@@ -3072,16 +3072,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           {dl.isLate ? '! ' : ''}{dl.name} {dl.date}{suffix}
         </span>;
       })}
-      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? 'Click to show all items again.' : 'Click to show only the critical track of the current scope. Non-critical rows and non-critical dependency arrows are hidden.'} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
-      {unestimatedCount > 0 && <span className="badge bw" data-htip="Items without estimates aren't scheduled but are listed for visibility">{unestimatedCount} {t('g.noEstimate')}</span>}
+      {cpSet?.size > 0 && <button className={`badge b-cp${cpOnly ? '' : ''}`} style={{ cursor: 'pointer', border: cpOnly ? '1px solid var(--re)' : '', background: cpOnly ? 'var(--re)' : '', color: cpOnly ? '#000' : '' }} data-htip={cpOnly ? t('g.cpShowAllTip') : t('g.cpShowOnlyTip')} onClick={() => setCpOnly(v => !v)}>{cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}</button>}
+      {unestimatedCount > 0 && <span className="badge bw" data-htip={t('g.noEstimateTip')}>{unestimatedCount} {t('g.noEstimate')}</span>}
       {/* Confidence legend */}
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
         allItems.forEach(s => { if (s.status !== 'done') counts[confidence[s.id] || 'committed']++; });
         return (counts.estimated > 0 || counts.exploratory > 0) ? <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
-          <span data-htip="Committed: person assigned, estimate solid">● {counts.committed}</span>
-          <span style={{ color: 'var(--am)' }} data-htip="Estimated: team/estimate exists but no person or high risk">◐ {counts.estimated}</span>
-          <span data-htip="Exploratory: scope unclear, needs concept work">○ {counts.exploratory}</span>
+          <span data-htip={t('g.confCommittedTip')}>● {counts.committed}</span>
+          <span style={{ color: 'var(--am)' }} data-htip={t('g.confEstimatedTip')}>◐ {counts.estimated}</span>
+          <span data-htip={t('g.confExploratoryTip')}>○ {counts.exploratory}</span>
         </span> : null;
       })()}
       {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
@@ -3108,10 +3108,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         type="button"
         className="sab-assign-trigger"
         onClick={() => onOpenBulkEdit?.(selectedTaskIds)}
-        data-htip={t('g.bulkEditTip') || 'Massenänderung: Team, Person, Status, Effort, Timing für alle ausgewählten Items'}
+        data-htip={t('g.bulkEditTip')}
         data-testid="gantt-bulk-edit-trigger">
         <span className="sab-icon">⎘</span>
-        <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
+        <span>{t('g.bulkEdit')}</span>
       </button>
       <span className="sab-divider" />
       <button data-testid="gantt-clear-selected-links" className="btn btn-sec" onClick={() => clearSelectedLinks('all')} data-htip={t('g.clearSelectedLinksTip')}>{t('g.clearSelectedLinks')}</button>

@@ -8,7 +8,6 @@ import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
-import { getLineColor } from '../../utils/roadmap.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { stripArchivedRoots } from '../../utils/archive.js';
 import { TimetableView } from './TimetableView.jsx';
@@ -52,7 +51,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
 
   // Sprint horizon (next-N-days) — for the "Up next" planning view.
-  // Distinct from the project-wide HorizonPicker; this is a local control
+  // Distinct from the project-wide horizon filter in ViewFilters; this is a local control
   // for the upcoming-sprint table.
   const [sprintDays, setSprintDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
   const setHd = v => { setSprintDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
@@ -146,9 +145,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     ? progressDeltaLabel(futureOverallDelta)
     : '';
   const futureOverallTip = futureOverallProg != null
-    ? (isDe
-      ? `Jetzt ${progressPctLabel(prog)}% Gesamtfortschritt. Bis zum gewählten Horizont: ${progressPctLabel(futureOverallProg)}%${futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : ''}.`
-      : `Current total progress: ${progressPctLabel(prog)}%. By the selected horizon: ${progressPctLabel(futureOverallProg)}%${futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : ''}.`)
+    ? t('s.futureOverallTip', progressPctLabel(prog), progressPctLabel(futureOverallProg)) + (futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : '')
     : '';
   const currentPct = Math.max(0, Math.min(100, prog));
   const pastPct = pastOverallProg != null ? Math.max(0, Math.min(100, pastOverallProg)) : null;
@@ -453,38 +450,35 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     setView(v);
     try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
   };
-  // Single-line mode: eight lines crossing one 1400×800 canvas is a network
-  // diagram, not a roadmap. Picking one root shows that project as its own
-  // line — same stations, same train, room to read the labels.
-  const [soloRoot, setSoloRoot] = useState(() => {
-    try { return localStorage.getItem('planr_roadmap_solo') || ''; } catch { return ''; }
+  // The MAP is the portfolio lens (docs/features.md, Roadmap lenses): every
+  // project, one glance, Δ since the last review window. Its old "solo one
+  // line" mode is gone — a duplicate of the calendar that now lives beside
+  // the Gantt in Plan mode (RoadmapLens.jsx), and a worse fit here besides:
+  // a portfolio review is exactly the moment you do not want to narrow to
+  // one line.
+  //
+  // The TIMETABLE is a different surface that happens to share this switcher,
+  // and narrowing it to one project is NOT a duplicate of anything — no
+  // other view lists one project's dates as a schedule. So the picker stays,
+  // scoped to the view that still needs it. (Phase 5 dropped it for both;
+  // that took a capability away, which is the one thing a removal may never
+  // do.)
+  const [scheduleRoot, setScheduleRoot] = useState(() => {
+    try { return localStorage.getItem('planr_timetable_root') || ''; } catch { return ''; }
   });
   const roots = useMemo(() => tree.filter(node => !String(node.id).includes('.')), [tree]);
-  // A stored solo root that no longer exists (renamed, deleted, archived)
-  // must not blank the map.
-  const solo = soloRoot && roots.some(root => root.id === soloRoot) ? soloRoot : '';
-  const setSolo = id => {
-    const next = id === solo ? '' : id;
-    setSoloRoot(next);
-    try { localStorage.setItem('planr_roadmap_solo', next); } catch { /* noop */ }
+  // A stored root that no longer exists (renamed, deleted, archived) must not
+  // blank the schedule.
+  const scopeRoot = scheduleRoot && roots.some(r => r.id === scheduleRoot) ? scheduleRoot : '';
+  const setScope = id => {
+    const next = id === scopeRoot ? '' : id;
+    setScheduleRoot(next);
+    try { localStorage.setItem('planr_timetable_root', next); } catch { /* noop */ }
   };
-  const soloNode = solo ? roots.find(root => root.id === solo) : null;
-  const mapTree = useMemo(
-    () => (solo ? tree.filter(node => node.id === solo || String(node.id).startsWith(solo + '.')) : tree),
-    [tree, solo],
+  const scheduleTree = useMemo(
+    () => (scopeRoot ? tree.filter(n => n.id === scopeRoot || String(n.id).startsWith(scopeRoot + '.')) : tree),
+    [tree, scopeRoot],
   );
-  const mapGoals = useMemo(
-    () => (solo ? goals.filter(goal => goal.id === solo) : goals),
-    [goals, solo],
-  );
-  // Keep the line's colour (that is its identity across the plan) but drop the
-  // stored route so the lone line gets the longest, most legible one instead
-  // of whatever corner it occupies in the full map.
-  const mapAssignment = useMemo(() => {
-    if (!solo) return roadmapAssignment;
-    const colorIdx = roadmapAssignment?.[solo]?.colorIdx;
-    return colorIdx == null ? null : { [solo]: { colorIdx } };
-  }, [roadmapAssignment, solo]);
   // diff comes in from App.jsx — same precomputed bag every view uses, so
   // Roadmap, Timetable, Tree, Gantt and Network stay in sync.
 
@@ -495,21 +489,15 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
         <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
           style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
-        {solo && soloNode && (
-          // Colour dot so the picked project is still visibly "that line on
-          // the map"; the dropdown label carries the name, so no extra prose.
-          <span style={{ width: 9, height: 9, borderRadius: 2, marginLeft: 8, flexShrink: 0,
-            background: getLineColor(solo, roadmapAssignment) || 'var(--tx3)' }} />
-        )}
-        {roots.length > 1 && (
-          <span style={{ width: 190, marginLeft: 8 }} data-htip={t('rm.lineTip')} data-testid="roadmap-line-picker">
+        {view === 'schedule' && roots.length > 1 && (
+          <span style={{ width: 190, marginLeft: 8 }} data-htip={t('tt.scopeTip')} data-testid="timetable-root-picker">
             <SearchSelect
-              value={solo}
+              value={scopeRoot}
               options={roots.map(root => ({ id: root.id, label: root.name || root.id }))}
-              onSelect={id => setSolo(id === solo ? '' : id)}
-              placeholder={t('rm.allLines')}
+              onSelect={id => setScope(id)}
+              placeholder={t('tt.allProjects')}
               allowEmpty
-              emptyLabel={t('rm.allLines')}
+              emptyLabel={t('tt.allProjects')}
               showIds />
           </span>
         )}
@@ -645,18 +633,13 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           </div>
         );
       })()}
-      {/* Single-line mode hands the renderer a deliberately partial assignment
-          (colour only, no route), so persisting what it computes from that
-          would move the line in the full map — hence no onAssignmentChange. */}
       {view === 'map'
-        ? <Roadmap tree={mapTree} scheduled={scheduled} goals={mapGoals} stats={stats} onOpenItem={onOpenItem} diff={diff}
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff}
             horizonIds={horizonIds} horizonEnd={horizonEnd}
             futureProgressByRootId={futureProgressByRootId}
-            assignment={mapAssignment}
-            soloRootId={solo || null}
-            lineColor={solo ? getLineColor(solo, roadmapAssignment) : null}
-            onAssignmentChange={solo ? null : onAssignmentChange} />
-        : <TimetableView tree={mapTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
+            assignment={roadmapAssignment}
+            onAssignmentChange={onAssignmentChange} />
+        : <TimetableView tree={scheduleTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
             diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate} />
       }
     </div>

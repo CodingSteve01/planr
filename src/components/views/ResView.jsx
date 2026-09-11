@@ -93,7 +93,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
             <span style={{ fontWeight: 600, fontSize: 15 }}>
               {member.name || member.id}
               {shortMap[member.id] && (
-                <span className="res-row-short" data-htip="Auto-generated short name (used in Markdown)">
+                <span className="res-row-short" data-htip={t('rv.shortHint')}>
                   {shortMap[member.id]}
                 </span>
               )}
@@ -107,7 +107,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
           {[
             [t('rv.fullName'),    <LazyInput value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
             [t('qe.team'),       <SearchSelect value={member.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name }))} onSelect={v => onUpd({ ...member, team: v })} placeholder={t('rv.chooseTeam')} allowEmpty />],
-            [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder="e.g. Senior Dev" />],
+            [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />],
             [t('rv.vacDays'),    <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />],
             [t('rv.startDate'),  <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />],
             [t('rv.endDate'),    <LazyInput type="date" value={member.end || ''} onCommit={v => onUpd({ ...member, end: v })} />],
@@ -167,6 +167,7 @@ function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick,
 }
 
 function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
+  const { t } = useT();
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -189,11 +190,11 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
       <div className="modal cap-card" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Meeting-Plan</span>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title="Schließen">×</button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>×</button>
         </div>
         <div className="field">
           <label>Name</label>
-          <LazyInput value={plan.name || ''} onCommit={v => onUpd({ ...plan, name: v })} placeholder="z. B. Engineering Standard" />
+          <LazyInput value={plan.name || ''} onCommit={v => onUpd({ ...plan, name: v })} placeholder={t('rv.planNamePlaceholder')} />
         </div>
         <div style={{ marginTop: 12 }}>
           <div style={{
@@ -204,7 +205,7 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
           </div>
           {(plan.meetings || []).map(mt => (
             <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-              <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder="z. B. Standup" />
+              <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder={t('rv.meetingNamePlaceholder')} />
               <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
                 onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
               <select value={mt.frequency || 'weekly'}
@@ -385,7 +386,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         )}
         {meetings.map(mt => (
           <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center', marginBottom: 4 }}>
-            <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder="z. B. Standup" />
+            <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder={t('rv.meetingNamePlaceholder')} />
             <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
               onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
             <select value={mt.frequency || 'weekly'}
@@ -396,7 +397,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
               <option value="monthly">monatl.</option>
             </select>
             <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)}
-              style={{ padding: '2px 6px', color: 'var(--re)' }} title="Meeting entfernen">×</button>
+              style={{ padding: '2px 6px', color: 'var(--re)' }} title={t('rv.deleteMeeting')}>×</button>
           </div>
         ))}
         <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
@@ -435,7 +436,7 @@ function TeamReadRow({ team, memberCount, meetingPlans = [], teamLockCount = 0, 
       <td>
         <span className="res-plan-tags">
           {plans.map(p => (
-            <span key={p.id} className="res-plan-tag res-plan-tag-team" title="Meeting-Plan (Team-weit)">{p.name}</span>
+            <span key={p.id} className="res-plan-tag res-plan-tag-team" title={t('rv.planTeamWideTip')}>{p.name}</span>
           ))}
         </span>
       </td>
