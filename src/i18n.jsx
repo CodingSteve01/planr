@@ -18,6 +18,7 @@ const en = {
   'conf.committed': 'Committed', 'conf.estimated': 'Estimated', 'conf.exploratory': 'Exploratory',
   'conf.committed.dot': '●', 'conf.estimated.dot': '◐', 'conf.exploratory.dot': '○',
   'cp': 'Critical path',
+  'undo.undo': 'Undo ({0})', 'undo.redo': 'Redo ({0})',
 
   // ── Tabs ──
   'tab.summary': 'Overview', 'tab.briefing': 'Briefing', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
@@ -83,8 +84,6 @@ const en = {
   'ui.hideDoneTip': 'Hide completed items across the planning views',
   'qe.allLeaves': 'all leaves',
   'qe.confirmRelease': '"{0}" will no longer wait for this item?',
-  'qe.confirmDelete': 'Delete {0}?', 'qe.confirmDeleteChildren': 'Delete {0} and all children?',
-  'qe.confirmDuplicate': 'Duplicate "{0}"?', 'qe.confirmDuplicateN': 'Duplicate "{0}" with {1} descendants?',
 
   // ── Split (interrupted task + handoff cascade) ──
   'split.btn': '↳ Split',
@@ -94,7 +93,6 @@ const en = {
   'split.task.suffix': '(continued)',
   'split.task.note': 'Remaining effort from interrupted task {0}',
   'split.handoff.tip': 'Create follow-up tasks for the remaining effort — every handoff leg becomes its own task with a dep on the previous one. Primary task is trimmed to its own share.',
-  'split.handoff.confirm': 'Split handoff into standalone follow-up tasks?\n\nPrimary task keeps only its own share, every handoff stage becomes a new sibling with a dep on the previous one.',
   'split.handoff.hint': 'These legs are virtual scheduler segments — no own status / progress / Jira ID. Use {0} above right to turn each leg into a real task.',
   'split.handoff.note': 'Remaining effort from handoff of {0}',
 
@@ -819,6 +817,7 @@ const de = {
   'conf.committed': 'Committed', 'conf.estimated': 'Estimated', 'conf.exploratory': 'Exploratory',
   'conf.committed.dot': '●', 'conf.estimated.dot': '◐', 'conf.exploratory.dot': '○',
   'cp': 'Kritischer Pfad',
+  'undo.undo': 'Rückgängig ({0})', 'undo.redo': 'Wiederholen ({0})',
 
   // ── Tabs ──
   'tab.summary': 'Übersicht', 'tab.briefing': 'Briefing', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
@@ -884,8 +883,6 @@ const de = {
   'ui.hideDoneTip': 'Erledigte Items in den Planungs-Views ausblenden',
   'qe.allLeaves': 'alle Leaves',
   'qe.confirmRelease': '„{0}" wartet nicht mehr auf dieses Item?',
-  'qe.confirmDelete': '{0} löschen?', 'qe.confirmDeleteChildren': '{0} und alle Unterelemente löschen?',
-  'qe.confirmDuplicate': '„{0}" duplizieren?', 'qe.confirmDuplicateN': '„{0}" mit {1} Unterelementen duplizieren?',
 
   // ── Split (unterbrochene Aufgabe + Handoff-Cascade) ──
   'split.btn': '↳ Split',
@@ -895,7 +892,6 @@ const de = {
   'split.task.suffix': '(Fortsetzung)',
   'split.task.note': 'Restaufwand aus unterbrochener Aufgabe {0}',
   'split.handoff.tip': 'Folgetasks mit Restaufwand anlegen — jeder Handoff wird zu einer eigenen Aufgabe mit Dep auf den Vorgänger. Primary-Task wird auf eigenen Anteil gekürzt.',
-  'split.handoff.confirm': 'Handoff in eigenständige Folge-Tasks aufsplitten?\n\nPrimary-Task behält nur seinen Anteil, jede Handoff-Stage wird ein neuer Sibling mit Dep auf den vorigen.',
   'split.handoff.hint': 'Diese Etappen sind virtuelle Scheduler-Segmente — kein eigener Status / Progress / Jira-ID. Mit {0} oben rechts wird jede Etappe zu einer echten Aufgabe.',
   'split.handoff.note': 'Restaufwand aus Handoff von {0}',
 

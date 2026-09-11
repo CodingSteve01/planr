@@ -467,7 +467,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             if (hasChain && onSplitHandoff) {
               return <button className="btn btn-sec btn-xs"
                 data-htip={t('split.handoff.tip')}
-                onClick={() => { if (confirm(t('split.handoff.confirm'))) onSplitHandoff(node.id); }}
+                onClick={() => onSplitHandoff(node.id)}
                 style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>;
             }
             if (sc.truncatedByOffboard && onSplitTaskAtProgress) {

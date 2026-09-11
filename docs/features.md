@@ -219,6 +219,7 @@ See [import-export.md](import-export.md).
 - **Save button is a disk icon** next to the filename (not a big topbar button)
 - **Names everywhere** — internal IDs are never shown to the user
 - **Dark / Light / Auto mode** — manual toggle in Settings; defaults to system preference
+- **Undo/redo instead of "are you sure?"** — every user-initiated edit (status/field changes, add, delete, duplicate, split, reorder, team/member edits, roadmap reorganize…) is one `⌘Z` away from reverting. Because the confirm dialog and the undo stack solve the same problem — "don't let me lose work by accident" — undo wins and the confirm is gone: deleting or duplicating a node, and splitting a handoff, no longer ask. `↶` / `↷` buttons sit in the topbar next to the save-state pill; both are disabled when there's nothing to step through. A slider drag or a burst of quick clicks coalesces into one undo step, not one per pixel. Confirms stay where undo can't help — discarding an in-progress edit that was never applied (`Unsaved changes will be lost`, "Discard this new item?"), and swapping the whole document (New project, restoring a snapshot, clearing snapshots), which also resets the undo stack since it no longer describes the document on screen. See [`src/utils/undo.js`](../src/utils/undo.js) and architecture.md § State flow.
 
 ## Keyboard shortcuts
 
@@ -226,6 +227,8 @@ See [import-export.md](import-export.md).
 |---|---|
 | `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypass debounce) |
 | `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Ctrl+Z` / `Cmd+Z` | Undo the last edit (not while a text field has focus) |
+| `Ctrl+Y` / `Cmd+Shift+Z` | Redo (not while a text field has focus) |
 | `Esc` | Clear search / deselect / close modal |
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle item in multi-selection |

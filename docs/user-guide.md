@@ -289,10 +289,14 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 |---|---|
 | `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypasses the 5 s debounce) |
 | `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Ctrl+Z` / `Cmd+Z` | Undo the last edit |
+| `Ctrl+Y` / `Cmd+Shift+Z` | Redo |
 | `Esc` | Clear search / deselect / close modal |
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle multi-selection |
 | `Shift+Click` | Range-select in tree |
+
+Undo/redo work anywhere in the app except while a text field has focus — there, `Ctrl/Cmd+Z` is left to the browser's native text-editing undo. `↶` / `↷` buttons next to the save-state pill do the same thing for click users; both grey out when there's nothing to step through.
 
 ## Language and theme settings
 

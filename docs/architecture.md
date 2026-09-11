@@ -101,6 +101,17 @@ Derived values via `useMemo`:
 - `archive` — `scanArchive({tree, members, days})`: long-finished roots + long-offboarded members
 - `activeTree` / `activeScheduled` / `activeMembers` — the archive-filtered copies the views render
 
+### Mutations and undo
+
+Every write to `data` falls into one of two buckets, and the difference is load-bearing — mixing them up either pollutes the undo stack or lets ⌘Z corrupt derived state:
+
+- **User-initiated** — the user asked for this change (edited a field, deleted a node, dragged a slider, reconciled with Jira…). These route through one helper, `mutate(updater)`: it pushes the current `data` onto the undo history, then calls `setData(updater)`, then `setSaved(false)`. `setD(key, value)`, `updateNode`, `addDep`/`removeDep`, `reorderSibling`, and the rest of the per-field/per-entity mutators all call `mutate` instead of `setData` directly.
+- **Automatic** — the app derived this change from something else the user did, and it always runs unprompted from a `useEffect`: parent-status derivation (`deriveParentStatuses`), the completion-metadata sync (stamping `completedStart`/`completedEnd` when a leaf's status/progress imply it), the Subway-Map's `roadmapAssignment` merge, holiday/deadline migrations, and the autosave history-event append. These stay on plain `setData` (no `setSaved(false)` pairing where the write is purely derivable, or the pairing exists but skips `mutate`). If these pushed onto the undo stack, a single ⌘Z after an unrelated edit could "undo" a derivation the tree still needs — e.g. reverting a status without reverting the progress that implied it — landing the plan in a state that could never have been reached by editing it. Effects are also comparatively chatty (they re-run on every relevant dependency change), which would flood the stack with entries the user never asked for.
+
+The undo history itself (`src/utils/undo.js`) is a small, pure `{ past, future }` model — `push`/`undo`/`redo`/`canUndo`/`canRedo` — with no dependency on React. Snapshots are the previous `data` object *references*, never deep clones: because every mutator already does `{ ...d, changedPart }` instead of touching `d` in place, two adjacent snapshots share every branch that didn't change, so keeping 100 of them costs little more than keeping one. `push` coalesces calls that land within 300 ms of each other into a single entry, so a progress-slider drag or a burst of status clicks costs the user one ⌘Z, not one per event; any *new* push clears the redo branch, same as every other editor.
+
+Loading a different document — opening a file, starting a new project, restoring a JSON snapshot — calls `resetHistory()` alongside `setData(...)`. The old undo stack describes edits to a document that's no longer on screen; keeping it around would let ⌘Z reach back into a plan you already closed.
+
 ### Display filters vs. facts
 
 `tree`, `stats`, `scheduled` and `goals` always describe the **whole** plan. The

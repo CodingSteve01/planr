@@ -331,8 +331,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           {toolBtn('⤓ Last', `Move ${selected.id} to last position among its siblings`, () => onReorder(selected.id, 'last'), selPos.idx === selPos.count - 1)}
         </>}
         <span style={{ flex: 1 }} />
-        <button className="btn btn-sec btn-xs" onClick={() => { if (confirm(`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}?`)) onDelete(selected.id); }}
-          data-htip={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''}`}
+        <button className="btn btn-sec btn-xs" onClick={() => onDelete(selected.id)}
+          data-htip={`Delete ${selected.id}${hasChildren(tree, selected.id) ? ' and all its children' : ''} (⌘Z to undo)`}
           style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
       </div>
     )}

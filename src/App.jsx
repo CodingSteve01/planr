@@ -9,6 +9,7 @@ import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
+import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
@@ -245,6 +246,37 @@ export default function App() {
   const [onlyOverbooked, setOnlyOverbooked] = useState(() => { try { return localStorage.getItem('planr_only_overbooked') === 'true'; } catch { return false; } });
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
+  // ── Undo/redo ────────────────────────────────────────────────────────────
+  // `history` holds only past/future — the present lives in `data` itself.
+  // `mutate` is the single gateway every USER-initiated edit routes through
+  // (see utils/undo.js for the coalescing/redo-clearing rules). Automatic
+  // writes — parent-status derivation, completion-metadata sync, roadmap-
+  // assignment merge, autosave, migrations — stay on plain setData so they
+  // never show up as an undo step. Loading a different document (file open,
+  // new project, snapshot restore) calls resetHistory() instead.
+  const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
+  function resetHistory() { setHistory(createHistory({ limit: 100 })); }
+  function mutate(updater) {
+    setHistory(h => pushHistory(h, data, { coalesceMs: 300 }));
+    setData(updater);
+    setSaved(false);
+  }
+  function handleUndo() {
+    if (!canUndo(history)) return;
+    const { history: nextHistory, snapshot } = undoHistory(history, data);
+    if (snapshot === undefined) return;
+    setHistory(nextHistory);
+    setData(snapshot);
+    setSaved(false);
+  }
+  function handleRedo() {
+    if (!canRedo(history)) return;
+    const { history: nextHistory, snapshot } = redoHistory(history, data);
+    if (snapshot === undefined) return;
+    setHistory(nextHistory);
+    setData(snapshot);
+    setSaved(false);
+  }
   const fRef = useRef(null);
   const searchRef = useRef(null);
   const fileHandleRef = useRef(null);
@@ -348,6 +380,7 @@ export default function App() {
 
         if (!cancelled) {
           setData(restored);
+          resetHistory(); // different document — the old undo stack doesn't apply
           setSel(null);
           // Check if we have write permission (non-interactive)
           const canWrite = await ensureHandlePermission(handle, false);
@@ -475,6 +508,7 @@ export default function App() {
       const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
       if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
         setData(d);
+        resetHistory(); // reloaded from disk — treat as a fresh document
         setLastSavedAt(new Date(file.lastModified));
         lastModRef.current = file.lastModified;
         setSaved(true);
@@ -1190,6 +1224,7 @@ export default function App() {
         // Apply data immediately — don't block on file write permission
         await rememberHandle(handle);
         setData(d);
+        resetHistory(); // different document — the old undo stack doesn't apply
         setSel(null);
         setSaved(true);
         setLastSavedAt(new Date());
@@ -1202,7 +1237,8 @@ export default function App() {
   }
   // Accept both .json and .md files
 
-  // Global keyboard shortcuts: Ctrl/Cmd+S → save, Ctrl/Cmd+F → focus search
+  // Global keyboard shortcuts: Ctrl/Cmd+S → save, Ctrl/Cmd+F → focus search,
+  // Ctrl/Cmd+Z → undo, Shift+Ctrl/Cmd+Z or Ctrl+Y → redo.
   useEffect(() => {
     const h = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
@@ -1218,6 +1254,18 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && search && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         e.preventDefault();
         setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
+      }
+      // Undo/redo — never while focus is in a text-editing control, so
+      // native text-field undo wins there instead of ours.
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
+        const active = document.activeElement;
+        const tag = active?.tagName;
+        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
+        if (!isEditable) {
+          const isRedo = (e.key === 'y' || e.key === 'Y') || e.shiftKey;
+          e.preventDefault();
+          if (isRedo) handleRedo(); else handleUndo();
+        }
       }
     };
     window.addEventListener('keydown', h);
@@ -1826,7 +1874,7 @@ export default function App() {
 
     return changed ? { ...d, vacations, tree: nextTree } : d;
   }
-  function setD(k, v) { setData(d => ({ ...d, [k]: v })); setSaved(false); }
+  function setD(k, v) { mutate(d => ({ ...d, [k]: v })); }
   // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
   // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
   // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
@@ -1839,17 +1887,15 @@ export default function App() {
         const pinD = new Date(u.pinnedStart);
         const extended = new Date(pinD); extended.setDate(extended.getDate() - 14);
         const extStr = extended.toISOString().slice(0, 10);
-        setData(d => ({
+        mutate(d => ({
           ...d,
           meta: { ...d.meta, viewStart: extStr },
           tree: (d.tree || []).map(r => r.id === u.id ? u : r),
         }));
-        setSaved(false);
         return;
       }
     }
-    setData(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
-    setSaved(false);
+    mutate(d => ({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
   }
   // Bulk status write from the Jira reconcile dialog. Patches carry whole
   // nodes (see utils/jiraSync.js statusPatches); parent statuses and the
@@ -1858,8 +1904,7 @@ export default function App() {
   const onJiraApplyStatus = useStableCallback(patches => {
     if (!patches?.length) return;
     const byId = new Map(patches.map(patch => [patch.id, patch]));
-    setData(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
-    setSaved(false);
+    mutate(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
   });
   // Targeted dep mutations: read current tree state and touch ONLY the deps field.
   // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
@@ -1868,7 +1913,7 @@ export default function App() {
   // can stay agnostic ("delete this connection") without knowing the
   // kind. Returns the node to either bucket if it lives there.
   function removeDep(fromId, depId) {
-    setData(d => {
+    mutate(d => {
       const tree = d.tree || [];
       const mutated = tree.map(r => {
         if (r.id !== fromId) return r;
@@ -1880,14 +1925,13 @@ export default function App() {
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
-    setSaved(false);
   }
   // Add a hard dep edge. Soft deps were removed — every link is a hard
   // dependency now ("X must finish before Y"). Drag-link, NodeModal picker,
   // and selection "Reihenfolge linken" all go through this single path.
   function addDep(fromId, depId) {
     if (fromId === depId) return;
-    setData(d => {
+    mutate(d => {
       const mutated = (d.tree || []).map(r => {
         if (r.id !== fromId) return r;
         const merged = new Set([...(r.deps || []), ...(r.softDeps || [])]);
@@ -1902,7 +1946,6 @@ export default function App() {
       });
       return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
     });
-    setSaved(false);
   }
   function deleteNode(id) { setD('tree', tree.filter(r => !r.id.startsWith(id))); setSel(null); }
   // Materialize handoff segments as standalone tree tasks, chained by deps.
@@ -2164,6 +2207,7 @@ export default function App() {
     };
     const sameRootPrefix = (a, b) => (a.match(/^[A-Za-z]+/)?.[0] || '') === (b.match(/^[A-Za-z]+/)?.[0] || '');
     let changed = false;
+    const before = data;
     setData(d => {
       const currentTree = d.tree || [];
       const node = currentTree.find(r => r.id === nodeId);
@@ -2204,7 +2248,10 @@ export default function App() {
       changed = true;
       return { ...d, tree: nextTree };
     });
-    if (changed) setSaved(false);
+    if (changed) {
+      setHistory(h => pushHistory(h, before, { coalesceMs: 300 }));
+      setSaved(false);
+    }
   }
 
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
@@ -2223,8 +2270,7 @@ export default function App() {
   // Pre-planStart weeks exist for display only — the scheduler still begins at planStart.
   function extendViewStart(newStart) {
     if (!newStart || newStart >= (meta.viewStart || meta.planStart || '9999')) return;
-    setData(d => ({ ...d, meta: { ...d.meta, viewStart: newStart } }));
-    setSaved(false);
+    mutate(d => ({ ...d, meta: { ...d.meta, viewStart: newStart } }));
   }
 
   // Export context — shared data bag for all export functions in utils/exports.js.
@@ -2284,6 +2330,7 @@ export default function App() {
         if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
         // Set data first, then clean up handle in background
         setData(d);
+        resetHistory(); // different document — the old undo stack doesn't apply
         setSel(null);
         setSaved(true);
         setFileName(f.name);
@@ -2323,7 +2370,7 @@ export default function App() {
       setModal('node');
     });
   }
-  async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); setSel(null); setModal(null); setTab('summary'); }
+  async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); resetHistory(); setSel(null); setModal(null); setTab('summary'); }
 
   // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
   async function restoreMountedFile() {
@@ -2340,6 +2387,7 @@ export default function App() {
       const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
       if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
       setData(d);
+      resetHistory(); // different document — the old undo stack doesn't apply
       setSel(null);
       setSaved(true);
       setLastSavedAt(new Date());
@@ -2426,8 +2474,7 @@ export default function App() {
   // Manually-triggered so live edits don't shuffle the tree on the user.
   const onReorganizeLayout = useStableCallback(() => {
     const order = computeDisplayOrder(tree);
-    setData(d => ({ ...d, tree: applyDisplayOrder(d.tree || [], order) }));
-    setSaved(false);
+    mutate(d => ({ ...d, tree: applyDisplayOrder(d.tree || [], order) }));
   });
   // Persistent Subway-Map assignment: Roadmap.jsx fires this when its
   // computed {rootId → routeIdx, colorIdx} differs from what's stored
@@ -2464,7 +2511,7 @@ export default function App() {
   const onResTeamDel = useStableCallback(i => {
     const deleted = teams[i];
     if (!deleted) return;
-    setData(d => {
+    mutate(d => {
       const nextTeams = d.teams.filter((_, j) => j !== i);
       const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
       const nextTree = d.tree.map(r => {
@@ -2483,7 +2530,6 @@ export default function App() {
       });
       return { ...d, teams: nextTeams, members: nextMembers, tree: nextTree };
     });
-    setSaved(false);
   });
   const onHolUpdate = useStableCallback(v => setD('holidays', v));
 
@@ -2512,11 +2558,11 @@ export default function App() {
       onLoadDemo={() => {
         import('./utils/demoProject.js').then(m => {
           const demo = m.buildDemoProject(_t);
-          setData(demo); setSaved(false); setTab('summary'); setSel(demo.tree?.[0] || null);
+          setData(demo); resetHistory(); setSaved(false); setTab('summary'); setSel(demo.tree?.[0] || null);
         });
       }} />
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => {
-      setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
+      setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
       // Auto-start tour for first-time users (tour not yet dismissed)
       try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
     }} />}
@@ -2806,6 +2852,8 @@ export default function App() {
           </span>}
         </span>;
       })()}
+      <button className="btn btn-sec btn-xs" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}>↶</button>
+      <button className="btn btn-sec btn-xs" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}>↷</button>
       <div className="vsep" />
       <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       <div className="sp" />
@@ -2982,8 +3030,7 @@ export default function App() {
       onSplitHandoff={splitHandoff}
       onSplitTaskAtProgress={splitTaskAtProgress}
       onHistoryChange={events => {
-        setData(d => ({ ...d, historyEvents: events }));
-        setSaved(false);
+        mutate(d => ({ ...d, historyEvents: events }));
       }}
       onNavigate={id => {
         const target = tree.find(r => r.id === id);
@@ -2999,7 +3046,7 @@ export default function App() {
         if (!confirm(`Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`)) return;
         // Take a defensive snapshot of current state before restoring.
         if (data) pushSnapshot(data);
-        setData(snap.data); setSaved(false); setModal(null);
+        setData(snap.data); resetHistory(); setSaved(false); setModal(null);
       }}
       onExportJson={snap => {
         const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
@@ -3021,7 +3068,7 @@ export default function App() {
       </div>
     )}
     {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
-    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
+    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
