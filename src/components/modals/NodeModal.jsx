@@ -660,11 +660,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {/* ── ACTIONS ── */}
       <div className="modal-footer">
-        {onDelete && <button className="btn btn-danger" onClick={() => { if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) { onDelete(node.id); onClose(); } }}>{t('delete')}</button>}
+        {onDelete && <button className="btn btn-danger" onClick={() => { onDelete(node.id); onClose(); }}>{t('delete')}</button>}
         {onDuplicate && <button className="btn btn-sec" onClick={() => {
           if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-          const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
-          if (confirm(sub > 1 ? t('qe.confirmDuplicateN', node.name, sub - 1) : t('qe.confirmDuplicate', node.name))) onDuplicate(node.id);
+          onDuplicate(node.id);
         }}>⧉ {t('qe.duplicate')}</button>}
         {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
           && !hasChildren(tree, node.id) && (

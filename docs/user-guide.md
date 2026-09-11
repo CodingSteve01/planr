@@ -6,6 +6,20 @@ End-to-end walkthrough for planning a project in Planr. If you want the feature 
 
 Want to skip local setup? Open Planr directly: **https://codingsteve01.github.io/planr**
 
+## Modes
+
+Before anything else: Planr has five modes, picked with the segmented control in the topbar. A mode is the state of the whole surface — which views it shows, which toolbar, which columns — not a feature toggle. Pick the one that matches what you're doing right now; the rest of this guide walks through the steps below, but you'll mostly live in one mode at a time:
+
+| Mode | Use it when… | Shows |
+|---|---|---|
+| **Build** | at the desk, sketching structure | Work Tree (primary), Network |
+| **Plan** | in a planning session | Schedule (primary), Planning, Resources, Holidays |
+| **Run** | daily stand-up | Briefing (primary), Overview |
+| **Review** | retro or status meeting | Overview |
+| **Report** | prepping for the steering committee | Report — the export cards, as a screen instead of a dialog |
+
+Switching mode jumps to that mode's default view. The tab bar only shows the active mode's tabs plus whatever tab you currently have open, so following a link into a view from another mode never strands you — you can always get back. Everything that used to live in the topbar's button row (Load, Snapshots, Save as, Export…, New, Help) is one keypress away in the `/` command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any mode or view — type a few letters and press Enter.
+
 ## 1. Start a project
 
 Open the app. On first launch there is no project loaded.
@@ -289,10 +303,14 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 |---|---|
 | `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypasses the 5 s debounce) |
 | `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Ctrl+Z` / `Cmd+Z` | Undo the last edit |
+| `Ctrl+Y` / `Cmd+Shift+Z` | Redo |
 | `Esc` | Clear search / deselect / close modal |
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle multi-selection |
 | `Shift+Click` | Range-select in tree |
+
+Undo/redo work anywhere in the app except while a text field has focus — there, `Ctrl/Cmd+Z` is left to the browser's native text-editing undo. `↶` / `↷` buttons next to the save-state pill do the same thing for click users; both grey out when there's nothing to step through.
 
 ## Language and theme settings
 

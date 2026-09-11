@@ -728,10 +728,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
     <hr className="divider" />
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => {
-        const subTreeSize = tree.filter(entry => entry.id === node.id || entry.id.startsWith(node.id + '.')).length;
-        if (confirm(subTreeSize > 1 ? t('qe.confirmDuplicateN', node.name, subTreeSize - 1) : t('qe.confirmDuplicate', node.name))) onDuplicate(node.id);
-      }}>⧉ {t('qe.duplicate')}</button>}
+      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => onDuplicate(node.id)}>⧉ {t('qe.duplicate')}</button>}
       {/* Split — only when wip with progress > 0. The button asks for the
           consumed % (defaults to current progress) and creates a new
           sibling task with the remaining effort + dep on the original. */}
@@ -750,9 +747,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             onSplitTaskAtProgress(node.id, p);
           }}>{t('split.btn')}</button>
       )}
-      {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => {
-        if (confirm(hasChildren(tree, node.id) ? t('qe.confirmDeleteChildren', node.id) : t('qe.confirmDelete', node.id))) onDelete(node.id);
-      }}>{t('delete')}</button>}
+      {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => onDelete(node.id)}>{t('delete')}</button>}
     </div>
   </>;
 }

@@ -37,6 +37,7 @@ src/
       QuickEdit.jsx        — sidebar editor (primary interaction)
       PlanReview.jsx       — Planning Review tab (Decisions, Team Capacity, Blocked)
       Onboard.jsx          — first-launch onboarding
+      ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
       JiraSyncModal.jsx    — Jira reconcile (link check + paste-and-compare)
@@ -45,12 +46,17 @@ src/
       SettingsModal.jsx    — theme, file handle, etc.
       DLModal.jsx          — deadline editor
       NewProjModal.jsx     — new-project wizard
+      ExportModal.jsx      — Export dialog chrome around ExportCards.jsx (still reachable from `/`)
     shared/
       SearchSelect.jsx     — searchable dropdown (used everywhere >5 items)
       LazyInput.jsx        — debounced text input for perf in long lists
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
+      CommandPalette.jsx   — `/` / ⌘K palette — see "Modes and the command palette" below
+      ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
   utils/
+    modes.js                — the five modes as data + helpers (getMode, tabsForMode, modeForTab, …)
+    palette.js               — pure command-palette filter/rank logic (filterCommands)
     scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
     archive.js             — which roots / members are long-finished ("old news"); display filter only
     exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
@@ -100,6 +106,69 @@ Derived values via `useMemo`:
 - `confidenceMap` — per-item confidence (auto-derived via `computeConfidence()`, with manual overrides)
 - `archive` — `scanArchive({tree, members, days})`: long-finished roots + long-offboarded members
 - `activeTree` / `activeScheduled` / `activeMembers` — the archive-filtered copies the views render
+
+### Mutations and undo
+
+Every write to `data` falls into one of two buckets, and the difference is load-bearing — mixing them up either pollutes the undo stack or lets ⌘Z corrupt derived state:
+
+- **User-initiated** — the user asked for this change (edited a field, deleted a node, dragged a slider, reconciled with Jira…). These route through one helper, `mutate(updater)`: it pushes the current `data` onto the undo history, then calls `setData(updater)`, then `setSaved(false)`. `setD(key, value)`, `updateNode`, `addDep`/`removeDep`, `reorderSibling`, and the rest of the per-field/per-entity mutators all call `mutate` instead of `setData` directly.
+- **Automatic** — the app derived this change from something else the user did, and it always runs unprompted from a `useEffect`: parent-status derivation (`deriveParentStatuses`), the completion-metadata sync (stamping `completedStart`/`completedEnd` when a leaf's status/progress imply it), the Subway-Map's `roadmapAssignment` merge, holiday/deadline migrations, and the autosave history-event append. These stay on plain `setData` (no `setSaved(false)` pairing where the write is purely derivable, or the pairing exists but skips `mutate`). If these pushed onto the undo stack, a single ⌘Z after an unrelated edit could "undo" a derivation the tree still needs — e.g. reverting a status without reverting the progress that implied it — landing the plan in a state that could never have been reached by editing it. Effects are also comparatively chatty (they re-run on every relevant dependency change), which would flood the stack with entries the user never asked for.
+
+The undo history itself (`src/utils/undo.js`) is a small, pure `{ past, future }` model — `push`/`undo`/`redo`/`canUndo`/`canRedo` — with no dependency on React. Snapshots are the previous `data` object *references*, never deep clones: because every mutator already does `{ ...d, changedPart }` instead of touching `d` in place, two adjacent snapshots share every branch that didn't change, so keeping 100 of them costs little more than keeping one. `push` coalesces calls that land within 300 ms of each other into a single entry, so a progress-slider drag or a burst of status clicks costs the user one ⌘Z, not one per event; any *new* push clears the redo branch, same as every other editor.
+
+Loading a different document — opening a file, starting a new project, restoring a JSON snapshot — calls `resetHistory()` alongside `setData(...)`. The old undo stack describes edits to a document that's no longer on screen; keeping it around would let ⌘Z reach back into a plan you already closed.
+
+### Modes and the command palette
+
+`mode` is a small piece of App-level state (`useState`, persisted in
+`localStorage['planr_mode']`) alongside `tab`. The five modes themselves are
+data, not state: [`src/utils/modes.js`](../src/utils/modes.js) exports
+`MODES` (id, `labelKey`, `tooltipKey`, the tab ids that belong to the mode,
+its one `defaultTab`) plus small pure helpers (`getMode`, `tabsForMode`,
+`defaultTabForMode`, `modeForTab`, `isValidMode`). `App.jsx` exports
+`TAB_IDS` — the single source of truth both for building the tab bar (with
+i18n labels) and for `src/utils/__tests__/modes.test.js`, which asserts every
+`TAB_IDS` entry is reachable from at least one mode. That test is the guard
+against a future tab silently becoming unreachable.
+
+Which mode and tab a load STARTS on is one decision, taken in one place:
+`initialShell()` in `App.jsx`. A saved `planr_mode` wins; failing that the
+saved tab decides (via `modeForTab`); failing that `DEFAULT_MODE` (`build` —
+a plan has to be authored before it can be planned, run, reviewed or reported
+on) and its own default tab. In every branch the tab is forced to belong to
+the mode, so the two cannot disagree on the first paint — they did in the
+first draft, where a fresh install opened in Build while still showing the
+Overview, because the tab default (`'summary'`) predates modes.
+
+For the same reason `modeForTab` consults an explicit `TAB_OWNER` map rather
+than "first mode in declaration order that lists this tab". Overview is the
+clearest case: it is Review's core surface and Run only borrows it, so
+declaration order must not be what decides.
+
+Switching mode (`switchMode` in `App.jsx`) sets `mode` and jumps to that
+mode's `defaultTab`. The tab bar renders only the active mode's tabs plus
+whichever tab is currently open (`visibleTabs` in `App.jsx`), so a view
+reached from outside its owning mode — the palette, a stale `planr_tab` value
+from before modes existed — never traps the user with no way back.
+
+The `/` command palette (`src/components/shared/CommandPalette.jsx`) is a
+self-contained component: it owns its own open/closed state, listens for `/`
+(only when focus isn't already in an editable element) and `⌘K`/`Ctrl+K` on
+`window`, and additionally listens for a `PALETTE_OPEN_EVENT` custom event so
+the topbar's `/` button can open it without App.jsx having to lift the open
+state. `App.jsx` builds one flat `paletteCommands` array
+(`{id, labelKey, group, groupLabel, run}`) covering everything that used to
+be a topbar button (Load, Snapshots, Save as, Export…, New project,
+Help/Tour) plus a jump to every mode and every `TAB_IDS` entry, and hands it
+to `<CommandPalette commands={paletteCommands} />`. The filter/rank logic
+itself is pure and lives in [`src/utils/palette.js`](../src/utils/palette.js)
+(`filterCommands(commands, query)` — substring match first, then an in-order
+fuzzy subsequence fallback) so it is unit-testable without mounting React.
+
+Report mode's only tab (`report`) renders `ReportView.jsx`, which is the old
+Export-modal card grid (`ExportCards.jsx`, shared with `ExportModal.jsx` so
+neither duplicates the export handler wiring) rendered as a normal view
+instead of a modal.
 
 ### Display filters vs. facts
 
@@ -206,7 +275,12 @@ Three levels: **committed**, **estimated**, **exploratory**. Computed automatica
 
 ## Internationalization (i18n)
 
-`src/i18n.jsx` provides a lightweight translation system with ~350 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys.
+`src/i18n.jsx` provides a lightweight translation system with ~500 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys —
+[`src/__tests__/i18n.test.js`](../src/__tests__/i18n.test.js) enforces it:
+the two dictionaries must carry identical key sets, and the surfaces reworked
+during the rebuild must carry no hardcoded display text at all. A key present
+in only one language is invisible while you work (`t()` falls back to English
+and then to the key) and shows up as raw dotted text for everyone else.
 
 ## Theme system
 
