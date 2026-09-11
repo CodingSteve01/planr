@@ -1,12 +1,20 @@
 /** @vitest-environment happy-dom */
-// Two Overview behaviours that only show up once a plan has history:
-//   1. a project that finished months ago drops off the roadmap, but NOT out
-//      of the headline percentage — archiving is a display filter,
-//   2. one project can be shown on its own as a single roadmap line.
+// Overview (Review mode's portfolio lens) behaviours that only show up once
+// a plan has history: a project that finished months ago drops off the
+// roadmap, but NOT out of the headline percentage — archiving is a display
+// filter.
 //
 // The Subway map itself is an injected SVG string, which happy-dom's parser
 // mangles, so the map is stubbed out here: which projects reach the renderer
-// is exactly what these two features change.
+// is exactly what the archive filter changes.
+//
+// The portfolio lens used to also offer a "solo one line" mode (pick one
+// project, the map collapses to just that line's calendar). It's gone — see
+// SumView.jsx's RoadmapSwitcher — because the same calendar renderer now
+// lives beside the Gantt as Plan mode's project lens (RoadmapLens.jsx,
+// covered by src/__tests__/roadmapLens.app.test.jsx), which is a better fit:
+// a portfolio review is exactly the moment you do NOT want to narrow to one
+// line. The map here is always every project, full stop — asserted below.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
@@ -110,70 +118,59 @@ describe('Overview archive filter', () => {
   });
 });
 
-describe('Overview single-line mode', () => {
+describe('Overview portfolio lens is always every project', () => {
   beforeEach(() => { cleanup(); localStorage.clear(); });
 
-  // The line picker is a SearchSelect: focus the input to open it, then click
-  // the row. Its popup portals to document.body, hence the document query.
-  const openPicker = () => fireEvent.focus(screen.getByTestId('roadmap-line-picker').querySelector('input'));
-  const pickLine = name => {
-    openPicker();
-    fireEvent.click([...document.querySelectorAll('[data-ss-idx]')].find(row => row.textContent.includes(name)));
-  };
-  // Row 0 is the "— All lines —" empty row.
-  const clearLine = () => {
-    openPicker();
-    fireEvent.click([...document.querySelectorAll('[data-ss-idx="0"]')].pop());
-  };
-
-  it('reduces the roadmap to the selected project', () => {
-    const { container } = mount({ showArchived: true });
-    expect(mapRoots()).toEqual(['A1', 'Z1']);
-
-    pickLine('Alte Umfirmierung');
-
-    expect(mapRoots()).toEqual(['Z1']);
-  });
-
-  it('goes back to every line via "All lines" and remembers the choice', () => {
-    const { container } = mount({ showArchived: true });
-
-    pickLine('Alte Umfirmierung');
-    expect(localStorage.getItem('planr_roadmap_solo')).toBe('Z1');
-
-    clearLine();
-    expect(localStorage.getItem('planr_roadmap_solo')).toBe('');
-    expect(mapRoots()).toEqual(['A1', 'Z1']);
-  });
-
-  it('picking the active line again releases it', () => {
-    const { container } = mount({ showArchived: true });
-
-    pickLine('Live Plattform');
-    expect(localStorage.getItem('planr_roadmap_solo')).toBe('A1');
-
-    pickLine('Live Plattform');
-    expect(localStorage.getItem('planr_roadmap_solo')).toBe('');
-  });
-
-  it('never persists a line assignment while a single line is soloed', () => {
-    // The soloed line is handed a colour-only assignment, so persisting what
-    // the renderer computes from it would move that line in the full map.
-    const { container } = mount({
+  it('shows every project regardless of a stored roadmap assignment', () => {
+    mount({
       showArchived: true, onAssignmentChange: noop,
       roadmapAssignment: { A1: { routeIdx: 3, colorIdx: 2 }, Z1: { routeIdx: 1, colorIdx: 5 } },
     });
-    expect(mapPersists()).toBe(true);
-
-    pickLine('Live Plattform');
-
-    expect(mapPersists()).toBe(false);
-  });
-
-  it('falls back to all lines when the remembered project is gone', () => {
-    localStorage.setItem('planr_roadmap_solo', 'GHOST');
-    mount({ showArchived: true });
 
     expect(mapRoots()).toEqual(['A1', 'Z1']);
+    expect(mapPersists()).toBe(true);
+  });
+
+  it('has no per-project line picker — that surface moved to the Plan-mode project lens', () => {
+    mount({ showArchived: true });
+
+    expect(screen.queryByTestId('roadmap-line-picker')).toBeNull();
+  });
+});
+
+// Phase 5 turned the Subway map into the portfolio lens — always every
+// project — which is right for a portfolio review. It took the project picker
+// away from the TIMETABLE at the same time, and that was a capability loss:
+// no other view lists one project's dates as a schedule, so the picker there
+// was not a duplicate of anything. It stays, scoped to the view that needs it.
+describe('the timetable can still be narrowed to one project', () => {
+  beforeEach(() => { cleanup(); localStorage.clear(); });
+
+  it('offers the picker on the schedule view and not on the map', () => {
+    mount({ showArchived: true });
+    // Map view: no picker — the portfolio lens shows everything, on purpose.
+    expect(screen.queryByTestId('timetable-root-picker')).toBeNull();
+
+    // Switch to the schedule; the picker is there because no other view
+    // lists one project's dates as a schedule.
+    const scheduleBtn = [...document.querySelectorAll('button')]
+      .find(b => /Fahrplan|Timetable|Schedule/i.test(b.textContent));
+    expect(scheduleBtn, 'schedule switch not found').toBeTruthy();
+    fireEvent.click(scheduleBtn);
+
+    expect(screen.getByTestId('timetable-root-picker')).toBeTruthy();
+  });
+
+  it('remembers the scoped project across mounts, and ignores one that is gone', () => {
+    localStorage.setItem('planr_roadmap_view', 'schedule');
+    localStorage.setItem('planr_timetable_root', 'A1');
+    mount({ showArchived: true });
+    expect(screen.getByTestId('timetable-root-picker')).toBeTruthy();
+
+    cleanup();
+    localStorage.setItem('planr_timetable_root', 'GONE');
+    mount({ showArchived: true });
+    // A stored root that no longer exists must not blank the schedule.
+    expect(screen.getByTestId('timetable-root-picker')).toBeTruthy();
   });
 });

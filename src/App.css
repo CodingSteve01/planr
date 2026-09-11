@@ -170,6 +170,25 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 tr:hover .tv-drag-handle{color:var(--tx3);}
 .tv-drag-handle:hover{color:var(--ac);transform:scale(1.1);}
 .tv-drag-handle:active{cursor:grabbing;}
+/* The mouse path into the inline editor (docs/principles.md, principle 3:
+   nothing is reachable by keyboard only). Three affordances, no new write
+   path: the selected row's name reads as a field on hover, and every row
+   carries rename / new-row / new-child buttons that fade in with the row. */
+.tn-editable{border-radius:3px;padding:1px 4px;margin:-1px -4px;border:1px solid transparent;transition:border-color .12s ease,background .12s ease;}
+tr.sel .tn-editable{cursor:text;}
+tr.sel .tn-editable:hover{border-color:var(--b2);background:var(--bg3);}
+.tv-row-act{display:inline-flex;gap:1px;opacity:0;transition:opacity .12s ease;}
+tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
+.tv-act-btn{width:22px;height:22px;padding:0;background:transparent;border:none;color:var(--tx3);cursor:pointer;font-size:12px;line-height:1;border-radius:3px;transition:background .12s ease,color .12s ease;}
+.tv-act-btn:hover{background:var(--bg4);color:var(--ac);}
+/* The row editor is a small form: name, then labelled dropdowns in Tab
+   order. Labels sit above their control in 9px caps so a whole item can be
+   filled in without decoding a glyph — and the row still fits one line. */
+.tv-edit-row{display:inline-flex;align-items:flex-end;flex-wrap:wrap;gap:8px;padding:2px 0;}
+.tv-field{display:inline-flex;flex-direction:column;gap:1px;}
+.tv-field-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);line-height:1;padding-left:2px;}
+.tv-field-sel-wrap{display:inline-block;width:132px;}
+.tv-field-sel-wrap input:focus{border-color:var(--ac);box-shadow:0 0 0 2px rgba(59,130,246,.22);}
 /* Floating selection toolbar (multi-select in Gantt). Theme-aware: dark uses
    bg2 (panel), light mode overrides further down. */
 .gantt-selection-actionbar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--b2);background:var(--bg2);box-shadow:0 12px 32px rgba(0,0,0,.32);color:var(--tx);font-size:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 32px);}
@@ -482,3 +501,48 @@ tr:hover .tv-drag-handle{color:var(--tx3);}
 [data-theme="light"] ::-webkit-scrollbar-track{background:#f0f2f5;}
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:#b0b8c8;}
 .htip-pop{background:var(--bg2,#191d25);color:var(--tx,#e8ecf4);border:1px solid var(--b2,#364456);border-radius:var(--r,7px);padding:6px 10px;font:500 11px/1.4 Inter,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}
+
+/* ── Plan mode's Roadmap tab (components/views/PlanRoadmap.jsx) ───────────
+   Built to sit next to the Gantt and read as the same family: the same 28px
+   row, the same sticky label column, the same horizontal scroll. The SVG
+   roadmap that still serves the Subway map and the PDF scales with the
+   window; this one does not, which is the whole reason it exists. */
+.pr{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+.pr-head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--b);flex-shrink:0;}
+.pr-head-bar{width:4px;height:15px;border-radius:2px;flex-shrink:0;}
+.pr-head-name{font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pr-head-meta{font-size:11px;color:var(--tx3);font-family:var(--mono);white-space:nowrap;}
+.pr-zoom{display:inline-flex;align-items:center;gap:4px;}
+.pr-zoom-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);}
+
+.pr-body{display:flex;flex:1;min-height:0;overflow-y:auto;}
+.pr-labels{flex-shrink:0;border-right:1px solid var(--b);background:var(--bg);position:sticky;left:0;z-index:3;}
+.pr-figures{flex-shrink:0;border-left:1px solid var(--b);background:var(--bg);}
+.pr-axis-spacer{border-bottom:1px solid var(--b);}
+.pr-label{display:flex;align-items:center;gap:7px;padding:0 8px;cursor:pointer;overflow:hidden;}
+.pr-label:hover{background:var(--bg3);}
+.pr-label-id{font-family:var(--mono);font-size:10px;color:var(--tx3);flex-shrink:0;}
+.pr-label-name{font-size:12px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pr-label-name.done{opacity:.55;}
+
+.pr-scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;}
+.pr-axis{position:relative;border-bottom:1px solid var(--b);}
+.pr-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--b);}
+.pr-tick-lbl{position:absolute;left:5px;top:7px;font-size:10px;color:var(--tx3);white-space:nowrap;font-family:var(--mono);}
+.pr-grid{position:absolute;top:0;width:1px;background:var(--b);opacity:.5;}
+
+.pr-row{position:relative;}
+.pr-row.alt{background:rgba(148,163,184,.045);}
+.pr-bar{position:absolute;top:7px;height:14px;border-radius:7px;opacity:.18;cursor:pointer;overflow:hidden;}
+.pr-bar:hover{opacity:.3;}
+.pr-bar-fill{position:absolute;left:0;top:0;bottom:0;opacity:.85;border-radius:7px;}
+.pr-stop{position:absolute;top:9px;width:10px;height:10px;margin-left:-5px;border:1.5px solid;border-radius:50%;cursor:pointer;z-index:2;box-sizing:border-box;}
+.pr-stop:hover{transform:scale(1.35);}
+.pr-today{position:absolute;top:0;width:0;border-left:1px dashed var(--gr);z-index:4;pointer-events:none;}
+.pr-deadline{position:absolute;top:0;width:0;border-left:1px dashed var(--re);z-index:4;pointer-events:none;}
+
+.pr-figure{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0 10px;font-family:var(--mono);font-size:10px;}
+.pr-figure-count{color:var(--tx3);}
+.pr-figure-pct{color:var(--tx2);min-width:38px;text-align:right;}
+.pr-figure-pct.done{color:var(--gr);}
+.pr-zoom-val{font-family:var(--mono);font-size:10px;color:var(--tx3);min-width:26px;text-align:center;}

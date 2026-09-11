@@ -10,6 +10,7 @@ import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
+import { statusChangePatch } from '../../utils/completion.js';
 import { computeSollIst } from '../../utils/sollIst.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
@@ -68,9 +69,20 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     setFocusHint(null);
   }, [focusHint, tabProp]);
 
+  // Re-seed whenever the stored node changes, not just when a different node
+  // is selected. Keying on the id alone meant an edit made anywhere else —
+  // Space walking a task's phases in the tree, a bulk change, an undo — left
+  // this panel showing the values from whenever it was opened. You had to
+  // click away and back to see your own change.
+  //
+  // `onUpdate` hands the object straight through to the store, so the object
+  // identity is the discriminator: the same one back is our own write.
   useEffect(() => {
+    if (!node) return;
+    if (node === lastCommittedRef.current) return;
+    lastCommittedRef.current = node;
     setF({ ...node });
-  }, [node?.id]);
+  }, [node]);
 
   const CONF_OPTS = useMemo(() => [
     { id: '', label: t('auto') },
@@ -115,7 +127,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   const setTab = onTabChange || (() => {});
   useEffect(() => { if (activeTab !== tabProp && onTabChange) onTabChange(activeTab); }, [activeTab]);
 
+  // Remembers the exact object this panel last wrote, so the sync effect
+  // below can tell our own change coming back (nothing to do — `f` already
+  // has it) from one made somewhere else (re-seed).
+  const lastCommittedRef = useRef(null);
+
   const commitNode = next => {
+    lastCommittedRef.current = next;
     setF(next);
     onUpdate(next);
   };
@@ -124,28 +142,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     commitNode({ ...f, ...patch });
   };
 
-  const donePatch = (source = f) => {
-    const today = iso(new Date());
-    const completedAt = (source.completedAt && source.completedAt <= today) ? source.completedAt : today;
-    const completedEnd = (source.completedEnd && source.completedEnd <= completedAt) ? source.completedEnd : completedAt;
-    const patch = { status: 'done', progress: 100, completedAt, completedEnd };
-    // Seed completedStart so the done-bar always has a draggable left edge.
-    // Pick the first sane value: explicit completedStart, plannedStart from
-    // the last schedule, else completedEnd (single-day fallback). Clamp at
-    // completedEnd so a future-dated plannedStart can't invert the window.
-    const seedCandidate = source.completedStart || source.plannedStart || completedEnd;
-    patch.completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
-    return patch;
-  };
-  // open → wip: stamp the actual start so Soll/Ist has an Ist-Start as soon as
-  // work begins. Prefer existing completedStart, then plannedStart, else today;
-  // never a future date. No-op once completedStart is set.
-  const wipStartSeed = (source = f) => {
-    if (source.completedStart) return source.completedStart;
-    const today = iso(new Date());
-    const cand = source.plannedStart;
-    return (cand && cand <= today) ? cand : today;
-  };
+  // Status-change side effects (progress + completedAt/-End/-Start stamping)
+  // are shared with Run mode's row-level status control — see
+  // utils/completion.js `statusChangePatch` for what each transition does
+  // and why.
+  const donePatch = (source = f) => statusChangePatch(source, 'done');
 
   const patchCompletion = patch => {
     const next = { ...f, ...patch };
@@ -261,7 +262,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
     </div>
 
     {/* ══════ INSIGHTS TAB ══════ */}
-    {activeTab === 'insights' && <TaskInsights
+    {/* Insights renders from `f`, the panel's local copy — which is exactly
+        what went stale when an edit arrived from somewhere else. Tagged with
+        the copy's own status so a test can hold it to following along. */}
+    {activeTab === 'insights' && <div data-testid="qe-insights" data-status={f.status || 'open'} style={{ display: 'contents' }}><TaskInsights
       node={f}
       tree={tree}
       members={members}
@@ -284,7 +288,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         setTab(target);
         setFocusHint(fieldMap[sectionId] || null);
       }}
-    />}
+    /></div>}
 
     {/* ══════ OVERVIEW TAB ══════ */}
     {activeTab === 'overview' && <>
@@ -358,7 +362,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               patchNode(donePatch());
             }
             else if (value === 'open') patchNode({ status: 'open', progress: 0 });
-            else if (value === 'wip') patchNode({ status: 'wip', progress: (f.progress && f.progress > 0 && f.progress < 100) ? f.progress : 50, completedStart: wipStartSeed() });
+            else if (value === 'wip') patchNode(statusChangePatch(f, 'wip'));
           }} />
         </div>
         {/* Slider buffers locally on every onChange (so the thumb tracks) but
@@ -372,7 +376,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             if (value >= 100 && f.status !== 'done') {
               Object.assign(next, donePatch());
             }
-            else if (value > 0 && value < 100 && f.status !== 'wip') { next.status = 'wip'; next.completedStart = wipStartSeed(); }
+            // Only borrow completedStart here, not the whole wip patch — the
+            // slider's own value is the progress we want, not the "keep
+            // current progress, else default 50" rule statusChangePatch uses
+            // when there is no slider to read from.
+            else if (value > 0 && value < 100 && f.status !== 'wip') { next.status = 'wip'; next.completedStart = statusChangePatch(f, 'wip').completedStart; }
             else if (value === 0 && f.status !== 'open') next.status = 'open';
             bufferNode(next);
           }}
@@ -404,7 +412,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
         )}
         {isLeaf && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip') || 'Darf parallel zu anderen Tasks dieser Person laufen (überspringt Person-Queue, wenn keine Vorgänger)'}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
             <span>{t('qe.parallel') || 'Parallel'}</span>
             <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} /><span className="slider" /></label>
           </div>
@@ -543,10 +551,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             days exposed so the user sees overrun/underrun at a glance. */}
         {(f.plannedStart || f.plannedEnd || f.completedStart || f.completedEnd) && (
           <div className="frow">
-            <div className="field"><label>{t('qe.plannedStart') || 'Soll Start'}</label>
+            <div className="field"><label>{t('qe.plannedStart')}</label>
               <input type="date" value={f.plannedStart || ''} onChange={e => patchNode({ plannedStart: e.target.value })} />
             </div>
-            <div className="field"><label>{t('qe.plannedEnd') || 'Soll Ende'}</label>
+            <div className="field"><label>{t('qe.plannedEnd')}</label>
               <input type="date" value={f.plannedEnd || ''} onChange={e => patchNode({ plannedEnd: e.target.value })} />
             </div>
           </div>
@@ -562,12 +570,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             : si.delta?.tone === 'under' ? 'var(--gr)'
             : si.delta?.tone === 'on' ? 'var(--am)' : 'var(--tx3)';
           const sign = si.delta?.workDays > 0 ? `+${si.delta.workDays}d` : `${si.delta?.workDays ?? 0}d`;
-          const confTip = `Kalendertage: ${si.ist.calDays} · Wochenenden: ${si.confounders.weekends} · Feiertage: ${si.confounders.holidays}`;
+          const confTip = t('qe.sollIstCalendarTip', si.ist.calDays, si.confounders.weekends, si.confounders.holidays);
           return (
             <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 11 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: si.delta ? 4 : 0 }}>
                 <span style={{ color: 'var(--tx3)' }}>Soll:</span>
-                <span style={{ fontFamily: 'var(--mono)' }} data-htip={`best ${si.soll.best}T × factor ${si.soll.factor}`}>
+                <span style={{ fontFamily: 'var(--mono)' }} data-htip={t('qe.sollBestFactorTip', si.soll.best, si.soll.factor)}>
                   {si.soll.realistic > 0 ? `${si.soll.realistic}d` : '—'}
                 </span>
                 <span style={{ color: 'var(--tx3)', marginLeft: 14 }}>Ist:</span>
@@ -579,7 +587,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 </span>
                 {si.delta && (
                   <span style={{ marginLeft: 'auto', color: tone, fontWeight: 700 }}
-                    data-htip={`Schätzung ${si.soll.realistic}d → Ist ${si.ist.workDays}d. Faktor-Realität: ${(si.ist.workDays / Math.max(1, si.soll.best)).toFixed(2)}`}>
+                    data-htip={t('qe.sollIstFactorTip', si.soll.realistic, si.ist.workDays, (si.ist.workDays / Math.max(1, si.soll.best)).toFixed(2))}>
                     Δ {sign} ({si.delta.percent > 0 ? '+' : ''}{si.delta.percent}%)
                   </span>
                 )}
@@ -623,13 +631,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const label = (f._depLabels || {})[dep] || '';
             return <div key={'h_' + dep} className="dep-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title="Hard dep — A must finish before B" style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
+                <span title={t('qe.dep.hardTip')} style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
                 {target?.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                 <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
-                <span title="Convert to soft" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
+                <span title={t('qe.dep.convertToSoft')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
                   patchNode({
                     deps: (f.deps || []).filter(id => id !== dep),
                     softDeps: [...new Set([...(f.softDeps || []), dep])],
@@ -648,12 +656,12 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const target = tree.find(entry => entry.id === dep);
             return <div key={'s_' + dep} className="dep-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title="Soft dep — planner-set sequencing, scheduler still waits" style={{ fontSize: 8, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
+                <span title={t('qe.dep.softTip')} style={{ fontSize: 8, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{dep}</span>
                 {target?.name && <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <span title="Convert to hard" style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
+                <span title={t('qe.dep.convertToHard')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
                   patchNode({
                     softDeps: (f.softDeps || []).filter(id => id !== dep),
                     deps: [...new Set([...(f.deps || []), dep])],
@@ -686,13 +694,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             else patchNode({ softDeps: [...new Set([...(f.softDeps || []), id])] });
           }} placeholder={`+ ${depAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`} showIds />
           <div className="btn-group" style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('hard')} title="Hard dep">H</button>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('soft')} title="Soft dep">S</button>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('hard')} title={t('qe.dep.hard')}>H</button>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('soft')} title={t('qe.dep.soft')}>S</button>
           </div>
         </div>
       </div>
 
-      <div className="field"><label>Nachfolger</label>
+      <div className="field"><label>{t('qe.successors')}</label>
         {directSuccessors.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
           {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.85 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
@@ -701,13 +709,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               {s.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              {onAddDep && onRemoveDep && <span title={s.soft ? 'Convert to hard' : 'Convert to soft'}
+              {onAddDep && onRemoveDep && <span title={s.soft ? t('qe.dep.convertToHard') : t('qe.dep.convertToSoft')}
                 style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: s.soft ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }}
                 onClick={() => {
                   onRemoveDep(s.id, node.id);
                   onAddDep(s.id, node.id, s.soft ? 'hard' : 'soft');
                 }}>{s.soft ? '→H' : '→S'}</span>}
-              {onRemoveDep && <span className="tag-x" title="Remove successor link"
+              {onRemoveDep && <span className="tag-x" title={t('qe.dep.removeSuccessor')}
                 style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }}
                 onClick={() => onRemoveDep(s.id, node.id)}>×</span>}
             </div>
@@ -717,10 +725,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <SearchSelect options={allIds.filter(i => i !== node.id && !directSuccessors.some(s => s.id === i)).map(i => {
             const entry = tree.find(row => row.id === i);
             return { id: i, label: entry?.name || '' };
-          })} onSelect={id => onAddDep(id, node.id, succAddKind)} placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} Nachfolger`} showIds />
+          })} onSelect={id => onAddDep(id, node.id, succAddKind)} placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.successors')}`} showIds />
           <div style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('hard')} title="Hard dep">H</button>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('soft')} title="Soft dep">S</button>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('hard')} title={t('qe.dep.hard')}>H</button>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('soft')} title={t('qe.dep.soft')}>S</button>
           </div>
         </div>}
       </div>

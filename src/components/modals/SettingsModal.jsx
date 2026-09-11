@@ -241,7 +241,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
             <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '1 1 140px', marginBottom: 0 }}>
                 <label style={{ fontSize: 10 }}>{t('cf.name')}</label>
-                <input value={cf.name} placeholder="e.g. Jira ID" onChange={e => updateCf(i, { name: e.target.value })} />
+                <input value={cf.name} placeholder={t('cf.namePlaceholder')} onChange={e => updateCf(i, { name: e.target.value })} />
               </div>
               <div className="field" style={{ flex: '0 0 120px', marginBottom: 0 }}>
                 <label style={{ fontSize: 10 }}>{t('cf.type')}</label>
@@ -251,12 +251,12 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
             </div>
             {cf.type === 'uri' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
               <label style={{ fontSize: 10 }}>{t('cf.template')}</label>
-              <input value={cf.uriTemplate || ''} placeholder="https://company.atlassian.net/browse/{value}"
+              <input value={cf.uriTemplate || ''} placeholder={t('cf.uriPlaceholder')}
                 onChange={e => updateCf(i, { uriTemplate: e.target.value })} style={{ fontFamily: 'var(--mono)', fontSize: 11 }} />
             </div>}
             {cf.type === 'select' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
               <label style={{ fontSize: 10 }}>{t('cf.options')}</label>
-              <input value={(cf.options || []).join(', ')} placeholder="Option A, Option B, Option C"
+              <input value={(cf.options || []).join(', ')} placeholder={t('cf.optionsPlaceholder')}
                 onChange={e => updateCf(i, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} />
             </div>}
           </div>
@@ -278,7 +278,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                 onChange={e => updateRisk(i, { name: e.target.value, i18nKey: undefined })} />
             </div>
             <div className="field" style={{ width: 80, flexShrink: 0, marginBottom: 0 }}>
-              <input type="number" step="0.05" min="0.05" max="1" value={risk.weight} placeholder="Gewicht"
+              <input type="number" step="0.05" min="0.05" max="1" value={risk.weight} placeholder={t('set.riskWeightPlaceholder')}
                 onChange={e => updateRisk(i, { weight: +e.target.value || 0.1 })}
                 style={{ textAlign: 'right' }} />
             </div>

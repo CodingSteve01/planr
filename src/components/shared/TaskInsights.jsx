@@ -578,7 +578,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {inheritedPreds.map(p => (
                   <span key={p.id + ':' + p.via} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    data-htip={`Geerbt von ${p.via} — entferne dort \`Benötigt: ${p.id}\` wenn diese Aufgabe nicht warten soll.`}
+                    data-htip={t('ins.inheritedDepTip', p.via, p.id)}
                     onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)' }}>↰ {p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>

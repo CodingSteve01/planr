@@ -4,6 +4,7 @@ import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { chainShorts } from '../../utils/handoff.js';
+import { useT } from '../../i18n.jsx';
 
 const NODE_W = 130;
 const NODE_H = 44;
@@ -340,7 +341,8 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onAddDep, onDeleteNode }) {
+function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onDeleteNode }) {
+  const { t } = useT();
   // Sets of leaf ids that completed / progressed in the diff window. Used to
   // ring matching nodes in the SVG so the graph reflects sprint movement.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -560,8 +562,8 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
 
   return <div className="netgraph-wrap" style={{ cursor: panning ? 'grabbing' : 'default' }}>
     <div className="ng-toolbar">
-      <button className="btn btn-pri btn-sm" onClick={fitToScreen} data-htip={searchMatches?.size ? 'Fit to search matches' : 'Fit to selection or whole graph'}>Fit</button>
-      <button className="btn btn-sec btn-sm" onClick={() => { const newPan = { x: 12, y: 12 }; panRef.current = newPan; zoomRef.current = 1.5; setZoom(1.5); setPan(newPan); }} data-htip="Reset to 100%">{Math.round(zoom / 1.5 * 100)}%</button>
+      <button className="btn btn-pri btn-sm" onClick={fitToScreen} data-htip={searchMatches?.size ? t('ng.fitToMatchesTip') : t('ng.fitToSelectionTip')}>Fit</button>
+      <button className="btn btn-sec btn-sm" onClick={() => { const newPan = { x: 12, y: 12 }; panRef.current = newPan; zoomRef.current = 1.5; setZoom(1.5); setPan(newPan); }} data-htip={t('ng.resetZoomTip')}>{Math.round(zoom / 1.5 * 100)}%</button>
       <button className="btn btn-sec btn-sm" onClick={() => {
         const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
         const mx = r.width / 2, my = r.height / 2;

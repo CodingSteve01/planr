@@ -30,7 +30,7 @@ export const MODES = [
     // Resources and Holidays are capacity inputs to a planning session —
     // both stay reachable here rather than only behind settings (principle 6:
     // subtractive means fewer paths, not fewer capabilities).
-    tabs: ['gantt', 'plan', 'resources', 'holidays'],
+    tabs: ['gantt', 'roadmap', 'plan', 'resources', 'holidays'],
     defaultTab: 'gantt',
     chips: ['rootFilter', 'teamFilter', 'personFilter', 'hideDone', 'horizon'],
   },
@@ -92,7 +92,7 @@ export function defaultTabForMode(id) {
 // `ownerMode` is what decides, and declaration order stays free to read well.
 const TAB_OWNER = {
   tree: 'build', net: 'build',
-  gantt: 'plan', plan: 'plan', resources: 'plan', holidays: 'plan',
+  gantt: 'plan', roadmap: 'plan', plan: 'plan', resources: 'plan', holidays: 'plan',
   briefing: 'run',
   summary: 'review',
   report: 'report',

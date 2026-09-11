@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SearchSelect } from './SearchSelect.jsx';
+import { useT } from '../../i18n.jsx';
 
 // Per-cutoff override editor. Cutoffs are not created here — the scheduler
 // derives them from member offboarding dates. This UI surfaces each derived
@@ -12,6 +13,7 @@ import { SearchSelect } from './SearchSelect.jsx';
 // Index N of handoffPlan overrides the Nth cutoff (0-based). Anything beyond
 // the observed cutoffs is shown as "future cutoff" so the user can pre-plan.
 export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, focusStage = null }) {
+  const { t } = useT();
   const stageRefs = useRef({});
   // Expand automatically when focused (offcut-click) or when the user has
   // already added plan entries / scheduler produced cutoffs; otherwise keep
@@ -147,13 +149,13 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
               {afterPerson && <span style={{ color: 'var(--tx3)' }}>nach {afterPerson}</span>}
               <span style={{ flex: 1, textAlign: 'right', color: 'var(--tx3)' }}>{predictedShort}</span>
               <button className="btn btn-ghost btn-xs" style={{ color: 'var(--tx3)', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
-                onClick={() => clearStage(idx)} title="Override leeren (zurück zu Auto)">×</button>
+                onClick={() => clearStage(idx)} title={t('hp.clearOverrideTip')}>×</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <SearchSelect value={stage.team || ''}
                 options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
                 onSelect={v => setStage(idx, { team: v })}
-                placeholder="Team (Auto)" allowEmpty emptyLabel="(Auto)" />
+                placeholder={t('hp.teamAutoPlaceholder')} allowEmpty emptyLabel="(Auto)" />
               <SearchSelect
                 value={(stage.assign || [])[0] || ''}
                 options={stageMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
@@ -161,7 +163,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
                   const m = members.find(x => x.id === id);
                   setStage(idx, { assign: id ? [id] : [], team: stage.team || m?.team || '' });
                 }}
-                placeholder="Person (Auto)" allowEmpty emptyLabel="(Auto)" />
+                placeholder={t('hp.personAutoPlaceholder')} allowEmpty emptyLabel="(Auto)" />
             </div>
             {(stage.assign || []).length > 1 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -178,7 +180,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
       })}
 
       <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }}
-        data-htip="Fügt eine zusätzliche Etappe hinzu — für Offboardings die noch nicht im Ressourcen-Datum erfasst sind">
+        data-htip={t('hp.addStageTip')}>
         + {plan.length === 0 ? 'Etappe vorbelegen' : 'Weitere Etappe'}
       </button>
     </div>

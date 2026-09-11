@@ -120,6 +120,31 @@ export function resolveToLeafIds(tree, id) {
   return descendantLeaves(tree, item.id).map(leaf => leaf.id);
 }
 
+// Whether every dependency of `node` is satisfied — its own `deps` plus every
+// ancestor's `deps` (deps are inherited down the tree, so a parent's
+// predecessor blocks its children too), each resolved to leaves and checked
+// against `doneIds`. Shared by PlanReview's "ready to start" grouping and Run
+// mode's attention list (utils/attention.js) — one definition of "blocked" for
+// both, rather than the two subtly-different copies this replaced. `doneIds`
+// is caller-supplied rather than derived here, since PlanReview scopes it to
+// the currently filtered view while the attention list scopes it to the whole
+// plan; only the traversal is shared.
+export function isDepsReady(tree, doneIds, node) {
+  if (!node) return true;
+  const index = treeIndex(tree);
+  const allDeps = new Set(node.deps || []);
+  let pid = parentId(node.id || '');
+  while (pid) {
+    const ancestor = index.byId.get(pid);
+    (ancestor?.deps || []).forEach(dep => allDeps.add(dep));
+    pid = parentId(pid);
+  }
+  for (const dep of allDeps) {
+    if (!resolveToLeafIds(tree, dep).every(leafId => doneIds.has(leafId))) return false;
+  }
+  return true;
+}
+
 // ps = viewStart (rendering start, may be before planStart for pre-started tasks)
 // planStartStr = scheduling start (new/unstarted tasks begin here)
 // options:
@@ -1515,7 +1540,17 @@ export function deriveParentStatuses(tree, stats) {
 
 export function nextChildId(tree, parentId) {
   if (!parentId) {
-    const nums = tree.filter(r => r.lvl === 1).map(r => parseInt(r.id.replace(/^P/, '')) || 0);
+    // Root items always get a "P{n}" id (AddModal and the tree editor both
+    // rely on this fixed prefix). Deriving the next number from `r.lvl`
+    // undercounted: `lvl` is only ever set by AddModal's own writes, so a
+    // tree loaded from a file/demo project (whose roots predate that field)
+    // always looked empty here and this handed out "P1" again — colliding
+    // with an existing P1 the very first time a top-level item was added.
+    // Scanning root ids ("no dot") that already match the P-prefix is the
+    // same information without the false negative.
+    const nums = tree
+      .filter(r => !r.id.includes('.') && /^P\d+$/.test(r.id))
+      .map(r => parseInt(r.id.slice(1), 10) || 0);
     return `P${(nums.length ? Math.max(...nums) : 0) + 1}`;
   }
   const depth = parentId.split('.').length;

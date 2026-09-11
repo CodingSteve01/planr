@@ -253,9 +253,15 @@ project is missing or that a percentage was taken over a subset.
 
 ### Jira reconcile (`src/utils/jiraSync.js`)
 
-Not an export — the way back. **Export… → Jira reconcile** opens a dialog with two halves:
+Not an export — the way back. It used to live behind its own **Export… →
+Jira-Abgleich** dialog; that dialog is gone, and the two halves below now
+render inline in **Run mode's Jira drift section** (`BriefingView.jsx`) —
+link health is always visible, a collapsible paste box replaces the
+"Compare" tab. Nothing about the parsing or matching changed, only where the
+result is shown; Phase 7 is expected to make Jira a real connected source,
+at which point this paste step goes away entirely.
 
-**Verknüpfung (link check)** needs no input. It reads the Jira-key custom field
+**Link health** needs no input. It reads the Jira-key custom field
 (auto-detected: a field whose id or name matches `jira` / `issue key` / `ticket`
 / `vorgang`, else whatever key the tree already uses) and reports:
 
@@ -266,7 +272,7 @@ Not an export — the way back. **Export… → Jira reconcile** opens a dialog 
   one of them. Keys are compared upper-cased and trimmed, so `na-266` and
   `NA-266` are one ticket.
 
-**Abgleich (compare)** takes a pasted Jira table:
+**Compare** takes a pasted Jira table:
 
 ```
 Issue key,Summary,Status,Assignee

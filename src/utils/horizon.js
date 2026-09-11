@@ -20,7 +20,7 @@ import { iso, isoWeek } from './date.js';
 // Planning-horizon filter: takes a localStorage-style value ("", "7", "14",
 // "30", or "YYYY-MM-DD") and returns a Date for "show everything up to this
 // day inclusive" or null when no horizon is set. Shared by the global
-// HorizonPicker so every view interprets the same value the same way.
+// ViewFilters so every view interprets the same value the same way.
 export function parseHorizonValue(val) {
   if (!val) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T23:59:59');

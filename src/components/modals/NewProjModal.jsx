@@ -129,7 +129,7 @@ export function NewProjModal({ onCreate, onClose }) {
         {goals.map((g, i) => <div key={g.id} style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 10, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 14 }}>{GT[g.type]}</span>
-            <input style={{ flex: 1, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 8px', outline: 'none' }} placeholder={GL[g.type] + ' name'} value={g.name} onChange={e => upG(i, 'name', e.target.value)} />
+            <input style={{ flex: 1, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 8px', outline: 'none' }} placeholder={t('np.goalNamePlaceholder', GL[g.type])} value={g.name} onChange={e => upG(i, 'name', e.target.value)} />
             {g.type === 'deadline' && <input type="date" style={{ width: 130, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 11, padding: '5px 6px', outline: 'none' }} value={g.date || ''} onChange={e => upG(i, 'date', e.target.value)} />}
             <button className="btn btn-danger btn-xs" onClick={() => setGoals(gs => gs.filter((_, j) => j !== i))}>{t('rv.remove')}</button>
           </div>

@@ -91,7 +91,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', fontSize: 12, fontWeight: 400 }}>{node?.id}</span>
         <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{node?.name}</span>
       </h2>
-      {node?.note && <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderLeft: '3px solid var(--ac)', borderRadius: 'var(--r)', padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--tx2)', fontStyle: 'italic' }} data-htip="Existing note on this task">{node.note}</div>}
+      {node?.note && <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderLeft: '3px solid var(--ac)', borderRadius: 'var(--r)', padding: '8px 12px', marginBottom: 14, fontSize: 12, color: 'var(--tx2)', fontStyle: 'italic' }} data-htip={t('ew.existingNoteTip')}>{node.note}</div>}
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 2, marginBottom: 20 }}>
@@ -110,7 +110,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
         </div>
 
         <div className="field"><label>{t('ew.scopeQ')}</label>
-          <textarea value={scope} onChange={e => setScope(e.target.value)} rows={3} placeholder="Describe the scope: what's included, what's not, acceptance criteria..." />
+          <textarea value={scope} onChange={e => setScope(e.target.value)} rows={3} placeholder={t('ew.scopePlaceholder')} />
           <p className="helper">{t('ew.scopeHelp')}</p>
         </div>
 

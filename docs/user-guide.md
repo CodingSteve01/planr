@@ -75,6 +75,21 @@ Children can be any depth. Leaves are detected structurally — there is no "lev
 - Break each into 2–5 children. Don't force a balanced tree.
 - Push estimates to **leaves only** — parents aggregate automatically.
 
+### Typing a plan
+
+The tree is built for bottom-up entry too — sketch structure on paper or a wireframe, then type it in without reaching for the mouse once:
+
+1. Click a row (or use `↑`/`↓` to get there) so it's the active row — this is the same "selected" row the sidebar and the contextual toolbar already use, just with keyboard focus.
+2. Press **Enter**. The name becomes a real text field, seeded with whatever it already said.
+3. Type the name, press **Enter** again. It commits — and a new, empty sibling row appears directly below, already in edit mode. Type the next name, `Enter`, next name, `Enter`… a whole list goes in without ever touching the mouse. An `Enter` on an empty field (nothing typed) just removes that empty row instead of leaving it behind — pressing `Enter` one time too many never litters the tree with nameless items.
+4. Need a child instead of the next sibling? **⇧Enter** instead of `Enter` — same idea, one level deeper.
+5. Typed something you didn't mean? **Esc** backs out without touching the row's name (or, on a row you just created, removes it).
+6. Got the nesting wrong? Select the row and press **Tab** to indent it under the row directly above, **⇧Tab** to outdent it back out — the same re-parenting the Advanced-tab "Move" control does, ids and dependency references included. **⌥↑**/**⌥↓** re-order it among its siblings without changing its parent.
+7. Select several rows (`⇧↑`/`⇇↓`, or the usual Ctrl/Shift-click) and press `1`–`4` for priority, `S`/`M`/`L`/`X` for a T-shirt size, or `Space` to step through open → wip → done — every row in the selection changes at once, as one `⌘Z`.
+8. Already have a list somewhere else — a text file, an email, a wireframe's annotation? Select the row that should be the parent and paste. Every line becomes a row; leading tabs or a couple of spaces become nesting, and a leading `-`/`*`/`•` bullet is stripped automatically.
+
+None of this replaces the Add-item dialog, the reorder buttons, or QuickEdit — they still do exactly what they did before. It's a second, faster way in for exactly the moment this section is about: getting a plan out of your head (or off a wireframe) and into the tree as fast as you can type. The full key list is in [features.md](features.md#keyboard-shortcuts); how it's built is in [architecture.md](architecture.md#tree-editor-keyboard-model).
+
 ## 4. Estimate leaf tasks
 
 Two paths:
@@ -170,24 +185,39 @@ The app also communicates the **three planning horizons** more explicitly now, b
 
 You see this in the Gantt footer and in the Summary view, so the application teaches the rule while you plan instead of expecting you to remember it.
 
-### Keeping the roadmap readable
+### Two roadmap lenses, one for each moment
 
-Two controls, both in the Overview:
+Same renderer family, two homes — pick the one that matches what you're doing
+rather than switching a dropdown on one screen:
 
-- **Line picker** (above the map) — the searchable dropdown next to
-  Subway Map / Timetable, `All lines` by default. Pick a project and the map
-  switches to a **real roadmap for that project**: one row per work package on
-  a month axis, sized by its actual dates, with its tasks as stops, today as a
-  green line and the deadline (if there is one) in red. Rows and stops hover
-  and click exactly like stations do. Pick `All lines` (or the same project
-  again) to go back to the subway map. The Timetable follows the same choice.
-  Use this when you want to talk about one project rather than compare eight.
-  The same view goes into the Management Summary PDF — one page per project.
+- **Portfolio lens (Review mode, Overview)** — the Subway map, always every
+  project. Use this to compare eight lines at a glance and to see the Δ
+  banner (what moved since your last review cutoff) sitting right above the
+  map. There is no per-project picker here any more — narrowing to one line
+  used to live here and now lives in Plan mode instead, because a portfolio
+  review is exactly the moment you do *not* want to narrow to one line.
+  - **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
+    mouse wheel over the map. Above 100 % you can drag the map with the mouse
+    or scroll it in both directions, so a crowded plan is readable instead of
+    tiny. Plain scrolling still moves the page.
 
-- **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
-  mouse wheel over the map. Above 100 % you can drag the map with the mouse or
-  scroll it in both directions, so a crowded plan is readable instead of tiny.
-  Plain scrolling still moves the page.
+- **Project lens (Plan mode, the Roadmap tab)** — a tab of its own, directly
+  after Schedule, not a panel toggled from a chip: it first shipped as a chip
+  in the filter row that opened a 380px sidebar, and nobody found it there —
+  a view belongs in the tab bar, not next to *Overdue* and *Unestimated*.
+  It renders a **real roadmap for one project**: one row per work package on
+  a month axis, sized by its actual dates, with its tasks as stops, today as
+  a green line and the deadline (if there is one) in red. Rows and stops
+  hover and click exactly like stations do — clicking one opens the item.
+  Pick the project from the searchable field at the top; your choice is
+  remembered. It is drawn as real DOM (the same fixed row height as the
+  Gantt), not the Subway map's scaled SVG, so it never grows oversized on a
+  wide window; **Zoom** here is a factor on how much fits the pane — `Fit`
+  shows the whole project edge to edge, `−` / `+` step it up to 8× and
+  scroll. Use this when you want to talk about one project rather than
+  compare eight — you're already in the tool where you'd act on what you
+  see. The same underlying data goes into the Management Summary PDF as its
+  own page per project, drawn by the Subway map's SVG renderer there.
 
 - **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and
@@ -245,27 +275,30 @@ Treat the ratio as a learning signal, not as a target. The same retro panel surf
 
 ### Keeping Jira and Planr in sync
 
-The Jira export creates tickets; **Export… → Jira reconcile** is how you find out
-what drifted afterwards. It matches plan items to tickets through the Jira-key
-custom field (`{cv.jira:NA-385}` in the markdown), so make sure your work
-packages carry that field.
+The Jira export creates tickets; **Run mode's Jira drift section** (below the
+milestones on the Briefing screen) is how you find out what drifted
+afterwards — inline, not a dialog you have to open. It matches plan items to
+tickets through the Jira-key custom field (`{cv.jira:NA-385}` in the
+markdown), so make sure your work packages carry that field.
 
-1. **Verknüpfung** answers, with no input at all: which open work packages have
+1. **Link health** answers, with no input at all: which open work packages have
    no ticket (they will never show up in Jira — use the Jira export to create
    them), and which Jira key is sitting on two plan items.
 
-2. **Abgleich** takes a pasted Jira table: the CSV from Jira's *Export*, a
-   copied search result, or just `NA-385⇥Done` lines. English and German column
-   names both work. You get four lists:
-   - **Status-Drift** — Jira says done, the plan says in progress. Jira counts
-     as the truth here; untick any row you disagree with, then
-     **Status übernehmen** writes the rest into the plan (progress moves with
-     the status, and the done-date is stamped as usual).
-   - **Umbenannt** — the titles diverged. Reported only, never auto-applied;
+2. The collapsible paste box takes a pasted Jira table: the CSV from Jira's
+   *Export*, a copied search result, or just `NA-385⇥Done` lines. English and
+   German column names both work. You get four lists:
+   - **Status drift** — Jira says done, the plan says in progress. Jira counts
+     as the truth here; untick any row you disagree with, then **Apply**
+     writes the rest into the plan (progress moves with the status, and the
+     done-date is stamped as usual). The same drift rows also surface in the
+     ranked **attention list** at the top of the screen, each with its own
+     one-click apply.
+   - **Renamed** — the titles diverged. Reported only, never auto-applied;
      you decide which name is right.
-   - **Nur in Jira** — tickets nobody planned. Either plan them or close them.
-   - **Nur im Plan** — linked items missing from the export: deleted in Jira, or
-     simply outside the query you pasted.
+   - **Only in Jira** — tickets nobody planned. Either plan them or close them.
+   - **Only in the plan** — linked items missing from the export: deleted in
+     Jira, or simply outside the query you pasted.
 
 An unrecognised Jira workflow status is always read as *open*, never as done —
 so a custom status can never silently mark work finished.
