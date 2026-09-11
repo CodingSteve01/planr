@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { MODES, ALL_MODE_TAB_IDS, isValidMode, getMode, tabsForMode, defaultTabForMode, modeForTab } from '../modes.js';
+import { MODES, DEFAULT_MODE, ALL_MODE_TAB_IDS, isValidMode, getMode, tabsForMode, defaultTabForMode, modeForTab } from '../modes.js';
 import { TAB_IDS } from '../../App.jsx';
 
 describe('modes', () => {
@@ -57,10 +57,38 @@ describe('modes', () => {
     expect(defaultTabForMode('run')).toBe('briefing');
   });
 
-  test('modeForTab finds the owning mode, falls back to the first mode for unknown ids', () => {
+  test('modeForTab finds the owning mode, falls back to the default mode for unknown ids', () => {
     expect(modeForTab('tree').id).toBe('build');
     expect(modeForTab('resources').id).toBe('plan');
-    expect(modeForTab('summary').id).toBe('run'); // first mode in declared order that owns it
-    expect(modeForTab('does-not-exist')).toBe(MODES[0]);
+    // Overview is Review's core surface; Run only borrows it. This asserted
+    // 'run' while declaration order decided — see TAB_OWNER in modes.js.
+    expect(modeForTab('summary').id).toBe('review');
+    expect(modeForTab('does-not-exist').id).toBe(DEFAULT_MODE);
+  });
+});
+
+// Review-pass additions: both of these were accidents of declaration order
+// before, and both decide where the user lands.
+describe('the default mode and tab ownership are decisions, not side effects', () => {
+  test('a fresh install opens in Build', () => {
+    expect(DEFAULT_MODE).toBe('build');
+    expect(isValidMode(DEFAULT_MODE)).toBe(true);
+  });
+
+  test('Overview belongs to Review, even though Run also shows it', () => {
+    expect(modeForTab('summary').id).toBe('review');
+    expect(tabsForMode('run')).toContain('summary');
+  });
+
+  test('every other tab is owned by the mode whose core surface it is', () => {
+    expect(modeForTab('tree').id).toBe('build');
+    expect(modeForTab('gantt').id).toBe('plan');
+    expect(modeForTab('briefing').id).toBe('run');
+    expect(modeForTab('report').id).toBe('report');
+    expect(modeForTab('holidays').id).toBe('plan');
+  });
+
+  test('an unknown tab falls back to the default mode, not to the first one', () => {
+    expect(modeForTab('no-such-tab').id).toBe(DEFAULT_MODE);
   });
 });

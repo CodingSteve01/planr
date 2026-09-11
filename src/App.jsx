@@ -22,7 +22,7 @@ import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, pha
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
-import { MODES, isValidMode, getMode, modeForTab } from './utils/modes.js';
+import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
@@ -57,6 +57,34 @@ import { ReportView } from './components/views/ReportView.jsx';
 // memoization on every render, while keeping the function's captured state
 // fresh. Safe for callbacks invoked imperatively (event handlers, etc.) — do
 // NOT use during render.
+// Which mode and which tab a load starts on. One function so the two can
+// never disagree — a fresh open used to land in Build while still showing the
+// Overview, because the tab default ('summary') predates modes and knew
+// nothing about them.
+//
+// Precedence: a saved mode wins (the user chose it); otherwise a saved tab
+// decides, since it is what the user was last looking at; otherwise the
+// default mode and its own default tab. In every case the tab is forced to
+// belong to the mode, so the two agree from the first paint.
+function initialShell() {
+  let savedMode = null;
+  let savedTab = null;
+  try {
+    savedMode = localStorage.getItem('planr_mode');
+    savedTab = localStorage.getItem('planr_tab');
+  } catch { /* ignore */ }
+
+  if (savedMode && isValidMode(savedMode)) {
+    const tabs = getMode(savedMode).tabs;
+    return { mode: savedMode, tab: savedTab && tabs.includes(savedTab) ? savedTab : getMode(savedMode).defaultTab };
+  }
+  if (savedTab) {
+    const owner = modeForTab(savedTab);
+    return { mode: owner.id, tab: owner.tabs.includes(savedTab) ? savedTab : owner.defaultTab };
+  }
+  return { mode: DEFAULT_MODE, tab: getMode(DEFAULT_MODE).defaultTab };
+}
+
 function useStableCallback(fn) {
   const ref = useRef(fn);
   ref.current = fn;
@@ -215,7 +243,9 @@ const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 export default function App() {
   const { t: _t, lang: _lang } = useT();
   const [data, setData] = useState(() => loadLocalProject());
-  const [tab, _setTab] = useState(() => { try { return localStorage.getItem('planr_tab') || 'summary'; } catch { return 'summary'; } });
+  // Mode and tab are decided together (see initialShell above): a fresh open
+  // must land on its mode's own surface, not on the pre-modes default tab.
+  const [tab, _setTab] = useState(() => initialShell().tab);
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
   // Keep every visited tab mounted (display:none for inactive) so switching
   // back is instant. Each view is wrapped in React.memo and its callbacks
@@ -227,13 +257,7 @@ export default function App() {
   // active. Falls back to whichever mode owns the persisted tab so a user
   // who last had e.g. "resources" open before modes existed doesn't get
   // silently reset to Build.
-  const [mode, _setMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem('planr_mode');
-      if (saved && isValidMode(saved)) return saved;
-    } catch { /* ignore */ }
-    return modeForTab(tab).id;
-  });
+  const [mode, _setMode] = useState(() => initialShell().mode);
   const setMode = m => { _setMode(m); try { localStorage.setItem('planr_mode', m); } catch {} };
   // Switching mode always selects that mode's default tab (task spec).
   const switchMode = m => { setMode(m); setTab(getMode(m).defaultTab); };

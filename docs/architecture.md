@@ -131,6 +131,20 @@ i18n labels) and for `src/utils/__tests__/modes.test.js`, which asserts every
 `TAB_IDS` entry is reachable from at least one mode. That test is the guard
 against a future tab silently becoming unreachable.
 
+Which mode and tab a load STARTS on is one decision, taken in one place:
+`initialShell()` in `App.jsx`. A saved `planr_mode` wins; failing that the
+saved tab decides (via `modeForTab`); failing that `DEFAULT_MODE` (`build` —
+a plan has to be authored before it can be planned, run, reviewed or reported
+on) and its own default tab. In every branch the tab is forced to belong to
+the mode, so the two cannot disagree on the first paint — they did in the
+first draft, where a fresh install opened in Build while still showing the
+Overview, because the tab default (`'summary'`) predates modes.
+
+For the same reason `modeForTab` consults an explicit `TAB_OWNER` map rather
+than "first mode in declaration order that lists this tab". Overview is the
+clearest case: it is Review's core surface and Run only borrows it, so
+declaration order must not be what decides.
+
 Switching mode (`switchMode` in `App.jsx`) sets `mode` and jumps to that
 mode's `defaultTab`. The tab bar renders only the active mode's tabs plus
 whichever tab is currently open (`visibleTabs` in `App.jsx`), so a view

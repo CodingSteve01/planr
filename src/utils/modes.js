@@ -60,6 +60,14 @@ export const MODES = [
   },
 ];
 
+// Which mode a fresh install opens in. Deliberate rather than derived: before
+// modes existed the app opened on the Overview tab, and since Run happens to
+// list that tab first, deriving the mode from the tab silently made Run the
+// default. Build is the answer to "what is this tool for" — a plan has to be
+// authored before it can be planned, run, reviewed or reported on — so that is
+// where a first open lands. A returning user's own `planr_mode` always wins.
+export const DEFAULT_MODE = 'build';
+
 const MODE_BY_ID = new Map(MODES.map(m => [m.id, m]));
 
 export function isValidMode(id) {
@@ -78,11 +86,22 @@ export function defaultTabForMode(id) {
   return getMode(id).defaultTab;
 }
 
-// First mode (in declared order) that lists this tab. Falls back to the
-// first mode when the tab id is unknown — used to seed initial mode state
-// from a `planr_tab` value saved before modes existed.
+// The mode that OWNS this tab — the one whose core surface it is, not merely
+// the first one in declaration order that happens to list it. Overview is the
+// clearest case: it is Review's core surface and Run only borrows it, so
+// `ownerMode` is what decides, and declaration order stays free to read well.
+const TAB_OWNER = {
+  tree: 'build', net: 'build',
+  gantt: 'plan', plan: 'plan', resources: 'plan', holidays: 'plan',
+  briefing: 'run',
+  summary: 'review',
+  report: 'report',
+};
+
 export function modeForTab(tabId) {
-  return MODES.find(m => m.tabs.includes(tabId)) || MODES[0];
+  const owner = TAB_OWNER[tabId];
+  if (owner && MODE_BY_ID.has(owner)) return MODE_BY_ID.get(owner);
+  return MODES.find(m => m.tabs.includes(tabId)) || getMode(DEFAULT_MODE);
 }
 
 // Every tab id that appears in at least one mode. Used by App.jsx to build
