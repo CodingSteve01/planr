@@ -232,6 +232,11 @@ Export-related logic has been extracted from `App.jsx` into dedicated modules:
 
 ## Known issues / backlog
 
+The structural direction — five modes, one editing surface, subtractive
+feature policy — lives in [principles.md](principles.md); the phase-by-phase
+rebuild order is its last section, and [ui-inventory.md](ui-inventory.md) is
+the control-by-control basis for it. Items below are independent of that.
+
 See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items. Other open items:
 
 - **App.jsx and NetGraph.jsx are &gt; 400 LOC** — should be split
