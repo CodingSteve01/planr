@@ -2639,7 +2639,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   style={{ position: 'absolute', left: barLeft - 2, top: (isSummary ? 6 : 4) - 2,
                     width: Math.max(bW, 6) + 4, height: (isSummary ? 16 : 20) + 4,
                     borderRadius: isSummary ? 6 : 5, pointerEvents: 'none', zIndex: 1,
-                    border: `2px solid ${_diffDoneSet.has(s.id) ? '#10b981' : '#f59e0b'}`,
+                    // Amber branch = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md.
+                    border: `2px solid ${_diffDoneSet.has(s.id) ? 'var(--st-done)' : '#f59e0b'}`,
                     boxShadow: `0 0 0 1px var(--bg,#111318), 0 0 10px ${_diffDoneSet.has(s.id) ? 'rgba(16,185,129,.6)' : 'rgba(245,158,11,.6)'}` }} />
               )}
               {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={linkTaskId} data-link-target={linkTaskId} data-task-bar={!isSummary ? linkTaskId : undefined}
