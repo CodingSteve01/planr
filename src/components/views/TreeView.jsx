@@ -16,7 +16,7 @@ import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
-import { sortTree, filterCollapsedRows, indentTarget, outdentTarget, moveStep, visibleSiblingTarget, visibleIndentTarget, fieldPatchForKey, parsePastedRows } from '../../utils/treeEdit.js';
+import { sortTree, filterCollapsedRows, indentTarget, outdentTarget, moveStep, visibleSiblingTarget, visibleIndentTarget, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
 import { withKey, keyHint, ALT } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
@@ -122,6 +122,53 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // shared with the keyboard cursor's row-order tests).
   const sorted = useMemo(() => sortTree(tree), [tree]);
 
+  // Keep the cursor on screen.
+  //
+  // This used to ask whether the row was inside the WINDOW
+  // (`rect.top >= 0 && rect.bottom <= innerHeight`). The tree does not
+  // scroll the window — it scrolls a container that starts well below the
+  // top of the page, under the topbar, the tab bar and the sub-toolbar. So
+  // a row that had scrolled up behind that chrome still reported `top >= 0`
+  // and counted as visible: moving the cursor up, it simply disappeared and
+  // nothing scrolled. Measured: container top at y=160, cursor row at y=36.
+  //
+  // It also used `block: 'nearest'`, which does the least scrolling that
+  // technically works and leaves the row glued to the very edge with no
+  // context after it.
+  //
+  // So: measure against the scroll container, allow for whatever is sticky
+  // at its top (the table head), and leave a row's worth of room on either
+  // side so you can see where you are going.
+  const ROW_MARGIN = 34;
+
+  function scrollParentOf(el) {
+    let node = el?.parentElement;
+    while (node && node !== document.body) {
+      const style = getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 2) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function keepRowInView(row) {
+    if (!row) return;
+    const box = scrollParentOf(row);
+    if (!box) { row.scrollIntoView({ behavior: 'auto', block: 'nearest' }); return; }
+    const rowRect = row.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+    // The table head sticks to the top of the scroller; anything under it is
+    // as invisible as anything above the scroller itself.
+    const headRect = box.querySelector('.tree-tbl thead')?.getBoundingClientRect();
+    const delta = scrollAdjustment({
+      rowTop: rowRect.top, rowBottom: rowRect.bottom,
+      boxTop: boxRect.top, boxBottom: boxRect.bottom,
+      headBottom: headRect?.bottom ?? null,
+      margin: ROW_MARGIN,
+    });
+    if (delta) box.scrollTop += delta;
+  }
+
   useEffect(() => {
     if (!selected?.id) return;
     const parts = selected.id.split('.');
@@ -131,12 +178,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       if (collapsed.has(anc)) toExpand.push(anc);
     }
     if (toExpand.length) setCollapsed(s => { const n = new Set(s); toExpand.forEach(a => n.delete(a)); return n; });
-    setTimeout(() => {
-      if (!selRef.current) return;
-      const rect = selRef.current.getBoundingClientRect();
-      const inView = rect.top >= 0 && rect.bottom <= (window.innerHeight || document.documentElement.clientHeight);
-      if (!inView) selRef.current.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-    }, 50);
+    setTimeout(() => keepRowInView(selRef.current), 50);
   }, [selected?.id]);
 
   // Scroll to first search match whenever the query changes (and the filtered list updates).
