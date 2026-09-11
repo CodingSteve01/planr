@@ -203,7 +203,7 @@ This keeps near-term plans concrete without forcing false precision on long-hori
 After the Subway-Map, the Management Summary appends one **project roadmap**
 page per top-level project — the same calendar view the Overview shows for a
 single project (`utils/projectRoadmap.js`): packages as rows on a month axis,
-tasks as stops, today and the deadline as lines. Toggle: `+ Projekt-Roadmaps`
+tasks as stops, today and the deadline as lines. Toggle: `+ project roadmaps`
 on the Management Summary card, on by default.
 
 Rendered for *every* root, never only the one currently picked on screen —
@@ -253,7 +253,7 @@ project is missing or that a percentage was taken over a subset.
 
 ### Jira reconcile (`src/utils/jiraSync.js`)
 
-Not an export — the way back. **Export… → Jira-Abgleich** opens a dialog with two halves:
+Not an export — the way back. **Export… → Jira reconcile** opens a dialog with two halves:
 
 **Verknüpfung (link check)** needs no input. It reads the Jira-key custom field
 (auto-detected: a field whose id or name matches `jira` / `issue key` / `ticket`

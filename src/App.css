@@ -3,8 +3,26 @@
   --bg:#101216;--bg2:#191d25;--bg3:#232830;--bg4:#2e3440;--bg5:#3b4250;--bg-done:#162b1a;
   --b:#283040;--b2:#364456;--b3:#4a5a6c;
   --tx:#e8ecf4;--tx2:#b0b8cc;--tx3:#8898b0;
+  /* --ac is THE interaction colour — links, focus rings, selection, primary
+     action affordances. Nothing else should introduce a second "accent". */
   --ac:#6ca0ff;--ac2:#4a80e8;
-  --gr:#4ade80;--am:#fbbf24;--re:#f87171;--pu:#c4b5fd;
+  /* State tokens — fixed meaning everywhere in the app, independent of what
+     they're painted on (badge, bar, dot, ring, …): done=green, wip=amber,
+     open=neutral grey, risk=red/overdue, archived=muted. See
+     docs/design-tokens.md for the full mapping table and rules. */
+  --st-done:#4ade80;--st-wip:#fbbf24;--st-open:var(--tx3);--st-risk:#f87171;--st-archived:var(--b3);
+  /* Back-compat aliases: old short names keep working, now sourced from the
+     state tokens above so there is exactly one place that defines "green". */
+  --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#c4b5fd;
+  /* Three surfaces — ground / card / raised. Mapped onto the pre-existing bg
+     ladder 1:1 so nothing shifts; only the concept ("what layer is this on")
+     is new. Defined once here — the light block below overrides --bg/--bg2/
+     --bg3 themselves, and these three inherit that automatically. */
+  --surf0:var(--bg);--surf1:var(--bg2);--surf2:var(--bg3);
+  /* Spacing scale (px) — 4/8/12/16/24/32. Same in both palettes. */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
+  /* Type scale (px) — matches the sizes already in use across the app. Same in both palettes. */
+  --t10:10px;--t11:11px;--t12:12px;--t14:14px;--t20:20px;
   --r:7px;--r2:11px;
   --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
   --sh:0 4px 24px rgba(0,0,0,.55);
@@ -424,7 +442,12 @@ tr:hover .tv-drag-handle{color:var(--tx3);}
   --b:#e0e4ea;--b2:#ccd2dc;--b3:#b0b8c8;
   --tx:#1a1e2a;--tx2:#4a5268;--tx3:#7a839a;
   --ac:#2563eb;--ac2:#1d4ed8;
-  --gr:#16a34a;--am:#d97706;--re:#dc2626;--pu:#7c3aed;
+  /* State tokens, light values — --gr/--am/--re alias these, same as dark block. */
+  --st-done:#16a34a;--st-wip:#d97706;--st-open:var(--tx3);--st-risk:#dc2626;--st-archived:var(--b3);
+  --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#7c3aed;
+  /* Spacing/type scale and --surf0/1/2 are not redeclared here: they resolve
+     against this same element's --bg/--bg2/--bg3 (overridden above), so they
+     already carry the correct light values without repeating them. */
   --sh:0 4px 24px rgba(0,0,0,.08);
 }
 [data-theme="light"] body{-webkit-font-smoothing:auto;}

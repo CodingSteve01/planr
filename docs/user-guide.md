@@ -161,12 +161,12 @@ You see this in the Gantt footer and in the Summary view, so the application tea
 Two controls, both in the Overview:
 
 - **Line picker** (above the map) — the searchable dropdown next to
-  Subway-Map / Fahrplan, `Alle Linien` by default. Pick a project and the map
+  Subway Map / Timetable, `All lines` by default. Pick a project and the map
   switches to a **real roadmap for that project**: one row per work package on
   a month axis, sized by its actual dates, with its tasks as stops, today as a
   green line and the deadline (if there is one) in red. Rows and stops hover
-  and click exactly like stations do. Pick `Alle Linien` (or the same project
-  again) to go back to the subway map. The Fahrplan follows the same choice.
+  and click exactly like stations do. Pick `All lines` (or the same project
+  again) to go back to the subway map. The Timetable follows the same choice.
   Use this when you want to talk about one project rather than compare eight.
   The same view goes into the Management Summary PDF — one page per project.
 
@@ -186,7 +186,7 @@ Two controls, both in the Overview:
   the PT total and the leaf counts keep counting the archived work — a finished
   project stays finished. Exports (PDF, Word, HTML report) also stay complete;
   they are documents of record. Only the map, tree, Gantt, network, goal cards
-  and the person dropdown get shorter, and the `📦 N archiviert` chip always
+  and the person dropdown get shorter, and the `📦 N archived` chip always
   says how much, one click away from showing it again.
 
   A finished project with no recorded completion date anywhere below it is never
@@ -231,7 +231,7 @@ Treat the ratio as a learning signal, not as a target. The same retro panel surf
 
 ### Keeping Jira and Planr in sync
 
-The Jira export creates tickets; **Export… → Jira-Abgleich** is how you find out
+The Jira export creates tickets; **Export… → Jira reconcile** is how you find out
 what drifted afterwards. It matches plan items to tickets through the Jira-key
 custom field (`{cv.jira:NA-385}` in the markdown), so make sure your work
 packages carry that field.

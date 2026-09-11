@@ -406,7 +406,9 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   };
 
   const gTC = t => teams.find(x => x.id === pt(t))?.color || '#3b82f6';
-  const SC = { done: '#22c55e', wip: '#f59e0b', open: '#4f8ef7' };
+  // 'open' stays a distinct blue here (progress-ring contrast against the node
+  // fill) rather than the neutral grey --st-open — see docs/design-tokens.md.
+  const SC = { done: 'var(--st-done)', wip: 'var(--st-wip)', open: '#4f8ef7' };
 
   const layout = useMemo(() => items.length ? computeLayout(items) : null, [items]);
   const pos = layout?.pos || {};
@@ -648,7 +650,9 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
           const finalOpacity = subtreeDimmed ? .45 : searchDimmed ? .35 : 1;
           const diffDoneHere = _diffDoneSet.has(r.id);
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
-          const diffStroke = diffDoneHere ? '#10b981' : diffProgHere ? '#f59e0b' : null;
+          // The amber branch marks "progressed within the diff window", not
+          // wip — kept as a literal, see docs/design-tokens.md "Not yet mapped".
+          const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? '#f59e0b' : null;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             {diffStroke && (
               <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={7}

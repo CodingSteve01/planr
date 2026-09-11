@@ -210,7 +210,7 @@ Three levels: **committed**, **estimated**, **exploratory**. Computed automatica
 
 ## Theme system
 
-Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.).
+Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.). The full token system (spacing scale, type scale, surfaces, accent, and the five fixed-meaning state colors) is documented in `docs/design-tokens.md`.
 
 ## Code split (exports)
 
@@ -231,6 +231,11 @@ Export-related logic has been extracted from `App.jsx` into dedicated modules:
 - **Module size target: &lt; 400 LOC** — not strictly enforced. `App.jsx` and `NetGraph.jsx` are currently larger; splits are on the backlog.
 
 ## Known issues / backlog
+
+The structural direction — five modes, one editing surface, subtractive
+feature policy — lives in [principles.md](principles.md); the phase-by-phase
+rebuild order is its last section, and [ui-inventory.md](ui-inventory.md) is
+the control-by-control basis for it. Items below are independent of that.
 
 See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items. Other open items:
 

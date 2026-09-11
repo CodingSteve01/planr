@@ -50,6 +50,11 @@ Everything lives in [docs/](docs/). This README is an index.
 
 The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/features.md) under "Views and navigation" and in [docs/user-guide.md](docs/user-guide.md#8-review-the-result).
 
+### Where the app is going
+
+- **[docs/principles.md](docs/principles.md)** — the eight principles, the five modes, design language, roadmap lenses, and the rebuild order. Every proposal is read against this first.
+- **[docs/ui-inventory.md](docs/ui-inventory.md)** — every control the app has today, assigned to a mode and a visibility tier — or marked as removed.
+
 ### For developers
 
 - **[docs/architecture.md](docs/architecture.md)** — modules, tech stack, design decisions, backlog
