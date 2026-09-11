@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useT } from '../../i18n.jsx';
 import { filterCommands } from '../../utils/palette.js';
+import { keyHint } from '../../utils/shortcuts.js';
 
 // Tier-2 catch-all (docs/principles.md, principle 4): everything displaced
 // from the calmed-down topbar lives here, plus a jump to every mode and
@@ -130,12 +131,22 @@ export function CommandPalette({ commands }) {
                   onMouseEnter={() => setIdx(i)}
                   onClick={() => run(cmd)}
                   style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
                     padding: '7px 14px', fontSize: 12.5, cursor: 'pointer',
                     background: i === safeIdx ? 'rgba(59,130,246,.16)' : 'transparent',
                     color: 'var(--tx)',
                   }}
                 >
-                  {cmd.label}
+                  {/* An icon column and a key column, because twenty rows of
+                      bare text are a list you read rather than one you scan.
+                      Both are optional per command; the column is reserved
+                      either way so the labels stay aligned. */}
+                  <span style={{ width: 16, textAlign: 'center', flexShrink: 0, opacity: .9 }}>{cmd.icon || ''}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.label}</span>
+                  {cmd.key && keyHint(cmd.key) && <kbd style={{
+                    fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+                    border: '1px solid var(--b2)', borderRadius: 3, padding: '0 4px', flexShrink: 0,
+                  }}>{keyHint(cmd.key)}</kbd>}
                 </div>
               </div>
             );

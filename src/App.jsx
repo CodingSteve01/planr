@@ -52,6 +52,7 @@ import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
 import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
+import { FileMenu } from './components/shared/FileMenu.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 
@@ -240,6 +241,14 @@ export function buildMemberShortMap(members) {
 // reachable from at least one mode. 'report' is new in this phase — the
 // former Export modal, now a normal Report-mode view (see ReportView.jsx).
 export const TAB_IDS = ['summary', 'briefing', 'plan', 'tree', 'gantt', 'roadmap', 'net', 'resources', 'holidays', 'report'];
+// Glyphs for the `/` palette. Kept here beside TAB_IDS so a new tab is an
+// obvious two-line change; an unlisted id falls back to a neutral marker
+// rather than leaving a ragged gap in the column.
+const TAB_ICONS = {
+  summary: '◎', briefing: '☀', plan: '✎', tree: '☰', gantt: '▭',
+  roadmap: '🗺', net: '⁂', resources: '👥', holidays: '⛱', report: '📄',
+};
+const MODE_ICONS = { build: '☰', plan: '▭', run: '☀', review: '◎', report: '📄' };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 
@@ -3005,20 +3014,23 @@ export default function App() {
   const fileGroup = _t('palette.group.file');
   const modeGroup = _t('palette.group.modes');
   const viewGroup = _t('palette.group.views');
+  // `icon` and `key` are what make this list scannable rather than twenty
+  // rows of identical text; `key` is a shortcuts.js id, so the palette
+  // teaches the keystroke instead of hiding it.
   const paletteCommands = [
-    { id: 'load', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, run: () => loadFromFile() },
-    { id: 'snapshots', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
-    { id: 'saveAs', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, run: () => saveToFile(true) },
+    { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, run: () => loadFromFile() },
+    { id: 'snapshots', icon: '↶', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
+    { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'save', run: () => saveToFile(true) },
     // Export… now primarily means "go look at Report mode" — the export
     // cards rendered as a normal view (ReportView.jsx). The old dialog stays
     // one entry below so nothing that worked before stops working.
-    { id: 'export', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, run: () => switchMode('report') },
-    { id: 'exportDialog', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
-    { id: 'newProject', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm('Unsaved changes will be lost.')) return; newProject(); } },
-    { id: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    { id: 'keymap', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    ...MODES.map(m => ({ id: `mode.${m.id}`, labelKey: m.labelKey, group: 'mode', groupLabel: modeGroup, run: () => switchMode(m.id) })),
-    ...TAB_IDS.map(id => ({ id: `view.${id}`, labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
+    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, run: () => switchMode('report') },
+    { id: 'exportDialog', icon: '📄', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
+    { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    ...MODES.map(m => ({ id: `mode.${m.id}`, icon: MODE_ICONS[m.id] || '◈', labelKey: m.labelKey, group: 'mode', groupLabel: modeGroup, run: () => switchMode(m.id) })),
+    ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || '▸', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
   ];
 
   return <>
@@ -3104,6 +3116,19 @@ export default function App() {
         ))}
       </span>
       <div className="vsep" />
+      {/* File operations have a visible home again. Phase 3 moved them all
+          into the palette; opening and saving a file is not a command you go
+          hunting for. The palette keeps every one of these entries — this is
+          a way in, not a replacement. */}
+      <FileMenu
+        fileName={fileName}
+        dirty={!saved}
+        onLoad={() => loadFromFile()}
+        onSaveAs={() => saveToFile(true)}
+        onSnapshots={() => setModal('snapshots')}
+        onExport={() => switchMode('report')}
+        onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
+      />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}>⚙ Settings</button>
