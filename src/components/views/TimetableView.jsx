@@ -183,8 +183,9 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                           <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
                         )}
                         {r.doneInWindow > 0 && (
-                          <span style={{ fontSize: 8, fontWeight: 700, background: '#10b981', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>✓{r.doneInWindow}</span>
+                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--st-done)', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>✓{r.doneInWindow}</span>
                         )}
+                        {/* Amber = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md. */}
                         {r.progressedInWindow > 0 && (
                           <span style={{ fontSize: 8, fontWeight: 700, background: '#f59e0b', color: '#1a1a1a', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
                         )}

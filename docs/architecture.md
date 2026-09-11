@@ -210,7 +210,7 @@ Three levels: **committed**, **estimated**, **exploratory**. Computed automatica
 
 ## Theme system
 
-Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.).
+Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.). The full token system (spacing scale, type scale, surfaces, accent, and the five fixed-meaning state colors) is documented in `docs/design-tokens.md`.
 
 ## Code split (exports)
 
