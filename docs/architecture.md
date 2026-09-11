@@ -275,7 +275,12 @@ Three levels: **committed**, **estimated**, **exploratory**. Computed automatica
 
 ## Internationalization (i18n)
 
-`src/i18n.jsx` provides a lightweight translation system with ~350 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys.
+`src/i18n.jsx` provides a lightweight translation system with ~500 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys —
+[`src/__tests__/i18n.test.js`](../src/__tests__/i18n.test.js) enforces it:
+the two dictionaries must carry identical key sets, and the surfaces reworked
+during the rebuild must carry no hardcoded display text at all. A key present
+in only one language is invisible while you work (`t()` falls back to English
+and then to the key) and shows up as raw dotted text for everyone else.
 
 ## Theme system
 

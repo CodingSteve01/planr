@@ -107,8 +107,8 @@ export function ExportCards({
       gap: 10,
       marginBottom: 4,
     }}>
-      <Card cat="pdf" title="Management Summary"
-        desc="Kennzahlen, Risiken, Subway-Map, Projekt-Roadmap je Projekt + optional Fahrplan, Critical Path, Team-Capacity."
+      <Card cat="pdf" title={t('ex.summary')}
+        desc={t('ex.summary.desc')}
         action={<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
             data-htip={t('tt.plusTimetableTip')}>
@@ -125,50 +125,50 @@ export function ExportCards({
           {B('sum', 'PDF', () => onSummaryPDF({ includeTimetable, includeProjectRoadmaps }))}
         </div>} />
 
-      <Card cat="pdf" title="Gantt / Zeitplan"
-        desc="Hochauflösendes Timeline-Bild + vollständige Terminübersicht je Team."
+      <Card cat="pdf" title={t('ex.gantt')}
+        desc={t('ex.gantt.desc')}
         action={B('gantt', 'PDF', onGanttPDF)} />
 
-      <Card cat="pdf" title="Was kommt wann"
-        desc="Horizontgerecht: exakte Daten kurzfristig, Wochen/Monate/Quartale weiter weg."
+      <Card cat="pdf" title={t('ex.whatwhen')}
+        desc={t('ex.whatwhen.desc')}
         action={B('ww', 'PDF', onWhatWhenPDF)} />
 
-      <Card cat="pdf" title="TODO / Sprint"
-        desc="Nahfristige Aufgaben je Person, mit Planungssicherheit-Badges."
+      <Card cat="pdf" title={t('ex.todo')}
+        desc={t('ex.todo.desc')}
         action={<>{H(todoH, setTodoH)}{B('todo', 'PDF', () => onTodoPDF(todoH))}</>} />
 
-      <Card cat="word" title="Projektbericht"
-        desc="Full-Report inkl. Roadmap, Team-Capacity, Detailplan je Team. Für Confluence-Import."
+      <Card cat="word" title={t('ex.docx')}
+        desc={t('ex.docx.desc')}
         action={B('docx', 'DOCX', onReportDocx)} />
 
-      <Card cat="tool" title="Jira-Export"
-        desc="Konfigurierbarer CSV-Export mit Epic/Story/Task-Mapping."
-        action={<button className="btn btn-pri btn-sm" onClick={onOpenJira}>Dialog</button>} />
+      <Card cat="tool" title={t('ex.jira')}
+        desc={t('ex.jira.desc')}
+        action={<button className="btn btn-pri btn-sm" onClick={onOpenJira}>{t('ex.dialog')}</button>} />
 
-      <Card cat="tool" title="Jira-Abgleich"
-        desc="Drift zwischen Plan und Board finden: Status, Umbenennungen, fehlende Tickets. Jira-Tabelle einfügen, Status übernehmen."
-        action={<button className="btn btn-pri btn-sm" onClick={onOpenJiraSync}>Dialog</button>} />
+      <Card cat="tool" title={t('ex.jiraSync')}
+        desc={t('ex.jiraSync.desc')}
+        action={<button className="btn btn-pri btn-sm" onClick={onOpenJiraSync}>{t('ex.dialog')}</button>} />
 
-      <Card cat="tool" title="Sprint (Markdown)"
-        desc="TODO-Liste als Markdown – für Issue-Tracker oder Docs."
+      <Card cat="tool" title={t('ex.sprint')}
+        desc={t('ex.sprint.desc')}
         action={<>{H(sprintH, setSprintH)}{B('sprint', 'MD', () => onSprintMarkdown(sprintH))}</>} />
 
-      <Card cat="tool" title="Mermaid-Graph"
-        desc="Struktur-Graph als Mermaid-Flowchart. Paste in Confluence."
+      <Card cat="tool" title={t('ex.mermaid')}
+        desc={t('ex.mermaid.desc')}
         action={B('mermaid', 'MD', onMermaid)} />
 
-      <Card cat="img" title="Netzwerk-Bild"
-        desc={tab === 'net' ? 'Aktuelle Netzwerkgrafik als PNG.' : 'Nur vom Netzwerk-Tab aus verfügbar.'}
+      <Card cat="img" title={t('ex.netPng')}
+        desc={tab === 'net' ? t('ex.netPng.desc') : t('ex.netPng.off')}
         action={B('nN', 'PNG', onNetworkPNG, { disabled: tab !== 'net' })}
         disabled={tab !== 'net'} />
 
-      <Card cat="img" title="Gantt-Bild"
-        desc={tab === 'gantt' ? 'Aktuelle Gantt-Grafik als PNG.' : 'Nur vom Gantt-Tab aus verfügbar.'}
+      <Card cat="img" title={t('ex.ganttPng')}
+        desc={tab === 'gantt' ? t('ex.ganttPng.desc') : t('ex.ganttPng.off')}
         action={B('nG', 'PNG', onGanttPNG, { disabled: tab !== 'gantt' })}
         disabled={tab !== 'gantt'} />
 
-      <Card cat="raw" title="Backup"
-        desc="Vollständiges Projekt-JSON – reimportierbar, 1:1-Round-Trip."
+      <Card cat="raw" title={t('ex.backup')}
+        desc={t('ex.backup.desc')}
         action={B('json', 'JSON', onJSON)} />
     </div>
   );
