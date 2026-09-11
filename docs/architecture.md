@@ -37,6 +37,7 @@ src/
       QuickEdit.jsx        — sidebar editor (primary interaction)
       PlanReview.jsx       — Planning Review tab (Decisions, Team Capacity, Blocked)
       Onboard.jsx          — first-launch onboarding
+      ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
       JiraSyncModal.jsx    — Jira reconcile (link check + paste-and-compare)
@@ -45,12 +46,17 @@ src/
       SettingsModal.jsx    — theme, file handle, etc.
       DLModal.jsx          — deadline editor
       NewProjModal.jsx     — new-project wizard
+      ExportModal.jsx      — Export dialog chrome around ExportCards.jsx (still reachable from `/`)
     shared/
       SearchSelect.jsx     — searchable dropdown (used everywhere >5 items)
       LazyInput.jsx        — debounced text input for perf in long lists
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
+      CommandPalette.jsx   — `/` / ⌘K palette — see "Modes and the command palette" below
+      ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
   utils/
+    modes.js                — the five modes as data + helpers (getMode, tabsForMode, modeForTab, …)
+    palette.js               — pure command-palette filter/rank logic (filterCommands)
     scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
     archive.js             — which roots / members are long-finished ("old news"); display filter only
     exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
@@ -100,6 +106,44 @@ Derived values via `useMemo`:
 - `confidenceMap` — per-item confidence (auto-derived via `computeConfidence()`, with manual overrides)
 - `archive` — `scanArchive({tree, members, days})`: long-finished roots + long-offboarded members
 - `activeTree` / `activeScheduled` / `activeMembers` — the archive-filtered copies the views render
+
+### Modes and the command palette
+
+`mode` is a small piece of App-level state (`useState`, persisted in
+`localStorage['planr_mode']`) alongside `tab`. The five modes themselves are
+data, not state: [`src/utils/modes.js`](../src/utils/modes.js) exports
+`MODES` (id, `labelKey`, `tooltipKey`, the tab ids that belong to the mode,
+its one `defaultTab`) plus small pure helpers (`getMode`, `tabsForMode`,
+`defaultTabForMode`, `modeForTab`, `isValidMode`). `App.jsx` exports
+`TAB_IDS` — the single source of truth both for building the tab bar (with
+i18n labels) and for `src/utils/__tests__/modes.test.js`, which asserts every
+`TAB_IDS` entry is reachable from at least one mode. That test is the guard
+against a future tab silently becoming unreachable.
+
+Switching mode (`switchMode` in `App.jsx`) sets `mode` and jumps to that
+mode's `defaultTab`. The tab bar renders only the active mode's tabs plus
+whichever tab is currently open (`visibleTabs` in `App.jsx`), so a view
+reached from outside its owning mode — the palette, a stale `planr_tab` value
+from before modes existed — never traps the user with no way back.
+
+The `/` command palette (`src/components/shared/CommandPalette.jsx`) is a
+self-contained component: it owns its own open/closed state, listens for `/`
+(only when focus isn't already in an editable element) and `⌘K`/`Ctrl+K` on
+`window`, and additionally listens for a `PALETTE_OPEN_EVENT` custom event so
+the topbar's `/` button can open it without App.jsx having to lift the open
+state. `App.jsx` builds one flat `paletteCommands` array
+(`{id, labelKey, group, groupLabel, run}`) covering everything that used to
+be a topbar button (Load, Snapshots, Save as, Export…, New project,
+Help/Tour) plus a jump to every mode and every `TAB_IDS` entry, and hands it
+to `<CommandPalette commands={paletteCommands} />`. The filter/rank logic
+itself is pure and lives in [`src/utils/palette.js`](../src/utils/palette.js)
+(`filterCommands(commands, query)` — substring match first, then an in-order
+fuzzy subsequence fallback) so it is unit-testable without mounting React.
+
+Report mode's only tab (`report`) renders `ReportView.jsx`, which is the old
+Export-modal card grid (`ExportCards.jsx`, shared with `ExportModal.jsx` so
+neither duplicates the export handler wiring) rendered as a normal view
+instead of a modal.
 
 ### Display filters vs. facts
 

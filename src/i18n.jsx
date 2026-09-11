@@ -22,7 +22,36 @@ const en = {
   // ── Tabs ──
   'tab.summary': 'Overview', 'tab.briefing': 'Briefing', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
+  'tab.report': 'Report',
   'tab.queues': 'Queues',
+
+  // ── Modes ── (docs/principles.md, principle 1 — tooltips take their
+  // wording from that document's mode table)
+  'mode.switchLabel': 'Mode',
+  'mode.build': 'Build', 'mode.plan': 'Plan', 'mode.run': 'Run', 'mode.review': 'Review', 'mode.report': 'Report',
+  'mode.build.tip': 'At the desk, wireframes alongside — capture work packages, build structure, set order and priorities.',
+  'mode.plan.tip': 'Planning session — who, when, how much capacity, which deadline holds.',
+  'mode.run.tip': 'Daily / stand-up — what is due today, who is stuck, set status, Jira drift.',
+  'mode.review.tip': 'Retro / status meeting — what happened since X, estimate vs. actual, what we learn.',
+  'mode.report.tip': 'Before the steering committee — a document that works without its author.',
+
+  // ── Command palette ──
+  'palette.placeholder': 'Type a command…',
+  'palette.noResults': 'No matching commands.',
+  'palette.openTip': 'Command palette (/ or ⌘K / Ctrl+K)',
+  'palette.group.file': 'File',
+  'palette.group.modes': 'Modes',
+  'palette.group.views': 'Views',
+  'palette.load': 'Load file…',
+  'palette.snapshots': 'Snapshots',
+  'palette.saveAs': 'Save as…',
+  'palette.export': 'Export…',
+  'palette.exportDialog': 'Export… (dialog)',
+  'palette.newProject': 'New project',
+
+  // ── Report view (Report mode's only screen — the former Export modal) ──
+  'report.title': 'Report',
+  'report.desc': 'A document that works without its author — the same exports as the Export dialog, now a normal screen.',
   'q.intro': 'Per-person task queue. Drag a row or use ▲▼ buttons to reorder — the scheduler runs work in this order within each priority level. Assignment stays intact.',
   'q.empty': 'No queues match the current filters.',
   'q.queueEmpty': 'No pending tasks.',
@@ -823,7 +852,36 @@ const de = {
   // ── Tabs ──
   'tab.summary': 'Übersicht', 'tab.briefing': 'Briefing', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
+  'tab.report': 'Bericht',
   'tab.queues': 'Queues',
+
+  // ── Modi ── (docs/principles.md, Prinzip 1 — Tooltips übernehmen den
+  // Wortlaut aus der Mode-Tabelle dort)
+  'mode.switchLabel': 'Modus',
+  'mode.build': 'Build', 'mode.plan': 'Plan', 'mode.run': 'Run', 'mode.review': 'Review', 'mode.report': 'Report',
+  'mode.build.tip': 'Am Schreibtisch, Wireframes daneben — Arbeitspakete erfassen, Struktur aufbauen, Reihenfolge und Prioritäten setzen.',
+  'mode.plan.tip': 'Planungssitzung — wer, wann, wie viel Kapazität, welche Deadline hält.',
+  'mode.run.tip': 'Täglich / Stand-up — was ist heute fällig, wer hängt fest, Status setzen, Jira-Drift.',
+  'mode.review.tip': 'Retro / Statusmeeting — was ist seit X passiert, Soll vs. Ist, was lernen wir.',
+  'mode.report.tip': 'Vor dem Lenkungsausschuss — ein Dokument, das ohne seinen Autor funktioniert.',
+
+  // ── Command Palette ──
+  'palette.placeholder': 'Befehl eingeben…',
+  'palette.noResults': 'Keine passenden Befehle.',
+  'palette.openTip': 'Befehlspalette (/ oder ⌘K / Strg+K)',
+  'palette.group.file': 'Datei',
+  'palette.group.modes': 'Modi',
+  'palette.group.views': 'Ansichten',
+  'palette.load': 'Datei laden…',
+  'palette.snapshots': 'Snapshots',
+  'palette.saveAs': 'Speichern unter…',
+  'palette.export': 'Export…',
+  'palette.exportDialog': 'Export… (Dialog)',
+  'palette.newProject': 'Neues Projekt',
+
+  // ── Report-Ansicht (einziger Screen im Report-Modus — der frühere Export-Dialog) ──
+  'report.title': 'Bericht',
+  'report.desc': 'Ein Dokument, das ohne seinen Autor funktioniert — dieselben Exporte wie im Export-Dialog, jetzt als normaler Screen.',
   'q.intro': 'Aufgaben-Queue je Person. Per Drag oder ▲▼-Buttons sortieren — Scheduler arbeitet sie genau in dieser Reihenfolge ab (innerhalb der Priorität). Zuweisung bleibt erhalten.',
   'q.empty': 'Keine Queues passen zum aktuellen Filter.',
   'q.queueEmpty': 'Keine offenen Aufgaben.',
