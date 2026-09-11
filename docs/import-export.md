@@ -37,7 +37,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 
 ```
 - **ID** Name [type-emoji] (date) (SIZE Nd ×factor) NN% — Team [assignees] {tags} ⏰decide:DATE 📌DATE ≡
-  *Benötigt: depA (label), depB*
+  *Requires: depA (label), depB*
   *note*
 ```
 
@@ -48,13 +48,13 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `[assignees]`: short names, comma-separated
 - `{tags}`: `prio:N`, `seq:N` (legacy), `ord:N` (display rank), `team-lock:true`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
-- Sub-bullets: `*Benötigt: ...*` for deps (soft-deps prefixed with `~`, e.g. `~P1.2`), `*Phasen: ...*` for phases, `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
-- Member sub-bullets: `*Cap-Plan: YYYY-MM-DD→NN%, YYYY-MM-DD→NN%HHh/w*` and `*Meeting-Plan: YYYY-MM-DD→[Name Xh/freq, ...]*` for time-shifted profile changes
+- Sub-bullets: `*Requires: ...*` for deps (soft-deps prefixed with `~`, e.g. `~P1.2`; the pre-rename tag `*Benötigt:*` still reads correctly), `*Phases: ...*` for phases (`*Phasen:*` still reads correctly), `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
+- Member sub-bullets: `*Capacity plan: YYYY-MM-DD→NN%, YYYY-MM-DD→NN%HHh/w*` and `*Meeting plan: YYYY-MM-DD→[Name Xh/freq, ...]*` for time-shifted profile changes (the pre-rename tags `*Cap-Plan:*` / `*Meeting-Plan:*` still read correctly)
 
 **Phases line format:**
 
 ```
-*Phasen: ✅RE, 🟡Development(Frontend), ○Test(QA)*
+*Phases: ✅RE, 🟡Development(Frontend), ○Test(QA)*
 ```
 
 - `✅` = done, `🟡` = wip, `○` = open

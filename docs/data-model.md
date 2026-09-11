@@ -143,8 +143,8 @@ from the completion count.)
 
 `memberAtDate(member, date)` in [capacity.js](../src/utils/capacity.js) returns a shallow clone with the
 overrides applied. The scheduler calls it at task start so a task scheduled in 2027 sees the 2027
-capacity profile, not the import-time one. Markdown roundtrip: `*Cap-Plan:* 2026-09-01→50%, 2027-01-01→100%30h/w` /
-`*Meeting-Plan:* 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]`.
+capacity profile, not the import-time one. Markdown roundtrip: `*Capacity plan:* 2026-09-01→50%, 2027-01-01→100%30h/w` /
+`*Meeting plan:* 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]` (the pre-rename tags `*Cap-Plan:*` / `*Meeting-Plan:*` still read correctly).
 
 **Capacity** — `cap` scales the whole weekly budget. `vac` splits into explicit vacation weeks (zero-capacity) + a blanket deduction across the horizon. See [scheduler.md](scheduler.md#vacation-model).
 

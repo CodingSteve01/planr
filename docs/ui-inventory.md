@@ -2,7 +2,7 @@
 
 This file is a complete inventory of every user-facing control in Planr, as it exists in the code today. It is the decision basis for assigning each control to a mode (Build / Plan / Run / Review / Report / Settings) and a visibility tier (1/2/3) — it is **not** a spec, and it proposes no new features.
 
-UI labels are quoted verbatim as they appear in the app (German or English); everything else in this document is written in English.
+UI labels are quoted in English (the app's default language; every label also has a German translation in `src/i18n.jsx`) — everything in this document is written in English.
 
 ## Modes
 
@@ -42,7 +42,7 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Tab "Übersicht" (summary) | Switches to SumView | src/App.jsx:2531,2825-2835 | Review | 1 | |
+| Tab "Overview" (summary) | Switches to SumView | src/App.jsx:2531,2825-2835 | Review | 1 | |
 | Tab "Briefing" | Switches to BriefingView | src/App.jsx:2532,2825-2835 | Run | 1 | |
 | Tab "Planning" (plan) | Switches to PlanReview | src/App.jsx:2533,2825-2835 | Review | 1 | (also: Plan) |
 | Tab "Work Tree" (tree) | Switches to TreeView | src/App.jsx:2534,2825-2835 | Build | 1 | |
@@ -61,12 +61,12 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 | Chip "Erledigte ausblenden" | Hides finished items | src/App.jsx:2847 | Run | 1 | |
 | Chip "Archiv" (N archiviert) | Shows archived projects/people | src/App.jsx:2851-2854 | Review | 2 | only shown once something is archived; ↔ duplicates the archive toggle inside the ViewFilters popup |
 | Chip "Auto" (only auto-assigned) | Filters to items the scheduler auto-assigned | src/App.jsx:2855 | Run | 2 | |
-| Chip "Überfällig" | Filters to overdue items | src/App.jsx:2856 | Run | 1 | |
-| Chip "Ungeschätzt" | Filters to items with no effort estimate | src/App.jsx:2857 | Build | 2 | |
-| Chip "Überbucht" (N) | Filters to items with an over-booked resource | src/App.jsx:2858-2860 | Plan | 2 | only shown once something is over-booked |
+| Chip "Overdue" | Filters to overdue items | src/App.jsx:2856 | Run | 1 | |
+| Chip "Unestimated" | Filters to items with no effort estimate | src/App.jsx:2857 | Build | 2 | |
+| Chip "Overbooked" (N) | Filters to items with an over-booked resource | src/App.jsx:2858-2860 | Plan | 2 | only shown once something is over-booked |
 | ViewFilters popup trigger (⚙, Review/Plan picker) | Opens the diff-window / planning-horizon popup | src/App.jsx:2864-2873 | Review | 2 | (also: Plan); contents detailed in its own table below |
 | SearchBox | Full-text search over visible items | src/App.jsx:2875-2882 | Build | 1 | not shown on the "plan" tab; internals detailed below |
-| "+ Baumknoten hinzufügen" button | Opens AddModal (tree tab only) | src/App.jsx:2883 | Build | 1 | ↔ duplicates TreeView's own per-row quick-add and the empty-state "+ Add first item" button |
+| "+ Add tree node" button | Opens AddModal (tree tab only) | src/App.jsx:2883 | Build | 1 | ↔ duplicates TreeView's own per-row quick-add and the empty-state "+ Add first item" button |
 
 ## Work Tree side panel (wiring in App.jsx)
 
@@ -84,7 +84,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Tabs Übersicht/Workflow/Effort/Timing | Switches bulk-edit section | src/App.jsx:2593-2603 | Build | 2 | |
+| Tabs Overview/Workflow/Effort/Timing | Switches bulk-edit section | src/App.jsx:2593-2603 | Build | 2 | |
 | Status SearchSelect (bulk) | Sets status for every selected item | src/App.jsx:2606-2608 | Build | 2 | |
 | Notes LazyInput (bulk) | Sets the note for every selected item | src/App.jsx:2609-2611 | Build | 2 | |
 | Apply template SearchSelect (bulk) | Applies a task template to every selected item | src/App.jsx:2613-2624 | Build | 2 | |
@@ -144,11 +144,11 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | "Clear selection" (footer) | Empties selectedIds | src/components/views/GanttView.jsx:3059 | Plan | 1 | ↔ duplicates SelectionActionBar's own × |
 | Critical-path badge (filter toggle) | Hides non-critical rows/lines | src/components/views/GanttView.jsx:3074 | Plan | 1 | |
 | Load-heatmap week-strip click (header) | Switches grouping to "Resource" | src/components/views/GanttView.jsx:2397 | Plan | 1 | ↔ duplicates the "Resource" grouping button |
-| "Verknüpfen" (multi-selection) | Chains the selected tasks into a dependency sequence | src/components/views/GanttView.jsx:3093 (fn 1121-1126) | Plan | 2 | ⚠ writes data outside the tree — onAddDep; ↔ duplicates the "+" link connector; only shown with an active selection |
+| "Link" (multi-selection) | Chains the selected tasks into a dependency sequence | src/components/views/GanttView.jsx:3093 (fn 1121-1126) | Plan | 2 | ⚠ writes data outside the tree — onAddDep; ↔ duplicates the "+" link connector; only shown with an active selection |
 | ⏮ / ◀ / ▶ / ⏭ (multi-selection reorder) | Moves the selection to start/up/down/end of a team queue (seq, maybe prio) | src/components/views/GanttView.jsx:3097-3100 (fn 1042-1105) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates vertical bar drag |
 | Priority ⏫ / ⏬ (multi-selection) | Changes selection's prio by ±1 | src/components/views/GanttView.jsx:3103-3104 (fn 1110-1120) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates the priority field in QuickEdit/NodeModal |
-| "Massenänderung…" (multi-selection) | Opens the external bulk-edit dialog | src/components/views/GanttView.jsx:3106-3114 | Plan | 2 | mutation itself happens in the bulk-edit dialog (see above) |
-| "Verknüpfungen entfernen" (multi-selection) | Removes all hard/soft dependencies of the selection | src/components/views/GanttView.jsx:3116 (fn 1127-1171) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates the single × badge |
+| "Bulk edit…" (multi-selection) | Opens the external bulk-edit dialog | src/components/views/GanttView.jsx:3106-3114 | Plan | 2 | mutation itself happens in the bulk-edit dialog (see above) |
+| "Remove links" (multi-selection) | Removes all hard/soft dependencies of the selection | src/components/views/GanttView.jsx:3116 (fn 1127-1171) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates the single × badge |
 | AssignModal (team/person assignment) | Would set team/assign for the selection | src/components/views/GanttView.jsx:3118-3141 | remove | — | dead code: no button ever calls `setShowAssignModal(true)` anywhere in this file — unreachable |
 
 ## Planning / PlanReview (PlanReview.jsx)
@@ -157,7 +157,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 |---|---|---|---|---|---|
 | Section tabs (Decide/Phases/Team capacity/Load/Blocked/Warnings/Critical paths) | Switches the visible section | src/components/views/PlanReview.jsx:181-182 | Review | 1 | pure view switch, no data write |
 | Row click in "Decide" | Opens the item editor (onOpenItem → NodeModal) | src/components/views/PlanReview.jsx:203-204 | Review | 1 | (also: Plan); ↔ duplicates the tree's own "⊞ Full edit" entry point |
-| "Auto-Zuweisung übernehmen" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/PlanReview.jsx:216-218 (logic 119-124) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
+| "Adopt auto-assignment" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/PlanReview.jsx:216-218 (logic 119-124) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
 | Phase filter tabs "Current phases" / "All open" | Shows only current or all open phases | src/components/views/PlanReview.jsx:230-231 | Review | 1 | pure filter switch |
 | Task header click (phases section) | Opens the item editor | src/components/views/PlanReview.jsx:246 | Review | 1 | ↔ duplicates the tree editor entry point |
 | Phase status icon click (○/◐) | Cycles this phase open→wip→done | src/components/views/PlanReview.jsx:255-256 (logic 98-102) | Run | 1 | (also: Plan); ⚠ writes data outside the tree — writes node.phases and possibly derived status/progress via onUpdate |
@@ -193,8 +193,8 @@ Every control on this surface is, by definition, Settings/tier 3 — Resources i
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Section pills "Pläne"/"Teams"/"Mitglieder"/"Urlaub" | Switches sub-view | src/components/views/ResView.jsx:622-629 | Settings | 3 | |
-| Checkbox "Ehemalige einschließen" | Shows/hides offboarded members and teams | src/components/views/ResView.jsx:631-637 | Settings | 3 | |
+| Section pills "Plans"/"Teams"/"Members"/"Vacations" | Switches sub-view | src/components/views/ResView.jsx:622-629 | Settings | 3 | |
+| Checkbox "Include offboarded" | Shows/hides offboarded members and teams | src/components/views/ResView.jsx:631-637 | Settings | 3 | |
 | Button "+ Team" | Creates a new team | src/components/views/ResView.jsx:638 | Settings | 3 | |
 | Button "+ Urlaub" | Creates a new vacation entry, opens the modal | src/components/views/ResView.jsx:639,612-616 | Settings | 3 | |
 | Button "+ Plan" | Creates a new meeting plan, opens the modal | src/components/views/ResView.jsx:640-644 | Settings | 3 | |
@@ -210,7 +210,7 @@ Every control on this surface is, by definition, Settings/tier 3 — Resources i
 | TeamEditModal — name (LazyInput) | Sets team name | src/components/views/ResView.jsx:47-51 | Settings | 3 | |
 | TeamEditModal — meeting-plan chips | Assigns meeting plans to the team | src/components/views/ResView.jsx:55-60 | Settings | 3 | ↔ the same chip pattern also appears on a member (350-357) and on a capacity-timeline entry (1098-1106) — a triple-duplicated UI pattern, though each operates at a different data level |
 | TeamEditModal — "Entfernen" | Deletes the team | src/components/views/ResView.jsx:64-69 | Settings | 3 | |
-| TeamEditModal — close (×/"Schließen") | Closes the modal | src/components/views/ResView.jsx:32,71 | Settings | 3 | |
+| TeamEditModal — close (×/"Close") | Closes the modal | src/components/views/ResView.jsx:32,71 | Settings | 3 | |
 | MemberEditModal — short-name tooltip in header | Shows the auto short name; tooltip mentions "Markdown" | src/components/views/ResView.jsx:95-99 | Settings | 3 | 🔧 mechanics exposed — tooltip names the internal storage/export format instead of staying in domain language |
 | MemberEditModal — full name (LazyInput) | Sets name | src/components/views/ResView.jsx:108 | Settings | 3 | |
 | MemberEditModal — team (SearchSelect) | Sets team | src/components/views/ResView.jsx:109 | Settings | 3 | |
@@ -230,12 +230,12 @@ Every control on this surface is, by definition, Settings/tier 3 — Resources i
 | DerivedCapacity — meeting row frequency (select) | Sets frequency | src/components/views/ResView.jsx:391-397 | Settings | 3 | |
 | DerivedCapacity — meeting row remove (×) | Deletes an ad-hoc meeting | src/components/views/ResView.jsx:398-399 | Settings | 3 | |
 | DerivedCapacity — "+ Meeting" | Adds an ad-hoc meeting | src/components/views/ResView.jsx:402 | Settings | 3 | |
-| CapChangesField — "+ hinzufügen" | Adds a capacity-timeline entry | src/components/views/ResView.jsx:997-998 | Settings | 3 | |
+| CapChangesField — "+ Add" | Adds a capacity-timeline entry | src/components/views/ResView.jsx:997-998 | Settings | 3 | |
 | CapChangesField — date | Sets the effective date of a capacity change | src/components/views/ResView.jsx:1021-1023 | Settings | 3 | |
 | CapChangesField — % | Sets capacity from that date | src/components/views/ResView.jsx:1024-1027 | Settings | 3 | |
 | CapChangesField — h/week | Sets weekly hours from that date | src/components/views/ResView.jsx:1028-1031 | Settings | 3 | |
 | CapChangesField — row remove (×) | Deletes a timeline entry | src/components/views/ResView.jsx:1032-1033 | Settings | 3 | |
-| MeetingChangesField — "+ hinzufügen" | Adds a meeting-timeline entry | src/components/views/ResView.jsx:1068-1069 | Settings | 3 | |
+| MeetingChangesField — "+ Add" | Adds a meeting-timeline entry | src/components/views/ResView.jsx:1068-1069 | Settings | 3 | |
 | MeetingChangesField — date | Sets the effective date | src/components/views/ResView.jsx:1091-1093 | Settings | 3 | |
 | MeetingChangesField — plan chips | Picks plans from that date | src/components/views/ResView.jsx:1098-1106 | Settings | 3 | ↔ third occurrence of the same chip pattern |
 | MeetingChangesField — row remove | Deletes a timeline entry | src/components/views/ResView.jsx:1112-1113 | Settings | 3 | |
@@ -252,15 +252,15 @@ Every control on this surface is, by definition, Settings/tier 3 — Resources i
 | VacationEditModal — to date | Sets vacation end | src/components/views/ResView.jsx:958-959 | Settings | 3 | |
 | VacationEditModal — note | Sets a free-text note | src/components/views/ResView.jsx:964 | Settings | 3 | |
 | VacationEditModal — "Entfernen" | Deletes the vacation entry | src/components/views/ResView.jsx:967 | Settings | 3 | |
-| VacationEditModal — close (×/"Schließen") | Closes the modal | src/components/views/ResView.jsx:941,969 | Settings | 3 | |
+| VacationEditModal — close (×/"Close") | Closes the modal | src/components/views/ResView.jsx:941,969 | Settings | 3 | |
 
 ## Feiertage (HolView.jsx) — Settings surface
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Button "NRW importieren" | Imports statutory NRW holidays for the plan period | src/components/views/HolView.jsx:57 | Settings | 3 | |
-| Button "Manuell hinzufügen" | Creates an empty manual holiday | src/components/views/HolView.jsx:58 | Settings | 3 | |
-| Button "Alle löschen" (with confirm) | Clears the whole holiday list | src/components/views/HolView.jsx:60 | Settings | 3 | destructive but confirm()-guarded |
+| Button "Add manually" | Creates an empty manual holiday | src/components/views/HolView.jsx:58 | Settings | 3 | |
+| Button "Clear all" (with confirm) | Clears the whole holiday list | src/components/views/HolView.jsx:60 | Settings | 3 | destructive but confirm()-guarded |
 | Year filter (select) | Filters the list by year | src/components/views/HolView.jsx:70-74 | Settings | 3 | |
 | Filter reset (×) | Clears the year filter | src/components/views/HolView.jsx:76-78 | Settings | 3 | |
 | Empty-state "NRW importieren" button | Same action as above, shown in the empty state | src/components/views/HolView.jsx:88 | Settings | 3 | ↔ duplicates the toolbar button (deliberate empty-state CTA) |
@@ -279,12 +279,12 @@ No editable controls found — the view is entirely read-only (used inside SumVi
 | Button "Edit focus" | Calls an external `onEdit` callback | src/components/views/DLView.jsx:18 | remove | — | `grep -rn "DLView" src/` finds only this file's own definition — the component has no importer anywhere in the app; dead surface |
 | Goal/painpoint/deadline cards | Read-only display (status, progress, dates) | src/components/views/DLView.jsx:41-62 | remove | — | same as above — not reachable |
 
-## Übersicht / SumView (SumView.jsx)
+## Overview / SumView (SumView.jsx)
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| "Plan-Review öffnen" link (confidence panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:274 | Review | 1 | (also: Plan) |
-| "Plan-Review öffnen" link (pulse-check panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:323 | Review | 1 | (also: Plan) |
+| "Open Plan Review" link (confidence panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:274 | Review | 1 | (also: Plan) |
+| "Open Plan Review" link (pulse-check panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:323 | Review | 1 | (also: Plan) |
 | Pulse-check item link "→ {id}" | Jumps to the affected task in the tree | src/components/views/SumView.jsx:329-330 | Review | 1 | 🔧 mechanics exposed (shows the task ID, not just the name) |
 | Critical-path chip in a goal card | Jumps to the task in the tree | src/components/views/SumView.jsx:412 | Review | 2 | 🔧 mechanics exposed (chip label is the raw ID; name only in tooltip) |
 | "Top items" table row click | Jumps to the tree | src/components/views/SumView.jsx:430-431 | Review | 1 | 🔧 mechanics exposed (ID shown next to name) |
@@ -308,7 +308,7 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 | Button "Todo exportieren" | Calls onExportTodo(horizonDays) (export, read-only) | src/components/views/BriefingView.jsx:227-234 | Run | 1 | ↔ possibly duplicates the PDF/DOCX report exports (Report) |
 | Person-card task row | Opens the task's detail | src/components/views/BriefingView.jsx:325-327 | Run | 1 | 🔧 mechanics exposed (raw task ID shown before the name) |
 | Milestone row | Opens the root item's detail | src/components/views/BriefingView.jsx:373-375 | Run | 1 | (also: Review) |
-| Risk row ("überfällig"/"spät"/"exploratory, date near") | Opens the affected item | src/components/views/BriefingView.jsx:396-398 | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
+| Risk row ("overdue"/"late"/"exploratory, date near") | Opens the affected item | src/components/views/BriefingView.jsx:396-398 | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
 
 ## Onboarding (Onboard.jsx)
 
@@ -335,7 +335,7 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 | "▼ Down" button | Moves the item down one position | src/components/views/TreeView.jsx:330 | Build | 1 | ↔ duplicates the drag handle |
 | "⤓ Last" button | Moves the item to the last sibling position | src/components/views/TreeView.jsx:331 | Build | 1 | ↔ duplicates the drag handle |
 | "Delete item" button (contextual toolbar) | Deletes the selected item (with confirm) | src/components/views/TreeView.jsx:334-336 | Build | 1 | ↔ duplicates Delete in QuickEdit/NodeModal |
-| SelectionActionBar "Massenänderung…" trigger | Opens the bulk-edit modal | src/components/views/TreeView.jsx:552-560 | Build | 1 | ↔ duplicates the App.jsx "⤢ Modal" trigger |
+| SelectionActionBar "Bulk edit…" trigger | Opens the bulk-edit modal | src/components/views/TreeView.jsx:552-560 | Build | 1 | ↔ duplicates the App.jsx "⤢ Modal" trigger |
 | SelectionActionBar status buttons (open/wip/done) | Sets status across the multi-selection | src/components/views/TreeView.jsx:562-575 | Build | 1 | ↔ duplicates the status field in QuickEdit/NodeModal and the bulk-edit modal |
 | AssignModal (via showAssignModal) | Would set team/persons across the multi-selection | src/components/views/TreeView.jsx:577-599 | remove | — | dead trigger — nothing in this file ever calls `setShowAssignModal(true)` |
 
@@ -746,7 +746,7 @@ gesture and hands editing to the tree.
 
 ## Open questions
 
-- Several controls in Gantt (drag a "done" bar, drag its edges) edit the *past* (completedStart/completedEnd) rather than the future — is that Run, Review, or does "editing the past" not belong in Plan mode's Kern-Fläche at all? Could not be settled from the code alone.
+- Several controls in Gantt (drag a "done" bar, drag its edges) edit the *past* (completedStart/completedEnd) rather than the future — is that Run, Review, or does "editing the past" not belong in Plan mode's core surface at all? Could not be settled from the code alone.
 - `AssignModal.jsx` has zero live callers (both TreeView and GanttView gate it behind a flag nothing ever sets true) — is this a half-shipped feature that should be finished, or dead code to delete? The UI need it would fill (bulk team/person assignment from a selection) is already covered by the bulk-edit modal's own team/assignee fields.
 - `HandoffPlanEditor.jsx` is imported but explicitly commented out ("disabled") in both QuickEdit and NodeModal — is manual handoff-plan pre-authoring a feature to bring back, or should the import and the file be deleted along with it?
 - `DLView.jsx` and `DLModal.jsx` are both fully orphaned (no importer). Is there a "Focus" surface that used to exist and was replaced by the goal-type controls now living in QuickEdit/NodeModal Overview, confirming they're safe to delete? Could not verify the history from the code alone.

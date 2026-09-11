@@ -262,14 +262,14 @@ Use the diff filter to drive a sprint review ("Stand 2026-04-28 → heute"); use
 
 ### Soll/Ist comparison (estimate vs reality)
 
-Every done leaf carries `best` + `factor` (the estimate) plus `completedStart` + `completedEnd` (the actual run). Wherever both are present, the app computes a workday-bereinigt actual duration (weekends and holidays subtracted) and compares it to the realistic estimate (`best × factor`).
+Every done leaf carries `best` + `factor` (the estimate) plus `completedStart` + `completedEnd` (the actual run). Wherever both are present, the app computes a workday-adjusted actual duration (weekends and holidays subtracted) and compares it to the realistic estimate (`best × factor`).
 
-- **Per task** — open a done item in QuickEdit (or the side panel) to see a Soll / Ist line: `Soll: 7d · Ist: 9d (2026-05-04 → 2026-05-13) · Δ +2d (+29%)`. The Δ pill is green when the task came in within ±20% of the estimate, amber when it overran moderately, red when the overrun exceeds 20%. Hover the Ist value to see the confounders that were excluded (`Kalendertage: 10 · Wochenenden: 2 · Feiertage: 1`).
+- **Per task** — open a done item in QuickEdit (or the side panel) to see a Planned / Actual line: `Planned: 7d · Actual: 9d (2026-05-04 → 2026-05-13) · Δ +2d (+29%)`. (The labels currently render as `Soll:` / `Ist:` regardless of language — a known gap, not yet routed through i18n.) The Δ pill is green when the task came in within ±20% of the estimate, amber when it overran moderately, red when the overrun exceeds 20%. Hover the actual value to see the confounders that were excluded (`Calendar days: 10 · Weekends: 2 · Holidays: 1`).
 
-- **Per window (Retro panel)** — when the Δ Review filter is on, an extra **Retro · Soll/Ist** band appears above the map. It aggregates over every leaf completed in the window:
-  - `Soll Xd → Ist Yd · Verhältnis Z×` — the totals plus their ratio (green ≤ 0.80, amber between, red ≥ 1.20).
-  - `Trefferquote N% (k/total)` — share of tasks landing within ±20% of their estimate.
-  - **Top überzogen** / **Top unterboten** — three biggest outliers each, clickable to drill into the task.
+- **Per window (Retro panel)** — when the Δ Review filter is on, an extra **Retro · Planned/Actual** band appears above the map. It aggregates over every leaf completed in the window:
+  - `Planned Xd → Actual Yd · Ratio Z×` — the totals plus their ratio (green ≤ 0.80, amber between, red ≥ 1.20).
+  - `Hit rate N% (k/total)` — share of tasks landing within ±20% of their estimate.
+  - **Top overruns** / **Top underruns** — three biggest outliers each, clickable to drill into the task.
 
 Treat the ratio as a learning signal, not as a target. The same retro panel surfaces both the systemic over/underrun and the individual outliers so you can decide whether to revise the size catalogue's factor, re-estimate certain task types, or just accept that one outlier and move on.
 

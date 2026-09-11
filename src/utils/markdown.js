@@ -88,7 +88,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
             if (typeof c.weeklyHours === 'number') parts.push(`${c.weeklyHours}h/w`);
             return parts.join('');
           });
-        if (items.length) md += `  *Cap-Plan: ${items.join(', ')}*\n`;
+        if (items.length) md += `  *Capacity plan: ${items.join(', ')}*\n`;
       }
       // Scheduled meeting overrides — each entry replaces the member's
       // meeting list from `from` onward. Format mirrors the *Meetings:*
@@ -107,7 +107,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
             return tokens.length ? `${c.from}→[${tokens.join(', ')}]` : null;
           })
           .filter(Boolean);
-        if (lines.length) md += `  *Meeting-Plan: ${lines.join('; ')}*\n`;
+        if (lines.length) md += `  *Meeting plan: ${lines.join('; ')}*\n`;
       }
     });
     md += '\n';
@@ -171,8 +171,8 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     // existing plans flatten on the next save. `~id` prefix retired.
     const allDepIds = [...new Set([...(r.deps || []), ...(r.softDeps || [])])];
     const depItems = allDepIds.map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
-    const deps = depItems.length ? `\n${indent}  *Benötigt: ${depItems.join(', ')}*` : '';
-    const phases = (r.phases || []).length ? `\n${indent}  *Phasen: ${r.phases.map(p => formatPhaseToken(p, {
+    const deps = depItems.length ? `\n${indent}  *Requires: ${depItems.join(', ')}*` : '';
+    const phases = (r.phases || []).length ? `\n${indent}  *Phases: ${r.phases.map(p => formatPhaseToken(p, {
       teamName,
       memberLabel: memberShort,
     })).join(', ')}*` : '';

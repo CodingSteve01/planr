@@ -83,25 +83,33 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
 
   // Scroll so today is in view on first paint — a roadmap that opens on a
   // month you finished two quarters ago is a picture, not a tool. Only ever
-  // when the plot is actually wider than the pane; otherwise there is
-  // nothing to scroll and this would fight the fit.
+  // when the plot is actually wider than the pane (nothing to scroll
+  // otherwise) AND today actually falls on this project's own axis — the
+  // model no longer pads the axis out to today unconditionally (a finished
+  // or not-yet-started project draws exactly its own span), so there may be
+  // nothing to scroll to.
+  const todayInRange = !!model && model.today >= model.axisStart && model.today <= model.axisEnd;
   const scrolledFor = useRef(null);
   useEffect(() => {
-    if (!model || !scrollRef.current || !paneW) return;
+    if (!model || !scrollRef.current || !paneW || !todayInRange) return;
     if (scrolledFor.current === rootId) return;
     scrolledFor.current = rootId;
     if (totalDays * effectivePxDay <= paneW) return;
     const x = ((model.today - model.axisStart) / DAY) * effectivePxDay;
     scrollRef.current.scrollLeft = Math.max(0, x - paneW / 3);
-  }, [model, rootId, effectivePxDay, paneW, totalDays]);
+  }, [model, rootId, effectivePxDay, paneW, totalDays, todayInRange]);
 
   if (!model) return null;
 
   const plotW = Math.max(320, totalDays * effectivePxDay);
   const xOf = date => (((date instanceof Date ? +date : date) - model.axisStart) / DAY) * effectivePxDay;
 
-  const monthLabel = date => date.toLocaleDateString(undefined, { month: 'short' })
-    + (date.getMonth() === 0 ? ` ’${String(date.getFullYear()).slice(2)}` : '');
+  // The year is what gives the axis any temporal orientation at all — and
+  // showing it only on January meant a project starting mid-year (the
+  // common case) never printed one. It now shows on the FIRST rendered tick
+  // unconditionally, and on every January after that.
+  const monthLabel = (date, isFirstTick) => date.toLocaleDateString(undefined, { month: 'short' })
+    + (isFirstTick || date.getMonth() === 0 ? ` ’${String(date.getFullYear()).slice(2)}` : '');
 
   return <div className="pr" data-testid="plan-roadmap">
     {/* Header — the project, its figure, and the zoom. Mirrors the Gantt's
@@ -149,7 +157,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
             {model.months.map((month, idx) => {
               if (idx % model.tickEvery) return null;
               return <span key={+month} className="pr-tick" style={{ left: xOf(month) }}>
-                <span className="pr-tick-lbl">{monthLabel(month)}</span>
+                <span className="pr-tick-lbl">{monthLabel(month, idx === 0)}</span>
               </span>;
             })}
           </div>
@@ -185,9 +193,14 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
               </div>;
             })}
 
-            {/* Today and the root's deadline — drawn last so they sit on top. */}
-            <span className="pr-today" style={{ left: xOf(model.today), height: model.rows.length * ROW_H }}
-              data-htip={`${t('rm.today')} · ${fmtDate(model.today)}`} />
+            {/* Today and the root's deadline — drawn last so they sit on top.
+                Today only draws when it actually falls on this project's own
+                axis; a finished or not-yet-started project has nothing to
+                mark. */}
+            {todayInRange && (
+              <span className="pr-today" style={{ left: xOf(model.today), height: model.rows.length * ROW_H }}
+                data-htip={`${t('rm.today')} · ${fmtDate(model.today)}`} />
+            )}
             {model.deadline && (
               <span className="pr-deadline" style={{ left: xOf(model.deadline), height: model.rows.length * ROW_H }}
                 data-htip={`${t('deadline')} · ${fmtDate(model.deadline)}`} />

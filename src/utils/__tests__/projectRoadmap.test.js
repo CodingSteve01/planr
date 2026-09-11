@@ -47,15 +47,50 @@ describe('computeProjectRoadmap', () => {
     expect(model.rows[0].milestones[1].end).toEqual(d('2026-10-16'));
   });
 
-  test('the axis spans every date on the board plus today and the deadline', () => {
+  test('the axis spans every date on the board, plus today when it already falls inside that span', () => {
     // Earliest is the recorded start in May 2026, latest the 2027-01-01
-    // deadline — both snapped out to whole months.
+    // deadline — both snapped out to whole months. NOW (2026-09-10) already
+    // sits inside that window, so it is included; see the block below for
+    // what happens when it does not.
     expect(model.axisStart).toEqual(new Date(2026, 4, 1));
     expect(model.axisEnd).toEqual(new Date(2027, 1, 1));
     expect(model.today).toEqual(NOW);
     expect(model.deadline).toEqual(d('2027-01-01'));
     expect(model.months).toHaveLength(9);
     expect(model.tickEvery).toBe(1);
+  });
+
+  test('today never WIDENS the axis — a finished project draws exactly its own span', () => {
+    // Reported: a project's roadmap axis stretched all the way to today even
+    // when the project itself had nothing to do with the present, wasting
+    // most of the (now width-fitted) chart on empty space with no bearing on
+    // the project. A leaf finished well before "now" must not pull the axis
+    // forward to meet it.
+    const finished = [
+      { id: 'F1', name: 'Wrapped last spring', status: 'done' },
+      { id: 'F1.1', name: 'Only task', status: 'done', best: 5, factor: 1.5,
+        completedStart: '2025-03-01', completedEnd: '2025-03-20', completedAt: '2025-03-20' },
+    ];
+    const finishedStats = treeStats(finished);
+    const past = computeProjectRoadmap({ tree: finished, scheduled: [], stats: finishedStats, rootId: 'F1', now: NOW });
+
+    expect(past.axisEnd).toEqual(new Date(2025, 3, 1));   // snapped to April 2025 — not anywhere near NOW
+    expect(+NOW).toBeGreaterThan(+past.axisEnd);          // sanity: NOW really is outside this axis
+  });
+
+  test('today never WIDENS the axis — a project that has not started yet draws its own future span', () => {
+    const future = [
+      { id: 'U1', name: 'Starts next year', status: 'open' },
+      { id: 'U1.1', name: 'Only task', status: 'open', best: 5, factor: 1.5, pinnedStart: '2028-01-15' },
+    ];
+    const scheduledFuture = [
+      { id: 'U1.1', treeId: 'U1.1', startD: d('2028-01-15'), endD: d('2028-02-10'), effort: 6 },
+    ];
+    const futureStats = treeStats(future);
+    const upcoming = computeProjectRoadmap({ tree: future, scheduled: scheduledFuture, stats: futureStats, rootId: 'U1', now: NOW });
+
+    expect(upcoming.axisStart).toEqual(new Date(2028, 0, 1));   // snapped to January 2028 — not NOW
+    expect(+NOW).toBeLessThan(+upcoming.axisStart);              // sanity: NOW really is before this axis
   });
 
   test('long projects switch to quarterly ticks', () => {
@@ -162,6 +197,20 @@ describe('renderProjectRoadmapSvg', () => {
     // marker (the data-htip convention) would be printed as text.
     expect(svg).toContain('data-tip="&lt;div&gt;');
     expect(svg).not.toContain('html:');
+  });
+
+  test('draws no today line, and no "today" text, for a project that does not span today', () => {
+    const finished = [
+      { id: 'F1', name: 'Wrapped last spring', status: 'done' },
+      { id: 'F1.1', name: 'Only task', status: 'done', best: 5, factor: 1.5,
+        completedStart: '2025-03-01', completedEnd: '2025-03-20', completedAt: '2025-03-20' },
+    ];
+    const out = renderProjectRoadmapSvg({
+      tree: finished, scheduled: [], stats: treeStats(finished), rootId: 'F1', now: NOW,
+      labels: { months: 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez', today: 'heute', tasks: 'Aufgaben' },
+    });
+    expect(out).not.toContain('heute');
+    expect(out).not.toContain('#22c55e');   // the today line/text colour
   });
 
   test('escapes names instead of letting them break the svg', () => {
