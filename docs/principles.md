@@ -183,7 +183,9 @@ What changes:
 To consolidate before building: a spacing grid (4 px), a type scale
 (10 / 11 / 12 / 14 / 20), three surface tokens, one accent, five state colours
 with fixed glyphs — as CSS variables in `App.css`, and every inline colour in
-JSX moves there.
+JSX moves there. Done in phase 2; the tokens, the mapping rules and the
+colours whose meaning is still ambiguous are in
+[design-tokens.md](design-tokens.md).
 
 > **Check:** does this element have a colour that means no state? A border
 > that separates no column?

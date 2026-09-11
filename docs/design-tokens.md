@@ -1,7 +1,7 @@
 # Design tokens
 
-Phase 2 of the Planr rebuild ("design language" / principle 7, "one source per
-truth" — see `docs/principles.md`, if present in your checkout). This makes
+Phase 2 of the Planr rebuild — see [principles.md](principles.md), "Design
+language" and principle 7 "One source per truth". This makes
 every colour, spacing value and type size in the app resolvable from one
 place: `src/App.css`'s `:root` block (dark, default) and the
 `:root[data-theme="light"]` override block. Nothing in this phase changes
