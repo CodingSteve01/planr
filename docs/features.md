@@ -14,6 +14,7 @@ Full catalog of what Planr does. Grouped by area. Links point to detail docs whe
 - **N-level tree** — unlimited nesting (leaves are detected structurally, not by fixed depth)
 - **Root item types** — every tree root can carry a `type` (goal, painpoint, deadline) with `severity`, target `date`, and long-form `description`; no separate deadlines list
 - **Hierarchical sort** — children always follow parents; collapse/expand all
+- **Keyboard tree editor** (Phase 4 — docs/principles.md principle 5, "Fast means reversible") — the tree is fully editable without the mouse: `↑`/`↓` move the cursor (the existing `selected` row) through the visible rows, `⇧↑`/`⇇↓` extend the multi-selection from it. `Enter` turns the active row's name into a real `<input>` seeded with the current name; committing it creates a new empty sibling row directly below and starts editing that one, so a rapid "type, Enter, type, Enter…" session builds a flat list without touching the mouse — this is the bottom-up entry point for planning straight from a wireframe. `⇧Enter` creates a child instead. `Esc` cancels without touching the row's name; committing an empty name on a row created this way removes it again, so an idle Enter-Enter never litters the tree. `Tab` / `⇧Tab` re-parent the active row under its previous sibling / to its parent's parent (through the same `moveNode` the Advanced-tab "Move" control uses — ids and dependency references are rewritten identically); indenting a first child or outdenting a root is a no-op. `⌥↑` / `⌥↓` move the row within its sibling order (same primitive as the ⤒▲▼⤓ toolbar below). `1`–`4` set priority, `S`/`M`/`L`/`X` apply a T-shirt size from the project's size catalogue (case-insensitive; a no-op if the project defines no matching size), `Space` cycles status open → wip → done — all three act on the whole multi-selection at once when there is one, in a single undo step. `⌫`/`Delete` removes the active row (or the whole selection) through the same confirm-free delete the toolbar button below uses. Pasting multi-line text (when no inline edit is focused) creates one new row per line under the active row's parent, honoring leading indentation as nesting and stripping `-`/`*`/`•` bullets — also one undo step. See [architecture.md](architecture.md#tree-editor-keyboard-model) for where this logic lives, and the [Keyboard shortcuts](#keyboard-shortcuts) table below for the exact key list. **Nothing below was removed to make room for this** — the Add modal, the reorder buttons, per-row quick-add, bulk edit and QuickEdit all still work exactly as before; teardown is phase 8, after the keyboard path is confirmed.
 - **Sibling reorder** — move a selected item up / down / to first / to last within its sibling group; all IDs (including descendants) and dep references auto-renumber
 - **Contextual action toolbar** — a sticky row above the tree surfaces reorder + delete for the currently selected item; per-row actions collapse to just `+` (add child)
 - **Multi-select bulk editing** — Ctrl+Click toggles, Shift+Click selects a range; bulk edit team, priority, status, assignee, confidence
@@ -235,3 +236,22 @@ See [import-export.md](import-export.md).
 | `Delete` | Remove selected node |
 | `Ctrl+Click` | Toggle item in multi-selection |
 | `Shift+Click` | Select range in tree |
+
+### Tree editor (focus inside the Work Tree)
+
+The keys below are scoped to the tree's own container (`tabIndex` + `onKeyDown`, not `window`) so the Gantt and the `/` palette keep their own key handling untouched. A hint line under the tree toolbar repeats this table. See [architecture.md](architecture.md#tree-editor-keyboard-model).
+
+| Shortcut | Action |
+|---|---|
+| `↑` / `↓` | Move the cursor to the previous/next visible row |
+| `⇧↑` / `⇇↓` | Extend the multi-selection from the cursor |
+| `Enter` | Edit the active row's name; committing creates a new sibling below and edits it |
+| `⇧Enter` | Create a child row and edit it immediately |
+| `Esc` (while editing) | Cancel — leaves an existing row's name untouched; removes a still-empty new row |
+| `Tab` / `⇧Tab` | Indent (re-parent under the previous sibling) / outdent (re-parent to the grandparent) |
+| `⌥↑` / `⌥↓` | Move the active row within its sibling order |
+| `1`–`4` | Set priority (active row, or the whole multi-selection) |
+| `S` / `M` / `L` / `X` | Apply a T-shirt size from the project's size catalogue |
+| `Space` | Cycle status open → wip → done |
+| `⌫` / `Delete` | Delete the active row, or the whole multi-selection, via the same confirm-free delete the toolbar uses |
+| Paste (multi-line text) | Create one new row per line under the active row's parent, in one undo step |

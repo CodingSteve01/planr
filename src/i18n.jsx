@@ -754,6 +754,7 @@ const en = {
   'tv.statusOpen': 'Open', 'tv.statusWip': 'In Progress', 'tv.statusDone': 'Done',
   'tv.prioCrit': 'crit', 'tv.prioHigh': 'high', 'tv.prioMed': 'med', 'tv.prioLow': 'low',
   'tv.priority': 'Priority',
+  'tv.kbdHints': 'Keyboard: ↑↓ move · ⇧↑↓ extend selection · Enter edit / new row below · ⇧Enter new child · Tab/⇧Tab indent/outdent · ⌥↑↓ reorder · 1–4 priority · S/M/L/X size · Space status · ⌫ delete · paste text = new rows',
 
   // ── Onboard splash ──
   'ob.sub': 'Resource-aware project scheduler',
@@ -1582,6 +1583,7 @@ const de = {
   'tv.statusOpen': 'Offen', 'tv.statusWip': 'In Bearbeitung', 'tv.statusDone': 'Erledigt',
   'tv.prioCrit': 'krit.', 'tv.prioHigh': 'hoch', 'tv.prioMed': 'mittel', 'tv.prioLow': 'niedrig',
   'tv.priority': 'Priorität',
+  'tv.kbdHints': 'Tastatur: ↑↓ bewegen · ⇧↑↓ Auswahl erweitern · Enter bearbeiten / neue Zeile darunter · ⇧Enter neues Kind · Tab/⇧Tab einrücken/ausrücken · ⌥↑↓ Reihenfolge ändern · 1–4 Priorität · S/M/L/X Größe · Leertaste Status · ⌫ löschen · Einfügen = neue Zeilen',
 
   // ── Onboard-Splash ──
   'ob.sub': 'Ressourcenbewusster Projektplaner',

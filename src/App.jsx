@@ -15,7 +15,8 @@ import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { buildPasteNodes } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -2506,6 +2507,69 @@ export default function App() {
   });
   const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
   const onTreeReorder = useStableCallback((...a) => reorderSibling(...a));
+  // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
+  // Every one of these is a thin wrapper around the SAME mutate()-backed
+  // primitives the mouse-driven controls already use (moveNode, addNode,
+  // reorderSibling) — see docs/principles.md principle 2. Nothing here is a
+  // new write path; it's the existing ones, reachable without a modal.
+
+  // Tab / ⇧Tab re-parent — moveNode renumbers the moved subtree and every
+  // dependency reference to it, then hands back the node's new id (it
+  // changes on every re-parent); the cursor (selected) follows it so the
+  // next keypress still targets the right row.
+  const onTreeMove = useStableCallback((id, newParentId) => {
+    const newId = moveNode(id, newParentId);
+    if (newId) setSel({ id: newId });
+  });
+  // Enter, mid-edit: create an empty sibling directly after `afterId` (same
+  // parent) and hand back its id so TreeView can immediately edit it. Empty
+  // on purpose — see onTreeBulkDelete's neighbour, commitEdit in
+  // TreeView.jsx, for why an empty commit on a still-new row deletes it
+  // again instead of littering the tree.
+  const onTreeInsertAfter = useStableCallback(afterId => {
+    const pid = parentId(afterId);
+    const id = nextChildId(tree, pid);
+    addNode({ id, name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, deps: [], note: '', assign: [], lvl: pid ? pid.split('.').length + 1 : 1 });
+    reorderSibling(id, { targetId: afterId, position: 'after' });
+    return id;
+  });
+  // ⇧Enter: create an empty child under `parentIdArg` (mirrors onTreeQuickAdd
+  // above, but with an empty name — see onTreeInsertAfter).
+  const onTreeInsertChild = useStableCallback(parentIdArg => {
+    const id = nextChildId(tree, parentIdArg);
+    addNode({ id, name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, deps: [], note: '', assign: [], lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1 });
+    return id;
+  });
+  // ⌫/Delete on a multi-selection: deleteNode's `setD('tree', tree.filter(...))`
+  // reads `tree` from the render closure, so looping it per id inside one
+  // keypress would have each call overwrite the previous one's result — the
+  // "do not loop single updates" case principle 5's brief calls out. This is
+  // the one batched callback: a single functional mutate() over the whole
+  // id set, so it's correct AND one undo step.
+  const onTreeBulkDelete = useStableCallback(ids => {
+    if (!ids?.length) return;
+    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => !ids.some(id => r.id.startsWith(id))) }));
+    setSel(null); setMultiSel(new Set());
+  });
+  // Paste a list: parse → build the whole batch of new nodes against a
+  // local working copy of the tree (utils/treeEdit.js buildPasteNodes, so
+  // ids don't collide within the pasted block itself) → splice them in with
+  // ONE mutate() call, right after the active row's own subtree.
+  const onTreePasteRows = useStableCallback((afterId, rows) => {
+    if (!rows?.length) return;
+    const pid = parentId(afterId);
+    mutate(d => {
+      const currentTree = d.tree || [];
+      const newNodes = buildPasteNodes(currentTree, pid, rows);
+      const next = currentTree.slice();
+      let insertAt = next.length;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) { insertAt = i + 1; break; }
+      }
+      next.splice(insertAt, 0, ...newNodes);
+      return { ...d, tree: next };
+    });
+  });
   const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
   const onGanttSeqUpdate = useStableCallback((...a) => onSeqUpdate(...a));
   const onGanttExtendViewStart = useStableCallback((...a) => extendViewStart(...a));
@@ -3086,6 +3150,7 @@ export default function App() {
               onSelect={onTreeSelect}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+              sizes={data.sizes || []}
               historyEvents={data?.historyEvents || []}
               sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
               onlyChanged={diffOnlyChanged}
@@ -3095,7 +3160,12 @@ export default function App() {
               onDelete={onTreeDelete} onReorder={onTreeReorder}
               onTaskUpdate={onGanttTaskUpdate}
               onClearSelection={() => setMultiSel(new Set())}
-              onOpenBulkEdit={() => setBulkEditModalOpen(true)} />
+              onOpenBulkEdit={() => setBulkEditModalOpen(true)}
+              onMove={onTreeMove}
+              onInsertAfter={onTreeInsertAfter}
+              onInsertChild={onTreeInsertChild}
+              onBulkDelete={onTreeBulkDelete}
+              onPasteRows={onTreePasteRows} />
           }
         </div>
         {selected && <div className="side fade">

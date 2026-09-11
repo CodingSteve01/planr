@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { schedule, re } from '../scheduler.js';
+import { schedule, re, nextChildId } from '../scheduler.js';
 import { iso } from '../date.js';
 
 // Minimal project builder — returns the canonical `schedule()` invocation so
@@ -825,5 +825,31 @@ describe('schedule(): seq drives global tiebreak, displayOrder does not', () => 
     expect(b).toBeDefined();
     // seq 330 must place before seq 680, even though displayOrder is 14 vs 1.
     expect(a.startD.getTime()).toBeLessThan(b.startD.getTime());
+  });
+});
+
+describe('nextChildId()', () => {
+  // Regression: a tree loaded from a file/demo project has roots that
+  // predate the `lvl` field (only AddModal ever wrote it). Deriving the next
+  // root number from `r.lvl === 1` saw an empty set on such a tree and
+  // always handed back "P1" — colliding with an existing P1 root the first
+  // time a new top-level item was added.
+  test('root ids continue the existing P-prefixed sequence even when no node carries lvl', () => {
+    const tree = [
+      { id: 'P1', name: 'Goal' },
+      { id: 'P1.1', name: 'Child' },
+      { id: 'P2', name: 'Painpoint' },
+      { id: 'D1', name: 'Deadline (non-P prefix, hand-authored)' },
+    ];
+    expect(nextChildId(tree, '')).toBe('P3');
+  });
+
+  test('root ids start at P1 for an empty tree', () => {
+    expect(nextChildId([], '')).toBe('P1');
+  });
+
+  test('child ids continue the sibling sequence under a given parent', () => {
+    const tree = [{ id: 'P1' }, { id: 'P1.1' }, { id: 'P1.3' }];
+    expect(nextChildId(tree, 'P1')).toBe('P1.4');
   });
 });

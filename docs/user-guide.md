@@ -75,6 +75,21 @@ Children can be any depth. Leaves are detected structurally — there is no "lev
 - Break each into 2–5 children. Don't force a balanced tree.
 - Push estimates to **leaves only** — parents aggregate automatically.
 
+### Typing a plan
+
+The tree is built for bottom-up entry too — sketch structure on paper or a wireframe, then type it in without reaching for the mouse once:
+
+1. Click a row (or use `↑`/`↓` to get there) so it's the active row — this is the same "selected" row the sidebar and the contextual toolbar already use, just with keyboard focus.
+2. Press **Enter**. The name becomes a real text field, seeded with whatever it already said.
+3. Type the name, press **Enter** again. It commits — and a new, empty sibling row appears directly below, already in edit mode. Type the next name, `Enter`, next name, `Enter`… a whole list goes in without ever touching the mouse. An `Enter` on an empty field (nothing typed) just removes that empty row instead of leaving it behind — pressing `Enter` one time too many never litters the tree with nameless items.
+4. Need a child instead of the next sibling? **⇧Enter** instead of `Enter` — same idea, one level deeper.
+5. Typed something you didn't mean? **Esc** backs out without touching the row's name (or, on a row you just created, removes it).
+6. Got the nesting wrong? Select the row and press **Tab** to indent it under the row directly above, **⇧Tab** to outdent it back out — the same re-parenting the Advanced-tab "Move" control does, ids and dependency references included. **⌥↑**/**⌥↓** re-order it among its siblings without changing its parent.
+7. Select several rows (`⇧↑`/`⇇↓`, or the usual Ctrl/Shift-click) and press `1`–`4` for priority, `S`/`M`/`L`/`X` for a T-shirt size, or `Space` to step through open → wip → done — every row in the selection changes at once, as one `⌘Z`.
+8. Already have a list somewhere else — a text file, an email, a wireframe's annotation? Select the row that should be the parent and paste. Every line becomes a row; leading tabs or a couple of spaces become nesting, and a leading `-`/`*`/`•` bullet is stripped automatically.
+
+None of this replaces the Add-item dialog, the reorder buttons, or QuickEdit — they still do exactly what they did before. It's a second, faster way in for exactly the moment this section is about: getting a plan out of your head (or off a wireframe) and into the tree as fast as you can type. The full key list is in [features.md](features.md#keyboard-shortcuts); how it's built is in [architecture.md](architecture.md#tree-editor-keyboard-model).
+
 ## 4. Estimate leaf tasks
 
 Two paths:
