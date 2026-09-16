@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -15,4 +16,11 @@ process.env.NODE_ENV = 'test';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      // The plugin's vault layer imports `obsidian`, a module that only
+      // exists inside the app. Tests get a shape-compatible stand-in.
+      obsidian: fileURLToPath(new URL('./obsidian/__tests__/obsidian-stub.js', import.meta.url)),
+    },
+  },
 });

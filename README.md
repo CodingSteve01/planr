@@ -23,6 +23,9 @@ You can use Planr directly in the browser:
 
 No local server required.
 
+Or run it inside Obsidian, with your plans as files in the vault — see
+[docs/obsidian-plugin.md](docs/obsidian-plugin.md).
+
 ## Quick start
 
 ```bash
@@ -47,6 +50,7 @@ Everything lives in [docs/](docs/). This README is an index.
 - **[docs/gantt.md](docs/gantt.md)** — Gantt chart: drag-to-pin, link handles, dependency arrows, deadline flags, critical path
 - **[docs/network-graph.md](docs/network-graph.md)** — network graph: layout, zoom, fit-to-selection
 - **[docs/import-export.md](docs/import-export.md)** — JSON, Markdown, CSV, Sprint MD, Mermaid, SVG, PNG, round-trip caveats
+- **[docs/obsidian-plugin.md](docs/obsidian-plugin.md)** — Planr inside Obsidian: install, plan files in the vault, how the plugin is built
 
 The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/features.md) under "Views and navigation" and in [docs/user-guide.md](docs/user-guide.md#8-review-the-result).
 
@@ -104,6 +108,7 @@ Full list in [docs/features.md](docs/features.md).
 - Lightweight i18n system (no external library, ~350 keys in `src/i18n.jsx`)
 - `localStorage` + File System Access API (no server)
 - Deployed to GitHub Pages via `gh-pages` branch
+- Ships a second time as an Obsidian plugin (esbuild, single CJS bundle) from the same `src/`
 
 See [docs/architecture.md](docs/architecture.md) for details.
 

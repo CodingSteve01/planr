@@ -1,4 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
+
+/**
+ * Where the tooltip goes, in the coordinates a fixed element is written in.
+ * A size of 0 means "not measured yet" and simply does not flip.
+ */
+export function placeHoverTip(x, y, w, h, frame) {
+  let nx = x + 14;
+  let ny = y + 14;
+  if (w && nx + w > frame.width - 8) nx = x - w - 14;
+  if (h && ny + h > frame.height - 8) ny = y - h - 14;
+  return { left: Math.max(8, nx), top: Math.max(8, ny) };
+}
 
 /**
  * Lightweight global tooltip — mount once at app root; any element with
@@ -9,6 +22,9 @@ export function HoverTipProvider() {
   const [tip, setTip] = useState(null); // { text, x, y }
   const tipRef = useRef(null);
   const hideTimer = useRef(null);
+  // Last measured size, so the first paint of the next position already knows
+  // whether it has to flip.
+  const sizeRef = useRef({ w: 0, h: 0 });
 
   const onMove = useCallback(e => {
     const el = e.target?.closest?.('[data-htip]');
@@ -31,36 +47,42 @@ export function HoverTipProvider() {
     return () => { document.removeEventListener('mousemove', onMove); };
   }, [onMove]);
 
-  // Edge-flip: measure after render, adjust position if overflowing
+  // Near the right or bottom edge the tooltip flips to the other side of the
+  // cursor, which needs its size — and its size is only knowable after it has
+  // rendered. Measuring after every render and correcting meant that at the
+  // right edge every mouse move painted the tooltip overflowing first and
+  // pulled it back a frame later: a tooltip that visibly shivers while you
+  // move along the edge. The size of a tooltip does not change while you hover
+  // the same thing, so the last measurement is kept and the next position is
+  // right on the first paint.
   useLayoutEffect(() => {
     if (!tip || !tipRef.current) return;
-    const tw = tipRef.current.offsetWidth;
-    const th = tipRef.current.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let nx = tip.x + 14;
-    let ny = tip.y + 14;
-    if (nx + tw > vw - 8) nx = tip.x - tw - 14;
-    if (nx < 8) nx = 8;
-    if (ny + th > vh - 8) ny = tip.y - th - 14;
-    if (ny < 8) ny = 8;
-    tipRef.current.style.left = nx + 'px';
-    tipRef.current.style.top = ny + 'px';
+    const frame = fixedFrame();
+    const { x, y } = toFixedPoint(tip.x, tip.y, frame);
+    const w = tipRef.current.offsetWidth;
+    const h = tipRef.current.offsetHeight;
+    sizeRef.current = { w, h };
+    const { left, top } = placeHoverTip(x, y, w, h, frame);
+    tipRef.current.style.left = left + 'px';
+    tipRef.current.style.top = top + 'px';
   }, [tip]);
 
   if (!tip) return null;
+  const frame = fixedFrame();
+  const start = toFixedPoint(tip.x, tip.y, frame);
+  const { left, top } = placeHoverTip(start.x, start.y, sizeRef.current.w, sizeRef.current.h, frame);
   return tip.text.startsWith('html:') ? (
     <div
       ref={tipRef}
       className="htip-pop"
-      style={{ position: 'fixed', left: tip.x + 14, top: tip.y + 14, pointerEvents: 'none', zIndex: 9999 }}
+      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
       dangerouslySetInnerHTML={{ __html: tip.text.slice(5) }}
     />
   ) : (
     <div
       ref={tipRef}
       className="htip-pop"
-      style={{ position: 'fixed', left: tip.x + 14, top: tip.y + 14, pointerEvents: 'none', zIndex: 9999 }}
+      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
     >
       {tip.text}
     </div>

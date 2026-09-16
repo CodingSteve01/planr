@@ -219,7 +219,7 @@ rather than switching a dropdown on one screen:
   see. The same underlying data goes into the Management Summary PDF as its
   own page per project, drawn by the Subway map's SVG renderer there.
 
-- **📦 Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
+- **Archive** (⚙ Filter popup, and a chip in the sub-toolbar) — hides
   projects whose work has been finished for longer than N days (default 90) and
   people who offboarded that long ago. **On by default**, because a plan that
   has been running for a year should open on the work that is still live. The
@@ -230,7 +230,7 @@ rather than switching a dropdown on one screen:
   the PT total and the leaf counts keep counting the archived work — a finished
   project stays finished. Exports (PDF, Word, HTML report) also stay complete;
   they are documents of record. Only the map, tree, Gantt, network, goal cards
-  and the person dropdown get shorter, and the `📦 N archived` chip always
+  and the person dropdown get shorter, and the `N archived` chip always
   says how much, one click away from showing it again.
 
   A finished project with no recorded completion date anywhere below it is never

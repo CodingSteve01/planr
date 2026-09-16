@@ -25,6 +25,12 @@ import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadli
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
+import { isEmbedded, portalHost } from './utils/embedHost.js';
+import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
+
+// Below this the side panel stops being help and starts being the thing in
+// the way: 360px of editor against what is left of a work tree.
+const SIDE_DOCK_MIN_WIDTH = 1180;
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
@@ -368,6 +374,52 @@ export default function App() {
   // we don't emit fake "added" events for the whole tree.
   const lastSavedLeavesRef = useRef(null);
   const [fileName, setFileName] = useState(null);
+  // Where the item editor lives. A 360px column beside the tree is a gift on
+  // a wide screen and a theft on a narrow one, so "auto" measures and picks —
+  // and it measures the app, not the window: inside Obsidian the leaf can be
+  // narrow while the window is wide.
+  const [editorDock, _setEditorDock] = useState(() => {
+    try { return localStorage.getItem('planr_editor_dock') || 'auto'; } catch { return 'auto'; }
+  });
+  const setEditorDock = v => { _setEditorDock(v); try { localStorage.setItem('planr_editor_dock', v); } catch {} };
+  const [narrow, setNarrow] = useState(false);
+  const appRef = useRef(null);
+  useEffect(() => {
+    const el = appRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < SIDE_DOCK_MIN_WIDTH));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const editorAsDialog = editorDock === 'dialog' || (editorDock === 'auto' && narrow);
+  // UI scale. Planr's density is deliberate — 11px rows are canon — but a
+  // dense grid designed for a 27" screen is unreadable in a workspace pane,
+  // and Obsidian's own zoom would blow up Obsidian with it. `zoom` reflows
+  // rather than stretching, so a scaled Planr is still a crisp Planr.
+  //
+  // It goes on the element the popups are portalled into, not on .app: a
+  // portal that lands outside the zoomed subtree would render at 100% beside
+  // a 125% app. utils/embedHost.js measures the factor back out for anything
+  // that positions itself from mouse or rect coordinates.
+  // 125% by default: the density is right, the scale it was drawn at assumed
+  // a full-width browser window on a desk monitor.
+  const [uiScale, _setUiScale] = useState(() => {
+    try { return Number(localStorage.getItem('planr_ui_scale')) || 125; } catch { return 125; }
+  });
+  const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
+  useEffect(() => {
+    const el = portalHost();
+    if (!el) return;
+    el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
+    return () => { el.style.zoom = ''; };
+  }, [uiScale]);
+  // Off by default. Everything that distracts is opt-in: the id is the
+  // tool's spine when you are wiring dependencies, and five dotted segments
+  // in front of every name the rest of the time.
+  const [showTreeIds, _setShowTreeIds] = useState(() => {
+    try { return localStorage.getItem('planr_tree_ids') === 'true'; } catch { return false; }
+  });
+  const setShowTreeIds = v => { _setShowTreeIds(v); try { localStorage.setItem('planr_tree_ids', String(v)); } catch {} };
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
   useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
@@ -608,11 +660,11 @@ export default function App() {
   // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
   // Used as fallback when the existing handle's permission/write fails after a reload.
   async function pickSaveHandle(suggestedFromName) {
-    if (!window.showSaveFilePicker) { exportJSON(); return null; }
+    if (!filePickerAvailable()) { exportJSON(); return null; }
     const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
     const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
     const isMd = suggested.endsWith('.md');
-    return await window.showSaveFilePicker({
+    return await pickFileToSave({
       suggestedName: suggested,
       types: isMd
         ? [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }, { description: 'Planr JSON', accept: { 'application/json': ['.json'] } }]
@@ -1297,8 +1349,8 @@ export default function App() {
 
   async function loadFromFile() {
     try {
-      if (window.showOpenFilePicker) {
-        const [handle] = await window.showOpenFilePicker({ types: [
+      if (filePickerAvailable()) {
+        const handle = await pickFileToOpen({ types: [
           { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
           { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
         ] });
@@ -1775,6 +1827,26 @@ export default function App() {
     });
     return out;
   }, [scheduled, weeks, resourceLoadByWeek]);
+
+  // The quick filters as data, so the sub-toolbar and the filter popup show
+  // the same set without either of them owning it. Two of them only exist
+  // when they have something to filter: an archive toggle on a plan with
+  // nothing archived, or an overbooked toggle with nobody overbooked, is a
+  // control that can only disappoint.
+  const quickFilters = useMemo(() => [
+    { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
+    archive.count > 0
+      ? { id: 'archived', label: _t('arch.pill', archive.count), tip: _t('arch.chipTip'), active: showArchived, onToggle: () => setShowArchived(v => !v) }
+      : null,
+    { id: 'auto', label: _t('chip.auto'), tip: _t('chip.autoTip'), active: onlyAutoAssigned, onToggle: () => setOnlyAutoAssigned(v => !v) },
+    { id: 'overdue', label: _t('chip.overdue'), tip: _t('chip.overdueTip'), active: onlyOverdue, onToggle: () => setOnlyOverdue(v => !v) },
+    { id: 'unestimated', label: _t('chip.unestimated'), tip: _t('chip.unestimatedTip'), active: onlyUnestimated, onToggle: () => setOnlyUnestimated(v => !v) },
+    overbookedTaskIds.size > 0
+      ? { id: 'overbooked', label: _t('chip.overbooked', overbookedTaskIds.size), tip: _t('chip.overbookedTip'), active: onlyOverbooked, onToggle: () => setOnlyOverbooked(v => !v) }
+      : null,
+  ].filter(Boolean), [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked]);
+  const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
+
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
   // pass through view-filters together with their tree node.
@@ -3056,13 +3128,17 @@ export default function App() {
     <HoverTipProvider />
     <CommandPalette commands={paletteCommands} />
     <KeyboardMap />
-    <div className="app">
+    <div className="app" ref={appRef}>
     <div className="topbar">
       {/* Not a button. It was "New project" — the same command the / palette
           carries, on a target nobody aims at deliberately, discarding the
           whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
-      <span className="logo">Planr<span className="logo-dot">.</span></span>
-      <div className="vsep" />
+      {/* A host already says where you are — the Obsidian tab is labelled
+          with the plan's name. A wordmark on top of that is decoration. */}
+      {!isEmbedded() && <>
+        <span className="logo">Planr<span className="logo-dot">.</span></span>
+        <div className="vsep" />
+      </>}
       {/* One shrinkable group for everything file/save related. The bar used
           to wrap, and the save status changes its own text constantly
           ("saving…" → "all saved · 14:32" → "unsaved · saving in 3s"), so on
@@ -3121,8 +3197,14 @@ export default function App() {
       </span>
       <button className="btn btn-sec btn-xs" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}>↶</button>
       <button className="btn btn-sec btn-xs" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}>↷</button>
-      <div className="vsep" />
-      <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
+      {/* "How far along is this?" is the question Review and Report are for.
+          In Build and Plan the same two numbers are a readout nobody asked
+          for, sitting in the one row every mode has to look at. */}
+      {(mode === 'review' || mode === 'report') && <>
+        <div className="vsep" />
+        <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
+          data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
+      </>}
       <div className="sp" />
       {/* Mode switch (docs/principles.md, principle 1) — sits between the
           file/save pill (left) and the settings/palette buttons (right).
@@ -3158,8 +3240,8 @@ export default function App() {
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')}
-        data-htip={withKey(_t('set.title'), 'settings')}>⚙ Settings</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} aria-label={_t('set.title')}
+        data-htip={withKey(_t('set.title'), 'settings')}>⚙</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar">
@@ -3181,28 +3263,27 @@ export default function App() {
       <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
       <div style={{ width: 130 }}><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
-      {/* Quick-filter chip group — toggles in-memory predicates against the
-          shared filtered tree. Cheap to render, persistent via localStorage.
-          Hide-done lives here too, not buried in the Review/Plan popup. */}
-      <span style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
-        <button type="button" className={`chip${hideDone ? ' on' : ''}`} onClick={() => setHideDone(v => !v)} data-htip={_t('chip.hideDoneTip')}>{_t('chip.hideDone')}</button>
-        {/* Archive chip only appears when something is actually archived —
-            a dead toggle on a young plan is just noise. `on` means "archive
-            is being shown", matching the other chips' show-more semantics. */}
-        {archive.count > 0 && (
-          <button type="button" className={`chip${showArchived ? ' on' : ''}`} onClick={() => setShowArchived(v => !v)}
-            data-htip={_t('arch.chipTip')}>{_t('arch.pill', archive.count)}</button>
-        )}
-        <button type="button" className={`chip${onlyAutoAssigned ? ' on' : ''}`} onClick={() => setOnlyAutoAssigned(v => !v)} data-htip={_t('chip.autoTip')}>{_t('chip.auto')}</button>
-        <button type="button" className={`chip${onlyOverdue ? ' on' : ''}`} onClick={() => setOnlyOverdue(v => !v)} data-htip={_t('chip.overdueTip')}>{_t('chip.overdue')}</button>
-        <button type="button" className={`chip${onlyUnestimated ? ' on' : ''}`} onClick={() => setOnlyUnestimated(v => !v)} data-htip={_t('chip.unestimatedTip')}>{_t('chip.unestimated')}</button>
-        {overbookedTaskIds.size > 0 && (
-          <button type="button" className={`chip${onlyOverbooked ? ' on' : ''}`} onClick={() => setOnlyOverbooked(v => !v)} data-htip={_t('chip.overbookedTip')}>{_t('chip.overbooked', overbookedTaskIds.size)}</button>
-        )}
-      </span>
+      {/* The quick filters used to sit here as a row of six toggles, five of
+          them off at any given moment — a permanent bar of switched-off
+          switches, which is what a toolbar looks like when nobody asks what
+          it costs at rest. They live in the filter popup now, and come back
+          out here as chips the moment one is on: a filtered view has to say
+          so (principles.md, "a view is never the truth"), an unfiltered one
+          has nothing to say. */}
+      {activeQuickFilters.length > 0 && (
+        <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+          {activeQuickFilters.map(f => (
+            <button key={f.id} type="button" className="chip on" onClick={() => f.onToggle()}
+              data-htip={_t('chip.clearTip', f.label)}>
+              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}>×</span>
+            </button>
+          ))}
+        </span>
+      )}
       {/* Review/Plan picker — sprint-review diff window + planning horizon.
           Not a generic filter; it overlays the data with a time window. */}
       <ViewFilters
+        quickFilters={quickFilters}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
         hasHistory={(data?.historyEvents || []).length > 0}
@@ -3268,6 +3349,9 @@ export default function App() {
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
+              showIds={showTreeIds}
+              onFullEdit={node => { setMN(node); setModal('node'); }}
+              editorInDialog={editorAsDialog}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               sizes={data.sizes || []}
@@ -3287,7 +3371,7 @@ export default function App() {
               onPasteRows={onTreePasteRows} />
           }
         </div>
-        {selected && <div className="side fade">
+        {selected && !editorAsDialog && <div className="side fade">
           {multiSel.size > 0 ? <>
             <div className="side-hdr">
               <h3>{multiSel.size} items selected</h3>
@@ -3298,6 +3382,8 @@ export default function App() {
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} data-testid="editor-dock-dialog"
+                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}>⇥</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
@@ -3352,6 +3438,7 @@ export default function App() {
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onDockSide={editorAsDialog ? () => { setEditorDock('side'); setModal(null); setMN(null); setModalFocus(null); } : undefined}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onSplitHandoff={splitHandoff}
@@ -3394,7 +3481,7 @@ export default function App() {
         </div>
       </div>
     )}
-    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} uiScale={uiScale} setUiScale={setUiScale} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

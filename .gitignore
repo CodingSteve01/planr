@@ -4,3 +4,5 @@ dist/
 *.partial
 index.html.bak
 .DS_Store
+dist-obsidian/
+obsidian/.vault-path

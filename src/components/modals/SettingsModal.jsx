@@ -10,7 +10,7 @@ import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
-export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
+export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, editorDock, setEditorDock, showTreeIds, setShowTreeIds, uiScale, setUiScale, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
   const { t, langPref, setLang } = useT();
   const { themePref, setTheme } = useTheme();
   const [tab, setTab] = useState('general');
@@ -100,21 +100,50 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
       {/* ══════ GENERAL TAB ══════ */}
       {tab === 'general' && <>
         <h2>{t('set.globalTitle')}</h2>
-        <div className="frow">
+        {/* Five preference groups, each a label over a row of buttons of its
+            own width. They used to share one `.frow`, which gives every field
+            140px and lets none of them shrink — so the button rows ran into
+            each other and the last one was simply cut off. A grid that wraps
+            at a width the buttons actually fit in is the whole fix. */}
+        <div className="settings-grid">
           <div className="field"><label>{t('set.language')}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {[['auto', t('set.langAuto')], ['en', t('set.langEn')], ['de', t('set.langDe')]].map(([v, l]) =>
-                <button key={v} className={`btn btn-xs ${langPref === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: 1 }}
+                <button key={v} className={`btn btn-xs ${langPref === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: '1 1 auto' }}
                   onClick={() => setLang(v)}>{l}</button>)}
             </div>
           </div>
           <div className="field"><label>{t('set.theme')}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {[['auto', t('set.themeAuto')], ['dark', t('set.themeDark')], ['light', t('set.themeLight')]].map(([v, l]) =>
-                <button key={v} className={`btn btn-xs ${themePref === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: 1 }}
+                <button key={v} className={`btn btn-xs ${themePref === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: '1 1 auto' }}
                   onClick={() => setTheme(v)}>{l}</button>)}
             </div>
           </div>
+          {setUiScale && <div className="field"><label>{t('set.uiScale')}</label>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {[100, 110, 125, 150].map(v =>
+                <button key={v} className={`btn btn-xs ${uiScale === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: '1 1 auto' }}
+                  onClick={() => setUiScale(v)}>{v}%</button>)}
+            </div>
+            <p className="helper">{t('set.uiScaleHelp')}</p>
+          </div>}
+          {setEditorDock && <div className="field"><label>{t('set.editorDock')}</label>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {[['auto', t('set.dockAuto')], ['side', t('set.dockSide')], ['dialog', t('set.dockDialog')]].map(([v, l]) =>
+                <button key={v} className={`btn btn-xs ${editorDock === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: '1 1 auto' }}
+                  onClick={() => setEditorDock(v)}>{l}</button>)}
+            </div>
+            <p className="helper">{t('set.editorDockHelp')}</p>
+          </div>}
+          {setShowTreeIds && <div className="field"><label>{t('set.treeIds')}</label>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {[[true, t('set.treeIdsShow')], [false, t('set.treeIdsHide')]].map(([v, l]) =>
+                <button key={String(v)} className={`btn btn-xs ${showTreeIds === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: '1 1 auto' }}
+                  onClick={() => setShowTreeIds(v)}>{l}</button>)}
+            </div>
+            <p className="helper">{t('set.treeIdsHelp')}</p>
+          </div>}
         </div>
 
         <hr className="divider" />

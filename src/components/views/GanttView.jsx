@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
@@ -3141,14 +3142,23 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       }}
     />}
     {/* Viewport overlay for the live drag-to-link line */}
-    {linkDrag && <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>
+    {linkDrag && <svg style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }}>
       <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>
       {(() => {
         const el = document.querySelector(`[data-link-from="${linkDrag.fromId}"]`);
         const rect = el?.getBoundingClientRect();
-        const x1 = rect ? rect.right : linkDrag.mouseX;
-        const y1 = rect ? rect.top + rect.height / 2 : linkDrag.mouseY;
-        const x2 = linkDrag.mouseX, y2 = linkDrag.mouseY;
+        // Everything here is in viewport coordinates; the overlay is fixed and
+        // spans its containing block, which is the viewport only when nothing
+        // is embedding us. See utils/embedHost.js.
+        const frame = fixedFrame();
+        const from = toFixedPoint(
+          rect ? rect.right : linkDrag.mouseX,
+          rect ? rect.top + rect.height / 2 : linkDrag.mouseY,
+          frame,
+        );
+        const to = toFixedPoint(linkDrag.mouseX, linkDrag.mouseY, frame);
+        const x1 = from.x, y1 = from.y;
+        const x2 = to.x, y2 = to.y;
         const stub = 10;
         const sx = x1 + stub;
         const tx = x2 - stub;

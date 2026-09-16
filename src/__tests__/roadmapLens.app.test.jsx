@@ -66,6 +66,7 @@ describe('Plan mode: project lens beside the Gantt', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -226,6 +227,7 @@ describe('Review mode: the portfolio lens has no per-project picker', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });

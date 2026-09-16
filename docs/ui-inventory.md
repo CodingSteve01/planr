@@ -30,7 +30,12 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 | Status pill (save state) | Shows save status; clickable to re-mount the file after a permission loss | src/App.jsx:2773-2808 | Settings | 1 | 🔧 mechanics exposed (File System Access handle/permission state) |
 | "reload" link (external change) | Reloads the project from the file on disk, discarding in-memory state | src/App.jsx:2804 | Settings | 2 | ⚠ writes data outside the tree — replaces the whole tree |
 | × dismiss external-change notice | Hides the "file changed" hint | src/App.jsx:2805 | Settings | 2 | |
-| ⚙ Settings button | Opens SettingsModal | src/App.jsx:2812 | Settings | 1 | |
+| "Interface size" (100 / 110 / 125 / 150 %) | Scales the whole surface via CSS zoom | src/components/modals/SettingsModal.jsx | Settings | 3 | |
+| "Item editor" dock (Auto / Side panel / Dialog) | Where the item editor lives; Auto follows the app's width | src/components/modals/SettingsModal.jsx | Settings | 3 | |
+| "Item IDs in the tree" (Show / Hide) | Hides the ID column in the work tree | src/components/modals/SettingsModal.jsx | Settings | 3 | |
+| ⚙ Settings button | Opens SettingsModal | src/App.jsx:2812 | Settings | 1 | icon only — the label repeated what the gear already says |
+| Plan counts ("N scheduled · N/N done") | Reads out plan size and progress | src/App.jsx (topbar-count) | Review | 1 | shown in Review and Report only — "how far along is this?" is the question those modes exist for |
+| Logo "Planr." wordmark | — | src/App.jsx | — | 1 | hidden when an embedding host (the Obsidian plugin) already names the surface |
 | "? Tour" help button | Starts the onboarding tour | src/App.jsx:2813-2814 | Settings | 2 | reviewed: not a removal — the tour is a capability with no duplicate, so it moves to the palette/gear rather than disappearing |
 | Load button | Opens a file picker to load a project | src/App.jsx:2816 | Settings | 1 | |
 | ↶ Snapshots button | Opens SnapshotModal (recovery) | src/App.jsx:2817-2818 | Settings | 2 | |
@@ -58,13 +63,8 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 | Root filter (SearchSelect) | Narrows the view to one project/root | src/App.jsx:2840 | Plan | 1 | (also: any tree-based mode) |
 | Team filter (SearchSelect) | Narrows the view to one team | src/App.jsx:2841 | Plan | 1 | |
 | Person filter (SearchSelect) | Narrows the view to one person | src/App.jsx:2842 | Run | 1 | (also: Plan) |
-| Chip "Erledigte ausblenden" | Hides finished items | src/App.jsx:2847 | Run | 1 | |
-| Chip "Archiv" (N archiviert) | Shows archived projects/people | src/App.jsx:2851-2854 | Review | 2 | only shown once something is archived; ↔ duplicates the archive toggle inside the ViewFilters popup |
-| Chip "Auto" (only auto-assigned) | Filters to items the scheduler auto-assigned | src/App.jsx:2855 | Run | 2 | |
-| Chip "Overdue" | Filters to overdue items | src/App.jsx:2856 | Run | 1 | |
-| Chip "Unestimated" | Filters to items with no effort estimate | src/App.jsx:2857 | Build | 2 | |
-| Chip "Overbooked" (N) | Filters to items with an over-booked resource | src/App.jsx:2858-2860 | Plan | 2 | only shown once something is over-booked |
-| ViewFilters popup trigger (⚙, Review/Plan picker) | Opens the diff-window / planning-horizon popup | src/App.jsx:2864-2873 | Review | 2 | (also: Plan); contents detailed in its own table below |
+| Active-filter chips (only the ones that are on) | Announces each active quick filter and clears it on click | src/App.jsx (activeQuickFilters) | Run | 1 | resolved: the six standalone chips each duplicated a toggle in the popup — the popup keeps the control, this is the state display a filtered view owes the reader |
+| ViewFilters popup trigger (⚙ Filter) | Opens the quick filters, diff-window and planning-horizon popup | src/components/shared/ViewFilters.jsx | Review | 2 | (also: Plan); contents detailed in its own table below |
 | SearchBox | Full-text search over visible items | src/App.jsx:2875-2882 | Build | 1 | not shown on the "plan" tab; internals detailed below |
 | "+ Add tree node" button | Opens AddModal (tree tab only) | src/App.jsx:2883 | Build | 1 | ↔ duplicates TreeView's own per-row quick-add and the empty-state "+ Add first item" button |
 
@@ -72,6 +72,10 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
+| "⇥" dock button (side panel header) | Sends the editor to a dialog and gives the tree the full width | src/App.jsx (side-hdr) | Build | 1 | the panel's own way out; the way back is Settings |
+| "⊞ Edit" (selection bar, dialog dock only) | Opens the full editor for the selected item | src/components/views/TreeView.jsx | Build | 1 | only rendered when there is no side panel to carry the selection |
+| Row action "⊞" | Opens that row in the full editor | src/components/views/TreeView.jsx (tv-row-act) | Build | 1 | in the hover group, so it costs nothing at rest; ↔ same target as the panel header's ⊞ |
+| "⇤" dock button (dialog header) | Brings the editor back to the side panel | src/components/modals/NodeModal.jsx | Build | 1 | the return leg of the panel's ⇥ |
 | "⤢ Modal" button | Opens the bulk-edit content as a standalone modal | src/App.jsx:2941 | Build | 2 | ↔ duplicates the inline bulk-edit body shown in the side panel itself |
 | × close multi-selection | Clears the multi-selection | src/App.jsx:2942 | Build | 1 | |
 | ⊞ "Full edit" button | Opens NodeModal for the selected item | src/App.jsx:2947 | Build | 1 | ↔ duplicates the QuickEdit side panel (near-identical fields) |
@@ -622,8 +626,9 @@ Content of the popup opened by the sub-toolbar's ⚙ trigger (already counted on
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| "Erledigte ausblenden" toggle (inside popup) | Sets hideDone | src/components/shared/ViewFilters.jsx:124-142 | Run | 2 | ↔ duplicates the standalone "Erledigte ausblenden" chip in the sub-toolbar — same state, two separate controls |
-| Archive "show" toggle (inside popup) | Sets showArchived | src/components/shared/ViewFilters.jsx:153-163 | Review | 2 | ↔ duplicates the standalone archive chip in the sub-toolbar — same state, two separate controls |
+| Quick filter toggles (Done / Archive / Auto / Overdue / Unestimated / Overbooked) | Sets the matching display filter | src/components/shared/ViewFilters.jsx (quickFilters) | Run | 2 | the one control per filter; Archive and Overbooked appear only when there is something to filter |
+| "Erledigte ausblenden" toggle (inside popup) | Sets hideDone | src/components/shared/ViewFilters.jsx | Run | 2 | ↔ duplicates the "Done" quick filter above — same state, two controls in one popup |
+| Archive "show" toggle (inside popup) | Sets showArchived | src/components/shared/ViewFilters.jsx | Review | 2 | ↔ duplicates the "Archive" quick filter above |
 | Archive "older than N days" preset buttons | Sets archiveDays | src/components/shared/ViewFilters.jsx:168-174 | Review | 2 | only inside the popup, no duplicate |
 | Diff (Review) preset buttons (Off/7/14/30 days) | Sets the review-window cutoff | src/components/shared/ViewFilters.jsx:216-219 | Review | 2 | mutually exclusive with the horizon section below (turning one on clears the other) |
 | Diff custom-date input | Sets an explicit cutoff date | src/components/shared/ViewFilters.jsx:222-226 | Review | 2 | |

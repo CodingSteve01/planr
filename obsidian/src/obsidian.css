@@ -1,0 +1,41 @@
+/* Plugin-only styles. Appended to the scoped app stylesheet verbatim — the
+   scoping pass does not touch this file, so selectors here may reach outside
+   .planr-view on purpose. */
+
+/* Obsidian pads and scrolls .view-content; the app manages both itself. */
+.workspace-leaf-content[data-type='planr-view'] .view-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.planr-view {
+  height: 100%;
+  overflow: hidden;
+  /* Follow the vault's typography instead of asking for web fonts the
+     plugin cannot ship. Inter/JetBrains Mono still win when installed. */
+  --font: Inter, var(--font-interface), system-ui, sans-serif;
+  --mono: 'JetBrains Mono', var(--font-monospace), monospace;
+}
+
+/* Obsidian styles bare form elements globally (background, border, height,
+   box-shadow). The app's own .btn/.inp classes outrank that, but the handful
+   of unclassed controls inside Planr would otherwise show up as Obsidian
+   widgets in the middle of a Planr panel. */
+.planr-view button,
+.planr-view input,
+.planr-view select,
+.planr-view textarea {
+  box-shadow: none;
+}
+
+.planr-view input,
+.planr-view select,
+.planr-view textarea {
+  height: auto;
+}
+
+.planr-view select:not([class]) {
+  background-color: var(--bg3);
+  color: var(--tx);
+  border: 1px solid var(--b2);
+}

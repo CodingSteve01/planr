@@ -70,7 +70,10 @@ src/
     cpm.js                 — critical path method, global + per-goal
     date.js                — date arithmetic helpers (addD, iso, etc.)
     holidays.js            — NRW holiday algorithm + week grid builder
-    fileHandleStore.js     — File System Access API persistence layer
+    fileHandleStore.js     — File System Access API persistence layer (the Obsidian build
+                             swaps this module — see docs/obsidian-plugin.md)
+    embedHost.js           — what an embedding host may influence: where modals/popups
+                             portal to, and what "Auto" theme resolves to
     exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
     markdown.js            — Markdown serialization (parseMdToProject, buildMarkdownText)
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
@@ -80,9 +83,20 @@ src/
                               scheduler.treeStats imports it back — a deliberate call-time cycle)
     timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
   i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
+obsidian/                  — the Obsidian plugin: mounts src/ into a workspace leaf
+  src/main.jsx             — Plugin + ItemView, ribbon icon, commands, file menu
+  src/vaultFs.js           — File System Access API reimplemented on app.vault
+  src/fileHandleStore.js   — build-time replacement for utils/fileHandleStore.js
+  src/obsidian.css         — plugin-only styles (not scoped — appended verbatim)
+  scope-css.mjs            — confines App.css to .planr-view
+  esbuild.config.mjs       — the second build: one CJS bundle for Obsidian
 docs/                      — this directory
 data/                      — gitignored private project data
 ```
+
+See [obsidian-plugin.md](obsidian-plugin.md) for what the plugin has to do to
+the app's two host assumptions ("I own the page", "files come from the File
+System Access API") and why `src/` stays otherwise untouched.
 
 ## State flow
 
@@ -354,3 +368,12 @@ See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items.
 Public hosted app: **https://codingsteve01.github.io/planr**
 
 For a dev loop: `npm run dev`. Note: we leave the dev server management to the user — don't start a second Vite instance.
+
+### Obsidian plugin
+
+A second output from the same `src/`: `npm run build:obsidian` produces
+`dist-obsidian/{main.js,manifest.json,styles.css}` via esbuild, and
+`.github/workflows/obsidian-plugin.yml` publishes those three files as release
+assets when a version tag is pushed. Tags in this repository are plugin
+releases — the tag name is the plugin version, no `v` prefix. Full story in
+[obsidian-plugin.md](obsidian-plugin.md).

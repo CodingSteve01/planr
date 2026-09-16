@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { fixedFrame, portalHost, toFixedPoint } from '../../utils/embedHost.js';
 
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
 // - "Controlled mode" (with `value` prop): shows current selection, replaces <select>
 //
-// The popup renders into a portal on document.body so it can escape modal overflow
+// The popup renders into a portal on the host root so it can escape modal overflow
 // clipping and z-index sandwiching (e.g. sticky modal footers covering the popup).
 // Position is computed from the wrapper's bounding rect; the popup auto-flips
 // upward when there isn't enough room below.
@@ -44,21 +45,27 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
     const update = () => {
       const r = ref.current?.getBoundingClientRect();
       if (!r) return;
-      const spaceBelow = window.innerHeight - r.bottom;
-      const spaceAbove = r.top;
+      // The trigger's rect is in viewport coordinates, the popup is fixed and
+      // therefore placed in its containing block — the same thing on the web,
+      // not inside a host. See utils/embedHost.js.
+      const frame = fixedFrame();
+      const top = toFixedPoint(r.left, r.top, frame);
+      const bottom = toFixedPoint(r.right, r.bottom, frame);
+      const spaceBelow = frame.height - bottom.y;
+      const spaceAbove = top.y;
       // Open upward when there's not enough room below AND there is enough above.
       const openUp = spaceBelow < POPUP_MAX_H + 16 && spaceAbove > spaceBelow;
       // Popup width expands beyond the trigger when the trigger is narrow
-      // (e.g. inside a side panel). Cap at viewport edge so it doesn't
+      // (e.g. inside a side panel). Cap at the frame's edge so it doesn't
       // run off-screen. Min width = max(trigger, 280) so task names stay
-      // readable; max = window.innerWidth - left - 16 margin.
-      const desired = Math.max(r.width, 320);
-      const maxAvail = Math.max(160, window.innerWidth - r.left - 16);
+      // readable; max = what is left to the right of the trigger, less 16.
+      const desired = Math.max(bottom.x - top.x, 320);
+      const maxAvail = Math.max(160, frame.width - top.x - 16);
       const width = Math.min(desired, maxAvail);
       setPopupPos({
-        top: r.bottom + 2,
-        bottom: window.innerHeight - r.top + 2,
-        left: r.left,
+        top: bottom.y + 2,
+        bottom: frame.height - top.y + 2,
+        left: top.x,
         width,
         openUp,
       });
@@ -129,16 +136,29 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
       if (item) select(item._empty ? '' : item.id);
     } else if (e.key === 'Escape') {
       if (open) { e.preventDefault(); setOpen(false); setQ(''); }
-    } else if (e.key === 'Home') {
-      if (!open || !navItems.length) return;
-      e.preventDefault(); setActiveIdx(0);
-    } else if (e.key === 'End') {
-      if (!open || !navItems.length) return;
-      e.preventDefault(); setActiveIdx(navItems.length - 1);
     }
+    // Home and End are deliberately not handled: this is a text field, and
+    // jumping the caret to the start or the end of what you typed is what
+    // they do everywhere else. Taking them for "first / last option" traded a
+    // universal editing key for a shortcut that ArrowUp/ArrowDown already
+    // cover.
   };
 
-  return <div ref={ref} style={{ position: 'relative' }}>
+  // Focus opens the popup, which is what you want when you tab into a field
+  // you came to change. Until now nothing closed it again on the way out, so
+  // tabbing through the four inline fields of a row left four popups stacked
+  // over each other. Leaving by keyboard closes it; leaving by mouse is the
+  // document listener above, because a mousedown on a popup row blurs the
+  // input before the click lands and closing here would eat the choice.
+  const onBlur = e => {
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (ref.current?.contains(next) || popupRef.current?.contains(next)) return;
+    setOpen(false);
+    setQ('');
+  };
+
+  return <div ref={ref} onBlur={onBlur} style={{ position: 'relative' }}>
     <input
       ref={inputRef}
       data-testid={testId}
@@ -204,7 +224,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
           </div>;
         })}
       </div>,
-      document.body
+      portalHost(),
     )}
   </div>;
 }

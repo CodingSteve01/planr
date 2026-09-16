@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { hostTheme, onHostThemeChange } from './utils/embedHost.js';
 
 // ── Translations ─────────────────────────────────────────────────────────────
 // Flat key–value maps. Keys are grouped by component prefix for maintainability.
@@ -363,6 +364,16 @@ const en = {
   'set.title': 'Project Settings', 'set.globalTitle': 'Global Settings',
   'set.projectName': 'Project name', 'set.planStart': 'Plan start', 'set.planEnd': 'Plan end',
   'set.workDays': 'Working days', 'set.language': 'Language', 'set.theme': 'Color scheme',
+  'set.uiScale': 'Interface size',
+  'set.uiScaleHelp': 'Scales the whole surface — text, icons, rows. Planr is dense on purpose; in a narrow pane or on a high-resolution screen that density wants a larger scale, not a different layout.',
+  'set.editorDock': 'Item editor',
+  'set.dockAuto': 'Auto', 'set.dockSide': 'Side panel', 'set.dockDialog': 'Dialog',
+  'set.editorDockHelp': 'Auto keeps the panel beside the tree while there is room for both, and switches to a dialog when there is not.',
+  'set.dockSideTip': 'Back to the side panel',
+  'set.dockDialogTip': 'Edit in a dialog instead — gives the tree the full width',
+  'set.treeIds': 'Item IDs in the tree',
+  'set.treeIdsShow': 'Show', 'set.treeIdsHide': 'Hide',
+  'set.treeIdsHelp': 'Hidden, the ID is still on the selected row and in the editor — only the column in front of every name goes.',
   'set.themeAuto': 'Auto (system)', 'set.themeDark': 'Dark', 'set.themeLight': 'Light',
   'set.langAuto': 'Auto', 'set.langEn': 'English', 'set.langDe': 'Deutsch',
   'set.dayNames': 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
@@ -615,15 +626,18 @@ const en = {
   'bulk.title': 'Bulk edit',
   'bulk.chooseStatus': 'Choose status...', 'bulk.chooseTeam': 'Choose team...', 'bulk.choosePriority': 'Choose priority...',
   'bulk.notePlaceholder': '(empty)', 'bulk.removeFromSelected': 'Remove from all selected',
-  'chip.hideDone': '✓ Done',
+  'chip.clearTip': 'Remove the filter “{0}”',
+  'vf.quick': 'Quick filters',
+  'app.countTip': 'Scheduled work items, and how many leaf tasks are done.',
+  'chip.hideDone': 'Done',
   'chip.hideDoneTip': 'Hide completed items',
-  'chip.auto': '⚙ Auto',
+  'chip.auto': 'Auto',
   'chip.autoTip': 'Show only tasks with an auto-suggested assignee',
-  'chip.overdue': '! Overdue',
+  'chip.overdue': 'Overdue',
   'chip.overdueTip': 'Show only tasks ending past their due date',
-  'chip.unestimated': '○ Unestimated',
+  'chip.unestimated': 'Unestimated',
   'chip.unestimatedTip': 'Show only leaves without a Best estimate',
-  'chip.overbooked': '⚠ {0} overbooked',
+  'chip.overbooked': '{0} overbooked',
   'chip.overbookedTip': 'Show only tasks whose assignee is overbooked (>110%) in any of the task’s weeks',
   // ── Archive: long-finished projects / long-gone people ──
   'arch.chip': '📦 Archive',
@@ -640,7 +654,7 @@ const en = {
   'arch.root': '1 project',
   'arch.members': '{0} people',
   'arch.member': '1 person',
-  'arch.pill': '📦 {0} archived',
+  'arch.pill': '{0} archived',
   'arch.pillTip': 'Hidden here: {0}. Counts and percentages still include them — click to show.',
   'arch.ageDays': '{0} d ago',
   // ── Roadmap ──
@@ -927,6 +941,8 @@ const en = {
   'sc.ganttClear': 'Clear the selection, cancel a drag',
   'tv.clickToRename': 'Click to rename (or press Enter)',
   'tv.unnamed': 'Unnamed — click to name it',
+  'tv.editRowTip': 'Open {0} in the editor',
+  'tv.editItem': 'Edit',
   'tv.rename': 'Rename',
   'tv.renameTip': 'Rename {0} right here (Enter)',
   'tv.newRow': 'New row',
@@ -1388,6 +1404,16 @@ const de = {
   'set.title': 'Projekteinstellungen', 'set.globalTitle': 'Globale Einstellungen',
   'set.projectName': 'Projektname', 'set.planStart': 'Planstart', 'set.planEnd': 'Planende',
   'set.workDays': 'Arbeitstage', 'set.language': 'Sprache', 'set.theme': 'Farbschema',
+  'set.uiScale': 'Oberflächengröße',
+  'set.uiScaleHelp': 'Skaliert die gesamte Oberfläche — Text, Symbole, Zeilen. Planr ist bewusst dicht; in einem schmalen Pane oder auf einem hochauflösenden Bildschirm braucht diese Dichte einen größeren Maßstab, kein anderes Layout.',
+  'set.editorDock': 'Editor',
+  'set.dockAuto': 'Automatisch', 'set.dockSide': 'Seitenpanel', 'set.dockDialog': 'Dialog',
+  'set.editorDockHelp': 'Automatisch lässt das Panel neben dem Baum, solange beide Platz haben, und wechselt sonst in einen Dialog.',
+  'set.dockSideTip': 'Zurück ins Seitenpanel',
+  'set.dockDialogTip': 'Stattdessen im Dialog bearbeiten — gibt dem Baum die volle Breite',
+  'set.treeIds': 'IDs im Baum',
+  'set.treeIdsShow': 'Zeigen', 'set.treeIdsHide': 'Ausblenden',
+  'set.treeIdsHelp': 'Ausgeblendet steht die ID weiterhin in der Auswahlzeile und im Editor — nur die Spalte vor jedem Namen verschwindet.',
   'set.themeAuto': 'Auto (System)', 'set.themeDark': 'Dunkel', 'set.themeLight': 'Hell',
   'set.langAuto': 'Auto', 'set.langEn': 'English', 'set.langDe': 'Deutsch',
   'set.dayNames': 'Mo,Di,Mi,Do,Fr,Sa,So',
@@ -1640,15 +1666,18 @@ const de = {
   'bulk.title': 'Massenänderung',
   'bulk.chooseStatus': 'Status wählen...', 'bulk.chooseTeam': 'Team wählen...', 'bulk.choosePriority': 'Priorität wählen...',
   'bulk.notePlaceholder': '(leer)', 'bulk.removeFromSelected': 'Von allen Ausgewählten entfernen',
-  'chip.hideDone': '✓ Erledigt',
+  'chip.clearTip': 'Filter „{0}“ entfernen',
+  'vf.quick': 'Schnellfilter',
+  'app.countTip': 'Eingeplante Arbeitspakete und wie viele Blatt-Aufgaben fertig sind.',
+  'chip.hideDone': 'Erledigt',
   'chip.hideDoneTip': 'Erledigte Items ausblenden',
-  'chip.auto': '⚙ Auto',
+  'chip.auto': 'Auto',
   'chip.autoTip': 'Nur Tasks mit automatisch vorgeschlagener Person',
-  'chip.overdue': '! Overdue',
+  'chip.overdue': 'Overdue',
   'chip.overdueTip': 'Nur Tasks die nach dem Due-Datum enden',
-  'chip.unestimated': '○ Unestimated',
+  'chip.unestimated': 'Unestimated',
   'chip.unestimatedTip': 'Nur Leaves ohne Best-Schätzung',
-  'chip.overbooked': '⚠ {0} überbucht',
+  'chip.overbooked': '{0} überbucht',
   'chip.overbookedTip': 'Nur Tasks deren Person in einer der Bar-Wochen >110% gelastet ist',
   // ── Archiv: lange abgeschlossene Projekte / lange weg ──
   'arch.chip': '📦 Archiv',
@@ -1665,7 +1694,7 @@ const de = {
   'arch.root': '1 Projekt',
   'arch.members': '{0} Personen',
   'arch.member': '1 Person',
-  'arch.pill': '📦 {0} archiviert',
+  'arch.pill': '{0} archiviert',
   'arch.pillTip': 'Hier ausgeblendet: {0}. Zahlen und Prozente zählen sie weiter mit — Klick zeigt sie.',
   'arch.ageDays': 'vor {0} T',
   // ── Roadmap ──
@@ -1952,6 +1981,8 @@ const de = {
   'sc.ganttClear': 'Auswahl aufheben, Ziehen abbrechen',
   'tv.clickToRename': 'Klicken zum Umbenennen (oder Enter)',
   'tv.unnamed': 'Ohne Namen — zum Benennen klicken',
+  'tv.editRowTip': '{0} im Editor öffnen',
+  'tv.editItem': 'Bearbeiten',
   'tv.rename': 'Umbenennen',
   'tv.renameTip': '{0} direkt hier umbenennen (Enter)',
   'tv.newRow': 'Neue Zeile',
@@ -2100,7 +2131,11 @@ export function ThemeProvider({ children }) {
     const apply = () => {
       let effective = themePref;
       if (effective === 'auto') {
-        effective = window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        // Inside a host (the Obsidian plugin), "Auto" means the host's theme:
+        // sitting light inside a dark vault because the OS happens to be
+        // light is not what anyone means by automatic.
+        effective = hostTheme()
+          || (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
       }
       document.documentElement.setAttribute('data-theme', effective);
     };
@@ -2108,7 +2143,8 @@ export function ThemeProvider({ children }) {
     if (themePref === 'auto') {
       const mq = window.matchMedia('(prefers-color-scheme: light)');
       mq.addEventListener('change', apply);
-      return () => mq.removeEventListener('change', apply);
+      const offHost = onHostThemeChange(apply);
+      return () => { mq.removeEventListener('change', apply); offHost(); };
     }
   }, [themePref]);
 

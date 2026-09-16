@@ -92,6 +92,10 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .field select option{background:var(--bg3);}
 .field input[type=color]{height:34px;padding:3px 5px;cursor:pointer;}
 .frow{display:flex;gap:10px;flex-wrap:wrap;}.frow .field{flex:1 1 140px;min-width:0;}
+/* Preference groups: a label, a row of buttons and sometimes a sentence of
+   help. Each cell is as wide as its buttons need and the row wraps — unlike
+   .frow, which hands every field the same 140px and lets the content spill. */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 16px;align-items:start;}
 .field input,.field select,.field textarea{min-width:0;}
 .calc{background:var(--bg3);border-radius:var(--r);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--tx3);display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;}
 .calc b{color:var(--gr);}.calc .cp{color:var(--re);}
