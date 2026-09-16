@@ -6,6 +6,7 @@
 ![React 18](https://img.shields.io/badge/React-18-61dafb.svg)
 ![Vite 6](https://img.shields.io/badge/Vite-6-646cff.svg)
 ![No Backend](https://img.shields.io/badge/backend-none-green.svg)
+![Obsidian plugin](https://img.shields.io/badge/Obsidian-plugin-7c3aed.svg)
 
 ## What it is
 
@@ -23,8 +24,27 @@ You can use Planr directly in the browser:
 
 No local server required.
 
-Or run it inside Obsidian, with your plans as files in the vault — see
-[docs/obsidian-plugin.md](docs/obsidian-plugin.md).
+## Or run it in Obsidian
+
+Planr is also an Obsidian plugin — the whole app in a workspace tab, with your
+plans as files in the vault. Obsidian Sync carries them to your other machines,
+notes can link to them, and a `*.planr.md` opens straight in Planr instead of
+in the Markdown editor.
+
+**Easiest way in, today** — via [BRAT](https://github.com/TfTHacker/obsidian42-brat),
+which installs plugins from GitHub and keeps them updated:
+
+1. *Settings → Community plugins → Browse* → install **BRAT**
+2. *BRAT → Add beta plugin* → `CodingSteve01/planr`
+3. Enable **Planr**, then click the ribbon icon
+
+**By hand** — download `main.js`, `manifest.json` and `styles.css` from the
+[latest release](https://github.com/CodingSteve01/planr/releases/latest) into
+`<vault>/.obsidian/plugins/planr/` and enable the plugin.
+
+Not in Obsidian's community plugin list yet — that submission is pending.
+Everything else about the plugin, including what it has to do differently
+inside a vault, is in [docs/obsidian-plugin.md](docs/obsidian-plugin.md).
 
 ## Quick start
 
