@@ -139,16 +139,36 @@ paid once at plugin startup.
 
 ## Release
 
-Tags in this repository are plugin releases. The tag name **is** the version,
-with no `v` prefix — that is what Obsidian's installer and BRAT look for.
+The release is a consequence of the version changing, not a separate ritual:
 
-1. Bump the version in `package.json`, `manifest.json` and `versions.json`
-   (`versions.json` maps plugin version → minimum Obsidian version).
-2. `git tag 1.1.0 && git push --tags`.
+```bash
+npm run version:set 1.1.0
+```
 
-`.github/workflows/obsidian-plugin.yml` then runs the tests, builds, checks the
-tag against `manifest.json` and publishes `main.js`, `manifest.json` and
-`styles.css` as individual release assets — Obsidian does not accept a zip.
+That writes the version into `package.json`, `manifest.json` and
+`versions.json` (which maps plugin version → minimum Obsidian version) in one
+go. Commit it, merge it to main, and
+[`.github/workflows/obsidian-plugin.yml`](../.github/workflows/obsidian-plugin.yml)
+does the rest: checks the three files agree, runs the tests, builds, tags, and
+publishes `main.js`, `manifest.json` and `styles.css` as individual release
+assets — Obsidian does not accept a zip. The tag name **is** the version, with
+no `v` prefix, which is what Obsidian's installer and BRAT look for.
+
+Running it again is harmless: a version that already has a release is skipped,
+so re-running the workflow or touching `manifest.json` for another reason
+republishes nothing.
+
+### Why not release-please
+
+release-please decides *what* to release by reading Conventional Commits —
+`feat:`, `fix:`, `chore:`. This repository writes commit messages as prose
+("Keep the cursor on screen when it moves"), so release-please would sit there
+proposing nothing until every subject line grew a machine-readable prefix.
+That is a trade: a changelog generated for you, against the commit log being
+written for people. The version-bump trigger above buys the same thing that
+actually mattered here — never tagging by hand, never a tag that disagrees
+with the manifest — without the tax. If the prefixes ever become worth it,
+release-please slots in where this workflow sits.
 
 ## Getting into the community store
 

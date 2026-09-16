@@ -1,16 +1,23 @@
 name: Release Obsidian plugin
 
-# Tags in this repository are Obsidian plugin releases: the tag name is the
-# plugin version and must match manifest.json exactly, with no "v" prefix —
-# that is what Obsidian's community-plugin installer and BRAT look for.
+# The release is a consequence of the version changing, not a separate ritual.
 #
-#   npm version --no-git-tag-version 1.1.0   # bump package.json
-#   # bump manifest.json + versions.json to match
-#   git tag 1.1.0 && git push --tags
+#   npm run version:set 1.1.0
+#   # commit, PR, merge
+#
+# Merging that bump to main runs this: it checks the three version files
+# agree, runs the tests, builds the plugin and publishes the tag and the
+# release. The tag name is the version with no "v" prefix — that is what
+# Obsidian's community-plugin installer and BRAT look for.
+#
+# Running it twice is harmless: a version that already has a release is
+# skipped, so a manual re-run or an unrelated edit to manifest.json does not
+# republish anything.
 
 on:
   push:
-    tags: ['[0-9]+.[0-9]+.[0-9]+']
+    branches: [main]
+    paths: ['manifest.json']
   workflow_dispatch:
 
 permissions:
@@ -22,40 +29,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - id: version
+        name: Read the version, and whether it is already out
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$version is already released — nothing to do."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the three version files agree
+        if: steps.version.outputs.published == 'false'
+        run: node scripts/version.mjs --check
+
       - uses: actions/setup-node@v4
+        if: steps.version.outputs.published == 'false'
         with:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - if: steps.version.outputs.published == 'false'
+        run: npm ci
 
-      - name: Check the tag matches manifest.json
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          manifest=$(node -p "require('./manifest.json').version")
-          if [ "$tag" != "$manifest" ]; then
-            echo "Tag $tag does not match manifest.json version $manifest" >&2
-            exit 1
-          fi
+      - if: steps.version.outputs.published == 'false'
+        run: npm test
 
-      - run: npm test
-      - run: npm run build:obsidian
+      - if: steps.version.outputs.published == 'false'
+        run: npm run build:obsidian
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Tag and publish
+        if: steps.version.outputs.published == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
           # Obsidian downloads these three by name from the release assets —
           # a zip is not accepted.
           files: |
             dist-obsidian/main.js
             dist-obsidian/manifest.json
             dist-obsidian/styles.css
-
-      - name: Keep the build when there is no tag
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: obsidian-plugin
-          path: dist-obsidian
