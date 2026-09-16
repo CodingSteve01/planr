@@ -31,20 +31,56 @@ plans as files in the vault. Obsidian Sync carries them to your other machines,
 notes can link to them, and a `*.planr.md` opens straight in Planr instead of
 in the Markdown editor.
 
-**Easiest way in, today** — via [BRAT](https://github.com/TfTHacker/obsidian42-brat),
-which installs plugins from GitHub and keeps them updated:
+It is not in Obsidian's community plugin directory, and is not meant to be:
+that listing exists so strangers can find a plugin, and this one is installed
+by people who were pointed at it. Both routes below take about a minute.
 
-1. *Settings → Community plugins → Browse* → install **BRAT**
-2. *BRAT → Add beta plugin* → `CodingSteve01/planr`
-3. Enable **Planr**, then click the ribbon icon
+### With BRAT (recommended — it also keeps Planr updated)
 
-**By hand** — download `main.js`, `manifest.json` and `styles.css` from the
-[latest release](https://github.com/CodingSteve01/planr/releases/latest) into
-`<vault>/.obsidian/plugins/planr/` and enable the plugin.
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) installs plugins straight
+from GitHub and checks for new releases on startup.
 
-Not in Obsidian's community plugin list yet — that submission is pending.
-Everything else about the plugin, including what it has to do differently
-inside a vault, is in [docs/obsidian-plugin.md](docs/obsidian-plugin.md).
+1. In Obsidian: *Settings → Community plugins → Browse*, search **BRAT**,
+   install it, and enable it.
+2. Open the command palette (`Ctrl/Cmd+P`) and run
+   **BRAT: Add a beta plugin for testing**.
+3. Paste `CodingSteve01/planr`, leave the version on *latest*, and confirm.
+4. *Settings → Community plugins* → enable **Planr**.
+
+The ribbon icon on the left opens it; `Ctrl/Cmd+P` → **Planr: Open** does the
+same. BRAT updates it from then on — or force a check with
+**BRAT: Check for updates to all beta plugins**.
+
+### By hand
+
+1. Download `main.js`, `manifest.json` and `styles.css` from the
+   [latest release](https://github.com/CodingSteve01/planr/releases/latest) —
+   the three files individually, there is no zip.
+2. Put them in `<your vault>/.obsidian/plugins/planr/` (create the `planr`
+   folder). `.obsidian` is hidden: in Finder press `Cmd+Shift+.` to see it, in
+   the Windows Explorer tick *Hidden items*.
+3. In Obsidian: *Settings → Community plugins* → the refresh icon next to
+   *Installed plugins* → enable **Planr**.
+
+To update, replace the same three files and reload Obsidian
+(`Ctrl/Cmd+R`, or *Reload app without saving* from the command palette).
+
+### From this checkout
+
+```bash
+npm run obsidian:install -- "/path/to/Vault"
+```
+
+Builds straight into the vault and remembers the path, so later runs are just
+`npm run obsidian:install`.
+
+**Not seeing it?** *Community plugins* has to be enabled at all — if Obsidian
+shows *Restricted mode*, turn that off first. Planr is desktop-only; it does
+not appear on iOS or Android.
+
+Everything else about the plugin — settings, plan files, what it has to do
+differently inside a vault — is in
+[docs/obsidian-plugin.md](docs/obsidian-plugin.md).
 
 ## Quick start
 
