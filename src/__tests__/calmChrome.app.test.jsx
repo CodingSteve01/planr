@@ -179,6 +179,19 @@ describe('the editor and the id column', () => {
     expect(document.body.style.zoom).toBe('1.25');
   });
 
+  it('leaves a browser window at its own scale, and enlarges inside a host', async () => {
+    // 125% is the answer to a pane sharing a screen, not to a full window.
+    renderApp();
+    await screen.findByTestId('view-filters-trigger');
+    expect(document.body.style.zoom).toBe('');
+    cleanup();
+
+    window.__planrHost = { portalRoot: document.body };
+    renderApp();
+    await screen.findByTestId('view-filters-trigger');
+    expect(document.body.style.zoom).toBe('1.25');
+  });
+
   it('leaves the id column out until it is asked for', async () => {
     // Everything that distracts is opt-in, so the default is the quiet one.
     localStorage.removeItem('planr_tree_ids');

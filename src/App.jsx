@@ -401,10 +401,13 @@ export default function App() {
   // portal that lands outside the zoomed subtree would render at 100% beside
   // a 125% app. utils/embedHost.js measures the factor back out for anything
   // that positions itself from mouse or rect coordinates.
-  // 125% by default: the density is right, the scale it was drawn at assumed
-  // a full-width browser window on a desk monitor.
+  // The default depends on where Planr is: 100% in a browser window, which is
+  // the width the density was drawn for, and 125% inside a host, where the app
+  // lives in a pane beside everything else. One number could not be right for
+  // both — 125% in a full browser window is enormous.
   const [uiScale, _setUiScale] = useState(() => {
-    try { return Number(localStorage.getItem('planr_ui_scale')) || 125; } catch { return 125; }
+    const fallback = isEmbedded() ? 125 : 100;
+    try { return Number(localStorage.getItem('planr_ui_scale')) || fallback; } catch { return fallback; }
   });
   const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
   useEffect(() => {
