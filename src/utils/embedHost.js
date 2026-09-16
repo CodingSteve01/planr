@@ -69,3 +69,10 @@ export function fixedFrame() {
   frameAt = now;
   return frame;
 }
+
+// Whether Planr is running inside a host at all. Chrome that only makes sense
+// on a page of Planr's own — the wordmark, for one — can stand down when the
+// host already says where you are.
+export function isEmbedded() {
+  return !!host();
+}

@@ -20,6 +20,12 @@ export function ViewFilters({
   horizonOnlyPlanned, persistHorizonOnly,
   // Status (hide done)
   hideDone, setHideDone,
+  // Quick filters — the row of toggles that used to sit in the sub-toolbar.
+  // Each is { id, label, tip, active, onToggle }. They live in here at rest
+  // and reappear in the toolbar as chips once they are on, so a filtered view
+  // still says so (principles.md, "a view is never the truth") without eight
+  // switched-off toggles claiming attention first.
+  quickFilters = [],
   // Archive (long-finished projects / long-offboarded people)
   archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays,
 }) {
@@ -56,7 +62,8 @@ export function ViewFilters({
   // The archive section is only worth showing where the caller can act on it
   // AND something is actually old enough to archive.
   const showArchive = typeof setShowArchived === 'function';
-  if (!showDiff && !showHorizon && !showHideDone && !showArchive) return null;
+  const showQuick = quickFilters.length > 0;
+  if (!showDiff && !showHorizon && !showHideDone && !showArchive && !showQuick) return null;
 
   const showHideDoneInner = typeof setHideDone === 'function';
   // The trigger counts only the Review/Plan overlays (and hide-done). The
@@ -83,7 +90,9 @@ export function ViewFilters({
        archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
       ].filter(Boolean).join(' · ')
     : '';
-  const triggerLabel = parts.length ? parts.join(' · ') : t('vf.off');
+  // Nothing to say when nothing is filtered: the old "none" was a label for
+  // the absence of state, which is the definition of chrome.
+  const triggerLabel = parts.join(' · ');
 
   const presetBtn = (current, val, label, onClick) => (
     <button key={val || 'off'}
@@ -98,6 +107,7 @@ export function ViewFilters({
         type="button"
         className={`btn btn-xs ${activeCount ? 'btn-pri' : 'btn-sec'}`}
         data-htip={t('vf.tip')}
+        data-testid="view-filters-trigger"
         onClick={() => setOpen(v => !v)}
         style={{ padding: '3px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
@@ -107,7 +117,7 @@ export function ViewFilters({
           <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(0,0,0,.22)', color: '#fff',
             borderRadius: 8, padding: '1px 5px', minWidth: 14, textAlign: 'center' }}>{activeCount}</span>
         )}
-        <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em', color: activeCount ? '#fff' : 'var(--tx3)', fontSize: 10 }}>{triggerLabel}</span>
+        {triggerLabel && <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em', color: activeCount ? '#fff' : 'var(--tx3)', fontSize: 10 }}>{triggerLabel}</span>}
       </button>
       {open && (
         <div
@@ -119,6 +129,25 @@ export function ViewFilters({
             padding: 12, width: 320, fontSize: 11,
           }}
         >
+          {showQuick && (
+            <section style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+                {t('vf.quick')}
+              </div>
+              <div data-testid="quick-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {quickFilters.map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={`chip${f.active ? ' on' : ''}`}
+                    aria-pressed={!!f.active}
+                    data-htip={f.tip}
+                    onClick={() => f.onToggle()}
+                  >{f.label}</button>
+                ))}
+              </div>
+            </section>
+          )}
           {showHideDone && (
             <section style={{ marginBottom: 12 }}>
               <button
