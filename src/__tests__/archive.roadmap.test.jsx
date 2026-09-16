@@ -105,7 +105,7 @@ describe('Overview archive filter', () => {
     const setShowArchived = vi.fn();
     mount({ setShowArchived });
 
-    fireEvent.click(screen.getByText(/📦 1 archived/));
+    fireEvent.click(screen.getByText(/1 archived/));
 
     expect(setShowArchived).toHaveBeenCalledWith(true);
   });

@@ -26,6 +26,10 @@ import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
 import { isEmbedded } from './utils/embedHost.js';
+
+// Below this the side panel stops being help and starts being the thing in
+// the way: 360px of editor against what is left of a work tree.
+const SIDE_DOCK_MIN_WIDTH = 1180;
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
@@ -369,6 +373,28 @@ export default function App() {
   // we don't emit fake "added" events for the whole tree.
   const lastSavedLeavesRef = useRef(null);
   const [fileName, setFileName] = useState(null);
+  // Where the item editor lives. A 360px column beside the tree is a gift on
+  // a wide screen and a theft on a narrow one, so "auto" measures and picks —
+  // and it measures the app, not the window: inside Obsidian the leaf can be
+  // narrow while the window is wide.
+  const [editorDock, _setEditorDock] = useState(() => {
+    try { return localStorage.getItem('planr_editor_dock') || 'auto'; } catch { return 'auto'; }
+  });
+  const setEditorDock = v => { _setEditorDock(v); try { localStorage.setItem('planr_editor_dock', v); } catch {} };
+  const [narrow, setNarrow] = useState(false);
+  const appRef = useRef(null);
+  useEffect(() => {
+    const el = appRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < SIDE_DOCK_MIN_WIDTH));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const editorAsDialog = editorDock === 'dialog' || (editorDock === 'auto' && narrow);
+  const [showTreeIds, _setShowTreeIds] = useState(() => {
+    try { return localStorage.getItem('planr_tree_ids') !== 'false'; } catch { return true; }
+  });
+  const setShowTreeIds = v => { _setShowTreeIds(v); try { localStorage.setItem('planr_tree_ids', String(v)); } catch {} };
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
   useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
@@ -3077,7 +3103,7 @@ export default function App() {
     <HoverTipProvider />
     <CommandPalette commands={paletteCommands} />
     <KeyboardMap />
-    <div className="app">
+    <div className="app" ref={appRef}>
     <div className="topbar">
       {/* Not a button. It was "New project" — the same command the / palette
           carries, on a target nobody aims at deliberately, discarding the
@@ -3298,6 +3324,8 @@ export default function App() {
             ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
+              showIds={showTreeIds}
+              onFullEdit={editorAsDialog ? node => { setMN(node); setModal('node'); } : undefined}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               sizes={data.sizes || []}
@@ -3317,7 +3345,7 @@ export default function App() {
               onPasteRows={onTreePasteRows} />
           }
         </div>
-        {selected && <div className="side fade">
+        {selected && !editorAsDialog && <div className="side fade">
           {multiSel.size > 0 ? <>
             <div className="side-hdr">
               <h3>{multiSel.size} items selected</h3>
@@ -3328,6 +3356,7 @@ export default function App() {
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} onClick={() => setEditorDock('dialog')}>⇥</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
@@ -3424,7 +3453,7 @@ export default function App() {
         </div>
       </div>
     )}
-    {modal === 'settings' && <SettingsModal meta={meta} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

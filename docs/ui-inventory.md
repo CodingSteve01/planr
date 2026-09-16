@@ -30,6 +30,8 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 | Status pill (save state) | Shows save status; clickable to re-mount the file after a permission loss | src/App.jsx:2773-2808 | Settings | 1 | 🔧 mechanics exposed (File System Access handle/permission state) |
 | "reload" link (external change) | Reloads the project from the file on disk, discarding in-memory state | src/App.jsx:2804 | Settings | 2 | ⚠ writes data outside the tree — replaces the whole tree |
 | × dismiss external-change notice | Hides the "file changed" hint | src/App.jsx:2805 | Settings | 2 | |
+| "Item editor" dock (Auto / Side panel / Dialog) | Where the item editor lives; Auto follows the app's width | src/components/modals/SettingsModal.jsx | Settings | 3 | |
+| "Item IDs in the tree" (Show / Hide) | Hides the ID column in the work tree | src/components/modals/SettingsModal.jsx | Settings | 3 | |
 | ⚙ Settings button | Opens SettingsModal | src/App.jsx:2812 | Settings | 1 | icon only — the label repeated what the gear already says |
 | Plan counts ("N scheduled · N/N done") | Reads out plan size and progress | src/App.jsx (topbar-count) | Review | 1 | shown in Review and Report only — "how far along is this?" is the question those modes exist for |
 | Logo "Planr." wordmark | — | src/App.jsx | — | 1 | hidden when an embedding host (the Obsidian plugin) already names the surface |
@@ -69,6 +71,8 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
+| "⇥" dock button (side panel header) | Sends the editor to a dialog and gives the tree the full width | src/App.jsx (side-hdr) | Build | 1 | the panel's own way out; the way back is Settings |
+| "⊞ Edit" (selection bar, dialog dock only) | Opens the full editor for the selected item | src/components/views/TreeView.jsx | Build | 1 | only rendered when there is no side panel to carry the selection |
 | "⤢ Modal" button | Opens the bulk-edit content as a standalone modal | src/App.jsx:2941 | Build | 2 | ↔ duplicates the inline bulk-edit body shown in the side panel itself |
 | × close multi-selection | Clears the multi-selection | src/App.jsx:2942 | Build | 1 | |
 | ⊞ "Full edit" button | Opens NodeModal for the selected item | src/App.jsx:2947 | Build | 1 | ↔ duplicates the QuickEdit side panel (near-identical fields) |

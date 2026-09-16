@@ -13,7 +13,7 @@
 // says so on the surface, because a view may never quietly lie about what it
 // shows.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { render, cleanup, fireEvent, screen, within, act } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
@@ -107,5 +107,48 @@ describe('the top bar', () => {
     const embedded = renderApp();
     await screen.findByTestId('view-filters-trigger');
     expect(embedded.container.querySelector('.logo')).toBeNull();
+  });
+});
+
+describe('the editor and the id column', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); delete window.__planrHost; });
+
+  const selectRow = async id => {
+    const cell = await screen.findByText(id);
+    await act(async () => { fireEvent.click(cell.closest('tr')); });
+  };
+
+  it('puts the editor beside the tree by default', async () => {
+    const { container } = renderApp();
+    await selectRow('P1.1');
+    expect(container.querySelector('.side')).toBeTruthy();
+  });
+
+  it('gives the tree the full width when the editor is docked as a dialog', async () => {
+    // 360px of editor against what is left of a work tree is a bad trade on
+    // a narrow screen — and inside Obsidian the pane is narrow far more often
+    // than the window is.
+    localStorage.setItem('planr_editor_dock', 'dialog');
+    const { container } = renderApp();
+    await selectRow('P1.1');
+    expect(container.querySelector('.side')).toBeNull();
+    // …and the way into the editor moves to where the selection already is.
+    expect(screen.getByText(/⊞ Edit/)).toBeTruthy();
+  });
+
+  it('can drop the id column without losing the id', async () => {
+    localStorage.setItem('planr_tree_ids', 'false');
+    const { container } = renderApp();
+    await screen.findByTestId('view-filters-trigger');
+    expect(container.querySelector('.tid')).toBeNull();
+    // The drag handle shares that column and stays.
+    expect(container.querySelector('.tv-drag-handle')).toBeTruthy();
   });
 });

@@ -90,9 +90,20 @@ export function ViewFilters({
        archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
       ].filter(Boolean).join(' · ')
     : '';
+  const archiveDetail = archive?.count
+    ? [...archive.roots.map(r => `${r.id} ${r.name}`), ...archive.members.map(m => m.name)].join(' · ')
+    : '';
   // Nothing to say when nothing is filtered: the old "none" was a label for
   // the absence of state, which is the definition of chrome.
   const triggerLabel = parts.join(' · ');
+
+  // One voice for section titles. There used to be three: a grey box badge
+  // with an emoji, an amber "Δ Review" pill and a blue "▶ Plan" pill, each
+  // announcing itself louder than the controls underneath it.
+  const sectionTitle = (label, tip) => (
+    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
+      color: 'var(--tx3)', marginBottom: 6 }} data-htip={tip}>{label}</div>
+  );
 
   const presetBtn = (current, val, label, onClick) => (
     <button key={val || 'off'}
@@ -164,59 +175,35 @@ export function ViewFilters({
                   gap: 6,
                 }}
               >
-                <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>
-                  {hideDone ? '☑' : '☐'}
-                </span>
                 {t('ui.hideDone')}
               </button>
             </section>
           )}
           {showArchive && (
             <section style={{ marginBottom: 12 }}>
-              {/* Header row carries the toggle itself — the explanation lives in
-                  its tooltip rather than as a paragraph nobody re-reads. */}
+              {sectionTitle(t('arch.section'), t('arch.desc'))}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                  padding: '1px 5px', borderRadius: 3, background: 'rgba(148,163,184,.18)', color: 'var(--tx2)' }}
-                  data-htip={t('arch.desc')}>📦 {t('arch.section')}</span>
                 <button
                   type="button"
                   className={`btn btn-xs ${showArchived ? 'btn-pri' : 'btn-sec'}`}
                   aria-pressed={!!showArchived}
                   data-htip={t('arch.desc')}
                   onClick={() => setShowArchived(!showArchived)}
-                  style={{ padding: '3px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                >
-                  <span style={{ fontFamily: 'var(--mono)', fontWeight: 800 }}>{showArchived ? '☑' : '☐'}</span>
-                  {t('arch.show')}
-                </button>
-                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+                  style={{ padding: '3px 8px', fontSize: 11 }}
+                >{t('arch.show')}</button>
+                {/* What is archived used to be listed here, row by row, inside
+                    a filter popup — a readout where a control was expected.
+                    The count says as much as anyone reads. */}
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}
+                  data-htip={archiveDetail}>
                   {archiveSummary || t('arch.none')}
                 </span>
               </div>
               {typeof setArchiveDays === 'function' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 10, color: 'var(--tx3)' }} data-htip={t('arch.olderThanTip')}>{t('arch.olderThan')}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+                  data-htip={t('arch.olderThanTip')}>
                   {ARCHIVE_DAY_PRESETS.map(days => presetBtn(String(archiveDays), String(days), t('arch.days', days),
                     val => setArchiveDays(Number(val))))}
-                </div>
-              )}
-              {!!archive?.count && (
-                <div style={{ marginTop: 6, maxHeight: 108, overflow: 'auto' }}>
-                  {archive.roots.map(root => (
-                    <div key={root.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
-                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>{root.id}</span>
-                      <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root.name}</span>
-                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', root.ageDays)}</span>
-                    </div>
-                  ))}
-                  {archive.members.map(member => (
-                    <div key={member.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0' }}>
-                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 34, flexShrink: 0 }}>👤</span>
-                      <span style={{ flex: 1, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
-                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0 }}>{t('arch.ageDays', member.ageDays)}</span>
-                    </div>
-                  ))}
                 </div>
               )}
             </section>
@@ -225,18 +212,13 @@ export function ViewFilters({
             <div style={{ height: 1, background: 'var(--b)', margin: '4px 0 12px' }} />
           )}
 
-          {(showDiff || showHorizon) && (
-            <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>
-              {t('vf.exclusiveHint')}
-            </div>
-          )}
-
+          {/* The sentence explaining that Review and Plan exclude each other
+              is gone: turning one on already clears the other, and the section
+              that went quiet says so where it happened. */}
           {showDiff && (
             <section style={{ marginBottom: showHorizon ? 14 : 0, opacity: horizonDays ? 0.45 : 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                  padding: '1px 5px', borderRadius: 3, background: 'rgba(245,158,11,.18)', color: '#f59e0b' }}>Δ Review</span>
-                <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{t('diff.since')}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                {sectionTitle(t('diff.since'))}
                 {horizonDays && (
                   <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
                 )}
@@ -247,8 +229,7 @@ export function ViewFilters({
                 {presetBtn(sinceDays, '14', t('diff.days', 14), setSince)}
                 {presetBtn(sinceDays, '30', t('diff.days', 30), setSince)}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: 'var(--tx3)', minWidth: 60 }}>{t('diff.customDate')}:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }} data-htip={t('diff.customDate')}>
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
                   onChange={e => setSince(e.target.value)}
@@ -271,10 +252,8 @@ export function ViewFilters({
 
           {showHorizon && (
             <section style={{ opacity: sinceDays ? 0.45 : 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                  padding: '1px 5px', borderRadius: 3, background: 'rgba(59,130,246,.18)', color: '#3b82f6' }}>▶ Plan</span>
-                <span style={{ fontSize: 11, color: 'var(--tx2)' }}>{t('horizon.label')}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                {sectionTitle(t('horizon.label'))}
                 {sinceDays && (
                   <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
                 )}
@@ -286,8 +265,7 @@ export function ViewFilters({
                 {presetBtn(horizonDays, '30', t('horizon.days', 30), setHorizon)}
                 {presetBtn(horizonDays, '60', t('horizon.days', 60), setHorizon)}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: 'var(--tx3)', minWidth: 60 }}>{t('horizon.until')}:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }} data-htip={t('horizon.until')}>
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(horizonDays) ? horizonDays : ''}
                   onChange={e => setHorizon(e.target.value)}

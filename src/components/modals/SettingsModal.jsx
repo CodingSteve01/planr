@@ -10,7 +10,7 @@ import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
-export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
+export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, editorDock, setEditorDock, showTreeIds, setShowTreeIds, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
   const { t, langPref, setLang } = useT();
   const { themePref, setTheme } = useTheme();
   const [tab, setTab] = useState('general');
@@ -115,6 +115,22 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                   onClick={() => setTheme(v)}>{l}</button>)}
             </div>
           </div>
+          {setEditorDock && <div className="field"><label>{t('set.editorDock')}</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['auto', t('set.dockAuto')], ['side', t('set.dockSide')], ['dialog', t('set.dockDialog')]].map(([v, l]) =>
+                <button key={v} className={`btn btn-xs ${editorDock === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: 1 }}
+                  onClick={() => setEditorDock(v)}>{l}</button>)}
+            </div>
+            <p className="helper">{t('set.editorDockHelp')}</p>
+          </div>}
+          {setShowTreeIds && <div className="field"><label>{t('set.treeIds')}</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[[true, t('set.treeIdsShow')], [false, t('set.treeIdsHide')]].map(([v, l]) =>
+                <button key={String(v)} className={`btn btn-xs ${showTreeIds === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: 1 }}
+                  onClick={() => setShowTreeIds(v)}>{l}</button>)}
+            </div>
+            <p className="helper">{t('set.treeIdsHelp')}</p>
+          </div>}
         </div>
 
         <hr className="divider" />
