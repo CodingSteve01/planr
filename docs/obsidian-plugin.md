@@ -15,38 +15,19 @@ inherits that (`isDesktopOnly: true` in the manifest).
 
 ## Install
 
-### From the community plugin list
+Step-by-step instructions live in the [README](../README.md#or-run-it-in-obsidian)
+— that is the page someone reads before they have cloned anything. In short:
 
-Not there yet — see [Getting into the community store](#getting-into-the-community-store).
-
-### With BRAT (the unofficial route)
-
-[BRAT](https://github.com/TfTHacker/obsidian42-brat) installs plugins straight
-from a GitHub repository and keeps them updated, no review needed:
-
-1. Install **Obsidian42 - BRAT** from the community plugins list.
-2. *BRAT → Add a beta plugin for testing* → `CodingSteve01/planr`.
-3. Enable **Planr** under *Settings → Community plugins*.
-
-BRAT reads the latest GitHub release, so anything the release workflow
-publishes is immediately installable.
-
-### By hand
-
-Download `main.js`, `manifest.json` and `styles.css` from a
-[release](https://github.com/CodingSteve01/planr/releases) into
-`<vault>/.obsidian/plugins/planr/`, then enable the plugin.
-
-### From this checkout
-
-```bash
-npm run obsidian:install -- "/path/to/Vault"
-```
-
-Builds straight into `<vault>/.obsidian/plugins/planr/` and remembers the vault
-path for next time (`npm run obsidian:install` afterwards). Add `--dev` for an
-unminified build with an inline sourcemap. Obsidian picks up a new build after
-*Reload app without saving* (`Ctrl/Cmd+R`) or toggling the plugin off and on.
+- **BRAT** (recommended): install *Obsidian42 - BRAT* from the community
+  plugins list, run **BRAT: Add a beta plugin for testing**, paste
+  `CodingSteve01/planr`. It keeps the plugin updated from then on.
+- **By hand**: `main.js`, `manifest.json` and `styles.css` from the
+  [latest release](https://github.com/CodingSteve01/planr/releases/latest) into
+  `<vault>/.obsidian/plugins/planr/`.
+- **From this checkout**: `npm run obsidian:install -- "/path/to/Vault"` builds
+  straight into a vault and remembers the path (`--dev` for an unminified
+  build with an inline sourcemap). Obsidian picks up a new build after *Reload
+  app without saving* (`Ctrl/Cmd+R`) or toggling the plugin off and on.
 
 ## Using it
 
@@ -170,50 +151,54 @@ actually mattered here — never tagging by hand, never a tag that disagrees
 with the manifest — without the tax. If the prefixes ever become worth it,
 release-please slots in where this workflow sits.
 
-## Getting into the community store
+## Built to the guidelines anyway
 
-The store is a single registry file. To get listed:
+Obsidian's plugin guidelines are a decent description of "does not surprise the
+app it lives in", so the plugin follows them whether or not anyone reviews it.
+The three that took actual work:
 
-1. Have a public repo with `manifest.json` in the **root** (it is) and a
-   release whose tag matches the manifest version (the workflow enforces that).
-2. Add a `README.md` section describing the plugin and a `LICENSE` (both here).
-3. Open a PR against
-   [obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases)
-   adding an entry to `community-plugins.json`:
-
-   ```json
-   {
-     "id": "planr",
-     "name": "Planr",
-     "author": "Steffen Lüling",
-     "description": "Auto-scheduled project planning: work breakdown tree, critical path, Gantt and roadmap, on plan files in your vault.",
-     "repo": "CodingSteve01/planr"
-   }
-   ```
-
-4. A bot runs the automated checks, then a human reviews. Expect weeks, and
-   expect review notes — the usual ones for a plugin like this are about
-   `innerHTML` use, detaching leaves in `onunload`, and hard-coded styles that
-   should be CSS variables.
-
-Until then BRAT is the honest answer, and it is what most people testing a
-plugin use anyway.
-
-## What the store review asked about, before it asked
-
-- **No `innerHTML` reaches the page.** Tooltips were HTML strings handed to
-  `innerHTML`, escaped by hand on the way in. They are text now, in a dialect
-  of three symbols (`**bold**`, `__muted__`, a newline, `- ` for a detail
-  line) parsed in [`src/utils/tipText.js`](../src/utils/tipText.js) and
+- **No `innerHTML` reaches the page.** Tooltips used to be HTML strings handed
+  to `innerHTML`, escaped by hand on the way in. They are text now, in a
+  dialect of three symbols (`**bold**`, `__muted__`, a newline, `- ` for a
+  detail line) parsed in [`src/utils/tipText.js`](../src/utils/tipText.js) and
   rendered as elements. The roadmap's richer tooltips travel as JSON in
-  `data-tip` and are rendered with the app's own components; generated SVG
-  goes in through `DOMParser` in `image/svg+xml` mode rather than as a string.
-  What is left is `src/utils/exports.js`, which builds a detached document for
-  the Word export and never attaches it to the page.
+  `data-tip` and are rendered with the app's own components; generated SVG goes
+  in through `DOMParser` in `image/svg+xml` mode rather than as a string. What
+  is left is `src/utils/exports.js`, which builds a detached document for the
+  Word export and never attaches it to the page.
 - **No browser global is patched.** The file pickers are a module the build
-  swaps, not a redefined `window.showSaveFilePicker`.
+  swaps, not a redefined `window.showSaveFilePicker` — a plugin that redefines
+  a browser global changes what every other plugin in the app sees.
 - **Nothing is detached in `onunload`**, and the plugin has no `onunload` left
   to do it in.
+
+## The community directory, and why Planr is not in it
+
+Not submitted — deliberately.
+
+The route also changed while this was being built: `obsidianmd/obsidian-releases`
+has pull requests disabled now, and submissions go through a portal at
+[community.obsidian.md](https://community.obsidian.md), where you sign in with
+an Obsidian account, link GitHub to prove you own the repo, and hand the plugin
+to an automated review that sends findings back for another release round.
+
+That machinery exists so strangers can find a plugin. Planr is installed by
+people who were pointed at it, and BRAT gives them one-line installs and
+automatic updates without any of it.
+
+Nothing about the plugin depends on that decision: the manifest, the release
+layout and the guideline work above are what a submission needs, so should it
+ever be worth it, the remaining step is the portal itself. Requirements as of
+this writing:
+
+- `manifest.json` in the repository root, on the default branch, with the
+  version of the release being submitted (the directory reads the manifest at
+  HEAD).
+- A release tagged exactly that version, no `v` prefix, carrying `main.js`,
+  `manifest.json` and `styles.css` as individual assets — not a zip.
+- A README that describes the plugin, and a licence.
+
+All three hold today, and the release workflow keeps them holding.
 
 ## Limitations
 
