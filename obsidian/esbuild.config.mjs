@@ -9,7 +9,8 @@
 //   · `import … from '…?url'` — a Vite asset import. esbuild gets a loader
 //     that inlines the file and hands back a blob URL, which is all the
 //     consumer (a <script> injection) actually needs.
-//   · src/utils/fileHandleStore.js — swapped for the vault-backed version.
+//   · src/utils/fileHandleStore.js and filePickers.js — swapped for the
+//     vault-backed versions.
 
 import { createRequire } from 'node:module';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -49,12 +50,17 @@ const viteUrlImports = {
   },
 };
 
-/** The vault has no FileSystemFileHandle to persist — see obsidian/src/fileHandleStore.js. */
-const vaultFileHandleStore = {
-  name: 'vault-file-handle-store',
+/**
+ * The two modules the vault answers differently: where a file comes from
+ * (filePickers) and how the open one is remembered (fileHandleStore). The
+ * alternative — patching `window.showOpenFilePicker` — would change what
+ * every other plugin in the app sees, so the substitution happens here.
+ */
+const vaultModules = {
+  name: 'vault-modules',
   setup(build) {
-    build.onResolve({ filter: /utils\/fileHandleStore\.js$/ }, () => ({
-      path: path.join(here, 'src', 'fileHandleStore.js'),
+    build.onResolve({ filter: /utils\/(fileHandleStore|filePickers)\.js$/ }, args => ({
+      path: path.join(here, 'src', `${/(fileHandleStore|filePickers)/.exec(args.path)[1]}.js`),
     }));
   },
 };
@@ -76,7 +82,7 @@ const result = await esbuild.build({
     'process.env.NODE_ENV': '"production"',
     global: 'globalThis',
   },
-  plugins: [viteUrlImports, vaultFileHandleStore],
+  plugins: [viteUrlImports, vaultModules],
   minify: !argv.includes('--dev'),
   sourcemap: argv.includes('--dev') ? 'inline' : false,
   logLevel: 'info',

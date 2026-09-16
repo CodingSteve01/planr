@@ -5,19 +5,12 @@
 // Planr-specific (scheduling, CPM, Gantt, exports) is imported, not
 // reimplemented: when src/ moves, the plugin moves with it.
 
-import { ItemView, Notice, Plugin, PluginSettingTab, Setting, addIcon } from 'obsidian';
+import { ItemView, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, addIcon } from 'obsidian';
 import { createRoot } from 'react-dom/client';
 import App from '../../src/App.jsx';
 import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';
 import '../../src/App.css';
-import {
-  getMountedPath,
-  installFileSystemAccessShim,
-  pickOpenFile,
-  setMountedPath,
-  setVaultApp,
-  uninstallFileSystemAccessShim,
-} from './vaultFs.js';
+import { getMountedPath, pickOpenFile, setMountedPath, setVaultApp } from './vaultFs.js';
 
 export const VIEW_TYPE_PLANR = 'planr-view';
 
@@ -164,7 +157,7 @@ export default class PlanrPlugin extends Plugin {
 
     this.addCommand({
       id: 'open',
-      name: 'Open Planr',
+      name: 'Open',
       callback: () => this.activateView(),
     });
 
@@ -187,12 +180,14 @@ export default class PlanrPlugin extends Plugin {
     // turns it off.
     this.registerEvent(this.app.workspace.on('file-open', file => {
       if (!this.settings.openPlanNotes || !file?.name?.endsWith(PLAN_NOTE_SUFFIX)) return;
+      // Whichever leaf the user was looking at keeps the focus afterwards.
+      const active = this.app.workspace.getActiveViewOfType(MarkdownView);
       for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
         if (leaf.view?.file?.path !== file.path) continue;
         leaf.setViewState({
           type: VIEW_TYPE_PLANR,
           state: { file: file.path },
-          active: leaf === this.app.workspace.activeLeaf,
+          active: leaf.view === active,
         });
       }
     }));
@@ -208,10 +203,6 @@ export default class PlanrPlugin extends Plugin {
     }));
   }
 
-  onunload() {
-    uninstallFileSystemAccessShim();
-  }
-
   async saveSettings() {
     await this.saveData(this.settings);
   }
@@ -224,7 +215,6 @@ export default class PlanrPlugin extends Plugin {
   }
 
   async activateView() {
-    installFileSystemAccessShim();
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE_PLANR)[0];
     const leaf = existing ?? workspace.getLeaf('tab');

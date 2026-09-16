@@ -1,12 +1,14 @@
 // File System Access API, reimplemented on top of the Obsidian vault.
 //
-// Planr saves and loads through `window.showSaveFilePicker` /
-// `window.showOpenFilePicker` and the handle objects they hand back. Rather
-// than teaching the app a second storage backend, the plugin swaps those two
-// globals for vault-backed versions while a Planr view is open. The app keeps
-// its own code path — pick a handle, `getFile()`, `createWritable()` — and the
-// bytes land in the vault, where Obsidian Sync picks them up and notes can
-// link to them.
+// Planr saves and loads through a file picker and the handle objects it hands
+// back. Rather than teaching the app a second storage backend, the build swaps
+// src/utils/filePickers.js for a version that asks the vault — see
+// obsidian/src/filePickers.js. The app keeps its own code path (pick a handle,
+// `getFile()`, `createWritable()`) and the bytes land in the vault, where
+// Obsidian Sync picks them up and notes can link to them.
+//
+// Not a patched `window.showSaveFilePicker`: a plugin that redefines a browser
+// global changes what every other plugin in the app sees.
 //
 // What a handle has to provide, taken from the call sites in src/App.jsx:
 //   handle.name                      · shown in the topbar, decides .md vs .json
@@ -218,28 +220,4 @@ export function pickSaveFile(options = {}) {
   const suggested = options.suggestedName || 'project.planr.json';
   const start = suggested.includes('/') ? suggested : defaultFolder() + suggested;
   return new Promise((resolve, reject) => new SavePathModal(_app, start, resolve, reject).open());
-}
-
-// ── Global shim ───────────────────────────────────────────────────────────
-// Installed while a Planr view is open and removed again afterwards, so the
-// plugin never changes what the rest of Obsidian sees.
-let _saved = null;
-
-export function installFileSystemAccessShim() {
-  if (_saved) return;
-  _saved = {
-    open: Object.getOwnPropertyDescriptor(window, 'showOpenFilePicker'),
-    save: Object.getOwnPropertyDescriptor(window, 'showSaveFilePicker'),
-  };
-  window.showOpenFilePicker = async () => [await pickOpenFile()];
-  window.showSaveFilePicker = async opts => pickSaveFile(opts);
-}
-
-export function uninstallFileSystemAccessShim() {
-  if (!_saved) return;
-  for (const [key, prop] of [['open', 'showOpenFilePicker'], ['save', 'showSaveFilePicker']]) {
-    if (_saved[key]) Object.defineProperty(window, prop, _saved[key]);
-    else delete window[prop];
-  }
-  _saved = null;
 }

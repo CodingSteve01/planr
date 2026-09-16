@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "Auto-scheduled project planning: work breakdown tree, critical path, Gantt and roadmap, on plan files in your vault.",
-  "author": "Steffen Lüling",
+  "author": "Steffen L\u00fcling",
   "authorUrl": "https://github.com/CodingSteve01/planr",
   "isDesktopOnly": true
 }

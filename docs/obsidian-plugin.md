@@ -88,7 +88,7 @@ writer does not carry — see [import-export.md](import-export.md)).
 | --- | --- | --- |
 | Mount point | `#root` in `index.html` | `contentEl` of an `ItemView` |
 | Stylesheet | `src/App.css`, page-wide | same file, scoped to `.planr-view` at build time |
-| Open / save | File System Access API | vault-backed shim over the same API |
+| Open / save | File System Access API | vault pickers, swapped in at build time |
 | Remembered file | `FileSystemFileHandle` in IndexedDB | vault path in Obsidian's per-vault local storage |
 | UI preferences | `localStorage` | `localStorage` (unchanged — Obsidian's renderer has one) |
 | Theme "Auto" | OS `prefers-color-scheme` | the vault's light/dark setting |
@@ -100,12 +100,14 @@ Four files carry all of it:
   registers the ribbon icon, the two commands and the file-menu entry, and
   points the app's portals at the view container so modals and dropdowns stay
   inside the scoped stylesheet.
-- **`obsidian/src/vaultFs.js`** — `showOpenFilePicker` / `showSaveFilePicker`
-  and the handle objects they return, implemented on `app.vault`. Installed as
-  window globals while a Planr view is open, restored on unload.
-- **`obsidian/src/fileHandleStore.js`** — build-time replacement for
-  `src/utils/fileHandleStore.js`. A vault handle is a path, so it goes to
-  local storage; a file in the open vault needs no permission grant.
+- **`obsidian/src/vaultFs.js`** — the file pickers and the handle objects they
+  return, implemented on `app.vault`.
+- **`obsidian/src/filePickers.js`** and **`obsidian/src/fileHandleStore.js`** —
+  build-time replacements for the two modules in `src/utils/` that answer
+  "where does a file come from" and "how is the open one remembered". The
+  alternative, patching `window.showOpenFilePicker`, would change what every
+  other plugin in the app sees; "we put it back on unload" is not an argument,
+  it is a promise.
 - **`obsidian/scope-css.mjs`** — rewrites every selector in `App.css` so it
   cannot reach past `.planr-view`, and trades `100vh` for `100%` because a leaf
   is not the window. `obsidian/__tests__/scopeCss.test.js` asserts that nothing

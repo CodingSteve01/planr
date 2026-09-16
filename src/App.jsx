@@ -26,6 +26,7 @@ import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
 import { isEmbedded, portalHost } from './utils/embedHost.js';
+import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
 
 // Below this the side panel stops being help and starts being the thing in
 // the way: 360px of editor against what is left of a work tree.
@@ -659,11 +660,11 @@ export default function App() {
   // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
   // Used as fallback when the existing handle's permission/write fails after a reload.
   async function pickSaveHandle(suggestedFromName) {
-    if (!window.showSaveFilePicker) { exportJSON(); return null; }
+    if (!filePickerAvailable()) { exportJSON(); return null; }
     const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
     const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
     const isMd = suggested.endsWith('.md');
-    return await window.showSaveFilePicker({
+    return await pickFileToSave({
       suggestedName: suggested,
       types: isMd
         ? [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }, { description: 'Planr JSON', accept: { 'application/json': ['.json'] } }]
@@ -1348,8 +1349,8 @@ export default function App() {
 
   async function loadFromFile() {
     try {
-      if (window.showOpenFilePicker) {
-        const [handle] = await window.showOpenFilePicker({ types: [
+      if (filePickerAvailable()) {
+        const handle = await pickFileToOpen({ types: [
           { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
           { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
         ] });
