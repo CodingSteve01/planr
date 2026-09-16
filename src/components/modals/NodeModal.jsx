@@ -285,7 +285,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             a trip through Settings, which is a one-way door with extra steps. */}
         {onDockSide && <button className="btn btn-ghost btn-icon sm" style={{ marginLeft: 'auto' }}
           data-htip={t('set.dockSideTip')} data-testid="editor-dock-side"
-          onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}>⇤</button>}
+          onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}>⇥</button>}
       </div>
 
       {/* ── TAB BAR ── */}

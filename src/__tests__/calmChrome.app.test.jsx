@@ -189,7 +189,7 @@ describe('the editor and the id column', () => {
     window.__planrHost = { portalRoot: document.body };
     renderApp();
     await screen.findByTestId('view-filters-trigger');
-    expect(document.body.style.zoom).toBe('1.25');
+    expect(document.body.style.zoom).toBe('1.1');
   });
 
   it('leaves the id column out until it is asked for', async () => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
+import { parseTip } from '../../utils/tipText.js';
 
 /**
  * Where the tooltip goes, in the coordinates a fixed element is written in.
@@ -71,20 +72,21 @@ export function HoverTipProvider() {
   const frame = fixedFrame();
   const start = toFixedPoint(tip.x, tip.y, frame);
   const { left, top } = placeHoverTip(start.x, start.y, sizeRef.current.w, sizeRef.current.h, frame);
-  return tip.text.startsWith('html:') ? (
-    <div
-      ref={tipRef}
-      className="htip-pop"
-      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
-      dangerouslySetInnerHTML={{ __html: tip.text.slice(5) }}
-    />
-  ) : (
+  return (
     <div
       ref={tipRef}
       className="htip-pop"
       style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
     >
-      {tip.text}
+      {parseTip(tip.text).map((line, li) => (
+        <div key={li} className={line.indent ? 'htip-line htip-detail' : 'htip-line'}>
+          {line.parts.map((part, pi) => (
+            part.tone === 'bold' ? <b key={pi}>{part.text}</b>
+              : part.tone === 'muted' ? <span key={pi} className="htip-muted">{part.text}</span>
+                : <span key={pi}>{part.text}</span>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
