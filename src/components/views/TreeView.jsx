@@ -25,7 +25,7 @@ function depth(id) { return id.split('.').length; }
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, showIds = true }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -1174,6 +1174,13 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 toolbar above and act on the selected item. */}
             <td style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
               <span className="tv-row-act">
+                {/* Open this row in the editor. The standard move for a table
+                    row, and the one path that does not depend on there being
+                    a panel on the right: with the editor docked as a dialog
+                    it is how you get to it at all. */}
+                {onFullEdit && <button className="tv-act-btn" data-testid={`tree-row-edit-${r.id}`}
+                  data-htip={t('tv.editRowTip', r.id)}
+                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}>⊞</button>}
                 <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}>✎</button>
@@ -1223,7 +1230,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         {toolBtn(`✎ ${t('tv.rename')}`, withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id))}
         {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
-        {onFullEdit && toolBtn(`⊞ ${t('tv.editItem')}`, t('nm.fullEditTip'), () => onFullEdit(selected))}
+        {onFullEdit && editorInDialog && toolBtn(`⊞ ${t('tv.editItem')}`, t('nm.fullEditTip'), () => onFullEdit(selected))}
         {onInsertAfter && toolBtn(`+ ${t('tv.newRow')}`, withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id))}
         {onInsertChild && toolBtn(`↳ ${t('tv.newChild')}`, withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id))}
         {/* Re-parent — the mouse twin of Tab / ⇧Tab. `null` from the helper

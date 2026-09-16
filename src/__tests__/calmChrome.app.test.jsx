@@ -143,6 +143,30 @@ describe('the editor and the id column', () => {
     expect(screen.getByText(/⊞ Edit/)).toBeTruthy();
   });
 
+  it('hands the item over when the editor is sent to a dialog, instead of dropping it', async () => {
+    // The first cut of this let the panel vanish and opened nothing: the item
+    // you were editing was simply gone, and the way back was three clicks
+    // deep in Settings.
+    const { container } = renderApp();
+    await selectRow('P1.1');
+    await act(async () => { fireEvent.click(screen.getByTestId('editor-dock-dialog')); });
+    expect(container.querySelector('.side')).toBeNull();
+    expect(container.querySelector('.overlay')).toBeTruthy();
+
+    // …and the dialog carries the way back.
+    await act(async () => { fireEvent.click(screen.getByTestId('editor-dock-side')); });
+    expect(container.querySelector('.overlay')).toBeNull();
+    expect(container.querySelector('.side')).toBeTruthy();
+  });
+
+  it('opens the editor from the row itself, panel or no panel', async () => {
+    localStorage.setItem('planr_editor_dock', 'dialog');
+    const { container } = renderApp();
+    await screen.findByTestId('view-filters-trigger');
+    await act(async () => { fireEvent.click(screen.getByTestId('tree-row-edit-P1.1')); });
+    expect(container.querySelector('.overlay')).toBeTruthy();
+  });
+
   it('can drop the id column without losing the id', async () => {
     localStorage.setItem('planr_tree_ids', 'false');
     const { container } = renderApp();

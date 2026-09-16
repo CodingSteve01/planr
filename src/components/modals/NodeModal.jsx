@@ -23,7 +23,7 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress, onDockSide }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -281,6 +281,11 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
         {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
+        {/* The panel's ⇥ sends the editor here; without this the way back is
+            a trip through Settings, which is a one-way door with extra steps. */}
+        {onDockSide && <button className="btn btn-ghost btn-icon sm" style={{ marginLeft: 'auto' }}
+          data-htip={t('set.dockSideTip')} data-testid="editor-dock-side"
+          onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}>⇤</button>}
       </div>
 
       {/* ── TAB BAR ── */}

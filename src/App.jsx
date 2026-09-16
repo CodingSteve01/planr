@@ -3325,7 +3325,8 @@ export default function App() {
             : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
               showIds={showTreeIds}
-              onFullEdit={editorAsDialog ? node => { setMN(node); setModal('node'); } : undefined}
+              onFullEdit={node => { setMN(node); setModal('node'); }}
+              editorInDialog={editorAsDialog}
               search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
               customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
               sizes={data.sizes || []}
@@ -3356,7 +3357,8 @@ export default function App() {
           </> : <>
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
-              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} onClick={() => setEditorDock('dialog')}>⇥</button>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} data-testid="editor-dock-dialog"
+                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}>⇥</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
@@ -3411,6 +3413,7 @@ export default function App() {
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onDockSide={editorAsDialog ? () => { setEditorDock('side'); setModal(null); setMN(null); setModalFocus(null); } : undefined}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
       onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
       onSplitHandoff={splitHandoff}

@@ -73,6 +73,8 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 |---|---|---|---|---|---|
 | "⇥" dock button (side panel header) | Sends the editor to a dialog and gives the tree the full width | src/App.jsx (side-hdr) | Build | 1 | the panel's own way out; the way back is Settings |
 | "⊞ Edit" (selection bar, dialog dock only) | Opens the full editor for the selected item | src/components/views/TreeView.jsx | Build | 1 | only rendered when there is no side panel to carry the selection |
+| Row action "⊞" | Opens that row in the full editor | src/components/views/TreeView.jsx (tv-row-act) | Build | 1 | in the hover group, so it costs nothing at rest; ↔ same target as the panel header's ⊞ |
+| "⇤" dock button (dialog header) | Brings the editor back to the side panel | src/components/modals/NodeModal.jsx | Build | 1 | the return leg of the panel's ⇥ |
 | "⤢ Modal" button | Opens the bulk-edit content as a standalone modal | src/App.jsx:2941 | Build | 2 | ↔ duplicates the inline bulk-edit body shown in the side panel itself |
 | × close multi-selection | Clears the multi-selection | src/App.jsx:2942 | Build | 1 | |
 | ⊞ "Full edit" button | Opens NodeModal for the selected item | src/App.jsx:2947 | Build | 1 | ↔ duplicates the QuickEdit side panel (near-identical fields) |
