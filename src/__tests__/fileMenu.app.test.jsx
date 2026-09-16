@@ -37,6 +37,7 @@ describe('the file operations have a visible home', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -122,6 +123,7 @@ describe('the palette is scannable, not a wall of text', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });

@@ -39,6 +39,7 @@ describe('the sub-toolbar at rest', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -81,6 +82,7 @@ describe('the top bar', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -115,6 +117,7 @@ describe('the editor and the id column', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tree_ids', 'true');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -176,8 +179,9 @@ describe('the editor and the id column', () => {
     expect(document.body.style.zoom).toBe('1.25');
   });
 
-  it('can drop the id column without losing the id', async () => {
-    localStorage.setItem('planr_tree_ids', 'false');
+  it('leaves the id column out until it is asked for', async () => {
+    // Everything that distracts is opt-in, so the default is the quiet one.
+    localStorage.removeItem('planr_tree_ids');
     const { container } = renderApp();
     await screen.findByTestId('view-filters-trigger');
     expect(container.querySelector('.tid')).toBeNull();

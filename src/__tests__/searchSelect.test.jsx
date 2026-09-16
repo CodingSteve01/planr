@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import { SearchSelect } from '../components/shared/SearchSelect.jsx';
+import { placeHoverTip } from '../components/shared/HoverTip.jsx';
 import { I18nProvider } from '../i18n.jsx';
 
 const OPTIONS = [
@@ -93,5 +94,41 @@ describe('the keys that belong to the caret', () => {
     // fireEvent returns false once preventDefault ran: these are handled.
     expect(fireEvent.keyDown(one, { key: 'ArrowDown' })).toBe(false);
     expect(fireEvent.keyDown(one, { key: 'Enter' })).toBe(false);
+  });
+});
+
+// ── and the tooltip that shivered along the right edge ────────────────────
+// "Tooltips am rechten Bildschirmrand zuckeln, wenn man mit dem Cursor über
+// die Items fährt."
+//
+// The flip needs the tooltip's size, and a size is only knowable after a
+// render — so every mouse move painted it overflowing the edge first and
+// pulled it back a frame later. The fix is to keep the last measurement: the
+// size does not change while you hover the same thing, so the next position
+// is right on the first paint. What is left to pin here is the arithmetic
+// that first paint now uses.
+describe('placing a tooltip', () => {
+  const frame = { left: 0, top: 0, width: 1000, height: 800, scale: 1 };
+
+  it('sits below and right of the cursor when there is room', () => {
+    expect(placeHoverTip(100, 100, 200, 60, frame)).toEqual({ left: 114, top: 114 });
+  });
+
+  it('flips to the other side of the cursor at the right edge', () => {
+    expect(placeHoverTip(950, 100, 200, 60, frame).left).toBe(736);
+  });
+
+  it('flips above the cursor at the bottom edge', () => {
+    expect(placeHoverTip(100, 780, 200, 60, frame).top).toBe(706);
+  });
+
+  it('does not flip on a size it has not measured yet', () => {
+    // First paint of a tooltip nobody has seen before: better one frame in
+    // the wrong place than a jump every time the mouse moves.
+    expect(placeHoverTip(950, 100, 0, 0, frame)).toEqual({ left: 964, top: 114 });
+  });
+
+  it('never leaves the frame on the near side', () => {
+    expect(placeHoverTip(2, 2, 400, 400, frame)).toEqual({ left: 16, top: 16 });
   });
 });

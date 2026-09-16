@@ -67,6 +67,7 @@ describe('Run mode', () => {
     try {
       localStorage.clear();
       localStorage.setItem('planr_lang', 'en');
+      localStorage.setItem('planr_tree_ids', 'true');
       localStorage.setItem('planr_mode', 'run'); // land directly on Briefing
     } catch { /* ignore */ }
     seedProject();

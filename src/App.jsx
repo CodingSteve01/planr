@@ -400,8 +400,10 @@ export default function App() {
   // portal that lands outside the zoomed subtree would render at 100% beside
   // a 125% app. utils/embedHost.js measures the factor back out for anything
   // that positions itself from mouse or rect coordinates.
+  // 125% by default: the density is right, the scale it was drawn at assumed
+  // a full-width browser window on a desk monitor.
   const [uiScale, _setUiScale] = useState(() => {
-    try { return Number(localStorage.getItem('planr_ui_scale')) || 100; } catch { return 100; }
+    try { return Number(localStorage.getItem('planr_ui_scale')) || 125; } catch { return 125; }
   });
   const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
   useEffect(() => {
@@ -410,8 +412,11 @@ export default function App() {
     el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
     return () => { el.style.zoom = ''; };
   }, [uiScale]);
+  // Off by default. Everything that distracts is opt-in: the id is the
+  // tool's spine when you are wiring dependencies, and five dotted segments
+  // in front of every name the rest of the time.
   const [showTreeIds, _setShowTreeIds] = useState(() => {
-    try { return localStorage.getItem('planr_tree_ids') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('planr_tree_ids') === 'true'; } catch { return false; }
   });
   const setShowTreeIds = v => { _setShowTreeIds(v); try { localStorage.setItem('planr_tree_ids', String(v)); } catch {} };
   const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
