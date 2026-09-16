@@ -167,6 +167,15 @@ describe('the editor and the id column', () => {
     expect(container.querySelector('.overlay')).toBeTruthy();
   });
 
+  it('scales the surface on the element the popups also live in', async () => {
+    // Zooming .app while popups portal past it would render a 100% dropdown
+    // beside a 125% app.
+    localStorage.setItem('planr_ui_scale', '125');
+    renderApp();
+    await screen.findByTestId('view-filters-trigger');
+    expect(document.body.style.zoom).toBe('1.25');
+  });
+
   it('can drop the id column without losing the id', async () => {
     localStorage.setItem('planr_tree_ids', 'false');
     const { container } = renderApp();

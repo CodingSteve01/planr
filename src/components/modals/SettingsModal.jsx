@@ -10,7 +10,7 @@ import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
-export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, editorDock, setEditorDock, showTreeIds, setShowTreeIds, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
+export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes: projectSizes, customFields: projectCustomFields, teams, editorDock, setEditorDock, showTreeIds, setShowTreeIds, uiScale, setUiScale, onSave, onSaveTemplates, onSaveRisks, onSaveSizes, onSaveCustomFields, onClose }) {
   const { t, langPref, setLang } = useT();
   const { themePref, setTheme } = useTheme();
   const [tab, setTab] = useState('general');
@@ -115,6 +115,14 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                   onClick={() => setTheme(v)}>{l}</button>)}
             </div>
           </div>
+          {setUiScale && <div className="field"><label>{t('set.uiScale')}</label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[100, 110, 125, 150].map(v =>
+                <button key={v} className={`btn btn-xs ${uiScale === v ? 'btn-pri' : 'btn-sec'}`} style={{ flex: 1 }}
+                  onClick={() => setUiScale(v)}>{v}%</button>)}
+            </div>
+            <p className="helper">{t('set.uiScaleHelp')}</p>
+          </div>}
           {setEditorDock && <div className="field"><label>{t('set.editorDock')}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               {[['auto', t('set.dockAuto')], ['side', t('set.dockSide')], ['dialog', t('set.dockDialog')]].map(([v, l]) =>

@@ -30,6 +30,7 @@ Flags: `⚠` writes data outside the tree · `↔` duplicates … · `🔧` mech
 | Status pill (save state) | Shows save status; clickable to re-mount the file after a permission loss | src/App.jsx:2773-2808 | Settings | 1 | 🔧 mechanics exposed (File System Access handle/permission state) |
 | "reload" link (external change) | Reloads the project from the file on disk, discarding in-memory state | src/App.jsx:2804 | Settings | 2 | ⚠ writes data outside the tree — replaces the whole tree |
 | × dismiss external-change notice | Hides the "file changed" hint | src/App.jsx:2805 | Settings | 2 | |
+| "Interface size" (100 / 110 / 125 / 150 %) | Scales the whole surface via CSS zoom | src/components/modals/SettingsModal.jsx | Settings | 3 | |
 | "Item editor" dock (Auto / Side panel / Dialog) | Where the item editor lives; Auto follows the app's width | src/components/modals/SettingsModal.jsx | Settings | 3 | |
 | "Item IDs in the tree" (Show / Hide) | Hides the ID column in the work tree | src/components/modals/SettingsModal.jsx | Settings | 3 | |
 | ⚙ Settings button | Opens SettingsModal | src/App.jsx:2812 | Settings | 1 | icon only — the label repeated what the gear already says |

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
-import { fixedFrame } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
@@ -3151,9 +3151,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         // spans its containing block, which is the viewport only when nothing
         // is embedding us. See utils/embedHost.js.
         const frame = fixedFrame();
-        const x1 = (rect ? rect.right : linkDrag.mouseX) - frame.left;
-        const y1 = (rect ? rect.top + rect.height / 2 : linkDrag.mouseY) - frame.top;
-        const x2 = linkDrag.mouseX - frame.left, y2 = linkDrag.mouseY - frame.top;
+        const from = toFixedPoint(
+          rect ? rect.right : linkDrag.mouseX,
+          rect ? rect.top + rect.height / 2 : linkDrag.mouseY,
+          frame,
+        );
+        const to = toFixedPoint(linkDrag.mouseX, linkDrag.mouseY, frame);
+        const x1 = from.x, y1 = from.y;
+        const x2 = to.x, y2 = to.y;
         const stub = 10;
         const sx = x1 + stub;
         const tx = x2 - stub;

@@ -25,7 +25,7 @@ import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadli
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
-import { isEmbedded } from './utils/embedHost.js';
+import { isEmbedded, portalHost } from './utils/embedHost.js';
 
 // Below this the side panel stops being help and starts being the thing in
 // the way: 360px of editor against what is left of a work tree.
@@ -391,6 +391,25 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
   const editorAsDialog = editorDock === 'dialog' || (editorDock === 'auto' && narrow);
+  // UI scale. Planr's density is deliberate — 11px rows are canon — but a
+  // dense grid designed for a 27" screen is unreadable in a workspace pane,
+  // and Obsidian's own zoom would blow up Obsidian with it. `zoom` reflows
+  // rather than stretching, so a scaled Planr is still a crisp Planr.
+  //
+  // It goes on the element the popups are portalled into, not on .app: a
+  // portal that lands outside the zoomed subtree would render at 100% beside
+  // a 125% app. utils/embedHost.js measures the factor back out for anything
+  // that positions itself from mouse or rect coordinates.
+  const [uiScale, _setUiScale] = useState(() => {
+    try { return Number(localStorage.getItem('planr_ui_scale')) || 100; } catch { return 100; }
+  });
+  const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
+  useEffect(() => {
+    const el = portalHost();
+    if (!el) return;
+    el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
+    return () => { el.style.zoom = ''; };
+  }, [uiScale]);
   const [showTreeIds, _setShowTreeIds] = useState(() => {
     try { return localStorage.getItem('planr_tree_ids') !== 'false'; } catch { return true; }
   });
@@ -3456,7 +3475,7 @@ export default function App() {
         </div>
       </div>
     )}
-    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
+    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} uiScale={uiScale} setUiScale={setUiScale} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
     {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
     {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}

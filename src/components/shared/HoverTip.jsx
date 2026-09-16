@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { fixedFrame } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
 
 /**
  * Lightweight global tooltip — mount once at app root; any element with
@@ -40,8 +40,7 @@ export function HoverTipProvider() {
     const tw = tipRef.current.offsetWidth;
     const th = tipRef.current.offsetHeight;
     const frame = fixedFrame();
-    const x = tip.x - frame.left;
-    const y = tip.y - frame.top;
+    const { x, y } = toFixedPoint(tip.x, tip.y, frame);
     let nx = x + 14;
     let ny = y + 14;
     if (nx + tw > frame.width - 8) nx = x - tw - 14;
@@ -54,9 +53,9 @@ export function HoverTipProvider() {
 
   if (!tip) return null;
   // First paint, before the layout effect corrects it.
-  const frame = fixedFrame();
-  const left = tip.x - frame.left + 14;
-  const top = tip.y - frame.top + 14;
+  const start = toFixedPoint(tip.x, tip.y);
+  const left = start.x + 14;
+  const top = start.y + 14;
   return tip.text.startsWith('html:') ? (
     <div
       ref={tipRef}

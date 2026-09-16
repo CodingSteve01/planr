@@ -3,7 +3,7 @@ import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { CriticalPathBadge } from './CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
-import { fixedFrame } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
 
 function MetaChip({ label, value, tone = 'default' }) {
   const color = tone === 'danger' ? 'var(--re)'
@@ -54,8 +54,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
   // fixed element's origin is its containing block — the viewport on the web,
   // the host's container inside Obsidian. See utils/embedHost.js.
   const frame = fixedFrame();
-  const fx = x - frame.left;
-  const fy = y - frame.top;
+  const { x: fx, y: fy } = toFixedPoint(x, y, frame);
   let sx = fx + 16;
   let sy = fy + 18;
   if (sx + ttW > frame.width - pad) sx = fx - ttW - 8;
