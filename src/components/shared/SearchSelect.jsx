@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { portalHost } from '../../utils/portalHost.js';
 
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
 // - "Controlled mode" (with `value` prop): shows current selection, replaces <select>
 //
-// The popup renders into a portal on document.body so it can escape modal overflow
+// The popup renders into a portal on the host root so it can escape modal overflow
 // clipping and z-index sandwiching (e.g. sticky modal footers covering the popup).
 // Position is computed from the wrapper's bounding rect; the popup auto-flips
 // upward when there isn't enough room below.
@@ -204,7 +205,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
           </div>;
         })}
       </div>,
-      document.body
+      portalHost(),
     )}
   </div>;
 }
