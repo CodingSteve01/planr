@@ -372,8 +372,9 @@ For a dev loop: `npm run dev`. Note: we leave the dev server management to the u
 ### Obsidian plugin
 
 A second output from the same `src/`: `npm run build:obsidian` produces
-`dist-obsidian/{main.js,manifest.json,styles.css}` via esbuild, and
-`.github/workflows/obsidian-plugin.yml` publishes those three files as release
-assets when a version tag is pushed. Tags in this repository are plugin
-releases — the tag name is the plugin version, no `v` prefix. Full story in
-[obsidian-plugin.md](obsidian-plugin.md).
+`dist-obsidian/{main.js,manifest.json,styles.css}` via esbuild. Releasing is a
+version bump — `npm run version:set 1.1.0` writes `package.json`,
+`manifest.json` and `versions.json` together, and merging that to main makes
+`.github/workflows/obsidian-plugin.yml` test, build, tag and publish the three
+files. Tags in this repository are plugin releases; the tag name is the
+version, no `v` prefix. Full story in [obsidian-plugin.md](obsidian-plugin.md).
