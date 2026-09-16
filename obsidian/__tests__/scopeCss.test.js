@@ -30,6 +30,24 @@ describe('scopeCss', () => {
       .toContain('html[data-theme="light"] .planr-view');
   });
 
+  it('keeps a bare theme condition on <html>, where i18n.jsx sets it', () => {
+    // The bug this test exists for: prefixed like anything else, this becomes
+    // `.planr-view [data-theme=light] .tr.l1 td` — a themed element inside
+    // Planr, which never exists — and the light palette silently vanishes
+    // while the tokens themselves flip. Half-light app, dark tree rows.
+    expect(scopeCss('[data-theme="light"] .tr.l1 td{background:#f5f7fa}'))
+      .toBe('html[data-theme="light"] .planr-view .tr.l1 td{background:#f5f7fa}');
+  });
+
+  it('reads a themed body as the app frame, not a body inside it', () => {
+    expect(scopeCss('[data-theme="light"] body{-webkit-font-smoothing:auto}'))
+      .toBe('html[data-theme="light"] .planr-view{-webkit-font-smoothing:auto}');
+  });
+
+  it('scopes attribute selectors that are app markup', () => {
+    expect(scopeCss('[data-ss-idx]{padding:0}')).toBe('.planr-view [data-ss-idx]{padding:0}');
+  });
+
   it('collapses the page frame onto the container', () => {
     expect(selectorsOf(scopeCss('html,body,#root{height:100%}'))).toEqual(['.planr-view']);
   });
@@ -59,5 +77,12 @@ describe('scopeCss', () => {
     const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
     const escapees = selectorsOf(scoped).filter(s => !s.includes('.planr-view'));
     expect(escapees).toEqual([]);
+  });
+
+  it('anchors every light-mode rule in App.css at <html>', () => {
+    const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
+    const themed = selectorsOf(scoped).filter(s => s.includes('data-theme'));
+    expect(themed.length).toBeGreaterThan(30);
+    expect(themed.filter(s => !s.startsWith('html[data-theme'))).toEqual([]);
   });
 });

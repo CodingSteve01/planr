@@ -14,25 +14,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// The same stand-in the vault-layer tests use: whatever the bundle expects
+// Obsidian to hand it has to exist here too, or this test is the one that
+// says so.
+import * as obsidian from './obsidian-stub.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = mkdtempSync(path.join(tmpdir(), 'planr-obsidian-'));
 
-// Stand-ins for the classes the plugin extends. Only the shape matters —
-// nothing here is constructed during module evaluation.
-class Stub {}
-const obsidian = {
-  ItemView: Stub,
-  Plugin: Stub,
-  Modal: Stub,
-  Setting: Stub,
-  FuzzySuggestModal: Stub,
-  TFile: Stub,
-  TFolder: Stub,
-  Notice: Stub,
-  addIcon: () => {},
-  normalizePath: p => p,
-};
 
 let exported;
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { fixedFrame } from '../../utils/embedHost.js';
 
 /**
  * Lightweight global tooltip — mount once at app root; any element with
@@ -31,36 +32,43 @@ export function HoverTipProvider() {
     return () => { document.removeEventListener('mousemove', onMove); };
   }, [onMove]);
 
-  // Edge-flip: measure after render, adjust position if overflowing
+  // Edge-flip: measure after render, adjust position if overflowing.
+  // The mouse reports viewport coordinates; a fixed element is placed in its
+  // containing block, which is the viewport only when nothing is embedding us.
   useLayoutEffect(() => {
     if (!tip || !tipRef.current) return;
     const tw = tipRef.current.offsetWidth;
     const th = tipRef.current.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let nx = tip.x + 14;
-    let ny = tip.y + 14;
-    if (nx + tw > vw - 8) nx = tip.x - tw - 14;
+    const frame = fixedFrame();
+    const x = tip.x - frame.left;
+    const y = tip.y - frame.top;
+    let nx = x + 14;
+    let ny = y + 14;
+    if (nx + tw > frame.width - 8) nx = x - tw - 14;
     if (nx < 8) nx = 8;
-    if (ny + th > vh - 8) ny = tip.y - th - 14;
+    if (ny + th > frame.height - 8) ny = y - th - 14;
     if (ny < 8) ny = 8;
     tipRef.current.style.left = nx + 'px';
     tipRef.current.style.top = ny + 'px';
   }, [tip]);
 
   if (!tip) return null;
+  // First paint, before the layout effect corrects it.
+  const frame = fixedFrame();
+  const left = tip.x - frame.left + 14;
+  const top = tip.y - frame.top + 14;
   return tip.text.startsWith('html:') ? (
     <div
       ref={tipRef}
       className="htip-pop"
-      style={{ position: 'fixed', left: tip.x + 14, top: tip.y + 14, pointerEvents: 'none', zIndex: 9999 }}
+      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
       dangerouslySetInnerHTML={{ __html: tip.text.slice(5) }}
     />
   ) : (
     <div
       ref={tipRef}
       className="htip-pop"
-      style={{ position: 'fixed', left: tip.x + 14, top: tip.y + 14, pointerEvents: 'none', zIndex: 9999 }}
+      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
     >
       {tip.text}
     </div>

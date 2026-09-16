@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { portalHost } from '../../utils/portalHost.js';
+import { fixedFrame, portalHost } from '../../utils/embedHost.js';
 
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
@@ -45,21 +45,25 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
     const update = () => {
       const r = ref.current?.getBoundingClientRect();
       if (!r) return;
-      const spaceBelow = window.innerHeight - r.bottom;
-      const spaceAbove = r.top;
+      // The trigger's rect is in viewport coordinates, the popup is fixed and
+      // therefore placed in its containing block — the same thing on the web,
+      // not inside a host. See utils/embedHost.js.
+      const frame = fixedFrame();
+      const spaceBelow = frame.top + frame.height - r.bottom;
+      const spaceAbove = r.top - frame.top;
       // Open upward when there's not enough room below AND there is enough above.
       const openUp = spaceBelow < POPUP_MAX_H + 16 && spaceAbove > spaceBelow;
       // Popup width expands beyond the trigger when the trigger is narrow
-      // (e.g. inside a side panel). Cap at viewport edge so it doesn't
+      // (e.g. inside a side panel). Cap at the frame's edge so it doesn't
       // run off-screen. Min width = max(trigger, 280) so task names stay
-      // readable; max = window.innerWidth - left - 16 margin.
+      // readable; max = what is left to the right of the trigger, less 16.
       const desired = Math.max(r.width, 320);
-      const maxAvail = Math.max(160, window.innerWidth - r.left - 16);
+      const maxAvail = Math.max(160, frame.left + frame.width - r.left - 16);
       const width = Math.min(desired, maxAvail);
       setPopupPos({
-        top: r.bottom + 2,
-        bottom: window.innerHeight - r.top + 2,
-        left: r.left,
+        top: r.bottom - frame.top + 2,
+        bottom: frame.top + frame.height - r.top + 2,
+        left: r.left - frame.left,
         width,
         openUp,
       });

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { hostTheme, onHostThemeChange } from './utils/embedHost.js';
 
 // ── Translations ─────────────────────────────────────────────────────────────
 // Flat key–value maps. Keys are grouped by component prefix for maintainability.
@@ -2100,7 +2101,11 @@ export function ThemeProvider({ children }) {
     const apply = () => {
       let effective = themePref;
       if (effective === 'auto') {
-        effective = window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        // Inside a host (the Obsidian plugin), "Auto" means the host's theme:
+        // sitting light inside a dark vault because the OS happens to be
+        // light is not what anyone means by automatic.
+        effective = hostTheme()
+          || (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
       }
       document.documentElement.setAttribute('data-theme', effective);
     };
@@ -2108,7 +2113,8 @@ export function ThemeProvider({ children }) {
     if (themePref === 'auto') {
       const mq = window.matchMedia('(prefers-color-scheme: light)');
       mq.addEventListener('change', apply);
-      return () => mq.removeEventListener('change', apply);
+      const offHost = onHostThemeChange(apply);
+      return () => { mq.removeEventListener('change', apply); offHost(); };
     }
   }, [themePref]);
 

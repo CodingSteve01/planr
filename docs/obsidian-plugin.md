@@ -50,10 +50,26 @@ unminified build with an inline sourcemap. Obsidian picks up a new build after
 
 ## Using it
 
+- **Click a `*.planr.md` file** — it opens in Planr, not in the Markdown
+  editor. Obsidian reads that file's extension as `md` and hands it to the
+  editor first; the plugin swaps the view right after. Only files named
+  `…planr.md` are touched, the tab menu always offers **Open as Markdown**, and
+  *Settings → Planr* turns the whole behaviour off.
+- **Click a `*.planr` file** — opens in Planr too, via a proper extension
+  registration. `.planr` is nobody else's, and without the registration
+  Obsidian would not even list such a file in the explorer.
 - **Ribbon icon** or the command **Planr: Open Planr** — opens the app in a tab.
 - **Planr: Open plan file…** — fuzzy-search the vault for a plan and mount it.
-- **Right-click a `.json` or `.md` file → Open in Planr** — same thing from the
-  file explorer.
+- **Right-click any plan file → Open in Planr** — same thing from the file
+  explorer, and the way in for a `.planr.json`.
+
+A Planr tab remembers which plan it holds, so it comes back pointing at the
+same file after a restart, and the tab is named after the plan rather than
+"Planr".
+
+`.md` itself is deliberately **not** registered: that would take every note in
+the vault away from Obsidian's own editor. The `.planr.md` swap is a targeted
+substitute — same convenience, no collateral.
 
 Inside the app, everything works as on the web. `Cmd/Ctrl+S`, *Save as…* and
 *Open* go through Obsidian: the open dialog is a vault fuzzy-finder, and saving
@@ -66,10 +82,6 @@ Two file formats, same as always: `*.planr.json` keeps everything and is the
 safe default, `*.md` stays readable as a note (and loses what the Markdown
 writer does not carry — see [import-export.md](import-export.md)).
 
-`.planr` is deliberately **not** registered as a file extension. Planr files
-are ordinary `.json` and `.md`, and claiming those for the whole vault would
-take every JSON file and every note away from Obsidian's own editors.
-
 ## How it works
 
 | Concern | Web | Plugin |
@@ -79,6 +91,7 @@ take every JSON file and every note away from Obsidian's own editors.
 | Open / save | File System Access API | vault-backed shim over the same API |
 | Remembered file | `FileSystemFileHandle` in IndexedDB | vault path in Obsidian's per-vault local storage |
 | UI preferences | `localStorage` | `localStorage` (unchanged — Obsidian's renderer has one) |
+| Theme "Auto" | OS `prefers-color-scheme` | the vault's light/dark setting |
 | Exports (PDF, DOCX, CSV…) | browser download | browser download (Electron's save dialog) |
 
 Four files carry all of it:
@@ -99,9 +112,12 @@ Four files carry all of it:
   escapes; that test is the guard rail against a build that restyles someone's
   whole vault.
 
-The only changes on the app side are `src/utils/portalHost.js` and its two call
-sites (`Phases.jsx`, `SearchSelect.jsx`): popups portal to `document.body` on
-the web and to the host's root when a host announces one.
+The only change on the app side is `src/utils/embedHost.js` — the surface a
+host may influence — plus the three places that consult it: the two portal
+call sites (`Phases.jsx`, `SearchSelect.jsx`) and `ThemeProvider` in
+`i18n.jsx`. The plugin announces itself on `window.__planrHost` with the view
+container and the vault's theme, so popups stay inside the scoped stylesheet
+and "Auto" follows Obsidian instead of the OS underneath it.
 
 ### Build
 
@@ -172,3 +188,6 @@ plugin use anyway.
   in Planr, read it anywhere.
 - **One plan at a time.** The view mounts the file remembered as "mounted";
   opening a second plan replaces the first, as on the web.
+- **A `.planr.md` swap is visible.** Obsidian opens the Markdown editor for a
+  fraction of a second before the plugin takes the leaf over. Unavoidable
+  without claiming `.md` wholesale.

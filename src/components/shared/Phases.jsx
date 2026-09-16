@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { portalHost } from '../../utils/portalHost.js';
+import { portalHost } from '../../utils/embedHost.js';
 import { SearchSelect } from './SearchSelect.jsx';
 import { createPhaseDraft, instantiateTemplatePhases, normalizePhases, phaseAssigneeIds, phaseTeamIds } from '../../utils/phases.js';
 import { derivePhaseStatus } from '../../utils/scheduler.js';

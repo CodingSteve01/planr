@@ -72,8 +72,8 @@ src/
     holidays.js            — NRW holiday algorithm + week grid builder
     fileHandleStore.js     — File System Access API persistence layer (the Obsidian build
                              swaps this module — see docs/obsidian-plugin.md)
-    portalHost.js          — where modals/popups portal to: document.body on the web, the
-                             host's root when an embedded host announces one
+    embedHost.js           — what an embedding host may influence: where modals/popups
+                             portal to, and what "Auto" theme resolves to
     exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
     markdown.js            — Markdown serialization (parseMdToProject, buildMarkdownText)
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
