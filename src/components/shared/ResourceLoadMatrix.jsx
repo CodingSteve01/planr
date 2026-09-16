@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
+import { tipLines } from '../../utils/tipText.js';
 
 function initials(name) {
   if (!name) return '?';
@@ -134,13 +135,6 @@ export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlan
   return result;
 }
 
-function htmlEsc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export function ResourceLoadMatrix({ members, teams, weeks, vacations, meetingPlans, scheduled }) {
   const { t } = useT();
@@ -193,16 +187,20 @@ export function ResourceLoadMatrix({ members, teams, weeks, vacations, meetingPl
   ];
   const fmtDays = value => `${(Math.round((Number(value) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '')}d`;
   const cellTip = (member, cell) => {
-    const tasks = cell.tasks.length
-      ? cell.tasks.slice(0, 12).map(task => {
-          const status = task.status ? ` · ${htmlEsc(task.status)}` : '';
-          const dates = task.start || task.end ? ` · ${htmlEsc(task.start)}→${htmlEsc(task.end)}` : '';
-          return `<div style="margin-top:3px"><b>${htmlEsc(task.id)}</b> ${htmlEsc(task.name)}<span style="opacity:.75"> · ${fmtDays(task.load)}${status}${dates}</span></div>`;
-        }).join('')
-      : `<div style="margin-top:4px;opacity:.75">${htmlEsc(t('rv.loadNoTasks'))}</div>`;
-    const more = cell.tasks.length > 12 ? `<div style="margin-top:3px;opacity:.75">+${cell.tasks.length - 12}</div>` : '';
-    const capLabel = cell.availability > 0 ? fmtDays(cell.availability) : htmlEsc(t('rv.loadUnavailable'));
-    return `html:<div><b>${htmlEsc(t('rv.loadPersonWeekTip', member.name || member.id, cell.kw, cell.start))}</b><br/>${htmlEsc(t('rv.loadPlanned'))}: ${fmtDays(cell.load)} · ${htmlEsc(t('rv.loadCapacity'))}: ${capLabel} · ${cell.percent}%<br/><div style="margin-top:6px;color:var(--tx2)">${htmlEsc(t('rv.loadTasks'))}</div>${tasks}${more}</div>`;
+    const taskLines = cell.tasks.slice(0, 12).map(task => {
+      const status = task.status ? ` · ${task.status}` : '';
+      const dates = task.start || task.end ? ` · ${task.start}→${task.end}` : '';
+      return `- **${task.id}** ${task.name} · ${fmtDays(task.load)}${status}${dates}`;
+    });
+    const capLabel = cell.availability > 0 ? fmtDays(cell.availability) : t('rv.loadUnavailable');
+    return tipLines(
+      `**${t('rv.loadPersonWeekTip', member.name || member.id, cell.kw, cell.start)}**`,
+      `${t('rv.loadPlanned')}: ${fmtDays(cell.load)} · ${t('rv.loadCapacity')}: ${capLabel} · ${cell.percent}%`,
+      '',
+      `__${t('rv.loadTasks')}__`,
+      ...(taskLines.length ? taskLines : [`__${t('rv.loadNoTasks')}__`]),
+      cell.tasks.length > 12 ? `__+${cell.tasks.length - 12}__` : null,
+    );
   };
 
   if (!(members || []).length || !weekCols.length) {

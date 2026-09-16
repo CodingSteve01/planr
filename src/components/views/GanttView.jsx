@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { tipLines } from '../../utils/tipText.js';
 import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
@@ -43,13 +44,6 @@ function withAlpha(color, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function htmlEsc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function fmtLoadDays(value) {
   return `${(Math.round((Number(value) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '')}d`;
@@ -1361,16 +1355,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const full = risky.filter(r => r.percent >= 90 && r.percent <= 110);
     const top = risky.slice(0, 6);
     const histTop = historical.slice(0, Math.max(0, 6 - top.length));
-    const riskHtml = top.map(r => {
-          const tasks = (r.tasks || EMPTY_ARR).slice(0, 3).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
-          return `${htmlEsc(r.name)} · KW ${r.kw} (${r.start}): <b>${r.percent}%</b> · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}${tasks}`;
-        }).join('<br/>');
-    const histHtml = histTop.map(r => {
-          const tasks = (r.tasks || EMPTY_ARR).slice(0, 2).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
-          return `${htmlEsc(r.name)} · KW ${r.kw} (${r.start}): ${r.percent}% · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}${tasks}`;
-        }).join('<br/>');
+    const weekLine = (r, bold) => `${r.name} · KW ${r.kw} (${r.start}): ${bold ? `**${r.percent}%**` : `${r.percent}%`} · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}`;
+    const taskLines = (r, limit) => (r.tasks || EMPTY_ARR).slice(0, limit)
+      .map(task => `- ${task.id} ${task.name} · ${fmtLoadDays(task.load)}`);
+    const riskLines = top.flatMap(r => [weekLine(r, true), ...taskLines(r, 3)]);
+    const histLines = histTop.flatMap(r => [weekLine(r, false), ...taskLines(r, 2)]);
     const tip = top.length || histTop.length
-      ? `html:<div><b>${t('g.loadRiskTitle')}</b>${riskHtml ? `<br/>${riskHtml}<br/><span style="color:var(--tx3)">${t('g.loadRiskAction')}</span>` : `<br/><span style="color:var(--tx3)">${t('g.loadOkTip')}</span>`}${histHtml ? `<br/><br/><b>${t('g.loadHistoryTitle')}</b><br/>${histHtml}<br/><span style="color:var(--tx3)">${t('g.loadHistoryNote')}</span>` : ''}</div>`
+      ? tipLines(
+        `**${t('g.loadRiskTitle')}**`,
+        ...riskLines,
+        `__${riskLines.length ? t('g.loadRiskAction') : t('g.loadOkTip')}__`,
+        ...(histLines.length
+          ? ['', `**${t('g.loadHistoryTitle')}**`, ...histLines, `__${t('g.loadHistoryNote')}__`]
+          : []),
+      )
       : t('g.loadOkTip');
     return {
       overCount: over.length,
@@ -1409,10 +1407,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       const shownBase = planningPeople.length ? planningPeople : (people.filter(p => p.percent >= 90).length ? people.filter(p => p.percent >= 90) : people);
       const shown = shownBase.slice(0, 8);
       const tip = people.length
-        ? `html:<div><b>${t('g.loadWeekTitle')} KW ${week.kw} · ${iso(week.mon)}</b><br/>${t('g.loadWeekTotal')}: ${fmtLoadDays(totalLoad)} / ${fmtLoadDays(totalAvailability)} · max ${maxPercent}%<br/>${shown.map(p => {
-            const tasks = (p.tasks || EMPTY_ARR).slice(0, 4).map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`).join('');
-            return `<div style="margin-top:5px"><b>${htmlEsc(p.name)}</b>: ${p.percent}% · ${fmtLoadDays(p.load)} / ${fmtLoadDays(p.availability)}${tasks}</div>`;
-          }).join('')}${historicalOnly ? `<div style="margin-top:7px;color:var(--tx3)">${t('g.loadHistoryNote')}</div>` : ''}<div style="margin-top:7px;color:var(--tx3)">${t('g.loadClickResource')}</div></div>`
+        ? tipLines(
+          `**${t('g.loadWeekTitle')} KW ${week.kw} · ${iso(week.mon)}**`,
+          `${t('g.loadWeekTotal')}: ${fmtLoadDays(totalLoad)} / ${fmtLoadDays(totalAvailability)} · max ${maxPercent}%`,
+          ...shown.flatMap(p => [
+            '',
+            `**${p.name}**: ${p.percent}% · ${fmtLoadDays(p.load)} / ${fmtLoadDays(p.availability)}`,
+            ...(p.tasks || EMPTY_ARR).slice(0, 4).map(task => `- ${task.id} ${task.name} · ${fmtLoadDays(task.load)}`),
+          ]),
+          '',
+          historicalOnly ? `__${t('g.loadHistoryNote')}__` : null,
+          `__${t('g.loadClickResource')}__`,
+        )
         : t('g.loadNoWork');
       return {
         wi,
@@ -2452,10 +2458,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               return <div key={row.key} style={{ height: RH, position: 'relative', background: 'rgba(127,127,127,.035)', borderBottom: '1px solid var(--b2)' }}>
                 {loadCells?.map(cell => {
                   const pct = cell.percent || 0;
-                  const taskHtml = (cell.tasks || EMPTY_ARR).slice(0, 8)
-                    .map(task => `<span style="display:block;margin-left:8px;color:var(--tx2)">- ${htmlEsc(task.id)} ${htmlEsc(task.name)} · ${fmtLoadDays(task.load)}</span>`)
-                    .join('');
-                  const tip = `html:<div><b>${htmlEsc(row.label)} · KW ${cell.kw} (${cell.start})</b><br/>${pct}% · ${fmtLoadDays(cell.load)} / ${fmtLoadDays(cell.availability)}${taskHtml || `<div style="margin-top:4px;color:var(--tx3)">${t('g.loadNoWork')}</div>`}</div>`;
+                  const taskLines = (cell.tasks || EMPTY_ARR).slice(0, 8)
+                    .map(task => `- ${task.id} ${task.name} · ${fmtLoadDays(task.load)}`);
+                  const tip = tipLines(
+                    `**${row.label} · KW ${cell.kw} (${cell.start})**`,
+                    `${pct}% · ${fmtLoadDays(cell.load)} / ${fmtLoadDays(cell.availability)}`,
+                    ...(taskLines.length ? taskLines : [`__${t('g.loadNoWork')}__`]),
+                  );
                   return <div key={`load-${cell.wi}`} data-htip={tip}
                     style={{
                       position: 'absolute',

@@ -2,6 +2,9 @@ import { useMemo, useState, useCallback, useRef, useLayoutEffect, useEffect } fr
 import { renderRoadmapSvg, computeRoadmapModel } from '../../utils/roadmap.js';
 import { renderProjectRoadmapSvg } from '../../utils/projectRoadmap.js';
 import { useT } from '../../i18n.jsx';
+import { SvgMarkup } from './SvgMarkup.jsx';
+import { StatusIcon } from './StatusIcon.jsx';
+import { parseTip } from '../../utils/tipText.js';
 
 const ZOOM_KEY = 'planr_roadmap_zoom';
 const ZOOM_MAX = 4;
@@ -9,6 +12,84 @@ const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
 const ZOOM_BTN = { padding: '2px 7px', fontSize: 10 };   // same shape as the Gantt footer's zoom group
 const nextStep = current => ZOOM_STEPS.find(step => step > current + 1e-6) ?? ZOOM_MAX;
 const prevStep = current => [...ZOOM_STEPS].reverse().find(step => step < current - 1e-6) ?? 1;
+
+// What a hovered station, line or train says.
+//
+// The SVG carries the answer as data in `data-tip` — id, name, status, the
+// items in a cluster — and it is rendered here with the same StatusIcon the
+// rest of the app uses. It used to carry HTML that went in through
+// `dangerouslySetInnerHTML`; every colour and every strikethrough below used
+// to be a style attribute in a template string in utils/roadmap.js.
+const TIP_ROW = { display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0' };
+const TIP_HEAD = {
+  ...TIP_ROW,
+  marginBottom: 4,
+  paddingBottom: 4,
+  borderBottom: '1px solid var(--b2, #364456)',
+};
+
+function TipBody({ text }) {
+  let data = null;
+  if (text?.startsWith('{')) {
+    try { data = JSON.parse(text); } catch { data = null; }
+  }
+
+  if (!data) {
+    // A plain label — "Previous position" and friends.
+    return parseTip(text).map((line, li) => (
+      <div key={li} style={{ font: '500 10.5px/1.4 Inter,system-ui,sans-serif' }}>
+        {line.parts.map((part, pi) => (
+          part.tone === 'bold'
+            ? <b key={pi}>{part.text}</b>
+            : <span key={pi} style={part.tone === 'muted' ? { color: 'var(--tx3)' } : undefined}>{part.text}</span>
+        ))}
+      </div>
+    ));
+  }
+
+  const mono = "700 11px/1 'JetBrains Mono',monospace";
+
+  if (data.kind === 'station') {
+    return <>
+      <div style={TIP_HEAD}>
+        <StatusIcon status={data.status} progress={(data.prog || 0) * 100} style={{ width: 14, height: 14 }} />
+        <span style={{ font: mono, color: data.color }}>{data.abbrev}</span>
+        <span style={{ font: '600 11px/1.2 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)' }}>{data.name}</span>
+        <span style={{ font: "500 10px/1 'JetBrains Mono',monospace", color: 'var(--tx3, #8898b0)', marginLeft: 'auto' }}>{data.count}</span>
+      </div>
+      {(data.items || []).map((item, i) => (
+        <div key={i} style={{
+          ...TIP_ROW,
+          paddingLeft: 4,
+          ...(item.status === 'done' ? { textDecoration: 'line-through', opacity: .55 }
+            : item.status === 'wip' ? { color: data.color } : { color: 'var(--tx2, #cbd5e1)' }),
+        }}>
+          <StatusIcon status={item.status} progress={(item.prog || 0) * 100} style={{ width: 11, height: 11 }} />
+          <span style={{ font: '400 10px/1.2 Inter,system-ui,sans-serif' }}>{item.name}</span>
+        </div>
+      ))}
+    </>;
+  }
+
+  // A line, or the train on it.
+  return <>
+    <div style={TIP_HEAD}>
+      {data.glyph
+        ? <span style={{ font: "700 14px/1 'JetBrains Mono',monospace", color: data.color }}>{data.glyph}</span>
+        : <span style={{ display: 'inline-block', width: 14, height: 8, borderRadius: 2, background: data.color }} />}
+      <span style={{ font: mono, color: data.color }}>{data.id}</span>
+      <span style={{
+        font: "700 10px/1 'JetBrains Mono',monospace", color: 'var(--tx3, #8898b0)',
+        textTransform: 'uppercase', letterSpacing: '.06em', marginLeft: 'auto',
+      }}>{data.badge}</span>
+    </div>
+    <div style={{ font: '500 10.5px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)', marginBottom: 4 }}>{data.name}</div>
+    <div style={{ font: '500 10px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx2, #cbd5e1)' }}>{data.note}</div>
+    {data.atRisk && (
+      <div style={{ font: "700 10px/1.4 'JetBrains Mono',monospace", color: 'var(--re, #ef4444)', marginTop: 2 }}>⚠ {data.atRisk}</div>
+    )}
+  </>;
+}
 
 export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
   const { t } = useT();
@@ -260,8 +341,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
         style={zoomed
           ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain', touchAction: 'none' }
           : { overflow: 'visible' }}>
-        <div style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined}
-          dangerouslySetInnerHTML={{ __html: svg }} />
+        <SvgMarkup markup={svg} style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined} />
       </div>
       {/* Tooltip lives OUTSIDE the scroll container: its coordinates come from
           the visible box, so they must not be shifted by scrollLeft/Top. */}
@@ -276,8 +356,7 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
             pointerEvents: 'none', minWidth: 180, maxWidth: 320,
             color: 'var(--tx, #e8ecf4)',
           }}
-          dangerouslySetInnerHTML={{ __html: tip.text }}
-        />
+        ><TipBody text={tip.text} /></div>
       )}
     </div>
   );

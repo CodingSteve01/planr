@@ -74,6 +74,8 @@ src/
                              swaps this module — see docs/obsidian-plugin.md)
     embedHost.js           — what an embedding host may influence: where modals/popups
                              portal to, and what "Auto" theme resolves to
+    tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
+                             replaced the HTML-in-a-string tooltips that needed innerHTML
     exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
     markdown.js            — Markdown serialization (parseMdToProject, buildMarkdownText)
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()

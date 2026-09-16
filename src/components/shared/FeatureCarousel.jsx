@@ -3,6 +3,7 @@ import { useT } from '../../i18n.jsx';
 import { treeStats, schedule, leafNodes, computeConfidence } from '../../utils/scheduler.js';
 import { buildHMap } from '../../utils/holidays.js';
 import { renderRoadmapSvg } from '../../utils/roadmap.js';
+import { SvgMarkup } from './SvgMarkup.jsx';
 
 // ── Shared mini-browser chrome ────────────────────────────────────────────────
 function SlideChrome({ label, children }) {
@@ -31,7 +32,7 @@ function Slide1Metro({ demo }) {
 
   return (
     <SlideChrome label={t('ob.preview.label')}>
-      <div className="ob-preview-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+      <SvgMarkup className="ob-preview-svg" markup={svg} />
     </SlideChrome>
   );
 }

@@ -199,6 +199,22 @@ The store is a single registry file. To get listed:
 Until then BRAT is the honest answer, and it is what most people testing a
 plugin use anyway.
 
+## What the store review asked about, before it asked
+
+- **No `innerHTML` reaches the page.** Tooltips were HTML strings handed to
+  `innerHTML`, escaped by hand on the way in. They are text now, in a dialect
+  of three symbols (`**bold**`, `__muted__`, a newline, `- ` for a detail
+  line) parsed in [`src/utils/tipText.js`](../src/utils/tipText.js) and
+  rendered as elements. The roadmap's richer tooltips travel as JSON in
+  `data-tip` and are rendered with the app's own components; generated SVG
+  goes in through `DOMParser` in `image/svg+xml` mode rather than as a string.
+  What is left is `src/utils/exports.js`, which builds a detached document for
+  the Word export and never attaches it to the page.
+- **No browser global is patched.** The file pickers are a module the build
+  swaps, not a redefined `window.showSaveFilePicker`.
+- **Nothing is detached in `onunload`**, and the plugin has no `onunload` left
+  to do it in.
+
 ## Limitations
 
 - **Desktop only.** No mobile build; the app assumes a wide window and a

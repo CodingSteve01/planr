@@ -406,7 +406,7 @@ export default function App() {
   // lives in a pane beside everything else. One number could not be right for
   // both — 125% in a full browser window is enormous.
   const [uiScale, _setUiScale] = useState(() => {
-    const fallback = isEmbedded() ? 125 : 100;
+    const fallback = isEmbedded() ? 110 : 100;
     try { return Number(localStorage.getItem('planr_ui_scale')) || fallback; } catch { return fallback; }
   });
   const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
@@ -3386,7 +3386,7 @@ export default function App() {
             <div className="side-hdr"><h3>{selected.id}</h3>
               <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}>⊞</button>
               <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} data-testid="editor-dock-dialog"
-                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}>⇥</button>
+                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}>⇤</button>
               <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}

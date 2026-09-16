@@ -1198,6 +1198,13 @@ export function placeStationLabels(lines, isVisible = () => true) {
 
 // ─── renderRoadmapSvg ─────────────────────────────────────────────────────────
 
+// A tooltip payload, for the `data-tip` attribute. JSON rather than HTML: the
+// hover layer parses it and renders components, so no string is ever handed to
+// innerHTML — see components/shared/Roadmap.jsx and utils/tipText.js.
+function tipData(payload) {
+  return JSON.stringify(payload);
+}
+
 export function renderRoadmapSvg(args) {
   const model = computeRoadmapModel(args);
   const labels = args.labels || {};
@@ -1303,14 +1310,13 @@ export function renderRoadmapSvg(args) {
     const lTrainHover = labels.train || 'Train';
     const linePct = formatPercentNumber(line.progress);
     const lineCurrentPos = (labels.currentPos || 'Effort-weighted progress: {0}%').replace('{0}', linePct);
-    const lineTooltip = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
-      + `<span style="display:inline-block;width:14px;height:8px;border-radius:2px;background:${color}"></span>`
-      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(line.root.id)}</span>`
-      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.06em;margin-left:auto">${esc(lTrainHover)}</span>`
-      + `</div>`
-      + `<div style="font:500 10.5px/1.4 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4);margin-bottom:4px">${esc(line.root.name)}</div>`
-      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">${esc(lineCurrentPos)}</div>`
-      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ ${esc(labels.atRisk || 'AT RISK')}</div>` : '');
+    // The tooltip travels as data, not as markup: Roadmap.jsx renders it with
+    // the same components as the rest of the app, and nothing hands an HTML
+    // string to a live node. See components/shared/Roadmap.jsx.
+    const lineTooltip = tipData({
+      kind: 'line', id: line.root.id, name: line.root.name, color,
+      badge: lTrainHover, note: lineCurrentPos, atRisk: line.atRisk ? (labels.atRisk || 'AT RISK') : null,
+    });
 
     // Invisible fat hit area so hovering anywhere along the route surfaces
     // the line tooltip — not only when the cursor lands on the train glyph.
@@ -1383,24 +1389,20 @@ export function renderRoadmapSvg(args) {
       const isCurrent = station.id === currentId && !isDone;
       const stProg = Math.max(0, Math.min(1, station.prog || 0));
       const stStatus = isDone ? 'done' : stProg > 0 ? 'wip' : 'open';
-      const headerIcon = statusIcon(stStatus, color, stProg, 14);
-      const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
-      const itemsHtml = (station.clusterItems || []).map(c => {
-        const node = nodeMap[c.id];
-        const itStatus = node?.status === 'done' ? 'done' : node?.status === 'wip' ? 'wip' : 'open';
-        const itProg = leafProgress(node || c) / 100;
-        const itIcon = statusIcon(itStatus, color, itProg, 11);
-        const itStyle = itStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
-          : itStatus === 'wip' ? `color:${color}` : 'color:var(--tx2,#cbd5e1)';
-        return `<div style="${rowStyle};padding-left:4px;${itStyle}"><span style="display:inline-flex;line-height:0">${itIcon}</span><span style="font:400 10px/1.2 Inter,system-ui,sans-serif">${esc(c.name || c.id)}</span></div>`;
-      }).join('');
-      const headerHtml = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
-        + `<span style="display:inline-flex;line-height:0">${headerIcon}</span>`
-        + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color}">${esc(station.abbrev)}</span>`
-        + `<span style="font:600 11px/1.2 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4)">${esc(station.name)}</span>`
-        + `<span style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);margin-left:auto">${esc(isDone ? '✓' : stProg > 0 ? `${Math.round(stProg * 100)}%` : station.done + '/' + station.total)}</span>`
-        + `</div>`;
-      const tooltip = headerHtml + itemsHtml;
+      const tooltip = tipData({
+        kind: 'station', color,
+        abbrev: station.abbrev, name: station.name,
+        status: stStatus, prog: stProg,
+        count: isDone ? '✓' : stProg > 0 ? `${Math.round(stProg * 100)}%` : `${station.done}/${station.total}`,
+        items: (station.clusterItems || []).map(c => {
+          const node = nodeMap[c.id];
+          return {
+            name: c.name || c.id,
+            status: node?.status === 'done' ? 'done' : node?.status === 'wip' ? 'wip' : 'open',
+            prog: leafProgress(node || c) / 100,
+          };
+        }),
+      });
       const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
 
       // Did this station gain any movement in the diff window — either a
@@ -1533,18 +1535,13 @@ export function renderRoadmapSvg(args) {
     if (trainT <= 0 || progress >= 1) return;
 
     const pct = formatPercentNumber(progress);
-    const rowStyle = 'display:flex;align-items:center;gap:6px;margin:2px 0';
     const lTrain = labels.train || 'Train';
     const lCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', pct);
     const lAtRisk = labels.atRisk || 'AT RISK';
-    const trainTip = `<div style="${rowStyle};margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--b2,#364456)">`
-      + `<span style="font:700 14px/1 'JetBrains Mono',monospace;color:${color}">🚆</span>`
-      + `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:var(--tx3,#8898b0);text-transform:uppercase;letter-spacing:.08em">${esc(lTrain)}</span>`
-      + `<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${color};margin-left:auto">${esc(line.root.id)}</span>`
-      + `</div>`
-      + `<div style="font:500 10.5px/1.4 Inter,system-ui,sans-serif;color:var(--tx,#e8ecf4);margin-bottom:4px">${esc(line.root.name)}</div>`
-      + `<div style="font:500 10px/1.4 Inter,system-ui,sans-serif;color:var(--tx2,#cbd5e1)">${esc(lCurrentPos)}</div>`
-      + (line.atRisk ? `<div style="font:700 10px/1.4 'JetBrains Mono',monospace;color:var(--re,#ef4444);margin-top:2px">⚠ ${esc(lAtRisk)}</div>` : '');
+    const trainTip = tipData({
+      kind: 'line', id: line.root.id, name: line.root.name, color, glyph: '🚆',
+      badge: lTrain, note: lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
+    });
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
     out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
     // Halo / pulse glow

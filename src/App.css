@@ -520,6 +520,10 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 [data-theme="light"] .gw-yb{background:#dbeafe;}
 [data-theme="light"] ::-webkit-scrollbar-track{background:#f0f2f5;}
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:#b0b8c8;}
+.htip-line{min-height:1px;}
+/* An indented detail line — the tasks under a week, the rows under a warning. */
+.htip-detail{margin-left:8px;color:var(--tx2);}
+.htip-muted{color:var(--tx3);}
 .htip-pop{background:var(--bg2,#191d25);color:var(--tx,#e8ecf4);border:1px solid var(--b2,#364456);border-radius:var(--r,7px);padding:6px 10px;font:500 11px/1.4 Inter,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}
 
 /* ── Plan mode's Roadmap tab (components/views/PlanRoadmap.jsx) ───────────
