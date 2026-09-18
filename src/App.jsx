@@ -3169,7 +3169,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
       </span>
       {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        {fileName}
+        {/* A host names the tab after the file already. Repeating it here
+            spends the narrowest part of the bar saying the same thing twice. */}
+        {!hosted && fileName}
         {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
       </span>}
       <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">

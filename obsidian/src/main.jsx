@@ -60,7 +60,7 @@ function shimGlobals() {
   if (typeof window.process === 'undefined') window.process = { env: {} };
 }
 
-class PlanrView extends FileView {
+export class PlanrView extends FileView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -69,6 +69,7 @@ class PlanrView extends FileView {
     // they part company for one beat after a Save As, when the app has already
     // moved to the new file and the leaf is being told to follow.
     this.appPath = null;
+    this.mountEl = null;
     this.allowNoFile = false;
     this.navigation = true;
   }
@@ -98,10 +99,15 @@ class PlanrView extends FileView {
   }
 
   mount(path) {
-    const host = this.contentEl;
     this.unmount();
-    host.empty();
-    host.addClass('planr-view');
+    // A fresh element every time, never `contentEl` itself. React's unmount is
+    // deferred a tick (see below) and clears the container it ran in — mounting
+    // the next plan into that same element meant the outgoing root wiped the
+    // incoming one's DOM a moment later, and the tab went black. The container
+    // also carries `.planr-view`, so the scoped stylesheet and the design
+    // tokens reach the app and everything it portals into itself.
+    const host = this.contentEl.createDiv({ cls: 'planr-view' });
+    this.mountEl = host;
     this.appPath = path;
     this.root = createRoot(host);
     this.root.render(
@@ -131,10 +137,15 @@ class PlanrView extends FileView {
 
   unmount() {
     // React 18 warns when unmount() runs inside its own render/commit, and
-    // Obsidian can close a leaf from a click handler we are inside of.
+    // Obsidian can close a leaf from a click handler we are inside of. So the
+    // element leaves the document now and React is told a tick later, by which
+    // time it is tearing down something nobody can see.
     const root = this.root;
+    const el = this.mountEl;
     this.root = null;
+    this.mountEl = null;
     this.appPath = null;
+    if (el) el.remove();
     if (root) window.setTimeout(() => root.unmount(), 0);
   }
 

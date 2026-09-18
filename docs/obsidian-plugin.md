@@ -51,6 +51,10 @@ the same places.
 - **Save as…** inside the app moves the document; the tab follows it to the new
   file without reloading what you were doing.
 
+The tab is named after the plan, so Planr's own header does not repeat the file
+name inside a host — the project's name and the save state are what is left
+there.
+
 `.md` itself is deliberately **not** registered: that would take every note in
 the vault away from Obsidian's own editor. The `.planr.md` swap is a targeted
 substitute — same convenience, no collateral.
@@ -70,7 +74,7 @@ writer does not carry — see [import-export.md](import-export.md)).
 
 | Concern | Web | Plugin |
 | --- | --- | --- |
-| Mount point | `#root` in `index.html` | `contentEl` of a `FileView`, one per plan |
+| Mount point | `#root` in `index.html` | a container inside a `FileView`, one per open plan |
 | Stylesheet | `src/App.css`, page-wide | same file, scoped to `.planr-view` at build time |
 | Open / save | File System Access API | vault pickers, swapped in at build time |
 | Which file is open | `FileSystemFileHandle` in IndexedDB | the leaf's own file, restored with the workspace |

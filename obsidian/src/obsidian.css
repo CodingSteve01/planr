@@ -8,8 +8,13 @@
   overflow: hidden;
 }
 
+/* The app's own container, one per open plan, created by the view. Obsidian's
+   .view-content is a flex column in some themes and a plain block in others,
+   so the container claims its height both ways. */
 .planr-view {
   height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   /* Follow the vault's typography instead of asking for web fonts the
      plugin cannot ship. Inter/JetBrains Mono still win when installed. */
