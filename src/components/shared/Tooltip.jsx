@@ -3,7 +3,7 @@ import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { CriticalPathBadge } from './CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
-import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 
 function MetaChip({ label, value, tone = 'default' }) {
   const color = tone === 'danger' ? 'var(--re)'
@@ -45,6 +45,7 @@ function SectionTitle({ label }) {
 
 export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {} }) {
   const { t } = useT();
+  const portalRoot = usePortalRoot();
   if (!item) return null;
 
   const ttW = 320;
@@ -53,7 +54,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
   // x/y are viewport coordinates from the mouse event; `.tt` is fixed, and a
   // fixed element's origin is its containing block — the viewport on the web,
   // the host's container inside Obsidian. See utils/embedHost.js.
-  const frame = fixedFrame();
+  const frame = fixedFrame(portalRoot);
   const { x: fx, y: fy } = toFixedPoint(x, y, frame);
   let sx = fx + 16;
   let sy = fy + 18;

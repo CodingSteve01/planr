@@ -24,19 +24,19 @@ let _app = null;
 
 export function setVaultApp(app) { _app = app; }
 
-// ── Mounted file ──────────────────────────────────────────────────────────
-// The web build remembers the open file as a FileSystemFileHandle in
-// IndexedDB. A vault handle is a plain path, so it goes into Obsidian's
-// per-vault local storage instead — same lifetime, no structured-clone
-// problem, and readable when the plugin wants to reopen the last plan.
-const MOUNT_KEY = 'planr-mounted-path';
+// ── Where the last plan lived ─────────────────────────────────────────────
+// Not a mount: which plan a tab is editing is the tab's business, and
+// Obsidian restores that with the workspace. This is only the folder the Save
+// dialog opens in, so a second plan lands beside the first instead of at the
+// vault root. Per-vault local storage, same lifetime as the workspace.
+const LAST_FOLDER_KEY = 'planr-last-plan-path';
 
-export function getMountedPath() {
-  try { return _app?.loadLocalStorage(MOUNT_KEY) || null; } catch { return null; }
+export function lastPlanPath() {
+  try { return _app?.loadLocalStorage(LAST_FOLDER_KEY) || null; } catch { return null; }
 }
 
-export function setMountedPath(path) {
-  try { _app?.saveLocalStorage(MOUNT_KEY, path || null); } catch { /* ignore */ }
+export function setLastPlanFolder(path) {
+  try { _app?.saveLocalStorage(LAST_FOLDER_KEY, path || null); } catch { /* ignore */ }
 }
 
 // ── Errors the app already knows how to handle ────────────────────────────
@@ -206,8 +206,8 @@ class SavePathModal extends Modal {
 }
 
 function defaultFolder() {
-  const mounted = getMountedPath();
-  if (mounted && mounted.includes('/')) return mounted.split('/').slice(0, -1).join('/') + '/';
+  const last = lastPlanPath();
+  if (last && last.includes('/')) return last.split('/').slice(0, -1).join('/') + '/';
   const configured = _app?.vault.getConfig?.('newFileFolderPath');
   return configured && configured !== '/' ? `${configured}/` : '';
 }

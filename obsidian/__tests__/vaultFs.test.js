@@ -6,12 +6,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TFile, TFolder } from 'obsidian';
-import {
-  clearMountedFileHandle,
-  loadMountedFileHandle,
-  persistMountedFileHandle,
-} from '../src/fileHandleStore.js';
-import { getMountedPath, handleForPath, setMountedPath, setVaultApp } from '../src/vaultFs.js';
+import { handleForPath, lastPlanPath, setLastPlanFolder, setVaultApp } from '../src/vaultFs.js';
 
 /** The slice of Obsidian's App that vaultFs.js actually touches. */
 function fakeApp(files = {}) {
@@ -58,7 +53,7 @@ let app;
 beforeEach(() => {
   app = fakeApp(withFile('Projekte/plan.planr.json', '{"tree":[]}', { mtime: 4242 }));
   setVaultApp(app);
-  setMountedPath(null);
+  setLastPlanFolder(null);
 });
 
 describe('a vault-backed file handle', () => {
@@ -103,25 +98,22 @@ describe('a vault-backed file handle', () => {
   });
 });
 
-describe('the mounted plan', () => {
-  it('survives a restart as a path', async () => {
-    await persistMountedFileHandle(handleForPath('Projekte/plan.planr.json'));
-    expect(getMountedPath()).toBe('Projekte/plan.planr.json');
-
-    const restored = await loadMountedFileHandle();
-    expect(restored.name).toBe('plan.planr.json');
-    expect(await (await restored.getFile()).text()).toBe('{"tree":[]}');
+describe('what the plugin remembers between sessions', () => {
+  // Which plan a tab is editing is the tab's business now — Obsidian hands the
+  // view its file and restores it with the workspace. The one thing worth
+  // keeping is where the last plan lived, so a second one is offered a home
+  // beside the first instead of at the vault root.
+  it('keeps the last plan\'s path, which is where Save As starts', () => {
+    setLastPlanFolder('Projekte/plan.planr.json');
+    expect(lastPlanPath()).toBe('Projekte/plan.planr.json');
+    setLastPlanFolder(null);
+    expect(lastPlanPath()).toBeNull();
   });
 
-  it('reports nothing mounted when the file is gone rather than a handle that throws', async () => {
-    setMountedPath('Projekte/deleted.planr.json');
-    expect(await loadMountedFileHandle()).toBeNull();
-  });
-
-  it('forgets the plan on request', async () => {
-    setMountedPath('Projekte/plan.planr.json');
-    await clearMountedFileHandle();
-    expect(await loadMountedFileHandle()).toBeNull();
+  it('hands the app no remembered mount at all — the host supplies the file', async () => {
+    const store = await import('../src/fileHandleStore.js');
+    await store.persistMountedFileHandle(handleForPath('Projekte/plan.planr.json'));
+    expect(await store.loadMountedFileHandle()).toBeNull();
   });
 
   it('needs no permission grant — the vault is already open', async () => {

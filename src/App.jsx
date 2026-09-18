@@ -25,7 +25,7 @@ import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadli
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
 import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
-import { isEmbedded, portalHost } from './utils/embedHost.js';
+import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
 
 // Below this the side panel stops being help and starts being the thing in
@@ -258,9 +258,18 @@ const MODE_ICONS = { build: '☰', plan: '▭', run: '☀', review: '◎', repor
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 
-export default function App() {
+// `mount` is how a host hands this app instance its document. Without one —
+// the web build — the app restores whatever was last opened, from IndexedDB
+// and a localStorage snapshot, and owns that choice itself. With one, the host
+// owns it: this instance edits exactly the file it was given, keeps nothing in
+// the shared snapshot (two plans open side by side would overwrite each
+// other's), and reports back through `onFileChange` when Save As moves the
+// document somewhere else, so the host's tab can follow.
+export default function App({ mount = null, onFileChange = null } = {}) {
+  const hosted = !!onFileChange;
   const { t: _t, lang: _lang } = useT();
-  const [data, setData] = useState(() => loadLocalProject());
+  const portalRoot = usePortalRoot();
+  const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
   // Mode and tab are decided together (see initialShell above): a fresh open
   // must land on its mode's own surface, not on the pre-modes default tab.
   const [tab, _setTab] = useState(() => initialShell().tab);
@@ -411,11 +420,11 @@ export default function App() {
   });
   const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
   useEffect(() => {
-    const el = portalHost();
+    const el = portalRoot;
     if (!el) return;
     el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
     return () => { el.style.zoom = ''; };
-  }, [uiScale]);
+  }, [uiScale, portalRoot]);
   // Off by default. Everything that distracts is opt-in: the id is the
   // tool's spine when you are wiring dependencies, and five dotted segments
   // in front of every name the rest of the time.
@@ -464,6 +473,7 @@ export default function App() {
   async function rememberHandle(handle) {
     fileHandleRef.current = handle;
     setFileName(handle?.name || null);
+    if (hosted) { onFileChange(handle || null); return; }
     try {
       if (handle) await persistMountedFileHandle(handle);
       else await clearMountedFileHandle();
@@ -475,6 +485,7 @@ export default function App() {
   async function forgetHandle() {
     fileHandleRef.current = null;
     setFileName(null);
+    if (hosted) { onFileChange(null); return; }
     try {
       await clearMountedFileHandle();
     } catch (e) {
@@ -499,7 +510,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const handle = await loadMountedFileHandle();
+        const handle = mount || await loadMountedFileHandle();
         if (!handle) return;
         fileHandleRef.current = handle;
         if (!cancelled) setFileName(handle.name || null);
@@ -526,7 +537,7 @@ export default function App() {
         fileHandleRef.current = null;
         if (!cancelled) setFileName(null);
         try {
-          await clearMountedFileHandle();
+          if (!hosted) await clearMountedFileHandle();
         } catch {}
       } finally {
         if (!cancelled) setBootstrapped(true);
@@ -542,6 +553,10 @@ export default function App() {
   const lastWrittenDataRef = useRef(null);
   useEffect(() => {
     if (!data) return;
+    // A hosted instance is one of several: its document is the file, and the
+    // shared snapshot key would just be whichever tab typed last. Nothing is
+    // cached, so nothing is claimed saved either — the file write says that.
+    if (hosted) return;
     // Bail early if `data` is the exact same reference we last wrote — saves
     // a JSON.stringify on the main thread for a project that may be ~100KB.
     // Reference equality is enough because every mutating helper produces a

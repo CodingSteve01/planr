@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { portalHost } from '../../utils/embedHost.js';
+import { usePortalRoot } from '../../utils/embedHost.js';
 import { SearchSelect } from './SearchSelect.jsx';
 import { createPhaseDraft, instantiateTemplatePhases, normalizePhases, phaseAssigneeIds, phaseTeamIds } from '../../utils/phases.js';
 import { derivePhaseStatus } from '../../utils/scheduler.js';
@@ -11,6 +11,7 @@ import { useT } from '../../i18n.jsx';
    Used in QuickEdit, NodeModal, BatchEdit, and SettingsModal.
    ══════════════════════════════════════════════════════════════════════ */
 export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
+  const portalRoot = usePortalRoot();
   const { t } = useT();
   const [d, setD] = useState({ ...phase });
   const tIds = phaseTeamIds(d);
@@ -68,7 +69,7 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
       </div>
     </div>
   </div>;
-  return createPortal(content, portalHost());
+  return createPortal(content, portalRoot);
 }
 
 /* ══════════════════════════════════════════════════════════════════════

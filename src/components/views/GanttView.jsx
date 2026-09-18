@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { tipLines } from '../../utils/tipText.js';
-import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
@@ -50,6 +50,7 @@ function fmtLoadDays(value) {
 }
 
 function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], meetingPlans = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling, onOpenBulkEdit }) {
+  const portalRoot = usePortalRoot();
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -3159,7 +3160,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         // Everything here is in viewport coordinates; the overlay is fixed and
         // spans its containing block, which is the viewport only when nothing
         // is embedding us. See utils/embedHost.js.
-        const frame = fixedFrame();
+        const frame = fixedFrame(portalRoot);
         const from = toFixedPoint(
           rect ? rect.right : linkDrag.mouseX,
           rect ? rect.top + rect.height / 2 : linkDrag.mouseY,

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { fixedFrame, portalHost, toFixedPoint } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
@@ -11,6 +11,7 @@ import { fixedFrame, portalHost, toFixedPoint } from '../../utils/embedHost.js';
 // Position is computed from the wrapper's bounding rect; the popup auto-flips
 // upward when there isn't enough room below.
 export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —', showIds = false, compact = false, testId, inputRef }) {
+  const portalRoot = usePortalRoot();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
@@ -48,7 +49,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
       // The trigger's rect is in viewport coordinates, the popup is fixed and
       // therefore placed in its containing block — the same thing on the web,
       // not inside a host. See utils/embedHost.js.
-      const frame = fixedFrame();
+      const frame = fixedFrame(portalRoot);
       const top = toFixedPoint(r.left, r.top, frame);
       const bottom = toFixedPoint(r.right, r.bottom, frame);
       const spaceBelow = frame.height - bottom.y;
@@ -77,7 +78,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [open]);
+  }, [open, portalRoot]);
 
   const filtered = q
     ? options.filter(o => (o.label || o.id || '').toLowerCase().includes(q.toLowerCase()))
@@ -224,7 +225,7 @@ export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...
           </div>;
         })}
       </div>,
-      portalHost(),
+      portalRoot,
     )}
   </div>;
 }
