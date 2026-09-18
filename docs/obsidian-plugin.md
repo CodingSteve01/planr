@@ -198,10 +198,19 @@ The three that took actual work:
   dialect of three symbols (`**bold**`, `__muted__`, a newline, `- ` for a
   detail line) parsed in [`src/utils/tipText.js`](../src/utils/tipText.js) and
   rendered as elements. The roadmap's richer tooltips travel as JSON in
-  `data-tip` and are rendered with the app's own components; generated SVG goes
-  in through `DOMParser` in `image/svg+xml` mode rather than as a string. What
-  is left is `src/utils/exports.js`, which builds a detached document for the
-  Word export and never attaches it to the page.
+  `data-tip` and are rendered with the app's own components; generated markup
+  goes in through `DOMParser` — into an inert document, adopted node by node —
+  rather than as a string. What is left is `src/utils/exports.js`, which builds
+  a detached document for the Word export and never attaches it to the page.
+
+  One trap, paid for once: `renderRoadmapSvg` returns *two* documents in one
+  string — the map, and then an HTML legend as its sibling. Parsed as
+  `image/svg+xml`, which accepts a single root element, that legend is "extra
+  content at the end of the document": the whole parse fails, and a failed XML
+  parse is a document rather than a throw, so the Subway-Map simply was not
+  there, without a word in the console. `splitSvgMarkup` in
+  [`src/utils/roadmap.js`](../src/utils/roadmap.js) separates the two now, and
+  each half is parsed in its own mode.
 - **No browser global is patched.** The file pickers are a module the build
   swaps, not a redefined `window.showSaveFilePicker` — a plugin that redefines
   a browser global changes what every other plugin in the app sees.
