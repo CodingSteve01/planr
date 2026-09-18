@@ -1,3 +1,5 @@
+import { createContext, useContext } from 'react';
+
 // What an embedding host may influence.
 //
 // Planr normally owns the page: it portals popups to `document.body`, and
@@ -9,6 +11,12 @@
 //
 // Every field is optional; nothing here is required for the web build, where
 // no host exists and each helper falls back to the browser answer.
+//
+// `theme` is genuinely global — one vault, one appearance — so it stays on the
+// window. `portalRoot` is not: a host can show two Planr views side by side,
+// and a global last-one-wins pointer sends the left pane's dropdown into the
+// right pane's DOM, where it is invisible. The root therefore travels down the
+// React tree instead; see PortalRootContext below.
 function host() {
   return (typeof window !== 'undefined' && window.__planrHost) || null;
 }
@@ -20,6 +28,14 @@ function host() {
 // markup, no colours, no fonts.
 export function portalHost() {
   return host()?.portalRoot || document.body;
+}
+
+// The root *this* app instance owns. A host renders one provider per view; the
+// web build has none and falls through to the window answer, which is the body.
+export const PortalRootContext = createContext(null);
+
+export function usePortalRoot() {
+  return useContext(PortalRootContext) || portalHost();
 }
 
 // What "Auto" resolves to. A host that has its own light/dark setting should
@@ -56,16 +72,17 @@ export function onHostThemeChange(callback) {
 // and every call site reduces to the arithmetic it had before.
 //
 // Cached briefly: this is read from mousemove handlers, and refreshed often
-// enough that dragging a pane divider is corrected within a frame or two.
+// enough that dragging a pane divider is corrected within a frame or two. The
+// cache is per root, because two side-by-side views measure two different
+// boxes and would otherwise invalidate each other on every mousemove.
 const FRAME_TTL_MS = 500;
 const RULER_PX = 100;
-let frame = null;
-let frameAt = 0;
+const frames = new WeakMap();
 
-export function fixedFrame() {
-  const root = portalHost();
+export function fixedFrame(root = portalHost()) {
   const now = Date.now();
-  if (frame && now - frameAt < FRAME_TTL_MS && frame.root === root && root.isConnected) return frame;
+  const cached = frames.get(root);
+  if (cached && now - cached.at < FRAME_TTL_MS && root.isConnected) return cached.frame;
 
   const probe = document.createElement('div');
   probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
@@ -80,7 +97,7 @@ export function fixedFrame() {
   // A box that measured nothing was never laid out — a detached container, a
   // test environment without layout. The viewport is the honest answer there,
   // and the one this returned before anything was measured at all.
-  frame = {
+  const frame = {
     root,
     scale,
     // Where the box starts, in the viewport pixels a mouse event speaks.
@@ -90,7 +107,7 @@ export function fixedFrame() {
     width: box.width ? box.width / scale : window.innerWidth,
     height: box.height ? box.height / scale : window.innerHeight,
   };
-  frameAt = now;
+  frames.set(root, { frame, at: now });
   return frame;
 }
 

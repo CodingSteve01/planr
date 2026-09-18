@@ -13,6 +13,7 @@ import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import { SearchSelect } from '../components/shared/SearchSelect.jsx';
 import { placeHoverTip } from '../components/shared/HoverTip.jsx';
 import { I18nProvider } from '../i18n.jsx';
+import { PortalRootContext } from '../utils/embedHost.js';
 
 const OPTIONS = [
   { id: 'T1', label: 'Frontend' },
@@ -130,5 +131,55 @@ describe('placing a tooltip', () => {
 
   it('never leaves the frame on the near side', () => {
     expect(placeHoverTip(2, 2, 400, 400, frame)).toEqual({ left: 16, top: 16 });
+  });
+});
+
+// "Die Dropdown-Felder funktionieren nicht mehr. Die sind einfach nur noch
+// normale Textboxen und ich kann sie nicht mehr bedienen."
+//
+// Two Planr views in Obsidian, and the popup of the one you are looking at
+// rendering into the other one's DOM, where it is invisible — an input with
+// nothing behind it. The portal root used to be a single pointer on `window`
+// that every newly mounted view overwrote; it now travels down the tree, so
+// each instance portals into the container it was rendered in.
+describe('two app instances side by side', () => {
+  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  afterEach(() => cleanup());
+
+  it('each portals its popup into its own root', () => {
+    const left = document.createElement('div');
+    const right = document.createElement('div');
+    document.body.append(left, right);
+
+    render(
+      <I18nProvider>
+        <PortalRootContext.Provider value={left}>
+          <SearchSelect value="" options={OPTIONS} onSelect={() => {}} testId="left" />
+        </PortalRootContext.Provider>
+        <PortalRootContext.Provider value={right}>
+          <SearchSelect value="" options={OPTIONS} onSelect={() => {}} testId="right" />
+        </PortalRootContext.Provider>
+      </I18nProvider>,
+    );
+
+    fireEvent.focus(screen.getByTestId('left'));
+    expect(left.querySelectorAll('[data-searchselect-popup]')).toHaveLength(1);
+    expect(right.querySelectorAll('[data-searchselect-popup]')).toHaveLength(0);
+
+    fireEvent.focus(screen.getByTestId('right'));
+    expect(right.querySelectorAll('[data-searchselect-popup]')).toHaveLength(1);
+
+    left.remove();
+    right.remove();
+  });
+
+  it('falls back to the body when nobody is hosting it', () => {
+    render(
+      <I18nProvider>
+        <SearchSelect value="" options={OPTIONS} onSelect={() => {}} testId="plain" />
+      </I18nProvider>,
+    );
+    fireEvent.focus(screen.getByTestId('plain'));
+    expect(document.body.querySelectorAll('[data-searchselect-popup]')).toHaveLength(1);
   });
 });

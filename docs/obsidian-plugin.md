@@ -31,22 +31,29 @@ Step-by-step instructions live in the [README](../README.md#or-run-it-in-obsidia
 
 ## Using it
 
+A Planr tab is an editor tab: one tab, one plan, as many at once as you like.
+Open three plans and you get three tabs, each named after its plan; switch
+between them, split the pane and put two side by side, close one and the others
+carry on. The workspace remembers them, so a restart reopens the same plans in
+the same places.
+
 - **Click a `*.planr.md` file** — it opens in Planr, not in the Markdown
-  editor. Obsidian reads that file's extension as `md` and hands it to the
-  editor first; the plugin swaps the view right after. Only files named
-  `…planr.md` are touched, the tab menu always offers **Open as Markdown**, and
-  *Settings → Planr* turns the whole behaviour off.
+  editor, and the Markdown editor is never built on the way there. Only files
+  named `…planr.md` are touched, the tab menu always offers **Open as
+  Markdown**, and *Settings → Planr* turns the whole behaviour off.
 - **Click a `*.planr` file** — opens in Planr too, via a proper extension
   registration. `.planr` is nobody else's, and without the registration
   Obsidian would not even list such a file in the explorer.
-- **Ribbon icon** or the command **Planr: Open Planr** — opens the app in a tab.
-- **Planr: Open plan file…** — fuzzy-search the vault for a plan and mount it.
+- **Ribbon icon** or the command **Planr: Open plan file…** — fuzzy-search the
+  vault for a plan and open it in a new tab.
 - **Right-click any plan file → Open in Planr** — same thing from the file
   explorer, and the way in for a `.planr.json`.
+- **Save as…** inside the app moves the document; the tab follows it to the new
+  file without reloading what you were doing.
 
-A Planr tab remembers which plan it holds, so it comes back pointing at the
-same file after a restart, and the tab is named after the plan rather than
-"Planr".
+The tab is named after the plan, so Planr's own header does not repeat the file
+name inside a host — the project's name and the save state are what is left
+there.
 
 `.md` itself is deliberately **not** registered: that would take every note in
 the vault away from Obsidian's own editor. The `.planr.md` swap is a targeted
@@ -67,40 +74,69 @@ writer does not carry — see [import-export.md](import-export.md)).
 
 | Concern | Web | Plugin |
 | --- | --- | --- |
-| Mount point | `#root` in `index.html` | `contentEl` of an `ItemView` |
+| Mount point | `#root` in `index.html` | a container inside a `FileView`, one per open plan |
 | Stylesheet | `src/App.css`, page-wide | same file, scoped to `.planr-view` at build time |
 | Open / save | File System Access API | vault pickers, swapped in at build time |
-| Remembered file | `FileSystemFileHandle` in IndexedDB | vault path in Obsidian's per-vault local storage |
+| Which file is open | `FileSystemFileHandle` in IndexedDB | the leaf's own file, restored with the workspace |
 | UI preferences | `localStorage` | `localStorage` (unchanged — Obsidian's renderer has one) |
 | Theme "Auto" | OS `prefers-color-scheme` | the vault's light/dark setting |
 | Exports (PDF, DOCX, CSV…) | browser download | browser download (Electron's save dialog) |
 
 Four files carry all of it:
 
-- **`obsidian/src/main.jsx`** — the `Plugin` and `ItemView`. Mounts React,
-  registers the ribbon icon, the two commands and the file-menu entry, and
-  points the app's portals at the view container so modals and dropdowns stay
-  inside the scoped stylesheet.
+- **`obsidian/src/main.jsx`** — the `Plugin` and the `FileView`. Mounts one
+  React tree per open plan, registers the ribbon icon, the command and the
+  file-menu entry, redirects a plan note away from the Markdown editor, and
+  hands each view the container its own modals and dropdowns portal into.
 - **`obsidian/src/vaultFs.js`** — the file pickers and the handle objects they
   return, implemented on `app.vault`.
 - **`obsidian/src/filePickers.js`** and **`obsidian/src/fileHandleStore.js`** —
   build-time replacements for the two modules in `src/utils/` that answer
   "where does a file come from" and "how is the open one remembered". The
-  alternative, patching `window.showOpenFilePicker`, would change what every
-  other plugin in the app sees; "we put it back on unload" is not an argument,
-  it is a promise.
+  second answers "nothing remembered": the view is handed its file by
+  Obsidian, so there is no global mount to restore. The alternative to the
+  first, patching `window.showOpenFilePicker`, would change what every other
+  plugin in the app sees; "we put it back on unload" is not an argument, it is
+  a promise.
 - **`obsidian/scope-css.mjs`** — rewrites every selector in `App.css` so it
   cannot reach past `.planr-view`, and trades `100vh` for `100%` because a leaf
   is not the window. `obsidian/__tests__/scopeCss.test.js` asserts that nothing
   escapes; that test is the guard rail against a build that restyles someone's
   whole vault.
 
-The only change on the app side is `src/utils/embedHost.js` — the surface a
-host may influence — plus the three places that consult it: the two portal
-call sites (`Phases.jsx`, `SearchSelect.jsx`) and `ThemeProvider` in
-`i18n.jsx`. The plugin announces itself on `window.__planrHost` with the view
-container and the vault's theme, so popups stay inside the scoped stylesheet
-and "Auto" follows Obsidian instead of the OS underneath it.
+On the app side there are two seams. `src/utils/embedHost.js` is the surface a
+host may influence: the vault's theme, announced globally on
+`window.__planrHost` because one vault has one appearance, and the container a
+view's popups portal into, which is **not** global and travels down the React
+tree as `PortalRootContext`. A global pointer was the first attempt and it is
+worth remembering why it failed: every newly mounted view overwrote it, so the
+dropdown you clicked rendered into another tab's DOM, where it is invisible —
+an input with nothing behind it. Popups stay inside the scoped stylesheet
+either way, because the container is where the design tokens live.
+
+The second seam is `App`'s two optional props. `mount` is the handle the host
+hands it; `onFileChange` is how the app reports a Save As back so the tab can
+follow. An app with those props keeps nothing in the shared localStorage
+snapshot either — two plans open at once would otherwise overwrite each
+other's, and whichever typed last would be what came back.
+
+### Why a plan note does not flash the Markdown editor first
+
+`.planr.md` is a note as far as Obsidian is concerned: its extension is `md`,
+and registering that would take every note in the vault away from Obsidian's
+own editor. The obvious way round it — listen for `file-open`, swap the leaf
+afterwards — is what this replaces, and it is why switching between plan tabs
+used to show raw Markdown for a beat: by the time the event fires the Markdown
+editor is built and painted.
+
+So the *request* is rewritten instead. `WorkspaceLeaf.prototype.setViewState`
+is patched, and a leaf about to open a plan note as Markdown is told to open a
+Planr view — before it builds anything. The Markdown view never exists. This
+is the approach the Kanban and Excalidraw plugins take, for the same reason.
+`fileModes` keeps the one answer the patch has to respect: a tab where you
+chose **Open as Markdown** stays Markdown, until it moves on to another note.
+On unload the patch is handed back, unless another plugin patched on top in the
+meantime — that chain is theirs now.
 
 ### Build
 
@@ -162,10 +198,19 @@ The three that took actual work:
   dialect of three symbols (`**bold**`, `__muted__`, a newline, `- ` for a
   detail line) parsed in [`src/utils/tipText.js`](../src/utils/tipText.js) and
   rendered as elements. The roadmap's richer tooltips travel as JSON in
-  `data-tip` and are rendered with the app's own components; generated SVG goes
-  in through `DOMParser` in `image/svg+xml` mode rather than as a string. What
-  is left is `src/utils/exports.js`, which builds a detached document for the
-  Word export and never attaches it to the page.
+  `data-tip` and are rendered with the app's own components; generated markup
+  goes in through `DOMParser` — into an inert document, adopted node by node —
+  rather than as a string. What is left is `src/utils/exports.js`, which builds
+  a detached document for the Word export and never attaches it to the page.
+
+  One trap, paid for once: `renderRoadmapSvg` returns *two* documents in one
+  string — the map, and then an HTML legend as its sibling. Parsed as
+  `image/svg+xml`, which accepts a single root element, that legend is "extra
+  content at the end of the document": the whole parse fails, and a failed XML
+  parse is a document rather than a throw, so the Subway-Map simply was not
+  there, without a word in the console. `splitSvgMarkup` in
+  [`src/utils/roadmap.js`](../src/utils/roadmap.js) separates the two now, and
+  each half is parsed in its own mode.
 - **No browser global is patched.** The file pickers are a module the build
   swaps, not a redefined `window.showSaveFilePicker` — a plugin that redefines
   a browser global changes what every other plugin in the app sees.
@@ -209,8 +254,11 @@ All three hold today, and the release workflow keeps them holding.
 - **Obsidian does not render a plan `.md` the way Planr writes it.** It is a
   valid note, but the tables and bullet structure are Planr's format — edit it
   in Planr, read it anywhere.
-- **One plan at a time.** The view mounts the file remembered as "mounted";
-  opening a second plan replaces the first, as on the web.
-- **A `.planr.md` swap is visible.** Obsidian opens the Markdown editor for a
-  fraction of a second before the plugin takes the leaf over. Unavoidable
-  without claiming `.md` wholesale.
+- **UI preferences are shared by every tab.** Scale, language, which tab was
+  last open: they live in `localStorage`, one set per vault, and a new Planr
+  tab starts from them. Per-plan preferences would have to live in the plan.
+- **`WorkspaceLeaf.prototype.setViewState` is patched.** There is no supported
+  hook for "open this `.md` in my view", so the plugin patches the workspace
+  prototype like Kanban and Excalidraw do. It is narrow — plan notes only, one
+  rewritten field — and put back on unload, but it is a patch on Obsidian's
+  internals and an Obsidian update could move it.

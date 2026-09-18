@@ -4,7 +4,13 @@
 export class Plugin {}
 export class PluginSettingTab {}
 export class ItemView {}
+export class FileView {
+  constructor(leaf) { this.leaf = leaf; this.file = null; }
+}
 export class MarkdownView {}
+export class WorkspaceLeaf {
+  setViewState() {}
+}
 export class Modal {}
 export class Setting {}
 export class FuzzySuggestModal {}

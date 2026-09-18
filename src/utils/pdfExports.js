@@ -2,7 +2,7 @@
 // All PDFs carry: project name, kind, generation date in footer.
 import { iso, isoWeek, isoWeekYear } from './date.js';
 import { buildReportModel } from './report.js';
-import { renderRoadmapSvg, getLineColor } from './roadmap.js';
+import { renderRoadmapSvg, getLineColor, splitSvgMarkup } from './roadmap.js';
 import { computeProjectRoadmap, renderProjectRoadmapSvg } from './projectRoadmap.js';
 import { projectScopedCtx } from './exportCtx.js';
 import { sanitizePdfDoc, PDF_GLYPH_MAP } from './pdfGlyphs.js';
@@ -115,7 +115,11 @@ function headerTable(headers, rows, widths) {
 // properties unresolved, and no external references.
 function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
   if (!svgStr || !svgStr.startsWith('<svg')) return null;
-  let patched = svgStr.replace(
+  // The renderer appends an HTML legend after the drawing; the PDF builds its
+  // own legend from the model (buildRoadmapLegendPdf), so what follows the
+  // </svg> is nothing but trailing junk to an SVG renderer.
+  const [drawing] = splitSvgMarkup(svgStr);
+  let patched = drawing.replace(
     /^<svg [^>]*>/,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
   );

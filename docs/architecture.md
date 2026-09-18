@@ -72,8 +72,10 @@ src/
     holidays.js            — NRW holiday algorithm + week grid builder
     fileHandleStore.js     — File System Access API persistence layer (the Obsidian build
                              swaps this module — see docs/obsidian-plugin.md)
-    embedHost.js           — what an embedding host may influence: where modals/popups
-                             portal to, and what "Auto" theme resolves to
+    embedHost.js           — what an embedding host may influence: what "Auto" theme
+                             resolves to (global), and the container this app instance's
+                             modals/popups portal into (PortalRootContext — per view,
+                             because two Planr panes can be open at once)
     tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
                              replaced the HTML-in-a-string tooltips that needed innerHTML
     exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
@@ -85,8 +87,8 @@ src/
                               scheduler.treeStats imports it back — a deliberate call-time cycle)
     timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
   i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
-obsidian/                  — the Obsidian plugin: mounts src/ into a workspace leaf
-  src/main.jsx             — Plugin + ItemView, ribbon icon, commands, file menu
+obsidian/                  — the Obsidian plugin: one FileView per open plan
+  src/main.jsx             — Plugin + FileView, plan-note redirect, ribbon icon, command, file menu
   src/vaultFs.js           — File System Access API reimplemented on app.vault
   src/fileHandleStore.js   — build-time replacement for utils/fileHandleStore.js
   src/obsidian.css         — plugin-only styles (not scoped — appended verbatim)

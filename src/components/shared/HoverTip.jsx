@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { fixedFrame, toFixedPoint } from '../../utils/embedHost.js';
+import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { parseTip } from '../../utils/tipText.js';
 
 /**
@@ -20,6 +20,7 @@ export function placeHoverTip(x, y, w, h, frame) {
  * Uses event delegation — no per-element listeners, minimal overhead.
  */
 export function HoverTipProvider() {
+  const portalRoot = usePortalRoot();
   const [tip, setTip] = useState(null); // { text, x, y }
   const tipRef = useRef(null);
   const hideTimer = useRef(null);
@@ -58,7 +59,7 @@ export function HoverTipProvider() {
   // right on the first paint.
   useLayoutEffect(() => {
     if (!tip || !tipRef.current) return;
-    const frame = fixedFrame();
+    const frame = fixedFrame(portalRoot);
     const { x, y } = toFixedPoint(tip.x, tip.y, frame);
     const w = tipRef.current.offsetWidth;
     const h = tipRef.current.offsetHeight;
@@ -69,7 +70,7 @@ export function HoverTipProvider() {
   }, [tip]);
 
   if (!tip) return null;
-  const frame = fixedFrame();
+  const frame = fixedFrame(portalRoot);
   const start = toFixedPoint(tip.x, tip.y, frame);
   const { left, top } = placeHoverTip(start.x, start.y, sizeRef.current.w, sizeRef.current.h, frame);
   return (
