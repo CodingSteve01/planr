@@ -43,7 +43,11 @@ function SectionTitle({ label }) {
   );
 }
 
-export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {} }) {
+// `hint` is the footer line — "what do I do with this?". It defaults to the
+// double-click every graph and Gantt row is opened with; a surface where a
+// SINGLE click opens the editor (the Roadmap tab) passes its own, because a
+// tooltip that teaches the wrong gesture is worse than no tooltip.
+export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {}, hint }) {
   const { t } = useT();
   const portalRoot = usePortalRoot();
   if (!item) return null;
@@ -255,7 +259,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
 
       {!item._summary && <>
         <hr className="tt-sep" />
-        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('tt.dblClick')}</div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{hint || t('tt.dblClick')}</div>
       </>}
     </div>
   );
