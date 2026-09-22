@@ -2817,6 +2817,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     onBarClick(row || { id });
   });
   const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
+  const onNetAddNode = useStableCallback(() => setModal('add'));
+  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
+  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
   // Row-level status change from Run mode (attention list + per-person
   // queues) — same updateNode() → mutate() path every other status control
   // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one

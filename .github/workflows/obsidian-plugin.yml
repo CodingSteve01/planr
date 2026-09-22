@@ -56,6 +56,13 @@ jobs:
       - if: steps.version.outputs.published == 'false'
         run: npm ci
 
+      # `no-undef` before the tests: the failure it catches is an identifier
+      # that no longer exists, which only throws when React renders the one
+      # component that uses it — so it is invisible to every test that does
+      # not open that exact view.
+      - if: steps.version.outputs.published == 'false'
+        run: npm run lint
+
       - if: steps.version.outputs.published == 'false'
         run: npm test
 

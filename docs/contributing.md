@@ -54,7 +54,36 @@ Prefix: `feat:`, `fix:`, `refactor:`, `docs:`, `style:` — conventional commits
 
 ## Testing philosophy
 
-No automated tests. The rationale: the app is visual, interactive, and relatively small. Unit tests on utilities would duplicate what's easy to observe live. If you add a pure utility with non-obvious branches (e.g. a new scheduling variant), consider a small test alongside it — there is no framework wired up, but a JS file with a couple `console.assert` calls run via `node` is fine.
+```bash
+npm run lint    # no-undef, and nothing else — see eslint.config.js for why
+npm test        # ~850 tests
+```
+
+(This section said "No automated tests" until September 2026, on the grounds
+that the app is visual and small. Both stopped being true.)
+
+Two things are worth knowing about where the tests can and cannot see.
+
+**A view's own smoke test does not prove the app passes it the right props.**
+`views.smoke.test.jsx` mounts each view with hand-written props; `App.jsx`
+decides what they actually get. That gap is not theoretical: two handlers were
+deleted from App by a careless region replacement, the build was fine, 849
+tests passed, and the plugin went white the moment anybody opened the Planning
+tab. `everyTab.app.test.jsx` walks every tab in the real App for exactly that
+reason, and it is derived from `TAB_IDS`, so a new view is covered by existing
+it.
+
+**`no-undef` catches what no test can cheaply.** An identifier that no longer
+exists throws only when React renders the one component that uses it. There is
+no test suite shape that makes that reliably visible; a linter sees it before
+the file is saved. That is why the lint config has one rule and runs in CI
+ahead of the tests. More rules can be earned later, one at a time, each with a
+reason — `react-hooks/rules-of-hooks` is off and should not stay off (it
+reports 12 real violations that predate the config).
+
+When a change is about behaviour rather than structure, write the test first
+and **watch it fail for the right reason**. A test added green proves the
+assertion runs, not that it would have caught anything.
 
 When you submit a change, describe how you verified it:
 
