@@ -102,6 +102,7 @@ priorities. That is "just quickly".
 |---|---|
 | `↑ ↓` · `⇧↑ ⇧↓` | select · extend selection |
 | `Enter` | edit name / done — at end of row: new row below |
+| `E` | the full editor for this row |
 | `⇧Enter` | new child |
 | `Tab` · `⇧Tab` | indent · outdent (re-parent; dependencies follow) |
 | `⌥↑ ⌥↓` | move within the order |
@@ -109,6 +110,11 @@ priorities. That is "just quickly".
 | `⌫` | on an empty new row: gone — on an existing one: confirm |
 | `/` | palette for everything else |
 | `⌘Z` · `⇧⌘Z` | undo · redo |
+
+The same keys on the schedule: `↑ ↓` moves a cursor between bars, `E` opens the
+item under it, `⌥↑ ⌥↓` moves it earlier or later. Deliberately the tree's
+vocabulary rather than a second one — the schedule is where you *see* that
+something sits too early, so it has to be somewhere you can say so.
 
 > **Check:** does it work without the mouse? For ten rows at once? Backwards?
 

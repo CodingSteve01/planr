@@ -843,6 +843,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       doDelete();
       return;
     }
+    // The full editor had a button and nothing else. Enter starts the inline
+    // edit, which covers the name and the four fields beside it; everything
+    // deeper — dependencies, phases, history, custom fields — was a click
+    // away and only a click away, on the one surface that is otherwise
+    // entirely keyboard-driven.
+    if ((key === 'e' || key === 'E') && bare && !e.altKey && onFullEdit) {
+      e.preventDefault();
+      if (selected?.id) onFullEdit(selected);
+      return;
+    }
     if (key === ' ' || key === 'Spacebar') {
       e.preventDefault();
       // ⇧Space walks back. On a task with phases both step through the phase
@@ -1179,7 +1189,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                     a panel on the right: with the editor docked as a dialog
                     it is how you get to it at all. */}
                 {onFullEdit && <button className="tv-act-btn" data-testid={`tree-row-edit-${r.id}`}
-                  data-htip={t('tv.editRowTip', r.id)}
+                  data-htip={withKey(t('tv.editRowTip', r.id), 'fullEdit')}
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}>⊞</button>}
                 <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}

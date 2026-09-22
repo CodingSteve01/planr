@@ -1012,19 +1012,68 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
     return ids;
   }, [visibleRows]);
+  // A cursor, so the schedule can be worked without a mouse.
+  //
+  // The tree had ↑↓ to move, Enter to edit, ⌥↑↓ to reorder; every other
+  // surface had a click and nothing else. That is a problem of its own, and
+  // it became a bigger one when the order of the work moved into the tree:
+  // the Gantt is where you SEE that something sits too early, so it has to be
+  // somewhere you can also say so. The keys are the tree's keys deliberately
+  // — the same gesture in both places beats two vocabularies.
+  const [cursorId, setCursorId] = useState(null);
+  // A cursor pointing at a row that has been filtered away is a cursor
+  // pointing at nothing; drop it rather than leave it dangling.
+  useEffect(() => {
+    if (cursorId && !visibleTaskIds.includes(cursorId)) setCursorId(null);
+  }, [visibleTaskIds, cursorId]);
   useEffect(() => {
     const h = (e) => {
       const tag = (document.activeElement?.tagName || '').toLowerCase();
       const editingText = ['input', 'textarea', 'select'].includes(tag) || document.activeElement?.isContentEditable;
       if (editingText) return;
-      if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'a') {
+      // A dialog on top owns the keyboard — otherwise ↓ scrolls the bars
+      // behind whatever the user is actually reading.
+      if (document.querySelector('.modal-back, [data-testid="node-modal"]')) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key;
+
+      if (mod && String(key || '').toLowerCase() === 'a') {
         e.preventDefault();
         setSelectedIds(new Set(visibleTaskIds));
+        return;
+      }
+      if (mod || !visibleTaskIds.length) return;
+
+      if ((key === 'ArrowDown' || key === 'ArrowUp') && e.altKey) {
+        if (!cursorId) return;
+        e.preventDefault();
+        const dir = e.shiftKey
+          ? (key === 'ArrowDown' ? 'last' : 'first')
+          : (key === 'ArrowDown' ? 'down' : 'up');
+        onReorderSibling?.(cursorId, dir);
+        return;
+      }
+      if (key === 'ArrowDown' || key === 'ArrowUp') {
+        e.preventDefault();
+        const at = cursorId ? visibleTaskIds.indexOf(cursorId) : -1;
+        const next = key === 'ArrowDown'
+          ? Math.min(visibleTaskIds.length - 1, at + 1)
+          : Math.max(0, at <= 0 ? 0 : at - 1);
+        const id = visibleTaskIds[next];
+        setCursorId(id);
+        setSelectedIds(e.shiftKey && cursorId ? new Set([...selectedIds, id]) : new Set([id]));
+        return;
+      }
+      if ((key === 'e' || key === 'E' || key === 'Enter') && cursorId) {
+        e.preventDefault();
+        // onBarClick takes the scheduled row, not an id — it reads `treeId`
+        // off it to find the tree node behind a handoff shadow.
+        onBarClick?.({ id: cursorId });
       }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [visibleTaskIds]);
+  }, [visibleTaskIds, cursorId, selectedIds, onReorderSibling, onBarClick]);
   // Move the current selection earlier or later. One line of code now,
   // because there is one order: the tree's.
   //
@@ -2199,7 +2248,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
           const _alt = (_taskIdx++ % 2) === 1;
-          return <div key={rowKeyOf(row)} className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
+          return <div key={rowKeyOf(row)} data-task-id={row.type === 'task' ? (s.treeId || s.id) : undefined} data-gantt-cursor={cursorId && (s.treeId || s.id) === cursorId ? '1' : undefined}
+            className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}${cursorId && (s.treeId || s.id) === cursorId ? ' cursor-row' : ''}`} style={{ height: RH, cursor: 'pointer', opacity: dim ? .25 : searchDimmedL ? .35 : (s._unestimated ? .55 : 1), paddingLeft: 10 + indent, background: isActiveMatchL ? 'rgba(59,130,246,.15)' : isCp ? 'rgba(127,16,18,.06)' : isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}
             onMouseEnter={e => { if (dragRef.current || drag || linkDrag) return; showRowTip(row, e, !isSummary); }}
             onMouseLeave={() => hideRowTip(row, !isSummary)}
             onClick={e => {

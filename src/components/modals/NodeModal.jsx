@@ -251,7 +251,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   const setCustomValue = (fieldId, val) => s('customValues', { ...(f.customValues || {}), [fieldId]: val });
 
   return <div className="overlay">
-    <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
+    <div className="modal modal-lg fade" data-testid="node-modal" data-node-id={node.id} onClick={e => e.stopPropagation()}>
 
       {/* ── HEADER ── */}
       {ancestors.length > 0 && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
