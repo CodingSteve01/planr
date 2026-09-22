@@ -3536,8 +3536,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
         onDeleteNode={onNetDeleteNode} /></Frozen></div>}
+      {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
+          This view runs its own three filters, and it has to see the work the
+          schedule GAVE somebody before it can narrow to them; the pre-filtered
+          tree matches on `assign`, so filtering to a person with nothing
+          hand-assigned emptied the screen. */}
       {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
-        tree={visibleTreeForViews} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
+        tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
         onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></Frozen></div>}

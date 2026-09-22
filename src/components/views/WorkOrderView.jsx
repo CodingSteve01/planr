@@ -1,8 +1,8 @@
-import { useMemo, useState, memo } from 'react';
+import { Fragment, useMemo, useState, memo } from 'react';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { leafNodes } from '../../utils/scheduler.js';
-import { queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
+import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
 import { withKey } from '../../utils/shortcuts.js';
 
@@ -69,7 +69,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     for (const row of scheduled) {
       if (row.isHandoff || !row.personId) continue;
       const id = row.treeId || row.id;
-      if (!out.has(id)) out.set(id, { name: row.personShort || row.person, auto: !!row.autoAssigned });
+      if (!out.has(id)) out.set(id, { id: row.personId, name: row.personShort || row.person, auto: !!row.autoAssigned });
     }
     return out;
   }, [scheduled]);
@@ -92,7 +92,25 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
   // everything everybody has is the one place you most want to narrow to one
   // team — and it narrows what is SHOWN, never the order that is stored: a
   // queue is the plan's, not the filter's (principle 3).
+  // Two lists on purpose. `byOwner` is everything an owner holds — it decides
+  // whether there is an order to speak of at all, and it is what the queue is
+  // reconciled against. `shown` is what the filters left. Deciding "has this
+  // owner enough to order?" on the FILTERED list was wrong: narrowing to one
+  // person often leaves them a single row, and the whole view went blank.
   const byOwner = useMemo(() => {
+    const out = new Map();
+    for (const node of tree) {
+      if (!leafIds.has(node.id)) continue;
+      if (node.status === 'done') continue;
+      const owner = queueOwnerOf(node);
+      if (!owner) continue;
+      if (!out.has(owner)) out.set(owner, []);
+      out.get(owner).push(node);
+    }
+    return out;
+  }, [tree, leafIds]);
+
+  const shown = useMemo(() => {
     const out = new Map();
     for (const node of tree) {
       if (!leafIds.has(node.id)) continue;
@@ -104,14 +122,18 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       if (node.status === 'done') continue;
       if (rootFilter && node.id.split('.')[0] !== rootFilter) continue;
       if (teamFilter && (node.team || '') !== teamFilter) continue;
-      if (personFilter && !(node.assign || []).includes(personFilter)) continue;
+      // Who will actually do it, not only who was hand-assigned. Filtering to
+      // somebody used to show an empty screen when nothing was assigned yet —
+      // which is most of a plan early on, and exactly when reading it per
+      // resource matters most.
+      if (personFilter && (doerById.get(node.id)?.id || assigneeOf(node)) !== personFilter) continue;
       const owner = queueOwnerOf(node);
       if (!owner) continue;
       if (!out.has(owner)) out.set(owner, []);
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds, rootFilter, teamFilter, personFilter]);
+  }, [tree, leafIds, rootFilter, teamFilter, personFilter, doerById]);
 
   const ownerLabel = owner => {
     if (owner.startsWith('team:')) {
@@ -144,7 +166,9 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     if (patch) { e.preventDefault(); onTaskUpdate?.({ ...node, ...patch }); }
   };
 
-  const owners = [...byOwner.entries()].filter(([, rows]) => rows.length > 1);
+  // An owner is worth a block when they hold more than one thing; what is
+  // SHOWN of it is the filters' business.
+  const owners = [...shown.entries()].filter(([owner]) => (byOwner.get(owner) || []).length > 1);
   if (!owners.length) {
     return <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <p className="helper" style={{ fontSize: 12 }}>{t('wo.empty')}</p>
@@ -159,6 +183,38 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       const label = ownerLabel(owner);
       const ordered = reconcileQueue(personQueues?.[owner], rows.map(n => n.id));
       const byId = new Map(rows.map(n => [n.id, n]));
+      // Settle the big blocks, then the details — which is how anybody plans,
+      // and what a flat list of forty tasks turns into a sorting exercise.
+      // Each package the person has work in gets a header where its first item
+      // sits; moving the header moves the package's items as one block, the
+      // same move a multi-selection makes. Inside it the items order as
+      // before.
+      const pkgOf = id => id.split('.').slice(0, -1).join('.');
+      const groups = [];
+      for (const id of ordered) {
+        const pkg = pkgOf(id);
+        if (pkg && !groups.some(g => g.pkg === pkg)) groups.push({ pkg, first: id });
+      }
+      // A package whose items are scattered still owns all of them: the block
+      // move closes the gaps, so the header acts on every one.
+      const idsOfPkg = pkg => ordered.filter(id => pkgOf(id) === pkg);
+      // "One place earlier" for a package means past the package above it, not
+      // past one of its items — otherwise moving a five-item package up ten
+      // times is how you get it past two neighbours.
+      const moveGroup = (pkg, dir) => {
+        const at = groups.findIndex(g => g.pkg === pkg);
+        if (at < 0) return;
+        const ids = idsOfPkg(pkg);
+        if (dir === 'first' || dir === 'last') { onQueueReorder?.(ids, dir); return; }
+        if (dir === 'up') {
+          if (at === 0) return;
+          onQueueReorder?.(ids, { before: groups[at - 1].first });
+          return;
+        }
+        if (at >= groups.length - 1) { onQueueReorder?.(ids, 'last'); return; }
+        const after = groups[at + 2];
+        onQueueReorder?.(ids, after ? { before: after.first } : 'last');
+      };
       const sorted = !!personQueues?.[owner];
       return <div key={owner} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
@@ -179,8 +235,34 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
             {ordered.map((id, i) => {
               const node = byId.get(id);
               if (!node) return null;
+              const pkg = id.split('.').slice(0, -1).join('.');
+              const header = groups.find(g => g.pkg === pkg && g.first === id);
               const prog = node.progress ?? (node.status === 'done' ? 100 : node.status === 'wip' ? 50 : 0);
-              return <tr key={id}
+              return <Fragment key={id}>
+                {header && <tr
+                  data-queue-group={pkg}
+                  tabIndex={0}
+                  onKeyDown={e => {
+                    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                    e.preventDefault();
+                    const dir = e.shiftKey
+                      ? (e.key === 'ArrowDown' ? 'last' : 'first')
+                      : (e.key === 'ArrowDown' ? 'down' : 'up');
+                    moveGroup(pkg, dir);
+                  }}
+                  onClick={() => { setPicked(new Set(idsOfPkg(pkg))); setCursor(id); }}
+                  style={{ outline: 'none', cursor: 'pointer' }}>
+                  <td colSpan={7} style={{ padding: '6px 6px 2px', fontSize: 10, color: 'var(--tx3)', borderTop: '1px solid var(--b)' }}
+                    data-htip={withKey(t('wo.groupTip'), 'reorder')}>
+                    <span style={{ fontFamily: 'var(--mono)' }}>{pkg}</span>
+                    {pathOf(id).map((name, pi) => <span key={pi}>
+                      <span style={{ color: 'var(--b3)' }}> › </span>{name}
+                    </span>)}
+                    <span style={{ marginLeft: 6, fontFamily: 'var(--mono)' }}>({idsOfPkg(pkg).length})</span>
+                  </td>
+                </tr>}
+                <tr
                 data-queue-row={id}
                 data-status={node.status || 'open'}
                 data-prio={node.prio || ''}
@@ -238,7 +320,8 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                     onDragStart={e => e.preventDefault()}
                   >⊞</button>
                 </td>
-              </tr>;
+              </tr>
+              </Fragment>;
             })}
           </tbody>
         </table>
