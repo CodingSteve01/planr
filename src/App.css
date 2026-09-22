@@ -39,7 +39,15 @@
   /* Type scale (px) — matches the sizes already in use across the app. Same in both palettes. */
   --t10:10px;--t11:11px;--t12:12px;--t14:14px;--t20:20px;
   --r:7px;--r2:11px;
-  --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+  /* Body and data in IBM Plex — a technical face that keeps figures legible
+     at 10px, which is most of this app. The display face carries the two
+     places a number is the point (the Overview headline, a view's title) and
+     nothing else; it falls back to Georgia because the Obsidian plugin ships
+     no web fonts, and a headline that degrades to the body sans is a headline
+     that has stopped doing its job. */
+  --font:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --font-display:'Instrument Serif',Georgia,'Times New Roman',serif;
   --sh:0 4px 24px rgba(0,0,0,.55);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -70,9 +78,21 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .logo-dot{color:var(--ac);}
 .vsep{width:1px;height:18px;background:var(--b2);flex-shrink:0;}
 .sp{flex:1;}
-.tab-bar{display:flex;padding:0 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;}
+/* One row, and it stays one row. Eleven views do not fit a narrow pane, and
+   a second row of tabs costs height on the screen that has least of it — so
+   the row scrolls sideways, the active tab is brought into view whenever it
+   changes, and a fade marks the cut so a tab you cannot see still reads as a
+   tab that is there. The scrollbar is hidden because a visible one would eat
+   the height this is saving. */
+.tab-bar-wrap{position:relative;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--b);}
+.tab-bar{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:0 16px;scrollbar-width:none;-ms-overflow-style:none;scroll-behavior:smooth;}
+.tab-bar::-webkit-scrollbar{display:none;height:0;}
+.tab-bar-fade{position:absolute;top:0;bottom:0;width:36px;pointer-events:none;opacity:0;transition:opacity .15s;}
+.tab-bar-fade.l{left:0;background:linear-gradient(to right,var(--bg2),transparent);}
+.tab-bar-fade.r{right:0;background:linear-gradient(to left,var(--bg2),transparent);}
+.tab-bar-fade.on{opacity:1;}
 .subtoolbar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:wrap;}
-.tab{padding:8px 14px;font-size:12px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;letter-spacing:.01em;user-select:none;}
+.tab{padding:8px 14px;font-size:12px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;letter-spacing:.01em;user-select:none;white-space:nowrap;flex-shrink:0;}
 .tab:hover{color:var(--tx2);}
 .tab.on{color:var(--ac);border-bottom-color:var(--ac);}
 .main{flex:1;overflow:hidden;display:flex;}

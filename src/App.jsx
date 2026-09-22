@@ -253,6 +253,36 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
   const [tab, _setTab] = useState(() => initialShell().tab);
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
+
+  // The tab row scrolls sideways instead of wrapping (see .tab-bar-wrap in
+  // App.css). Two things have to follow from that: the active tab is brought
+  // into view whenever it changes — it can be selected from the palette or a
+  // shortcut, not only by clicking it — and the edges say when there is more
+  // row than pane, because a tab you cannot see must not read as a tab that
+  // is not there.
+  const tabBarRef = useRef(null);
+  const activeTabRef = useRef(null);
+  const [tabFades, setTabFades] = useState({ l: false, r: false });
+  const syncTabFades = useStableCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setTabFades(prev => {
+      const next = { l: el.scrollLeft > 2, r: max > 2 && el.scrollLeft < max - 2 };
+      return prev.l === next.l && prev.r === next.r ? prev : next;
+    });
+  });
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+    syncTabFades();
+  }, [tab, syncTabFades]);
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(syncTabFades);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTabFades]);
   // Keep every visited tab mounted (display:none for inactive) so switching
   // back is instant. Each view is wrapped in React.memo and its callbacks
   // are useCallback'd, so an App re-render that doesn't touch a view's data
@@ -3353,21 +3383,26 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         data-htip={withKey(_t('set.title'), 'settings')}>⚙</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
-    <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')}>
-      {TABS.map(t => (
-        <div
-          key={t.id}
-          role="tab"
-          aria-selected={tab === t.id}
-          className={`tab${tab === t.id ? ' on' : ''}`}
-          onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
-          onClick={e => { if (e.detail === 0) setTab(t.id); }}
-        >
-          {t.label}
-          {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
-        </div>
-      ))}
-      <div style={{ flex: 1 }} />
+    <div className="tab-bar-wrap">
+      <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
+        {TABS.map(t => (
+          <div
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            ref={tab === t.id ? activeTabRef : undefined}
+            className={`tab${tab === t.id ? ' on' : ''}`}
+            onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
+            onClick={e => { if (e.detail === 0) setTab(t.id); }}
+          >
+            {t.label}
+            {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+          </div>
+        ))}
+        <div style={{ flex: 1, minWidth: 16 }} />
+      </div>
+      <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
+      <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
     </div>
     {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
