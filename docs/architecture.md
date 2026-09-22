@@ -321,6 +321,15 @@ structural, in [exportCtx.js](../src/utils/exportCtx.js):
   tree in `App.jsx`, and [exportScope.test.jsx](../src/__tests__/exportScope.test.jsx)
   pins the result: with filters active, every surface still prints the
   full-plan figure, and each PDF is byte-identical when handed a filtered ctx.
+- The two newest ways screen and export could drift are the per-person **work
+  order** (`personQueues`, which changes *when* things happen) and **dropped**
+  work (which changes *what counts*). Both are pinned end-to-end through the
+  real App in
+  [exportQueueParity.app.test.jsx](../src/__tests__/exportQueueParity.app.test.jsx):
+  a work order visibly reorders the "what comes when" PDF, and the Management
+  Summary's headline equals the Overview's to the digit with dropped work and a
+  queue both in play. The module-level equivalents live in
+  [exportParity.test.jsx](../src/__tests__/exportParity.test.jsx).
 
 ## Critical path
 

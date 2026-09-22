@@ -187,6 +187,22 @@ Below the bar area:
 - **Link-mode hint** — shown while a link-mode or link-drag is active
 - **Confidence legend** — visual key explaining bar styling for each confidence level (solid = committed, striped = estimated, dashed = exploratory)
 
+## Row order
+
+The rows follow the tree, at every level. The bars say *when*; the list says
+what the plan is.
+
+They did not, until September 2026: a node's children were sorted by earliest
+scheduled start with `displayOrder` only as a fallback, and the items inside a
+group by priority. Both predate the tree becoming the order of the work, and
+both are the pattern the scheduler carried until then — a second ranking that
+quietly disagrees with the plan you arranged. A project whose first task waits
+on another project sank to the bottom of a list somebody had deliberately
+ordered.
+
+One axis is still the view's own: grouped by resource, the people are listed
+alphabetically. That is a property of the people, not of the plan.
+
 ## Keyboard-less conventions
 
 - No double-click anywhere.

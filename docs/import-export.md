@@ -136,7 +136,11 @@ Appears next to the filename whenever there's anything to save — **dirty** (lo
 
 ### CSV
 
-Tabular export. One row per leaf with columns for ID, name, team, assignee, estimate, dates, etc. Good for spreadsheet post-processing.
+Tabular export. One row per item with columns for ID, level, name, status,
+`Dropped`, team, estimate, factor, priority, dependencies, phases and notes.
+Good for spreadsheet post-processing. The `Dropped` column carries `yes` for
+dropped work, so a round trip through a spreadsheet cannot revive it as
+ordinary open work.
 
 ### Sprint Markdown
 
@@ -144,7 +148,10 @@ Tabular export. One row per leaf with columns for ID, name, team, assignee, esti
 
 ### Mermaid
 
-`exportMermaid()` — dependency graph as a Mermaid diagram. Paste into any Mermaid-capable viewer (GitHub, Notion, etc.) to render a static topology.
+`exportMermaid()` — dependency graph as a Mermaid diagram. Paste into any Mermaid-capable viewer (GitHub, Notion, etc.) to render a static topology. Dropped
+items get their own `dropped` class (grey, dashed), applied after the status
+classes so it wins — they are part of the structure but not work ahead of the
+team.
 
 ### SVG
 
@@ -250,6 +257,17 @@ asserts that a deliberately filtered context produces byte-identical output.
 
 The reason is asymmetric risk: a reader of a PDF has no way to notice that a
 project is missing or that a percentage was taken over a subset.
+
+The same reasoning covers the two things that change the numbers rather than
+the scope. The per-person **work order** reaches every export, because App
+computes `scheduled` once — with the queues — and hands that one array to all
+of them. **Dropped** work leaves every export: out of the report, the DOCX, the
+four PDFs, the forward "Plan" projection and the Jira CSV, and marked rather
+than silently omitted in the two structural exports (a `dropped` class in
+Mermaid, a `Dropped` column in the plain CSV). Both are pinned through the real
+App in
+[`src/__tests__/exportQueueParity.app.test.jsx`](../src/__tests__/exportQueueParity.app.test.jsx)
+and [`src/__tests__/jiraExportDropped.test.jsx`](../src/__tests__/jiraExportDropped.test.jsx).
 
 ### Jira reconcile (`src/utils/jiraSync.js`)
 

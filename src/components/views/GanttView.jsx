@@ -7,6 +7,7 @@ import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
+import { treeOrderRank } from '../../utils/displayOrder.js';
 import { buildThreadStructure } from '../../utils/threads.js';
 import { deadlineStatus } from '../../utils/timeline.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
@@ -460,21 +461,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (!map[pid]) map[pid] = [];
       map[pid].push(r.id);
     });
+    // The tree's order, and nothing else. This sorted by earliest scheduled
+    // start first, with `displayOrder` as a fallback — so a project whose
+    // first task waits on another project sank to the bottom of a list the
+    // planner had deliberately arranged. Time is what the bars are for; the
+    // rows are the plan.
     Object.values(map).forEach(ids => ids.sort((a, b) => {
-      // Primary: earliest scheduled start in subtree (top-down by time).
-      const sa = earliestStartByNode[a];
-      const sb = earliestStartByNode[b];
-      if (sa != null && sb != null && sa !== sb) return sa - sb;
-      if (sa != null && sb == null) return -1;
-      if (sa == null && sb != null) return 1;
-      // Secondary: displayOrder (from Reorganize).
       const A = ordMap[a] || { idx: 0, ord: null }, B = ordMap[b] || { idx: 0, ord: null };
       if (A.ord != null && B.ord != null && A.ord !== B.ord) return A.ord - B.ord;
-      // Tertiary: original tree-array index (id-numeric).
       return A.idx - B.idx;
     }));
     return map;
-  }, [tree, ordMap, earliestStartByNode]);
+  }, [tree, ordMap]);
   // treeOrder = flattened depth-first traversal so cross-parent ordering also follows displayOrder.
   const treeOrder = useMemo(() => {
     const out = {};
@@ -505,9 +503,20 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     ? 'var(--ac)'
     : 'var(--ac2)';
 
+  const treeRank = useMemo(() => treeOrderRank(tree), [tree]);
   const structure = useMemo(() => {
     const defaultCollapsed = new Set();
-    const sortItems = arr => [...arr].sort((a, b) => (a.prio || 4) - (b.prio || 4) || (a.startWi || 0) - (b.startWi || 0) || a.id.localeCompare(b.id));
+    // Also the tree's order. This led with priority, which is the same
+    // second ranking the scheduler carried until the tree became the order of
+    // the work: importance is not position.
+    const rankOfItem = it => {
+      const r = treeRank.get(it.treeId || it.id);
+      return r == null ? Number.MAX_SAFE_INTEGER : r;
+    };
+    const sortItems = arr => [...arr].sort((a, b) =>
+      rankOfItem(a) - rankOfItem(b)
+      || (a.segmentIdx || 0) - (b.segmentIdx || 0)
+      || a.id.localeCompare(b.id));
     const buildScopeMeta = scopeItems => {
       const byNode = {};
       const itemById = {};

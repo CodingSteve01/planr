@@ -1,6 +1,7 @@
 // All export functions extracted from App.jsx to keep it under 600 LOC.
 // Each function takes a context object with the data it needs.
 import { iso } from './date.js';
+import { treeIndex } from './scheduler.js';
 import { generateReport } from './report.js';
 import { formatPhaseToken } from './phases.js';
 // @turbodocx browser build is a classic UMD: `var HTMLToDOCX=function(){…}()`
@@ -279,22 +280,28 @@ export function exportMermaid({ tree, meta }) {
   tree.forEach(r => { if (r.id.includes('.')) out += `  ${sid(r.id.split('.').slice(0, -1).join('.'))} --> ${sid(r.id)}\n`; });
   out += '\n';
   tree.forEach(r => { (r.deps || []).forEach(d => { out += `  ${sid(d)} -.->|dep| ${sid(r.id)}\n`; }); });
-  out += '\n  classDef done fill:#dcfce7,stroke:#16a34a,color:#15803d\n  classDef wip fill:#fef3c7,stroke:#d97706,color:#a16207\n  classDef root fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,font-weight:bold\n';
+  out += '\n  classDef done fill:#dcfce7,stroke:#16a34a,color:#15803d\n  classDef wip fill:#fef3c7,stroke:#d97706,color:#a16207\n  classDef root fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,font-weight:bold\n  classDef dropped fill:#f1f5f9,stroke:#94a3b8,color:#64748b,stroke-dasharray:4 3\n';
   tree.filter(r => r.status === 'done').forEach(r => { out += `  class ${sid(r.id)} done\n`; });
   tree.filter(r => r.status === 'wip').forEach(r => { out += `  class ${sid(r.id)} wip\n`; });
   tree.filter(r => !r.id.includes('.')).forEach(r => { out += `  class ${sid(r.id)} root\n`; });
+  // Last, so it wins over the status classes: a dropped item is not work
+  // ahead of the team, whatever status it still carries.
+  treeIndex(tree).droppedIds.forEach(id => { out += `  class ${sid(id)} dropped\n`; });
   out += '```\n';
   download(new Blob([out], { type: 'text/plain;charset=utf-8' }), `${slug(meta.name)}-mermaid.md`);
 }
 
 // ── CSV ──────────────────────────────────────────────────────────────────────
 export function exportCSV({ tree, meta }) {
-  const hdr = ['ID', 'Level', 'Name', 'Status', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Phases', 'Notes'];
+  // `Dropped` travels with the row: without it a round trip through a
+  // spreadsheet quietly revives abandoned work as ordinary open work.
+  const dropped = treeIndex(tree).droppedIds;
+  const hdr = ['ID', 'Level', 'Name', 'Status', 'Dropped', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Phases', 'Notes'];
   const fmtPhases = phases => {
     if (!phases?.length) return '';
     return phases.map(p => formatPhaseToken(p)).join(', ');
   };
-  const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${fmtPhases(r.phases)}"`, `"${(r.note || '').replace(/"/g, '""')}"`]);
+  const rows = tree.map(r => [r.id, r.lvl, `"${(r.name || '').replace(/"/g, '""')}"`, r.status, dropped.has(r.id) ? 'yes' : '', r.team || '', r.best || '', r.factor || '', r.prio || '', (r.deps || []).join('; '), `"${fmtPhases(r.phases)}"`, `"${(r.note || '').replace(/"/g, '""')}"`]);
   download(new Blob(['\uFEFF' + [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n')], { type: 'text/csv;charset=utf-8' }), `${slug(meta.name)}-${iso(new Date())}.csv`);
 }
 
@@ -305,8 +312,12 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
   const mMap = Object.fromEntries((members || []).map(m => [m.id, m]));
   const tMap = Object.fromEntries((teams || []).map(t => [t.id, t]));
 
-  // Pick tasks: selected or all non-done leaves
+  // Pick tasks: selected or all non-done leaves. Dropped work never goes out —
+  // a ticket created from it would outlive the decision to drop it, and this
+  // is the one export that writes into another system.
+  const dropped = treeIndex(tree).droppedIds;
   let items = tree.filter(r => {
+    if (dropped.has(r.id)) return false;
     if (selectedIds?.size) return selectedIds.has(r.id);
     const isLeaf = !tree.some(c => c.id !== r.id && c.id.startsWith(r.id + '.'));
     return isLeaf && r.status !== 'done' && r.best > 0;

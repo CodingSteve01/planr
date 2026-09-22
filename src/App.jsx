@@ -1740,11 +1740,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!horizonEnd) return null;
     const sById = Object.fromEntries((scheduled || []).map(s => [s.id, s]));
     const roots = tree.filter(r => !r.id.includes('.'));
+    // Live leaves only. Dropped work leaves BOTH sides of every fraction —
+    // the same rule progress.js applies to the "Ist" figure right next to
+    // this one. Counting it here made a finished project project as unfinished
+    // forever, on screen and in the Management Summary's Subway Map.
+    const liveLeaves = leafNodes(tree);
     const out = {};
     for (const root of roots) {
-      const leaves = tree
-        .filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
-        .filter(n => !tree.some(o => o.id !== n.id && o.id.startsWith(n.id + '.')));
+      const leaves = liveLeaves.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'));
       const today = new Date();
       let total = 0, doneByHorizon = 0;
       for (const lf of leaves) {

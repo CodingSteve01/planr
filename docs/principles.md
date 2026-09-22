@@ -151,8 +151,15 @@ Its counterpart on the surface: **one state has one colour and one glyph**,
 everywhere. Done is the same green in the tree as on the roadmap as in the
 Gantt as in the PDF.
 
-> **Check:** does this number / text / colour already exist somewhere? Then
-> take it from there.
+The order of the work is the tree's (`treeOrderRank`), and a view that sorts
+plan items by anything else is competing with it. Time, load, name and
+alphabet are the view's own business — a Gantt bar sits where the dates put it,
+a heat map sorts by load — but the *list of items* follows the plan. Three
+places had drifted: the scheduler (priority and `seq`), the Gantt's structure
+(earliest start), and the Gantt's group contents (priority).
+
+> **Check:** does this number / text / colour / order already exist somewhere?
+> Then take it from there.
 
 ### 8. Names, not mechanics
 
