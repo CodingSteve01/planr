@@ -167,7 +167,7 @@ describe('the project lens beside the Gantt', () => {
     expect(zoomOut().disabled).toBe(true);
   });
 
-  it('opens the item behind a row', async () => {
+  it('opens the item behind a row in the edit dialog', async () => {
     renderApp();
     await goToPlanMode();
     await goToRoadmapTab();
@@ -177,13 +177,71 @@ describe('the project lens beside the Gantt', () => {
     expect(label, 'no row to click').toBeTruthy();
     fireEvent.click(label);
 
-    // Same entry point the portfolio map and the Gantt use (onSumOpenItem):
-    // a leaf opens the item editor, a parent narrows the tree to it. "Design"
-    // is a leaf here.
+    // The same dialog a Gantt bar or a graph node opens (onBarClick) — not
+    // onSumOpenItem, which used to send anything with children off to the
+    // Tree tab behind a root filter. You stay on the roadmap you were
+    // reading.
     await waitFor(() => {
       const modal = document.querySelector('.modal');
       expect(modal, 'clicking a row opened nothing').toBeTruthy();
       expect(modal.textContent).toContain('Design');
+    });
+    expect(screen.getByTestId('roadmap-pane').style.display).not.toBe('none');
+  });
+
+  it('opens a work package in the same dialog instead of jumping to the tree', async () => {
+    // The reported behaviour: the only thing the roadmap said was "AB.1
+    // öffnen", and the click filtered the tree and switched tabs. A parent
+    // is an item too, and it has a dialog.
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Website Relaunch', type: 'goal', status: 'wip' },
+        { id: 'P1.1', name: 'Discovery', status: 'open' },
+        { id: 'P1.1.1', name: 'Interviews', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Roadmap lens', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }));
+    renderApp();
+    await goToPlanMode();
+    await goToRoadmapTab();
+
+    const label = [...document.querySelectorAll('.pr-label')]
+      .find(el => el.textContent.includes('Discovery'));
+    expect(label, 'no work-package row to click').toBeTruthy();
+    fireEvent.click(label);
+
+    await waitFor(() => {
+      const modal = document.querySelector('.modal');
+      expect(modal, 'clicking a work package opened nothing').toBeTruthy();
+      expect(modal.textContent).toContain('Discovery');
+    });
+    // Still on the Roadmap tab, and no root filter was applied behind our back.
+    expect(screen.getByTestId('roadmap-pane').style.display).not.toBe('none');
+  });
+
+  it('hovering a row shows the regular item tooltip, not "open this"', async () => {
+    renderApp();
+    await goToPlanMode();
+    await goToRoadmapTab();
+
+    const label = [...document.querySelectorAll('.pr-label')]
+      .find(el => el.textContent.includes('Design'));
+    // The old surface put the whole tooltip in a data-htip attribute that
+    // said nothing about the item. The Tip card is the one the graph and the
+    // Gantt show.
+    expect(label.getAttribute('data-htip')).toBeNull();
+    fireEvent.mouseEnter(label, { clientX: 100, clientY: 100 });
+
+    await waitFor(() => {
+      const card = document.querySelector('.tt');
+      expect(card, 'no item tooltip on hover').toBeTruthy();
+      expect(card.textContent).toContain('Design');
+      // And it teaches the gesture this view actually uses.
+      expect(card.textContent).toContain('Click for details');
+      expect(card.textContent).not.toContain('Dbl-click');
     });
   });
 

@@ -214,8 +214,12 @@ rather than switching a dropdown on one screen:
   a view belongs in the tab bar, not next to *Overdue* and *Unestimated*.
   It renders a **real roadmap for one project**: one row per work package on
   a month axis, sized by its actual dates, with its tasks as stops, today as
-  a green line and the deadline (if there is one) in red. Rows and stops
-  hover and click exactly like stations do — clicking one opens the item.
+  a green line and the deadline (if there is one) in red. Hover a row or a
+  stop and you get the **same item card the network graph shows** — status,
+  dates, effort, dependencies, phases; click it and the item opens in its
+  **normal edit dialog**, right where you are. (Both used to be poorer here:
+  the tooltip only said *"AB.1 öffnen"*, and clicking a work package filtered
+  the tree and threw you over to the Tree tab.)
   Pick the project from the searchable field at the top; your choice is
   remembered. It is drawn as real DOM (the same fixed row height as the
   Gantt), not the Subway map's scaled SVG, so it never grows oversized on a

@@ -5,6 +5,7 @@ import { useT } from '../../i18n.jsx';
 import { SvgMarkup } from './SvgMarkup.jsx';
 import { StatusIcon } from './StatusIcon.jsx';
 import { parseTip } from '../../utils/tipText.js';
+import { fixedFrame, usePortalRoot } from '../../utils/embedHost.js';
 
 const ZOOM_KEY = 'planr_roadmap_zoom';
 const ZOOM_MAX = 4;
@@ -93,6 +94,7 @@ function TipBody({ text }) {
 
 export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
   const { t } = useT();
+  const portalRoot = usePortalRoot();
   const [expandedLegendIds, setExpandedLegendIds] = useState(() => new Set());
   // Pass raw template strings (with {0}) so roadmap.js can substitute the percentage itself.
   // t() without extra args leaves {0} intact, which roadmap.js replaces with the actual %.
@@ -240,26 +242,37 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     return () => box.removeEventListener('wheel', onWheel);
   }, [onWheel]);
 
+  // A mouse event and a bounding rect both speak viewport pixels; `left`/`top`
+  // on the tooltip are written in the local pixels of the box it sits in. The
+  // two are the same number only at 100% interface size. Planr sets `zoom` on
+  // its root for the UI-scale setting — and defaults to 110% inside the
+  // Obsidian plugin, which is why the map's tooltip trailed the cursor there
+  // and looked fine on the web: at 110% every pixel of distance from the map's
+  // left edge came out 10% too far right. Divide it back out. See
+  // utils/embedHost.js, which measures the factor the same way for every other
+  // popup in the app.
   const onMove = useCallback(e => {
     const g = e.target.closest('[data-tip]');
     if (g) {
       const text = g.getAttribute('data-tip');
       if (text) {
         const rect = ref.current?.getBoundingClientRect();
+        const scale = fixedFrame(portalRoot).scale || 1;
+        const cx = (e.clientX - (rect?.left || 0)) / scale;
+        const cy = (e.clientY - (rect?.top || 0)) / scale;
         setTip({
           text,
-          cx: e.clientX - (rect?.left || 0),
-          cy: e.clientY - (rect?.top || 0),
-          cw: rect?.width || 0,
-          ch: rect?.height || 0,
-          x: e.clientX - (rect?.left || 0) + 14,
-          y: e.clientY - (rect?.top || 0) - 8,
+          cx, cy,
+          cw: (rect?.width || 0) / scale,
+          ch: (rect?.height || 0) / scale,
+          x: cx + 14,
+          y: cy - 8,
         });
         return;
       }
     }
     setTip(null);
-  }, []);
+  }, [portalRoot]);
 
   const onLeave = useCallback(() => setTip(null), []);
 

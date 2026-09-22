@@ -2730,6 +2730,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onGanttAddDep = useStableCallback((...a) => addDep(...a));
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
+  // Roadmap tab: a click opens the item's own edit dialog — the same one a
+  // Gantt bar or a graph node opens. It used to route through onSumOpenItem,
+  // which for anything with children set the root filter and jumped you to
+  // the Tree tab. That is navigation, not editing: you lose the roadmap you
+  // were reading to get a dialog you could have had in place.
+  const onRoadmapOpenItem = useStableCallback(id => {
+    // Leaves have a scheduled row (dates, effort, assignment) and the dialog
+    // wants it merged in; a work package has none and opens as the tree node.
+    const row = scheduled.find(s => (s.treeId || s.id) === id && !s.isHandoff);
+    onBarClick(row || { id });
+  });
   const onNetAddNode = useStableCallback(() => setModal('add'));
   const onNetDeleteNode = useStableCallback(id => deleteNode(id));
   const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
@@ -3422,9 +3433,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           scheduled={activeScheduled}
           stats={stats}
           roadmapAssignment={data?.roadmapAssignment || null}
+          teams={teams}
+          members={members}
+          cpSet={viewCpSet}
+          cpLabels={cpLabels}
           focusId={ganttRoadmapFocus}
           onFocusChange={setGanttRoadmapFocus}
-          onOpenItem={onSumOpenItem}
+          onOpenItem={onRoadmapOpenItem}
         />
       </div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}

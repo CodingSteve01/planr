@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { computeProjectRoadmap } from '../../utils/projectRoadmap.js';
 import { progressPctLabel } from '../../utils/progress.js';
 import { fmtDate } from '../../utils/date.js';
+import { Tip } from '../shared/Tooltip.jsx';
 import { useT } from '../../i18n.jsx';
 
 // Plan mode's Roadmap tab, built the way the Gantt is built: real DOM, a
@@ -34,16 +35,21 @@ const ZOOM_STEPS = [1, 1.5, 2, 3, 5, 8];
 const MIN_ZOOM = ZOOM_STEPS[0];
 const MAX_ZOOM = ZOOM_STEPS[ZOOM_STEPS.length - 1];
 
-const STATUS_DOT = { done: '●', wip: '◐', open: '○' };
-
 function clampZoom(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return MIN_ZOOM;
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, num));
 }
 
-export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)', onOpenItem }) {
+export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)',
+  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem }) {
   const { t } = useT();
+  // The same tooltip the graph and the Gantt show — one item, one card, the
+  // whole story: status, window, effort, deps, phases, handoff chain. The
+  // roadmap used to carry `data-htip="AB.1 öffnen"`, which told you what a
+  // click does and nothing about the item you were pointing at. Reading a
+  // roadmap is exactly when you want to know the item.
+  const [tip, setTip] = useState(null); // { item, x, y }
   const scrollRef = useRef(null);
   const [zoom, setZoomState] = useState(() => {
     try { return clampZoom(parseFloat(localStorage.getItem(ZOOM_KEY)) || MIN_ZOOM); } catch { return MIN_ZOOM; }
@@ -58,6 +64,50 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
     () => computeProjectRoadmap({ tree, scheduled, stats, rootId }),
     [tree, scheduled, stats, rootId],
   );
+
+  const nodeById = useMemo(() => new Map((tree || []).map(node => [node.id, node])), [tree]);
+  // Handoff shadows share a tree id with their primary and would otherwise
+  // win the lookup; the primary is the row the roadmap draws.
+  const schedById = useMemo(() => {
+    const map = new Map();
+    for (const row of scheduled || []) {
+      const id = row.treeId || row.id;
+      if (!map.has(id) || (!row.isHandoff && map.get(id).isHandoff)) map.set(id, row);
+    }
+    return map;
+  }, [scheduled]);
+
+  // What the Tip wants: a tree node merged with its scheduled row. A leaf has
+  // one; a work package does not (only leaves are scheduled), so it is
+  // summarised over its own leaves the same way the Gantt summarises a group
+  // row — `_summary` and the two counts, which the Tip already renders.
+  const tipItemFor = useCallback((id, row = null) => {
+    const node = nodeById.get(id);
+    if (!node) return null;
+    const sched = schedById.get(id);
+    if (sched) return { ...node, ...sched, isCp: !!cpSet?.has(sched.id) };
+    const leaves = (row?.milestones || []).map(m => schedById.get(m.id)).filter(Boolean);
+    return {
+      ...node,
+      status: row?.status || node.status,
+      startD: row?.start || null,
+      endD: row?.end || null,
+      best: leaves.reduce((sum, leaf) => sum + (leaf.best || 0), 0),
+      effort: leaves.reduce((sum, leaf) => sum + (leaf.effort || 0), 0),
+      _summary: true,
+      _summaryCount: row?.leafCount ?? 0,
+      _doneCount: row?.doneCount ?? 0,
+    };
+  }, [nodeById, schedById, cpSet]);
+
+  const showTip = useCallback((id, row, event) => {
+    const item = tipItemFor(id, row);
+    if (item) setTip({ item, x: event.clientX, y: event.clientY });
+  }, [tipItemFor]);
+  const hideTip = useCallback(() => setTip(null), []);
+  // A click opens the item; leaving the tooltip up over the dialog that just
+  // covered the row is how you end up with two cards fighting for the screen.
+  const openItem = useCallback(id => { setTip(null); onOpenItem?.(id); }, [onOpenItem]);
 
   // The pane's width, measured — the base every scale is derived from. This
   // is the reason the view is DOM and not a scaled image: it can ask how
@@ -142,8 +192,9 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
         <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
         {model.rows.map(row => (
           <div key={row.id} className="pr-label" style={{ height: ROW_H }}
-            onClick={() => onOpenItem?.(row.id)}
-            data-htip={t('pr.rowTip', row.id)}>
+            onClick={() => openItem(row.id)}
+            onMouseEnter={e => showTip(row.id, row, e)}
+            onMouseLeave={hideTip}>
             <span className="pr-label-id">{row.id}</span>
             <span className={`pr-label-name${row.allDone ? ' done' : ''}`}>{row.name}</span>
           </div>
@@ -176,8 +227,9 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
                 {hasSpan && <span
                   className="pr-bar"
                   style={{ left, width, background: color }}
-                  onClick={() => onOpenItem?.(row.id)}
-                  data-htip={t('pr.barTip', row.name, fmtDate(row.start), fmtDate(row.end))}>
+                  onClick={() => openItem(row.id)}
+                  onMouseEnter={e => showTip(row.id, row, e)}
+                  onMouseLeave={hideTip}>
                   <span className="pr-bar-fill" style={{
                     width: `${Math.max(0, Math.min(100, row.progress))}%`,
                     background: color,
@@ -187,8 +239,9 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
                   <span key={m.id}
                     className={`pr-stop s-${m.status}`}
                     style={{ left: xOf(m.end), borderColor: color, background: m.status === 'done' ? color : 'var(--bg)' }}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(m.id); }}
-                    data-htip={`${STATUS_DOT[m.status] || '○'} ${m.name} · ${fmtDate(m.end)}`} />
+                    onClick={e => { e.stopPropagation(); openItem(m.id); }}
+                    onMouseEnter={e => { e.stopPropagation(); showTip(m.id, null, e); }}
+                    onMouseLeave={hideTip} />
                 ))}
               </div>;
             })}
@@ -221,5 +274,9 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
         ))}
       </div>
     </div>
+
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16}
+      teams={teams} members={members} tree={tree} scheduled={scheduled}
+      cpLabels={cpLabels} hint={t('tt.click')} />}
   </div>;
 }
