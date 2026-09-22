@@ -3618,6 +3618,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           cpLabels={cpLabels}
           focusId={ganttRoadmapFocus}
           onFocusChange={setGanttRoadmapFocus}
+          diffDoneIds={diffDoneSet}
+          diffProgressedIds={diffProgressedSet}
+          sinceDate={sinceDate}
+          onlyChanged={diffOnlyChanged}
           onOpenItem={onOpenItemDialog}
         />
       </div>}

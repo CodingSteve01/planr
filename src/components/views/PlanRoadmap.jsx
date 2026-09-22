@@ -42,7 +42,13 @@ function clampZoom(value) {
 }
 
 export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)',
-  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem }) {
+  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem,
+  // Review window. The Roadmap was the one working view with no diff support
+  // at all — the filter bar offered a "since" window and this view ignored
+  // it, so a sprint review had to be read somewhere else and come back.
+  // Same vocabulary as the Gantt: what finished in the window, what moved,
+  // and the option to show only those.
+  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false }) {
   const { t } = useT();
   // The same tooltip the graph and the Gantt show — one item, one card, the
   // whole story: status, window, effort, deps, phases, handoff chain. The
@@ -223,7 +229,12 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
               const hasSpan = row.start && row.end;
               const left = hasSpan ? xOf(row.start) : 0;
               const width = hasSpan ? Math.max(6, xOf(row.end) - left) : 0;
-              return <div key={row.id} className={`pr-row${idx % 2 ? ' alt' : ''}`} style={{ height: ROW_H }}>
+              // A package counts as touched when anything under it is.
+              const touched = !!sinceDate && (row.milestones || []).some(m =>
+                diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
+              if (onlyChanged && sinceDate && !touched) return null;
+              return <div key={row.id} data-pr-changed={touched ? 'true' : undefined}
+                className={`pr-row${idx % 2 ? ' alt' : ''}${touched ? ' changed' : ''}`} style={{ height: ROW_H }}>
                 {hasSpan && <span
                   className="pr-bar"
                   style={{ left, width, background: color }}
@@ -237,7 +248,8 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
                 </span>}
                 {row.milestones.map(m => (
                   <span key={m.id}
-                    className={`pr-stop s-${m.status}`}
+                    data-pr-changed={sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? 'true' : undefined}
+                    className={`pr-stop s-${m.status}${sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? ' changed' : ''}`}
                     style={{ left: xOf(m.end), borderColor: color, background: m.status === 'done' ? color : 'var(--bg)' }}
                     onClick={e => { e.stopPropagation(); openItem(m.id); }}
                     onMouseEnter={e => { e.stopPropagation(); showTip(m.id, null, e); }}

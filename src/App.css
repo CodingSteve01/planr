@@ -640,6 +640,12 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .pr-bar:hover{opacity:.3;}
 .pr-bar-fill{position:absolute;left:0;top:0;bottom:0;opacity:.85;border-radius:7px;}
 .pr-stop{position:absolute;top:9px;width:10px;height:10px;margin-left:-5px;border:1.5px solid;border-radius:50%;cursor:pointer;z-index:2;box-sizing:border-box;}
+/* The review window, in the Gantt's own vocabulary: amber marks what moved
+   since the cutoff. A ring rather than a fill, so the stop keeps saying what
+   its status is at the same time. */
+.pr-stop.changed{box-shadow:0 0 0 2.5px var(--st-wip-soft),0 0 0 4px var(--st-wip);}
+.pr-row.changed::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--st-wip);}
+.pr-row{position:relative;}
 .pr-stop:hover{transform:scale(1.35);}
 .pr-today{position:absolute;top:0;width:0;border-left:1px dashed var(--gr);z-index:4;pointer-events:none;}
 .pr-deadline{position:absolute;top:0;width:0;border-left:1px dashed var(--re);z-index:4;pointer-events:none;}
