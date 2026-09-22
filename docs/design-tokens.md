@@ -177,3 +177,36 @@ down from 263 before it). Lower that number as more literals are migrated;
 never raise it without migrating an equal or larger number of literals
 elsewhere in the same change. The same test also asserts `App.css` defines
 every token in the table above, in both palettes where the value differs.
+
+
+## Icons are drawn, not typed
+
+[`src/components/shared/Icon.jsx`](../src/components/shared/Icon.jsx) holds one
+set of stroke icons on a 24-unit grid, rendered in `currentColor` at the weight
+of the UI text. It replaced emoji and stray typographic marks (🗺 for the
+roadmap, 💾 for save, ✧ beside a menu entry, ◎ ☰ ▭ ⁂ for tabs). Three things
+were wrong with those and only the third is taste:
+
+- an emoji comes from a different font on every machine, so it never matches
+  the weight of the text beside it;
+- it carries its own colour and ignores the one the row is painted in, so it
+  cannot go quiet in a disabled control or bright in a selected one;
+- its size comes from the font rather than the layout, so it never lines up
+  twice.
+
+Two things are deliberately **not** icons:
+
+- **Typographic arrows and key symbols** — `→` in a date range, `⇧ ⌥ ↵ ⇥` in a
+  shortcut hint. Those are text, and a drawn arrow in a line of type would be
+  worse.
+- **`GT` in [`constants.js`](../src/constants.js)** — `🎯 ⚡ ⏰`, and the phase
+  and pin markers `✅ 🟡 📌`. These are the **markdown file format**: a plan
+  note on disk writes `📌2026-01-05` and `*Phases: ✅RE, 🟡Development*`, and
+  the PDF layer substitutes them through `pdfGlyphs.js`. Replacing them would
+  not change an icon, it would stop every saved plan from parsing. The screen
+  draws the same three from `GT_ICON` instead.
+
+[`src/__tests__/icons.test.jsx`](../src/__tests__/icons.test.jsx) holds the set
+to `currentColor` and one viewBox, requires `aria-hidden` unless an icon is
+given a name of its own, and fails on a pictograph reappearing in the chrome
+(`App.jsx`, `FileMenu.jsx`) — with the five format tokens excluded by name.

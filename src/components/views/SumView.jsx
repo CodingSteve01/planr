@@ -1,9 +1,10 @@
 import { useMemo, useState, memo } from "react";
+import { Icon } from '../shared/Icon.jsx';
 import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
-import { GT, GL } from '../../constants.js';
+import { GT, GT_ICON, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
@@ -378,7 +379,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px' }}>{GT[g.type]} {t(g.type + 's')}</div>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type]} size={11} />{t(g.type + 's')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
@@ -411,7 +412,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 13 }}>{GT[dl.type]}</span>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type]} size={13} /></span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}

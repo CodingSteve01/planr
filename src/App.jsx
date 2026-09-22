@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { Icon } from './components/shared/Icon.jsx';
 import { flushSync } from 'react-dom';
 import { SK } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
@@ -233,8 +234,9 @@ export { TAB_IDS };
 // obvious two-line change; an unlisted id falls back to a neutral marker
 // rather than leaving a ragged gap in the column.
 const TAB_ICONS = {
-  summary: '◎', briefing: '☀', plan: '✎', tree: '☰', gantt: '▭',
-  roadmap: '🗺', net: '⁂', resources: '👥', holidays: '⛱', report: '📄',
+  summary: 'target', briefing: 'sun', plan: 'pencil', tree: 'list', gantt: 'gantt',
+  order: 'grip', roadmap: 'map', net: 'network', resources: 'users',
+  holidays: 'beach', report: 'doc',
 };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
@@ -2953,7 +2955,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
       <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
       <div className="onboard-sub" style={{ marginBottom: 22 }}>Restore mounted project</div>
-      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {fileName}</div>
+      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="doc" size={14} />{fileName}</div>
       <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>Browser security requires you to grant file access again after a page reload.</p>
       <div className="ob-actions">
         <button className="ob-btn ob-pri" onClick={restoreMountedFile}>Reactivate file access</button>
@@ -3082,7 +3084,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               {refPhases.map((ph, i) => {
                 const statuses = withPhases.map(r => r.phases[i].status);
                 const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                // One geometric triple — filled / half / ring — rather than a dingbat
+                // check that renders as an emoji on some platforms.
+                const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
                 const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
                 return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
@@ -3230,29 +3234,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // `keywords` are the words you reach for when the label is in the other
   // language, or is a sentence where your head holds one noun.
   const JOBS = [
-    { id: 'jira', icon: '⇄', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
+    { id: 'jira', icon: 'swap', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
       keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
-    { id: 'vacation', icon: '⛱', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
+    { id: 'vacation', icon: 'beach', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
       keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
-    { id: 'onboard', icon: '＋', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
+    { id: 'onboard', icon: 'plus', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
       keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
   ];
   // `icon` and `key` are what make this list scannable rather than twenty
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
   const paletteCommands = [
-    { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
-    { id: 'snapshots', icon: '↶', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
-    { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
+    { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
+    { id: 'snapshots', icon: 'undo', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
+    { id: 'saveAs', icon: 'save', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
     // Export… means "go look at the Report view" — the export cards rendered
     // as a normal view (ReportView.jsx). The old dialog stays one entry below
     // so nothing that worked before stops working.
-    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
-    { id: 'exportDialog', icon: '📄', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
-    { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
-    { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    { id: 'backdate', icon: '⏮', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    { id: 'export', icon: 'upload', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
+    { id: 'exportDialog', icon: 'doc', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
+    { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
@@ -3294,7 +3298,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         {/* A host names the tab after the file already. Repeating it here
             spends the narrowest part of the bar saying the same thing twice. */}
         {!hosted && fileName}
-        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}><Icon name="save" size={13} /></button>}
       </span>}
       <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
@@ -3307,7 +3311,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           text = 'no file mounted'; color = 'var(--tx3)';
           tip = _t('app.save.pillNoFile');
         } else if (!fileWriteOk) {
-          text = '⚠ click to re-mount'; color = 'var(--am)'; clickable = true;
+          text = 'click to re-mount'; color = 'var(--am)'; clickable = true;
           tip = _t('app.save.pillPermissionLost');
         } else if (!autoSave) {
           text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
@@ -3380,7 +3384,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} aria-label={_t('set.title')}
-        data-htip={withKey(_t('set.title'), 'settings')}>⚙</button>
+        data-htip={withKey(_t('set.title'), 'settings')}><Icon name="gear" size={14} /></button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
     <div className="tab-bar-wrap">
@@ -3492,7 +3496,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
           {!visibleTreeForViews.length
-            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
+            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="list" size={32} strokeWidth={1.4} /></div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
               showIds={showTreeIds}
@@ -3672,7 +3676,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
         <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
           <div className="new-feat-title">
-            <span style={{ fontSize: 16 }}>🎉</span>
+            <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}><Icon name="sparkle" size={16} /></span>
             {_t('new.title')}
           </div>
           <ul className="new-feat-list">

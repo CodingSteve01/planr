@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { getLineColor } from '../../utils/roadmap.js';
 import { progressPctLabel } from '../../utils/progress.js';
 import { statusChangePatch } from '../../utils/completion.js';
 import { currentPhase, setPhaseCursor, statusFromPhases, phaseProgress } from '../../utils/phases.js';
-import { GT } from '../../constants.js';
+import { GT, GT_ICON } from '../../constants.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
@@ -989,7 +990,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               </span>
 
               {/* Root type emoji */}
-              {d === 1 && r.type && <span style={{ fontSize: 12, marginRight: 4 }}>{GT[r.type]}</span>}
+              {d === 1 && r.type && <span style={{ marginRight: 5, display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[r.type]} size={12} /></span>}
 
               {/* Name — a real <input> while this row is the keyboard editor's
                   active edit (see handleContainerKeyDown's Enter/⇧Enter and

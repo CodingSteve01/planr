@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT } from '../../constants.js';
+import { SL, GT, GT_ICON } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
@@ -334,7 +335,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('nm.focusType')}</label>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {['', 'goal', 'painpoint', 'deadline'].map(ft =>
-                  <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? `${GT[ft]} ${t(ft)}` : t('none')}</button>)}
+                  <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? <><Icon name={GT_ICON[ft]} size={12} />{t(ft)}</> : t('none')}</button>)}
               </div>
             </div>
             {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>{t('nm.severity')}</label>
