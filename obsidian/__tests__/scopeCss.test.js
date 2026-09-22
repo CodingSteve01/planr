@@ -82,7 +82,11 @@ describe('scopeCss', () => {
   it('anchors every light-mode rule in App.css at <html>', () => {
     const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
     const themed = selectorsOf(scoped).filter(s => s.includes('data-theme'));
-    expect(themed.length).toBeGreaterThan(30);
+    // A floor, not a target: the point is that whatever light-mode rules
+    // exist are anchored at <html>. The count fell from thirty-odd to a
+    // handful when the palette moved into tokens and the per-rule light
+    // twins stopped being necessary — that is the improvement, not a loss.
+    expect(themed.length).toBeGreaterThan(3);
     expect(themed.filter(s => !s.startsWith('html[data-theme'))).toEqual([]);
   });
 });

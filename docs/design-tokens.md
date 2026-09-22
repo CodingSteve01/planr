@@ -15,15 +15,52 @@ as before.
 |---|---|---|---|
 | `--s1` … `--s6` | Spacing scale (px) | `4 / 8 / 12 / 16 / 24 / 32` | same (theme-invariant) |
 | `--t10` … `--t20` | Type scale (px) | `10 / 11 / 12 / 14 / 20` | same (theme-invariant) |
-| `--surf0` | Surface: ground (page background) | `= var(--bg)` (`#101216`) | `= var(--bg)` (`#f8f9fc`) |
-| `--surf1` | Surface: card | `= var(--bg2)` (`#191d25`) | `= var(--bg2)` (`#ffffff`) |
-| `--surf2` | Surface: raised | `= var(--bg3)` (`#232830`) | `= var(--bg3)` (`#f0f2f5`) |
-| `--ac` | **The** interaction colour — links, focus rings, selection, primary actions. Nothing else should introduce a second accent. | `#6ca0ff` | `#2563eb` |
-| `--st-done` | State: done (green) | `#4ade80` | `#16a34a` |
-| `--st-wip` | State: work in progress (amber) | `#fbbf24` | `#d97706` |
-| `--st-open` | State: open / not started (neutral grey) | `= var(--tx3)` (`#8898b0`) | `= var(--tx3)` (`#7a839a`) |
-| `--st-risk` | State: at risk / overdue (red) | `#f87171` | `#dc2626` |
-| `--st-archived` | State: archived (muted) | `= var(--b3)` (`#4a5a6c`) | `= var(--b3)` (`#b0b8c8`) |
+| `--surf0` | Surface: ground (page background) | `= var(--bg)` (`#141310`) | `= var(--bg)` (`#fafaf8`) |
+| `--surf1` | Surface: card | `= var(--bg2)` (`#1c1b17`) | `= var(--bg2)` (`#ffffff`) |
+| `--surf2` | Surface: raised | `= var(--bg3)` (`#21201b`) | `= var(--bg3)` (`#f1efea`) |
+| `--ac` | **The** interaction colour — links, focus rings, selection, primary actions. Nothing else should introduce a second accent. | `#7eb3e0` | `#2b5c8a` |
+| `--ac-soft` | Tinted ground for the accent: selected rows, `.chip.on`, selection counts | `#1b2a38` | `#eaf0f6` |
+| `--st-done` | State: done (green) | `#6fbf8a` | `#357049` |
+| `--st-wip` | State: work in progress (amber) | `#d9a050` | `#8a5a1a` |
+| `--st-open` | State: open / not started (neutral grey) | `= var(--tx3)` (`#8f8c82`) | `= var(--tx3)` (`#6a6861`) |
+| `--st-open-ring` | The ring of an **empty** status dot — one step stronger than `--b`, or "offen" is invisible in the dark | `= var(--b3)` (`#504e45`) | `= var(--b2)` (`#d5d2ca`) |
+| `--st-risk` | State: at risk / overdue (red) | `#e08276` | `#a8443a` |
+| `--st-archived` | State: archived (muted) | `= var(--b3)` (`#504e45`) | `= var(--b3)` (`#b5b2aa`) |
+| `--st-done-soft` / `--st-wip-soft` / `--st-risk-soft` | Tinted badge grounds. Each carries its own state colour as the label, so the pair is held to the **text** bar, not the decoration bar | `#17281d` / `#2c2317` / `#2e1c19` | `#e8f1ea` / `#f7efe2` / `#f7eae8` |
+
+## Two rules the palette is held to
+
+**Readability is arithmetic, not taste.** Every ink/surface pair above is
+computed and asserted in
+[`src/utils/__tests__/paletteContrast.test.js`](../src/utils/__tests__/paletteContrast.test.js):
+`--tx`, `--tx2`, `--tx3`, `--ac` and the three state colours must clear WCAG AA
+(4.5:1) on `--bg`, `--bg2` **and** `--bg3`, and each `*-soft` ground must carry
+its own state colour at 4.5:1. That test is what settled the light values, and
+they are darker than they look picked by eye — light amber especially: an amber
+that reads right on white sits near 3.3:1 and fails as label text, which is why
+`--st-wip` is `#8a5a1a` and not the `#d97706` it used to be. The pre-token
+palette failed seven of these checks.
+
+**One source, no twins.** A literal colour anywhere in `App.css` outside the two
+palette blocks is a value nobody can retheme, and that is exactly how light mode
+drifted: every badge, row tint, deadline bar and Gantt band carried its own pair
+of hexes plus a `[data-theme="light"]` rule to correct it — forty places to
+find when the palette changed. They are all `var(--token)` or a `color-mix()`
+over one now, so the base rule serves both themes and twenty-two light-mode
+overrides went away. Both are guarded by the same test file; `#fff` / `#000` on
+a coloured fill (a button's own label, a toggle knob) is the one exemption,
+because that is the fill's contrast pair in either theme rather than a palette
+decision.
+
+### Dark is its own palette, not the light one inverted
+
+The ground is **warm** (`#141310`), not black and not blue-grey, so it sits
+beside the warm light mode and beside Obsidian's own themes without arguing
+with either. Surfaces **lift** (`--bg2`, `--bg3`) rather than relying on a 1px
+border, because in the dark a hairline is not what separates layers. The line
+and accent colours are *different colours*, not lightened ones — `#2b5c8a`
+goes muddy on a dark ground, so its dark twin is `#7eb3e0`. And selection is an
+accent tint (`--ac-soft`), never a grey: grey on dark reads as "disabled".
 
 `--gr`, `--am`, `--re` remain as back-compat aliases (`--gr: var(--st-done)`,
 `--am: var(--st-wip)`, `--re: var(--st-risk)`) — every existing consumer
