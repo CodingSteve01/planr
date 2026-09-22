@@ -2810,16 +2810,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 </div>}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                   {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
-                  {!isSummary && node?.prio != null && node.prio !== 2 && (() => {
-                    // Prio badge: ▲▲1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
-                    // Surface prio inline so the scheduler order is legible without opening
-                    // the modal. Default (2) stays hidden to reduce noise.
-                    const ICON = { 1: '▲▲', 3: '▬', 4: '▼' };
-                    const LABEL = { 1: t('critical'), 3: t('medium'), 4: t('low') };
-                    const ic = ICON[node.prio]; if (!ic) return null;
-                    return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
-                      data-htip={t('g.prioTip', node.prio, LABEL[node.prio])}>{ic}</span>;
-                  })()}
+                  {/* Priority is not drawn on a bar. It is an INPUT to the
+                      schedule — it helps decide what runs before what — and
+                      this view is the schedule's ANSWER. Printing the input
+                      next to the output says the same thing twice, and on a
+                      plan where most work is marked critical it is a column
+                      of identical marks that distinguishes nothing. It stays
+                      where it is set and where ordering is done: the tree and
+                      the work order. */}
                   {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
                   {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                     data-htip={`${s.pinOverridden ? t('g.pinOverriddenTip', node.pinnedStart) : t('g.pinnedTip', node.pinnedStart)} ${t('g.clickToUnpin')}`}

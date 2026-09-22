@@ -53,9 +53,51 @@ function statusOf(node) {
 
 // Milestones are the leaves of a row: one stop each, at the day the work ends
 // (recorded end for finished work, scheduled end for the rest).
+// A stop on a row is a work package, for the same reason it is on the Subway
+// map: a row standing for fifty-one leaves drew fifty-one overlapping circles
+// and became a smear you cannot point at. The row's own children are the
+// stops; only a row whose children ARE leaves shows leaves.
+//
+// The depth is the row's children and no deeper, unlike the map — a row here
+// is already one level in, so its children are the natural grain, and the
+// figures beside it (8/9, 78.9%) already carry the leaf count.
+function stopNodesFor(tree, node) {
+  if (isLeafNode(tree, node.id)) return [node];
+  const prefix = `${node.id}.`;
+  const depth = node.id.split('.').length + 1;
+  const children = tree.filter(n => n.id.startsWith(prefix) && n.id.split('.').length === depth);
+  return children.length ? children : descendantLeaves(tree, node.id);
+}
+
 function milestonesFor(tree, scheduled, node, scheduledMap) {
-  const leaves = isLeafNode(tree, node.id) ? [node] : descendantLeaves(tree, node.id);
+  const stops = stopNodesFor(tree, node);
+  // A stop that is a package takes its window from the leaves under it.
+  const leaves = stops.map(stop => {
+    if (isLeafNode(tree, stop.id)) return stop;
+    const under = descendantLeaves(tree, stop.id);
+    if (!under.length) return stop;
+    const ends = under.map(l => toDate(l.completedEnd || l.completedAt) || toDate(scheduledMap.get(l.id)?.endD)).filter(Boolean);
+    const starts = under.map(l => toDate(l.completedStart) || toDate(scheduledMap.get(l.id)?.startD)).filter(Boolean);
+    return {
+      ...stop,
+      _rollupEnd: ends.length ? new Date(Math.max(...ends)) : null,
+      _rollupStart: starts.length ? new Date(Math.min(...starts)) : null,
+      _allDone: under.every(l => l.status === 'done'),
+      _count: under.length,
+    };
+  });
   return leaves.map(leaf => {
+    if (leaf._rollupEnd || leaf._rollupStart) {
+      return {
+        id: leaf.id,
+        name: leaf.name || leaf.id,
+        status: leaf._allDone ? 'done' : statusOf(leaf),
+        start: leaf._rollupStart || leaf._rollupEnd,
+        end: leaf._rollupEnd || leaf._rollupStart,
+        effort: 0,
+        count: leaf._count,
+      };
+    }
     const sched = scheduledMap.get(leaf.id);
     const end = toDate(leaf.completedEnd || leaf.completedAt) || toDate(sched?.endD) || toDate(leaf.date) || toDate(leaf.pinnedStart);
     const start = toDate(leaf.completedStart) || toDate(sched?.startD) || end;
