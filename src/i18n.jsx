@@ -171,6 +171,7 @@ const en = {
   // ── Gantt ──
   'g.group': 'Group', 'g.project': 'Project', 'g.projTeam': 'Project › Team',
   'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Resource', 'g.thread': 'Thread',
+  'g.groupDoneTip': 'Done of the tasks in this group', 'g.groupEffortTip': 'Effort this group carries',
   'g.noItems': 'No items yet', 'g.addTasks': 'Add tasks to see the Gantt chart.',
   'g.zoom': 'Zoom', 'g.month': 'Month', 'g.week': 'Week', 'g.day': 'Day', 'g.today': 'Today',
   'g.loadHeatmap': 'Load', 'g.loadHeatmapTip': 'Show weekly resource load behind task bars and on resource-group rows: blue underloaded, green healthy, amber full, red overloaded.',
@@ -1254,6 +1255,7 @@ const de = {
   // ── Gantt ──
   'g.group': 'Gruppierung', 'g.project': 'Projekt', 'g.projTeam': 'Projekt › Team',
   'g.team': 'Team', 'g.person': 'Person', 'g.resource': 'Ressource', 'g.thread': 'Thread',
+  'g.groupDoneTip': 'Erledigt von den Aufgaben dieser Gruppe', 'g.groupEffortTip': 'Aufwand, den diese Gruppe trägt',
   'g.noItems': 'Noch keine Items', 'g.addTasks': 'Aufgaben hinzufügen um den Gantt-Chart zu sehen.',
   'g.zoom': 'Zoom', 'g.month': 'Monat', 'g.week': 'Woche', 'g.day': 'Tag', 'g.today': 'Heute',
   'g.loadHeatmap': 'Last', 'g.loadHeatmapTip': 'Wochenlast hinter Task-Balken und auf Ressourcen-Gruppen zeigen: blau unterlastet, grün gesund, gelb voll, rot überlastet.',

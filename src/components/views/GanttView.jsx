@@ -1451,13 +1451,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (percent <= 110) return 'rgba(245,158,11,.26)';
     return 'rgba(239,68,68,.34)';
   };
+  // Load, as one line of colour. Four bands and nothing in between, because
+  // the question is "is this week free, full, or over", not "what exactly is
+  // the percentage" — the figure is one hover away. Palette tokens rather
+  // than the old hardcoded Tailwind rgbas, so it holds in both themes.
   const loadHeatStroke = (percent, meta = null) => {
-    if (meta?.historicalOnly) return 'rgba(148,163,184,.45)';
-    if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.22)';
-    if (percent < 50) return 'rgba(59,130,246,.55)';
-    if (percent < 90) return 'rgba(16,185,129,.58)';
-    if (percent <= 110) return 'rgba(245,158,11,.70)';
-    return 'rgba(239,68,68,.82)';
+    if (meta?.historicalOnly) return 'var(--b3)';
+    if (!Number.isFinite(percent) || percent <= 0) return 'var(--b2)';
+    if (percent < 50) return 'color-mix(in srgb, var(--ac) 55%, transparent)';
+    if (percent < 90) return 'var(--st-done)';
+    if (percent <= 110) return 'var(--st-wip)';
+    return 'var(--st-risk)';
   };
   const taskLoadCells = (s, barLeft, barWidth) => {
     if (!showLoadHeatmap || !s || s._unestimated || !barWidth) return EMPTY_ARR;
@@ -2262,7 +2266,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3 }}>
                 {t('g.queueSorted')}
               </span>}
-              <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
+              {/* What a group header is for: how much work is in it, how much
+                  of it is behind you, and how much effort it carries. The
+                  header used to say only its own name and a count, so reading
+                  "is this team ahead or behind" meant collapsing it and
+                  adding up. All three in mono, right-aligned, quiet — the
+                  name is what should still be the loudest thing in the row. */}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8,
+                fontSize: 10, fontWeight: 400, fontFamily: 'var(--mono)', color: 'var(--tx3)', letterSpacing: 0 }}>
+                {row.s?._doneCount != null && row.count > 0 && (
+                  <span data-htip={t('g.groupDoneTip')}>{row.s._doneCount}/{row.count}</span>
+                )}
+                {row.s?.effort > 0 && (
+                  <span data-htip={t('g.groupEffortTip')}>{Math.round(row.s.effort)} PT</span>
+                )}
+                {row.s?.progress > 0 && (
+                  <span style={{ color: row.s.progress >= 99.95 ? 'var(--st-done)' : 'var(--tx2)' }}>
+                    {Math.round(row.s.progress)}%
+                  </span>
+                )}
+              </span>
             </div>;
           }
           const s = row.s;
@@ -2467,9 +2490,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       left: cell.wi * WPX,
                       top: 0,
                       width: WPX,
+                      // Same move as the task rows: a strip along the
+                      // baseline rather than a block behind the bar. The
+                      // hover target stays the full height so the week's
+                      // figures are still one hover away.
                       height: '100%',
-                      background: loadHeatColor(pct, cell),
-                      borderRight: pct > 110 ? '1px solid rgba(239,68,68,.65)' : '1px solid rgba(127,127,127,.08)',
+                      background: 'transparent',
+                      borderBottom: `4px solid ${loadHeatStroke(pct, cell)}`,
+                      borderRight: pct > 110 ? '1px solid var(--st-risk)' : '1px solid rgba(127,127,127,.08)',
                       pointerEvents: 'auto',
                       zIndex: 0,
                     }} />;
@@ -2503,9 +2531,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     borderRadius: 5,
                     pointerEvents: 'none',
                   }} />}
-                  <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s?.status === 'done' ? 'line-through' : 'none' }}>{row.label}</span>
-                  </span>
+                  {/* Same reasoning as the summary bars: the header beside
+                      this bar already carries the name, and repeating it here
+                      put the loudest text in the chart on what the reader
+                      already knows. The bar's own job is its extent. */}
                 </div>}
               </div>;
             }
@@ -2612,16 +2641,22 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   textShadow: 'none',
                 };
             return <div key={rowKey} className="grow-r" style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
+              {/* Load is a STRIP under the row, not a wash behind it.
+                  Shading the whole row height put a coloured block behind
+                  every bar it touched, so the two competed for the same
+                  pixels and neither read — which is the opposite of what a
+                  load overlay is for. A 3px line along the row's baseline
+                  carries the same week-by-week reading, in the same colours,
+                  and leaves the bar alone. */}
               {loadCells.map(cell => (
                 <div key={`row-load-${cell.wi}`} style={{
                   position: 'absolute',
                   left: barLeft + cell.left,
-                  top: 0,
+                  bottom: 0,
                   width: cell.width,
-                  height: '100%',
-                  background: loadHeatColor(cell.percent, cell),
-                  borderBottom: `2px solid ${loadHeatStroke(cell.percent, cell)}`,
-                  opacity: .72,
+                  height: 3,
+                  background: loadHeatStroke(cell.percent, cell),
+                  opacity: .9,
                   pointerEvents: 'none',
                   zIndex: 0,
                 }} />
