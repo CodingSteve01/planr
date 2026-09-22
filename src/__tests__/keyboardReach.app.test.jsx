@@ -1,7 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Es gibt kein Shortkey um den Eintrag eben im Dialog zu bearbeiten und der
-//  Tree ist irgendwie auch das Einzige wo man überhaupt keyboard only arbeiten
-//  kann."
+// Reported: there is no shortcut for opening an item in its dialog, and the
+// tree is the only surface you can work in by keyboard at all.
 //
 // Both halves of that are true, and they are the same gap: a surface is
 // reachable by keyboard only where somebody sat down and wired a cursor to it.

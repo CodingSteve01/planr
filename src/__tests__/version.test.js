@@ -21,8 +21,8 @@ describe('the version files', () => {
   });
 });
 
-// "Werden die Versionen des Plugins automatisch hochgezählt? Das wäre noch
-//  optimal."
+// Asked: are the plugin versions incremented automatically? That would be
+// ideal.
 //
 // They were not: `npm run version:set 1.1.0`, by hand, remembered or not. Five
 // PRs of substantial change had shipped under 1.0.2, which means anybody on

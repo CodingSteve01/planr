@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Und wie genau kann ich die Queues mal eben schnell umsortieren? Wie in
-//  Tabellenansicht genau wie das umsortieren im Tree?"
+// Asked: how do I reorder the queues quickly — as a table, the way reordering
+// works in the tree?
 //
 // The gesture existed only on the schedule, on a Gantt bar, in a grouping you
 // had to find — which is a fine place to NOTICE that something sits too early
@@ -104,8 +104,8 @@ describe('a person\'s work order as a table', () => {
   });
 });
 
-// "Weil ich ja dann auch direkt aus der Queue ggf. mal einen Task aktualisiere,
-//  anders abschätze usw."
+// Reasoning given: from the queue you also want to update a task, re-estimate
+// it, and so on.
 //
 // So the row is not a read-out with four columns. It is the tree's row: the
 // same keys do the same things, because deciding the order and adjusting what
@@ -147,7 +147,7 @@ describe('working from the queue, not just looking at it', () => {
   });
 });
 
-// "Die Zeilen kann ich auch nicht per D&D umsortieren."
+// Reported: the rows cannot be reordered by drag and drop either.
 //
 // The keyboard is the fast path once you know it; dragging is how you find out
 // the list can be rearranged at all. The tree has both, so this has both.
@@ -196,10 +196,9 @@ describe('dragging a row', () => {
   });
 });
 
-// "Ich finde das Feature soo super versteckt … hätte da lieber einen kleinen
-//  eigenen Menüpunkt direkt hinter Arbeitspakete … dann müsste ich nur — wie
-//  in den WorkItem-Dialogen — sehen können was die Parents sind und was der
-//  Titel ist. Ggf. als charmanter Zweizeiler."
+// Reported: the feature is well hidden. Wanted instead: its own menu entry
+// directly after the work tree, and rows that show the parents and the title
+// the way the item dialog does — ideally as a two-line row.
 //
 // The view existed but sat seventh in the row, behind four things you would
 // pass on the way to somewhere else, and its rows were an id, a name and a
@@ -250,9 +249,8 @@ describe('where it sits and what a row says', () => {
   });
 });
 
-// "Kann ich in der Reihenfolge-Liste nicht auch die Items editieren (also
-//  einfach den Dialog öffnen per edit-button)? Die Filter, die wir ja überall
-//  haben, fehlen mir hier ein wenig."
+// Asked: can items be edited from the work order too — an edit button that
+// opens the dialog? And the filters every other surface has are missing here.
 //
 // `E` opened the dialog from the first version, which is fine once you know
 // and invisible until then — the tree carries a ⊞ button for the same reason.
@@ -297,8 +295,8 @@ describe('working in the list', () => {
   });
 });
 
-// "Und warum sind erledigte nicht ganz oben (eigentlich will man die ja meist
-//  nicht sehen)?"
+// Asked: why are finished items at the top, when you mostly do not want to
+// see them at all?
 //
 // They were at the top because the list follows the plan order and finished
 // work tends to sit early in it. But the question answers itself: an order is a
@@ -352,8 +350,7 @@ describe('finished work', () => {
   });
 });
 
-// "Kann ich eigentlich mehrere Punkte auf einmal markieren und die Reihenfolge
-//  ändern?"
+// Asked: can several items be selected at once and reordered together?
 //
 // The selection model is the tree's, because it is the same act: click, shift
 // for a range, cmd for a pick. And a move takes the whole selection with it,
@@ -419,9 +416,8 @@ describe('moving several at once', () => {
   });
 });
 
-// "Ich habe jetzt z.B. nur auto-assigned Ressources und fest-assigned teams.
-//  Kann ich trotzdem pro Ressource eine queue haben? Also auch auf Basis von
-//  auto-assigned?"
+// Asked: with only auto-assigned resources and fixed-assigned teams, can there
+// still be a queue per resource — one based on the auto-assignment?
 //
 // You can see it, and that is the honest half. An item with a team and nobody
 // on it belongs to the TEAM's queue, and the schedule then picks whoever is
@@ -480,9 +476,9 @@ describe('work nobody is on yet', () => {
   });
 });
 
-// "Es geht nicht in dem Reihenfolge-Tab. Da kann ich nur auf Item-Ebene
-//  sortieren. Und ich kann nicht auf die Auto-Assigned-Resource-Ebene filtern
-//  und dort manuell umsortieren."
+// Reported: it does not work in the work order tab — only item-level sorting
+// there — and there is no way to filter to the auto-assigned resource and
+// reorder within it.
 //
 // Two gaps, and I answered the first one by explaining why the list is flat,
 // which was an explanation and not an answer. Wanting to settle the big blocks

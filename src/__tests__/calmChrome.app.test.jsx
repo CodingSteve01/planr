@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Die oberste Zeile sieht zugemüllt aus… auch die ganzen Schnell-Filter-Tags
-// sind eher optische Last."
+// Reported: the top row looks cluttered, and the row of quick-filter tags is
+// mostly visual weight.
 //
 // principles.md has said so for a while: the top bar is file name, save
 // state, mode switch and gear, tier 1 has a budget of one toolbar row, and

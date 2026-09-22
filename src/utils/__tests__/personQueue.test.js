@@ -1,6 +1,5 @@
-// "Was ist, wenn ich mehrere große Projekte parallel bearbeite? Würde man
-//  dann nicht im Gantt oder der Roadmap genau so einfach wie im Tree eben die
-//  Reihenfolge festlegen wollen?"
+// Asked: what about several large projects running in parallel? Would you not
+// want to set the order in the Gantt or the roadmap as easily as in the tree?
 //
 // Yes — and the reason it cannot just be "drag it anywhere" is that the tree
 // is depth-first, so a project is a block: two projects and one shared person
@@ -30,8 +29,8 @@ describe('a queue that outlives the plan it was written for', () => {
   });
 
   test('puts what is new where the plan puts it', () => {
-    // "Ich lege im Tree die grundsätzliche Reihenfolge fest und in der Queue
-    //  die Detail-Reihenfolge."
+    // The model, in the user's words: the tree sets the basic order, the
+    // queue sets the detail order.
     //
     // That is the model, and appending new work to the back broke it for
     // exactly the case a plan grows into: add a task in the tree right after
@@ -157,7 +156,7 @@ describe('a queue in the file', () => {
   });
 });
 
-// "Wie geht das mit WorkItems die nur einem Team zugeordnet sind usw?"
+// Asked: what happens to work items that are assigned only to a team?
 //
 // It did not. The queue keyed on the first assignee, so an item with a team
 // and nobody on it had no queue to be in — and those are exactly the items a

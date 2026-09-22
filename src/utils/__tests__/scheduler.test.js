@@ -855,9 +855,8 @@ describe('nextChildId()', () => {
   });
 });
 
-// "Ich kann nicht mal eben so wie im Tree die Umsetzungsreihenfolge festlegen,
-//  dadurch stehen Sachen auf der Zeitachse ganz vorne die eigentlich erst viel
-//  später gemacht werden müssen."
+// Reported: the order of execution cannot be set the way it can in the tree,
+// so work sits at the front of the timeline that is meant for much later.
 //
 // The queue was ordered by priority → assigned-first → due date → `seq` → id,
 // and `displayOrder` — what ⌥↑↓ writes — was deliberately excluded because it
@@ -953,7 +952,7 @@ describe('the tree is the order of the work', () => {
   });
 });
 
-// "Was ist, wenn ich mehrere große Projekte parallel bearbeite?"
+// Asked: what about several large projects running in parallel?
 //
 // Depth-first makes a project a block: two projects, one shared person, and
 // she does all of A and then all of B. There is no move in the tree that says

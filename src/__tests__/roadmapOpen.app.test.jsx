@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Von der Roadmap kommt ein Klick nach wie vor noch nicht in den Popup-Dialog
-//  der Items, so wie z.B. aus dem Graph."
+// Reported: a click on the roadmap still does not open the item dialog the
+// way a click in the graph does.
 //
 // #27 fixed this for the Roadmap tab and stated the reason well: routing a
 // click through "set the root filter and jump to the Tree" is navigation, not
@@ -121,7 +121,7 @@ describe('a station on the map', () => {
   });
 });
 
-// "Es werden auch andere Tooltips als im Graph angezeigt."
+// Reported: the roadmap shows different tooltips than the graph does.
 //
 // #27 gave the Roadmap tab the graph's tooltip and said why: the roadmap used
 // to carry "AB.1 öffnen", which tells you what a click does and nothing about

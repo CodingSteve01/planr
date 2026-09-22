@@ -1,6 +1,6 @@
-// "Ich will manche Änderungen zu einem Zeitpunkt in der Vergangenheit
-//  durchführen (z.B. Struktur der Aufgaben ändern) damit man im Wochenvergleich
-//  beim Sprint Review z.B. nur die reinen Fortschritte sieht."
+// Asked for: making some changes as of a point in the past — restructuring
+// tasks, say — so that the week-over-week sprint review shows nothing but the
+// actual progress.
 //
 // Splitting a task into three on Tuesday is not three tasks' worth of movement
 // in this week's review — it is bookkeeping about work that was already there.

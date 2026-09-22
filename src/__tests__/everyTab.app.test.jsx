@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// "Bei einem Klick auf 'Planung' ist das ganze Plugin weiß geworden."
+// Reported: clicking the Planning tab turned the whole plugin white.
 //
 // views.smoke.test.jsx mounts each view with its own hand-written props and
 // proves the component renders. What it cannot prove is that App passes it
