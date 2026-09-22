@@ -89,7 +89,12 @@ export function ViewFilters({
     const onDoc = (e) => {
       const inTrigger = ref.current?.contains(e.target);
       const inPanel = panelRef.current?.contains(e.target);
-      if (!inTrigger && !inPanel) setOpen(false);
+      // A SearchSelect inside the panel portals its own list out, so a click
+      // on an option is in neither of the two above — and this closed the
+      // panel on mousedown before the option's click ever ran, which read as
+      // "the filter just doesn't take".
+      const inSelectPopup = e.target?.closest?.('[data-searchselect-popup]');
+      if (!inTrigger && !inPanel && !inSelectPopup) setOpen(false);
     };
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDoc);

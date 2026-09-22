@@ -539,8 +539,8 @@ const en = {
   'retro.topUnder': 'Largest underruns',
 
   // ── Review / Plan time-window picker ──
-  'vf.label': 'Review / Plan',
-  'vf.tip': 'Sprint-review diff window and planning-horizon overlay',
+  'vf.label': 'Filter',
+  'vf.tip': 'Scope, quick filters, the sprint-review window and the planning horizon',
   'vf.off': 'none',
   'vf.exclusiveHint': 'Review (past) and Plan (future) are mutually exclusive — one tells one story.',
   'vf.disabledByOther': 'paused',
@@ -1622,8 +1622,8 @@ const de = {
   'retro.topUnder': 'Größte Unterschreitungen',
 
   // ── Review/Plan Zeitfenster-Picker ──
-  'vf.label': 'Review / Plan',
-  'vf.tip': 'Sprint-Review-Fenster und Planungshorizont',
+  'vf.label': 'Filter',
+  'vf.tip': 'Ausschnitt, Schnellfilter, Sprint-Review-Fenster und Planungshorizont',
   'vf.off': 'keine',
   'vf.exclusiveHint': 'Review (Vergangenheit) und Plan (Zukunft) schließen sich gegenseitig aus.',
   'vf.disabledByOther': 'pausiert',

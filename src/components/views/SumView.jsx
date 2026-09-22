@@ -536,15 +536,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           </span>
         )}
         <span style={{ marginLeft: 8 }}>
-          <ViewFilters
-            sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
-            diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
-            hasHistory={historyEvents.length > 0}
-            horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
-            horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
-            archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
-            archiveDays={archiveDays} setArchiveDays={setArchiveDays}
-          />
+          {/* The filter control lives in the sub-toolbar now, which the
+              Overview gets like every other filtered view. Two copies of the
+              same control on one screen is one too many. */}
         </span>
         {/* Archived count stays visible next to the filters so a shorter map
             is never a silent omission. */}

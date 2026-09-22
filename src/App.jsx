@@ -240,6 +240,10 @@ const TAB_ICONS = {
 };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
+// Views that answer to scope / quick filters / the review window / the
+// archive. Resources, Holidays and Report are inputs and outputs — nothing in
+// the filter bar reaches them, so it would be a control that does nothing.
+const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', 'net', 'plan', 'briefing']);
 
 // `mount` is how a host hands this app instance its document. Without one —
 // the web build — the app restores whatever was last opened, from IndexedDB
@@ -3438,7 +3442,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
       <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
+    {/* The filter bar belongs on every view these filters actually change —
+        it used to skip the Overview and the Roadmap, which both answer to the
+        archive filter and the Review/Plan window, so on those two a narrowed
+        view had no way to say so and no way to be widened again. Left out
+        only where nothing here has an effect: Resources, Holidays, Report. */}
+    {FILTERED_TABS.has(tab) && <div className="subtoolbar">
       {/* Scope (project / team / person) moved into the filter popup, the
           same move the quick filters made and for the same reason: as three
           always-visible pickers they were ~380px of toolbar reading "Alle
