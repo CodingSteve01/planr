@@ -3519,6 +3519,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
         tree={tree} scheduled={scheduled} weeks={weeks}
+        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
         teamFilter={teamFilter} personFilter={personFilter}
         onMeetingPlansUpd={onResMeetingPlansUpd}
         onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}

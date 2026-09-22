@@ -48,7 +48,7 @@ Depth-first makes a project a **block**. That is right until two projects run at
 
 A person's queue ([`personQueue.js`](../src/utils/personQueue.js)) is the single override for that, and it is deliberately the narrowest one that answers the question: it permutes **only the slots that person's own work already holds** in the plan order. Nobody else's work moves, the plan's order is untouched, and dependencies and pinned dates still win, because those are facts rather than preferences.
 
-Set it where you can see it: the schedule grouped **by resource** is one person's order of work, so `⌥↑↓` and a vertical bar drag move the task in *their queue*. Grouped by project you are looking at the plan, so the same gesture moves it in the tree. One gesture, and it rearranges the list you are looking at.
+Set it in two places, both with the tree's keys. **Resources → Work order** is the table: one block per person, their tasks in order, `⌥↑↓` and `⌥⇧↑↓`. And on the schedule grouped **by resource**, where a bar drag or the same keys do the same thing — that is where you notice the problem, the table is where you fix ten of them. Grouped by project you are looking at the plan, so the gesture moves the item in the tree instead. One gesture, rearranging the list in front of you.
 
 It is stored against the person (`personQueues: { M1: [...] }`, a `planr-queues` block in the markdown) rather than as a number on every task — that is the difference from `seq`, which was a second global rank competing with the tree everywhere and propped up by a Gantt that rewrote priorities to make it stick. A hand-sorted person is marked on their own row in the schedule and reset in one click: an override nobody can see is the failure mode being avoided here.
 
