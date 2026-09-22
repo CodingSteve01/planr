@@ -8,7 +8,7 @@ import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
-import { moveInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
+import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
@@ -2790,7 +2790,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     mutate(d => {
       const queues = d.personQueues || {};
       const current = reconcileQueue(queues[person], mine);
-      const next = moveInQueue(current, taskId, direction);
+      // `direction` is either a key's word — up/down/first/last — or the id a
+      // drag was dropped on.
+      const next = typeof direction === 'object' && direction?.before
+        ? placeInQueue(current, taskId, direction.before)
+        : moveInQueue(current, taskId, direction);
       if (next.join() === current.join() && queues[person]) return d;
       return { ...d, personQueues: { ...queues, [person]: next } };
     });
@@ -3486,7 +3490,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       </div>}
       {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
         <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
-          <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
+          <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
         </div>
       </div>}
       {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style

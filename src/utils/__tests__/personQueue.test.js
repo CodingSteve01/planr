@@ -15,7 +15,7 @@
 // without a hand-sorted queue is exactly as they were.
 
 import { describe, test, expect } from 'vitest';
-import { reconcileQueue, applyPersonQueues, assigneeOf, queueOwnerOf, moveInQueue } from '../personQueue.js';
+import { reconcileQueue, applyPersonQueues, assigneeOf, queueOwnerOf, moveInQueue, placeInQueue } from '../personQueue.js';
 import { buildMarkdownText } from '../markdown.js';
 
 const leaf = (id, person) => ({ id, assign: person ? [person] : [] });
@@ -177,5 +177,28 @@ describe('who an item\'s order belongs to', () => {
     const rows = [{ id: 'A.1', assign: ['M1'], team: 'T1' }, { id: 'A.2', assign: [], team: 'T1' }];
     const out = applyPersonQueues(rows, { 'team:T1': ['A.2', 'A.1'] });
     expect(out.map(r => r.id)).toEqual(['A.1', 'A.2']);
+  });
+});
+
+// The drag, as a function. `moveInQueue` is what the keys do; this is what a
+// drop does — land on the place you pointed at.
+describe('dropping a task onto a place', () => {
+  const q = ['a', 'b', 'c', 'd'];
+
+  test('takes the place it was dropped on, pushing the rest down', () => {
+    expect(placeInQueue(q, 'd', 'b')).toEqual(['a', 'd', 'b', 'c']);
+  });
+
+  test('works downwards too', () => {
+    expect(placeInQueue(q, 'a', 'c')).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  test('a drop on itself changes nothing', () => {
+    expect(placeInQueue(q, 'b', 'b')).toEqual(q);
+  });
+
+  test('a drop on something that is not in the list changes nothing', () => {
+    expect(placeInQueue(q, 'b', 'zzz')).toEqual(q);
+    expect(placeInQueue(q, 'zzz', 'b')).toEqual(q);
   });
 });
