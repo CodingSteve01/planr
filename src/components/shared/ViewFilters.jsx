@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { usePortalRoot } from '../../utils/embedHost.js';
+import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { ARCHIVE_DAY_PRESETS } from '../../utils/archive.js';
 
@@ -43,10 +46,42 @@ export function ViewFilters({
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  // The panel is portalled out of the toolbar, the way SearchSelect's popup
+  // already is. Two reasons, and the second is the one that bites: an
+  // absolutely-positioned panel is clipped by any scrolling ancestor, and the
+  // sub-toolbar scrolls sideways now — so the panel was cut off at the
+  // toolbar's edge rather than merely stacked wrongly. A fixed-position
+  // portal is subject to neither the clip nor the ancestor's stacking
+  // context, which is what "a dropdown must never end up under the content"
+  // actually requires.
+  const portalRoot = usePortalRoot();
+  const panelRef = useRef(null);
+  const [anchor, setAnchor] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const sync = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    };
+    sync();
+    window.addEventListener('resize', sync);
+    window.addEventListener('scroll', sync, true);
+    return () => {
+      window.removeEventListener('resize', sync);
+      window.removeEventListener('scroll', sync, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    // The panel is portalled, so it is no longer inside the trigger's element:
+    // a click in it has to be checked against the panel as well, or the panel
+    // closes the moment you touch anything in it.
+    const onDoc = (e) => {
+      const inTrigger = ref.current?.contains(e.target);
+      const inPanel = panelRef.current?.contains(e.target);
+      if (!inTrigger && !inPanel) setOpen(false);
+    };
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -122,7 +157,7 @@ export function ViewFilters({
         onClick={() => setOpen(v => !v)}
         style={{ padding: '3px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
-        <span style={{ fontSize: 12, lineHeight: 1 }}>⚙</span>
+        <Icon name="gear" size={12} />
         <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{t('vf.label')}</span>
         {activeCount > 0 && (
           <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(0,0,0,.22)', color: '#fff',
@@ -130,11 +165,13 @@ export function ViewFilters({
         )}
         {triggerLabel && <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em', color: activeCount ? '#fff' : 'var(--tx3)', fontSize: 10 }}>{triggerLabel}</span>}
       </button>
-      {open && (
+      {open && anchor && createPortal(
         <div
+          ref={panelRef}
           role="dialog"
+          data-testid="view-filters-panel"
           style={{
-            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100,
+            position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 9999,
             background: 'var(--bg2)', border: '1px solid var(--b2)',
             borderRadius: 8, boxShadow: '0 10px 32px rgba(0,0,0,.5)',
             padding: 12, width: 320, fontSize: 11,
@@ -281,7 +318,8 @@ export function ViewFilters({
               )}
             </section>
           )}
-        </div>
+        </div>,
+        portalRoot,
       )}
     </span>
   );

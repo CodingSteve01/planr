@@ -637,11 +637,28 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // a handful of leaves keeps the fine grain it had, a dense one folds its
     // work into months. MAX_STATIONS is the cap that actually matters — the
     // clustering above it is just the means.
-    const MAX_STATIONS = 9;
+    // Two limits, and they pull against each other on purpose.
+    //
+    // MAX_STATIONS is about the CANVAS: a route is ~1280 units wide and a
+    // station label needs roughly 80 of them, so past fourteen the labels
+    // stop fitting whatever the data says.
+    //
+    // MAX_PER_STATION is about MEANING: a stop standing for six tasks is a
+    // month of work you can name, and one standing for fifty is a bucket.
+    // Reported on the real plan, and fairly — the first pass only had the
+    // canvas limit, so a project with a hundred leaves folded eleven of them
+    // into every stop and the legend under it read as a wall.
+    //
+    // Where they conflict the per-stop cap wins and the line simply carries
+    // more stations than fourteen; the label placer already drops a label
+    // that fits nowhere in favour of its tooltip, which is the graceful
+    // failure. A stop that means nothing is not.
+    const MAX_STATIONS = 14;
+    const MAX_PER_STATION = 6;
     const density = Math.max(1, Math.ceil(sorted.length / MAX_STATIONS));
     const CLUSTER_GAP_DAYS = 14 * density;
     const CLUSTER_MAX_SPAN_DAYS = 21 * density;
-    const CLUSTER_MAX_ITEMS = 4 * density;
+    const CLUSTER_MAX_ITEMS = Math.min(MAX_PER_STATION, 4 * density);
     const clusters = [];
     let currentCluster = [];
     const clusterBand = item => ((nodeMap[item.id] || item)?.status === 'done' ? 'done' : 'active');
@@ -737,6 +754,14 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       ? !!rootState?.isLate
       : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
 
+    // A line nobody is working any more: every leaf done, or the project
+    // dropped. Both are still ON the map on purpose — a finished project is
+    // part of the picture, and a dropped one has to stay visible so the
+    // decision can be seen and taken back — but neither competes for
+    // attention with work that is live.
+    const rootDropped = !!(nodeMap[root.id] || root)?.dropped;
+    const rootRetired = rootDropped || allDoneUnderRoot;
+
     // Duration in days for route-length matching
     const durationDays = rootEarliest && rootLatest
       ? Math.max(1, (+rootLatest - +rootEarliest) / DAY)
@@ -747,6 +772,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       progress: rootInfo.prog || 0,
       totalEffort: rootInfo.effort || 0,
       atRisk,
+      retired: rootRetired,
+      dropped: rootDropped,
+      allDoneUnderRoot,
       hiddenMinorCount: 0,
       timeline,
       majorStations,
@@ -1214,6 +1242,23 @@ export function placeStationLabels(lines, isVisible = () => true) {
   const candidates = [];
 
   lines.forEach((line, lineIdx) => {
+    // The project's name, drawn above the start of its own line, is an
+    // obstacle like any dot. It was not, so a station near the start of a
+    // line had its abbreviation placed straight through the name — reported
+    // on the real plan, where nearly every line has an early stop.
+    // Measured the way labelBox does it: ~8px per character at 16px, plus the
+    // line's own height above the route.
+    const nameW = Math.min(String(line.root?.name || '').length, 42) * 8.2;
+    const nameX = (line.route?.[0]?.x ?? 0) - 30;
+    const nameY = (line.route?.[0]?.y ?? 0) - 15;
+    if (nameW > 0) {
+      occupied.push({
+        owner: `__name_${line.root?.id ?? lineIdx}`,
+        x0: nameX - 4, x1: nameX + nameW + 4,
+        y0: nameY - 16, y1: nameY + 5,
+      });
+    }
+
     [...line.majorStations, ...line.minorStations].forEach(station => {
       // Dots are obstacles whether or not they carry a label — except for the
       // station's OWN dot. A label always sits next to its dot, so counting
@@ -1383,6 +1428,8 @@ export function renderRoadmapSvg(args) {
   out.push(`<style>
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
     .rm-line-name{font:600 16px/1 var(--font);letter-spacing:.005em}
+    .rm-line-retired{opacity:.4}
+    .rm-line-retired .rm-line-name{font-weight:500}
     .rm-abbrev{font:600 12px/1 var(--mono);fill:var(--tx2);paint-order:stroke fill;stroke:var(--bg2);stroke-width:3.6;stroke-linejoin:round}
     /* No fill override for active / done — the inline fill attribute
        (project colour) drives readability. The previous .rm-abbrev-active
@@ -1400,7 +1447,14 @@ export function renderRoadmapSvg(args) {
     const progressD = reachedT > 0 ? partialPath(route, reachedT) : null;
     const gId = `rm-line-${lineIdx}`;
 
-    out.push(`<g id="${gId}">`);
+    // A finished or dropped project stays on the map — a finished one is part
+    // of the picture, a dropped one has to stay visible so the decision can be
+    // seen and taken back — but it stops competing with live work for
+    // attention. One group-level opacity, so every part of the line dims
+    // together and nothing has to know about it individually.
+    const retiredG = line.retired ? ' class="rm-line-retired"' : '';
+
+    out.push(`<g id="${gId}"${retiredG}>`);
 
     // Build the line-level tooltip so hovering anywhere on the route reveals
     // project id + name + progress, not just when the user finds the train.
@@ -1539,9 +1593,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="#f59e0b" stroke-width="1.8" opacity="0.78"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="${color}"/>`);
       } else if (isCurrent) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3.4"/>`);
         out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
       } else {
         out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
@@ -1570,9 +1624,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6" fill="none" stroke="#f59e0b" stroke-width="1.3" opacity="0.70"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5.5" fill="${color}"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="${color}"/>`);
       } else {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="5" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="2.4" opacity="${isCurrent ? 1 : 0.85}"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6.5" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3" opacity="${isCurrent ? 1 : 0.9}"/>`);
       }
 
       const minorPlace = stationLabelPlacement.get(station.id);

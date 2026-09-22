@@ -74,3 +74,20 @@ describe('the roadmap line colours', () => {
     }
   });
 });
+
+// Finished and dropped projects stay ON the map, and stop competing for
+// attention. Both need to be visible — a finished project is part of the
+// picture, and a dropped one has to be seeable so the decision can be taken
+// back — but neither is live work, and at full strength they read as if they
+// were.
+describe('a retired line', () => {
+  it('dims as one group, so no part of it has to know', () => {
+    expect(src).toMatch(/rm-line-retired\{[^}]*opacity:\s*\.?\d/);
+    expect(src).toMatch(/class="rm-line-retired"/);
+  });
+
+  it('counts a dropped project as retired, not only a finished one', () => {
+    expect(src).toMatch(/const rootDropped = [^;]*\.dropped/);
+    expect(src).toMatch(/const rootRetired = rootDropped \|\| allDoneUnderRoot/);
+  });
+});

@@ -294,6 +294,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {nmTabs.map(x => <button
           key={x.id}
           className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
+          data-testid={`nm-tab-${x.id}`}
           onMouseDown={e => activateTab(e, () => setNmTab(x.id))}
           onClick={e => { if (e.detail === 0) setNmTab(x.id); }}
         >{x.label}</button>)}
@@ -412,6 +413,27 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         {/* Phases — define status + progress when present */}
+        {/* Dropping is a decision about work at any level, so it sits outside
+            the leaf-only status picker above: a package derives its status
+            from its children, but "this is not going to happen" is taken
+            about the package. It could previously be set exactly one way —
+            pressing 0 on the cursor row in the tree — which is a field most
+            people never find. */}
+        <div className="field">
+          <label>{t('nm.dropLabel')}</label>
+          <button
+            type="button"
+            data-testid="drop-toggle"
+            className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
+            data-htip={t('tv.dropped')}
+            onClick={() => setF(x => ({ ...x, dropped: x.dropped ? undefined : true }))}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start' }}>
+            <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
+            {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
+          </button>
+          <span style={{ fontSize: 10.5, color: 'var(--tx3)', marginTop: 4 }}>{t('nm.dropHint')}</span>
+        </div>
+
         {isLeaf && <div ref={focusRefs.phases}><PhaseList
           phases={f.phases}
           templates={taskTemplates}
@@ -688,7 +710,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
-        <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
+        <button className="btn btn-pri" data-testid="nm-save" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
       </div>
     </div>
   </div>;

@@ -3409,10 +3409,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
     </div>
     {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
-      {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
-      <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
-      <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
-      <div style={{ width: 130 }}><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      {/* Scope: which part of the plan is on screen. One bordered GROUP, not
+          three separate boxes — they are one decision taken in three parts,
+          and as three full-width inputs sitting at "Alle …" they read as
+          three empty fields waiting to be filled in, which is the opposite of
+          what they are. The group carries a marker when any of them is set,
+          so a narrowed view says so from across the room. */}
+      <div className={`scope-group${(rootFilter || teamFilter || personFilter) ? ' on' : ''}`}>
+        <Icon name="list" size={12} />
+        <div className="scope-sel"><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
+        <div className="scope-sel"><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
+        <div className="scope-sel"><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+      </div>
       {/* The quick filters used to sit here as a row of six toggles, five of
           them off at any given moment — a permanent bar of switched-off
           switches, which is what a toolbar looks like when nobody asks what

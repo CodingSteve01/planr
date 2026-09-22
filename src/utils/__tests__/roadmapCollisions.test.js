@@ -214,3 +214,33 @@ describe('station labels', () => {
     expect(placeStationLabels(lines).has('C.7')).toBe(true);
   });
 });
+
+// The project's name is drawn above the start of its own line, and it is an
+// obstacle like any dot. It was not, so on the real plan — where nearly every
+// line has a stop early on — a station abbreviation was placed straight
+// through the name it sits under.
+describe('the line name', () => {
+  test('is kept clear of station labels', () => {
+    const lineWithEarlyStop = {
+      root: { id: 'AB', name: 'Abrechnung in VOffice' },
+      route: [{ x: 60, y: 200 }, { x: 1340, y: 200 }],
+      currentId: null,
+      majorStations: [
+        { id: 'AB.1', abbrev: 'PRI', x: 120, y: 200, kind: 'major', allDone: false },
+        { id: 'AB.2', abbrev: 'WAS', x: 900, y: 200, kind: 'major', allDone: false },
+      ],
+      minorStations: [],
+    };
+    const placed = placeStationLabels([lineWithEarlyStop]);
+    const nameBox = { x0: 30 - 4, x1: 30 + 'Abrechnung in VOffice'.length * 8.2 + 4, y0: 185 - 16, y1: 185 + 5 };
+
+    const early = placed.get('AB.1');
+    expect(early, 'the early stop got no label at all').toBeTruthy();
+    // Its box, measured the way the placer measures one.
+    const w = 'PRI'.length * 7;
+    const x0 = early.anchor === 'end' ? early.x - w : early.anchor === 'middle' ? early.x - w / 2 : early.x;
+    const box = { x0: x0 - 2, x1: x0 + w + 2, y0: early.y - 13 + 2, y1: early.y + 3 };
+    const overlaps = box.x0 < nameBox.x1 && box.x1 > nameBox.x0 && box.y0 < nameBox.y1 && box.y1 > nameBox.y0;
+    expect(overlaps, 'the station label runs through the line name').toBe(false);
+  });
+});

@@ -969,7 +969,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 group instead of breaking individually under the name when the row
                 runs out of horizontal space. */}
             <td data-col="name" style={{ whiteSpace: 'normal' }}>
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
+              {/* nowrap + min-width:0 is what actually keeps a row one line
+                  tall. The badges after the name used to be allowed to wrap
+                  under it, which meant a long name pushed them down and took
+                  the row with it — and without min-width:0 a flex item never
+                  shrinks below its content, so the name overflowed the cell
+                  instead of ellipsising inside it. The badges now shrink
+                  away; the name never does. */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, minWidth: 0 }}>
               <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
                 ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }}
