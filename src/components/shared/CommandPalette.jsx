@@ -100,6 +100,7 @@ export function CommandPalette({ commands }) {
       >
         <input
           ref={inputRef}
+          data-testid="palette-input"
           type="text"
           value={query}
           onChange={e => { setQuery(e.target.value); setIdx(0); }}

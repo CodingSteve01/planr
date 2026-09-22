@@ -52,6 +52,7 @@ import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
+import { BackdateModal } from './components/modals/BackdateModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -271,6 +272,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
+  // Backdating: while set, every history event this session writes counts as
+  // of that day rather than today. Restructuring a package — splitting it,
+  // re-parenting it — is bookkeeping about work that was already there, and
+  // dating it today makes the next review read as if the work appeared out of
+  // nowhere (utils/history.js, `diffSnapshots`).
+  //
+  // Deliberately NOT persisted. A backdate you forgot about falsifies every
+  // review after it, silently and forever, and the cost of switching it on
+  // again after a reload is one keystroke. It is also loud while it is on:
+  // see the chip in the top bar.
+  const [backdate, setBackdate] = useState('');
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [modalFocus, setModalFocus] = useState(null);
@@ -2491,7 +2503,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const currSnapshot = leafSnapshot(tree);
     let newEvents = [];
     if (lastSavedLeavesRef.current) {
-      newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString());
+      newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString(), backdate || null);
     }
     const eventsForFile = newEvents.length
       ? [...(data?.historyEvents || []), ...newEvents]
@@ -3097,6 +3109,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    { id: 'backdate', icon: '⏮', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
     ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || '▸', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
   ];
 
@@ -3183,6 +3196,22 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
           data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       </>}
+      {backdate && <span
+        data-testid="backdate-chip"
+        className="chip on"
+        data-htip={_t('bd.chipTip', backdate)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <span style={{ fontSize: 10 }}>⏮</span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
+        <button
+          type="button"
+          data-testid="backdate-clear"
+          aria-label={_t('bd.clear')}
+          onClick={() => setBackdate('')}
+          style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}
+        >×</button>
+      </span>}
       <div className="sp" />
       {/* File operations have a visible home again. Phase 3 moved them all
           into the palette; opening and saving a file is not a command you go
@@ -3415,6 +3444,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         setSel(target);
       }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'backdate' && <BackdateModal
+      value={backdate}
+      onApply={date => { setBackdate(date); setModal(null); }}
+      onClose={() => setModal(null)} />}
     {modal === 'snapshots' && <SnapshotModal
       onClose={() => setModal(null)}
       onRestore={snap => {
