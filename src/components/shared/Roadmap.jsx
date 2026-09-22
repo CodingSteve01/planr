@@ -3,6 +3,7 @@ import { renderRoadmapSvg, computeRoadmapModel } from '../../utils/roadmap.js';
 import { renderProjectRoadmapSvg } from '../../utils/projectRoadmap.js';
 import { useT } from '../../i18n.jsx';
 import { SvgMarkup } from './SvgMarkup.jsx';
+import { Tip } from './Tooltip.jsx';
 import { StatusIcon } from './StatusIcon.jsx';
 import { parseTip } from '../../utils/tipText.js';
 import { fixedFrame, usePortalRoot } from '../../utils/embedHost.js';
@@ -92,7 +93,7 @@ function TipBody({ text }) {
   </>;
 }
 
-export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
+export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLabels = {}, onOpenItem, diff, horizonIds = null, horizonEnd = null, futureProgressByRootId = null, assignment = null, onAssignmentChange = null, soloRootId = null, lineColor = null }) {
   const { t } = useT();
   const portalRoot = usePortalRoot();
   const [expandedLegendIds, setExpandedLegendIds] = useState(() => new Set());
@@ -151,6 +152,8 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
     if (drift) onAssignmentChange(computed);
   }, [model, assignment, onAssignmentChange]);
   const [tip, setTip] = useState(null);
+  // The app-wide item card, for the stations that are one item.
+  const [itemTip, setItemTip] = useState(null);
   const ref = useRef(null);
   const tipRef = useRef(null);
   const scrollRef = useRef(null);
@@ -254,6 +257,25 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
   const onMove = useCallback(e => {
     const g = e.target.closest('[data-tip]');
     if (g) {
+      // Where the map points at exactly one item, it shows the one card the
+      // rest of the app shows (the graph, the Gantt, the Roadmap tab) — the
+      // map's own summary told you an abbreviation and a percentage, which is
+      // the map repeating itself. Where a station stands for several tasks
+      // that finish in the same fortnight there is no single item to describe,
+      // so the summary stays: it is the honest answer to what is under the
+      // cursor.
+      const itemId = g.getAttribute('data-item-id');
+      const cluster = Number(g.getAttribute('data-cluster-size') || 0);
+      if (itemId && cluster === 1) {
+        const node = tree.find(r => r.id === itemId);
+        if (node) {
+          const row = scheduled.find(sc => (sc.treeId || sc.id) === itemId && !sc.isHandoff);
+          setItemTip({ item: row ? { ...node, ...row } : node, x: e.clientX, y: e.clientY });
+          setTip(null);
+          return;
+        }
+      }
+      setItemTip(null);
       const text = g.getAttribute('data-tip');
       if (text) {
         const rect = ref.current?.getBoundingClientRect();
@@ -272,9 +294,10 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
       }
     }
     setTip(null);
-  }, [portalRoot]);
+    setItemTip(null);
+  }, [portalRoot, tree, scheduled]);
 
-  const onLeave = useCallback(() => setTip(null), []);
+  const onLeave = useCallback(() => { setTip(null); setItemTip(null); }, []);
 
   const onClick = useCallback(e => {
     if (dragWasPan.current) { dragWasPan.current = false; return; }
@@ -356,6 +379,9 @@ export function Roadmap({ tree, scheduled, stats, onOpenItem, diff, horizonIds =
           : { overflow: 'visible' }}>
         <SvgMarkup markup={svg} style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined} />
       </div>
+      {itemTip && <Tip item={itemTip.item} x={itemTip.x} y={itemTip.y}
+        teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels}
+        hint={t('tt.click')} />}
       {/* Tooltip lives OUTSIDE the scroll container: its coordinates come from
           the visible box, so they must not be shifted by scrollLeft/Top. */}
       {tip && (

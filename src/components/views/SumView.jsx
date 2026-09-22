@@ -634,7 +634,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         );
       })()}
       {view === 'map'
-        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} onOpenItem={onOpenItem} diff={diff}
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} teams={teams} members={members} onOpenItem={onOpenItem} diff={diff}
             horizonIds={horizonIds} horizonEnd={horizonEnd}
             futureProgressByRootId={futureProgressByRootId}
             assignment={roadmapAssignment}

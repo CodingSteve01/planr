@@ -124,7 +124,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
   ].filter(Boolean);
 
   return (
-    <div className="tt" style={{ left: sx, top: sy }}>
+    <div className="tt" data-testid="item-tip" style={{ left: sx, top: sy }}>
       <div className="tt-title">{item.id} — {item.name}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
         <span style={{ color: statusColor, fontWeight: 700, fontSize: 11 }}>{statusDot} {statusLabel}</span>

@@ -1436,7 +1436,15 @@ export function renderRoadmapSvg(args) {
       // Horizon mute: station has no items inside the planning window. Lets
       // forward-looking presentations point at what's "in the next N months".
       const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
-      out.push(`<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-tip="${esc(tooltip)}">`);
+      // `data-item-id` is what makes the pointer cursor honest: the click
+      // handler in Roadmap.jsx looks for it, the legend rows underneath
+      // carried it and the stations did not, so a station said it was
+      // clickable and then swallowed the click. For a cluster this is the
+      // station's own item — the same one its legend row opens.
+      // `data-cluster-size` is the difference between "this is a task" and
+      // "this is five tasks that finish in the same fortnight", which decides
+      // which tooltip can honestly answer what is under the cursor.
+      out.push(`<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-item-id="${esc(station.id)}" data-cluster-size="${(station.clusterItems || []).length || 1}" data-tip="${esc(tooltip)}">`);
       // Invisible larger hit area for tooltip
       out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
       // Amber halo for stations reached in the diff window. Drawn before the
@@ -1567,7 +1575,9 @@ export function renderRoadmapSvg(args) {
       badge: lTrain, note: lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
     });
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
-    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-tip="${esc(trainTip)}">`);
+    // The train stands for the project's position, so clicking it opens the
+    // project — same reason as the stations above: it offers a pointer.
+    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-item-id="${esc(line.root.id)}" data-tip="${esc(trainTip)}">`);
     // Halo / pulse glow
     out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
     out.push(`<animate attributeName="r" values="13;18;13" dur="2.4s" repeatCount="indefinite"/>`);

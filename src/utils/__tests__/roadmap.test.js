@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { computeRoadmapModel, renderRoadmapSvg } from '../roadmap.js';
+import { computeRoadmapModel, renderRoadmapSvg, splitSvgMarkup } from '../roadmap.js';
 import { treeStats } from '../scheduler.js';
 
 function d(iso) {
@@ -14,6 +14,13 @@ function modelFor(tree, scheduled) {
     now: d('2026-01-01'),
   });
 }
+
+// The legend, on its own. Stations on the map carry `data-item-id` too now
+// (they are click targets, like every other thing that offers a pointer), so
+// "is this id anywhere in the markup" stopped being a question about the
+// legend. `splitSvgMarkup` is the same split the renderer's two halves get
+// everywhere else.
+const legendOf = svg => splitSvgMarkup(svg)[1];
 
 describe('computeRoadmapModel progress semantics', () => {
   test('a non-done task at 100% progress is not marked as reached', () => {
@@ -594,9 +601,9 @@ describe('computeRoadmapModel progress semantics', () => {
       diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
     });
 
-    expect(svg).toContain('data-item-id="P1.1"');
-    expect(svg).toContain('data-item-id="P1.2"');
-    expect(svg).not.toContain('data-item-id="P1.3"');
+    expect(legendOf(svg)).toContain('data-item-id="P1.1"');
+    expect(legendOf(svg)).toContain('data-item-id="P1.2"');
+    expect(legendOf(svg)).not.toContain('data-item-id="P1.3"');
   });
 
   test('diff legend can expand hidden untouched stations', () => {
@@ -623,10 +630,10 @@ describe('computeRoadmapModel progress semantics', () => {
     const collapsedSvg = renderRoadmapSvg(base);
     const expandedSvg = renderRoadmapSvg({ ...base, expandedLegendIds: new Set(['P1']) });
 
-    expect(collapsedSvg).not.toContain('data-item-id="P1.3"');
+    expect(legendOf(collapsedSvg)).not.toContain('data-item-id="P1.3"');
     expect(collapsedSvg).toContain('data-rm-toggle="P1"');
     expect(collapsedSvg).toContain('+1 more');
-    expect(expandedSvg).toContain('data-item-id="P1.3"');
+    expect(legendOf(expandedSvg)).toContain('data-item-id="P1.3"');
     expect(expandedSvg).toContain('Show fewer');
   });
 

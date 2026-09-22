@@ -2730,28 +2730,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onGanttAddDep = useStableCallback((...a) => addDep(...a));
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
-  // Roadmap tab: a click opens the item's own edit dialog — the same one a
-  // Gantt bar or a graph node opens. It used to route through onSumOpenItem,
-  // which for anything with children set the root filter and jumped you to
-  // the Tree tab. That is navigation, not editing: you lose the roadmap you
-  // were reading to get a dialog you could have had in place.
-  const onRoadmapOpenItem = useStableCallback(id => {
-    // Leaves have a scheduled row (dates, effort, assignment) and the dialog
+  // Clicking an item — anywhere — opens that item's own edit dialog. The same
+  // one a Gantt bar and a graph node open, because it is the same question:
+  // what is this, and can I change it without leaving what I was reading.
+  //
+  // There were three of these. #27 gave the Roadmap tab this behaviour and
+  // said why: routing a click through "set the root filter and jump to the
+  // Tree" is navigation, not editing — you lose the map you were reading to
+  // get a dialog you could have had in place. The Overview's subway map kept
+  // the old handler, which is the map that gets looked at most, and Planning
+  // had a third one that opened the bare tree node without the schedule's half
+  // of the answer. One handler now (principle 7).
+  //
+  // Navigating to a row in the tree is still a thing you can want, and it is
+  // still here — as `onNavigate`, a separate gesture with its own name, rather
+  // than as what a click silently did to a work package but not to a leaf.
+  const onOpenItemDialog = useStableCallback(id => {
+    // A leaf has a scheduled row — dates, effort, assignment — and the dialog
     // wants it merged in; a work package has none and opens as the tree node.
-    const row = scheduled.find(s => (s.treeId || s.id) === id && !s.isHandoff);
+    const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
     onBarClick(row || { id });
   });
-  const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
-  const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
-  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
   const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
-  const onSumOpenItem = useStableCallback(id => {
-    const node = tree.find(r => r.id === id); if (!node) return;
-    if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-    else { setMN(node); setModal('node'); }
-  });
-  const onBriefingOpenItem = onSumOpenItem;
   // Row-level status change from Run mode (attention list + per-person
   // queues) — same updateNode() → mutate() path every other status control
   // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one
@@ -3342,7 +3342,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
         archiveDays={archiveDays} setArchiveDays={setArchiveDays}
         onNavigate={onSumNavigate}
-        onOpenItem={onSumOpenItem}
+        onOpenItem={onOpenItemDialog}
         onExportTodo={onSumExportTodo} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
         tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
@@ -3352,7 +3352,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
         customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-        onOpenItem={onBriefingOpenItem}
+        onOpenItem={onOpenItemDialog}
         onUpdate={onBriefingUpdate}
         onApplyStatus={onJiraApplyStatus}
         onExportTodo={onSumExportTodo}
@@ -3361,7 +3361,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
-        onOpenItem={onPlanReviewOpenItem}
+        onOpenItem={onOpenItemDialog}
         onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -3439,7 +3439,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           cpLabels={cpLabels}
           focusId={ganttRoadmapFocus}
           onFocusChange={setGanttRoadmapFocus}
-          onOpenItem={onRoadmapOpenItem}
+          onOpenItem={onOpenItemDialog}
         />
       </div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
