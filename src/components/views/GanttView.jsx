@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { tipLines } from '../../utils/tipText.js';
+import { withKey } from '../../utils/shortcuts.js';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
@@ -49,7 +50,7 @@ function fmtLoadDays(value) {
   return `${(Math.round((Number(value) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '')}d`;
 }
 
-function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], meetingPlans = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling, onOpenBulkEdit }) {
+function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations = [], meetingPlans = [], cpSet, cpLabels = {}, cpEdges, tree, hideDone = false, search = '', searchIdx = 0, workDays, planStart, confidence = {}, confReasons = {}, rootFilter = '', teamFilter = '', personFilter = '', diffDoneIds = null, diffProgressedIds = null, diffPastLeafState = null, sinceDate = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, onBarClick, onSeqUpdate, onExtendViewStart, onTaskUpdate, onRemoveDep, onAddDep, onReorderSibling, onQueueReorder, onQueueReset, personQueues = null, onOpenBulkEdit }) {
   const portalRoot = usePortalRoot();
   // Diff-overlay sets (project-wide "since" window). Highlight bars that
   // completed or progressed in the chosen window.
@@ -1050,7 +1051,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const dir = e.shiftKey
           ? (key === 'ArrowDown' ? 'last' : 'first')
           : (key === 'ArrowDown' ? 'down' : 'up');
-        onReorderSibling?.(cursorId, dir);
+        // Same key, and deliberately the same key: it moves the thing you are
+        // looking at within the list you are looking at.
+        if (groupBy === 'resource' && onQueueReorder) onQueueReorder(cursorId, dir);
+        else onReorderSibling?.(cursorId, dir);
         return;
       }
       if (key === 'ArrowDown' || key === 'ArrowUp') {
@@ -1073,7 +1077,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [visibleTaskIds, cursorId, selectedIds, onReorderSibling, onBarClick]);
+  }, [visibleTaskIds, cursorId, selectedIds, groupBy, onReorderSibling, onQueueReorder, onBarClick]);
   // Move the current selection earlier or later. One line of code now,
   // because there is one order: the tree's.
   //
@@ -1727,8 +1731,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       canMoveDone: isDoneTask,
       origCompletedStart: isDoneTask ? (node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD)) : null,
       origCompletedEnd: isDoneTask ? (node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD)) : null,
-      reorderMode: groupBy === 'project' && onReorderSibling ? 'tree'
-        : groupBy === 'resource' && onAddDep ? 'resource' : null,
+      // Which list a vertical drag is rearranging. Grouped by project you are
+      // looking at the plan, so it moves the item in the tree. Grouped by
+      // resource you are looking at one person's own order of work, so it
+      // moves the item in THEIR queue — a different list, and the only one
+      // that can pull a task across a project boundary
+      // (utils/personQueue.js).
+      reorderMode: groupBy === 'resource' && onQueueReorder ? 'queue'
+        : onReorderSibling ? 'tree' : null,
       lockVertical: row.type === 'summary',
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
       lastDy: 0,
@@ -1970,6 +1980,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           completedEnd: iso(cappedEnd),
           completedAt: iso(cappedEnd),
         });
+      } else if (d.isReorder && d.lastDy && d.reorderMode === 'queue') {
+        const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
+        const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
+        onQueueReorder?.(d.treeId || d.id, dir);
       } else if (d.isReorder && d.lastDy) {
         // Dragging a bar up or down moves the item in the TREE, whichever view
         // the drag started in. The resource view used to write a `seq` value
@@ -2141,14 +2155,30 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* group label removed — buttons are self-explanatory and the row was too wide */}
+          {/* The chips had no tooltips at all, so which question each grouping
+              answers — and that one of them is where a person's order is set —
+              was something you had to already know. */}
           {[['project', t('g.project')], ['team', t('g.team')], ['resource', t('g.resource')], ['thread', t('g.thread')]].map(([k, l]) =>
             <button
               key={k}
+              data-htip={t(`g.group.${k}Tip`)}
               className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
               onMouseDown={e => activateMode(e, () => setGB(k))}
               onClick={e => { if (e.detail === 0) setGB(k); }}
               style={{ padding: '2px 7px', fontSize: 10 }}
             >{l}</button>)}
+          {/* The gesture is the same keystroke everywhere; what it moves is
+              not. Grouped by resource you are looking at one person's order of
+              work, so ⌥↑↓ moves the task in their queue — and that is worth a
+              line, because nothing else on screen says so until after you have
+              already done it. Only here: anywhere else the same keys move the
+              item in the tree, and this hint would be a lie. */}
+          {groupBy === 'resource' && onQueueReorder && <span
+            data-testid="queue-hint"
+            data-htip={t('g.queueHintTip')}
+            style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 2 }}>
+            {withKey(t('g.queueHint'), 'ganttReorder')}
+          </span>}
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
             aria-pressed={showLoadHeatmap}
@@ -2230,6 +2260,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', cursor: 'pointer' }}
               >{isCol ? '▶' : '▼'}</button>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+              {/* An override nobody can see is what made `seq` unusable: the
+                  plan said one order, the schedule ran another, and nothing on
+                  screen admitted it. A person whose queue has been hand-sorted
+                  says so, and hands it back in one click. */}
+              {row.personId && personQueues?.[row.personId] && <span
+                data-testid={`queue-sorted-${row.personId}`}
+                data-htip={t('g.queueSortedTip')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6, padding: '0 5px',
+                  fontSize: 9, fontWeight: 600, letterSpacing: 0, textTransform: 'none',
+                  color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3 }}>
+                {t('g.queueSorted')}
+                {onQueueReset && <button
+                  type="button"
+                  data-testid={`queue-reset-${row.personId}`}
+                  aria-label={t('g.queueReset')}
+                  data-htip={t('g.queueReset')}
+                  onClick={e => { e.stopPropagation(); onQueueReset(row.personId); }}
+                  style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
+                >×</button>}
+              </span>}
               <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
             </div>;
           }

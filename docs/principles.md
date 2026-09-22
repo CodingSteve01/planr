@@ -111,7 +111,7 @@ priorities. That is "just quickly".
 | `⇧Enter` | new child |
 | `Tab` · `⇧Tab` | indent · outdent (re-parent; dependencies follow) |
 | `⌥↑ ⌥↓` | move within the order |
-| `1–4` | priority · `S M L X` size · `Space` cycle status |
+| `1–4` | priority · `0` drop from the plan · `S M L X` size · `Space` cycle status |
 | `⌫` | on an empty new row: gone — on an existing one: confirm |
 | `/` | palette for everything else |
 | `⌘Z` · `⇧⌘Z` | undo · redo |

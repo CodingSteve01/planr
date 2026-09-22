@@ -658,7 +658,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           ['members', `${t('rv.members')} (${fMembers.length})`],
           ['vacations', `${t('rv.vacations')} (${fVacations.length})`],
         ].map(([k, l]) =>
-          <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
+          <button key={k} data-testid={`rv-section-${k}`} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
         <div style={{ flex: 1 }} />
         {(section === 'members' || section === 'teams') && (

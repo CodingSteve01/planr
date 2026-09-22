@@ -952,3 +952,69 @@ describe('the tree is the order of the work', () => {
     expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
   });
 });
+
+// "Was ist, wenn ich mehrere große Projekte parallel bearbeite?"
+//
+// Depth-first makes a project a block: two projects, one shared person, and
+// she does all of A and then all of B. There is no move in the tree that says
+// "this one task from B, first" — the two are not siblings, and there is no
+// order between them to change other than the whole projects'.
+//
+// A person's queue is the one override for that (utils/personQueue.js). It
+// permutes only the slots that person's work already occupies, which is what
+// keeps it from being `seq` again: the plan's order is untouched, nobody
+// else's work moves, and the facts — dependencies, pinned dates — still win.
+describe('a person\'s own order of work', () => {
+  const anna = { id: 'M1', name: 'Anna', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const bob = { id: 'M2', name: 'Bob', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const task = (id, person, extra = {}) => ({ id, name: id, team: 'T', best: 10, factor: 1, assign: [person], ...extra });
+  const twoProjects = [
+    { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
+    { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M1'),
+  ];
+  const run = (tree, members, personQueues) => runSchedule({
+    tree, members, planStart: '2026-01-05', planEnd: '2027-12-31',
+    options: { now: '2026-01-05', personQueues },
+  });
+  const byStart = r => r.results.slice().sort((a, b) => a.startD - b.startD).map(x => x.id);
+
+  test('without a queue, a project is a block — which is the problem', () => {
+    expect(byStart(run(twoProjects, [anna]))).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
+  });
+
+  test('a queue pulls one task across the project boundary', () => {
+    expect(byStart(run(twoProjects, [anna], { M1: ['B.1', 'A.1', 'A.2', 'B.2'] })))
+      .toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
+  });
+
+  test('and leaves everybody else where the plan put them', () => {
+    const shared = [
+      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M2'),
+      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M2'),
+    ];
+    const r = run(shared, [anna, bob], { M1: ['B.1', 'A.1'] });
+    const anna1 = r.results.find(x => x.id === 'B.1');
+    const anna2 = r.results.find(x => x.id === 'A.1');
+    const bob1 = r.results.find(x => x.id === 'A.2');
+    const bob2 = r.results.find(x => x.id === 'B.2');
+    expect(anna1.startD < anna2.startD).toBe(true);
+    // Bob never asked for anything; his order is still the plan's.
+    expect(bob1.startD < bob2.startD).toBe(true);
+  });
+
+  test('a dependency still beats the queue — it is a fact, not a preference', () => {
+    const tree = [
+      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
+      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1', { deps: ['A.1'] }),
+    ];
+    const r = run(tree, [anna], { M1: ['B.1', 'A.1', 'A.2'] });
+    expect(iso(r.results.find(x => x.id === 'A.1').endD) < iso(r.results.find(x => x.id === 'B.1').startD)).toBe(true);
+  });
+
+  test('a queue written before the plan moved on does not lose or duplicate work', () => {
+    const r = run(twoProjects, [anna], { M1: ['B.2', 'gone-since', 'A.2'] });
+    expect(r.results.map(x => x.id).sort()).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
+    // What was decided is kept; what is new goes behind it.
+    expect(byStart(r)).toEqual(['B.2', 'A.2', 'A.1', 'B.1']);
+  });
+});

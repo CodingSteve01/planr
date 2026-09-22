@@ -62,6 +62,7 @@ export const SHORTCUTS = [
   { id: 'collapseAll', scope: 'tree', keys: ['⇧←'], labelKey: 'sc.collapseAll' },
   { id: 'expandAll', scope: 'tree', keys: ['⇧→'], labelKey: 'sc.expandAll' },
   { id: 'prio', scope: 'tree', keys: ['1', '2', '3', '4'], labelKey: 'sc.prio' },
+  { id: 'drop', scope: 'tree', keys: ['0'], labelKey: 'sc.drop' },
   { id: 'size', scope: 'tree', keys: ['S', 'M', 'L', 'X'], labelKey: 'sc.size' },
   { id: 'status', scope: 'tree', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
   { id: 'delete', scope: 'tree', keys: [DEL], labelKey: 'sc.delete' },

@@ -11,7 +11,7 @@
 //                         capped at 99 % while the leaf is not done
 // Counting done leaves instead (done / total) systematically reports a
 // *different* number and must not be used for the headline figure.
-import { leafProgress, scheduleEffort } from './scheduler.js';
+import { isDropped, leafProgress, scheduleEffort } from './scheduler.js';
 
 export const MIN_VISIBLE_PROGRESS_DELTA_PCT = 0.005;
 
@@ -43,6 +43,10 @@ export function effortWeightedProgress(leaves, progressOf = leafProgress) {
   let totalEffort = 0;
   let progressedEffort = 0;
   for (const lf of leaves || []) {
+    // Dropped work is not work. `leafNodes` already filters it out, and these
+    // are also called with hand-built lists, so the rule holds here too —
+    // one predicate, every path (principle 7).
+    if (isDropped(lf)) continue;
     // `|| 1` keeps unestimated leaves in the denominator so scope without an
     // estimate still dilutes the percentage instead of vanishing.
     const effort = scheduleEffort(lf) || 1;
@@ -66,7 +70,7 @@ export function effortWeightedProgress(leaves, progressOf = leafProgress) {
 // is why the count-based figure drifted metres away from the Subway-Map. Print
 // the count as a count ("21/51"), never as the percentage.
 export function aggregateProgressPct(leaves) {
-  const list = leaves || [];
+  const list = (leaves || []).filter(lf => !isDropped(lf));
   if (!list.length) return 0;
   const pct = effortWeightedProgress(list).pct;
   return list.every(lf => lf?.status === 'done') ? pct : Math.min(pct, 99);
@@ -76,7 +80,7 @@ export function aggregateProgressPct(leaves) {
 // only ever grows, so it stays meaningful while scope is added.
 export function deliveredEffort(leaves) {
   let acc = 0;
-  for (const lf of leaves || []) acc += (scheduleEffort(lf) || 0) * (leafProgress(lf) / 100);
+  for (const lf of leaves || []) if (!isDropped(lf)) acc += (scheduleEffort(lf) || 0) * (leafProgress(lf) / 100);
   return acc;
 }
 
@@ -84,6 +88,6 @@ export function deliveredEffort(leaves) {
 // but without the `|| 1` fallback so the "Total PT" KPI stays a real PT sum.
 export function totalEffort(leaves) {
   let acc = 0;
-  for (const lf of leaves || []) acc += scheduleEffort(lf) || 0;
+  for (const lf of leaves || []) if (!isDropped(lf)) acc += scheduleEffort(lf) || 0;
   return acc;
 }

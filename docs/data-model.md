@@ -42,6 +42,17 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   assign,        // [memberId] — assignees (usually 1; multiple means any of them can pick it up)
   progress,      // 0-100 on leaves, auto-cascaded on parents (never set manually on parents)
   note,          // short free-form text, shown in tooltips
+  // Plan level, not item level:
+  //   personQueues: { [memberId]: [leafId, …] }
+  //     One person's own order of work. Overrides the plan order for THEIR
+  //     tasks only, by permuting the slots their work already holds. See
+  //     utils/personQueue.js and docs/scheduler.md.
+
+  dropped,       // true = not going to happen. Not a status: the status it had is
+                 // kept, so taking it back gives you the item you had. Leaves BOTH
+                 // sides of every fraction (utils/scheduler.js, `isDropped`) and is
+                 // never scheduled. Replaces the "done at 0 %" workaround, which
+                 // counted it as delivered AND dragged the percentage down.
   seq,           // dead. Parsed from older plan files and ignored, never written.
                  // Order is the tree's (see displayOrder + docs/scheduler.md).
   parallel,      // legacy flag: bypass person capacity (kept for MD round-trip, not in UI)
