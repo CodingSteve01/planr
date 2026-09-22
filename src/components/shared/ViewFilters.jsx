@@ -68,9 +68,26 @@ export function ViewFilters({
   const [anchor, setAnchor] = useState(null);
   useLayoutEffect(() => {
     if (!open) return undefined;
+    // Stay inside the window. The panel hangs off the trigger, and the
+    // trigger moved left when the scope pickers left the toolbar — so a
+    // right-aligned 320px panel ran off the LEFT edge and was cut in half.
+    // Prefer right-aligned (it reads as belonging to the button), slide left
+    // only as far as the viewport forces, and never past the margin.
+    const PANEL_W = 320;
+    const M = 8;
     const sync = () => {
       const r = ref.current?.getBoundingClientRect();
-      if (r) setAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+      if (!r) return;
+      const wanted = r.right - PANEL_W;
+      const left = Math.min(Math.max(M, wanted), Math.max(M, window.innerWidth - PANEL_W - M));
+      // Flip above the trigger when there is more room up than down.
+      const below = window.innerHeight - r.bottom;
+      setAnchor({
+        left,
+        top: below > 260 || below >= r.top ? r.bottom + 6 : null,
+        bottom: below > 260 || below >= r.top ? null : window.innerHeight - r.top + 6,
+        maxH: Math.max(200, (below > 260 || below >= r.top ? below : r.top) - 16),
+      });
     };
     sync();
     window.addEventListener('resize', sync);
@@ -187,7 +204,10 @@ export function ViewFilters({
           role="dialog"
           data-testid="view-filters-panel"
           style={{
-            position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 9999,
+            position: 'fixed',
+            top: anchor.top ?? 'auto', bottom: anchor.bottom ?? 'auto',
+            left: anchor.left, zIndex: 9999,
+            maxHeight: anchor.maxH, overflowY: 'auto',
             background: 'var(--bg2)', border: '1px solid var(--b2)',
             borderRadius: 8, boxShadow: '0 10px 32px rgba(0,0,0,.5)',
             padding: 12, width: 320, fontSize: 11,

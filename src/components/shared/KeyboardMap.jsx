@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { shortcutsByScope } from '../../utils/shortcuts.js';
 
@@ -65,6 +66,18 @@ export function KeyboardMap() {
         <span style={{ fontSize: 14, fontWeight: 600 }}>{t('km.title')}</span>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('km.closeHint')}</span>
+        {/* Escape and a click outside both close it, and both were the only
+            ways — a dialog with no visible way out is one people back away
+            from rather than dismiss. */}
+        <button
+          type="button"
+          data-testid="keymap-close"
+          aria-label={t('close')}
+          onClick={() => setOpen(false)}
+          className="btn btn-ghost btn-xs"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4, marginLeft: 4 }}>
+          <Icon name="x" size={14} />
+        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 0 }}>

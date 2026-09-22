@@ -620,77 +620,66 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       .map(capDoneItem)
       .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
 
-    // Cluster: group items whose endD are within 14 days of each other.
-    // Important: never merge completed work with unfinished work just because
-    // their dates are close. The Subway map is a progress tool; if a cluster
-    // contains one open task, the whole station becomes "not reached" and
-    // months of completed predecessor work disappear visually.
-    // Clustering is what keeps a line readable, and the numbers below were
-    // tuned on a demo plan with a handful of leaves per project. On a real
-    // one — 404 items, the largest project carrying forty of them over three
-    // years — a 21-day span with at most 4 items still produced a chain of
-    // forty touching circles with their labels overlapping into an unreadable
-    // band. A metro line carries five to ten stops; past that it is a bead
-    // string, and every stop stops meaning anything.
+    // ── What a stop IS ────────────────────────────────────────────────────
+    // A stop is a WORK PACKAGE, not a time window.
     //
-    // So the window widens with how much the line is carrying: a project with
-    // a handful of leaves keeps the fine grain it had, a dense one folds its
-    // work into months. MAX_STATIONS is the cap that actually matters — the
-    // clustering above it is just the means.
-    // Two limits, and they pull against each other on purpose.
+    // It used to be a window: leaves whose end dates fell within N days of
+    // each other became one station. That works on a small plan and falls
+    // apart on a real one, in both directions at once. Widen the window and a
+    // station swallows fifty unrelated tasks and means nothing; narrow it and
+    // one project puts forty touching circles on its line with the labels
+    // overlapping into a band. Neither is a metro map, and neither answers
+    // the question the map is for.
     //
-    // MAX_STATIONS is about the CANVAS: a route is ~1280 units wide and a
-    // station label needs roughly 80 of them, so past fourteen the labels
-    // stop fitting whatever the data says.
+    // The tree already says how the work is grouped, so the stop is that
+    // grouping: every leaf under "Belegstruktur und Buchungslogik" is one
+    // station, named after it. The count follows the plan's own structure
+    // instead of a heuristic, and the name is one somebody wrote.
     //
-    // MAX_PER_STATION is about MEANING: a stop standing for six tasks is a
-    // month of work you can name, and one standing for fifty is a bucket.
-    // Reported on the real plan, and fairly — the first pass only had the
-    // canvas limit, so a project with a hundred leaves folded eleven of them
-    // into every stop and the legend under it read as a wall.
-    //
-    // Where they conflict the per-stop cap wins and the line simply carries
-    // more stations than fourteen; the label placer already drops a label
-    // that fits nowhere in favour of its tooltip, which is the graceful
-    // failure. A stop that means nothing is not.
+    // The only thing left to choose is the DEPTH, and the canvas chooses it:
+    // start at the root's direct children and go deeper while the stations
+    // still fit the route (~1280 units wide, ~80 per label). The deepest
+    // level that fits wins, because that is the most detail the map can
+    // actually carry. A plan with one flat level gets its leaves as stops; a
+    // deeply nested one gets its top packages.
     const MAX_STATIONS = 14;
-    const MAX_PER_STATION = 6;
-    const density = Math.max(1, Math.ceil(sorted.length / MAX_STATIONS));
-    const CLUSTER_GAP_DAYS = 14 * density;
-    const CLUSTER_MAX_SPAN_DAYS = 21 * density;
-    const CLUSTER_MAX_ITEMS = Math.min(MAX_PER_STATION, 4 * density);
-    const clusters = [];
-    let currentCluster = [];
-    const clusterBand = item => ((nodeMap[item.id] || item)?.status === 'done' ? 'done' : 'active');
+    const rootDepth = depthOf(root.id);
+    const ancestorAt = (id, depth) => id.split('.').slice(0, depth).join('.');
+    const stopDepth = (() => {
+      const deepest = sorted.reduce((max, item) => Math.max(max, depthOf(item.id)), rootDepth);
+      let chosen = rootDepth + 1;
+      for (let d = rootDepth + 1; d <= deepest; d++) {
+        const count = new Set(sorted.map(item => ancestorAt(item.id, d))).size;
+        if (count > MAX_STATIONS) break;
+        chosen = d;
+      }
+      return chosen;
+    })();
 
+    // Group by that ancestor, keeping the time order the sort established —
+    // a line still reads left to right by when the work lands.
+    const byStop = new Map();
     sorted.forEach(item => {
-      if (!currentCluster.length) {
-        currentCluster.push(item);
-        return;
-      }
-      const lastItem = currentCluster[currentCluster.length - 1];
-      const lastEnd = new Date(lastItem.clusterEndD || lastItem.endD);
-      const firstEnd = new Date(currentCluster[0].clusterEndD || currentCluster[0].endD);
-      const thisEnd = new Date(item.clusterEndD || item.endD);
-      const sameProgressBand = clusterBand(item) === clusterBand(currentCluster[currentCluster.length - 1]);
-      const gapDays = (+thisEnd - +lastEnd) / DAY;
-      const spanDays = (+thisEnd - +firstEnd) / DAY;
-      if (sameProgressBand
-          && gapDays < CLUSTER_GAP_DAYS
-          && spanDays <= CLUSTER_MAX_SPAN_DAYS
-          && currentCluster.length < CLUSTER_MAX_ITEMS) {
-        currentCluster.push(item);
-      } else {
-        clusters.push(currentCluster);
-        currentCluster = [item];
-      }
+      const key = ancestorAt(item.id, stopDepth) || item.id;
+      if (!byStop.has(key)) byStop.set(key, []);
+      byStop.get(key).push(item);
     });
-    if (currentCluster.length) clusters.push(currentCluster);
+    const clusters = [...byStop.entries()].map(([key, items]) => {
+      // The package's own node carries the name a person wrote. A leaf that
+      // IS the stop (a flat project, or an item hanging directly off the
+      // root) names itself.
+      const node = nodeMap[key];
+      items.stopNode = node && node.id !== items[0]?.id ? node : null;
+      return items;
+    });
 
     // Build stations from clusters
     const majorStations = clusters.map(cluster => {
-      const representative = cluster.reduce((best, item) =>
-        (item.name || '').length > (best.name || '').length ? item : best, cluster[0]);
+      // The stop is named after its package, because that is the name
+      // somebody wrote for exactly this group of work. Only when the stop IS
+      // a single item does it fall back to naming itself.
+      const representative = cluster.stopNode
+        || cluster.reduce((best, item) => ((item.name || '').length > (best.name || '').length ? item : best), cluster[0]);
       const earliestStart = cluster.reduce((min, item) => {
         const d = toDate(item.startD);
         return d && (!min || d < min) ? d : min;
