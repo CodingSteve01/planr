@@ -510,7 +510,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" step="0.1" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.priority')}</label>
-            <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `⏫ 1 ${t('critical')}` }, { id: '2', label: `▲ 2 ${t('high')}` }, { id: '3', label: `▬ 3 ${t('medium')}` }, { id: '4', label: `▼ 4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
+            <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `▲▲ 1 ${t('critical')}` }, { id: '2', label: `▲ 2 ${t('high')}` }, { id: '3', label: `▬ 3 ${t('medium')}` }, { id: '4', label: `▼ 4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
           </div>
         </div>
         <div className="field">
@@ -562,7 +562,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('qe.decideBy')}</label>
               <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
             </div>
-            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>⏳</span>}</label>
+            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
                 {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')}>×</button>}

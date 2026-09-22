@@ -24,7 +24,11 @@ import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
-const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
+// Four marks from one family. Priority 1 used to be a media-control glyph, which macOS and
+// Windows render from the EMOJI font — a blue box with a white arrow sitting
+// among three flat geometric shapes, which is why it read as a stray sticker
+// in every row it appeared in. All four come from the text font now.
+const PRIO_GLYPH = { 1: '▲▲', 2: '▲', 3: '▬', 4: '▼' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
@@ -1195,7 +1199,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const endIso = scheduleRangeById[r.id]?.end || null;
                 const overdue = r.status !== 'done' && endIso && endIso > r.due;
                 return <span style={{ marginRight: 6, color: overdue ? 'var(--re)' : 'var(--am)', fontWeight: overdue ? 700 : 400 }}
-                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>⏱{fmtDate(localDate(r.due))} ·</span>;
+                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>{fmtDate(localDate(r.due))} ·</span>;
               })()}
               {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && <>{fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}</>}
             </td>

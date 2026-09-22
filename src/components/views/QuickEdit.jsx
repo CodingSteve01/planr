@@ -521,7 +521,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.decideBy')}</label>
             <input type="date" value={f.decideBy || ''} onChange={e => patchNode({ decideBy: e.target.value })} />
           </div>
-          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>⏳</span>}</label>
+          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
               {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}>×</button>}

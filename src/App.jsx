@@ -1159,7 +1159,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
       if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
       let decideBy = '';
-      const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+      const decideByM = raw.match(/!decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
       let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, fixedDurationDays = 0, displayOrder = null;
@@ -1204,9 +1204,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
       if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
-      // Type emoji (decideBy ⏰ has already been removed, so no false positive)
+      // Type emoji (decideBy ! has already been removed, so no false positive)
       let type = '';
-      if (raw.includes('⏰')) { type = 'deadline'; raw = raw.replace('⏰', '').trim(); }
+      if (raw.includes('!')) { type = 'deadline'; raw = raw.replace('!', '').trim(); }
       else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
       else if (raw.includes('🎯')) { type = 'goal'; raw = raw.replace('🎯', '').trim(); }
       // Date
@@ -1247,11 +1247,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     });
 
     // Self-healing: clean team values that may carry noise from older corrupt exports
-    // (e.g. "Backend [SL] ⏰decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
+    // (e.g. "Backend [SL] !decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
     const sanitizeTeam = (t) => {
       if (!t) return t;
       let v = t;
-      v = v.replace(/⏰decide:\d{4}-\d{2}-\d{2}/g, '');
+      v = v.replace(/!decide:\d{4}-\d{2}-\d{2}/g, '');
       v = v.replace(/📌\d{4}-\d{2}-\d{2}/g, '');
       v = v.replace(/\[[^\]]*\]/g, ''); // strip any [assignees] residue
       v = v.replace(/\{[^}]*\}/g, ''); // strip any {tags} residue
@@ -1263,7 +1263,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const cleaned = sanitizeTeam(r.team);
         if (cleaned !== r.team) {
           // If the original team string contained a decideBy/pinned, recover them
-          const decM = r.team.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+          const decM = r.team.match(/!decide:(\d{4}-\d{2}-\d{2})/);
           if (decM && !r.decideBy) r.decideBy = decM[1];
           const pinM2 = r.team.match(/📌(\d{4}-\d{2}-\d{2})/);
           if (pinM2 && !r.pinnedStart) r.pinnedStart = pinM2[1];
@@ -3391,7 +3391,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         data-htip={_t('bd.chipTip', backdate)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
-        <span style={{ fontSize: 10 }}>⏮</span>
+        <Icon name="undo" size={12} />
         <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
         <button
           type="button"

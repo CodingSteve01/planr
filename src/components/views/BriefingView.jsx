@@ -429,7 +429,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                     )}
                     {hasDeadline && (
                       <span style={{ fontSize: 10, color: isOverdue ? 'var(--re)' : 'var(--tx3)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
-                        {isOverdue ? '⏰ ' : ''}{nodeItem.decideBy}
+                        {isOverdue ? '! ' : ''}{nodeItem.decideBy}
                       </span>
                     )}
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>

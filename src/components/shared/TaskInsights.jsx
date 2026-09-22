@@ -322,7 +322,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <>
                 <KVRow label={t('ins.due')}>
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
-                    ⏳ {node.due}
+                    ~ {node.due}
                     {overdueByPlan && (
                       <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
                         ! {t('ins.dueOverdueByPlan')}
@@ -361,7 +361,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             return (
               <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>
-                  ⏳{' '}
+                  ~{' '}
                   <a href="#" style={{ color: 'var(--ac)', textDecoration: 'none' }} onClick={e => { e.preventDefault(); blocker && onOpenItem?.(blocker); }}>
                     {sc.blockedBy.id}
                   </a>

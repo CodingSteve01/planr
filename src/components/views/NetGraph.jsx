@@ -691,7 +691,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
             {/* Info line with priority chevron (for leaves) */}
             {(() => {
               const isLeafNode = !hasChildrenSet.has(r.id);
-              const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
+              const PRIO_GLYPH = { 1: '▲▲', 2: '▲', 3: '▬', 4: '▼' };
               const PRIO_COL = { 1: '#f87171', 2: '#fbbf24', 3: '#6ca0ff', 4: '#8090a8' };
               const showPrio = isLeafNode && r.prio;
               const y = r.name.length > 26 ? 40 : 33;

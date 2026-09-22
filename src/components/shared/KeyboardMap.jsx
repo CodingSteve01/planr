@@ -119,7 +119,7 @@ export function KeyboardMap() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: 'var(--tx2)' }}>
           {[
             ['○', t('tv.statusOpen')], ['◐', t('wip')], ['●', t('tv.statusDone')],
-            ['⏫', t('tv.prioCrit')], ['▲', t('tv.prioHigh')], ['▬', t('tv.prioMed')], ['▼', t('tv.prioLow')],
+            ['▲▲', t('tv.prioCrit')], ['▲', t('tv.prioHigh')], ['▬', t('tv.prioMed')], ['▼', t('tv.prioLow')],
             ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
           ].map(([glyph, label]) => (
             <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>

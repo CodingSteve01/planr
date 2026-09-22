@@ -22,7 +22,16 @@ const read = rel => readFileSync(path.join(process.cwd(), rel), 'utf8');
 
 // Anything pictographic, plus the stray typographic marks the app used as
 // icons (◎ ☰ ▭ ⁂ ✎ ☀). NOT the arrow blocks: those are text here.
-const PICTOGRAPH = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{25CE}\u{2630}\u{25AD}\u{2042}]/u;
+// The 2300–23FF block matters and was missed the first time: ⏫ ⏳ ⏰ come from
+// the EMOJI font on macOS and Windows, so ⏫ rendered as a blue box with a
+// white arrow among three flat geometric priority marks — the "silly icon"
+// that survived the first sweep because the range was not in this regex.
+const PICTOGRAPH = /[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{25CE}\u{2630}\u{25AD}\u{2042}]/u;
+
+// Keyboard symbols from the same block are TEXT — they belong in a shortcut
+// hint, and a drawn icon there would be worse. ⌘ ⌥ ⌃ ⌫ ⎋ ⎘ ⏎.
+const KEY_SYMBOLS = /[\u{2318}\u{2325}\u{2303}\u{232B}\u{238B}\u{2398}\u{23CE}]/gu;
+const stripKeys = line => line.replace(KEY_SYMBOLS, '');
 
 // Five of these are the MARKDOWN FILE FORMAT, not decoration: a plan note on
 // disk writes phases as `✅RE, 🟡Development`, a pinned start as `📌2026-01-05`
@@ -81,7 +90,7 @@ describe('the chrome', () => {
     const text = read(file);
     const hits = text.split('\n')
       .map((line, i) => ({ line, n: i + 1 }))
-      .filter(({ line }) => PICTOGRAPH.test(stripFormat(line)))
+      .filter(({ line }) => PICTOGRAPH.test(stripKeys(stripFormat(line))))
       .map(({ line, n }) => `${n}: ${line.trim().slice(0, 80)}`);
     expect(hits, `glyphs still used as icons:\n${hits.join('\n')}`).toEqual([]);
   });

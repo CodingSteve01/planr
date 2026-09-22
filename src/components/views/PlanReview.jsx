@@ -338,7 +338,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       return <>
         {dueViolations.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--re)' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>⏳ {t('pr.warnDueOverdue')}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>~ {t('pr.warnDueOverdue')}</span>
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{dueViolations.length}</span>
           </div>
           {dueViolations.map(s => {
@@ -349,7 +349,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
               onClick={() => onOpenItem?.(s.treeId || s.id)}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>⏳ {s.due}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>~ {s.due}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
               {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
                 data-htip={t(s.dueInfeasible ? 'ins.latestStartPast' : 'ins.latestStart')}>

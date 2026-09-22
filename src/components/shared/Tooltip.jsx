@@ -163,7 +163,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
             </div>
           )}
           {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>▸ {item.pinnedStart}</div>}
-          {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>⏰ {node.decideBy}</div>}
+          {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>! {node.decideBy}</div>}
           {item.blockedBy && (() => {
             const blocker = scheduled.find(x => x.id === item.blockedBy.id);
             const blockerName = blocker?.name || item.blockedBy.id;
@@ -172,7 +172,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
               ? iso(item.blockedBy.endD) : String(item.blockedBy.endD);
             return (
               <div style={{ fontSize: 10, color: 'var(--am)', marginBottom: 4 }}>
-                ⏳ {t('ins.blockedBy')}: {item.blockedBy.id} {blockerName}
+                ~ {t('ins.blockedBy')}: {item.blockedBy.id} {blockerName}
                 <span style={{ color: 'var(--tx3)', marginLeft: 4 }}>· {blockerPerson} · endet {endIso}</span>
               </div>
             );

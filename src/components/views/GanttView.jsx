@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { tipLines } from '../../utils/tipText.js';
 import { withKey } from '../../utils/shortcuts.js';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
@@ -1089,7 +1090,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   //
   // What stood here was a second ordering system — sort each team's leaves by
   // `seq`, splice the selection in, rewrite `seq` in steps of five, and for
-  // ⏮/⏭ also rewrite the selection's PRIORITY to match the destination
+  // The two order buttons also rewrite the selection's PRIORITY to match the destination
   // neighbourhood, because (the comment said) "seq alone is only a tiebreak,
   // prio dominates the sort". It did, and that was the bug: the plan you
   // arranged in the tree and the plan the scheduler ran were two different
@@ -2810,10 +2811,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                   {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
                   {!isSummary && node?.prio != null && node.prio !== 2 && (() => {
-                    // Prio badge: ⏫1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
+                    // Prio badge: ▲▲1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
                     // Surface prio inline so the scheduler order is legible without opening
                     // the modal. Default (2) stays hidden to reduce noise.
-                    const ICON = { 1: '⏫', 3: '▬', 4: '▼' };
+                    const ICON = { 1: '▲▲', 3: '▬', 4: '▼' };
                     const LABEL = { 1: t('critical'), 3: t('medium'), 4: t('low') };
                     const ic = ICON[node.prio]; if (!ic) return null;
                     return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
@@ -2831,10 +2832,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
                     const meta = [blockerPerson, t('g.blockerEnds', endIso)].filter(Boolean).join(', ');
                     return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
-                      data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
+                      data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>~</span>;
                   })()}
                   {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
-                    data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
+                    data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>{fixedDays}d</span>}
                   {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
                 </span>}
                 {compactBar && !microBar && <span style={{
@@ -3100,14 +3101,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {/* Z-order style reorder: shifts the whole selection in the scheduler
           processing order (writes seq). Mirrors media-player jump controls. */}
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏮</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} style={{ transform: 'rotate(180deg)' }} /></button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip')} aria-label={t('g.reorderUpTip')} style={{ fontSize: 14, lineHeight: 1 }}>◀</button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏭</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} /></button>
       </span>
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏫</button>
-        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏬</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ▲▲</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Prio<Icon name="chevronDown" size={12} /></button>
       </span>
       <button
         type="button"
