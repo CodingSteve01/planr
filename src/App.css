@@ -91,23 +91,21 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .tab-bar-fade.l{left:0;background:linear-gradient(to right,var(--bg2),transparent);}
 .tab-bar-fade.r{right:0;background:linear-gradient(to left,var(--bg2),transparent);}
 .tab-bar-fade.on{opacity:1;}
-/* One row. It wrapped, and on a pane around 800px that meant two rows of
-   controls plus the tree's own bar under them — a quarter of the screen spent
-   before the first task. It scrolls sideways instead, like the tab row, and
-   the scope group shrinks first because it is the widest thing here. */
-.subtoolbar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;}
-.subtoolbar::-webkit-scrollbar{display:none;height:0;}
+/* One row, and it fits. It used to wrap — on a pane around 800px that meant
+   two rows of controls plus the tree's own bar under them, a quarter of the
+   screen spent before the first task. Scrolling it sideways was the wrong
+   answer and briefly shipped: unlike a tab row, nobody expects a toolbar
+   control to be off-screen, so it just looked cut off at both ends. What
+   actually fixes it is having less in the row — the three scope pickers moved
+   into the filter popup (see App.jsx), which is ~380px back.
+   Search takes what is left over; everything else keeps its size. */
+.subtoolbar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--bg2);border-bottom:1px solid var(--b);flex-shrink:0;flex-wrap:nowrap;min-width:0;}
 .subtoolbar > *{flex-shrink:0;}
-/* The three scope pickers are one decision taken in three parts, so they are
-   one bordered control rather than three inputs sitting at "Alle …". */
-.scope-group{display:flex;align-items:center;gap:2px;padding:0 4px 0 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg3);color:var(--tx3);flex-shrink:0;}
-.scope-group.on{border-color:var(--ac);color:var(--ac);background:var(--ac-soft);}
-/* Wide enough that the placeholder is always readable. The row scrolls
-   rather than squeezing these — a label cut to "Alle Pake" is worse than a
-   control you have to scroll to. */
-.scope-sel{width:124px;flex-shrink:0;}
-.scope-group .inp,.scope-group input,.scope-group select{background:transparent;border-color:transparent;}
-.scope-group .scope-sel + .scope-sel{border-left:1px solid var(--b2);}
+.subtoolbar .searchbox{flex:0 1 auto;min-width:0;}
+/* A chip says which way the view is narrowed. Its label is a project or a
+   person's name, so it is allowed to be long — but not to push the rest of
+   the row off the edge. */
+.chip{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tab{padding:8px 14px;font-size:12px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;letter-spacing:.01em;user-select:none;white-space:nowrap;flex-shrink:0;}
 .tab:hover{color:var(--tx2);}
 .tab.on{color:var(--ac);border-bottom-color:var(--ac);}

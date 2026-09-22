@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePortalRoot } from '../../utils/embedHost.js';
 import { Icon } from './Icon.jsx';
+import { SearchSelect } from './SearchSelect.jsx';
 import { useT } from '../../i18n.jsx';
 import { ARCHIVE_DAY_PRESETS } from '../../utils/archive.js';
 
@@ -31,6 +32,14 @@ export function ViewFilters({
   quickFilters = [],
   // Archive (long-finished projects / long-offboarded people)
   archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays,
+  // Scope — which part of the plan is on screen: one project, one team, one
+  // person. Same reasoning as the quick filters above and the same home. As
+  // three always-visible pickers in the toolbar they were ~380px of controls
+  // reading "Alle Pakete / Alle Teams / Alle Personen", which is three empty
+  // fields waiting to be filled in — the opposite of what they are. Setting
+  // one is rare; seeing that one is set has to be unmissable, and that is
+  // what the chips are for.
+  scope = null,
 }) {
   // Diff (past review) and Horizon (future plan) are mutually exclusive: a
   // single screen can only tell one of those stories cleanly at a time, so
@@ -98,7 +107,8 @@ export function ViewFilters({
   // AND something is actually old enough to archive.
   const showArchive = typeof setShowArchived === 'function';
   const showQuick = quickFilters.length > 0;
-  if (!showDiff && !showHorizon && !showHideDone && !showArchive && !showQuick) return null;
+  const showScope = !!scope;
+  if (!showDiff && !showHorizon && !showHideDone && !showArchive && !showQuick && !showScope) return null;
 
   const showHideDoneInner = typeof setHideDone === 'function';
   // The trigger counts only the Review/Plan overlays (and hide-done). The
@@ -106,7 +116,8 @@ export function ViewFilters({
   // threshold, but its *state* is announced by the chip / pill next to the
   // trigger — counting it here as well just said the same thing twice.
   const activeCount = (sinceDays ? 1 : 0) + (horizonDays ? 1 : 0)
-    + (showHideDoneInner && hideDone ? 1 : 0);
+    + (showHideDoneInner && hideDone ? 1 : 0)
+    + (showScope ? (scope.fields || []).filter(f => f.value).length : 0);
 
   // Summary string on the trigger: "—" when no filter, otherwise a compact
   // marker like "Δ14T · ▶+30T" so the user reads the state without opening.
@@ -177,6 +188,28 @@ export function ViewFilters({
             padding: 12, width: 320, fontSize: 11,
           }}
         >
+          {showScope && (
+            <section style={{ marginBottom: 12 }} data-testid="scope-section">
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+                {scope.label}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(scope.fields || []).map(field => (
+                  <div key={field.id} data-testid={`scope-field-${field.id}`}>
+                    <SearchSelect
+                      value={field.value}
+                      options={field.options}
+                      onSelect={field.onSelect}
+                      placeholder={field.placeholder}
+                      allowEmpty
+                      emptyLabel={field.placeholder}
+                      showIds={field.showIds}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {showQuick && (
             <section style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>

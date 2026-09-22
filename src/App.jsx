@@ -1908,6 +1908,36 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   ].filter(Boolean), [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked]);
   const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
 
+  // Scope lives in the filter popup and comes back out as a chip the moment
+  // one is set — a narrowed view has to say so (principles.md, "a view is
+  // never the truth"), an unnarrowed one has nothing to say. The chip clears
+  // the filter, which is the only thing you want from it once you see it.
+  const scopeFields = useMemo(() => [
+    {
+      id: 'root', value: rootFilter, options: netRootOptions, showIds: true,
+      placeholder: _t('tv.allRoots'),
+      onSelect: v => { setRootFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'team', value: teamFilter, options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
+      placeholder: _t('tv.allTeams'),
+      onSelect: v => { setTeamFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'person', value: personFilter, options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
+      placeholder: _t('tv.allPeople'),
+      onSelect: v => { setPersonFilter(v); setSearchIdx(0); },
+    },
+  ], [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t]);
+
+  const activeScopeChips = useMemo(() => scopeFields
+    .filter(f => f.value)
+    .map(f => ({
+      id: `scope-${f.id}`,
+      label: f.options.find(o => o.id === f.value)?.label || f.value,
+      onToggle: () => f.onSelect(''),
+    })), [scopeFields]);
+
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
   // pass through view-filters together with their tree node.
@@ -3409,18 +3439,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
     </div>
     {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
-      {/* Scope: which part of the plan is on screen. One bordered GROUP, not
-          three separate boxes — they are one decision taken in three parts,
-          and as three full-width inputs sitting at "Alle …" they read as
-          three empty fields waiting to be filled in, which is the opposite of
-          what they are. The group carries a marker when any of them is set,
-          so a narrowed view says so from across the room. */}
-      <div className={`scope-group${(rootFilter || teamFilter || personFilter) ? ' on' : ''}`}>
-        <Icon name="list" size={12} />
-        <div className="scope-sel"><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
-        <div className="scope-sel"><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
-        <div className="scope-sel"><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
-      </div>
+      {/* Scope (project / team / person) moved into the filter popup, the
+          same move the quick filters made and for the same reason: as three
+          always-visible pickers they were ~380px of toolbar reading "Alle
+          Pakete / Alle Teams / Alle Personen" — three empty fields waiting
+          to be filled in, which is the opposite of what they are. Setting one
+          is rare; seeing that one is SET has to be unmissable, and that is
+          what the chips below do. */}
       {/* The quick filters used to sit here as a row of six toggles, five of
           them off at any given moment — a permanent bar of switched-off
           switches, which is what a toolbar looks like when nobody asks what
@@ -3428,8 +3453,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           out here as chips the moment one is on: a filtered view has to say
           so (principles.md, "a view is never the truth"), an unfiltered one
           has nothing to say. */}
-      {activeQuickFilters.length > 0 && (
+      {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
         <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+          {activeScopeChips.map(f => (
+            <button key={f.id} type="button" className="chip on" data-testid={f.id}
+              onClick={() => f.onToggle()} data-htip={_t('chip.clearTip', f.label)}>
+              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}>×</span>
+            </button>
+          ))}
           {activeQuickFilters.map(f => (
             <button key={f.id} type="button" className="chip on" onClick={() => f.onToggle()}
               data-htip={_t('chip.clearTip', f.label)}>
@@ -3442,6 +3473,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           Not a generic filter; it overlays the data with a time window. */}
       <ViewFilters
         quickFilters={quickFilters}
+        scope={{ label: _t('vf.scope'), fields: scopeFields }}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
         hasHistory={(data?.historyEvents || []).length > 0}
