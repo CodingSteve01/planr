@@ -28,7 +28,10 @@ function depth(id) { return id.split('.').length; }
 // Windows render from the EMOJI font — a blue box with a white arrow sitting
 // among three flat geometric shapes, which is why it read as a stray sticker
 // in every row it appeared in. All four come from the text font now.
-const PRIO_GLYPH = { 1: '▲▲', 2: '▲', 3: '▬', 4: '▼' };
+// Chevrons, the way every issue tracker draws priority: up for "ahead of the
+// rest", a level bar for the middle, down for "can wait". The direction
+// carries the meaning without the colour, which four coloured dots would not.
+const PRIO_ICON = { 1: 'prioCritical', 2: 'prioHigh', 3: 'prioMedium', 4: 'prioLow' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
@@ -1029,7 +1032,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                       dropdown by eye is the slow path. */}
                   {[
                     { key: 'prio', label: t('tv.fldPrio'), value: r.prio ? String(r.prio) : '',
-                      options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: `${PRIO_GLYPH[pv]} ${prioLbl[pv]}` })),
+                      options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: prioLbl[pv] })),
                       // A row you just typed has no priority yet — say so,
                       // rather than pre-filling one and calling it a decision.
                       emptyLabel: t('tv.prioNone'),
@@ -1156,7 +1159,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Priority — chevron icon for all leaves */}
             </td>
             <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
-{isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
+{isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
 
               {/* Severity for roots */}
 {/* Diff-since badge (newly done / new leaf / progress jump) */}

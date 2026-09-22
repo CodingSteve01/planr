@@ -210,3 +210,19 @@ Two things are deliberately **not** icons:
 to `currentColor` and one viewBox, requires `aria-hidden` unless an icon is
 given a name of its own, and fails on a pictograph reappearing in the chrome
 (`App.jsx`, `FileMenu.jsx`) — with the five format tokens excluded by name.
+
+
+## Priority is chevrons
+
+`prioCritical` / `prioHigh` / `prioMedium` / `prioLow` in
+[`Icon.jsx`](../src/components/shared/Icon.jsx) draw priority the way every
+issue tracker does: chevrons up for "ahead of the rest", a level bar for the
+middle, down for "can wait". The direction carries the meaning on its own, so
+it survives the colour being taken away — which is why this is not four
+coloured dots. They replaced `▲▲ / ▲ / ▬ / ▼`, a text approximation of exactly
+this shape, whose priority-1 mark was a media-control glyph that macOS and
+Windows render from the emoji font.
+
+Two places keep a text stand-in on purpose: the network graph draws its labels
+in SVG `<text>`, where a component cannot go, and the markdown format is the
+markdown format.

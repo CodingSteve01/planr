@@ -36,6 +36,15 @@ const PATHS = {
   grip: <><circle cx="9" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="15" cy="18" r="1.4" /></>,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8.8c0 1.7-2.4 2-2.4 3.5" /><path d="M12 17h.01" /></>,
   keyboard: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" /></>,
+  // Priority, the way every issue tracker draws it: chevrons pointing up for
+  // "ahead of the rest", a level bar for the middle, down for "can wait".
+  // The direction carries the meaning on its own, so it still reads when the
+  // colour is taken away — which is the whole reason not to use four coloured
+  // dots. Replaced ▲▲ / ▲ / ▬ / ▼, a text approximation of exactly this.
+  prioCritical: <><path d="m6 12 6-6 6 6" /><path d="m6 18 6-6 6 6" /></>,
+  prioHigh: <path d="m6 15 6-6 6 6" />,
+  prioMedium: <><path d="M5 10h14" /><path d="M5 14h14" /></>,
+  prioLow: <path d="m6 9 6 6 6-6" />,
   restart: <><path d="M5 5v14" /><path d="M20 5 9 12l11 7Z" /></>,
   swap: <><path d="M4 8h13m0 0-4-4m4 4-4 4" /><path d="M20 16H7m0 0 4-4m-4 4 4 4" /></>,
   link: <><path d="M10 13a4.5 4.5 0 0 0 6.4.4l2.6-2.6a4.5 4.5 0 0 0-6.4-6.4l-1.5 1.5" /><path d="M14 11a4.5 4.5 0 0 0-6.4-.4L5 13.2a4.5 4.5 0 0 0 6.4 6.4l1.5-1.5" /></>,

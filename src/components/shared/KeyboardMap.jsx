@@ -117,13 +117,19 @@ export function KeyboardMap() {
           {t('km.legend')}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: 'var(--tx2)' }}>
+          {/* The legend has to show what the rows actually show, so the
+              priority entries are the same drawn chevrons, not a text
+              approximation of them. */}
           {[
             ['○', t('tv.statusOpen')], ['◐', t('wip')], ['●', t('tv.statusDone')],
-            ['▲▲', t('tv.prioCrit')], ['▲', t('tv.prioHigh')], ['▬', t('tv.prioMed')], ['▼', t('tv.prioLow')],
+            [{ icon: 'prioCritical' }, t('tv.prioCrit')], [{ icon: 'prioHigh' }, t('tv.prioHigh')],
+            [{ icon: 'prioMedium' }, t('tv.prioMed')], [{ icon: 'prioLow' }, t('tv.prioLow')],
             ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
           ].map(([glyph, label]) => (
             <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)' }}>{glyph}</span>{label}
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)', display: 'inline-flex', width: 16, justifyContent: 'center' }}>
+                {typeof glyph === 'string' ? glyph : <Icon name={glyph.icon} size={13} strokeWidth={2.2} />}
+              </span>{label}
             </span>
           ))}
         </div>

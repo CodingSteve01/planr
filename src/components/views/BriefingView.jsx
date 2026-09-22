@@ -309,7 +309,11 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 18 }}>
+      {/* 132px, not 150: with five figures and a 150px floor only four fit a
+          normal pane, so the fifth wrapped alone and stretched to the full
+          width — one card three times the size of its neighbours, which
+          reads as emphasis it does not have. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8, marginBottom: 18 }}>
         {summaryCards.map(card => (
           <div key={card.label} className="sum-card" style={{ minWidth: 0 }}>
             <div className="sum-v" style={{ color: card.tone }}>{card.value}</div>

@@ -157,8 +157,13 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       <div style={{ width: `${confCounts.exploratory / total * 100}%`, background: 'var(--tx3)' }} />
     </div>}
 
-    {/* Section tabs */}
-    <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+    {/* Section tabs. They WRAP rather than pushing the pane wide: seven of
+        them do not fit a normal pane, and a row that overflows does not
+        overflow alone — it gives the whole view a horizontal scrollbar, so
+        the header and the figures above slide out of frame with it. A second
+        line of buttons costs 26px; a pane that scrolls sideways costs the
+        reader their place. */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16, minWidth: 0 }}>
       {(() => {
         const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
         const truncated = scheduled.filter(s => s.truncatedByOffboard);
@@ -174,7 +179,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         ];
       })().map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
-          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
+          style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => setSection(k)}>{l}</button>)}
     </div>
 
     {/* ══════ DECIDE — compact rows ══════ */}
@@ -201,7 +206,15 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                 {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-                <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
+                {/* Only the reasons that EXPLAIN something. "Manually set" is
+                    true of nearly every row on a real plan, so as a badge it
+                    was twenty identical marks down a column, saying nothing
+                    and crowding out the two that do — "no person assigned",
+                    "no estimate". A badge on every row is not a badge. The
+                    full reason stays in the row's tooltip either way. */}
+                {!['manual', 'done', 'inherited'].includes(confReasons[r.id]) && (
+                  <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
+                )}
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasChain(sc) && (() => {
                   const primary = (node?.assign || []).map(memberShort).join('/') || memberShort(sc.personId);
