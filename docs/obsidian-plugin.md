@@ -138,6 +138,24 @@ chose **Open as Markdown** stays Markdown, until it moves on to another note.
 On unload the patch is handed back, unless another plugin patched on top in the
 meantime — that chain is theirs now.
 
+### Why the vault's own form styling has to be pushed back
+
+Obsidian styles bare `input`, `select`, `textarea` and `button` globally —
+background, border, height, box-shadow — so the handful of unclassed controls
+inside Planr would otherwise render as Obsidian widgets in the middle of a
+Planr panel. `obsidian/src/obsidian.css` neutralises that inside `.planr-view`.
+
+The blunt version of that reset caused a visible bug: `height: auto` on every
+input also hit `input[type=checkbox]`. Obsidian does not style a checkbox, it
+**replaces** it — `appearance: none` plus an explicit width and height — so
+taking the height away left a thin coloured bar where a checkbox should be.
+Half of someone else's widget is worse than either whole one, so checkboxes and
+radios now get the native control back explicitly (`appearance: auto`, no
+border, no background, and `content: none` on both pseudo-elements, which is
+where the vault draws its tick). Pinned in
+[`obsidian/__tests__/bundle.test.js`](../obsidian/__tests__/bundle.test.js),
+against the built stylesheet rather than the source.
+
 ### Build
 
 ```bash
