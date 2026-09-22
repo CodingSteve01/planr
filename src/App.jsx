@@ -23,7 +23,7 @@ import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, pha
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
-import { MODES, DEFAULT_MODE, isValidMode, getMode, modeForTab } from './utils/modes.js';
+import { TAB_IDS, initialTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
 import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
@@ -38,10 +38,10 @@ import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
-import { ResView } from './components/views/ResView.jsx';
+import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
-import { BriefingView } from './components/views/BriefingView.jsx';
+import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
 import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
@@ -52,6 +52,7 @@ import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
+import { BackdateModal } from './components/modals/BackdateModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -67,32 +68,13 @@ import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 // memoization on every render, while keeping the function's captured state
 // fresh. Safe for callbacks invoked imperatively (event handlers, etc.) — do
 // NOT use during render.
-// Which mode and which tab a load starts on. One function so the two can
-// never disagree — a fresh open used to land in Build while still showing the
-// Overview, because the tab default ('summary') predates modes and knew
-// nothing about them.
-//
-// Precedence: a saved mode wins (the user chose it); otherwise a saved tab
-// decides, since it is what the user was last looking at; otherwise the
-// default mode and its own default tab. In every case the tab is forced to
-// belong to the mode, so the two agree from the first paint.
+// Which view a load starts on. A mode used to be decided here too, and had to
+// be reconciled with the tab so the two agreed from the first paint; there is
+// one thing to decide now.
 function initialShell() {
-  let savedMode = null;
   let savedTab = null;
-  try {
-    savedMode = localStorage.getItem('planr_mode');
-    savedTab = localStorage.getItem('planr_tab');
-  } catch { /* ignore */ }
-
-  if (savedMode && isValidMode(savedMode)) {
-    const tabs = getMode(savedMode).tabs;
-    return { mode: savedMode, tab: savedTab && tabs.includes(savedTab) ? savedTab : getMode(savedMode).defaultTab };
-  }
-  if (savedTab) {
-    const owner = modeForTab(savedTab);
-    return { mode: owner.id, tab: owner.tabs.includes(savedTab) ? savedTab : owner.defaultTab };
-  }
-  return { mode: DEFAULT_MODE, tab: getMode(DEFAULT_MODE).defaultTab };
+  try { savedTab = localStorage.getItem('planr_tab'); } catch { /* ignore */ }
+  return { tab: initialTab(savedTab) };
 }
 
 function useStableCallback(fn) {
@@ -241,12 +223,9 @@ export function buildMemberShortMap(members) {
   return map;
 }
 
-// Every tab the app shell knows about — single source of truth for both the
-// tab bar (built below with i18n labels) and the mode guard test
-// (src/utils/__tests__/modes.test.js) that checks every one of these is
-// reachable from at least one mode. 'report' is new in this phase — the
-// former Export modal, now a normal Report-mode view (see ReportView.jsx).
-export const TAB_IDS = ['summary', 'briefing', 'plan', 'tree', 'gantt', 'roadmap', 'net', 'resources', 'holidays', 'report'];
+// Every tab the shell knows about, in bar order — declared in utils/modes.js
+// and re-exported here because that is where the rest of the app looks for it.
+export { TAB_IDS };
 // Glyphs for the `/` palette. Kept here beside TAB_IDS so a new tab is an
 // obvious two-line change; an unlisted id falls back to a neutral marker
 // rather than leaving a ragged gap in the column.
@@ -254,7 +233,6 @@ const TAB_ICONS = {
   summary: '◎', briefing: '☀', plan: '✎', tree: '☰', gantt: '▭',
   roadmap: '🗺', net: '⁂', resources: '👥', holidays: '⛱', report: '📄',
 };
-const MODE_ICONS = { build: '☰', plan: '▭', run: '☀', review: '◎', report: '📄' };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 
@@ -270,8 +248,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const { t: _t, lang: _lang } = useT();
   const portalRoot = usePortalRoot();
   const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
-  // Mode and tab are decided together (see initialShell above): a fresh open
-  // must land on its mode's own surface, not on the pre-modes default tab.
   const [tab, _setTab] = useState(() => initialShell().tab);
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
   // Keep every visited tab mounted (display:none for inactive) so switching
@@ -280,14 +256,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // skips its reconciliation entirely — no input-lag cascade.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
   useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
-  // Mode state (docs/principles.md, principle 1): which of the five modes is
-  // active. Falls back to whichever mode owns the persisted tab so a user
-  // who last had e.g. "resources" open before modes existed doesn't get
-  // silently reset to Build.
-  const [mode, _setMode] = useState(() => initialShell().mode);
-  const setMode = m => { _setMode(m); try { localStorage.setItem('planr_mode', m); } catch {} };
-  // Switching mode always selects that mode's default tab (task spec).
-  const switchMode = m => { setMode(m); setTab(getMode(m).defaultTab); };
   // Plan mode's project lens (RoadmapLens.jsx) — a calendar-style roadmap for
   // one project, shown beside the Gantt. Both bits of state are local to the
   // shell (not the plan file): which project is focused, and whether the
@@ -304,6 +272,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
+  // Backdating: while set, every history event this session writes counts as
+  // of that day rather than today. Restructuring a package — splitting it,
+  // re-parenting it — is bookkeeping about work that was already there, and
+  // dating it today makes the next review read as if the work appeared out of
+  // nowhere (utils/history.js, `diffSnapshots`).
+  //
+  // Deliberately NOT persisted. A backdate you forgot about falsifies every
+  // review after it, silently and forever, and the cost of switching it on
+  // again after a reload is one keystroke. It is also loud while it is on:
+  // see the chip in the top bar.
+  const [backdate, setBackdate] = useState('');
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [modalFocus, setModalFocus] = useState(null);
@@ -1414,7 +1393,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
       if (mod && key === 's' && e.shiftKey) { e.preventDefault(); saveToFile(true); return; }
       if (mod && key === 'o' && !typing) { e.preventDefault(); loadFromFile(); return; }
-      if (mod && key === 'e' && !typing) { e.preventDefault(); switchMode('report'); return; }
+      if (mod && key === 'e' && !typing) { e.preventDefault(); setTab('report'); return; }
       if (mod && e.key === ',' && !typing) { e.preventDefault(); setModal('settings'); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -2524,7 +2503,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const currSnapshot = leafSnapshot(tree);
     let newEvents = [];
     if (lastSavedLeavesRef.current) {
-      newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString());
+      newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString(), backdate || null);
     }
     const eventsForFile = newEvents.length
       ? [...(data?.historyEvents || []), ...newEvents]
@@ -2751,28 +2730,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onGanttAddDep = useStableCallback((...a) => addDep(...a));
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
-  // Roadmap tab: a click opens the item's own edit dialog — the same one a
-  // Gantt bar or a graph node opens. It used to route through onSumOpenItem,
-  // which for anything with children set the root filter and jumped you to
-  // the Tree tab. That is navigation, not editing: you lose the roadmap you
-  // were reading to get a dialog you could have had in place.
-  const onRoadmapOpenItem = useStableCallback(id => {
-    // Leaves have a scheduled row (dates, effort, assignment) and the dialog
+  // Clicking an item — anywhere — opens that item's own edit dialog. The same
+  // one a Gantt bar and a graph node open, because it is the same question:
+  // what is this, and can I change it without leaving what I was reading.
+  //
+  // There were three of these. #27 gave the Roadmap tab this behaviour and
+  // said why: routing a click through "set the root filter and jump to the
+  // Tree" is navigation, not editing — you lose the map you were reading to
+  // get a dialog you could have had in place. The Overview's subway map kept
+  // the old handler, which is the map that gets looked at most, and Planning
+  // had a third one that opened the bare tree node without the schedule's half
+  // of the answer. One handler now (principle 7).
+  //
+  // Navigating to a row in the tree is still a thing you can want, and it is
+  // still here — as `onNavigate`, a separate gesture with its own name, rather
+  // than as what a click silently did to a work package but not to a leaf.
+  const onOpenItemDialog = useStableCallback(id => {
+    // A leaf has a scheduled row — dates, effort, assignment — and the dialog
     // wants it merged in; a work package has none and opens as the tree node.
-    const row = scheduled.find(s => (s.treeId || s.id) === id && !s.isHandoff);
+    const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
     onBarClick(row || { id });
   });
-  const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
-  const onPlanReviewOpenItem = useStableCallback(id => { const node = tree.find(r => r.id === id); if (node) { setMN(node); setModal('node'); } });
-  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
   const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
-  const onSumOpenItem = useStableCallback(id => {
-    const node = tree.find(r => r.id === id); if (!node) return;
-    if (tree.some(r => r.id.startsWith(id + '.'))) { setRootFilter(id); setSel(node); setTab('tree'); }
-    else { setMN(node); setModal('node'); }
-  });
-  const onBriefingOpenItem = onSumOpenItem;
   // Row-level status change from Run mode (attention list + per-person
   // queues) — same updateNode() → mutate() path every other status control
   // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one
@@ -2887,13 +2866,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     label: _t(`tab.${id}`),
     isNew: showNewBadge && NEW_BADGE_TAB_IDS.has(id),
   }));
-  // The tab bar shows only the active mode's tabs, plus whatever tab the
-  // user currently has open (even if it belongs to a different mode) — so
-  // jumping to a view from the palette never traps you with no way back to
-  // where you were (task spec: "nothing becomes unreachable").
-  const modeTabIds = getMode(mode).tabs;
-  const visibleTabIds = modeTabIds.includes(tab) ? modeTabIds : [...modeTabIds, tab];
-  const visibleTabs = TABS.filter(t => visibleTabIds.includes(t.id));
 
   // ── Tour steps (resolved at render time so they pick up the active language) ──
   const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
@@ -3132,8 +3104,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // palette itself groups by `group`/`groupLabel` and fuzzy-filters
   // (src/utils/palette.js).
   const fileGroup = _t('palette.group.file');
-  const modeGroup = _t('palette.group.modes');
+  const jobGroup = _t('palette.group.jobs');
   const viewGroup = _t('palette.group.views');
+  // `keywords` are the words you reach for when the label is in the other
+  // language, or is a sentence where your head holds one noun.
+  const JOBS = [
+    { id: 'jira', icon: '⇄', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
+      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
+    { id: 'vacation', icon: '⛱', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
+    { id: 'onboard', icon: '＋', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
+  ];
   // `icon` and `key` are what make this list scannable rather than twenty
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
@@ -3141,15 +3123,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
     { id: 'snapshots', icon: '↶', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
     { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
-    // Export… now primarily means "go look at Report mode" — the export
-    // cards rendered as a normal view (ReportView.jsx). The old dialog stays
-    // one entry below so nothing that worked before stops working.
-    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => switchMode('report') },
+    // Export… means "go look at the Report view" — the export cards rendered
+    // as a normal view (ReportView.jsx). The old dialog stays one entry below
+    // so nothing that worked before stops working.
+    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
     { id: 'exportDialog', icon: '📄', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
     { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    ...MODES.map(m => ({ id: `mode.${m.id}`, icon: MODE_ICONS[m.id] || '◈', labelKey: m.labelKey, group: 'mode', groupLabel: modeGroup, run: () => switchMode(m.id) })),
+    { id: 'backdate', icon: '⏮', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    // The jobs that come back every week. Each lands on the surface with the
+    // work already started — the paste box focused, the row created — rather
+    // than on the tab that contains it. A command that only changed tabs would
+    // duplicate the view jumps below it.
+    ...JOBS.map(j => ({
+      id: `job.${j.id}`, icon: j.icon, labelKey: j.labelKey, keywords: j.keywords, group: 'job', groupLabel: jobGroup,
+      run: () => { setTab(j.tab); window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0); },
+    })),
     ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || '▸', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
   ];
 
@@ -3228,34 +3218,31 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       </span>
       <button className="btn btn-sec btn-xs" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}>↶</button>
       <button className="btn btn-sec btn-xs" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}>↷</button>
-      {/* "How far along is this?" is the question Review and Report are for.
-          In Build and Plan the same two numbers are a readout nobody asked
-          for, sitting in the one row every mode has to look at. */}
-      {(mode === 'review' || mode === 'report') && <>
+      {/* "How far along is this?" is the question the Overview and the Report
+          are for. Anywhere else the same two numbers are a readout nobody
+          asked for, in the one row every view has to look at. */}
+      {(tab === 'summary' || tab === 'report') && <>
         <div className="vsep" />
         <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
           data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
       </>}
+      {backdate && <span
+        data-testid="backdate-chip"
+        className="chip on"
+        data-htip={_t('bd.chipTip', backdate)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <span style={{ fontSize: 10 }}>⏮</span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
+        <button
+          type="button"
+          data-testid="backdate-clear"
+          aria-label={_t('bd.clear')}
+          onClick={() => setBackdate('')}
+          style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}
+        >×</button>
+      </span>}
       <div className="sp" />
-      {/* Mode switch (docs/principles.md, principle 1) — sits between the
-          file/save pill (left) and the settings/palette buttons (right).
-          Everything the old button row did (Load / Snapshots / Save as /
-          Export… / New / Help) moved into the `/` palette; only Settings
-          keeps its own button. */}
-      <span style={{ display: 'inline-flex', gap: 4 }} role="tablist" aria-label={_t('mode.switchLabel')}>
-        {MODES.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            role="tab"
-            aria-selected={mode === m.id}
-            className={`chip${mode === m.id ? ' on' : ''}`}
-            data-htip={_t(m.tooltipKey)}
-            onClick={() => switchMode(m.id)}
-          >{_t(m.labelKey)}</button>
-        ))}
-      </span>
-      <div className="vsep" />
       {/* File operations have a visible home again. Phase 3 moved them all
           into the palette; opening and saving a file is not a command you go
           hunting for. The palette keeps every one of these entries — this is
@@ -3266,7 +3253,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onLoad={() => loadFromFile()}
         onSaveAs={() => saveToFile(true)}
         onSnapshots={() => setModal('snapshots')}
-        onExport={() => switchMode('report')}
+        onExport={() => setTab('report')}
         onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
@@ -3275,10 +3262,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         data-htip={withKey(_t('set.title'), 'settings')}>⚙</button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
-    <div className="tab-bar">
-      {visibleTabs.map(t => (
+    <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')}>
+      {TABS.map(t => (
         <div
           key={t.id}
+          role="tab"
+          aria-selected={tab === t.id}
           className={`tab${tab === t.id ? ' on' : ''}`}
           onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
           onClick={e => { if (e.detail === 0) setTab(t.id); }}
@@ -3353,7 +3342,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
         archiveDays={archiveDays} setArchiveDays={setArchiveDays}
         onNavigate={onSumNavigate}
-        onOpenItem={onSumOpenItem}
+        onOpenItem={onOpenItemDialog}
         onExportTodo={onSumExportTodo} /></div>}
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
         tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
@@ -3363,7 +3352,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
         customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-        onOpenItem={onBriefingOpenItem}
+        onOpenItem={onOpenItemDialog}
         onUpdate={onBriefingUpdate}
         onApplyStatus={onJiraApplyStatus}
         onExportTodo={onSumExportTodo}
@@ -3372,7 +3361,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
-        onOpenItem={onPlanReviewOpenItem}
+        onOpenItem={onOpenItemDialog}
         onUpdate={onPlanReviewUpdate} /></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -3450,7 +3439,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           cpLabels={cpLabels}
           focusId={ganttRoadmapFocus}
           onFocusChange={setGanttRoadmapFocus}
-          onOpenItem={onRoadmapOpenItem}
+          onOpenItem={onOpenItemDialog}
         />
       </div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
@@ -3489,6 +3478,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         setSel(target);
       }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'backdate' && <BackdateModal
+      value={backdate}
+      onApply={date => { setBackdate(date); setModal(null); }}
+      onClose={() => setModal(null)} />}
     {modal === 'snapshots' && <SnapshotModal
       onClose={() => setModal(null)}
       onRestore={snap => {

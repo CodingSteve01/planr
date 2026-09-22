@@ -100,24 +100,35 @@ export function leafSnapshot(tree) {
 
 // Compute the diff between two snapshots and emit events. All events share
 // the same timestamp so a single save shows up as one coherent batch.
-export function diffSnapshots(prev, curr, ts) {
+//
+// `effectiveAt` is the day the batch is meant to COUNT for, which is not
+// always the day it was written. Restructuring a package today — splitting it
+// in three, re-parenting it — is bookkeeping about work that was already
+// there, and dating it today makes this week's review read as if three tasks
+// appeared out of nowhere. Stamping the batch with an earlier day puts it
+// before the review window, where it belongs. The timestamp stays honest
+// about when the edit happened; the effective date is a separate claim about
+// when it counts, and every window filter reads the latter
+// (utils/historyView.js, `effectiveDateOfEvent`).
+export function diffSnapshots(prev, curr, ts, effectiveAt = null) {
+  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(effectiveAt || '')) ? { effectiveAt } : null;
   const events = [];
   const seen = new Set();
   for (const [id, c] of curr) {
     seen.add(id);
     const p = prev.get(id);
     if (!p) {
-      events.push({ ts, id, kind: 'added', status: c.status, progress: c.progress, ...(c.completedAt ? { completedAt: c.completedAt } : {}) });
+      events.push({ ts, id, kind: 'added', status: c.status, progress: c.progress, ...(c.completedAt ? { completedAt: c.completedAt } : {}), ...on });
       continue;
     }
     const delta = {};
     if (p.status !== c.status) delta.status = c.status;
     if (p.progress !== c.progress) delta.progress = c.progress;
     if ((p.completedAt || '') !== (c.completedAt || '') && c.completedAt) delta.completedAt = c.completedAt;
-    if (Object.keys(delta).length) events.push({ ts, id, ...delta });
+    if (Object.keys(delta).length) events.push({ ts, id, ...delta, ...on });
   }
   for (const [id] of prev) {
-    if (!seen.has(id)) events.push({ ts, id, kind: 'removed' });
+    if (!seen.has(id)) events.push({ ts, id, kind: 'removed', ...on });
   }
   return events;
 }

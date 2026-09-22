@@ -34,7 +34,6 @@ export function NewProjModal({ onCreate, onClose }) {
       best: 0,
       factor: 1.5,
       prio: toPrio(g.severity),
-      seq: (i + 1) * 10,
       deps: [],
       note: '',
       assign: [],

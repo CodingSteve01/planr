@@ -59,7 +59,7 @@ describe('Undo/redo integration', () => {
       // Since the mode shell landed, the tab bar shows only the active mode's
       // tabs — the Work Tree belongs to Build, so say so rather than relying
       // on whichever mode happens to be the default.
-      localStorage.setItem('planr_mode', 'build');
+      localStorage.setItem('planr_tab', 'tree');
     } catch { /* ignore */ }
     seedProject();
   });

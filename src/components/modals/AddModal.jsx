@@ -31,7 +31,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
     return !isDeadlineRelevantForRoot(tree, deadlineRootId, pid);
   }, [tree, pid, deadlineRootId]);
 
-  const [f, setF] = useState({ name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, seq: 10, deps: [], note: '', assign: [], type: '', severity: 'high', date: '', description: '' });
+  const [f, setF] = useState({ name: '', status: 'open', team: '', best: 0, factor: 1.5, prio: 2, deps: [], note: '', assign: [], type: '', severity: 'high', date: '', description: '' });
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
 
   const isDirty = !!f.name; // only "dirty" once user has typed something

@@ -88,14 +88,16 @@ describe('the top bar', () => {
   });
   afterEach(() => { cleanup(); delete window.__planrHost; });
 
-  it('keeps the plan counts for the modes that ask the question', async () => {
+  it('keeps the plan counts for the views that ask the question', async () => {
     const { container } = renderApp();
     await screen.findByTestId('view-filters-trigger');
-    // Build mode: two numbers nobody asked for, in the one row every mode
+    // On the tree: two numbers nobody asked for, in the one row every view
     // has to look at.
     expect(container.querySelector('.topbar-count')).toBeNull();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Review' }));
+    const overview = [...document.querySelectorAll('.tab')]
+      .find(el => (el.firstChild?.textContent || '').trim() === 'Overview');
+    fireEvent.mouseDown(overview, { button: 0 });
     expect(container.querySelector('.topbar-count')?.textContent).toMatch(/done/);
   });
 

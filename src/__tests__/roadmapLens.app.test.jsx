@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// Phase 5 (Roadmap lenses): the project roadmap, a tab of its own in Plan
-// mode, next to the Gantt.
+// Phase 5 (Roadmap lenses): the project roadmap, a tab of its own next to the
+// Gantt.
 //
 // It shipped as a chip in the filter row that opened a 380px sidebar, and
 // nobody found it — "I thought it was a separate tab". A view is not a
@@ -39,18 +39,22 @@ function renderApp() {
   );
 }
 
-// `findByRole` (not `getByRole`) because App shows a brief "Restoring project
-// context..." onboarding state while it checks for a mounted file handle —
-// the mode switch isn't in the DOM yet on the first tick.
-const goToPlanMode = async () => fireEvent.click(await screen.findByRole('tab', { name: 'Plan' }));
-const goToReviewMode = async () => fireEvent.click(await screen.findByRole('tab', { name: 'Review' }));
-// The MODE switch uses role="tab"; the view tabs below it are plain divs
-// with class "tab", so they are found by text.
-const roadmapTab = () => [...document.querySelectorAll('.tab')].find(el => el.textContent.trim() === 'Roadmap');
-const goToRoadmapTab = async () => {
-  await screen.findByText('Roadmap');
-  fireEvent.mouseDown(roadmapTab());
+// `findByText` (not `getByText`) because App shows a brief "Restoring project
+// context..." state while it checks for a mounted file handle — the tab bar
+// isn't in the DOM yet on the first tick.
+// A tab's textContent can carry a trailing "New!" badge, so match the label
+// node rather than the whole row.
+const tabNamed = name => [...document.querySelectorAll('.tab')]
+  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const goToTab = async name => {
+  // Poll the tab bar rather than the text: every view's name now appears in
+  // the bar AND inside the views themselves, so a text lookup finds several.
+  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
+  fireEvent.mouseDown(tabNamed(name));
 };
+const goToPlanMode = () => goToTab('Schedule');
+const goToReviewMode = () => goToTab('Overview');
+const goToRoadmapTab = () => goToTab('Roadmap');
 const lensPanel = () => screen.queryByTestId('roadmap-pane');
 const pickerInput = () => screen.getByTestId('gantt-roadmap-lens-picker').querySelector('input');
 
@@ -61,7 +65,7 @@ function pickProject(name) {
   fireEvent.click([...document.querySelectorAll('[data-ss-idx]')].find(row => row.textContent.includes(name)));
 }
 
-describe('Plan mode: project lens beside the Gantt', () => {
+describe('the project lens beside the Gantt', () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -76,7 +80,7 @@ describe('Plan mode: project lens beside the Gantt', () => {
     renderApp();
     await goToPlanMode();
 
-    // Plan mode offers both, as sibling tabs — not one hidden inside the other.
+    // Both are sibling tabs — not one hidden inside the other.
     // A tab label can carry a trailing "New!" badge, so match on the prefix.
     const tabLabels = [...document.querySelectorAll('.tab')].map(el => el.textContent.trim());
     expect(tabLabels).toContain('Roadmap');
@@ -280,7 +284,7 @@ describe('Plan mode: project lens beside the Gantt', () => {
   });
 });
 
-describe('Review mode: the portfolio lens has no per-project picker', () => {
+describe('the portfolio lens has no per-project picker', () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -291,7 +295,7 @@ describe('Review mode: the portfolio lens has no per-project picker', () => {
   });
   afterEach(() => { cleanup(); });
 
-  it('never renders the Plan-mode project-lens picker', async () => {
+  it('never renders the project-lens picker', async () => {
     renderApp();
     await goToReviewMode();
 

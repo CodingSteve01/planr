@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from "react";
+import { useMemo, useState, useEffect, useRef, memo } from "react";
 import { localDate, diffDays } from '../../utils/date.js';
 import { isLeafNode } from '../../utils/scheduler.js';
 import { computeAttention, attentionCounts } from '../../utils/attention.js';
@@ -87,6 +87,8 @@ function JiraSection({ title, tone, count, hint, children }) {
   );
 }
 
+export const BRIEFING_JOB_EVENT = 'planr:briefing:job';
+
 function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, confidence = {}, cpSet, cpLabels = {}, rootFilter, teamFilter, personFilter, hideDone = false, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, customFields, onOpenItem, onUpdate, onApplyStatus, onExportTodo }) {
   const { t } = useT();
 
@@ -132,6 +134,20 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
   const jiraHealth = useMemo(() => linkHealth(tree, jiraFieldId), [tree, jiraFieldId]);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [jiraText, setJiraText] = useState('');
+  // Reconciling Jira is a weekly job, and it used to live two thirds down this
+  // screen behind a collapsed section. The command opens the section and puts
+  // the cursor in the box, so the job starts with a paste.
+  const jiraBoxRef = useRef(null);
+  useEffect(() => {
+    const onJob = e => {
+      if (e.detail?.job !== 'jira') return;
+      setJiraOpen(true);
+      // One tick: the box does not exist until the section has rendered.
+      window.setTimeout(() => jiraBoxRef.current?.focus(), 0);
+    };
+    window.addEventListener(BRIEFING_JOB_EVENT, onJob);
+    return () => window.removeEventListener(BRIEFING_JOB_EVENT, onJob);
+  }, []);
   // Ids the user has *un*checked — defaulting to "all accepted" makes the
   // common case (take everything Jira says) one click; the inverted set
   // survives re-parsing the paste without resurrecting stale unchecks.
@@ -571,6 +587,8 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
           <div className="field">
             <label>{t('js.pasteLabel')}</label>
             <textarea
+              ref={jiraBoxRef}
+              data-testid="jira-paste"
               value={jiraText}
               onChange={e => setJiraText(e.target.value)}
               placeholder={t('js.pastePlaceholder')}

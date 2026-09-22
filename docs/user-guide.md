@@ -6,19 +6,26 @@ End-to-end walkthrough for planning a project in Planr. If you want the feature 
 
 Want to skip local setup? Open Planr directly: **https://codingsteve01.github.io/planr**
 
-## Modes
+## The views
 
-Before anything else: Planr has five modes, picked with the segmented control in the topbar. A mode is the state of the whole surface — which views it shows, which toolbar, which columns — not a feature toggle. Pick the one that matches what you're doing right now; the rest of this guide walks through the steps below, but you'll mostly live in one mode at a time:
+Planr is one flat row of views. Pick the one that answers the question you have:
 
-| Mode | Use it when… | Shows |
-|---|---|---|
-| **Build** | at the desk, sketching structure | Work Tree (primary), Network |
-| **Plan** | in a planning session | Schedule (primary), Planning, Resources, Holidays |
-| **Run** | daily stand-up | Briefing (primary), Overview |
-| **Review** | retro or status meeting | Overview |
-| **Report** | prepping for the steering committee | Report — the export cards, as a screen instead of a dialog |
+| View | Answers |
+|---|---|
+| **Overview** | how far along is everything — the subway map, one line per project |
+| **Work Tree** | the plan itself. The only place it is changed, and where the order of the work is set |
+| **Schedule** | when each item happens, who is on it, where it is tight |
+| **Roadmap** | one project as a calendar |
+| **Network** | how the pieces depend on each other |
+| **Planning** | what is committed, estimated or still exploratory |
+| **Briefing** | the day — what is due, who is stuck, what Jira disagrees about |
+| **Resources** | who there is, at what capacity, on and off boarding |
+| **Holidays** | when nobody is there |
+| **Report** | what leaves the building |
 
-Switching mode jumps to that mode's default view. The tab bar only shows the active mode's tabs plus whatever tab you currently have open, so following a link into a view from another mode never strands you — you can always get back. Everything that used to live in the topbar's button row (Load, Snapshots, Save as, Export…, New, Help) is one keypress away in the `/` command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any mode or view — type a few letters and press Enter.
+There were five **modes** above this row until September 2026 — Build, Plan, Run, Review, Report — each showing a subset of the tabs. They are gone: the real loop (look at the roadmap → restructure the tree → set the order → update progress → reconcile Jira) crossed four of them several times an hour, so the mode was one more thing to remember rather than one less.
+
+Everything that used to live in the topbar's button row (Load, Snapshots, Save as, Export…, New, Help) is one keypress away in the `/` command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any view — type a few letters and press Enter.
 
 ## 1. Start a project
 

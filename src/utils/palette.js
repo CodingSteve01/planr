@@ -8,6 +8,13 @@
 // in-order subsequence match ("fuzzy": every query character must appear in
 // the label in order, not necessarily adjacent) so "expt" still finds
 // "Export…". Substring matches always outrank fuzzy-only matches.
+//
+// A command may also carry `keywords`: a second, invisible set of names for
+// the word you actually reach for. "Urlaub eintragen…" is what the command
+// says in German, and somebody thinking in English types "vacation"; a job
+// whose label is a sentence ("Take somebody on…") is one noun in your head
+// ("onboard"). Keywords rank below every label match, so they never push a
+// real hit down — they only stop the palette coming up empty.
 export function filterCommands(commands, query) {
   const list = commands || [];
   const q = (query || '').trim().toLowerCase();
@@ -29,7 +36,10 @@ export function filterCommands(commands, query) {
     }
     if (qi === q.length) {
       scored.push({ cmd, tier: 1, key: l.length });
+      continue;
     }
+    const hit = (cmd.keywords || []).find(k => String(k).toLowerCase().includes(q));
+    if (hit) scored.push({ cmd, tier: 2, key: l.length });
   }
   scored.sort((a, b) => (a.tier - b.tier) || (a.key - b.key));
   return scored.map(s => s.cmd);

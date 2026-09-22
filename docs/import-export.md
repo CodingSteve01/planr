@@ -46,7 +46,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `×factor`: only if factor != 1.5
 - `NN%`: progress (only if 1–99)
 - `[assignees]`: short names, comma-separated
-- `{tags}`: `prio:N`, `seq:N` (legacy), `ord:N` (display rank), `team-lock:true`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
+- `{tags}`: `prio:N`, `ord:N` (the order of the work — see docs/scheduler.md; `seq:N` is still accepted on read from older files and ignored), `team-lock:true`, severity, `conf:committed`/`conf:estimated`/`conf:exploratory` (only when non-default)
 - `⏰decide:DATE` / `📌DATE` / `≡`: decide-by, pinned start, parallel flag
 - Sub-bullets: `*Requires: ...*` for deps (soft-deps prefixed with `~`, e.g. `~P1.2`; the pre-rename tag `*Benötigt:*` still reads correctly), `*Phases: ...*` for phases (`*Phasen:*` still reads correctly), `*Handoff: → Name (Team); → Name2*` for explicit handoff-plan stages, `*…*` for notes
 - Member sub-bullets: `*Capacity plan: YYYY-MM-DD→NN%, YYYY-MM-DD→NN%HHh/w*` and `*Meeting plan: YYYY-MM-DD→[Name Xh/freq, ...]*` for time-shifted profile changes (the pre-rename tags `*Cap-Plan:*` / `*Meeting-Plan:*` still read correctly)
@@ -83,7 +83,7 @@ Each `###` heading starts a template, numbered lines are phases. Team after ` �
 
 | Field group | JSON ↔ JSON | MD ↔ MD | JSON → MD → JSON |
 |---|---|---|---|
-| All tree item fields (name, status, team, best, factor, prio, seq, displayOrder, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, softDeps, dep-labels, teamLock, assign, note, description, phases, templateId) | ✓ | ✓ | ✓ (via name-lookup) |
+| All tree item fields (name, status, team, best, factor, prio, displayOrder, severity, progress, type, date, decideBy, pinnedStart, parallel, confidence, deps, softDeps, dep-labels, teamLock, assign, note, description, phases, templateId) | ✓ | ✓ | ✓ (via name-lookup) |
 | Member time-shifted profile (capChanges, meetingChanges) | ✓ | ✓ | ✓ |
 | Task templates | ✓ | ✓ | ✓ |
 | Member fields (name, team, role, cap, vac, start) | ✓ | ✓ | ✓ |

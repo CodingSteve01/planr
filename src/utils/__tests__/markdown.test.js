@@ -39,7 +39,7 @@ describe('buildMarkdownText: task serialisation', () => {
     expect(tagPos).toBeGreaterThan(assignPos);
   });
 
-  test('parallel + seq round-trip via metadata tags', () => {
+  test('parallel round-trips via metadata tags', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
       { id: 'P1.1', name: 'Task', team: 'T1', best: 3, factor: 1,
@@ -49,8 +49,12 @@ describe('buildMarkdownText: task serialisation', () => {
     const md = buildMarkdownText({ ...base, tree });
     const line = md.split('\n').find(l => l.includes('**P1.1**'));
     expect(line).toMatch(/parallel:true/);
-    expect(line).toMatch(/seq:42/);
     expect(line).toMatch(/📌2026-03-01/);
+    // `seq` is not written any more. It was a second, global ordering number
+    // that competed with the order of the tree; the tree decides now, and a
+    // field nothing reads has no business being written back into the plan.
+    // The parser still accepts it, so a file written before this still opens.
+    expect(line).not.toMatch(/seq:/);
   });
 
   test('derived member emits h/w; manual legacy emits %', () => {

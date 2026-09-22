@@ -51,6 +51,7 @@ export const SHORTCUTS = [
   { id: 'cursorInto', scope: 'tree', keys: ['→'], labelKey: 'sc.cursorInto' },
   { id: 'cursorOut', scope: 'tree', keys: ['←'], labelKey: 'sc.cursorOut' },
   { id: 'rename', scope: 'tree', keys: ['↵'], labelKey: 'sc.rename' },
+  { id: 'fullEdit', scope: 'tree', keys: ['E'], labelKey: 'sc.fullEdit' },
   { id: 'newChild', scope: 'tree', keys: ['⇧↵'], labelKey: 'sc.newChild' },
   // Both spellings, deliberately: ⌥←/⌥→ is the one gesture that works in the
   // grid AND inside the row editor, where Tab belongs to the form.
@@ -82,7 +83,14 @@ export const SHORTCUTS = [
   { id: 'editTeam', scope: 'treeEdit', keys: [`${ALT}T`], labelKey: 'sc.editTeam' },
   { id: 'editStatus', scope: 'treeEdit', keys: [`${ALT}Space`, `${ALT}⇧Space`], labelKey: 'sc.editStatus' },
 
-  // ── Gantt ────────────────────────────────────────────────────────────
+  // ── Schedule ─────────────────────────────────────────────────────────
+  // Deliberately the tree's keys. The schedule is where you SEE that
+  // something sits too early, so it has to be somewhere you can say so —
+  // with the same gesture, not a second vocabulary.
+  { id: 'ganttCursor', scope: 'gantt', keys: ['↑', '↓'], labelKey: 'sc.ganttCursor' },
+  { id: 'ganttOpen', scope: 'gantt', keys: ['E', '↵'], labelKey: 'sc.ganttOpen' },
+  { id: 'ganttReorder', scope: 'gantt', keys: [`${ALT}↑`, `${ALT}↓`], labelKey: 'sc.ganttReorder' },
+  { id: 'ganttReorderEnds', scope: 'gantt', keys: [`${ALT}⇧↑`, `${ALT}⇧↓`], labelKey: 'sc.ganttReorderEnds' },
   { id: 'ganttSelectAll', scope: 'gantt', keys: [`${MOD}A`], labelKey: 'sc.ganttSelectAll' },
   { id: 'ganttClear', scope: 'gantt', keys: ['Esc'], labelKey: 'sc.ganttClear' },
 ];
