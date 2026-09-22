@@ -52,6 +52,16 @@ Set it in the **Work order** view — the tab right after the work tree: one fla
 
 Flat, and that is the point. The schedule grouped by resource had the gesture for a while and it was the wrong home: there a person's work is still drawn as the project hierarchy it belongs to, which answers "what is this person carrying" and is the wrong shape for "in what order". It needed a paragraph of explanation in a header with no vertical space to spare, and its cursor could only be reached by pressing a key first — you could not click a row. The schedule keeps a read-only note on a person whose order is their own, because otherwise the bars would sit in an order nothing on screen explains.
 
+**The division of labour, in one line:** the tree sets the basic order — where a person's work sits relative to everyone else's — and their queue refines the order among their own. Measured, with Anna hand-sorted:
+
+| what you change | effect |
+|---|---|
+| tree order across different owners | follows |
+| tree order among one hand-sorted owner's own items | none — their queue names them |
+| no queue at all | the tree decides everything |
+
+The middle row is the price of an override, and the reset gives the tree back. Work the queue has never seen lands where the *plan* puts it (`reconcileQueue`), not at the back: a queue is a statement about the items it names, and for a new one the plan order is the only thing anybody has said.
+
 **The order is binding.** The queue is an input to `schedule()`, so the dates change and every view downstream reads those — the Gantt draws a task first because it is scheduled first, not because it was told to sort differently. `queueIsBinding.app.test.jsx` drives that end to end, and also checks the opposite: the tree, which knows nothing about queues, is untouched.
 
 It is stored against the person (`personQueues: { M1: [...] }`, a `planr-queues` block in the markdown) rather than as a number on every task — that is the difference from `seq`, which was a second global rank competing with the tree everywhere and propped up by a Gantt that rewrote priorities to make it stick. A hand-sorted person is marked on their own row in the schedule and reset in one click: an override nobody can see is the failure mode being avoided here.

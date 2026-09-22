@@ -49,12 +49,21 @@ export function queueOwnerOf(leaf) {
  *
  * A queue is written once and then the plan moves on: tasks get added,
  * finished, renamed, dropped. What was decided is kept, what is gone is
- * dropped, and what is new goes to the BACK — new work was not part of the
- * decision, so it must not silently jump it.
+ * dropped, and what is NEW lands where the plan puts it.
+ *
+ * That last part is the whole division of labour: the tree sets the basic
+ * order, the queue refines it for the items it names. A queue says nothing
+ * about a task it has never seen, so the plan order is the only statement
+ * anybody has made about it — appending new work to the back ignored that and
+ * broke the model for the case every plan grows into. Add a task in the tree
+ * right after A and it belongs after A here too.
+ *
+ * `ids` must arrive in plan order; the callers pass the tree's own order.
  */
 export function reconcileQueue(queue, ids) {
   const present = Array.isArray(ids) ? ids : [];
   if (!Array.isArray(queue) || !queue.length) return present;
+
   const known = new Set(present);
   const seen = new Set();
   const out = [];
@@ -63,7 +72,17 @@ export function reconcileQueue(queue, ids) {
     seen.add(id);
     out.push(id);
   }
-  for (const id of present) if (!seen.has(id)) out.push(id);
+
+  // Each newcomer follows the last item the queue already knows that comes
+  // before it in the plan — and goes first when nothing does.
+  let lastKnown = null;
+  for (const id of present) {
+    if (seen.has(id)) { lastKnown = id; continue; }
+    const at = lastKnown === null ? 0 : out.indexOf(lastKnown) + 1;
+    out.splice(at, 0, id);
+    seen.add(id);
+    lastKnown = id;
+  }
   return out;
 }
 
