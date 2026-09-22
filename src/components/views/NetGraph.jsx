@@ -343,7 +343,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onDeleteNode }) {
+function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onPickRoot = null, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onDeleteNode }) {
   const portalRoot = usePortalRoot();
   const { t } = useT();
   // Sets of leaf ids that completed / progressed in the diff window. Used to
@@ -384,6 +384,10 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   const [selId, setSelId] = useState(null);
   const [hoverId, setHoverId] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
+  // "Show it anyway" is a real answer — the graph is still there, it is just
+  // not the default, because the default should be something you can read.
+  const [showAll, setShowAll] = useState(false);
+  const roots = useMemo(() => (_treeProp || []).filter(r => !String(r.id).includes('.')), [_treeProp]);
   // Refs mirror the latest pan / zoom synchronously so rapid wheel events read
   // the freshest values inside the handler — without them, fast scrolls compute
   // off a stale closure-captured zoom and the viewport jumps.
@@ -560,6 +564,38 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
         : (onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>)}
     </div>
   </div>;
+
+  // ── Too big to draw is not the same as too big to use ────────────────────
+  // On a real plan this view drew all 404 nodes at 11% zoom: a dust cloud
+  // with nothing legible in it, and no hint that the way out was to narrow
+  // the scope rather than to zoom in. A dependency graph is readable up to a
+  // hundred-odd nodes; past that more pixels do not help.
+  //
+  // So say so, and offer the one thing that does help. The scope filter
+  // already exists — this only makes it findable at the moment it is needed,
+  // and picking a project here sets the same filter every other view reads.
+  const TOO_MANY_NODES = 140;
+  if (items.length > TOO_MANY_NODES && !isFiltered && !showAll) {
+    return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+        <span style={{ color: 'var(--tx3)' }}><Icon name="network" size={32} strokeWidth={1.4} /></span>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>
+          {t('ng.tooBigTitle', items.length)}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--tx3)', lineHeight: 1.5 }}>{t('ng.tooBigBody')}</div>
+        {onPickRoot && roots.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 4 }}>
+            {roots.map(root => (
+              <button key={root.id} type="button" className="btn btn-sec btn-sm"
+                onClick={() => onPickRoot(root.id)}>{root.name || root.id}</button>
+            ))}
+          </div>
+        )}
+        <button type="button" className="btn btn-ghost btn-xs" style={{ marginTop: 2 }}
+          onClick={() => setShowAll(true)}>{t('ng.tooBigAnyway')}</button>
+      </div>
+    </div>;
+  }
 
   if (!layout) return null;
 

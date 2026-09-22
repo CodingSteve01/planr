@@ -384,7 +384,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       {/* ══════ WORKFLOW TAB ══════ */}
       {activeNmTab === 'workflow' && <>
         {/* Manual status + progress (leaf without phases only) */}
-        {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
+        {/* Top-aligned, not bottom. A select is 34px tall and a range input
+            about 20, so aligning their BOTTOMS put the two labels above them
+            at different heights — a ragged row for no reason. */}
+        {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-start' }}>
           <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
             <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
               if (v === 'done') setF(x => {
@@ -419,19 +422,23 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             about the package. It could previously be set exactly one way —
             pressing 0 on the cursor row in the tree — which is a field most
             people never find. */}
-        <div className="field">
+        <div className="field" style={{ maxWidth: 520 }}>
           <label>{t('nm.dropLabel')}</label>
-          <button
-            type="button"
-            data-testid="drop-toggle"
-            className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
-            data-htip={t('tv.dropped')}
-            onClick={() => setF(x => ({ ...x, dropped: x.dropped ? undefined : true }))}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start' }}>
-            <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
-            {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
-          </button>
-          <span style={{ fontSize: 10.5, color: 'var(--tx3)', marginTop: 4 }}>{t('nm.dropHint')}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <button
+              type="button"
+              data-testid="drop-toggle"
+              className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
+              data-htip={t('tv.dropped')}
+              onClick={() => setF(x => ({ ...x, dropped: x.dropped ? undefined : true }))}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
+              {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
+            </button>
+            <kbd style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+              border: '1px solid var(--b2)', borderRadius: 3, padding: '1px 5px', marginTop: 4, flexShrink: 0 }}>0</kbd>
+          </div>
+          <span style={{ fontSize: 10.5, color: 'var(--tx3)', marginTop: 6, lineHeight: 1.45 }}>{t('nm.dropHint')}</span>
         </div>
 
         {isLeaf && <div ref={focusRefs.phases}><PhaseList

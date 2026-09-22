@@ -3629,6 +3629,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}
+        onPickRoot={id => { setRootFilter(id); setSearchIdx(0); }}
         onAddNode={onNetAddNode}
         onDeleteNode={onNetDeleteNode} /></Frozen></div>}
       {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
