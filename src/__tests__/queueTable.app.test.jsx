@@ -39,12 +39,13 @@ const tabNamed = name => [...document.querySelectorAll('.tab')]
 const rowIds = () => [...document.querySelectorAll('[data-queue-row]')]
   .map(el => el.getAttribute('data-queue-row'));
 
+// Its own view. Resources is where people, teams and holidays are
+// administered; "in which order does who work" is planning, and it was filed
+// under admin because that is where the person records happened to live.
 async function openWorkOrder() {
   renderApp();
-  await waitFor(() => { if (!tabNamed('Resources')) throw new Error('no tab'); });
-  await act(async () => { fireEvent.mouseDown(tabNamed('Resources'), { button: 0 }); });
-  const pill = await screen.findByTestId('rv-section-order');
-  await act(async () => { fireEvent.click(pill); });
+  await waitFor(() => { if (!tabNamed('Work order')) throw new Error('no tab'); });
+  await act(async () => { fireEvent.mouseDown(tabNamed('Work order'), { button: 0 }); });
   await waitFor(() => { if (!rowIds().length) throw new Error('no rows'); });
 }
 
@@ -58,7 +59,7 @@ describe('a person\'s work order as a table', () => {
     cleanup();
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
-    localStorage.setItem('planr_tab', 'resources');
+    localStorage.setItem('planr_tab', 'order');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
@@ -92,13 +93,56 @@ describe('a person\'s work order as a table', () => {
 
   it('says when the order is no longer the plan\'s, and gives it back', async () => {
     await openWorkOrder();
-    expect(screen.queryByTestId('rv-queue-reset-M1')).toBeNull();
+    expect(screen.queryByTestId('queue-reset-M1')).toBeNull();
 
     await press('B.1', 'ArrowUp', { altKey: true, shiftKey: true });
-    await waitFor(() => { if (!screen.queryByTestId('rv-queue-reset-M1')) throw new Error('no reset'); });
+    await waitFor(() => { if (!screen.queryByTestId('queue-reset-M1')) throw new Error('no reset'); });
 
-    await act(async () => { fireEvent.click(screen.getByTestId('rv-queue-reset-M1')); });
+    await act(async () => { fireEvent.click(screen.getByTestId('queue-reset-M1')); });
     await waitFor(() => { if (rowIds()[0] !== 'A.1') throw new Error(rowIds().join()); });
     expect(rowIds()).toEqual(['A.1', 'A.2', 'B.1']);
+  });
+});
+
+// "Weil ich ja dann auch direkt aus der Queue ggf. mal einen Task aktualisiere,
+//  anders abschätze usw."
+//
+// So the row is not a read-out with four columns. It is the tree's row: the
+// same keys do the same things, because deciding the order and adjusting what
+// you are ordering are the same sitting.
+describe('working from the queue, not just looking at it', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
+  const press = async (id, key, opts = {}) => {
+    await act(async () => { fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts }); });
+  };
+
+  it('Space cycles the status, as on a tree row', async () => {
+    await openWorkOrder();
+    expect(rowOf('A.1').getAttribute('data-status')).toBe('open');
+    await press('A.1', ' ');
+    await waitFor(() => { if (rowOf('A.1').getAttribute('data-status') === 'open') throw new Error('unchanged'); });
+  });
+
+  it('1-4 sets the priority', async () => {
+    await openWorkOrder();
+    await press('A.2', '1');
+    await waitFor(() => { if (rowOf('A.2').getAttribute('data-prio') !== '1') throw new Error('unchanged'); });
+  });
+
+  it('E opens the full editor for the row under the cursor', async () => {
+    await openWorkOrder();
+    await press('B.1', 'e');
+    const dialog = await screen.findByTestId('node-modal');
+    expect(dialog.getAttribute('data-node-id')).toBe('B.1');
   });
 });

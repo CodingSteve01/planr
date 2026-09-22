@@ -5,8 +5,6 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 import { deriveCap, capBreakdown, FTE_HOURS, sumMeetingHours, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
-import { leafNodes } from '../../utils/scheduler.js';
-import { assigneeOf, reconcileQueue } from '../../utils/personQueue.js';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function initials(name) {
@@ -528,91 +526,7 @@ function weekNum(d) {
 /* ─── Main component ──────────────────────────────────────────────────── */
 export const RES_JOB_EVENT = 'planr:resources:job';
 
-// One person's order of work, as a list you can put in order.
-//
-// The gesture existed only on the schedule, on a Gantt bar, in a grouping you
-// had to find first. That is a good place to NOTICE that something sits too
-// early and a poor one to sit down and put ten things in order: the bars are
-// about time, and reordering is about sequence.
-//
-// So: the tree's shape and the tree's keys. ⌥↑↓ one place, ⌥⇧↑↓ to either end.
-// It is the same act on a different list, and a second vocabulary for it would
-// be the thing to avoid.
-function WorkOrder({ members, teams, tree, personQueues, onQueueReorder, onQueueReset, t }) {
-  const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
-  const byPerson = useMemo(() => {
-    const out = new Map();
-    for (const node of tree) {
-      if (!leafIds.has(node.id)) continue;
-      const person = assigneeOf(node);
-      if (!person) continue;
-      if (!out.has(person)) out.set(person, []);
-      out.get(person).push(node);
-    }
-    return out;
-  }, [tree, leafIds]);
-
-  const onKeyDown = (e, id) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey) return;
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault();
-    const dir = e.shiftKey
-      ? (e.key === 'ArrowDown' ? 'last' : 'first')
-      : (e.key === 'ArrowDown' ? 'down' : 'up');
-    onQueueReorder?.(id, dir);
-  };
-
-  const withWork = members.filter(m => (byPerson.get(m.id) || []).length > 1);
-  if (!withWork.length) {
-    return <p className="helper" style={{ fontSize: 12 }}>{t('rv.workOrderEmpty')}</p>;
-  }
-
-  return <>
-    <p className="helper" style={{ fontSize: 11, marginTop: 0, marginBottom: 14 }}>{t('rv.workOrderHelp')}</p>
-    {withWork.map(member => {
-      const ordered = reconcileQueue(personQueues?.[member.id], (byPerson.get(member.id) || []).map(n => n.id));
-      const nodeById = new Map((byPerson.get(member.id) || []).map(n => [n.id, n]));
-      const sorted = !!personQueues?.[member.id];
-      const team = teams.find(tm => tm.id === member.team);
-      return <div key={member.id} style={{ marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
-          <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>{initials(member.name || member.id)}</span>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{member.name || member.id}</span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{ordered.length}</span>
-          {sorted && <>
-            <span style={{ fontSize: 9, color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3, padding: '0 5px' }}
-              data-htip={t('g.queueSortedTip')}>{t('g.queueSorted')}</span>
-            <button type="button" className="btn btn-ghost btn-xs" data-testid={`rv-queue-reset-${member.id}`}
-              data-htip={t('g.queueReset')} onClick={() => onQueueReset?.(member.id)}
-              style={{ padding: '1px 6px', fontSize: 10 }}>{t('g.queueReset')}</button>
-          </>}
-        </div>
-        <table className="res-table">
-          <colgroup><col style={{ width: 34 }} /><col style={{ width: 90 }} /><col /><col style={{ width: 120 }} /></colgroup>
-          <tbody>
-            {ordered.map((id, i) => {
-              const node = nodeById.get(id);
-              if (!node) return null;
-              const root = tree.find(r => r.id === id.split('.')[0]);
-              return <tr key={id}
-                data-queue-row={id}
-                tabIndex={0}
-                onKeyDown={e => onKeyDown(e, id)}
-                style={{ outline: 'none' }}>
-                <td className="res-row-meta" style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{i + 1}</td>
-                <td className="res-row-meta" style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{id}</td>
-                <td className="res-row-name">{node.name || id}</td>
-                <td className="res-row-meta" style={{ opacity: .7 }}>{root?.name || ''}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
-      </div>;
-    })}
-  </>;
-}
-
-function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], scheduled = [], weeks = [], personQueues = null, onQueueReorder, onQueueReset, onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], scheduled = [], weeks = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
@@ -743,7 +657,6 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           ['teams', `${t('rv.teams')} (${fTeams.length})`],
           ['members', `${t('rv.members')} (${fMembers.length})`],
           ['vacations', `${t('rv.vacations')} (${fVacations.length})`],
-          ['order', t('rv.workOrder')],
         ].map(([k, l]) =>
           <button key={k} data-testid={`rv-section-${k}`} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
             style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
@@ -906,10 +819,6 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
       </>)}
 
       {/* ═══════════════ VACATIONS ═══════════════ */}
-      {section === 'order' && <WorkOrder
-        members={fMembers} teams={teams} tree={tree}
-        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset} t={t} />}
-
       {section === 'vacations' && (<>
         <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>

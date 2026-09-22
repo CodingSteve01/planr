@@ -8,7 +8,7 @@ import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
-import { assigneeOf, moveInQueue, reconcileQueue } from './utils/personQueue.js';
+import { moveInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
@@ -40,6 +40,7 @@ import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
+import { WorkOrderView } from './components/views/WorkOrderView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
 import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
@@ -2782,9 +2783,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
   const onQueueReorder = useStableCallback((taskId, direction) => {
     const node = tree.find(r => r.id === taskId);
-    const person = assigneeOf(node);
+    const person = queueOwnerOf(node);
     if (!person) return;
-    const mine = leaves.filter(l => assigneeOf(l) === person).map(l => l.id);
+    const mine = leaves.filter(l => queueOwnerOf(l) === person).map(l => l.id);
     if (mine.length < 2) return;
     mutate(d => {
       const queues = d.personQueues || {};
@@ -3516,10 +3517,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
         onDeleteNode={onNetDeleteNode} /></div>}
+      {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><WorkOrderView
+        tree={tree} members={members} teams={teams} sizes={data?.sizes || []}
+        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
+        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
         tree={tree} scheduled={scheduled} weeks={weeks}
-        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
         teamFilter={teamFilter} personFilter={personFilter}
         onMeetingPlansUpd={onResMeetingPlansUpd}
         onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}

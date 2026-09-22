@@ -26,6 +26,7 @@ export const TAB_IDS = [
   'roadmap',    // one project, as a calendar
   'net',        // how it hangs together
   'plan',       // planning review
+  'order',      // in which order does who work
   'briefing',   // the day
   'resources',  // who there is
   'holidays',   // when nobody is there

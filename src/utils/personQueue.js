@@ -20,10 +20,28 @@
 // good intentions — it is scope. A queue belongs to one person, orders only
 // their own work, and can be handed back ("reset to plan order") in one click.
 
-/** Whose queue a task belongs to: the first assignee, or nobody. */
+/** The first assignee, or nobody. */
 export function assigneeOf(leaf) {
   const assign = leaf?.assign;
   return Array.isArray(assign) && assign.length ? assign[0] : null;
+}
+
+/**
+ * Whose order this item belongs to: the person on it, or failing that the
+ * team it sits with.
+ *
+ * Early in a plan most items have a team and nobody on them yet, and those are
+ * exactly the ones where "which of these first" matters most — the scheduler
+ * puts them in that team's slots, so the team is who the order belongs to.
+ * One mechanism and one map rather than a second kind of queue: assigning
+ * somebody simply moves the item out of the team's queue and into theirs,
+ * which is also the right answer, because it now has an owner.
+ */
+export function queueOwnerOf(leaf) {
+  const person = assigneeOf(leaf);
+  if (person) return person;
+  const team = leaf?.team;
+  return team ? `team:${team}` : null;
 }
 
 /**
@@ -68,7 +86,7 @@ export function applyPersonQueues(leaves, queues) {
     const slots = [];
     const byId = new Map();
     list.forEach((leaf, i) => {
-      if (assigneeOf(leaf) !== personId) return;
+      if (queueOwnerOf(leaf) !== personId) return;
       slots.push(i);
       byId.set(leaf.id, leaf);
     });

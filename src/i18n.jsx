@@ -31,7 +31,7 @@ const en = {
   'tab.summary': 'Overview', 'tab.briefing': 'Briefing', 'tab.plan': 'Planning', 'tab.tree': 'Work Tree',
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
   'tab.roadmap': 'Roadmap',
-  'tab.report': 'Report', 'tab.barLabel': 'Views',
+  'tab.report': 'Report', 'tab.order': 'Work order', 'tab.barLabel': 'Views',
 
   // ── Modes ── (docs/principles.md, principle 1 — tooltips take their
   // wording from that document's mode table)
@@ -917,6 +917,9 @@ const en = {
   'g.group.threadTip': 'Chains of dependent work, followed end to end.',
   'g.queueHint': 'Move a task in this person\u2019s own order of work',
   'g.queueHintTip': 'Grouped by resource you are looking at one person\u2019s queue, not the plan. Moving a task here changes only their order — it is the one way to put work from one project ahead of another\u2019s, which the tree cannot do. Dependencies and pinned dates still win.',
+  'wo.help': 'What each person does, in the order they will do it. The rows are the tree\u2019s rows — Space cycles status, 1–4 priority, S M L X size, E opens the full editor. This is the one place a task can be pulled ahead of another project\u2019s; dependencies and pinned dates still win.',
+  'wo.empty': 'Nobody and no team has two or more tasks yet — an order needs something to order.',
+  'wo.unassigned': 'nobody assigned yet',
   'rv.workOrder': 'Work order',
   'rv.workOrderHelp': 'What each person does, in the order they will do it. ⌥↑ / ⌥↓ moves a task one place, ⌥⇧↑ / ⌥⇧↓ to either end — the same keys as in the tree. This is the one place a task can be pulled ahead of another project\u2019s; dependencies and pinned dates still win.',
   'rv.workOrderEmpty': 'Nobody has two or more tasks assigned yet — an order needs something to order.',
@@ -1094,7 +1097,7 @@ const de = {
   'tab.summary': 'Übersicht', 'tab.briefing': 'Briefing', 'tab.plan': 'Planung', 'tab.tree': 'Arbeitspakete',
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
   'tab.roadmap': 'Roadmap',
-  'tab.report': 'Bericht', 'tab.barLabel': 'Ansichten',
+  'tab.report': 'Bericht', 'tab.order': 'Reihenfolge', 'tab.barLabel': 'Ansichten',
 
   // ── Modi ── (docs/principles.md, Prinzip 1 — Tooltips übernehmen den
   // Wortlaut aus der Mode-Tabelle dort)
@@ -1980,6 +1983,9 @@ const de = {
   'g.group.threadTip': 'Ketten voneinander abhängiger Arbeit, von Anfang bis Ende.',
   'g.queueHint': 'Aufgabe in der eigenen Reihenfolge dieser Person verschieben',
   'g.queueHintTip': 'Nach Ressource gruppiert siehst du die Warteschlange einer Person, nicht den Plan. Eine Aufgabe hier zu verschieben ändert nur ihre Reihenfolge — und ist der einzige Weg, Arbeit aus einem Projekt vor die eines anderen zu ziehen, was der Tree nicht kann. Abhängigkeiten und feste Termine gehen weiterhin vor.',
+  'wo.help': 'Was jede Person tut, in der Reihenfolge, in der sie es tun wird. Die Zeilen sind die Zeilen des Trees — Leertaste schaltet den Status, 1–4 Priorität, S M L X Größe, E öffnet den vollen Editor. Das ist der eine Ort, an dem eine Aufgabe vor die eines anderen Projekts gezogen werden kann; Abhängigkeiten und feste Termine gehen weiterhin vor.',
+  'wo.empty': 'Noch hat weder eine Person noch ein Team zwei oder mehr Aufgaben — eine Reihenfolge braucht etwas zu ordnen.',
+  'wo.unassigned': 'noch niemandem zugewiesen',
   'rv.workOrder': 'Reihenfolge',
   'rv.workOrderHelp': 'Was jede Person tut, in der Reihenfolge, in der sie es tun wird. ⌥↑ / ⌥↓ verschiebt eine Aufgabe um einen Platz, ⌥⇧↑ / ⌥⇧↓ ganz nach vorne oder hinten — dieselben Tasten wie im Tree. Das ist der eine Ort, an dem eine Aufgabe vor die eines anderen Projekts gezogen werden kann; Abhängigkeiten und feste Termine gehen weiterhin vor.',
   'rv.workOrderEmpty': 'Noch hat niemand zwei oder mehr Aufgaben zugewiesen — eine Reihenfolge braucht etwas zu ordnen.',

@@ -15,7 +15,7 @@
 // without a hand-sorted queue is exactly as they were.
 
 import { describe, test, expect } from 'vitest';
-import { reconcileQueue, applyPersonQueues, assigneeOf, moveInQueue } from '../personQueue.js';
+import { reconcileQueue, applyPersonQueues, assigneeOf, queueOwnerOf, moveInQueue } from '../personQueue.js';
 import { buildMarkdownText } from '../markdown.js';
 
 const leaf = (id, person) => ({ id, assign: person ? [person] : [] });
@@ -133,5 +133,49 @@ describe('a queue in the file', () => {
       meta: { name: 'Queue', planStart: '2026-01-01', planEnd: '2027-01-01' },
     });
     expect(md).not.toContain('planr-queues');
+  });
+});
+
+// "Wie geht das mit WorkItems die nur einem Team zugeordnet sind usw?"
+//
+// It did not. The queue keyed on the first assignee, so an item with a team
+// and nobody on it had no queue to be in — and those are exactly the items a
+// plan has most of early on, when the question "which of these first" matters
+// most. The scheduler puts them in that team's slots, so the team is who the
+// order belongs to.
+//
+// One mechanism, one map: the owner is the person if there is one, otherwise
+// the team. Not a second kind of queue with its own rules.
+describe('who an item\'s order belongs to', () => {
+  test('the person, when somebody is on it', () => {
+    expect(queueOwnerOf({ assign: ['M1'], team: 'T1' })).toBe('M1');
+  });
+
+  test('the team, when nobody is', () => {
+    expect(queueOwnerOf({ assign: [], team: 'T1' })).toBe('team:T1');
+  });
+
+  test('nobody, when there is neither', () => {
+    expect(queueOwnerOf({ assign: [], team: '' })).toBeNull();
+    expect(queueOwnerOf({})).toBeNull();
+  });
+
+  test('a team queue orders the team\'s own work, and nothing else', () => {
+    const rows = [
+      { id: 'A.1', assign: [], team: 'T1' },
+      { id: 'X.1', assign: ['M1'], team: 'T1' },
+      { id: 'A.2', assign: [], team: 'T1' },
+    ];
+    const out = applyPersonQueues(rows, { 'team:T1': ['A.2', 'A.1'] });
+    // The team's two slots (0 and 2) swap; the assigned row does not move.
+    expect(out.map(r => r.id)).toEqual(['A.2', 'X.1', 'A.1']);
+  });
+
+  test('assigning somebody takes the item out of the team\'s queue', () => {
+    // Otherwise a stale team queue would keep ordering work that has an owner
+    // now — two queues quietly claiming the same task.
+    const rows = [{ id: 'A.1', assign: ['M1'], team: 'T1' }, { id: 'A.2', assign: [], team: 'T1' }];
+    const out = applyPersonQueues(rows, { 'team:T1': ['A.2', 'A.1'] });
+    expect(out.map(r => r.id)).toEqual(['A.1', 'A.2']);
   });
 });
