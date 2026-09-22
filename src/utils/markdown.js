@@ -234,5 +234,22 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     }
   }
 
+  // Per-person work order (utils/personQueue.js). The plan's order is the
+  // tree's; this is the one override, and it belongs to a person rather than
+  // being smeared over the tasks — so it is one line per person here, not a
+  // number on every item.
+  if (data?.personQueues && typeof data.personQueues === 'object') {
+    const entries = Object.entries(data.personQueues)
+      .filter(([, ids]) => Array.isArray(ids) && ids.length > 1);
+    if (entries.length) {
+      md += `\n## Work order\n\n<!-- Auto-generated. One line per person: their own order of work, which overrides the plan order for their tasks only. -->\n\n`;
+      md += '```planr-queues\nv1\n';
+      entries.forEach(([personId, ids]) => {
+        md += `${personId} ${ids.join(' ')}\n`;
+      });
+      md += '```\n';
+    }
+  }
+
   return md;
 }

@@ -3,6 +3,7 @@ import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
 import { deriveCap, memberAtDate } from './capacity.js';
 import { treeOrderRank } from './displayOrder.js';
+import { applyPersonQueues } from './personQueue.js';
 // Cyclic by design: progress.js needs leafProgress/scheduleEffort from here and
 // treeStats needs the one aggregate formula from there. Both sides only touch
 // the other at call time, so the cycle resolves cleanly.
@@ -271,7 +272,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   // capacity has to be on the books before auto-assigned work is placed, or
   // both land in the same window on the same person.
   const rank = treeOrderRank(tree);
-  const sv = [...lvs].sort((a, b) => {
+  const inPlanOrder = [...lvs].sort((a, b) => {
     const aPinned = a.pinnedStart ? 0 : 1;
     const bPinned = b.pinnedStart ? 0 : 1;
     if (aPinned !== bPinned) return aPinned - bPinned;
@@ -279,6 +280,13 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const bRank = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
     return aRank - bRank || a.id.localeCompare(b.id);
   });
+  // …and then the one override. Depth-first makes a project a block, which is
+  // right until two projects run at once and one person is on both: there is
+  // no move in the tree that says "this one task from B, first", because the
+  // two are not siblings. A person's queue permutes only the slots their own
+  // work already holds in the order above — see utils/personQueue.js for why
+  // that scope is the whole point.
+  const sv = applyPersonQueues(inPlanOrder, options.personQueues);
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {
     const r = iMap[id]; if (!r) return [];

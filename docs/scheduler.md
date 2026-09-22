@@ -42,6 +42,16 @@ Pinned tasks are considered first, and that is mechanics rather than intent: the
 
 `seq` is gone as an input. It is still parsed from older plan files and ignored; it is no longer written.
 
+### The one override: a person's own order
+
+Depth-first makes a project a **block**. That is right until two projects run at once and one person is on both: she does all of A and then all of B, and there is no move in the tree that says "this one task from B, first" — the two are not siblings, so the only order between them is their projects'.
+
+A person's queue ([`personQueue.js`](../src/utils/personQueue.js)) is the single override for that, and it is deliberately the narrowest one that answers the question: it permutes **only the slots that person's own work already holds** in the plan order. Nobody else's work moves, the plan's order is untouched, and dependencies and pinned dates still win, because those are facts rather than preferences.
+
+Set it where you can see it: the schedule grouped **by resource** is one person's order of work, so `⌥↑↓` and a vertical bar drag move the task in *their queue*. Grouped by project you are looking at the plan, so the same gesture moves it in the tree. One gesture, and it rearranges the list you are looking at.
+
+It is stored against the person (`personQueues: { M1: [...] }`, a `planr-queues` block in the markdown) rather than as a number on every task — that is the difference from `seq`, which was a second global rank competing with the tree everywhere and propped up by a Gantt that rewrote priorities to make it stick. A hand-sorted person is marked on their own row in the schedule and reset in one click: an override nobody can see is the failure mode being avoided here.
+
 ### 4. Inherit deps from ancestors
 
 A parent's `deps` block every leaf under it. Example: if `P1` depends on `D1`, all of `P1.1`, `P1.2.3`, etc. inherit that dependency. This is intentional — it lets you gate a whole sub-project on a single prerequisite.

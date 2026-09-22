@@ -8,6 +8,7 @@ import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
+import { assigneeOf, moveInQueue, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildHMap, computeNRW } from './utils/holidays.js';
@@ -763,6 +764,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // Roadmap-assignment fenced-block accumulator: lines between
     // ```planr-roadmap and ``` (see `## Roadmap` section).
     let roadmapBlockLines = null;
+    // ```planr-queues — one line per person: their own order of work.
+    let queueBlockLines = null;
 
     lines.forEach(line => {
       // Heading switches section
@@ -782,6 +785,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
         else if (lower === 'history') { section = 'history'; historyBlockLines = null; }
         else if (lower === 'roadmap') { section = 'roadmap'; roadmapBlockLines = null; }
+        else if (lower === 'work order') { section = 'queues'; queueBlockLines = null; }
         else if (section === 'meetingplans' && hm[0].startsWith('###')) {
           currentMeetingPlan = { id: 'mp_' + Date.now() + parsedMeetingPlans.length, name: h, meetings: [] };
           parsedMeetingPlans.push(currentMeetingPlan);
@@ -817,6 +821,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         if (fenceClose && roadmapBlockLines != null) { roadmapBlockLines.push(null); return; }
         if (roadmapBlockLines != null && roadmapBlockLines[roadmapBlockLines.length - 1] !== null) {
           roadmapBlockLines.push(line);
+        }
+        return;
+      }
+
+      // Per-person work order: same fenced-block pattern again.
+      if (section === 'queues') {
+        const fenceOpen = /^\s*```planr-queues\s*$/i.test(line);
+        const fenceClose = /^\s*```\s*$/.test(line);
+        if (fenceOpen) { queueBlockLines = []; return; }
+        if (fenceClose && queueBlockLines != null) { queueBlockLines.push(null); return; }
+        if (queueBlockLines != null && queueBlockLines[queueBlockLines.length - 1] !== null) {
+          queueBlockLines.push(line);
         }
         return;
       }
@@ -1336,6 +1352,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       });
       if (Object.keys(out).length) roadmapAssignment = out;
     }
+    // Per-person work order — "M1 B.1 A.1" inside ```planr-queues.
+    let personQueues = null;
+    if (queueBlockLines && queueBlockLines.length) {
+      const out = {};
+      queueBlockLines.filter(l => l !== null).forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 3 || parts[0] === 'v1') return;
+        out[parts[0]] = parts.slice(1);
+      });
+      if (Object.keys(out).length) personQueues = out;
+    }
     return {
       meta: metaObj, teams: teamsArr, members: mems, tree,
       vacations: normalizedVacations, holidays: holidaysArr,
@@ -1344,6 +1371,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       ...(parsedMeetingPlans.length ? { meetingPlans: parsedMeetingPlans } : {}),
       ...(historyEvents.length ? { historyEvents } : {}),
       ...(roadmapAssignment ? { roadmapAssignment } : {}),
+      ...(personQueues ? { personQueues } : {}),
     };
   }
 
@@ -1571,9 +1599,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return { ...m, meetings: effective };
     });
   }, [members, data?.meetingPlans, data?.teams]);
+  // A person's own order of work, when they have one. The plan's order is the
+  // tree's; this is the single override, and it only permutes the slots that
+  // person's work already holds (utils/personQueue.js).
+  const personQueues = data?.personQueues || null;
   const { results: scheduled, weeks } = useMemo(() => {
     if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart);
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues });
     // Trim weeks to the actual horizon when planEnd wasn't user-set:
     // latest scheduled endD + padding. Falls back to a 6-month
     // window when nothing is scheduled so the Gantt isn't empty.
@@ -1588,7 +1620,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       : new Date(new Date().getFullYear(), new Date().getMonth() + 6, 1);
     const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
     return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };
-  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd]);
+  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -2735,6 +2767,33 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onGanttRemoveDep = useStableCallback((...a) => removeDep(...a));
   const onGanttAddDep = useStableCallback((...a) => addDep(...a));
   const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
+  // Move a task within its assignee's own queue. The plan's order is the
+  // tree's and this does not touch it: the queue permutes only the slots that
+  // person's work already holds (utils/personQueue.js). It is stored against
+  // the person for the same reason — a rank smeared over every task is what
+  // `seq` was, and what competed with the tree everywhere.
+  const onQueueReset = useStableCallback(personId => {
+    mutate(d => {
+      const queues = d.personQueues || {};
+      if (!queues[personId]) return d;
+      const { [personId]: _gone, ...rest } = queues;
+      return { ...d, personQueues: Object.keys(rest).length ? rest : undefined };
+    });
+  });
+  const onQueueReorder = useStableCallback((taskId, direction) => {
+    const node = tree.find(r => r.id === taskId);
+    const person = assigneeOf(node);
+    if (!person) return;
+    const mine = leaves.filter(l => assigneeOf(l) === person).map(l => l.id);
+    if (mine.length < 2) return;
+    mutate(d => {
+      const queues = d.personQueues || {};
+      const current = reconcileQueue(queues[person], mine);
+      const next = moveInQueue(current, taskId, direction);
+      if (next.join() === current.join() && queues[person]) return d;
+      return { ...d, personQueues: { ...queues, [person]: next } };
+    });
+  });
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   // Clicking an item — anywhere — opens that item's own edit dialog. The same
   // one a Gantt bar and a graph node open, because it is the same question:
@@ -3423,7 +3482,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       </div>}
       {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
         <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
-          <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
+          <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
         </div>
       </div>}
       {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
