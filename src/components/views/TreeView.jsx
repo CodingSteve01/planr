@@ -973,7 +973,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             {/* Name column — flex container so badges wrap as a single trailing
                 group instead of breaking individually under the name when the row
                 runs out of horizontal space. */}
-            <td style={{ whiteSpace: 'normal' }}>
+            <td data-col="name" style={{ whiteSpace: 'normal' }}>
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
               <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
@@ -1097,9 +1097,33 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
               {/* Team — small colored dot + name (subtle). Suppressed when team equals
                   the inherited parent team to avoid repeating the same label down a subtree. */}
-              {tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
+{/* Collapsed children count */}
+              {/* Collapsed leaf count comes from stats, which is built on the
+                  UNFILTERED tree. Counting the local `tree` prop instead
+                  reported the post-filter remainder ("30 leafs" for a 51-leaf
+                  package with hide-done on) next to a full-tree percentage. */}
+              {isCollapsed && (() => {
+                const visibleLeaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length;
+                const allLeaves = s._leafCount ?? visibleLeaves;
+                return <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                  data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}>
+                  {t('tv.leafCount', allLeaves)}{visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''}
+                </span>;
+              })()}
 
-              {/* Assignees — initials, with handoff chain appended when the
+              </div>
+            </td>
+
+            {/* Team, who, and the signals: a column each, so a row with
+                nothing to show still occupies the same slots and the columns
+                after it do not move. This is the whole fix — everything here
+                used to trail behind the name with `marginLeft: 8`, eleven
+                optional things deep, and no two rows ended in the same place. */}
+            <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+{tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
+            </td>
+            <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'var(--mono)' }}>
+{/* Assignees — initials, with handoff chain appended when the
                   scheduler split work across multiple people. */}
               {assignees.length > 0 && (() => {
                 const sc = sMap[r.id];
@@ -1122,27 +1146,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               })()}
 
               {/* Priority — chevron icon for all leaves */}
-              {isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
+            </td>
+            <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+{isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
 
               {/* Severity for roots */}
-              {d === 1 && r.severity && r.severity !== 'high' && <span style={{ marginLeft: 8, fontSize: 10, color: r.severity === 'critical' ? 'var(--re)' : 'var(--am)', fontWeight: 600, textTransform: 'uppercase' }}>{r.severity}</span>}
-
-              {/* Deadline / decide-by / due dates — color carries semantics
-                  (red = overdue, amber = warn, dim = informational). No leading
-                  emoji; tooltip explains the kind. */}
-              {d === 1 && r.date && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} data-htip={t('tv.dateTip', r.date)}>{r.date}</span>}
-
-              {r.decideBy && <span style={{ marginLeft: 8, fontSize: 10, color: new Date(r.decideBy) < new Date() && r.status !== 'done' ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)' }} data-htip={t('tv.decideByTip', r.decideBy)}>{r.decideBy}</span>}
-
-              {r.due && (() => {
-                const sc = sMap[r.id];
-                const overdue = !!sc?.dueOverdue;
-                const endIso = sc?.endD ? (sc.endD instanceof Date ? sc.endD.toISOString().slice(0, 10) : String(sc.endD).slice(0, 10)) : '';
-                return <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? 'var(--re)' : 'var(--am)', fontFamily: 'var(--mono)', fontWeight: overdue ? 700 : 400 }}
-                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>{r.due}</span>;
-              })()}
-
-              {/* Diff-since badge (newly done / new leaf / progress jump) */}
+{/* Diff-since badge (newly done / new leaf / progress jump) */}
               {diffBadge && <span data-htip={diffBadge.tip}
                 style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
                   background: diffBadge.kind === 'new' ? '#f59e0b'
@@ -1150,8 +1159,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                     : 'rgba(245,158,11,.85)',
                   color: '#1a1a1a',
                   fontFamily: 'var(--mono)' }}>{diffBadge.label}</span>}
-
-              {/* Custom field indicator — show link icon if any uri field has a value */}
+{/* Custom field indicator — show link icon if any uri field has a value */}
               {customFields?.length > 0 && (() => {
                 const vals = r.customValues || {};
                 const filledUriFields = customFields.filter(cf => cf.type === 'uri' && vals[cf.id]);
@@ -1166,25 +1174,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   {filledUriFields.length > 0 && '↗'}{filledOtherFields.length > 0 && filledUriFields.length === 0 && '·'}
                 </span>;
               })()}
-
-              {/* Collapsed children count */}
-              {/* Collapsed leaf count comes from stats, which is built on the
-                  UNFILTERED tree. Counting the local `tree` prop instead
-                  reported the post-filter remainder ("30 leafs" for a 51-leaf
-                  package with hide-done on) next to a full-tree percentage. */}
-              {isCollapsed && (() => {
-                const visibleLeaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length;
-                const allLeaves = s._leafCount ?? visibleLeaves;
-                return <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
-                  data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}>
-                  ({allLeaves} leafs{visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''})
-                </span>;
-              })()}
-
-              </div>
-              {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             </td>
-
+              {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             {/* Effort: single number (realistic days) */}
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{effortDays}</td>
 
@@ -1192,7 +1183,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
 
             {/* Schedule range — start to end */}
-            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+            <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+              {/* A due date is a date, so it belongs in the column about dates,
+                  and it turns red once the schedule runs past it. Behind the
+                  name it was one more thing pushing the next marker sideways. */}
+              {r.due && (() => {
+                const endIso = scheduleRangeById[r.id]?.end || null;
+                const overdue = r.status !== 'done' && endIso && endIso > r.due;
+                return <span style={{ marginRight: 6, color: overdue ? 'var(--re)' : 'var(--am)', fontWeight: overdue ? 700 : 400 }}
+                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>⏱{fmtDate(localDate(r.due))} ·</span>;
+              })()}
               {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && <>{fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}</>}
             </td>
 
@@ -1289,6 +1289,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       <thead><tr>
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{showIds ? 'ID' : ''}</th>
         <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>{t('col.name')}</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.team')}</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.who')}</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.signal')}</th>
         <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.effort')}</th>
         <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.schedule')}</th>

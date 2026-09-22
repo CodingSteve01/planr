@@ -33,6 +33,8 @@ const en = {
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Report', 'tab.order': 'Work order', 'tab.barLabel': 'Views',
   'col.name': 'Name', 'col.effort': 'Effort', 'col.schedule': 'Schedule', 'col.item': 'Item',
+  'col.team': 'Team', 'col.who': 'Who', 'col.signal': 'Signal',
+  'tv.leafCount': '({0} tasks)',
 
   // ── Modes ── (docs/principles.md, principle 1 — tooltips take their
   // wording from that document's mode table)
@@ -922,6 +924,9 @@ const en = {
   'wo.empty': 'Nobody and no team has two or more tasks yet — an order needs something to order.',
   'wo.unassigned': 'nobody assigned yet',
   'wo.dragTip': 'Drag the row onto the place it should take.',
+  'wo.groupTip': 'Move the whole package — its items travel together and keep their order.',
+  'wo.autoWho': 'Picked by the schedule, not assigned by you — whoever comes free first. Reorder the team\u2019s queue and this can change.',
+  'wo.fixedWho': 'Assigned to this person.',
   'rv.workOrder': 'Work order',
   'rv.workOrderHelp': 'What each person does, in the order they will do it. ⌥↑ / ⌥↓ moves a task one place, ⌥⇧↑ / ⌥⇧↓ to either end — the same keys as in the tree. This is the one place a task can be pulled ahead of another project\u2019s; dependencies and pinned dates still win.',
   'rv.workOrderEmpty': 'Nobody has two or more tasks assigned yet — an order needs something to order.',
@@ -1101,6 +1106,8 @@ const de = {
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Bericht', 'tab.order': 'Reihenfolge', 'tab.barLabel': 'Ansichten',
   'col.name': 'Name', 'col.effort': 'Aufwand', 'col.schedule': 'Zeitraum', 'col.item': 'Eintrag',
+  'col.team': 'Team', 'col.who': 'Wer', 'col.signal': 'Signal',
+  'tv.leafCount': '({0} Aufgaben)',
 
   // ── Modi ── (docs/principles.md, Prinzip 1 — Tooltips übernehmen den
   // Wortlaut aus der Mode-Tabelle dort)
@@ -1990,6 +1997,9 @@ const de = {
   'wo.empty': 'Noch hat weder eine Person noch ein Team zwei oder mehr Aufgaben — eine Reihenfolge braucht etwas zu ordnen.',
   'wo.unassigned': 'noch niemandem zugewiesen',
   'wo.dragTip': 'Zeile auf den Platz ziehen, den sie einnehmen soll.',
+  'wo.groupTip': 'Das ganze Paket verschieben — seine Einträge wandern zusammen und behalten ihre Reihenfolge.',
+  'wo.autoWho': 'Vom Zeitplan gewählt, nicht von dir zugewiesen — wer zuerst frei wird. Änderst du die Reihenfolge des Teams, kann sich das ändern.',
+  'wo.fixedWho': 'Dieser Person fest zugewiesen.',
   'rv.workOrder': 'Reihenfolge',
   'rv.workOrderHelp': 'Was jede Person tut, in der Reihenfolge, in der sie es tun wird. ⌥↑ / ⌥↓ verschiebt eine Aufgabe um einen Platz, ⌥⇧↑ / ⌥⇧↓ ganz nach vorne oder hinten — dieselben Tasten wie im Tree. Das ist der eine Ort, an dem eine Aufgabe vor die eines anderen Projekts gezogen werden kann; Abhängigkeiten und feste Termine gehen weiterhin vor.',
   'rv.workOrderEmpty': 'Noch hat niemand zwei oder mehr Aufgaben zugewiesen — eine Reihenfolge braucht etwas zu ordnen.',

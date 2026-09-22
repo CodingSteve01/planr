@@ -2791,20 +2791,25 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return { ...d, personQueues: Object.keys(rest).length ? rest : undefined };
     });
   });
-  const onQueueReorder = useStableCallback((taskId, direction) => {
-    const node = tree.find(r => r.id === taskId);
+  const onQueueReorder = useStableCallback((taskIds, direction) => {
+    // One id or a selection. The owner is taken from the first — a selection
+    // spanning two owners is not one move, and the rest is ignored rather than
+    // half-applied.
+    const ids = Array.isArray(taskIds) ? taskIds : [taskIds];
+    const node = tree.find(r => r.id === ids[0]);
     const person = queueOwnerOf(node);
     if (!person) return;
     const mine = leaves.filter(l => queueOwnerOf(l) === person).map(l => l.id);
     if (mine.length < 2) return;
+    const moving = ids.filter(id => mine.includes(id));
     mutate(d => {
       const queues = d.personQueues || {};
       const current = reconcileQueue(queues[person], mine);
       // `direction` is either a key's word — up/down/first/last — or the id a
       // drag was dropped on.
       const next = typeof direction === 'object' && direction?.before
-        ? placeInQueue(current, taskId, direction.before)
-        : moveInQueue(current, taskId, direction);
+        ? placeInQueue(current, moving, direction.before)
+        : moveInQueue(current, moving, direction);
       if (next.join() === current.join() && queues[person]) return d;
       return { ...d, personQueues: { ...queues, [person]: next } };
     });
@@ -3531,8 +3536,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
         onDeleteNode={onNetDeleteNode} /></Frozen></div>}
+      {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
+          This view runs its own three filters, and it has to see the work the
+          schedule GAVE somebody before it can narrow to them; the pre-filtered
+          tree matches on `assign`, so filtering to a person with nothing
+          hand-assigned emptied the screen. */}
       {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
-        tree={visibleTreeForViews} members={members} teams={teams} sizes={data?.sizes || []}
+        tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
         onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></Frozen></div>}

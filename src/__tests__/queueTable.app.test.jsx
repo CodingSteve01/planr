@@ -351,3 +351,243 @@ describe('finished work', () => {
     expect(JSON.parse(localStorage.getItem('planr_v2')).personQueues.M1).toEqual(['A.3', 'A.1', 'A.2']);
   });
 });
+
+// "Kann ich eigentlich mehrere Punkte auf einmal markieren und die Reihenfolge
+//  ändern?"
+//
+// The selection model is the tree's, because it is the same act: click, shift
+// for a range, cmd for a pick. And a move takes the whole selection with it,
+// in one step, keeping the selected items' order among themselves — otherwise
+// moving five things means five keystrokes and counting.
+describe('moving several at once', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.4', name: 'vier', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Multi', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }));
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
+  const click = async (id, opts = {}) => {
+    await act(async () => { fireEvent.click(rowOf(id), opts); });
+  };
+  const press = async (id, key, opts = {}) => {
+    await act(async () => { fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts }); });
+  };
+
+  it('shift-click takes the range', async () => {
+    await openWorkOrder();
+    await click('A.2');
+    await click('A.4', { shiftKey: true });
+    expect([...document.querySelectorAll('[data-queue-row].sel')].map(r => r.getAttribute('data-queue-row')))
+      .toEqual(['A.2', 'A.3', 'A.4']);
+  });
+
+  it('moves the whole selection in one step, keeping its own order', async () => {
+    await openWorkOrder();
+    await click('A.3');
+    await click('A.4', { shiftKey: true });
+    await press('A.4', 'ArrowUp', { altKey: true, shiftKey: true });
+
+    await waitFor(() => { if (rowIds()[0] !== 'A.3') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.3', 'A.4', 'A.1', 'A.2']);
+  });
+
+  it('cmd-click picks items that are not next to each other', async () => {
+    await openWorkOrder();
+    await click('A.1');
+    await click('A.4', { metaKey: true });
+    await press('A.4', 'ArrowDown', { altKey: true, shiftKey: true });
+
+    await waitFor(() => { if (rowIds()[0] === 'A.1') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.2', 'A.3', 'A.1', 'A.4']);
+  });
+});
+
+// "Ich habe jetzt z.B. nur auto-assigned Ressources und fest-assigned teams.
+//  Kann ich trotzdem pro Ressource eine queue haben? Also auch auf Basis von
+//  auto-assigned?"
+//
+// You can see it, and that is the honest half. An item with a team and nobody
+// on it belongs to the TEAM's queue, and the schedule then picks whoever is
+// free first — so the row says who that turned out to be, marked as the
+// scheduler's answer rather than yours.
+//
+// The order cannot live on that person, and the reason is worth stating: the
+// auto-assignment is an OUTPUT of the schedule, and the queue is an INPUT to
+// it. Reorder the work and a different person may come free first, so blocks
+// keyed on it would reshuffle themselves while you drag. The team queue is the
+// same decision without the circle.
+describe('work nobody is on yet', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
+      ],
+      members: [
+        { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      ],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Auto', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }));
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  it('says who the schedule picked, and marks it as the schedule\'s answer', async () => {
+    await openWorkOrder();
+    const who = document.querySelector('[data-queue-row="A.1"] [data-queue-who]');
+    expect(who).toBeTruthy();
+    expect(who.textContent).toMatch(/Anna|Bert|AB|BC/);
+    expect(who.getAttribute('data-auto')).toBe('true');
+  });
+
+  it('still orders it, as the team\'s queue', async () => {
+    await openWorkOrder();
+    const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
+    await act(async () => { fireEvent.keyDown(rowOf('A.2'), { key: 'ArrowUp', altKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== 'A.2') throw new Error(rowIds().join()); });
+    // The localStorage mirror is debounced, so wait for it rather than for a
+    // wall-clock guess.
+    await waitFor(() => {
+      const q = JSON.parse(localStorage.getItem('planr_v2') || '{}').personQueues;
+      if (!q) throw new Error('not stored yet');
+      expect(Object.keys(q)).toEqual(['team:T1']);
+    }, { timeout: 4000 });
+  });
+});
+
+// "Es geht nicht in dem Reihenfolge-Tab. Da kann ich nur auf Item-Ebene
+//  sortieren. Und ich kann nicht auf die Auto-Assigned-Resource-Ebene filtern
+//  und dort manuell umsortieren."
+//
+// Two gaps, and I answered the first one by explaining why the list is flat,
+// which was an explanation and not an answer. Wanting to settle the big blocks
+// before the details is how anybody plans; a flat list of forty tasks makes
+// that a sorting exercise.
+//
+// So the rows inside one owner's list are grouped by the package they come
+// from. The group header moves the whole package at once — which is the same
+// block move a multi-selection uses — and inside it the items order as before.
+// Top-down, in the view where the order lives.
+describe('ordering the big things first', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'Paket eins', status: 'wip', team: 'T1' },
+        { id: 'A.1.1', name: 'a', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.1.2', name: 'b', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'Paket zwei', status: 'wip', team: 'T1' },
+        { id: 'A.2.1', name: 'c', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.2.2', name: 'd', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'TopDown', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }));
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const groupOf = id => document.querySelector(`[data-queue-group="${id}"]`);
+
+  it('groups a person\'s work by the package it comes from', async () => {
+    await openWorkOrder();
+    expect(groupOf('A.1')).toBeTruthy();
+    expect(groupOf('A.2')).toBeTruthy();
+    expect(rowIds()).toEqual(['A.1.1', 'A.1.2', 'A.2.1', 'A.2.2']);
+  });
+
+  it('moves a whole package, and its items keep their order', async () => {
+    await openWorkOrder();
+    await act(async () => { fireEvent.keyDown(groupOf('A.2'), { key: 'ArrowUp', altKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.2.1', 'A.2.2', 'A.1.1', 'A.1.2']);
+  });
+
+  it('and inside a package the items still order one by one', async () => {
+    await openWorkOrder();
+    const row = document.querySelector('[data-queue-row="A.1.2"]');
+    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== 'A.1.2') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.1.2', 'A.1.1', 'A.2.1', 'A.2.2']);
+  });
+});
+
+// The second gap: the person filter matched `assign`, so filtering to somebody
+// showed nothing of the work the schedule had given them. Reading the plan per
+// resource is most of the point when nothing is hand-assigned yet.
+describe('filtering to who will actually do it', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
+        { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M2'] },
+      ],
+      members: [
+        { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      ],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'AutoFilter', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }));
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  it('shows the work the schedule gave somebody, not just what was assigned', async () => {
+    localStorage.setItem('planr_person_filter', 'M1');
+    await openWorkOrder();
+    // Anna has nothing assigned by hand; the schedule gave her the unassigned
+    // work of her team. The old filter showed an empty screen.
+    expect(rowIds().length).toBeGreaterThan(0);
+    for (const id of rowIds()) expect(id).not.toBe('A.3');
+  });
+
+  it('and can still be reordered while filtered', async () => {
+    localStorage.setItem('planr_person_filter', 'M1');
+    await openWorkOrder();
+    const first = rowIds()[0];
+    const last = rowIds()[rowIds().length - 1];
+    if (first === last) return;
+    const row = document.querySelector(`[data-queue-row="${last}"]`);
+    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== last) throw new Error(rowIds().join()); });
+  });
+});

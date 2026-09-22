@@ -101,30 +101,51 @@ export function applyPersonQueues(leaves, queues) {
  * The queue after moving `id` to sit where `targetId` sits. Returns the new
  * order — the caller stores it. This is the drag; `moveInQueue` is the keys.
  */
-export function placeInQueue(order, id, targetId) {
+export function placeInQueue(order, ids, targetId) {
   const list = Array.isArray(order) ? [...order] : [];
-  const from = list.indexOf(id);
-  const to = list.indexOf(targetId);
-  if (from < 0 || to < 0 || from === to) return list;
-  list.splice(to, 0, list.splice(from, 1)[0]);
-  return list;
+  const moving = (Array.isArray(ids) ? ids : [ids]).filter(id => list.includes(id));
+  if (!moving.length || !list.includes(targetId) || moving.includes(targetId)) return list;
+  const block = list.filter(id => moving.includes(id));
+  const rest = list.filter(id => !moving.includes(id));
+  const at = rest.indexOf(targetId);
+  if (at < 0) return list;
+  return [...rest.slice(0, at), ...block, ...rest.slice(at)];
 }
 
 /**
- * The queue after moving `id` one place, or to either end, within its own
- * person's list. Returns the new order — the caller stores it.
+ * The queue after moving one item, or a whole selection, within it.
+ *
+ * A selection moves as a block and keeps its own internal order: five items
+ * dragged up are still those five in the same sequence, one place earlier.
+ * Moving them one at a time would be five keystrokes and a different result —
+ * each would step over the next.
  */
-export function moveInQueue(order, id, direction) {
+export function moveInQueue(order, ids, direction) {
   const list = Array.isArray(order) ? [...order] : [];
-  const from = list.indexOf(id);
-  if (from < 0 || list.length < 2) return list;
-  let to = from;
-  if (direction === 'up') to = from - 1;
-  else if (direction === 'down') to = from + 1;
-  else if (direction === 'first') to = 0;
-  else if (direction === 'last') to = list.length - 1;
-  to = Math.max(0, Math.min(list.length - 1, to));
-  if (to === from) return list;
-  list.splice(to, 0, list.splice(from, 1)[0]);
-  return list;
+  const moving = (Array.isArray(ids) ? ids : [ids]).filter(id => list.includes(id));
+  if (!moving.length || list.length < 2) return list;
+
+  // In queue order, whatever order they were selected in.
+  const block = list.filter(id => moving.includes(id));
+  const rest = list.filter(id => !moving.includes(id));
+  if (!rest.length) return list;
+
+  const firstAt = list.indexOf(block[0]);
+  const lastAt = list.indexOf(block[block.length - 1]);
+
+  let at;
+  if (direction === 'first') at = 0;
+  else if (direction === 'last') at = rest.length;
+  else if (direction === 'up') {
+    // The item above the block, wherever the block's holes are.
+    const above = list.slice(0, firstAt).filter(id => !moving.includes(id)).pop();
+    if (above === undefined) return list;
+    at = rest.indexOf(above);
+  } else if (direction === 'down') {
+    const below = list.slice(lastAt + 1).find(id => !moving.includes(id));
+    if (below === undefined) return list;
+    at = rest.indexOf(below) + 1;
+  } else return list;
+
+  return [...rest.slice(0, at), ...block, ...rest.slice(at)];
 }
