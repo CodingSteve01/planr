@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT } from '../../constants.js';
+import { SL, GT, GT_ICON } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
@@ -300,7 +301,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             {['', 'goal', 'painpoint', 'deadline'].map(ft =>
               <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} style={{ fontSize: 10, padding: '3px 7px' }}
-                onClick={() => patchNode({ type: ft })}>{ft ? `${GT[ft]} ${t(ft)}` : t('none')}</button>)}
+                onClick={() => patchNode({ type: ft })}>{ft ? <><Icon name={GT_ICON[ft]} size={12} />{t(ft)}</> : t('none')}</button>)}
           </div>
         </div>
         {f.type && <div className="frow">
@@ -520,13 +521,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.decideBy')}</label>
             <input type="date" value={f.decideBy || ''} onChange={e => patchNode({ decideBy: e.target.value })} />
           </div>
-          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>⏳</span>}</label>
+          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
               {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}>×</button>}
             </div>
           </div>
-          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
               {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>×</button>}

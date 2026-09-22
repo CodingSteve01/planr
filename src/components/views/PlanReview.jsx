@@ -1,4 +1,6 @@
 import { useMemo, useState, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
@@ -157,8 +159,13 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       <div style={{ width: `${confCounts.exploratory / total * 100}%`, background: 'var(--tx3)' }} />
     </div>}
 
-    {/* Section tabs */}
-    <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+    {/* Section tabs. They WRAP rather than pushing the pane wide: seven of
+        them do not fit a normal pane, and a row that overflows does not
+        overflow alone — it gives the whole view a horizontal scrollbar, so
+        the header and the figures above slide out of frame with it. A second
+        line of buttons costs 26px; a pane that scrolls sideways costs the
+        reader their place. */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16, minWidth: 0 }}>
       {(() => {
         const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
         const truncated = scheduled.filter(s => s.truncatedByOffboard);
@@ -174,7 +181,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         ];
       })().map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
-          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
+          style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => setSection(k)}>{l}</button>)}
     </div>
 
     {/* ══════ DECIDE — compact rows ══════ */}
@@ -201,16 +208,36 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                 {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-                <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
+                {/* Only the reasons that EXPLAIN something. "Manually set" is
+                    true of nearly every row on a real plan, so as a badge it
+                    was twenty identical marks down a column, saying nothing
+                    and crowding out the two that do — "no person assigned",
+                    "no estimate". A badge on every row is not a badge. The
+                    full reason stays in the row's tooltip either way. */}
+                {!['manual', 'done', 'inherited'].includes(confReasons[r.id]) && (
+                  <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
+                )}
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasChain(sc) && (() => {
                   const primary = (node?.assign || []).map(memberShort).join('/') || memberShort(sc.personId);
-                  return <span style={{ fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0, padding: '1px 5px', border: '1px solid var(--am)', borderRadius: 3 }}
-                    data-htip={chainTooltip(sc, memberFullName)}>⇄ {chainShorts(sc, shortMap, primary)}</span>;
+                  return <PersonChip chain short={chainShorts(sc, shortMap, primary)}
+                    title={chainTooltip(sc, memberFullName)} style={{ flexShrink: 0 }} />;
                 })()}
-                {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
-                  onClick={e => { e.stopPropagation(); acceptAuto(node); }}
-                  data-htip={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`}>{memberShort(sc.personId)}</button>}
+                {/* The schedule's suggestion was a `btn btn-pri` — the loudest
+                    control in the app, on every row, for a person's initials.
+                    It is the same quiet chip as everywhere else now, with a
+                    small accept beside it: the initials identify, the button
+                    acts, and only the button looks like one. */}
+                {hasAuto && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <PersonChip auto short={memberShort(sc.personId)}
+                    title={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`} />
+                  <button type="button" className="btn btn-sec btn-xs"
+                    style={{ padding: '1px 5px', display: 'inline-flex', alignItems: 'center' }}
+                    onClick={e => { e.stopPropagation(); acceptAuto(node); }}
+                    aria-label={t('aa.accept')} data-htip={t('aa.accept')}>
+                    <Icon name="check" size={11} />
+                  </button>
+                </span>}
               </div>;
             })}
           </div>;
@@ -338,7 +365,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       return <>
         {dueViolations.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--re)' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>⏳ {t('pr.warnDueOverdue')}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>~ {t('pr.warnDueOverdue')}</span>
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{dueViolations.length}</span>
           </div>
           {dueViolations.map(s => {
@@ -349,18 +376,18 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
               onClick={() => onOpenItem?.(s.treeId || s.id)}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>⏳ {s.due}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>~ {s.due}</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
               {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
                 data-htip={t(s.dueInfeasible ? 'ins.latestStartPast' : 'ins.latestStart')}>
-                ↶ {latest}{s.dueInfeasible ? ' ⚠' : ''}
+                ↶ {latest}{s.dueInfeasible ? ' !' : ''}
               </span>}
             </div>;
           })}
         </div>}
         {truncated.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--am)' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>⚠ {t('pr.warnTruncated')}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>! {t('pr.warnTruncated')}</span>
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{truncated.length}</span>
           </div>
           {truncated.map(s => {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { Icon } from './components/shared/Icon.jsx';
 import { flushSync } from 'react-dom';
 import { SK } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
@@ -233,11 +234,16 @@ export { TAB_IDS };
 // obvious two-line change; an unlisted id falls back to a neutral marker
 // rather than leaving a ragged gap in the column.
 const TAB_ICONS = {
-  summary: '◎', briefing: '☀', plan: '✎', tree: '☰', gantt: '▭',
-  roadmap: '🗺', net: '⁂', resources: '👥', holidays: '⛱', report: '📄',
+  summary: 'target', briefing: 'sun', plan: 'pencil', tree: 'list', gantt: 'gantt',
+  order: 'grip', roadmap: 'map', net: 'network', resources: 'users',
+  holidays: 'beach', report: 'doc',
 };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
+// Views that answer to scope / quick filters / the review window / the
+// archive. Resources, Holidays and Report are inputs and outputs — nothing in
+// the filter bar reaches them, so it would be a control that does nothing.
+const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', 'net', 'plan', 'briefing']);
 
 // `mount` is how a host hands this app instance its document. Without one —
 // the web build — the app restores whatever was last opened, from IndexedDB
@@ -253,6 +259,36 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
   const [tab, _setTab] = useState(() => initialShell().tab);
   const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
+
+  // The tab row scrolls sideways instead of wrapping (see .tab-bar-wrap in
+  // App.css). Two things have to follow from that: the active tab is brought
+  // into view whenever it changes — it can be selected from the palette or a
+  // shortcut, not only by clicking it — and the edges say when there is more
+  // row than pane, because a tab you cannot see must not read as a tab that
+  // is not there.
+  const tabBarRef = useRef(null);
+  const activeTabRef = useRef(null);
+  const [tabFades, setTabFades] = useState({ l: false, r: false });
+  const syncTabFades = useStableCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setTabFades(prev => {
+      const next = { l: el.scrollLeft > 2, r: max > 2 && el.scrollLeft < max - 2 };
+      return prev.l === next.l && prev.r === next.r ? prev : next;
+    });
+  });
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+    syncTabFades();
+  }, [tab, syncTabFades]);
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(syncTabFades);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTabFades]);
   // Keep every visited tab mounted (display:none for inactive) so switching
   // back is instant. Each view is wrapped in React.memo and its callbacks
   // are useCallback'd, so an App re-render that doesn't touch a view's data
@@ -1123,7 +1159,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
       if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
       let decideBy = '';
-      const decideByM = raw.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+      const decideByM = raw.match(/!decide:(\d{4}-\d{2}-\d{2})/);
       if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
       // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
       let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, fixedDurationDays = 0, displayOrder = null;
@@ -1168,9 +1204,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
       if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
-      // Type emoji (decideBy ⏰ has already been removed, so no false positive)
+      // Type emoji (decideBy ! has already been removed, so no false positive)
       let type = '';
-      if (raw.includes('⏰')) { type = 'deadline'; raw = raw.replace('⏰', '').trim(); }
+      if (raw.includes('!')) { type = 'deadline'; raw = raw.replace('!', '').trim(); }
       else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
       else if (raw.includes('🎯')) { type = 'goal'; raw = raw.replace('🎯', '').trim(); }
       // Date
@@ -1211,11 +1247,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     });
 
     // Self-healing: clean team values that may carry noise from older corrupt exports
-    // (e.g. "Backend [SL] ⏰decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
+    // (e.g. "Backend [SL] !decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
     const sanitizeTeam = (t) => {
       if (!t) return t;
       let v = t;
-      v = v.replace(/⏰decide:\d{4}-\d{2}-\d{2}/g, '');
+      v = v.replace(/!decide:\d{4}-\d{2}-\d{2}/g, '');
       v = v.replace(/📌\d{4}-\d{2}-\d{2}/g, '');
       v = v.replace(/\[[^\]]*\]/g, ''); // strip any [assignees] residue
       v = v.replace(/\{[^}]*\}/g, ''); // strip any {tags} residue
@@ -1227,7 +1263,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const cleaned = sanitizeTeam(r.team);
         if (cleaned !== r.team) {
           // If the original team string contained a decideBy/pinned, recover them
-          const decM = r.team.match(/⏰decide:(\d{4}-\d{2}-\d{2})/);
+          const decM = r.team.match(/!decide:(\d{4}-\d{2}-\d{2})/);
           if (decM && !r.decideBy) r.decideBy = decM[1];
           const pinM2 = r.team.match(/📌(\d{4}-\d{2}-\d{2})/);
           if (pinM2 && !r.pinnedStart) r.pinnedStart = pinM2[1];
@@ -1875,6 +1911,36 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       : null,
   ].filter(Boolean), [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked]);
   const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
+
+  // Scope lives in the filter popup and comes back out as a chip the moment
+  // one is set — a narrowed view has to say so (principles.md, "a view is
+  // never the truth"), an unnarrowed one has nothing to say. The chip clears
+  // the filter, which is the only thing you want from it once you see it.
+  const scopeFields = useMemo(() => [
+    {
+      id: 'root', value: rootFilter, options: netRootOptions, showIds: true,
+      placeholder: _t('tv.allRoots'),
+      onSelect: v => { setRootFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'team', value: teamFilter, options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
+      placeholder: _t('tv.allTeams'),
+      onSelect: v => { setTeamFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'person', value: personFilter, options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
+      placeholder: _t('tv.allPeople'),
+      onSelect: v => { setPersonFilter(v); setSearchIdx(0); },
+    },
+  ], [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t]);
+
+  const activeScopeChips = useMemo(() => scopeFields
+    .filter(f => f.value)
+    .map(f => ({
+      id: `scope-${f.id}`,
+      label: f.options.find(o => o.id === f.value)?.label || f.value,
+      onToggle: () => f.onSelect(''),
+    })), [scopeFields]);
 
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
@@ -2923,7 +2989,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
       <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
       <div className="onboard-sub" style={{ marginBottom: 22 }}>Restore mounted project</div>
-      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {fileName}</div>
+      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="doc" size={14} />{fileName}</div>
       <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>Browser security requires you to grant file access again after a page reload.</p>
       <div className="ob-actions">
         <button className="ob-btn ob-pri" onClick={restoreMountedFile}>Reactivate file access</button>
@@ -3052,7 +3118,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               {refPhases.map((ph, i) => {
                 const statuses = withPhases.map(r => r.phases[i].status);
                 const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                const dot = common === 'done' ? '✓' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                // One geometric triple — filled / half / ring — rather than a dingbat
+                // check that renders as an emoji on some platforms.
+                const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
                 const dotColor = common === 'done' ? 'var(--gn)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
                 return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
@@ -3200,29 +3268,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // `keywords` are the words you reach for when the label is in the other
   // language, or is a sentence where your head holds one noun.
   const JOBS = [
-    { id: 'jira', icon: '⇄', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
+    { id: 'jira', icon: 'swap', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
       keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
-    { id: 'vacation', icon: '⛱', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
+    { id: 'vacation', icon: 'beach', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
       keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
-    { id: 'onboard', icon: '＋', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
+    { id: 'onboard', icon: 'plus', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
       keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
   ];
   // `icon` and `key` are what make this list scannable rather than twenty
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
   const paletteCommands = [
-    { id: 'load', icon: '📂', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
-    { id: 'snapshots', icon: '↶', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
-    { id: 'saveAs', icon: '💾', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
+    { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
+    { id: 'snapshots', icon: 'undo', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
+    { id: 'saveAs', icon: 'save', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
     // Export… means "go look at the Report view" — the export cards rendered
     // as a normal view (ReportView.jsx). The old dialog stays one entry below
     // so nothing that worked before stops working.
-    { id: 'export', icon: '📤', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
-    { id: 'exportDialog', icon: '📄', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
-    { id: 'newProject', icon: '✧', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
-    { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    { id: 'backdate', icon: '⏮', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    { id: 'export', icon: 'upload', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
+    { id: 'exportDialog', icon: 'doc', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
+    { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
@@ -3264,7 +3332,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         {/* A host names the tab after the file already. Repeating it here
             spends the narrowest part of the bar saying the same thing twice. */}
         {!hosted && fileName}
-        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', fontSize: 11 }}>💾</button>}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}><Icon name="save" size={13} /></button>}
       </span>}
       <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">
         <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
@@ -3277,7 +3345,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           text = 'no file mounted'; color = 'var(--tx3)';
           tip = _t('app.save.pillNoFile');
         } else if (!fileWriteOk) {
-          text = '⚠ click to re-mount'; color = 'var(--am)'; clickable = true;
+          text = 'click to re-mount'; color = 'var(--am)'; clickable = true;
           tip = _t('app.save.pillPermissionLost');
         } else if (!autoSave) {
           text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
@@ -3323,7 +3391,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         data-htip={_t('bd.chipTip', backdate)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
-        <span style={{ fontSize: 10 }}>⏮</span>
+        <Icon name="undo" size={12} />
         <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
         <button
           type="button"
@@ -3350,30 +3418,43 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
       <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} aria-label={_t('set.title')}
-        data-htip={withKey(_t('set.title'), 'settings')}>⚙</button>
+        data-htip={withKey(_t('set.title'), 'settings')}><Icon name="gear" size={14} /></button>
       <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
     </div>
-    <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')}>
-      {TABS.map(t => (
-        <div
-          key={t.id}
-          role="tab"
-          aria-selected={tab === t.id}
-          className={`tab${tab === t.id ? ' on' : ''}`}
-          onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
-          onClick={e => { if (e.detail === 0) setTab(t.id); }}
-        >
-          {t.label}
-          {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
-        </div>
-      ))}
-      <div style={{ flex: 1 }} />
+    <div className="tab-bar-wrap">
+      <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
+        {TABS.map(t => (
+          <div
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            ref={tab === t.id ? activeTabRef : undefined}
+            className={`tab${tab === t.id ? ' on' : ''}`}
+            onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
+            onClick={e => { if (e.detail === 0) setTab(t.id); }}
+          >
+            {t.label}
+            {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+          </div>
+        ))}
+        <div style={{ flex: 1, minWidth: 16 }} />
+      </div>
+      <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
+      <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
-      {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
-      <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
-      <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
-      <div style={{ width: 130 }}><SearchSelect value={personFilter} options={activeMembers.map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { setPersonFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allPeople')} allowEmpty emptyLabel={_t('tv.allPeople')} /></div>
+    {/* The filter bar belongs on every view these filters actually change —
+        it used to skip the Overview and the Roadmap, which both answer to the
+        archive filter and the Review/Plan window, so on those two a narrowed
+        view had no way to say so and no way to be widened again. Left out
+        only where nothing here has an effect: Resources, Holidays, Report. */}
+    {FILTERED_TABS.has(tab) && <div className="subtoolbar">
+      {/* Scope (project / team / person) moved into the filter popup, the
+          same move the quick filters made and for the same reason: as three
+          always-visible pickers they were ~380px of toolbar reading "Alle
+          Pakete / Alle Teams / Alle Personen" — three empty fields waiting
+          to be filled in, which is the opposite of what they are. Setting one
+          is rare; seeing that one is SET has to be unmissable, and that is
+          what the chips below do. */}
       {/* The quick filters used to sit here as a row of six toggles, five of
           them off at any given moment — a permanent bar of switched-off
           switches, which is what a toolbar looks like when nobody asks what
@@ -3381,8 +3462,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           out here as chips the moment one is on: a filtered view has to say
           so (principles.md, "a view is never the truth"), an unfiltered one
           has nothing to say. */}
-      {activeQuickFilters.length > 0 && (
+      {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
         <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+          {activeScopeChips.map(f => (
+            <button key={f.id} type="button" className="chip on" data-testid={f.id}
+              onClick={() => f.onToggle()} data-htip={_t('chip.clearTip', f.label)}>
+              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}>×</span>
+            </button>
+          ))}
           {activeQuickFilters.map(f => (
             <button key={f.id} type="button" className="chip on" onClick={() => f.onToggle()}
               data-htip={_t('chip.clearTip', f.label)}>
@@ -3395,6 +3482,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           Not a generic filter; it overlays the data with a time window. */}
       <ViewFilters
         quickFilters={quickFilters}
+        scope={{ label: _t('vf.scope'), fields: scopeFields }}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
         hasHistory={(data?.historyEvents || []).length > 0}
@@ -3457,7 +3545,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
           {!visibleTreeForViews.length
-            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ fontSize: 32, marginBottom: 12 }}>🌳</div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
+            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="list" size={32} strokeWidth={1.4} /></div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
             : <TreeView tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
               onSelect={onTreeSelect}
               showIds={showTreeIds}
@@ -3530,6 +3618,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           cpLabels={cpLabels}
           focusId={ganttRoadmapFocus}
           onFocusChange={setGanttRoadmapFocus}
+          diffDoneIds={diffDoneSet}
+          diffProgressedIds={diffProgressedSet}
+          sinceDate={sinceDate}
+          onlyChanged={diffOnlyChanged}
           onOpenItem={onOpenItemDialog}
         />
       </div>}
@@ -3537,6 +3629,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}
+        onPickRoot={id => { setRootFilter(id); setSearchIdx(0); }}
         onAddNode={onNetAddNode}
         onDeleteNode={onNetDeleteNode} /></Frozen></div>}
       {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
@@ -3637,7 +3730,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
         <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
           <div className="new-feat-title">
-            <span style={{ fontSize: 16 }}>🎉</span>
+            <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}><Icon name="sparkle" size={16} /></span>
             {_t('new.title')}
           </div>
           <ul className="new-feat-list">

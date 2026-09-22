@@ -131,7 +131,7 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
 
     {/* ── Compact phase rows ── */}
     {phases.map((ph, i) => {
-      const dot = ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○';
+      const dot = ph.status === 'done' ? '●' : ph.status === 'wip' ? '◐' : '○';
       const dotColor = ph.status === 'done' ? 'var(--gr)' : ph.status === 'wip' ? 'var(--am)' : 'var(--tx3)';
       const tIds = phaseTeamIds(ph);
       const mIds = phaseAssigneeIds(ph);

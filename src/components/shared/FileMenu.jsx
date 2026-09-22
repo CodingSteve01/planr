@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
+import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { keyHint } from '../../utils/shortcuts.js';
 
 // The file operations, back on screen.
 //
 // Phase 3 moved Load / Snapshots / Save as / Export / New into the `/`
-// palette and left the topbar with `/` and `⚙ Settings`. That was right
+// palette and left the topbar with `/` and a settings button. That was right
 // about the topbar being too loud and wrong about these: opening and saving
 // a file is not an advanced command you go looking for, it is the first
 // thing someone reaches for, and a keyboard-only path to it is a path most
@@ -38,11 +39,11 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileN
   // `key` is a shortcuts.js id where one exists, so the menu teaches the
   // keystroke at the control instead of in a separate list.
   const items = [
-    { id: 'load', icon: '📂', label: t('palette.load'), run: onLoad, key: 'open' },
-    { id: 'saveAs', icon: '💾', label: t('palette.saveAs'), run: onSaveAs, key: 'saveAs' },
-    { id: 'snapshots', icon: '↶', label: t('palette.snapshots'), run: onSnapshots },
-    { id: 'export', icon: '📤', label: t('palette.export'), run: onExport, key: 'export' },
-    { id: 'new', icon: '✧', label: t('palette.newProject'), run: onNew, separated: true },
+    { id: 'load', icon: 'folder', label: t('palette.load'), run: onLoad, key: 'open' },
+    { id: 'saveAs', icon: 'save', label: t('palette.saveAs'), run: onSaveAs, key: 'saveAs' },
+    { id: 'snapshots', icon: 'undo', label: t('palette.snapshots'), run: onSnapshots },
+    { id: 'export', icon: 'upload', label: t('palette.export'), run: onExport, key: 'export' },
+    { id: 'new', icon: 'sparkle', label: t('palette.newProject'), run: onNew, separated: true },
   ];
 
   return <span ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
@@ -54,7 +55,8 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileN
       aria-expanded={open}
       onClick={() => setOpen(o => !o)}
       data-htip={fileName ? t('fm.tipWithFile', fileName) : t('fm.tipNoFile')}
-    >📁 {t('fm.title')}{dirty ? ' •' : ''}</button>
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+    ><Icon name="folder" size={13} />{t('fm.title')}{dirty ? ' •' : ''}</button>
 
     {open && <div
       role="menu"
@@ -84,7 +86,9 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileN
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg3)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
         >
-          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
+          <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name={item.icon} size={14} />
+          </span>
           <span style={{ flex: 1 }}>{item.label}</span>
           {item.key && <kbd style={{
             fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',

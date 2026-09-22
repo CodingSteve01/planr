@@ -63,9 +63,11 @@ describe('the file operations have a visible home', () => {
     renderApp();
     fireEvent.click(await screen.findByTestId('file-menu-trigger'));
 
+    // A drawn icon, not a glyph: an <svg> has no textContent, which is what
+    // this used to measure.
     for (const id of ['load', 'saveAs', 'snapshots', 'export', 'new']) {
-      const glyph = screen.getByTestId(`file-menu-${id}`).firstChild.textContent.trim();
-      expect(glyph.length, `${id} has no icon`).toBeGreaterThan(0);
+      const icon = screen.getByTestId(`file-menu-${id}`).querySelector('svg');
+      expect(icon, `${id} has no icon`).toBeTruthy();
     }
   });
 
@@ -138,7 +140,7 @@ describe('the palette is scannable, not a wall of text', () => {
     const rows = [...(await screen.findByTestId('command-palette')).querySelectorAll('[role="option"]')];
     expect(rows.length, 'no commands rendered').toBeGreaterThan(10);
 
-    const withoutIcon = rows.filter(r => !r.firstChild?.textContent?.trim());
+    const withoutIcon = rows.filter(r => !r.querySelector('svg'));
     expect(withoutIcon.map(r => r.textContent)).toEqual([]);
   });
 });

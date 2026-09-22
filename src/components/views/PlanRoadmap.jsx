@@ -42,7 +42,13 @@ function clampZoom(value) {
 }
 
 export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)',
-  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem }) {
+  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem,
+  // Review window. The Roadmap was the one working view with no diff support
+  // at all — the filter bar offered a "since" window and this view ignored
+  // it, so a sprint review had to be read somewhere else and come back.
+  // Same vocabulary as the Gantt: what finished in the window, what moved,
+  // and the option to show only those.
+  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false }) {
   const { t } = useT();
   // The same tooltip the graph and the Gantt show — one item, one card, the
   // whole story: status, window, effort, deps, phases, handoff chain. The
@@ -154,6 +160,15 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   const plotW = Math.max(320, totalDays * effectivePxDay);
   const xOf = date => (((date instanceof Date ? +date : date) - model.axisStart) / DAY) * effectivePxDay;
 
+  // How many months a label may cover. The model guesses this from the month
+  // COUNT, which is the wrong quantity: at "fit" zoom on a three-year project
+  // a quarter is barely thirty pixels, so "Nov '25" ran straight into the
+  // next label — seen on the real plan as "Nov '25Feb". What decides it is
+  // pixels per month, and only the view knows those, because zoom is here.
+  // 62px is the widest label this axis draws (a month plus a year).
+  const pxPerMonth = effectivePxDay * 30.4;
+  const tickEvery = Math.max(model.tickEvery, Math.ceil(62 / Math.max(1, pxPerMonth)));
+
   // The year is what gives the axis any temporal orientation at all — and
   // showing it only on January meant a project starting mid-year (the
   // common case) never printed one. It now shows on the FIRST rendered tick
@@ -206,7 +221,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
           {/* Month axis */}
           <div className="pr-axis" style={{ height: AXIS_H }}>
             {model.months.map((month, idx) => {
-              if (idx % model.tickEvery) return null;
+              if (idx % tickEvery) return null;
               return <span key={+month} className="pr-tick" style={{ left: xOf(month) }}>
                 <span className="pr-tick-lbl">{monthLabel(month, idx === 0)}</span>
               </span>;
@@ -215,7 +230,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
 
           {/* Rows */}
           <div style={{ position: 'relative', minHeight: model.rows.length * ROW_H }}>
-            {model.months.map((month, idx) => (idx % model.tickEvery ? null : (
+            {model.months.map((month, idx) => (idx % tickEvery ? null : (
               <span key={`g${+month}`} className="pr-grid" style={{ left: xOf(month), height: model.rows.length * ROW_H }} />
             )))}
 
@@ -223,7 +238,12 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
               const hasSpan = row.start && row.end;
               const left = hasSpan ? xOf(row.start) : 0;
               const width = hasSpan ? Math.max(6, xOf(row.end) - left) : 0;
-              return <div key={row.id} className={`pr-row${idx % 2 ? ' alt' : ''}`} style={{ height: ROW_H }}>
+              // A package counts as touched when anything under it is.
+              const touched = !!sinceDate && (row.milestones || []).some(m =>
+                diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
+              if (onlyChanged && sinceDate && !touched) return null;
+              return <div key={row.id} data-pr-changed={touched ? 'true' : undefined}
+                className={`pr-row${idx % 2 ? ' alt' : ''}${touched ? ' changed' : ''}`} style={{ height: ROW_H }}>
                 {hasSpan && <span
                   className="pr-bar"
                   style={{ left, width, background: color }}
@@ -237,7 +257,8 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
                 </span>}
                 {row.milestones.map(m => (
                   <span key={m.id}
-                    className={`pr-stop s-${m.status}`}
+                    data-pr-changed={sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? 'true' : undefined}
+                    className={`pr-stop s-${m.status}${sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? ' changed' : ''}`}
                     style={{ left: xOf(m.end), borderColor: color, background: m.status === 'done' ? color : 'var(--bg)' }}
                     onClick={e => { e.stopPropagation(); openItem(m.id); }}
                     onMouseEnter={e => { e.stopPropagation(); showTip(m.id, null, e); }}

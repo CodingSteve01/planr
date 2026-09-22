@@ -23,7 +23,8 @@ import { useT } from '../../i18n.jsx';
 //
 // No second renderer: everything below is chrome (a project picker) around
 // the same `<Roadmap soloRootId>` call SumView used to make.
-export function RoadmapLens({ tree, scheduled, stats, teams, members, cpSet, cpLabels, roadmapAssignment, focusId, onFocusChange, onOpenItem }) {
+export function RoadmapLens({ tree, scheduled, stats, teams, members, cpSet, cpLabels, roadmapAssignment, focusId, onFocusChange, onOpenItem,
+  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false }) {
   const { t } = useT();
   const roots = useMemo(() => tree.filter(node => !String(node.id).includes('.')), [tree]);
   // A remembered focus that no longer exists (renamed, deleted, archived)
@@ -60,6 +61,10 @@ export function RoadmapLens({ tree, scheduled, stats, teams, members, cpSet, cpL
             members={members}
             cpSet={cpSet}
             cpLabels={cpLabels}
+            diffDoneIds={diffDoneIds}
+            diffProgressedIds={diffProgressedIds}
+            sinceDate={sinceDate}
+            onlyChanged={onlyChanged}
             onOpenItem={onOpenItem}
           />
         )}

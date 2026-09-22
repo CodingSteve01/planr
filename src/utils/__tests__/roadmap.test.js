@@ -42,15 +42,27 @@ describe('computeRoadmapModel progress semantics', () => {
   });
 
   test('station progress uses partial task progress weighted by effort', () => {
+    // A station is a work PACKAGE now, and the depth is chosen by what fits
+    // the canvas: the deepest level whose stations still fit wins, because
+    // that is the most detail the map can carry. So to exercise the weighting
+    // the fixture has to be big enough that the LEAF level does not fit —
+    // sixteen leaves under two packages, against a cap of fourteen.
     const tree = [
       { id: 'P1', name: 'Project', status: 'open', best: 0 },
-      { id: 'P1.1', name: 'Half done big task', status: 'wip', progress: 50, best: 10, factor: 1 },
-      { id: 'P1.2', name: 'Open small task', status: 'open', progress: 0, best: 10, factor: 1 },
+      { id: 'P1.1', name: 'Erfassung', status: 'wip', best: 0 },
+      { id: 'P1.2', name: 'Migration', status: 'open', best: 0 },
     ];
-    const scheduled = [
-      { id: 'P1.1', name: 'Half done big task', status: 'wip', effort: 10, startD: d('2026-01-05'), endD: d('2026-01-06') },
-      { id: 'P1.2', name: 'Open small task', status: 'open', effort: 10, startD: d('2026-01-07'), endD: d('2026-01-08') },
-    ];
+    const scheduled = [];
+    for (let i = 1; i <= 8; i++) {
+      // Four at half done, four untouched: (4 x 10 x 0.5) / 80 = 0.25.
+      const wip = i <= 4;
+      tree.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', progress: wip ? 50 : 0, best: 10, factor: 1 });
+      scheduled.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', effort: 10, startD: d('2026-01-05'), endD: d(`2026-01-0${5 + (i % 4)}`) });
+    }
+    for (let i = 1; i <= 8; i++) {
+      tree.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', progress: 0, best: 10, factor: 1 });
+      scheduled.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', effort: 10, startD: d('2026-03-02'), endD: d(`2026-03-0${2 + (i % 5)}`) });
+    }
 
     const model = modelFor(tree, scheduled);
     const station = model.lines[0].majorStations[0];
@@ -58,6 +70,9 @@ describe('computeRoadmapModel progress semantics', () => {
     expect(station.done).toBe(0);
     expect(station.allDone).toBe(false);
     expect(station.prog).toBeCloseTo(0.25, 4);
+    // …and it is named after the package, not after whichever task happened
+    // to have the longest name.
+    expect(station.name).toBe('Erfassung');
   });
 
   test('done and open tasks are not clustered into one reached station', () => {
@@ -656,7 +671,20 @@ describe('computeRoadmapModel progress semantics', () => {
       assignment: { P1: { routeIdx: 1, colorIdx: 2 } },
     });
 
-    expect(svg).toContain('background:#f59e0b;color:#111318');
+    // The invariant is the CONTRAST, not the hex: a light route colour has to
+    // get dark ink on its pill. Pinning '#f59e0b' pinned the palette instead,
+    // and broke the moment the palette was retuned.
+    const pill = svg.match(/background:(#[0-9a-f]{6});color:(#[0-9a-f]{6})/i);
+    expect(pill, 'no legend progress pill rendered').toBeTruthy();
+    const lum = hex => {
+      const ch = i => {
+        const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+    };
+    const pair = [lum(pill[1]), lum(pill[2])].sort((a, b) => b - a);
+    expect((pair[0] + 0.05) / (pair[1] + 0.05)).toBeGreaterThanOrEqual(4.5);
   });
 
   test('open stations preserve chronological order along the route even with uneven effort', () => {

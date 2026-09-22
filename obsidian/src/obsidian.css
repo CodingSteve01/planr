@@ -16,10 +16,14 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  /* Follow the vault's typography instead of asking for web fonts the
-     plugin cannot ship. Inter/JetBrains Mono still win when installed. */
-  --font: Inter, var(--font-interface), system-ui, sans-serif;
-  --mono: 'JetBrains Mono', var(--font-monospace), monospace;
+  /* Follow the vault's typography instead of asking for web fonts the plugin
+     cannot ship. IBM Plex still wins when it happens to be installed.
+     --font-display keeps a real serif at the end: Georgia is on every desktop,
+     and a headline that degrades to the body sans is a headline that has
+     stopped doing its job. */
+  --font: 'IBM Plex Sans', var(--font-interface), system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', var(--font-monospace), monospace;
+  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
 }
 
 /* Obsidian styles bare form elements globally (background, border, height,

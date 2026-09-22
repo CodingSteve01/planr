@@ -1,4 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { tipLines } from '../../utils/tipText.js';
 import { withKey } from '../../utils/shortcuts.js';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
@@ -75,7 +77,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const leafIdSet = useMemo(() => new Set((tree || []).filter(r => isLeafNode(tree || [], r.id)).map(r => r.id)), [tree]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
   // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+.
-  // When the task has a handoff cascade, append the chain: "KK+MB→AB→⚠".
+  // When the task has a handoff cascade, append the chain: "KK+MB→AB→!".
   const snAll = (s) => {
     const ids = (s.assign || []).length > 0 ? s.assign : (s.personId ? [s.personId] : []);
     const primary = (() => {
@@ -1089,7 +1091,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   //
   // What stood here was a second ordering system — sort each team's leaves by
   // `seq`, splice the selection in, rewrite `seq` in steps of five, and for
-  // ⏮/⏭ also rewrite the selection's PRIORITY to match the destination
+  // The two order buttons also rewrite the selection's PRIORITY to match the destination
   // neighbourhood, because (the comment said) "seq alone is only a tiebreak,
   // prio dominates the sort". It did, and that was the bug: the plan you
   // arranged in the tree and the plan the scheduler ran were two different
@@ -1450,13 +1452,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     if (percent <= 110) return 'rgba(245,158,11,.26)';
     return 'rgba(239,68,68,.34)';
   };
+  // Load, as one line of colour. Four bands and nothing in between, because
+  // the question is "is this week free, full, or over", not "what exactly is
+  // the percentage" — the figure is one hover away. Palette tokens rather
+  // than the old hardcoded Tailwind rgbas, so it holds in both themes.
   const loadHeatStroke = (percent, meta = null) => {
-    if (meta?.historicalOnly) return 'rgba(148,163,184,.45)';
-    if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.22)';
-    if (percent < 50) return 'rgba(59,130,246,.55)';
-    if (percent < 90) return 'rgba(16,185,129,.58)';
-    if (percent <= 110) return 'rgba(245,158,11,.70)';
-    return 'rgba(239,68,68,.82)';
+    if (meta?.historicalOnly) return 'var(--b3)';
+    if (!Number.isFinite(percent) || percent <= 0) return 'var(--b2)';
+    if (percent < 50) return 'color-mix(in srgb, var(--ac) 55%, transparent)';
+    if (percent < 90) return 'var(--st-done)';
+    if (percent <= 110) return 'var(--st-wip)';
+    return 'var(--st-risk)';
   };
   const taskLoadCells = (s, barLeft, barWidth) => {
     if (!showLoadHeatmap || !s || s._unestimated || !barWidth) return EMPTY_ARR;
@@ -2124,7 +2130,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   }, [linkDrag]);
 
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
+    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('g.noItems')}</div>
       <div style={{ fontSize: 12 }}>{t('g.addTasks')}</div>
     </div>
@@ -2165,7 +2171,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
             aria-pressed={showLoadHeatmap}
-            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '☑' : '☐'} {t('g.loadHeatmap')}</button>
+            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}</button>
           {showLoadHeatmap && <span className={`badge ${loadRiskSummary.overCount ? 'bc' : loadRiskSummary.fullCount ? 'bw' : 'bd'}`}
             data-htip={loadRiskSummary.tip}
             style={{ fontSize: 10, padding: '2px 7px' }}>
@@ -2235,7 +2241,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const isCol = collapsed.has(row.collapseKey || row.key);
             const isCp = rowIsCp(row);
             const dim = cpOnly && !rowRelevantToCp(row);
-            return <div key={row.key} className="gteam" style={{ color: isCp ? 'var(--re)' : row.color, borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`, background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', opacity: dim ? .25 : 1 }}>
+            return <div key={row.key} className="gteam" style={{ color: isCp ? 'var(--re)' : row.color, borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`, background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, // Sentence case. A group header is a person's or a project's NAME
+                // — uppercase with letter-spacing is a label style, and on a
+                // real plan it made every name both wider and harder to read
+                // for no gain. The colour bar on the left already says "this
+                // is a header".
+                fontSize: 12.5, fontWeight: 600, letterSpacing: '.005em', opacity: dim ? .25 : 1 }}>
               <button
                 type="button"
                 aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
@@ -2256,7 +2267,26 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3 }}>
                 {t('g.queueSorted')}
               </span>}
-              <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400, marginRight: 6, fontFamily: 'var(--mono)' }}>{row.count}</span>
+              {/* What a group header is for: how much work is in it, how much
+                  of it is behind you, and how much effort it carries. The
+                  header used to say only its own name and a count, so reading
+                  "is this team ahead or behind" meant collapsing it and
+                  adding up. All three in mono, right-aligned, quiet — the
+                  name is what should still be the loudest thing in the row. */}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8,
+                fontSize: 10, fontWeight: 400, fontFamily: 'var(--mono)', color: 'var(--tx3)', letterSpacing: 0 }}>
+                {row.s?._doneCount != null && row.count > 0 && (
+                  <span data-htip={t('g.groupDoneTip')}>{row.s._doneCount}/{row.count}</span>
+                )}
+                {row.s?.effort > 0 && (
+                  <span data-htip={t('g.groupEffortTip')}>{Math.round(row.s.effort)} PT</span>
+                )}
+                {row.s?.progress > 0 && (
+                  <span style={{ color: row.s.progress >= 99.95 ? 'var(--st-done)' : 'var(--tx2)' }}>
+                    {Math.round(row.s.progress)}%
+                  </span>
+                )}
+              </span>
             </div>;
           }
           const s = row.s;
@@ -2291,11 +2321,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
+            {/* "kein Aufwand" used to be a full amber badge on every such row.
+                On the real plan that is nine identical pills down one group,
+                shouting the same thing nine times and drowning out the names
+                beside them. The count is already on the footer bar and in the
+                quick filters; here it only has to mark the row, so it is a
+                mark. */}
             {!isSummary && (s._unestimated
-              ? <span className="badge bw" style={{ fontSize: 9, marginLeft: 'auto', flexShrink: 0 }}>{t('g.noEstimate')}</span>
+              ? <span data-htip={t('g.noEstimate')} style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--st-wip)', letterSpacing: '.08em' }}>—</span>
               : s.autoAssigned
-                ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{snAll(s)}</AutoAssignBadge>
-                : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
+                ? <PersonChip auto short={snAll(s)} title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, marginLeft: 'auto' }} />
+                : <PersonChip short={snAll(s)} style={{ flexShrink: 0, marginLeft: 'auto' }}
+                    title={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person} />)}
           </div>;
         }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
@@ -2455,9 +2492,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       left: cell.wi * WPX,
                       top: 0,
                       width: WPX,
+                      // Same move as the task rows: a strip along the
+                      // baseline rather than a block behind the bar. The
+                      // hover target stays the full height so the week's
+                      // figures are still one hover away.
                       height: '100%',
-                      background: loadHeatColor(pct, cell),
-                      borderRight: pct > 110 ? '1px solid rgba(239,68,68,.65)' : '1px solid rgba(127,127,127,.08)',
+                      background: 'transparent',
+                      borderBottom: `4px solid ${loadHeatStroke(pct, cell)}`,
+                      borderRight: pct > 110 ? '1px solid var(--st-risk)' : '1px solid rgba(127,127,127,.08)',
                       pointerEvents: 'auto',
                       zIndex: 0,
                     }} />;
@@ -2491,9 +2533,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     borderRadius: 5,
                     pointerEvents: 'none',
                   }} />}
-                  <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s?.status === 'done' ? 'line-through' : 'none' }}>{row.label}</span>
-                  </span>
+                  {/* Same reasoning as the summary bars: the header beside
+                      this bar already carries the name, and repeating it here
+                      put the loudest text in the chart on what the reader
+                      already knows. The bar's own job is its extent. */}
                 </div>}
               </div>;
             }
@@ -2555,11 +2598,37 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const dueX = dueDate ? dateToX(localDate(dueDate)) : -1;
             const isDueOverdue = dueDate && (s.dueOverdue || (localDate(dueDate) < now && s.status !== 'done'));
             // Confidence-based bar styling
-            const confStyle = conf === 'exploratory'
-              ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
+            // ── What a bar's colour says ──────────────────────────────────
+            // It used to say TEAM: the bar was filled with the team's colour
+            // at full strength and labelled in white. Team colours come from
+            // the plan, so on a real one that meant white text on #f0d342 and
+            // on #10b981 — unreadable, and saying something this view is not
+            // about. The Gantt answers "when does what happen, and is it
+            // running": that is STATE, so state is what the fill says.
+            //
+            // A soft ground with its own state colour as the ink, which is
+            // the pairing the palette already guarantees at 4.5:1 (see
+            // paletteContrast.test.js). Confidence keeps its meaning on the
+            // BORDER instead of fighting for the same channel: solid =
+            // committed, thin = estimated, dashed = exploratory. And the team
+            // is still there, as a cap on the bar's leading edge — available
+            // at a glance, out of the way of the label.
+            const stateFill = s.status === 'wip'
+              ? { background: 'var(--st-wip-soft)', ink: 'var(--st-wip)', edge: 'var(--st-wip)' }
+              : { background: 'var(--bg3)', ink: 'var(--tx2)', edge: 'var(--b3)' };
+            const confBorder = conf === 'exploratory'
+              ? `1.5px dashed ${stateFill.edge}`
               : conf === 'estimated'
-              ? { background: withAlpha(tc, 0.38), border: `1px solid ${tc}`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' }
-              : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
+              ? `1px solid ${stateFill.edge}`
+              : `1.5px solid ${stateFill.edge}`;
+            const confStyle = {
+              background: stateFill.background,
+              border: confBorder,
+              color: stateFill.ink,
+              textShadow: 'none',
+              borderLeft: `3px solid ${tc}`,
+              opacity: conf === 'exploratory' ? 0.85 : 1,
+            };
             const summaryStyle = s.status === 'done'
               ? {
                   background: 'var(--bg4)',
@@ -2574,16 +2643,22 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   textShadow: 'none',
                 };
             return <div key={rowKey} className="grow-r" style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
+              {/* Load is a STRIP under the row, not a wash behind it.
+                  Shading the whole row height put a coloured block behind
+                  every bar it touched, so the two competed for the same
+                  pixels and neither read — which is the opposite of what a
+                  load overlay is for. A 3px line along the row's baseline
+                  carries the same week-by-week reading, in the same colours,
+                  and leaves the bar alone. */}
               {loadCells.map(cell => (
                 <div key={`row-load-${cell.wi}`} style={{
                   position: 'absolute',
                   left: barLeft + cell.left,
-                  top: 0,
+                  bottom: 0,
                   width: cell.width,
-                  height: '100%',
-                  background: loadHeatColor(cell.percent, cell),
-                  borderBottom: `2px solid ${loadHeatStroke(cell.percent, cell)}`,
-                  opacity: .72,
+                  height: 3,
+                  background: loadHeatStroke(cell.percent, cell),
+                  opacity: .9,
                   pointerEvents: 'none',
                   zIndex: 0,
                 }} />
@@ -2656,10 +2731,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     ? summaryStyle
                     : s.status === 'done'
                     ? {
-                        background: `linear-gradient(0deg, rgba(120,128,138,.58), rgba(120,128,138,.58)), ${tc}`,
-                        border: '1px solid rgba(255,255,255,.14)',
-                        color: 'rgba(255,255,255,.92)',
-                        textShadow: '0 1px 1.5px rgba(0,0,0,.28)',
+                        background: 'var(--st-done-soft)',
+                        border: '1.5px solid var(--st-done)',
+                        borderLeft: `3px solid ${tc}`,
+                        color: 'var(--st-done)',
+                        textShadow: 'none',
                       }
                     : confStyle),
                   cursor: linkDrag ? 'crosshair'
@@ -2773,7 +2849,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     padding: '1px 5px', borderRadius: '0 4px 0 4px',
                     pointerEvents: 'none',
                   }}>
-                    {s.unscheduled ? '⚠ Offen' : s.plannedHandoff ? '✓ Plan' : s.crossTeam ? '↗ Cross' : '↳ Handoff'}
+                    {s.unscheduled ? '! Offen' : s.plannedHandoff ? '● Plan' : s.crossTeam ? '↗ Cross' : '↳ Handoff'}
                   </div>
                 )}
                 {s.status === 'done' && <div style={{
@@ -2797,21 +2873,19 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   ))}
                 </div>}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
-                  {!isSummary && node?.prio != null && node.prio !== 2 && (() => {
-                    // Prio badge: ⏫1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
-                    // Surface prio inline so the scheduler order is legible without opening
-                    // the modal. Default (2) stays hidden to reduce noise.
-                    const ICON = { 1: '⏫', 3: '▬', 4: '▼' };
-                    const LABEL = { 1: t('critical'), 3: t('medium'), 4: t('low') };
-                    const ic = ICON[node.prio]; if (!ic) return null;
-                    return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, opacity: 0.85 }}
-                      data-htip={t('g.prioTip', node.prio, LABEL[node.prio])}>{ic}</span>;
-                  })()}
+                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
+                  {/* Priority is not drawn on a bar. It is an INPUT to the
+                      schedule — it helps decide what runs before what — and
+                      this view is the schedule's ANSWER. Printing the input
+                      next to the output says the same thing twice, and on a
+                      plan where most work is marked critical it is a column
+                      of identical marks that distinguishes nothing. It stays
+                      where it is set and where ordering is done: the tree and
+                      the work order. */}
                   {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
                   {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                     data-htip={`${s.pinOverridden ? t('g.pinOverriddenTip', node.pinnedStart) : t('g.pinnedTip', node.pinnedStart)} ${t('g.clickToUnpin')}`}
-                    onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
+                    onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '!▸' : '▸'}</span>}
                   {!isSummary && s.blockedBy && (() => {
                     const blocker = scheduled.find(x => x.id === s.blockedBy.id);
                     const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
@@ -2820,11 +2894,18 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
                     const meta = [blockerPerson, t('g.blockerEnds', endIso)].filter(Boolean).join(', ');
                     return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
-                      data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>⏳</span>;
+                      data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>~</span>;
                   })()}
                   {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
-                    data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>⏱{fixedDays}d</span>}
-                  {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
+                    data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>{fixedDays}d</span>}
+                  {/* A summary bar does not repeat its own name. The label
+                      column beside it is sticky and already carries it, so
+                      printing it again inside the bar put the loudest text in
+                      the chart on the one thing the reader already knows —
+                      and on a nested plan that is a name in every second row.
+                      The count is what the bar adds, so the count is what it
+                      says. */}
+                  {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? s._summaryCount : s.name}</span>}
                 </span>}
                 {compactBar && !microBar && <span style={{
                   width: 5,
@@ -3078,7 +3159,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <span data-htip={t('g.confExploratoryTip')}>○ {counts.exploratory}</span>
         </span> : null;
       })()}
-      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
+      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>↗ {t('g.linkDrop')}</span>}
     </div>
     <SelectionActionBar
       count={selectedTaskIds.length}
@@ -3089,14 +3170,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {/* Z-order style reorder: shifts the whole selection in the scheduler
           processing order (writes seq). Mirrors media-player jump controls. */}
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏮</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} style={{ transform: 'rotate(180deg)' }} /></button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip')} aria-label={t('g.reorderUpTip')} style={{ fontSize: 14, lineHeight: 1 }}>◀</button>
         <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ fontSize: 14, lineHeight: 1 }}>⏭</button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} /></button>
       </span>
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏫</button>
-        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ⏬</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ▲▲</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Prio<Icon name="chevronDown" size={12} /></button>
       </span>
       <button
         type="button"

@@ -1,9 +1,10 @@
 import { useMemo, useState, memo } from "react";
+import { Icon } from '../shared/Icon.jsx';
 import { TBadge } from '../shared/Badges.jsx';
 import { leafNodes, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
-import { GT, GL } from '../../constants.js';
+import { GT, GT_ICON, GL } from '../../constants.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
@@ -154,52 +155,54 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const showFutureStripe = futurePct != null && futurePct - currentPct > MIN_VISIBLE_PROGRESS_DELTA_PCT;
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
-    {/* Progress header */}
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
-      <span data-testid="overview-progress" style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{progressPctLabel(prog)}%</span>
-      {overallDelta != null && Math.abs(overallDelta) >= MIN_VISIBLE_PROGRESS_DELTA_PCT && (
-        <span data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
-          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: overallDelta >= 0 ? '#f59e0b' : 'var(--re)',
-            background: overallDelta >= 0 ? 'rgba(245,158,11,.12)' : 'rgba(244,63,94,.10)',
-            border: `1px solid ${overallDelta >= 0 ? 'rgba(245,158,11,.5)' : 'rgba(244,63,94,.45)'}`,
-            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          {progressDeltaLabel(overallDelta)}
+    {/* One figure carries the view. It used to be a 28px number at the head
+        of a row of eight chips, all the same size and each with its own
+        colour, so nothing said which of them was the answer. Everything else
+        ranks under it: the forecast beside it because it is the same
+        quantity, the rest in cards below because they are different ones. */}
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span data-testid="overview-progress"
+          style={{ fontFamily: 'var(--font-display)', fontSize: 58, lineHeight: 1, letterSpacing: '-.015em', color: 'var(--tx)' }}>
+          {progressPctLabel(prog)}<span style={{ fontSize: 28, color: 'var(--tx3)', marginLeft: 2 }}>%</span>
         </span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('s.progressCaption', Math.round(tR))}</span>
+      </div>
+
+      {futureOverallProg != null && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+            <span data-testid="overview-plan" data-htip={futureOverallTip}
+              style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500, color: 'var(--tx2)', cursor: 'help' }}>
+              {progressPctLabel(futureOverallProg)}%
+            </span>
+            {futureOverallDeltaLabel && (
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--st-done)', background: 'var(--st-done-soft)', borderRadius: 3, padding: '1px 5px' }}>
+                {futureOverallDeltaLabel}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('s.planLabel')}</span>
+        </div>
+      )}
+
+      {overallDelta != null && Math.abs(overallDelta) >= MIN_VISIBLE_PROGRESS_DELTA_PCT && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <span data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
+            style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500,
+              color: overallDelta >= 0 ? 'var(--st-done)' : 'var(--st-risk)', cursor: 'help' }}>
+            {progressDeltaLabel(overallDelta)}
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+        </div>
       )}
       {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
-        <span data-htip={t('diff.noMovement')}
-          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--tx3)',
-            background: 'var(--bg3)', border: '1px solid var(--b)',
-            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          ±0%
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <span data-htip={t('diff.noMovement')}
+            style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500, color: 'var(--tx3)', cursor: 'help' }}>±0%</span>
+          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+        </div>
       )}
-      {futureOverallProg != null && (
-        <span data-htip={futureOverallTip}
-          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: '#fff',
-            background: '#3b82f6', border: '1px solid rgba(147,197,253,.55)',
-            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          Plan {progressPctLabel(futureOverallProg)}%
-        </span>
-      )}
-      <span data-htip={t('s.donePtTip', Math.round(doneR), Math.round(tR))}
-        style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--gr)',
-          background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.45)',
-          borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-        {t('s.donePt', Math.round(doneR))}
-      </span>
-      {scopeDelta != null && Math.abs(scopeDelta) >= 1 && (
-        <span data-htip={t('s.scopeDeltaTip')}
-          style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700,
-            color: scopeDelta >= 0 ? '#d97706' : 'var(--gr)',
-            background: scopeDelta >= 0 ? 'rgba(245,158,11,.10)' : 'rgba(34,197,94,.10)',
-            border: `1px solid ${scopeDelta >= 0 ? 'rgba(245,158,11,.45)' : 'rgba(34,197,94,.45)'}`,
-            borderRadius: 4, padding: '2px 7px', cursor: 'help' }}>
-          {t('s.scopeDelta', (scopeDelta >= 0 ? '+' : '') + Math.round(scopeDelta), iso(sinceDate))}
-        </span>
-      )}
-      <span style={{ fontSize: 12, color: 'var(--tx2)' }}>{t('s.doneOf', done, wip, open, lvs.length)}</span>
-      {latE && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', marginLeft: 'auto' }} data-htip={iso(latE)}>{t('s.projected')}: {horizonLabel(latE, null, isDe, now)}</span>}
     </div>
     <div className="prog-wrap" style={{ height: 8, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
       <div className="prog-fill" style={{ width: `${currentPct}%`, position: 'absolute', inset: '0 auto 0 0', zIndex: 1 }} />
@@ -237,6 +240,37 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
           style={{ position: 'absolute', left: `${pastPct}%`, top: -2, bottom: -2,
             width: 2, background: '#f59e0b', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
+      )}
+    </div>
+
+    {/* The figures that are NOT the headline: different quantities, so they
+        get their own row of cards rather than a line of chips beside it.
+        Label above, value below, everything in mono so the column of numbers
+        scans down. */}
+    <div className="sum-kpis">
+      <div className="sum-kpi" data-htip={t('s.donePtTip', Math.round(doneR), Math.round(tR))}>
+        <span className="sum-kpi-l">{t('s.kpiDelivered')}</span>
+        <span className="sum-kpi-v">{Math.round(doneR)} PT</span>
+      </div>
+      <div className="sum-kpi">
+        <span className="sum-kpi-l">{t('s.kpiOpen')}</span>
+        <span className="sum-kpi-v">{Math.max(0, Math.round(tR - doneR))} PT</span>
+      </div>
+      <div className="sum-kpi" data-htip={t('s.doneOf', done, wip, open, lvs.length)}>
+        <span className="sum-kpi-l">{t('s.kpiItems')}</span>
+        <span className="sum-kpi-v">{done}<span className="sum-kpi-sub">/{lvs.length}</span></span>
+      </div>
+      {latE && <div className="sum-kpi" data-htip={iso(latE)}>
+        <span className="sum-kpi-l">{t('s.kpiEnd')}</span>
+        <span className="sum-kpi-v sm">{horizonLabel(latE, null, isDe, now)}</span>
+      </div>}
+      {scopeDelta != null && Math.abs(scopeDelta) >= 1 && (
+        <div className="sum-kpi" data-htip={t('s.scopeDeltaTip')}>
+          <span className="sum-kpi-l">{t('s.kpiScope')}</span>
+          <span className="sum-kpi-v" style={{ color: scopeDelta >= 0 ? 'var(--st-wip)' : 'var(--st-done)' }}>
+            {(scopeDelta >= 0 ? '+' : '') + Math.round(scopeDelta)} PT
+          </span>
+        </div>
       )}
     </div>
 
@@ -321,7 +355,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         </div>
         {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>{t('pc.allClear')}</div>}
         {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
-          <span style={{ color: 'var(--am)', flexShrink: 0 }}>⚠</span>
+          <span style={{ color: 'var(--am)', flexShrink: 0 }}>!</span>
           <span style={{ color: 'var(--tx)' }}>{c.text}</span>
           {c.items?.[0]?.id && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
             onClick={() => onNavigate?.(c.items[0].id, 'tree')}>→ {c.items[0].id}</span>}
@@ -345,7 +379,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px' }}>{GT[g.type]} {t(g.type + 's')}</div>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type]} size={11} />{t(g.type + 's')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
@@ -378,7 +412,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 13 }}>{GT[dl.type]}</span>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type]} size={13} /></span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
@@ -502,15 +536,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           </span>
         )}
         <span style={{ marginLeft: 8 }}>
-          <ViewFilters
-            sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
-            diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
-            hasHistory={historyEvents.length > 0}
-            horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
-            horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
-            archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
-            archiveDays={archiveDays} setArchiveDays={setArchiveDays}
-          />
+          {/* The filter control lives in the sub-toolbar now, which the
+              Overview gets like every other filtered view. Two copies of the
+              same control on one screen is one too many. */}
         </span>
         {/* Archived count stays visible next to the filters so a shorter map
             is never a silent omission. */}

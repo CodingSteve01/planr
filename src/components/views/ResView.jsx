@@ -252,7 +252,7 @@ function PlanPicker({ label, hint, plans, selected, onChange }) {
           return (
             <button key={p.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
               onClick={() => toggle(p.id)} style={{ fontSize: 10 }}>
-              {on ? '✓ ' : ''}{p.name}
+              {on ? '● ' : ''}{p.name}
             </button>
           );
         })}
@@ -430,7 +430,7 @@ function TeamReadRow({ team, memberCount, meetingPlans = [], teamLockCount = 0, 
         {team.name || team.id}
         {teamLockCount > 0 && (
           <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--am)', background: 'rgba(245,158,11,.10)', color: 'var(--am)' }}
-            data-htip={t('rv.teamLockTip', teamLockCount)}>⚞⚟ {teamLockCount}</span>
+            data-htip={t('rv.teamLockTip', teamLockCount)}> {teamLockCount}</span>
         )}
       </td>
       <td>
@@ -762,7 +762,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
       {section === 'members' && (<>
         {!fMembers.length && !fTeams.length && (
           <div className="empty">
-            <div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>
+            <div style={{ fontSize: 24, marginBottom: 8 }}></div>
             {t('rv.noMembers')}
             <p>{t('rv.noMembersHint')}</p>
           </div>
@@ -1136,7 +1136,7 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
                         update(next);
                       }}
                       style={{ fontSize: 10 }}>
-                      {on ? '✓ ' : ''}{plan.name}
+                      {on ? '● ' : ''}{plan.name}
                     </button>
                   );
                 }) : (

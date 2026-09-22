@@ -222,7 +222,7 @@ export function ResourceLoadMatrix({ members, teams, weeks, vacations, meetingPl
             onClick={() => persistOverloadOnly(!overloadOnly)}
             data-htip={t('rv.loadOnlyOverloadedTip')}
             style={{ fontSize: 10, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
-            ⚠ {overloadedMemberCount} {t('rv.loadOverPeople')}{overloadOnly ? ' · only' : ''}
+            ! {overloadedMemberCount} {t('rv.loadOverPeople')}{overloadOnly ? ' · only' : ''}
           </button>
         )}
         <span style={{ display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 10, color: 'var(--tx3)' }}>

@@ -1,16 +1,17 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { getLineColor } from '../../utils/roadmap.js';
 import { progressPctLabel } from '../../utils/progress.js';
 import { statusChangePatch } from '../../utils/completion.js';
 import { currentPhase, setPhaseCursor, statusFromPhases, phaseProgress } from '../../utils/phases.js';
-import { GT } from '../../constants.js';
+import { GT, GT_ICON } from '../../constants.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
-import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
@@ -23,7 +24,14 @@ import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 function depth(id) { return id.split('.').length; }
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
-const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
+// Four marks from one family. Priority 1 used to be a media-control glyph, which macOS and
+// Windows render from the EMOJI font — a blue box with a white arrow sitting
+// among three flat geometric shapes, which is why it read as a stray sticker
+// in every row it appeared in. All four come from the text font now.
+// Chevrons, the way every issue tracker draws priority: up for "ahead of the
+// rest", a level bar for the middle, down for "can wait". The direction
+// carries the meaning without the colour, which four coloured dots would not.
+const PRIO_ICON = { 1: 'prioCritical', 2: 'prioHigh', 3: 'prioMedium', 4: 'prioLow' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
 function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
@@ -365,9 +373,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
     setOrderDrop(null);
   };
-  const toolBtn = (label, title, onClick, disabled) => <button
+  const toolBtn = (label, title, onClick, disabled, icon) => <button
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
-    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer' }}>{label}</button>;
+    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
+      display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+    {icon && <Icon name={icon} size={11} />}{label}</button>;
 
   // ── Keyboard model (docs/principles.md, principle 5) ────────────────────
   // The row order the cursor travels through is exactly what's on screen —
@@ -939,7 +949,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
             onDrop={e => onOrderDrop(e, r.id)}
             data-drop={dropHere || undefined}>
-            {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
+            {/* ID column — when on critical path, show CP labels via tooltip on the critical-path marker */}
             <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
               {onReorder && <span
                 className="tv-drag-handle"
@@ -968,7 +978,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 group instead of breaking individually under the name when the row
                 runs out of horizontal space. */}
             <td data-col="name" style={{ whiteSpace: 'normal' }}>
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
+              {/* nowrap + min-width:0 is what actually keeps a row one line
+                  tall. The badges after the name used to be allowed to wrap
+                  under it, which meant a long name pushed them down and took
+                  the row with it — and without min-width:0 a flex item never
+                  shrinks below its content, so the name overflowed the cell
+                  instead of ellipsising inside it. The badges now shrink
+                  away; the name never does. */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, minWidth: 0 }}>
               <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
                 ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }}
@@ -989,7 +1006,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               </span>
 
               {/* Root type emoji */}
-              {d === 1 && r.type && <span style={{ fontSize: 12, marginRight: 4 }}>{GT[r.type]}</span>}
+              {d === 1 && r.type && <span style={{ marginRight: 5, display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[r.type]} size={12} /></span>}
 
               {/* Name — a real <input> while this row is the keyboard editor's
                   active edit (see handleContainerKeyDown's Enter/⇧Enter and
@@ -1015,7 +1032,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                       dropdown by eye is the slow path. */}
                   {[
                     { key: 'prio', label: t('tv.fldPrio'), value: r.prio ? String(r.prio) : '',
-                      options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: `${PRIO_GLYPH[pv]} ${prioLbl[pv]}` })),
+                      options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: prioLbl[pv] })),
                       // A row you just typed has no priority yet — say so,
                       // rather than pre-filling one and calling it a decision.
                       emptyLabel: t('tv.prioNone'),
@@ -1125,10 +1142,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const chain = hasChain(sc);
                 const label = chain ? chainShorts(sc, shortMap, primary) : primary;
                 const tip = chain ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
-                return <span style={{ marginLeft: 8, fontSize: 10, color: chain ? 'var(--am)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: chain ? 600 : 400 }} data-htip={tip}>
-                  {chain && <span style={{ marginRight: 3 }}>⇄</span>}
-                  {label}
-                </span>;
+                return <PersonChip chain={!!chain} short={label} title={tip} style={{ marginLeft: 8 }} />;
               })()}
               {/* Auto-assigned suggestion from scheduler */}
               {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && (() => {
@@ -1136,13 +1150,13 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const primary = memberShort(sc.personId);
                 const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
                 const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : `${t('aa.suggestion')} ${memberFullName(sc.personId)}`;
-                return <AutoAssignBadge title={tip} style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px' }}>{label}</AutoAssignBadge>;
+                return <PersonChip auto short={label} title={tip} style={{ marginLeft: 8 }} />;
               })()}
 
               {/* Priority — chevron icon for all leaves */}
             </td>
             <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
-{isLeaf && r.prio && <span style={{ marginLeft: 8, fontSize: 11, color: PRIO_COL[r.prio], lineHeight: 1 }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}>{PRIO_GLYPH[r.prio]}</span>}
+{isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
 
               {/* Severity for roots */}
 {/* Diff-since badge (newly done / new leaf / progress jump) */}
@@ -1185,7 +1199,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const endIso = scheduleRangeById[r.id]?.end || null;
                 const overdue = r.status !== 'done' && endIso && endIso > r.due;
                 return <span style={{ marginRight: 6, color: overdue ? 'var(--re)' : 'var(--am)', fontWeight: overdue ? 700 : 400 }}
-                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>⏱{fmtDate(localDate(r.due))} ·</span>;
+                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>{fmtDate(localDate(r.due))} ·</span>;
               })()}
               {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && <>{fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}</>}
             </td>
@@ -1206,7 +1220,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}>⊞</button>}
                 <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
-                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}>✎</button>
+                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}><Icon name="pencil" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-sibling-${r.id}`}
                   data-htip={withKey(t('tv.newRowTip', r.id), 'editNext')}
                   onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}>+</button>
@@ -1223,6 +1237,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     tabIndex={0}
     onKeyDown={handleContainerKeyDown}
     onPaste={handlePaste}
+    className="tv-surface"
     style={{ outline: 'none' }}
     data-testid="tree-editor-surface">
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -1250,7 +1265,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
         <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
         {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
-        {toolBtn(`✎ ${t('tv.rename')}`, withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id))}
+        {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
         {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
         {onFullEdit && editorInDialog && toolBtn(`⊞ ${t('tv.editItem')}`, t('nm.fullEditTip'), () => onFullEdit(selected))}

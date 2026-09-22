@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { nextChildId } from '../../utils/scheduler.js';
 import { instantiateTemplatePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
-import { GT, GL } from '../../constants.js';
+import { GT, GT_ICON, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
@@ -61,7 +62,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
           <div className="field"><label>Focus type</label>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {['goal', 'painpoint', 'deadline'].map(t =>
-                <button key={t} type="button" className={`goal-type-btn${f.type === t ? ' active' : ''}`} onClick={() => s('type', f.type === t ? '' : t)}>{GT[t]} {GL[t]}</button>)}
+                <button key={t} type="button" className={`goal-type-btn${f.type === t ? ' active' : ''}`} onClick={() => s('type', f.type === t ? '' : t)}><Icon name={GT_ICON[t]} size={12} />{GL[t]}</button>)}
             </div>
           </div>
           {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>Severity</label>

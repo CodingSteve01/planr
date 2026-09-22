@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT } from '../../constants.js';
+import { SL, GT, GT_ICON } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
@@ -280,7 +281,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && <SBadge s={node.status} />}
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
+        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>▸ {f.pinnedStart} ×</span>}
         {/* The panel's ⇥ sends the editor here; without this the way back is
             a trip through Settings, which is a one-way door with extra steps. */}
         {onDockSide && <button className="btn btn-ghost btn-icon sm" style={{ marginLeft: 'auto' }}
@@ -293,6 +294,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {nmTabs.map(x => <button
           key={x.id}
           className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
+          data-testid={`nm-tab-${x.id}`}
           onMouseDown={e => activateTab(e, () => setNmTab(x.id))}
           onClick={e => { if (e.detail === 0) setNmTab(x.id); }}
         >{x.label}</button>)}
@@ -334,7 +336,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('nm.focusType')}</label>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {['', 'goal', 'painpoint', 'deadline'].map(ft =>
-                  <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? `${GT[ft]} ${t(ft)}` : t('none')}</button>)}
+                  <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>{ft ? <><Icon name={GT_ICON[ft]} size={12} />{t(ft)}</> : t('none')}</button>)}
               </div>
             </div>
             {f.type && <div className="field" style={{ flex: '0 0 110px' }}><label>{t('nm.severity')}</label>
@@ -377,49 +379,12 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             </div>)}
           </div>
         </div>}
-      </>}
-
-      {/* ══════ WORKFLOW TAB ══════ */}
-      {activeNmTab === 'workflow' && <>
-        {/* Manual status + progress (leaf without phases only) */}
-        {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-end' }}>
-          <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
-            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
-              if (v === 'done') setF(x => {
-                return ({ ...x, ...donePatch(x) });
-              });
-              else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
-              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50, completedStart: wipStartSeed(x) }));
-            }} />
-          </div>
-          <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
-            <input type="range" min="0" max="100" step="5" value={progPct}
-              onChange={e => {
-                const v = +e.target.value;
-                setF(x => {
-                  const next = { ...x, progress: v };
-                  if (v >= 100 && x.status !== 'done') {
-                    Object.assign(next, donePatch(x));
-                  }
-                  else if (v > 0 && v < 100 && x.status !== 'wip') { next.status = 'wip'; next.completedStart = wipStartSeed(x); }
-                  else if (v === 0 && x.status !== 'open') next.status = 'open';
-                  return next;
-                });
-              }}
-              style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
-          </div>
-        </div>}
-
-        {/* Phases — define status + progress when present */}
-        {isLeaf && <div ref={focusRefs.phases}><PhaseList
-          phases={f.phases}
-          templates={taskTemplates}
-          teams={teams}
-          members={members}
-          templateId={f.templateId}
-          onChange={handlePhaseChange}
-        /></div>}
-
+        {/* Who this belongs to. It used to sit on the Status tab, which had
+            become a catch-all: status, progress, dropping, phases, team,
+            assignment and the schedule's suggestion, all under a label that
+            named exactly one of them. Team and assignee are attributes of the
+            ITEM, like its name and its notes, so they live with them — and
+            what is left on Status is the question its name asks. */}
         <div className="field"><label>{t('qe.team')}</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <div style={{ flex: '0 0 180px' }}>
@@ -454,6 +419,87 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))} />}
+      </>}
+
+      {/* ══════ WORKFLOW TAB ══════ */}
+      {activeNmTab === 'workflow' && <>
+        {/* A package has no status of its own to set — it derives one from
+            what is under it, which is why this tab is nearly empty for one.
+            Saying so beats leaving a tab with a single button on it and no
+            explanation for the space. */}
+        {!isLeaf && <div className="field" style={{ maxWidth: 520 }}>
+          <label>{t('qe.status')}</label>
+          <span style={{ fontSize: 11.5, color: 'var(--tx2)', lineHeight: 1.5 }}>
+            {t('nm.derivedStatus', doneUnder, leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length)}
+          </span>
+        </div>}
+        {/* Manual status + progress (leaf without phases only) */}
+        {/* Top-aligned, not bottom. A select is 34px tall and a range input
+            about 20, so aligning their BOTTOMS put the two labels above them
+            at different heights — a ragged row for no reason. */}
+        {isLeaf && phases.length === 0 && <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-start' }}>
+          <div className="field" style={{ flex: '0 0 130px' }}><label>{t('qe.status')}</label>
+            <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={v => {
+              if (v === 'done') setF(x => {
+                return ({ ...x, ...donePatch(x) });
+              });
+              else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
+              else if (v === 'wip') setF(x => ({ ...x, status: 'wip', progress: (x.progress && x.progress > 0 && x.progress < 100) ? x.progress : 50, completedStart: wipStartSeed(x) }));
+            }} />
+          </div>
+          <div className="field" style={{ flex: 1 }}><label>{t('qe.progress')} {progPct}%</label>
+            <input type="range" min="0" max="100" step="5" value={progPct}
+              onChange={e => {
+                const v = +e.target.value;
+                setF(x => {
+                  const next = { ...x, progress: v };
+                  if (v >= 100 && x.status !== 'done') {
+                    Object.assign(next, donePatch(x));
+                  }
+                  else if (v > 0 && v < 100 && x.status !== 'wip') { next.status = 'wip'; next.completedStart = wipStartSeed(x); }
+                  else if (v === 0 && x.status !== 'open') next.status = 'open';
+                  return next;
+                });
+              }}
+              style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }} />
+          </div>
+        </div>}
+
+        {/* Phases — define status + progress when present */}
+        {/* Dropping is a decision about work at any level, so it sits outside
+            the leaf-only status picker above: a package derives its status
+            from its children, but "this is not going to happen" is taken
+            about the package. It could previously be set exactly one way —
+            pressing 0 on the cursor row in the tree — which is a field most
+            people never find. */}
+        <div className="field" style={{ maxWidth: 520 }}>
+          <label>{t('nm.dropLabel')}</label>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <button
+              type="button"
+              data-testid="drop-toggle"
+              className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
+              data-htip={t('tv.dropped')}
+              onClick={() => setF(x => ({ ...x, dropped: x.dropped ? undefined : true }))}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
+              {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
+            </button>
+            <kbd style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+              border: '1px solid var(--b2)', borderRadius: 3, padding: '1px 5px', marginTop: 4, flexShrink: 0 }}>0</kbd>
+          </div>
+          <span style={{ fontSize: 10.5, color: 'var(--tx3)', marginTop: 6, lineHeight: 1.45 }}>{t('nm.dropHint')}</span>
+        </div>
+
+        {isLeaf && <div ref={focusRefs.phases}><PhaseList
+          phases={f.phases}
+          templates={taskTemplates}
+          teams={teams}
+          members={members}
+          templateId={f.templateId}
+          onChange={handlePhaseChange}
+        /></div>}
+
         {isLeaf && focusRequest?.section === 'handoff' && (
           <div style={{
             margin: '8px 0 0', padding: '4px 8px',
@@ -487,7 +533,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" step="0.1" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => s('factor', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
           <div className="field"><label>{t('qe.priority')}</label>
-            <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `⏫ 1 ${t('critical')}` }, { id: '2', label: `▲ 2 ${t('high')}` }, { id: '3', label: `▬ 3 ${t('medium')}` }, { id: '4', label: `▼ 4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
+            <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `▲▲ 1 ${t('critical')}` }, { id: '2', label: `▲ 2 ${t('high')}` }, { id: '3', label: `▬ 3 ${t('medium')}` }, { id: '4', label: `▼ 4 ${t('low')}` }]} onSelect={v => s('prio', +v)} />
           </div>
         </div>
         <div className="field">
@@ -539,13 +585,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('qe.decideBy')}</label>
               <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
             </div>
-            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>⏳</span>}</label>
+            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
                 {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')}>×</button>}
               </div>
             </div>
-            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
                 <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>
@@ -687,7 +733,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
-        <button className="btn btn-pri" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
+        <button className="btn btn-pri" data-testid="nm-save" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
       </div>
     </div>
   </div>;

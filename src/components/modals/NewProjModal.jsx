@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { iso } from '../../utils/date.js';
 import { computeNRW } from '../../utils/holidays.js';
-import { GT, GL } from '../../constants.js';
+import { GT, GT_ICON, GL } from '../../constants.js';
 import { useT } from '../../i18n.jsx';
 import { PROJECT_TEMPLATES, DEFAULT_TEMPLATE_ID, applyTemplate } from '../../utils/projectTemplates.js';
 import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
@@ -123,11 +124,11 @@ export function NewProjModal({ onCreate, onClose }) {
       {step === 2 && <>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>{t('np.focusLead')}</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-          {Object.keys(GT).map(tp => <button key={tp} className="goal-type-btn" onClick={() => addG(tp)}>{GT[tp]} {t('np.addGoal', GL[tp])}</button>)}
+          {Object.keys(GT).map(tp => <button key={tp} className="goal-type-btn" onClick={() => addG(tp)}><Icon name={GT_ICON[tp]} size={12} />{t('np.addGoal', GL[tp])}</button>)}
         </div>
         {goals.map((g, i) => <div key={g.id} style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 10, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 14 }}>{GT[g.type]}</span>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[g.type]} size={13} /></span>
             <input style={{ flex: 1, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 8px', outline: 'none' }} placeholder={t('np.goalNamePlaceholder', GL[g.type])} value={g.name} onChange={e => upG(i, 'name', e.target.value)} />
             {g.type === 'deadline' && <input type="date" style={{ width: 130, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 11, padding: '5px 6px', outline: 'none' }} value={g.date || ''} onChange={e => upG(i, 'date', e.target.value)} />}
             <button className="btn btn-danger btn-xs" onClick={() => setGoals(gs => gs.filter((_, j) => j !== i))}>{t('rv.remove')}</button>

@@ -88,7 +88,7 @@ function TipBody({ text }) {
     <div style={{ font: '500 10.5px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)', marginBottom: 4 }}>{data.name}</div>
     <div style={{ font: '500 10px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx2, #cbd5e1)' }}>{data.note}</div>
     {data.atRisk && (
-      <div style={{ font: "700 10px/1.4 'JetBrains Mono',monospace", color: 'var(--re, #ef4444)', marginTop: 2 }}>⚠ {data.atRisk}</div>
+      <div style={{ font: "700 10px/1.4 'JetBrains Mono',monospace", color: 'var(--re, #ef4444)', marginTop: 2 }}>! {data.atRisk}</div>
     )}
   </>;
 }

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, memo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
@@ -342,7 +343,7 @@ function depPath(fp, tp, allBoxes) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onDeleteNode }) {
+function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, cpLabels = {}, stats, search = '', searchIdx = 0, isFiltered = false, onPickRoot = null, diffDoneIds = null, diffProgressedIds = null, onlyChanged = false, horizonIds = null, horizonOnlyPlanned = true, onNodeClick, onAddNode, onDeleteNode }) {
   const portalRoot = usePortalRoot();
   const { t } = useT();
   // Sets of leaf ids that completed / progressed in the diff window. Used to
@@ -383,6 +384,10 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   const [selId, setSelId] = useState(null);
   const [hoverId, setHoverId] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
+  // "Show it anyway" is a real answer — the graph is still there, it is just
+  // not the default, because the default should be something you can read.
+  const [showAll, setShowAll] = useState(false);
+  const roots = useMemo(() => (_treeProp || []).filter(r => !String(r.id).includes('.')), [_treeProp]);
   // Refs mirror the latest pan / zoom synchronously so rapid wheel events read
   // the freshest values inside the handler — without them, fast scrolls compute
   // off a stale closure-captured zoom and the viewport jumps.
@@ -397,7 +402,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   const hasChildrenSet = useMemo(() => { const s = new Set(); tree.forEach(r => { const p = r.id.split('.').slice(0, -1).join('.'); if (p) s.add(p); }); return s; }, [tree]);
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
   // Render all assignees of a node compactly — "KK+MB" or "KK+MB+1" for 3+.
-  // Handoff cascades appear as "KK+MB→AB→⚠" so the chain is visible here too.
+  // Handoff cascades appear as "KK+MB→AB→!" so the chain is visible here too.
   const assignLabel = (r, sc) => {
     const ids = (r.assign || []).length > 0 ? r.assign : (sc?.personId ? [sc.personId] : []);
     const primary = (() => {
@@ -552,13 +557,45 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>🕸</div>
+    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Icon name="network" size={32} strokeWidth={1.4} /></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{isFiltered ? 'No items match this filter' : 'No items yet'}</div>
       {isFiltered
         ? <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
         : (onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>)}
     </div>
   </div>;
+
+  // ── Too big to draw is not the same as too big to use ────────────────────
+  // On a real plan this view drew all 404 nodes at 11% zoom: a dust cloud
+  // with nothing legible in it, and no hint that the way out was to narrow
+  // the scope rather than to zoom in. A dependency graph is readable up to a
+  // hundred-odd nodes; past that more pixels do not help.
+  //
+  // So say so, and offer the one thing that does help. The scope filter
+  // already exists — this only makes it findable at the moment it is needed,
+  // and picking a project here sets the same filter every other view reads.
+  const TOO_MANY_NODES = 140;
+  if (items.length > TOO_MANY_NODES && !isFiltered && !showAll) {
+    return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+        <span style={{ color: 'var(--tx3)' }}><Icon name="network" size={32} strokeWidth={1.4} /></span>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>
+          {t('ng.tooBigTitle', items.length)}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--tx3)', lineHeight: 1.5 }}>{t('ng.tooBigBody')}</div>
+        {onPickRoot && roots.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 4 }}>
+            {roots.map(root => (
+              <button key={root.id} type="button" className="btn btn-sec btn-sm"
+                onClick={() => onPickRoot(root.id)}>{root.name || root.id}</button>
+            ))}
+          </div>
+        )}
+        <button type="button" className="btn btn-ghost btn-xs" style={{ marginTop: 2 }}
+          onClick={() => setShowAll(true)}>{t('ng.tooBigAnyway')}</button>
+      </div>
+    </div>;
+  }
 
   if (!layout) return null;
 
@@ -679,7 +716,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
             {prog > 0 && <circle cx={pCx} cy={pCy} r={pR} fill="none" stroke={prog >= 100 ? 'var(--gr)' : stC} strokeWidth={1.5}
               strokeDasharray={pCirc} strokeDashoffset={pOff} strokeLinecap="round"
               transform={`rotate(-90 ${pCx} ${pCy})`} style={{ pointerEvents: 'none' }} />}
-            {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>✓</text>}
+            {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>●</text>}
             {prog > 0 && prog < 100 && <text x={pCx} y={pCy + 2} fontSize={4} textAnchor="middle" fill={isRoot ? '#ffffffcc' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{prog}</text>}
             {/* ID */}
             <text x={5} y={10} fontSize={6} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
@@ -690,7 +727,9 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
             {/* Info line with priority chevron (for leaves) */}
             {(() => {
               const isLeafNode = !hasChildrenSet.has(r.id);
-              const PRIO_GLYPH = { 1: '⏫', 2: '▲', 3: '▬', 4: '▼' };
+              // SVG <text>, so an <Icon> cannot go here — these are the
+              // nearest plain-font stand-ins for the chevrons the tree draws.
+              const PRIO_GLYPH = { 1: '^^', 2: '^', 3: '=', 4: 'v' };
               const PRIO_COL = { 1: '#f87171', 2: '#fbbf24', 3: '#6ca0ff', 4: '#8090a8' };
               const showPrio = isLeafNode && r.prio;
               const y = r.name.length > 26 ? 40 : 33;

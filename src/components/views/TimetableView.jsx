@@ -47,7 +47,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
   const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
 
   const statusGlyph = status => {
-    if (status === 'done') return { icon: '✓', color: 'var(--gr)' };
+    if (status === 'done') return { icon: '●', color: 'var(--gr)' };
     if (status === 'wip') return { icon: '◐', color: 'var(--am)' };
     return { icon: '○', color: 'var(--tx3)' };
   };
@@ -103,7 +103,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
               const tr = treeById[it.id];
               const segs = segmentsByTree[it.id] || [];
               const stStatus = tr?.status || (segs[0]?.status) || 'open';
-              const glyph = stStatus === 'done' ? '✓' : stStatus === 'wip' ? '◐' : '○';
+              const glyph = stStatus === 'done' ? '●' : stStatus === 'wip' ? '◐' : '○';
               const persons = [...new Set(segs.map(s => s.person || (s.assign && s.assign[0])).filter(Boolean))].join(', ');
               tipLines.push(`  ${glyph} ${it.name}${persons ? ` — ${persons}` : ''}`);
             });
@@ -183,7 +183,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                           <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
                         )}
                         {r.doneInWindow > 0 && (
-                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--st-done)', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>✓{r.doneInWindow}</span>
+                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--st-done)', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>●{r.doneInWindow}</span>
                         )}
                         {/* Amber = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md. */}
                         {r.progressedInWindow > 0 && (

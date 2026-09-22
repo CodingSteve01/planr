@@ -82,7 +82,42 @@ describe('scopeCss', () => {
   it('anchors every light-mode rule in App.css at <html>', () => {
     const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
     const themed = selectorsOf(scoped).filter(s => s.includes('data-theme'));
-    expect(themed.length).toBeGreaterThan(30);
+    // A floor, not a target: the point is that whatever light-mode rules
+    // exist are anchored at <html>. The count fell from thirty-odd to a
+    // handful when the palette moved into tokens and the per-rule light
+    // twins stopped being necessary — that is the improvement, not a loss.
+    expect(themed.length).toBeGreaterThan(3);
     expect(themed.filter(s => !s.startsWith('html[data-theme'))).toEqual([]);
+  });
+});
+
+// Container queries arrived with the responsive work, and they are the one
+// at-rule whose CONTENTS are ordinary selectors that must still be scoped —
+// unlike @keyframes, whose "selectors" are percentages. A rule that escapes
+// the container restyles the user's whole vault, so this is checked rather
+// than assumed.
+describe('container queries', () => {
+  test('keeps the query and scopes the rules inside it', () => {
+    const scoped = scopeCss(`
+      .tv-surface{container-type:inline-size;container-name:tv;}
+      @container tv (max-width: 900px){
+        .tree-tbl td[data-col="schedule"]{display:none;}
+      }
+    `);
+    expect(scoped).toContain('@container tv (max-width: 900px)');
+    expect(scoped).toMatch(/\.planr-view \.tree-tbl td\[data-col="schedule"\]/);
+    expect(scoped).toMatch(/\.planr-view \.tv-surface/);
+  });
+
+  test('the real stylesheet still declares its container inside the scope', () => {
+    const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
+    // A container-type on an unscoped selector would make the VAULT a query
+    // container, which is exactly the leak this file exists to prevent.
+    const containerRules = scoped.split('}')
+      .filter(chunk => /container-type\s*:/.test(chunk));
+    expect(containerRules.length, 'no container declared at all').toBeGreaterThan(0);
+    containerRules.forEach(chunk => {
+      expect(chunk).toContain('.planr-view');
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { shortcutsByScope } from '../../utils/shortcuts.js';
 
@@ -65,6 +66,18 @@ export function KeyboardMap() {
         <span style={{ fontSize: 14, fontWeight: 600 }}>{t('km.title')}</span>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('km.closeHint')}</span>
+        {/* Escape and a click outside both close it, and both were the only
+            ways — a dialog with no visible way out is one people back away
+            from rather than dismiss. */}
+        <button
+          type="button"
+          data-testid="keymap-close"
+          aria-label={t('close')}
+          onClick={() => setOpen(false)}
+          className="btn btn-ghost btn-xs"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4, marginLeft: 4 }}>
+          <Icon name="x" size={14} />
+        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 0 }}>
@@ -104,13 +117,19 @@ export function KeyboardMap() {
           {t('km.legend')}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: 'var(--tx2)' }}>
+          {/* The legend has to show what the rows actually show, so the
+              priority entries are the same drawn chevrons, not a text
+              approximation of them. */}
           {[
             ['○', t('tv.statusOpen')], ['◐', t('wip')], ['●', t('tv.statusDone')],
-            ['⏫', t('tv.prioCrit')], ['▲', t('tv.prioHigh')], ['▬', t('tv.prioMed')], ['▼', t('tv.prioLow')],
-            ['⚡', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
+            [{ icon: 'prioCritical' }, t('tv.prioCrit')], [{ icon: 'prioHigh' }, t('tv.prioHigh')],
+            [{ icon: 'prioMedium' }, t('tv.prioMed')], [{ icon: 'prioLow' }, t('tv.prioLow')],
+            ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
           ].map(([glyph, label]) => (
             <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)' }}>{glyph}</span>{label}
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)', display: 'inline-flex', width: 16, justifyContent: 'center' }}>
+                {typeof glyph === 'string' ? glyph : <Icon name={glyph.icon} size={13} strokeWidth={2.2} />}
+              </span>{label}
             </span>
           ))}
         </div>

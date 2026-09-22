@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { filterCommands } from '../../utils/palette.js';
 import { keyHint } from '../../utils/shortcuts.js';
@@ -142,7 +143,9 @@ export function CommandPalette({ commands }) {
                       bare text are a list you read rather than one you scan.
                       Both are optional per command; the column is reserved
                       either way so the labels stay aligned. */}
-                  <span style={{ width: 16, textAlign: 'center', flexShrink: 0, opacity: .9 }}>{cmd.icon || ''}</span>
+                  <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, opacity: .9 }}>
+                    <Icon name={cmd.icon} size={14} />
+                  </span>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.label}</span>
                   {cmd.key && keyHint(cmd.key) && <kbd style={{
                     fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',

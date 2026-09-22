@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { leafNodes } from '../../utils/scheduler.js';
@@ -305,10 +306,12 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                   {(() => {
                     const doer = doerById.get(id);
                     if (!doer) return null;
-                    return <span data-queue-who data-auto={doer.auto ? 'true' : undefined}
-                      data-htip={doer.auto ? t('wo.autoWho') : t('wo.fixedWho')}
-                      style={{ opacity: doer.auto ? .7 : 1, fontStyle: doer.auto ? 'italic' : 'normal' }}>
-                      {doer.auto ? '~' : ''}{doer.name}
+                    // Same chip as the tree, the Gantt and the Planning tab.
+                    // This view invented the `~name` vocabulary that all of
+                    // them now share; it may as well use the component.
+                    return <span data-queue-who data-auto={doer.auto ? 'true' : undefined}>
+                      <PersonChip auto={doer.auto} short={doer.name}
+                        title={doer.auto ? t('wo.autoWho') : t('wo.fixedWho')} />
                     </span>;
                   })()}
                 </td>

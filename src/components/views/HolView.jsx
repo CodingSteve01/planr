@@ -83,7 +83,7 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
 
       {!list.length && (
         <div className="empty">
-          <div style={{ fontSize: 28, marginBottom: 10 }}>📆</div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
           <div style={{ fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('hv.empty')}</div>
           <button className="btn btn-pri" onClick={importNRW}>{t('hv.emptyBtn')}</button>
         </div>

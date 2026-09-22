@@ -6,7 +6,16 @@ import { leafProgress, resolveToLeafIds, scheduleEffort } from './scheduler.js';
 import { aggregateProgressPct } from './progress.js';
 import { normalizeCompletedWindows } from './completion.js';
 
-const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+// Line colours. One family rather than eight unrelated brights: they share a
+// chroma and a lightness, so no line shouts over its neighbours and the map
+// reads as one drawing. The old set was the default Tailwind ramp
+// (#3b82f6, #10b981, #f59e0b …), which is high-chroma and unrelated hue to
+// hue — fine for a badge, wrong for eight lines on one canvas.
+//
+// Each one is picked to clear 3:1 against BOTH grounds, because the same hex
+// is drawn on near-white and on near-black; a colour tuned for one goes muddy
+// on the other. Guarded in src/utils/__tests__/roadmapPalette.test.js.
+const PALETTE = ['#3d7ab0', '#4a8f63', '#c08a3a', '#8f6ba1', '#bf5a4d', '#3d8a92', '#a06f8c', '#6f8440'];
 
 // Looks up the Subway-Map line color for a top-level root id. Returns null
 // when no assignment has been computed yet (user hasn't opened the Subway
@@ -21,55 +30,53 @@ export function getLineColor(rootId, assignment) {
 const DAY = 864e5;
 
 // ─── Fixed metro route network (1400×800 canvas) ─────────────────────────────
-// Each route is an array of {x,y} waypoints using 45° and 90° angles only.
+// Every route runs WEST → EAST, and that is the whole point rather than a
+// style choice. A station's place along its route IS the project's progress
+// (see progressToRouteT), so the reading has to be "further right = further
+// on" for every line on the map at once. The routes this replaced were a
+// hand-drawn metro network: one ran right-to-left, one ran vertically, one
+// was a U-shape doubling back on itself. On those, a line's own geometry
+// contradicted the quantity it was drawing, and you could not compare two
+// projects by looking — which is the only thing a portfolio map is for.
+//
+// Each route is a lane with one vertical jog, and the jogs sit at different x
+// per lane so it still reads as a network rather than a bar chart. The jog is
+// vertical rather than diagonal because polylineToPath rounds every corner:
+// two 16-unit curves either side of a 36-unit drop meet as a single S, which
+// is what a metro map draws. A 45° diagonal reads as a line going somewhere
+// else; a curve reads as the same line continuing.
 const ROUTES = [
-  // Route 0: long east-west with two bends (like U6 Berlin)
+  // Route 0 — lane 0, one jog between x=300 and x=780
   [
-    { x: 60, y: 680 }, { x: 220, y: 680 }, { x: 280, y: 620 }, { x: 520, y: 620 },
-    { x: 580, y: 560 }, { x: 880, y: 560 }, { x: 940, y: 500 }, { x: 1180, y: 500 },
-    { x: 1340, y: 500 },
+    { x: 60, y: 80 }, { x: 300, y: 80 }, { x: 300, y: 116 }, { x: 780, y: 116 }, { x: 780, y: 80 }, { x: 1340, y: 80 },
   ],
-  // Route 1: top-left to bottom-right long diagonal (like U7)
+  // Route 1 — lane 1, one jog between x=420 and x=900
   [
-    { x: 80, y: 80 }, { x: 200, y: 80 }, { x: 260, y: 140 }, { x: 420, y: 140 },
-    { x: 480, y: 200 }, { x: 620, y: 200 }, { x: 680, y: 260 }, { x: 820, y: 260 },
-    { x: 880, y: 320 }, { x: 1020, y: 320 }, { x: 1080, y: 380 }, { x: 1220, y: 380 },
-    { x: 1280, y: 440 }, { x: 1340, y: 440 },
+    { x: 60, y: 172 }, { x: 420, y: 172 }, { x: 420, y: 208 }, { x: 900, y: 208 }, { x: 900, y: 172 }, { x: 1340, y: 172 },
   ],
-  // Route 2: vertical north-south with jog (like U8). Shifted LEFT from the
-  // original x=700 spine so it doesn't crowd Route 1's diagonal sweep / Route
-  // 4's top horizontal through the same band — those routes share the
-  // (640..720, 180..260) area and auto-spacing struggled to pull the rails
-  // apart visually.
+  // Route 2 — lane 2, one jog between x=200 and x=660
   [
-    { x: 600, y: 40 }, { x: 600, y: 180 }, { x: 540, y: 240 }, { x: 540, y: 420 },
-    { x: 600, y: 480 }, { x: 600, y: 620 }, { x: 600, y: 760 },
+    { x: 60, y: 264 }, { x: 200, y: 264 }, { x: 200, y: 300 }, { x: 660, y: 300 }, { x: 660, y: 264 }, { x: 1340, y: 264 },
   ],
-  // Route 3: medium east-west through center
+  // Route 3 — lane 3, one jog between x=540 and x=1000
   [
-    { x: 280, y: 380 }, { x: 500, y: 380 }, { x: 560, y: 320 }, { x: 760, y: 320 },
-    { x: 820, y: 380 }, { x: 1020, y: 380 },
+    { x: 60, y: 356 }, { x: 540, y: 356 }, { x: 540, y: 392 }, { x: 1000, y: 392 }, { x: 1000, y: 356 }, { x: 1340, y: 356 },
   ],
-  // Route 4: top-right sweeping to center-left (like U2)
+  // Route 4 — lane 4, one jog between x=320 and x=840
   [
-    { x: 1320, y: 60 }, { x: 1200, y: 60 }, { x: 1140, y: 120 }, { x: 980, y: 120 },
-    { x: 920, y: 180 }, { x: 720, y: 180 }, { x: 660, y: 240 }, { x: 500, y: 240 },
-    { x: 440, y: 300 }, { x: 280, y: 300 },
+    { x: 60, y: 448 }, { x: 320, y: 448 }, { x: 320, y: 484 }, { x: 840, y: 484 }, { x: 840, y: 448 }, { x: 1340, y: 448 },
   ],
-  // Route 5: bottom-left arc upward (like U3)
+  // Route 5 — lane 5, one jog between x=620 and x=1080
   [
-    { x: 60, y: 520 }, { x: 200, y: 520 }, { x: 260, y: 460 }, { x: 420, y: 460 },
-    { x: 480, y: 400 }, { x: 620, y: 400 }, { x: 660, y: 360 },
+    { x: 60, y: 540 }, { x: 620, y: 540 }, { x: 620, y: 576 }, { x: 1080, y: 576 }, { x: 1080, y: 540 }, { x: 1340, y: 540 },
   ],
-  // Route 6: short north-east diagonal (spur line)
+  // Route 6 — lane 6, one jog between x=260 and x=720
   [
-    { x: 880, y: 620 }, { x: 940, y: 560 }, { x: 1060, y: 560 }, { x: 1120, y: 500 },
-    { x: 1240, y: 500 }, { x: 1300, y: 440 },
+    { x: 60, y: 632 }, { x: 260, y: 632 }, { x: 260, y: 668 }, { x: 720, y: 668 }, { x: 720, y: 632 }, { x: 1340, y: 632 },
   ],
-  // Route 7: small U-shape at left side
+  // Route 7 — lane 7, one jog between x=460 and x=940
   [
-    { x: 160, y: 320 }, { x: 160, y: 200 }, { x: 220, y: 140 }, { x: 400, y: 140 },
-    { x: 460, y: 200 }, { x: 460, y: 320 },
+    { x: 60, y: 724 }, { x: 460, y: 724 }, { x: 460, y: 688 }, { x: 940, y: 688 }, { x: 940, y: 724 }, { x: 1340, y: 724 },
   ],
 ];
 
@@ -313,8 +320,45 @@ function pointAtFraction(waypoints, t) {
 }
 
 /** Build an SVG path `d` attribute from waypoints. */
+// How far back from a corner the curve starts. A jog is a 36-unit vertical
+// drop, so 16 leaves a few units of straight between the two curves and the
+// bend reads as one S rather than two kinks.
+const ROUTE_CORNER_R = 16;
+
+// A polyline with rounded corners. Metro maps draw curves, not mitres, and
+// the difference is not decoration: a 45° diagonal reads as a line going
+// somewhere else, while a curve reads as the same line continuing. At each
+// interior vertex back off `r` along both adjacent segments (never more than
+// half of either, so short legs degrade gracefully) and put a quadratic
+// through the vertex itself.
+//
+// The travelled overlay goes through here too, on its own clipped point list,
+// so the two paths curve identically where they share a corner.
+function polylineToPath(points, r = ROUTE_CORNER_R) {
+  const p = points.filter((q, i) => i === 0 || q.x !== points[i - 1].x || q.y !== points[i - 1].y);
+  if (!p.length) return null;
+  if (p.length === 1) return `M ${p[0].x} ${p[0].y}`;
+  const n = v => Number(v.toFixed(1));
+  if (p.length === 2 || r <= 0) {
+    return `M ${n(p[0].x)} ${n(p[0].y)} ` + p.slice(1).map(q => `L ${n(q.x)} ${n(q.y)}`).join(' ');
+  }
+  const out = [`M ${n(p[0].x)} ${n(p[0].y)}`];
+  for (let i = 1; i < p.length - 1; i++) {
+    const a = p[i - 1], b = p[i], c = p[i + 1];
+    const d1 = Math.hypot(b.x - a.x, b.y - a.y);
+    const d2 = Math.hypot(c.x - b.x, c.y - b.y);
+    if (!d1 || !d2) continue;
+    const rr = Math.min(r, d1 / 2, d2 / 2);
+    out.push(`L ${n(b.x + (a.x - b.x) / d1 * rr)} ${n(b.y + (a.y - b.y) / d1 * rr)}`);
+    out.push(`Q ${n(b.x)} ${n(b.y)} ${n(b.x + (c.x - b.x) / d2 * rr)} ${n(b.y + (c.y - b.y) / d2 * rr)}`);
+  }
+  const last = p[p.length - 1];
+  out.push(`L ${n(last.x)} ${n(last.y)}`);
+  return out.join(' ');
+}
+
 function waypointsToPath(waypoints) {
-  return waypoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  return polylineToPath(waypoints);
 }
 
 /**
@@ -332,7 +376,7 @@ function partialPath(waypoints, fraction, startFraction = 0) {
   // point.
   if (startFraction > 0) {
     const startPt = pointAtFraction(waypoints, startFraction);
-    const parts = [`M ${startPt.x} ${startPt.y}`];
+    const parts = [{ x: startPt.x, y: startPt.y }];
     let traveled = 0;
     for (let i = 1; i < waypoints.length; i++) {
       const dx = waypoints[i].x - waypoints[i - 1].x;
@@ -348,19 +392,19 @@ function partialPath(waypoints, fraction, startFraction = 0) {
         const frac = segLen > 0 ? rem / segLen : 0;
         const ex = waypoints[i - 1].x + dx * frac;
         const ey = waypoints[i - 1].y + dy * frac;
-        parts.push(`L ${ex} ${ey}`);
-        return parts.join(' ');
+        parts.push({ x: ex, y: ey });
+        return polylineToPath(parts);
       }
       // Mid segment, fully traversed in window — emit endpoint
       // (segStart may be < startTarget but we already emitted M at start)
       void segStart;
-      parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
+      parts.push({ x: waypoints[i].x, y: waypoints[i].y });
       traveled = segEnd;
     }
-    return parts.join(' ');
+    return polylineToPath(parts);
   }
 
-  const parts = [`M ${waypoints[0].x} ${waypoints[0].y}`];
+  const parts = [{ x: waypoints[0].x, y: waypoints[0].y }];
   let traveled = 0;
 
   for (let i = 1; i < waypoints.length; i++) {
@@ -373,17 +417,17 @@ function partialPath(waypoints, fraction, startFraction = 0) {
       const frac = segLen > 0 ? rem / segLen : 0;
       const ex = waypoints[i - 1].x + dx * frac;
       const ey = waypoints[i - 1].y + dy * frac;
-      parts.push(`L ${ex} ${ey}`);
+      parts.push({ x: ex, y: ey });
       break;
     }
 
-    parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
+    parts.push({ x: waypoints[i].x, y: waypoints[i].y });
     traveled += segLen;
 
     if (traveled >= target) break;
   }
 
-  return parts.join(' ');
+  return polylineToPath(parts);
 }
 
 /**
@@ -576,46 +620,66 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       .map(capDoneItem)
       .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
 
-    // Cluster: group items whose endD are within 14 days of each other.
-    // Important: never merge completed work with unfinished work just because
-    // their dates are close. The Subway map is a progress tool; if a cluster
-    // contains one open task, the whole station becomes "not reached" and
-    // months of completed predecessor work disappear visually.
-    const CLUSTER_GAP_DAYS = 14;
-    const CLUSTER_MAX_SPAN_DAYS = 21;
-    const CLUSTER_MAX_ITEMS = 4;
-    const clusters = [];
-    let currentCluster = [];
-    const clusterBand = item => ((nodeMap[item.id] || item)?.status === 'done' ? 'done' : 'active');
+    // ── What a stop IS ────────────────────────────────────────────────────
+    // A stop is a WORK PACKAGE, not a time window.
+    //
+    // It used to be a window: leaves whose end dates fell within N days of
+    // each other became one station. That works on a small plan and falls
+    // apart on a real one, in both directions at once. Widen the window and a
+    // station swallows fifty unrelated tasks and means nothing; narrow it and
+    // one project puts forty touching circles on its line with the labels
+    // overlapping into a band. Neither is a metro map, and neither answers
+    // the question the map is for.
+    //
+    // The tree already says how the work is grouped, so the stop is that
+    // grouping: every leaf under "Belegstruktur und Buchungslogik" is one
+    // station, named after it. The count follows the plan's own structure
+    // instead of a heuristic, and the name is one somebody wrote.
+    //
+    // The only thing left to choose is the DEPTH, and the canvas chooses it:
+    // start at the root's direct children and go deeper while the stations
+    // still fit the route (~1280 units wide, ~80 per label). The deepest
+    // level that fits wins, because that is the most detail the map can
+    // actually carry. A plan with one flat level gets its leaves as stops; a
+    // deeply nested one gets its top packages.
+    const MAX_STATIONS = 14;
+    const rootDepth = depthOf(root.id);
+    const ancestorAt = (id, depth) => id.split('.').slice(0, depth).join('.');
+    const stopDepth = (() => {
+      const deepest = sorted.reduce((max, item) => Math.max(max, depthOf(item.id)), rootDepth);
+      let chosen = rootDepth + 1;
+      for (let d = rootDepth + 1; d <= deepest; d++) {
+        const count = new Set(sorted.map(item => ancestorAt(item.id, d))).size;
+        if (count > MAX_STATIONS) break;
+        chosen = d;
+      }
+      return chosen;
+    })();
 
+    // Group by that ancestor, keeping the time order the sort established —
+    // a line still reads left to right by when the work lands.
+    const byStop = new Map();
     sorted.forEach(item => {
-      if (!currentCluster.length) {
-        currentCluster.push(item);
-        return;
-      }
-      const lastItem = currentCluster[currentCluster.length - 1];
-      const lastEnd = new Date(lastItem.clusterEndD || lastItem.endD);
-      const firstEnd = new Date(currentCluster[0].clusterEndD || currentCluster[0].endD);
-      const thisEnd = new Date(item.clusterEndD || item.endD);
-      const sameProgressBand = clusterBand(item) === clusterBand(currentCluster[currentCluster.length - 1]);
-      const gapDays = (+thisEnd - +lastEnd) / DAY;
-      const spanDays = (+thisEnd - +firstEnd) / DAY;
-      if (sameProgressBand
-          && gapDays < CLUSTER_GAP_DAYS
-          && spanDays <= CLUSTER_MAX_SPAN_DAYS
-          && currentCluster.length < CLUSTER_MAX_ITEMS) {
-        currentCluster.push(item);
-      } else {
-        clusters.push(currentCluster);
-        currentCluster = [item];
-      }
+      const key = ancestorAt(item.id, stopDepth) || item.id;
+      if (!byStop.has(key)) byStop.set(key, []);
+      byStop.get(key).push(item);
     });
-    if (currentCluster.length) clusters.push(currentCluster);
+    const clusters = [...byStop.entries()].map(([key, items]) => {
+      // The package's own node carries the name a person wrote. A leaf that
+      // IS the stop (a flat project, or an item hanging directly off the
+      // root) names itself.
+      const node = nodeMap[key];
+      items.stopNode = node && node.id !== items[0]?.id ? node : null;
+      return items;
+    });
 
     // Build stations from clusters
     const majorStations = clusters.map(cluster => {
-      const representative = cluster.reduce((best, item) =>
-        (item.name || '').length > (best.name || '').length ? item : best, cluster[0]);
+      // The stop is named after its package, because that is the name
+      // somebody wrote for exactly this group of work. Only when the stop IS
+      // a single item does it fall back to naming itself.
+      const representative = cluster.stopNode
+        || cluster.reduce((best, item) => ((item.name || '').length > (best.name || '').length ? item : best), cluster[0]);
       const earliestStart = cluster.reduce((min, item) => {
         const d = toDate(item.startD);
         return d && (!min || d < min) ? d : min;
@@ -679,6 +743,14 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       ? !!rootState?.isLate
       : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
 
+    // A line nobody is working any more: every leaf done, or the project
+    // dropped. Both are still ON the map on purpose — a finished project is
+    // part of the picture, and a dropped one has to stay visible so the
+    // decision can be seen and taken back — but neither competes for
+    // attention with work that is live.
+    const rootDropped = !!(nodeMap[root.id] || root)?.dropped;
+    const rootRetired = rootDropped || allDoneUnderRoot;
+
     // Duration in days for route-length matching
     const durationDays = rootEarliest && rootLatest
       ? Math.max(1, (+rootLatest - +rootEarliest) / DAY)
@@ -689,6 +761,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       progress: rootInfo.prog || 0,
       totalEffort: rootInfo.effort || 0,
       atRisk,
+      retired: rootRetired,
+      dropped: rootDropped,
+      allDoneUnderRoot,
       hiddenMinorCount: 0,
       timeline,
       majorStations,
@@ -1156,6 +1231,23 @@ export function placeStationLabels(lines, isVisible = () => true) {
   const candidates = [];
 
   lines.forEach((line, lineIdx) => {
+    // The project's name, drawn above the start of its own line, is an
+    // obstacle like any dot. It was not, so a station near the start of a
+    // line had its abbreviation placed straight through the name — reported
+    // on the real plan, where nearly every line has an early stop.
+    // Measured the way labelBox does it: ~8px per character at 16px, plus the
+    // line's own height above the route.
+    const nameW = Math.min(String(line.root?.name || '').length, 42) * 8.2;
+    const nameX = (line.route?.[0]?.x ?? 0) - 30;
+    const nameY = (line.route?.[0]?.y ?? 0) - 15;
+    if (nameW > 0) {
+      occupied.push({
+        owner: `__name_${line.root?.id ?? lineIdx}`,
+        x0: nameX - 4, x1: nameX + nameW + 4,
+        y0: nameY - 16, y1: nameY + 5,
+      });
+    }
+
     [...line.majorStations, ...line.minorStations].forEach(station => {
       // Dots are obstacles whether or not they carry a label — except for the
       // station's OWN dot. A label always sits next to its dot, so counting
@@ -1286,7 +1378,21 @@ export function renderRoadmapSvg(args) {
     out.push(`</g>`);
   };
 
-  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+  // Crop the canvas to the routes actually in use. The network is fixed
+  // geometry on a 1400x800 board, so a plan with four projects left roughly a
+  // quarter of the map as empty margin — measured on a 676px-wide pane: 65
+  // units of nothing above the first line and 120 below the last, about 90px
+  // of dead height directly under a headline that is competing for the same
+  // space. The padding covers what is drawn AROUND a route: station labels
+  // above, the line badge and the end marker below.
+  const ROUTE_PAD_TOP = 58;
+  const ROUTE_PAD_BOTTOM = 46;
+  const usedYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
+  const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, SVG_H) : 0;
+  const viewH = usedYs.length
+    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, SVG_H - viewY)
+    : SVG_H;
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   // Construction-tape pattern for the diff trails — base colour stays amber
@@ -1310,7 +1416,10 @@ export function renderRoadmapSvg(args) {
   </defs>`);
   out.push(`<style>
     .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
-    .rm-abbrev{font:700 10.5px/1 'JetBrains Mono',monospace;fill:var(--tx2,#cbd5e1);paint-order:stroke fill;stroke:var(--bg,#0e1116);stroke-width:3.4;stroke-linejoin:round}
+    .rm-line-name{font:600 16px/1 var(--font);letter-spacing:.005em}
+    .rm-line-retired{opacity:.4}
+    .rm-line-retired .rm-line-name{font-weight:500}
+    .rm-abbrev{font:600 12px/1 var(--mono);fill:var(--tx2);paint-order:stroke fill;stroke:var(--bg2);stroke-width:3.6;stroke-linejoin:round}
     /* No fill override for active / done — the inline fill attribute
        (project colour) drives readability. The previous .rm-abbrev-active
        white-fill rule cascaded over the inline colour and made the label
@@ -1327,7 +1436,14 @@ export function renderRoadmapSvg(args) {
     const progressD = reachedT > 0 ? partialPath(route, reachedT) : null;
     const gId = `rm-line-${lineIdx}`;
 
-    out.push(`<g id="${gId}">`);
+    // A finished or dropped project stays on the map — a finished one is part
+    // of the picture, a dropped one has to stay visible so the decision can be
+    // seen and taken back — but it stops competing with live work for
+    // attention. One group-level opacity, so every part of the line dims
+    // together and nothing has to know about it individually.
+    const retiredG = line.retired ? ' class="rm-line-retired"' : '';
+
+    out.push(`<g id="${gId}"${retiredG}>`);
 
     // Build the line-level tooltip so hovering anywhere on the route reveals
     // project id + name + progress, not just when the user finds the train.
@@ -1347,7 +1463,14 @@ export function renderRoadmapSvg(args) {
     out.push(`<path d="${esc(pathD)}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-tip="${esc(lineTooltip)}" data-item-id="${esc(line.root.id)}" style="cursor:pointer"/>`);
 
     // Full route (faded) — drawn first so progress overlays it
-    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.22" pointer-events="none"/>`);
+    // The route not yet travelled. It sat at 0.22, which made a project that
+    // has barely started almost invisible — the map showed loudest what is
+    // already done and whispered what is still ahead, which is the wrong way
+    // round for a portfolio review. The track is now legible on its own, and
+    // the travelled part is what stands out (full weight, on top of it) plus
+    // the train marker. 0.42 is where the pale track still reads as a line
+    // on the card surface without competing with the travelled portion.
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.42" pointer-events="none"/>`);
 
     // Traveled portion (full color)
     if (progressD) {
@@ -1369,6 +1492,12 @@ export function renderRoadmapSvg(args) {
     // Measure label width approximately (13px mono ≈ 8.5px per char)
     const labelLen = String(line.root.id).length;
     const badgeW = Math.max(28, labelLen * 9 + 12);
+
+    // The project's NAME, above its own line. It used to live only in the
+    // legend below the map as a two-letter badge you had to look up — so
+    // reading the map meant looking down, matching a code, and looking back.
+    // A metro map names its lines on the map.
+    out.push(`<text x="${startPt.x - 30}" y="${startPt.y - 15}" class="rm-line-name" fill="var(--tx)">${esc(truncate(line.root.name, 42))}</text>`);
 
     // Start badge (left-anchored from the start point)
     const sbx = startPt.x - badgeW - 8;
@@ -1453,9 +1582,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="#f59e0b" stroke-width="1.8" opacity="0.78"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="${color}"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="${color}"/>`);
       } else if (isCurrent) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2.5"/>`);
+        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3.4"/>`);
         out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
       } else {
         out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
@@ -1484,9 +1613,9 @@ export function renderRoadmapSvg(args) {
         out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6" fill="none" stroke="#f59e0b" stroke-width="1.3" opacity="0.70"/>`);
       }
       if (isDone) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="4" fill="${color}" opacity="0.85"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="${color}"/>`);
       } else {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="3" fill="var(--bg,#111318)" stroke="${color}" stroke-width="1.5" opacity="${isCurrent ? 1 : 0.7}"/>`);
+        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6.5" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3" opacity="${isCurrent ? 1 : 0.9}"/>`);
       }
 
       const minorPlace = stationLabelPlacement.get(station.id);

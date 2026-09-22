@@ -1,4 +1,5 @@
 import { useT } from '../../i18n.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { FeatureCarousel } from '../shared/FeatureCarousel.jsx';
 
 export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
@@ -7,20 +8,20 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
   // 4 unique-selling features promoted to hero tiles (below the hero row).
   // Less visual noise than 10 chips, emphasizes what sets Planr apart.
   const HERO_FEATURES = [
-    ['⇄', t('ob.feat.offboard'), t('ob.feat.offboard.desc'), t('ob.feat.offboard.htip')],
-    ['🧮', t('ob.feat.cap'), t('ob.feat.cap.desc'), t('ob.feat.cap.htip')],
-    ['🚆', t('ob.feat.metro'), t('ob.feat.metro.desc'), t('ob.feat.metro.htip')],
-    ['⚡', t('ob.feat.cp'), t('ob.feat.cp.desc'), t('ob.feat.cp.htip')],
+    ['swap', t('ob.feat.offboard'), t('ob.feat.offboard.desc'), t('ob.feat.offboard.htip')],
+    ['calculator', t('ob.feat.cap'), t('ob.feat.cap.desc'), t('ob.feat.cap.htip')],
+    ['train', t('ob.feat.metro'), t('ob.feat.metro.desc'), t('ob.feat.metro.htip')],
+    ['bolt', t('ob.feat.cp'), t('ob.feat.cp.desc'), t('ob.feat.cp.htip')],
   ];
   // Supporting features as a compact chip row under the hero tiles.
   const CHIPS = [
-    ['📅', t('ob.feat.auto'), t('ob.feat.auto.htip')],
-    ['🌳', t('ob.feat.tree'), t('ob.feat.tree.htip')],
-    ['🧭', t('ob.feat.horizons'), t('ob.feat.horizons.htip')],
-    ['📄', t('ob.feat.export'), t('ob.feat.export.htip')],
-    ['🕸', t('ob.feat.net'), t('ob.feat.net.htip')],
-    ['🎯', t('ob.feat.focus'), t('ob.feat.focus.htip')],
-    ['💾', t('ob.feat.offline'), t('ob.feat.offline.htip')],
+    ['calendar', t('ob.feat.auto'), t('ob.feat.auto.htip')],
+    ['list', t('ob.feat.tree'), t('ob.feat.tree.htip')],
+    ['compass', t('ob.feat.horizons'), t('ob.feat.horizons.htip')],
+    ['doc', t('ob.feat.export'), t('ob.feat.export.htip')],
+    ['network', t('ob.feat.net'), t('ob.feat.net.htip')],
+    ['target', t('ob.feat.focus'), t('ob.feat.focus.htip')],
+    ['save', t('ob.feat.offline'), t('ob.feat.offline.htip')],
   ];
 
   return (
@@ -55,7 +56,7 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
         <div className="ob-tiles">
           {HERO_FEATURES.map(([icon, title, desc, htip]) => (
             <div key={title} className="ob-tile" data-htip={htip}>
-              <div className="ob-tile-icon">{icon}</div>
+              <div className="ob-tile-icon"><Icon name={icon} size={26} strokeWidth={1.5} /></div>
               <div className="ob-tile-title">{title}</div>
               <div className="ob-tile-desc">{desc}</div>
             </div>
@@ -66,7 +67,7 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
         <div className="ob-feat-row">
           {CHIPS.map(([icon, title, htip]) => (
             <div key={title} className="ob-chip" data-htip={htip}>
-              <span className="ob-chip-icon">{icon}</span>
+              <span className="ob-chip-icon"><Icon name={icon} size={14} /></span>
               <span className="ob-chip-label">{title}</span>
             </div>
           ))}
