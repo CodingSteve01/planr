@@ -31,6 +31,21 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
   const [dragId, setDragId] = useState(null);
   const [dropId, setDropId] = useState(null);
 
+  const byId = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
+  // Where an item lives, as the item dialog writes it. A title alone is not
+  // enough to tell two tasks apart — "Page: Wochenpflege" means one thing
+  // under Abrechnung and another under Kundenportal — and the id is a label
+  // for the path rather than the path itself.
+  const pathOf = id => {
+    const parts = id.split('.');
+    const out = [];
+    for (let i = 1; i < parts.length; i++) {
+      const node = byId.get(parts.slice(0, i).join('.'));
+      if (node) out.push(node.name || node.id);
+    }
+    return out;
+  };
+
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
   const byOwner = useMemo(() => {
     const out = new Map();
@@ -110,7 +125,6 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
             {ordered.map((id, i) => {
               const node = byId.get(id);
               if (!node) return null;
-              const root = tree.find(r => r.id === id.split('.')[0]);
               const prog = node.progress ?? (node.status === 'done' ? 100 : node.status === 'wip' ? 50 : 0);
               return <tr key={id}
                 data-queue-row={id}
@@ -134,13 +148,19 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
                 }}
                 style={{ outline: 'none', opacity: dragId === id ? .4 : 1,
                   boxShadow: dropId === id ? 'inset 0 2px 0 0 var(--ac)' : undefined }}>
-                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab' }}
+                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab', verticalAlign: 'middle' }}
                   data-htip={t('wo.dragTip')}>{i + 1}</td>
-                <td style={{ width: 20 }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
-                <td style={{ width: 80, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{id}</td>
-                <td><span className="tn">{node.name || id}</span></td>
-                <td style={{ width: 150, fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root?.name || ''}</td>
-                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>
+                <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
+                <td style={{ padding: '3px 6px' }}>
+                  <div data-queue-path style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
+                    {pathOf(id).map((name, pi) => <span key={pi}>
+                      <span style={{ color: 'var(--b3)' }}> › </span>{name}
+                    </span>)}
+                  </div>
+                  <div data-queue-title className="tn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name || id}</div>
+                </td>
+                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
                   {node.best ? `${node.best}T` : ''}
                 </td>
               </tr>;

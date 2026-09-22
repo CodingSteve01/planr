@@ -195,3 +195,57 @@ describe('dragging a row', () => {
     expect(rowIds()).toEqual(['A.1', 'A.2', 'B.1']);
   });
 });
+
+// "Ich finde das Feature soo super versteckt … hätte da lieber einen kleinen
+//  eigenen Menüpunkt direkt hinter Arbeitspakete … dann müsste ich nur — wie
+//  in den WorkItem-Dialogen — sehen können was die Parents sind und was der
+//  Titel ist. Ggf. als charmanter Zweizeiler."
+//
+// The view existed but sat seventh in the row, behind four things you would
+// pass on the way to somewhere else, and its rows were an id, a name and a
+// project column — enough to recognise a task you already knew, not enough to
+// know which of two similarly-named ones you are looking at. "Preise · Page:
+// Wochenpflege" says something different under Abrechnung than under Kundenportal.
+describe('where it sits and what a row says', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  it('is the tab right after the work tree', async () => {
+    renderApp();
+    await waitFor(() => { if (!document.querySelectorAll('.tab').length) throw new Error('no tabs'); });
+    const labels = [...document.querySelectorAll('.tab')].map(el => (el.firstChild?.textContent || '').trim());
+    expect(labels[labels.indexOf('Work Tree') + 1]).toBe('Work order');
+  });
+
+  it('shows the path above the title, the way the item dialog does', async () => {
+    await openWorkOrder();
+    const row = document.querySelector('[data-queue-row="A.1"]');
+    // Two lines: where it lives, then what it is.
+    expect(row.querySelector('[data-queue-path]').textContent).toContain('Projekt A');
+    expect(row.querySelector('[data-queue-title]').textContent).toBe('A eins');
+  });
+
+  it('shows the whole chain, not just the project', async () => {
+    // A task three levels down is ambiguous without the middle of the path.
+    localStorage.setItem('planr_v2', JSON.stringify({
+      ...JSON.parse(localStorage.getItem('planr_v2')),
+      tree: [
+        { id: 'A', name: 'Abrechnung', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'Preise', status: 'wip', team: 'T1' },
+        { id: 'A.1.1', name: 'Page: Wochenpflege', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.1.2', name: 'Dialoge', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+    }));
+    await openWorkOrder();
+    const path = document.querySelector('[data-queue-row="A.1.1"] [data-queue-path]').textContent;
+    expect(path).toContain('Abrechnung');
+    expect(path).toContain('Preise');
+  });
+});
