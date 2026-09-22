@@ -861,6 +861,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       applyToTargets(node => fieldPatchForKey(node, ' ', sizes, { back: e.shiftKey }));
       return;
     }
+    if (key === '0') {
+      // Next to the priorities, and the opposite of them: 1–4 say how much
+      // this matters, 0 says it is not going to happen. A separate field
+      // rather than a status, so taking it back gives you the item you had
+      // (utils/scheduler.js, `isDropped`).
+      e.preventDefault();
+      applyToTargets(node => ({ dropped: node.dropped ? undefined : true }));
+      return;
+    }
     if (['1', '2', '3', '4'].includes(key)) {
       e.preventDefault();
       applyToTargets(node => fieldPatchForKey(node, key, sizes));
@@ -922,6 +931,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             data-prio={r.prio || ''}
+            data-dropped={r.dropped ? 'true' : undefined}
             data-status={effStatus}
             data-team={r.team || ''}
             onClick={e => { onSelect(r, e, filt.map(x => x.id)); containerRef.current?.focus(); }}
@@ -967,7 +977,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, rowGap: 2 }}>
               <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
-                ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }} onClick={e => { e.stopPropagation(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
+                ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }}
+                    // Folding a branch selects it as well. The triangle is only
+                    // drawn on a row that has children, and it used to stop the
+                    // click before the row's own handler ran — so the most
+                    // natural thing to click on a parent was the one thing that
+                    // left the cursor on whatever was selected before, and the
+                    // next keystroke went somewhere else entirely. It stops
+                    // propagation (a second click on the name would open the
+                    // rename editor) and does the selecting itself.
+                    onClick={e => { e.stopPropagation(); onSelect(r, {}, filt.map(x => x.id)); containerRef.current?.focus(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
                 : <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />}
 
               {/* Status icon — SVG matching the network graph's symbology */}

@@ -3,6 +3,7 @@
 // versions.json (which plugin version needs which Obsidian version).
 //
 //   node scripts/version.mjs 1.1.0       set all three
+//   node scripts/version.mjs --bump      set the next patch (--bump minor|major)
 //   node scripts/version.mjs --check     fail if they have drifted apart
 //
 // Bumping is the whole release ritual: push the bump to main and the workflow
@@ -45,6 +46,23 @@ export function versionProblems({ pkg, manifest, minAppVersion, versionsEntry })
   return problems;
 }
 
+/**
+ * The next version. A decision, so it lives here and is tested, rather than in
+ * a shell line inside a workflow where nothing can check it.
+ *
+ * Patch by default: a merge to main is a release, and for a plugin installed
+ * through BRAT that is the point — the people running it get the fix without
+ * anybody remembering to cut one. `minor` and `major` stay a deliberate act.
+ */
+export function nextVersion(current, level = 'patch') {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(current || ''));
+  if (!m) throw new Error(`Not a version: ${current} — Obsidian wants x.y.z, with no leading "v".`);
+  const [major, minor, patch] = m.slice(1).map(Number);
+  if (level === 'major') return `${major + 1}.0.0`;
+  if (level === 'minor') return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
+}
+
 async function setVersion(next) {
   if (!/^\d+\.\d+\.\d+$/.test(next)) {
     throw new Error(`Not a version: ${next} — Obsidian wants x.y.z, with no leading "v".`);
@@ -74,7 +92,16 @@ async function setVersion(next) {
 // Only when run as a script; the checks above are imported by the tests.
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const arg = process.argv[2];
-  if (arg === '--check') {
+  if (arg === '--bump') {
+    const { manifest } = await readVersions();
+    const next = nextVersion(manifest, process.argv[3] || 'patch');
+    await setVersion(next);
+    // The workflow reads this to decide whether anything changed.
+    if (process.env.GITHUB_OUTPUT) {
+      const { appendFile } = await import('node:fs/promises');
+      await appendFile(process.env.GITHUB_OUTPUT, `version=${next}\n`);
+    }
+  } else if (arg === '--check') {
     const problems = versionProblems(await readVersions());
     if (problems.length) {
       console.error(`The version files disagree:\n  ${problems.join('\n  ')}`);

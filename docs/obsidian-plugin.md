@@ -156,7 +156,22 @@ paid once at plugin startup.
 
 ## Release
 
-The release is a consequence of the version changing, not a separate ritual:
+The release is a consequence of the version changing, not a separate ritual —
+and the version changes by itself. A pull request that touches `src/` or
+`obsidian/` gets a patch bump pushed onto its own branch by
+[`version-bump.yml`](../.github/workflows/version-bump.yml), so merging it
+carries the bump to main and the release follows. Nobody has to remember, and
+nobody on BRAT sits on the version from before the last five changes — which is
+what had happened, five merged PRs deep, at 1.0.2.
+
+On the PR branch rather than on main, deliberately: main is protected, and a
+workflow pushing to it would need a bypass or an admin token, which is not a
+thing to hand a CI job for a convenience. The bump is visible in the diff
+before it lands.
+
+A minor or major release is still a decision, so it stays manual — set it in
+the PR and the bump stands down, because it only runs when the version has not
+already moved:
 
 ```bash
 npm run version:set 1.1.0

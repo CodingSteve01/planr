@@ -44,7 +44,24 @@ export function derivePhaseStatus(phases) {
 // App.jsx does push into a local array, but only before that array becomes
 // state — nothing reads an index off a half-built tree.
 const treeIndexCache = new WeakMap();
-const EMPTY_INDEX = { byId: new Map(), childIds: new Map(), leaves: [], leafIds: new Set(), descLeaves: new Map() };
+const EMPTY_INDEX = { byId: new Map(), childIds: new Map(), leaves: [], liveLeaves: [], droppedIds: new Set(), leafIds: new Set(), descLeaves: new Map() };
+
+// An item nobody is going to do.
+//
+// Not a fourth status, deliberately: roughly thirty modules ask "is this
+// done?" and every one keeps the answer it had. This is a separate fact —
+// whether the item is still part of the plan at all — and what it changes is
+// the arithmetic. A dropped item leaves BOTH sides of every fraction, because
+// the alternative (the workaround it replaces) was marking it done at 0 %,
+// which counts it as delivered AND drags the percentage down: two lies in
+// opposite directions.
+//
+// Dropping a package drops everything under it. Saying "we are not doing this"
+// about a parent and then still scheduling its children would be the app
+// arguing with the user.
+export function isDropped(node) {
+  return !!node?.dropped;
+}
 
 export function treeIndex(tree) {
   if (!Array.isArray(tree) || !tree.length) return EMPTY_INDEX;
@@ -64,10 +81,26 @@ export function treeIndex(tree) {
     else childIds.set(pid, [node.id]);
   }
   const leaves = tree.filter(node => node?.id && !childIds.has(node.id));
+  // Dropped, or under something dropped. Walked once here rather than
+  // re-derived at every call site.
+  const droppedIds = new Set();
+  for (const node of tree) {
+    if (!node?.id) continue;
+    if (isDropped(node)) { droppedIds.add(node.id); continue; }
+    let pid = parentId(node.id);
+    while (pid) {
+      if (isDropped(byId.get(pid))) { droppedIds.add(node.id); break; }
+      pid = parentId(pid);
+    }
+  }
   const index = {
     byId,
     childIds,
     leaves,
+    // What the plan is actually made of. `leaves` stays structural — the tree
+    // still has to render a dropped row so you can see it and take it back.
+    liveLeaves: droppedIds.size ? leaves.filter(node => !droppedIds.has(node.id)) : leaves,
+    droppedIds,
     leafIds: new Set(leaves.map(node => node.id)),
     descLeaves: new Map(),
   };
@@ -96,7 +129,7 @@ export function isLeafNode(tree, nodeOrId) {
 }
 
 export function leafNodes(tree) {
-  return treeIndex(tree).leaves;
+  return treeIndex(tree).liveLeaves;
 }
 
 // Leaves strictly below `id`, in tree order — memoized per node, so the
@@ -109,7 +142,9 @@ export function descendantLeaves(tree, id) {
   const cached = index.descLeaves.get(id);
   if (cached) return cached;
   const prefix = id + '.';
-  const out = index.leaves.filter(leaf => leaf.id.startsWith(prefix));
+  // liveLeaves, not leaves: a package's numbers are about the work it still
+  // holds. A dropped child is not work it holds.
+  const out = index.liveLeaves.filter(leaf => leaf.id.startsWith(prefix));
   index.descLeaves.set(id, out);
   return out;
 }

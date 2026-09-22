@@ -1099,6 +1099,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Legacy files used a trailing `≡` marker. New exports use
       // `{parallel:true}` so the flag survives tag parsing cleanly.
       let parallel = false;
+      let dropped = false;
       if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
       let pinnedStart = '';
       const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
@@ -1125,6 +1126,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
           const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
           const plm = t.match(/^parallel:(true|yes|on)$/i); if (plm) { parallel = true; return; }
+          const dpm = t.match(/^dropped:(true|yes|on)$/i); if (dpm) { dropped = true; return; }
           const fdm = t.match(/^fixed:(\d+(?:\.\d+)?)$/i); if (fdm) { fixedDurationDays = Math.max(1, Math.ceil(+fdm[1])); return; }
           const om = t.match(/^ord:(\d+)$/i); if (om) { displayOrder = +om[1]; return; }
           const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
@@ -1182,6 +1184,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (due) item.due = due;
       if (teamLock) item.teamLock = true;
       if (parallel) item.parallel = true;
+      if (dropped) item.dropped = true;
       if (fixedDurationDays > 0) item.fixedDurationDays = fixedDurationDays;
       if (displayOrder != null) item.displayOrder = displayOrder;
       if (Object.keys(customValues).length) item.customValues = customValues;
@@ -1914,6 +1917,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const viewCpEdges = cpData.edges;
   const viewGoalPaths = goalPaths;
   const leaves = useMemo(() => leafNodes(tree), [tree]);
+  // Dropped work leaves every count, which would make it invisible; say how
+  // much of it there is, so the denominator is explicable.
+  const droppedCount = useMemo(() => tree.filter(r => r.dropped).length, [tree]);
   const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
   const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
 
@@ -3224,7 +3230,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {(tab === 'summary' || tab === 'report') && <>
         <div className="vsep" />
         <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
-          data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done</span>
+          data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done{droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}</span>
       </>}
       {backdate && <span
         data-testid="backdate-chip"
