@@ -418,7 +418,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {tree.filter(r => r.lvl === 1).length > 0 && <>
       <div className="section-h">{t('s.topItems')}</div>
       <table className="tree-tbl">
-        <thead><tr><th>Item</th><th className="r">{t('s.effort')}</th><th className="r">{t('s.progress')}</th><th>{t('s.projected')}</th></tr></thead>
+        <thead><tr><th>{t('col.item')}</th><th className="r">{t('s.effort')}</th><th className="r">{t('s.progress')}</th><th>{t('s.projected')}</th></tr></thead>
         <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
           const timeline = timelineById[r.id];
           const leaves = lvs.filter(c => c.id === r.id || c.id.startsWith(r.id + '.'));
