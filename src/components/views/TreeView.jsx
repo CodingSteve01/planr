@@ -938,13 +938,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             onDragOver={e => onOrderDragOver(e, r.id)}
             onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
             onDrop={e => onOrderDrop(e, r.id)}
-            style={{
-              boxShadow: dropHere === 'before'
-                ? 'inset 0 2px 0 var(--ac)'
-                : dropHere === 'after'
-                ? 'inset 0 -2px 0 var(--ac)'
-                : undefined,
-            }}>
+            data-drop={dropHere || undefined}>
             {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
             <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
               {onReorder && <span

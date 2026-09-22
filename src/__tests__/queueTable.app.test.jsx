@@ -10,6 +10,8 @@
 //
 // Same keys as the tree deliberately. It is the same act.
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
@@ -183,6 +185,60 @@ describe('dragging a row', () => {
 
     await waitFor(() => { if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join()); });
     expect(rowIds()).toEqual(['B.1', 'A.1', 'A.2']);
+  });
+
+  // Reported: sorting does not feel like drag and drop. It was not — the drop
+  // indicator was a box-shadow on the <tr>, and a table with
+  // `border-collapse: collapse` paints no shadow on a row at all (verified in
+  // Chromium: the same shadow on the cells does paint). So you dragged a row
+  // and nothing ever said where it would land.
+  //
+  // The row carries the state as `data-drop`, and App.css paints it on the
+  // cells. Both halves are checked: the attribute here, the selector below.
+  it('says where the row will land while you drag', async () => {
+    await openWorkOrder();
+    const data = dt();
+    // Separate ticks, as a real drag delivers them: dragstart has to have
+    // landed in state before dragover can know what is being dragged.
+    await act(async () => { fireEvent.dragStart(rowOf('B.1'), { dataTransfer: data }); });
+    await act(async () => { fireEvent.dragOver(rowOf('A.1'), { dataTransfer: data }); });
+    expect(rowOf('A.1').getAttribute('data-drop')).toBe('before');
+    expect(rowOf('B.1').getAttribute('data-drop')).toBeNull();
+
+    await act(async () => { fireEvent.dragEnd(rowOf('B.1'), { dataTransfer: data }); });
+    expect(rowOf('A.1').getAttribute('data-drop')).toBeNull();
+  });
+
+  it('paints that indicator on the cells, where a collapsed table shows it', () => {
+    const css = readFileSync(path.join(process.cwd(), 'src/App.css'), 'utf8');
+    const rule = css.split('}').find(r => /\[data-drop=/.test(r));
+    expect(rule, 'no data-drop rule in App.css').toBeTruthy();
+    // On the cells — `tr[data-drop] {…}` alone is the bug this replaced.
+    expect(rule).toMatch(/\[data-drop[^{]*\]\s*>?\s*td/);
+  });
+
+  // Reported as a question — can several rows be picked at once? They can,
+  // with shift and cmd, exactly as in the tree. Nothing said so: the rows
+  // highlighted and that was it, so a drag that moves five items looked like a
+  // drag that moves one. The count says what the next move will take.
+  it('says how many rows a move will take', async () => {
+    await openWorkOrder();
+    expect(document.querySelector('[data-testid="wo-picked"]')).toBeNull();
+
+    await act(async () => { fireEvent.click(rowOf('A.1')); });
+    await act(async () => { fireEvent.click(rowOf('B.1'), { shiftKey: true }); });
+
+    const chip = document.querySelector('[data-testid="wo-picked"]');
+    expect(chip, 'no selection count after a shift-click').toBeTruthy();
+    expect(chip.textContent).toContain('3');
+
+    await act(async () => { fireEvent.click(rowOf('A.2')); });
+    expect(document.querySelector('[data-testid="wo-picked"]')).toBeNull();
+  });
+
+  it('offers a grip to drag by, like the tree does', async () => {
+    await openWorkOrder();
+    expect(rowOf('A.1').querySelector('.tv-drag-handle')).toBeTruthy();
   });
 
   it('ignores a drop on itself', async () => {

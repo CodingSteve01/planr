@@ -56,6 +56,24 @@ describe('the built plugin', () => {
     expect(css).toContain("[data-type='planr-view']");
   });
 
+  // Reported: the checkboxes render as thin blue bars inside the plugin.
+  // Obsidian replaces the native checkbox with a widget of its own — appearance
+  // none plus an explicit width and height — so the plugin's blanket
+  // `height: auto` for unclassed inputs collapsed it to a line. The app's own
+  // layouts assume a native box, so take the native one back rather than
+  // inherit half of the vault's.
+  it('leaves checkboxes a real box, not a collapsed Obsidian widget', () => {
+    const css = readFileSync(path.join(out, 'styles.css'), 'utf8');
+    const heightAuto = (css.match(/[^{}]*\{[^}]*height:\s*auto[^}]*\}/g) || [])
+      .filter(rule => /\.planr-view input/.test(rule.split('{')[0]));
+    expect(heightAuto.length, 'no height reset for unclassed inputs').toBeGreaterThan(0);
+    // Whatever else such a rule covers, it must not reach the checkbox.
+    heightAuto
+      .filter(rule => !/\[type=checkbox\]/.test(rule.split('{')[0]))
+      .forEach(rule => expect(rule.split('{')[0]).toMatch(/:not\(\[type=checkbox\]\)/));
+    expect(css).toMatch(/\.planr-view input\[type=checkbox\][^{]*\{[^}]*appearance:\s*auto/);
+  });
+
   it('ships the three files Obsidian downloads, and nothing else', () => {
     const manifest = JSON.parse(readFileSync(path.join(out, 'manifest.json'), 'utf8'));
     expect(manifest.id).toBe('planr');

@@ -33,10 +33,39 @@
   box-shadow: none;
 }
 
-.planr-view input,
+.planr-view input:not([type=checkbox]):not([type=radio]),
 .planr-view select,
 .planr-view textarea {
   height: auto;
+}
+
+/* Obsidian replaces the native checkbox and radio with widgets of its own:
+   `appearance: none` plus an explicit width and height. Half of that arrived
+   here — the reset above took the height away and left a thin coloured bar.
+   Planr's layouts assume a native box, so take the native one back whole
+   instead of inheriting a piece of the vault's. */
+.planr-view input[type=checkbox],
+.planr-view input[type=radio] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  position: static;
+  flex: none;
+}
+
+.planr-view input[type=checkbox]::before,
+.planr-view input[type=checkbox]::after,
+.planr-view input[type=radio]::before,
+.planr-view input[type=radio]::after {
+  content: none;
 }
 
 .planr-view select:not([class]) {
