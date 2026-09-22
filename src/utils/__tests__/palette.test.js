@@ -49,3 +49,34 @@ describe('filterCommands', () => {
     expect(filterCommands(undefined, 'x')).toEqual([]);
   });
 });
+
+// The word you reach for is not always the word on the button.
+//
+// "Urlaub eintragen…" is what the command says in German; somebody who thinks
+// in English types "vacation" and finds nothing. The same in reverse, and the
+// same for a job whose label is a sentence ("Take somebody on…") while the
+// word in your head is one noun ("onboard"). Keywords are a second, invisible
+// set of names — they never outrank a real label match, they only stop the
+// palette coming up empty.
+describe('keywords', () => {
+  const cmds = [
+    { id: 'vacation', label: 'Urlaub eintragen…', keywords: ['vacation', 'holiday', 'urlaub'] },
+    { id: 'export', label: 'Export…' },
+  ];
+
+  test('finds a command by a word that is not in its label', () => {
+    expect(filterCommands(cmds, 'vacation').map(c => c.id)).toEqual(['vacation']);
+  });
+
+  test('still ranks a label match above a keyword match', () => {
+    const list = [
+      { id: 'byKeyword', label: 'Something else', keywords: ['export'] },
+      { id: 'byLabel', label: 'Export…' },
+    ];
+    expect(filterCommands(list, 'export').map(c => c.id)).toEqual(['byLabel', 'byKeyword']);
+  });
+
+  test('leaves a command without keywords exactly as it was', () => {
+    expect(filterCommands(cmds, 'expo').map(c => c.id)).toEqual(['export']);
+  });
+});

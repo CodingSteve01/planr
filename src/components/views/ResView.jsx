@@ -76,7 +76,7 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
 }
 
 /* ─── MemberEditModal ─────────────────────────────────────────────────── */
-function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, onClone, onDel, onClose, t }) {
+function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocusName = false, onUpd, onClone, onDel, onClose, t }) {
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -105,7 +105,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], onUpd, on
         {/* Body — 2-column grid */}
         <div className="res-edit-grid">
           {[
-            [t('rv.fullName'),    <LazyInput value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
+            [t('rv.fullName'),    <LazyInput autoFocus={autoFocusName} data-testid="rv-new-member-name" value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
             [t('qe.team'),       <SearchSelect value={member.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name }))} onSelect={v => onUpd({ ...member, team: v })} placeholder={t('rv.chooseTeam')} allowEmpty />],
             [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />],
             [t('rv.vacDays'),    <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />],
@@ -524,6 +524,8 @@ function weekNum(d) {
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
+export const RES_JOB_EVENT = 'planr:resources:job';
+
 function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], scheduled = [], weeks = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
@@ -615,6 +617,36 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
     onVac(newVacs);
     setEditingVacIdx(newVacs.length - 1);
   };
+
+  // Two jobs that come back every week — booking a holiday and taking someone
+  // on — arrive here as commands rather than as a hunt for the right section
+  // pill and the Add button under it. The command lands on the work started,
+  // not on the tab that contains it: the row exists, the editor is open.
+  const [pendingOnboard, setPendingOnboard] = useState(false);
+  // Whether the editor that is about to open belongs to somebody who has just
+  // been created — the difference between "here is Anna" and "type the name".
+  const [focusNewMember, setFocusNewMember] = useState(false);
+  useEffect(() => {
+    const onJob = e => {
+      const job = e.detail?.job;
+      if (job === 'vacation') { setSection('vacations'); addVacation(); return; }
+      if (job === 'onboard') {
+        setSection('members');
+        // `onAdd` appends to the members array in App, so the new id is not
+        // knowable here until the next render — hence the flag below.
+        setPendingOnboard(true);
+        onAdd?.();
+      }
+    };
+    window.addEventListener(RES_JOB_EVENT, onJob);
+    return () => window.removeEventListener(RES_JOB_EVENT, onJob);
+  });
+  useEffect(() => {
+    if (!pendingOnboard || !members.length) return;
+    setPendingOnboard(false);
+    setFocusNewMember(true);
+    setEditingMemberId(members[members.length - 1].id);
+  }, [pendingOnboard, members]);
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -841,7 +873,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
                       const team = mem ? teams.find(tm => tm.id === mem.team) : null;
                       const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
                       return (
-                        <tr key={origIdx} onClick={() => setEditingVacIdx(origIdx)}>
+                        <tr key={origIdx} data-testid={`rv-vac-row-${origIdx}`} onClick={() => setEditingVacIdx(origIdx)}>
                           <td className="res-td-avatar">
                             <span className="res-avatar" style={{ background: team?.color || 'var(--ac)' }}>
                               {initials(mem?.name || v.person || '?')}
@@ -877,10 +909,11 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           teams={teams}
           shortMap={shortMap}
           meetingPlans={meetingPlans}
+          autoFocusName={focusNewMember}
           onUpd={onUpd}
           onClone={onClone}
           onDel={id => { onDel(id); setEditingMemberId(null); }}
-          onClose={() => setEditingMemberId(null)}
+          onClose={() => { setEditingMemberId(null); setFocusNewMember(false); }}
           t={t}
         />
       )}

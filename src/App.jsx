@@ -38,10 +38,10 @@ import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
-import { ResView } from './components/views/ResView.jsx';
+import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
-import { BriefingView } from './components/views/BriefingView.jsx';
+import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
 import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
@@ -3093,7 +3093,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // palette itself groups by `group`/`groupLabel` and fuzzy-filters
   // (src/utils/palette.js).
   const fileGroup = _t('palette.group.file');
+  const jobGroup = _t('palette.group.jobs');
   const viewGroup = _t('palette.group.views');
+  // `keywords` are the words you reach for when the label is in the other
+  // language, or is a sentence where your head holds one noun.
+  const JOBS = [
+    { id: 'jira', icon: '⇄', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
+      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
+    { id: 'vacation', icon: '⛱', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
+    { id: 'onboard', icon: '＋', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
+  ];
   // `icon` and `key` are what make this list scannable rather than twenty
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
@@ -3110,6 +3121,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'help', icon: '?', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: '⌨', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
     { id: 'backdate', icon: '⏮', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    // The jobs that come back every week. Each lands on the surface with the
+    // work already started — the paste box focused, the row created — rather
+    // than on the tab that contains it. A command that only changed tabs would
+    // duplicate the view jumps below it.
+    ...JOBS.map(j => ({
+      id: `job.${j.id}`, icon: j.icon, labelKey: j.labelKey, keywords: j.keywords, group: 'job', groupLabel: jobGroup,
+      run: () => { setTab(j.tab); window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0); },
+    })),
     ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || '▸', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
   ];
 

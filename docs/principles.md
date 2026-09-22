@@ -86,6 +86,11 @@ Every control sits on exactly one tier. Tier 1 has a **budget per view**: one
 toolbar row, the view itself, at most one side panel. When it is full, something
 moves down a tier before anything new arrives.
 
+A tier-2 entry earns its place by **starting the job, not by naming it**. "Go
+to Resources" is already the view jump next to it; "Take somebody on…" creates
+the person and puts the cursor in their name. The difference is the whole
+value.
+
 > **Check:** new element on tier 1? What moves to tier 2 for it?
 
 ### 5. Fast means reversible
