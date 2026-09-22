@@ -107,7 +107,7 @@ export function KeyboardMap() {
           {[
             ['○', t('tv.statusOpen')], ['◐', t('wip')], ['●', t('tv.statusDone')],
             ['⏫', t('tv.prioCrit')], ['▲', t('tv.prioHigh')], ['▬', t('tv.prioMed')], ['▼', t('tv.prioLow')],
-            ['⚡', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
+            ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
           ].map(([glyph, label]) => (
             <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)' }}>{glyph}</span>{label}

@@ -75,7 +75,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   const leafIdSet = useMemo(() => new Set((tree || []).filter(r => isLeafNode(tree || [], r.id)).map(r => r.id)), [tree]);
   const sn = (personId, fullName) => shortMap[personId] || (fullName || '').split(' ')[0] || '';
   // Render all assignees compactly: "KK+MB" or "KK+MB+1" for 3+.
-  // When the task has a handoff cascade, append the chain: "KK+MB→AB→⚠".
+  // When the task has a handoff cascade, append the chain: "KK+MB→AB→!".
   const snAll = (s) => {
     const ids = (s.assign || []).length > 0 ? s.assign : (s.personId ? [s.personId] : []);
     const primary = (() => {
@@ -2124,7 +2124,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   }, [linkDrag]);
 
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>
+    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('g.noItems')}</div>
       <div style={{ fontSize: 12 }}>{t('g.addTasks')}</div>
     </div>
@@ -2165,7 +2165,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
             aria-pressed={showLoadHeatmap}
-            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '☑' : '☐'} {t('g.loadHeatmap')}</button>
+            data-htip={t('g.loadHeatmapTip')} style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}</button>
           {showLoadHeatmap && <span className={`badge ${loadRiskSummary.overCount ? 'bc' : loadRiskSummary.fullCount ? 'bw' : 'bd'}`}
             data-htip={loadRiskSummary.tip}
             style={{ fontSize: 10, padding: '2px 7px' }}>
@@ -2773,7 +2773,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     padding: '1px 5px', borderRadius: '0 4px 0 4px',
                     pointerEvents: 'none',
                   }}>
-                    {s.unscheduled ? '⚠ Offen' : s.plannedHandoff ? '✓ Plan' : s.crossTeam ? '↗ Cross' : '↳ Handoff'}
+                    {s.unscheduled ? '! Offen' : s.plannedHandoff ? '● Plan' : s.crossTeam ? '↗ Cross' : '↳ Handoff'}
                   </div>
                 )}
                 {s.status === 'done' && <div style={{
@@ -2797,7 +2797,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   ))}
                 </div>}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>✓</span>}
+                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
                   {!isSummary && node?.prio != null && node.prio !== 2 && (() => {
                     // Prio badge: ⏫1 critical, ▲2 high (default — hidden), ▬3 medium, ▼4 low.
                     // Surface prio inline so the scheduler order is legible without opening
@@ -2811,7 +2811,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
                   {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
                     data-htip={`${s.pinOverridden ? t('g.pinOverriddenTip', node.pinnedStart) : t('g.pinnedTip', node.pinnedStart)} ${t('g.clickToUnpin')}`}
-                    onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '⚠📌' : '📌'}</span>}
+                    onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '!▸' : '▸'}</span>}
                   {!isSummary && s.blockedBy && (() => {
                     const blocker = scheduled.find(x => x.id === s.blockedBy.id);
                     const blockerName = blocker?.name && blocker.name !== s.blockedBy.id ? blocker.name : '';
@@ -3078,7 +3078,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <span data-htip={t('g.confExploratoryTip')}>○ {counts.exploratory}</span>
         </span> : null;
       })()}
-      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>🔗 {t('g.linkDrop')}</span>}
+      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>↗ {t('g.linkDrop')}</span>}
     </div>
     <SelectionActionBar
       count={selectedTaskIds.length}

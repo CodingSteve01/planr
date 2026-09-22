@@ -125,14 +125,14 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
           ? members.filter(m => m.team === stage.team)
           : members;
         const predictedLabel = predicted
-          ? `Scheduler wählt: ${predicted.personName || '(unassigned)'}${predicted.unscheduled ? ' ⚠' : ''}`
+          ? `Scheduler wählt: ${predicted.personName || '(unassigned)'}${predicted.unscheduled ? ' !' : ''}`
           : 'Vorgeplant (noch kein Cutoff erwartet)';
         const predictedAfter = predicted?.handoff && allSegs[idx]?.personName
           ? ` nach Offboarding von ${allSegs[idx].personName}`
           : '';
         const isFocused = focusStage === idx;
         const predictedShort = predicted
-          ? (predicted.unscheduled ? '⚠ keiner gefunden' : `Auto: ${predicted.personName}`)
+          ? (predicted.unscheduled ? '! keiner gefunden' : `Auto: ${predicted.personName}`)
           : 'vorbelegt';
         const afterPerson = allSegs[idx]?.personName;
         return (

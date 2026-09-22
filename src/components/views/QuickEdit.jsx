@@ -527,7 +527,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}>×</button>}
             </div>
           </div>
-          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
               {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>×</button>}

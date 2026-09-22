@@ -281,7 +281,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && <SBadge s={node.status} />}
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>📌 {f.pinnedStart} ×</span>}
+        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>▸ {f.pinnedStart} ×</span>}
         {/* The panel's ⇥ sends the editor here; without this the way back is
             a trip through Settings, which is a one-way door with extra steps. */}
         {onDockSide && <button className="btn btn-ghost btn-icon sm" style={{ marginLeft: 'auto' }}
@@ -568,7 +568,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')}>×</button>}
               </div>
             </div>
-            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>📌</span>}</label>
+            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
                 <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>

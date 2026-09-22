@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, memo } from 'react';
+import { Icon } from '../shared/Icon.jsx';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { Tip } from '../shared/Tooltip.jsx';
 import { SL } from '../../constants.js';
@@ -397,7 +398,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   const hasChildrenSet = useMemo(() => { const s = new Set(); tree.forEach(r => { const p = r.id.split('.').slice(0, -1).join('.'); if (p) s.add(p); }); return s; }, [tree]);
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
   // Render all assignees of a node compactly — "KK+MB" or "KK+MB+1" for 3+.
-  // Handoff cascades appear as "KK+MB→AB→⚠" so the chain is visible here too.
+  // Handoff cascades appear as "KK+MB→AB→!" so the chain is visible here too.
   const assignLabel = (r, sc) => {
     const ids = (r.assign || []).length > 0 ? r.assign : (sc?.personId ? [sc.personId] : []);
     const primary = (() => {
@@ -552,7 +553,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   useEffect(() => { const h = () => setCtxMenu(null); window.addEventListener('click', h); return () => window.removeEventListener('click', h); }, []);
 
   if (!items.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}>🕸</div>
+    <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Icon name="network" size={32} strokeWidth={1.4} /></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{isFiltered ? 'No items match this filter' : 'No items yet'}</div>
       {isFiltered
         ? <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
@@ -679,7 +680,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
             {prog > 0 && <circle cx={pCx} cy={pCy} r={pR} fill="none" stroke={prog >= 100 ? 'var(--gr)' : stC} strokeWidth={1.5}
               strokeDasharray={pCirc} strokeDashoffset={pOff} strokeLinecap="round"
               transform={`rotate(-90 ${pCx} ${pCy})`} style={{ pointerEvents: 'none' }} />}
-            {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>✓</text>}
+            {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>●</text>}
             {prog > 0 && prog < 100 && <text x={pCx} y={pCy + 2} fontSize={4} textAnchor="middle" fill={isRoot ? '#ffffffcc' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{prog}</text>}
             {/* ID */}
             <text x={5} y={10} fontSize={6} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>

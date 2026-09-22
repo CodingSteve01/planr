@@ -366,9 +366,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
     setOrderDrop(null);
   };
-  const toolBtn = (label, title, onClick, disabled) => <button
+  const toolBtn = (label, title, onClick, disabled, icon) => <button
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
-    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer' }}>{label}</button>;
+    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
+      display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+    {icon && <Icon name={icon} size={11} />}{label}</button>;
 
   // ── Keyboard model (docs/principles.md, principle 5) ────────────────────
   // The row order the cursor travels through is exactly what's on screen —
@@ -940,7 +942,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
             onDrop={e => onOrderDrop(e, r.id)}
             data-drop={dropHere || undefined}>
-            {/* ID column — when on critical path, show CP labels via tooltip on the ⚡ glyph */}
+            {/* ID column — when on critical path, show CP labels via tooltip on the critical-path marker */}
             <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
               {onReorder && <span
                 className="tv-drag-handle"
@@ -1214,7 +1216,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}>⊞</button>}
                 <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
-                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}>✎</button>
+                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}><Icon name="pencil" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-sibling-${r.id}`}
                   data-htip={withKey(t('tv.newRowTip', r.id), 'editNext')}
                   onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}>+</button>
@@ -1259,7 +1261,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
         <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
         {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
-        {toolBtn(`✎ ${t('tv.rename')}`, withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id))}
+        {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
         {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
         {onFullEdit && editorInDialog && toolBtn(`⊞ ${t('tv.editItem')}`, t('nm.fullEditTip'), () => onFullEdit(selected))}

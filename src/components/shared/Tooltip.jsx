@@ -112,7 +112,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
   const workingDaysInWindow = item.workingDaysInWindow ?? (calDays > 0 ? Math.max(0, calDays - vacDays - holidaysInWindow) : null);
   const statusLabel = item.status === 'done' ? t('tv.statusDone') : item.status === 'wip' ? t('tv.statusWip') : t('tv.statusOpen');
   const statusColor = item.status === 'done' ? 'var(--gr)' : item.status === 'wip' ? 'var(--am)' : 'var(--tx3)';
-  const statusDot = item.status === 'done' ? '✓' : item.status === 'wip' ? '◐' : '○';
+  const statusDot = item.status === 'done' ? '●' : item.status === 'wip' ? '◐' : '○';
   const timingChips = [
     item._summaryCount ? { label: t('tv.items'), value: String(item._summaryCount) } : null,
     item._doneCount > 0 ? { label: t('tv.statusDone'), value: String(item._doneCount) } : null,
@@ -162,7 +162,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
               <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
             </div>
           )}
-          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>📌 {item.pinnedStart}</div>}
+          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>▸ {item.pinnedStart}</div>}
           {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>⏰ {node.decideBy}</div>}
           {item.blockedBy && (() => {
             const blocker = scheduled.find(x => x.id === item.blockedBy.id);
@@ -222,7 +222,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
             {item.segments.map((seg, si) => (
               <div key={si} style={{ color: seg.unscheduled ? 'var(--re)' : seg.handoff ? 'var(--tx2)' : 'var(--tx)' }}>
-                {seg.unscheduled ? '⚠' : seg.handoff ? '↳' : '●'}{' '}
+                {seg.unscheduled ? '!' : seg.handoff ? '↳' : '●'}{' '}
                 <span style={{ fontWeight: 600 }}>{seg.personName}</span>
                 {' · '}
                 <span style={{ fontFamily: 'var(--mono)' }}>{seg.effort.toFixed(1)}d</span>
@@ -234,7 +234,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
           </div>
           {item.truncatedByOffboard && (
             <div style={{ fontSize: 10, color: 'var(--re)', marginTop: 4, fontWeight: 600 }}>
-              ⚠ {item.truncatedByOffboard.remainingEffort.toFixed(1)} PT offen — Nachbesetzung nötig nach {item.truncatedByOffboard.offboardDate}
+              ! {item.truncatedByOffboard.remainingEffort.toFixed(1)} PT offen — Nachbesetzung nötig nach {item.truncatedByOffboard.offboardDate}
             </div>
           )}
         </>
@@ -247,7 +247,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
             {item.phases.map(ph => (
               <div key={ph.id}>
-                {ph.status === 'done' ? '✓' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
+                {ph.status === 'done' ? '●' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
                 {ph.effortPct ? ` · ${ph.effortPct}%` : ''}
                 {phaseTeamLabel(ph, teams) ? ` — ${phaseTeamLabel(ph, teams)}` : ''}
                 {phaseAssigneeLabel(ph, members) ? ` · ${phaseAssigneeLabel(ph, members)}` : ''}

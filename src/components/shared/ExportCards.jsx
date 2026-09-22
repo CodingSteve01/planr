@@ -90,7 +90,7 @@ export function ExportCards({
       disabled={busy === k || extra.disabled}
       onClick={() => run(k, handler)}
     >
-      {busy === k ? '…' : done[k] ? '✓' : label}
+      {busy === k ? '…' : done[k] ? '●' : label}
     </button>
   );
   const H = (val, setVal) => (

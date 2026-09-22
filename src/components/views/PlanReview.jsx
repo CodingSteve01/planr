@@ -353,14 +353,14 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
               {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
                 data-htip={t(s.dueInfeasible ? 'ins.latestStartPast' : 'ins.latestStart')}>
-                ↶ {latest}{s.dueInfeasible ? ' ⚠' : ''}
+                ↶ {latest}{s.dueInfeasible ? ' !' : ''}
               </span>}
             </div>;
           })}
         </div>}
         {truncated.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--am)' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>⚠ {t('pr.warnTruncated')}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>! {t('pr.warnTruncated')}</span>
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{truncated.length}</span>
           </div>
           {truncated.map(s => {

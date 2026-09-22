@@ -59,7 +59,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       const rootId = r.id.split('.')[0];
       const root = tree.find(x => x.id === rootId);
       const estimate = r.best ? `${Math.round(r.best * (r.factor || 1.5))}d` : '';
-      const phases = r.phases?.length ? r.phases.map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ') : '';
+      const phases = r.phases?.length ? r.phases.map(p => `${p.status === 'done' ? '●' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ') : '';
       const desc = [r.note, phases ? `Phases: ${phases}` : ''].filter(Boolean).join('\n');
       const epicName = r.jiraType === 'Epic' ? r.name : '';
       const epicLink = r.jiraType !== 'Epic' ? (root?.name || rootId) : '';

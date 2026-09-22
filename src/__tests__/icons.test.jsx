@@ -14,7 +14,7 @@
 // text, not icons, and are deliberately left alone.
 import { describe, it, expect } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { Icon, ICON_NAMES } from '../components/shared/Icon.jsx';
 
@@ -71,7 +71,13 @@ describe('the icon set', () => {
 describe('the chrome', () => {
   // The surfaces that frame every view: the tab row, the palette and the file
   // menu. These are the ones a stranger sees first.
-  it.each(['src/App.jsx', 'src/components/shared/FileMenu.jsx'])('has no emoji left in %s', file => {
+  // Every component the app draws. Icon.jsx itself is excluded: its header
+  // names the glyphs it replaced, which is documentation, not decoration.
+  const COMPONENTS = readdirSync(path.join(process.cwd(), 'src/components'), { recursive: true })
+    .filter(f => typeof f === 'string' && f.endsWith('.jsx') && !f.includes('__tests__') && !f.endsWith('Icon.jsx'))
+    .map(f => `src/components/${f}`);
+
+  it.each(['src/App.jsx', ...COMPONENTS])('has no pictograph left in %s', file => {
     const text = read(file);
     const hits = text.split('\n')
       .map((line, i) => ({ line, n: i + 1 }))

@@ -135,7 +135,7 @@ export function ViewFilters({
     if (/^\d{4}-\d{2}-\d{2}$/.test(horizonDays)) parts.push(`▶ ${horizonDays}`);
     else parts.push(`▶ ${t('horizon.days', horizonDays)}`);
   }
-  if (showHideDoneInner && hideDone) parts.push(`✓ ${t('ui.hideDoneShort')}`);
+  if (showHideDoneInner && hideDone) parts.push(`● ${t('ui.hideDoneShort')}`);
   const archiveSummary = archive?.count
     ? [archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
        archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',

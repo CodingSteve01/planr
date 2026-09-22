@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, memo } from "react";
+import { Icon } from '../shared/Icon.jsx';
 import { localDate, diffDays } from '../../utils/date.js';
 import { isLeafNode } from '../../utils/scheduler.js';
 import { computeAttention, attentionCounts } from '../../utils/attention.js';
@@ -11,10 +12,12 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 
-const S_DOT = { open: '○', wip: '◐', done: '✓' };
+// Geometric marks, not dingbats: ● from the dingbat block renders as an
+// emoji on some platforms, and these three have to read as one family.
+const S_DOT = { open: '○', wip: '◐', done: '●' };
 const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
 const ATTN_TONE = { overdue: 'var(--re)', drift: 'var(--ac)', atRisk: 'var(--am)', blocked: 'var(--am)', unestimated: 'var(--tx3)' };
-const ATTN_ICON = { overdue: '⏰', drift: '⇄', atRisk: '⚠', blocked: '⛔', unestimated: '○' };
+const ATTN_ICON = { overdue: 'clock', drift: 'swap', atRisk: 'alert', blocked: 'ban', unestimated: 'help' };
 const REASON_KEY = { overdue: 'bv.overdue', late: 'bv.lateEnd', exploratoryClose: 'bv.exploratoryDeadline', blocked: 'bv.attn.blocked', unestimated: 'bv.attn.unestimated', drift: 'bv.attn.drift' };
 
 function fmtDateDE(d) {
@@ -339,7 +342,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                 data-testid={`bv-attn-${item.kind}-${item.id}`}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 4, cursor: 'pointer', background: 'var(--bg3)', border: `1px solid ${ATTN_TONE[item.kind]}`, borderLeftWidth: 3 }}
                 onClick={() => onOpenItem?.(item.id)}>
-                <span style={{ fontSize: 11, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{ATTN_ICON[item.kind]}</span>
+                <span style={{ color: ATTN_TONE[item.kind], flexShrink: 0, display: 'inline-flex' }}><Icon name={ATTN_ICON[item.kind]} size={13} /></span>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{item.id}</span>
                 <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                 <span style={{ fontSize: 10, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{t(REASON_KEY[item.reason] || REASON_KEY[item.kind])}</span>

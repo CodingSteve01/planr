@@ -355,7 +355,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
         </div>
         {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>{t('pc.allClear')}</div>}
         {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
-          <span style={{ color: 'var(--am)', flexShrink: 0 }}>⚠</span>
+          <span style={{ color: 'var(--am)', flexShrink: 0 }}>!</span>
           <span style={{ color: 'var(--tx)' }}>{c.text}</span>
           {c.items?.[0]?.id && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
             onClick={() => onNavigate?.(c.items[0].id, 'tree')}>→ {c.items[0].id}</span>}

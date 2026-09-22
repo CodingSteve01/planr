@@ -144,7 +144,7 @@ function Slide2Gantt({ demo }) {
                 {/* Done check */}
                 {isDone && (
                   <text x={x0 + bw / 2} y={barY + BAR_H - 3} fontSize="8" fill={color}
-                    textAnchor="middle" opacity="0.9">✓</text>
+                    textAnchor="middle" opacity="0.9">●</text>
                 )}
                 {/* Person badge */}
                 {item.personShort && item.personShort !== '?' && (
@@ -282,7 +282,7 @@ function Slide3Network({ demo }) {
                 )}
                 {isDone && (
                   <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="11"
-                    fill={n.color} opacity="0.8">✓</text>
+                    fill={n.color} opacity="0.8">●</text>
                 )}
                 <text x={n.x} y={n.y + R + 11} textAnchor="middle"
                   fontSize="8" fill="rgba(255,255,255,0.65)"
