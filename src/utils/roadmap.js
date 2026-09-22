@@ -1286,7 +1286,21 @@ export function renderRoadmapSvg(args) {
     out.push(`</g>`);
   };
 
-  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SVG_W} ${SVG_H}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+  // Crop the canvas to the routes actually in use. The network is fixed
+  // geometry on a 1400x800 board, so a plan with four projects left roughly a
+  // quarter of the map as empty margin — measured on a 676px-wide pane: 65
+  // units of nothing above the first line and 120 below the last, about 90px
+  // of dead height directly under a headline that is competing for the same
+  // space. The padding covers what is drawn AROUND a route: station labels
+  // above, the line badge and the end marker below.
+  const ROUTE_PAD_TOP = 58;
+  const ROUTE_PAD_BOTTOM = 46;
+  const usedYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
+  const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, SVG_H) : 0;
+  const viewH = usedYs.length
+    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, SVG_H - viewY)
+    : SVG_H;
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   // Construction-tape pattern for the diff trails — base colour stays amber

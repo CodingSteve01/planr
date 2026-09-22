@@ -97,7 +97,9 @@ describe('Overview archive filter', () => {
     const full = aggregateProgressPct(tree.filter(node => node.id.includes('.')));
     const { container } = mount();
 
-    const headline = container.querySelector('span[style*="font-size: 28px"]');
+    // By its test id, not by its font size: the headline's size is a design
+    // decision and has changed once already.
+    const headline = container.querySelector('[data-testid="overview-progress"]');
     expect(parseFloat(headline.textContent)).toBeCloseTo(full, 1);
   });
 

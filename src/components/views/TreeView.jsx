@@ -1223,6 +1223,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     tabIndex={0}
     onKeyDown={handleContainerKeyDown}
     onPaste={handlePaste}
+    className="tv-surface"
     style={{ outline: 'none' }}
     data-testid="tree-editor-surface">
     <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>

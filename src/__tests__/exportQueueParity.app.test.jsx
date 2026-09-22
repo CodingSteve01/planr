@@ -205,9 +205,8 @@ describe('dropped work leaves the forward projection too', () => {
     expect(now).toBe('100%');
     // …and the forward projection has to agree. Before this guard it read 99%
     // or lower, because the 90 PT nobody will do stayed in its denominator.
-    const plan = [...container.querySelectorAll('span')]
-      .map(el => el.textContent.trim())
-      .find(txt => /^Plan \d+(\.\d+)?%$/.test(txt));
-    expect(plan).toBe('Plan 100%');
+    const plan = container.querySelector('[data-testid="overview-plan"]');
+    expect(plan, 'no forward projection on the Overview').toBeTruthy();
+    expect(plan.textContent.trim()).toBe('100%');
   });
 });

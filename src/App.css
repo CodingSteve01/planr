@@ -176,6 +176,30 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .tr td{padding:5px 10px;vertical-align:middle;white-space:nowrap;}
 .tid{font-family:var(--mono);font-size:10px;color:var(--tx3);}
 .tn{font-size:12px;}
+/* The name is the column that identifies the row, so it takes the leftover
+   width and everything else keeps its own. It used to be the other way
+   round: nothing stopped the name wrapping, so the browser handed the space
+   to the nowrap columns beside it and a 34px row became 90px tall with the
+   title on three lines. `max-width:0` is what lets an auto-layout table
+   shrink the cell at all — without it the nowrap below just pushes the table
+   wider than the pane. */
+.tree-tbl td[data-col="name"]{width:100%;max-width:0;}
+.tree-tbl td[data-col="name"] .tn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+
+/* Narrow panes drop columns in a fixed order rather than starving the name.
+   Container queries, not media queries: inside the Obsidian plugin the
+   window's width says nothing about how wide this view actually is — it can
+   be a third of a split. */
+.tv-surface{container-type:inline-size;container-name:tv;}
+@container tv (max-width: 900px){
+  .tree-tbl td[data-col="schedule"],.tree-tbl th:nth-child(8){display:none;}
+}
+@container tv (max-width: 740px){
+  .tree-tbl td[data-col="team"],.tree-tbl th:nth-child(3){display:none;}
+}
+@container tv (max-width: 620px){
+  .tree-tbl td[data-col="signal"],.tree-tbl th:nth-child(5){display:none;}
+}
 .tn.l1{font-size:13px;font-weight:600;color:var(--tx);}
 .tn.l2{font-weight:500;color:var(--tx2);}
 .nc{font-family:var(--mono);font-size:11px;text-align:right;color:var(--tx2);}
@@ -315,6 +339,17 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .horizon-foot{font-size:11px;color:var(--tx3);}
 .section-h{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);margin:18px 0 8px;}
 .section-h:first-child{margin-top:0;}
+/* Overview KPI row — the figures that are not the headline. Auto-fit rather
+   than a fixed four, so a narrow pane wraps them to two per row instead of
+   squeezing five into a line nobody can read. */
+.sum-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:10px;margin-bottom:18px;}
+.sum-kpi{display:flex;flex-direction:column;gap:3px;padding:10px 13px;background:var(--bg2);border:1px solid var(--b);border-radius:var(--r);min-width:0;}
+.sum-kpi-l{font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sum-kpi-v{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* A date is three times as many characters as a PT figure and was being cut
+   off at 17px. It is the same rank, so it gets the same card and less size. */
+.sum-kpi-v.sm{font-size:13.5px;}
+.sum-kpi-sub{color:var(--tx3);font-size:13px;}
 .dl-bar{background:var(--st-risk-soft);border:1px solid color-mix(in srgb,var(--st-risk) 45%,transparent);border-radius:var(--r);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;}
 .dl-bar.hi{background:var(--st-wip-soft);border-color:color-mix(in srgb,var(--st-wip) 45%,transparent);}
 .prog-wrap{height:4px;background:var(--bg3);border-radius:2px;margin-top:4px;}
