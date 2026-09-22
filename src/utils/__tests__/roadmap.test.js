@@ -656,7 +656,20 @@ describe('computeRoadmapModel progress semantics', () => {
       assignment: { P1: { routeIdx: 1, colorIdx: 2 } },
     });
 
-    expect(svg).toContain('background:#f59e0b;color:#111318');
+    // The invariant is the CONTRAST, not the hex: a light route colour has to
+    // get dark ink on its pill. Pinning '#f59e0b' pinned the palette instead,
+    // and broke the moment the palette was retuned.
+    const pill = svg.match(/background:(#[0-9a-f]{6});color:(#[0-9a-f]{6})/i);
+    expect(pill, 'no legend progress pill rendered').toBeTruthy();
+    const lum = hex => {
+      const ch = i => {
+        const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+    };
+    const pair = [lum(pill[1]), lum(pill[2])].sort((a, b) => b - a);
+    expect((pair[0] + 0.05) / (pair[1] + 0.05)).toBeGreaterThanOrEqual(4.5);
   });
 
   test('open stations preserve chronological order along the route even with uneven effort', () => {

@@ -6,3 +6,6 @@ index.html.bak
 .DS_Store
 dist-obsidian/
 obsidian/.vault-path
+
+# Real plan files used for local testing — never committed.
+.devdata*.planr.md
