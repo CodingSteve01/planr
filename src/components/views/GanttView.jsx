@@ -2567,11 +2567,37 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const dueX = dueDate ? dateToX(localDate(dueDate)) : -1;
             const isDueOverdue = dueDate && (s.dueOverdue || (localDate(dueDate) < now && s.status !== 'done'));
             // Confidence-based bar styling
-            const confStyle = conf === 'exploratory'
-              ? { background: 'transparent', border: `1.5px dashed ${tc}`, color: tc, textShadow: 'none', opacity: 0.7 }
+            // ── What a bar's colour says ──────────────────────────────────
+            // It used to say TEAM: the bar was filled with the team's colour
+            // at full strength and labelled in white. Team colours come from
+            // the plan, so on a real one that meant white text on #f0d342 and
+            // on #10b981 — unreadable, and saying something this view is not
+            // about. The Gantt answers "when does what happen, and is it
+            // running": that is STATE, so state is what the fill says.
+            //
+            // A soft ground with its own state colour as the ink, which is
+            // the pairing the palette already guarantees at 4.5:1 (see
+            // paletteContrast.test.js). Confidence keeps its meaning on the
+            // BORDER instead of fighting for the same channel: solid =
+            // committed, thin = estimated, dashed = exploratory. And the team
+            // is still there, as a cap on the bar's leading edge — available
+            // at a glance, out of the way of the label.
+            const stateFill = s.status === 'wip'
+              ? { background: 'var(--st-wip-soft)', ink: 'var(--st-wip)', edge: 'var(--st-wip)' }
+              : { background: 'var(--bg3)', ink: 'var(--tx2)', edge: 'var(--b3)' };
+            const confBorder = conf === 'exploratory'
+              ? `1.5px dashed ${stateFill.edge}`
               : conf === 'estimated'
-              ? { background: withAlpha(tc, 0.38), border: `1px solid ${tc}`, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' }
-              : { background: tc, color: '#fff', textShadow: '0 1px 1.5px rgba(0,0,0,.3)' };
+              ? `1px solid ${stateFill.edge}`
+              : `1.5px solid ${stateFill.edge}`;
+            const confStyle = {
+              background: stateFill.background,
+              border: confBorder,
+              color: stateFill.ink,
+              textShadow: 'none',
+              borderLeft: `3px solid ${tc}`,
+              opacity: conf === 'exploratory' ? 0.85 : 1,
+            };
             const summaryStyle = s.status === 'done'
               ? {
                   background: 'var(--bg4)',
@@ -2668,10 +2694,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     ? summaryStyle
                     : s.status === 'done'
                     ? {
-                        background: `linear-gradient(0deg, rgba(120,128,138,.58), rgba(120,128,138,.58)), ${tc}`,
-                        border: '1px solid rgba(255,255,255,.14)',
-                        color: 'rgba(255,255,255,.92)',
-                        textShadow: '0 1px 1.5px rgba(0,0,0,.28)',
+                        background: 'var(--st-done-soft)',
+                        border: '1.5px solid var(--st-done)',
+                        borderLeft: `3px solid ${tc}`,
+                        color: 'var(--st-done)',
+                        textShadow: 'none',
                       }
                     : confStyle),
                   cursor: linkDrag ? 'crosshair'
@@ -2834,7 +2861,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   })()}
                   {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
                     data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>{fixedDays}d</span>}
-                  {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? `${s.name} · ${s._summaryCount}` : s.name}</span>}
+                  {/* A summary bar does not repeat its own name. The label
+                      column beside it is sticky and already carries it, so
+                      printing it again inside the bar put the loudest text in
+                      the chart on the one thing the reader already knows —
+                      and on a nested plan that is a name in every second row.
+                      The count is what the bar adds, so the count is what it
+                      says. */}
+                  {bW > 35 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: s.status === 'done' ? 'line-through' : 'none' }}>{isSummary ? s._summaryCount : s.name}</span>}
                 </span>}
                 {compactBar && !microBar && <span style={{
                   width: 5,
