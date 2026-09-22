@@ -1,4 +1,6 @@
 import { useMemo, useState, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
@@ -218,12 +220,24 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                 {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasChain(sc) && (() => {
                   const primary = (node?.assign || []).map(memberShort).join('/') || memberShort(sc.personId);
-                  return <span style={{ fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0, padding: '1px 5px', border: '1px solid var(--am)', borderRadius: 3 }}
-                    data-htip={chainTooltip(sc, memberFullName)}>⇄ {chainShorts(sc, shortMap, primary)}</span>;
+                  return <PersonChip chain short={chainShorts(sc, shortMap, primary)}
+                    title={chainTooltip(sc, memberFullName)} style={{ flexShrink: 0 }} />;
                 })()}
-                {hasAuto && <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
-                  onClick={e => { e.stopPropagation(); acceptAuto(node); }}
-                  data-htip={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`}>{memberShort(sc.personId)}</button>}
+                {/* The schedule's suggestion was a `btn btn-pri` — the loudest
+                    control in the app, on every row, for a person's initials.
+                    It is the same quiet chip as everywhere else now, with a
+                    small accept beside it: the initials identify, the button
+                    acts, and only the button looks like one. */}
+                {hasAuto && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <PersonChip auto short={memberShort(sc.personId)}
+                    title={`${autoM.name}: ${iso(sc.startD)} — ${iso(sc.endD)}`} />
+                  <button type="button" className="btn btn-sec btn-xs"
+                    style={{ padding: '1px 5px', display: 'inline-flex', alignItems: 'center' }}
+                    onClick={e => { e.stopPropagation(); acceptAuto(node); }}
+                    aria-label={t('aa.accept')} data-htip={t('aa.accept')}>
+                    <Icon name="check" size={11} />
+                  </button>
+                </span>}
               </div>;
             })}
           </div>;

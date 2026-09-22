@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { tipLines } from '../../utils/tipText.js';
 import { withKey } from '../../utils/shortcuts.js';
@@ -2329,8 +2330,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             {!isSummary && (s._unestimated
               ? <span data-htip={t('g.noEstimate')} style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--st-wip)', letterSpacing: '.08em' }}>—</span>
               : s.autoAssigned
-                ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{snAll(s)}</AutoAssignBadge>
-                : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
+                ? <PersonChip auto short={snAll(s)} title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, marginLeft: 'auto' }} />
+                : <PersonChip short={snAll(s)} style={{ flexShrink: 0, marginLeft: 'auto' }}
+                    title={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person} />)}
           </div>;
         }); })()}
         {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
 import { getLineColor } from '../../utils/roadmap.js';
@@ -11,7 +12,6 @@ import { useT } from '../../i18n.jsx';
 import { resolveUri } from '../../utils/customFields.js';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
-import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
@@ -1142,10 +1142,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const chain = hasChain(sc);
                 const label = chain ? chainShorts(sc, shortMap, primary) : primary;
                 const tip = chain ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
-                return <span style={{ marginLeft: 8, fontSize: 10, color: chain ? 'var(--am)' : 'var(--tx2)', fontFamily: 'var(--mono)', fontWeight: chain ? 600 : 400 }} data-htip={tip}>
-                  {chain && <span style={{ marginRight: 3 }}>⇄</span>}
-                  {label}
-                </span>;
+                return <PersonChip chain={!!chain} short={label} title={tip} style={{ marginLeft: 8 }} />;
               })()}
               {/* Auto-assigned suggestion from scheduler */}
               {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && (() => {
@@ -1153,7 +1150,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 const primary = memberShort(sc.personId);
                 const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
                 const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : `${t('aa.suggestion')} ${memberFullName(sc.personId)}`;
-                return <AutoAssignBadge title={tip} style={{ marginLeft: 8, fontSize: 10, fontFamily: 'var(--mono)', padding: '0 4px' }}>{label}</AutoAssignBadge>;
+                return <PersonChip auto short={label} title={tip} style={{ marginLeft: 8 }} />;
               })()}
 
               {/* Priority — chevron icon for all leaves */}

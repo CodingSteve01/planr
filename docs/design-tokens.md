@@ -226,3 +226,28 @@ Windows render from the emoji font.
 Two places keep a text stand-in on purpose: the network graph draws its labels
 in SVG `<text>`, where a component cannot go, and the markdown format is the
 markdown format.
+
+
+## One look for a person
+
+[`PersonChip.jsx`](../src/components/shared/PersonChip.jsx) draws *who is doing
+this*, everywhere. There were four vocabularies for that one fact: the tree
+wrote plain mono initials and an italic `~XX` for a suggestion; the Gantt used
+a grey filled box; the Planning tab used a `btn btn-pri` — the app's loudest
+control, on every row, for a person's initials; and a handoff chain had its own
+bordered amber variant in two places, with different padding in each.
+
+The tree's won, because it is the quietest, and initials are an identifier
+rather than a call to action:
+
+| | |
+|---|---|
+| `Anna` | assigned, by you |
+| `~Anna` | the schedule's answer, not yours — muted, italic |
+| `⇄ A→B` | a handoff chain, in `--st-wip`, because that one is worth noticing |
+
+Where an action belonged next to it (accepting the schedule's suggestion on the
+Planning tab), the action is its own small button and only the button looks
+like one. [`personChip.test.jsx`](../src/__tests__/personChip.test.jsx) holds
+the three states and fails if any view under `views/` dresses a person as a
+primary button again.

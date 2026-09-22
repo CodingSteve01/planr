@@ -33,7 +33,20 @@ const renderApp = () => render(
 const chip = () => screen.queryByTestId('backdate-chip');
 
 async function openDialog() {
-  await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
+  // `/` is ignored while focus is in a field, and the handler is attached on
+  // mount — so firing it the instant render() returns raced the app on a
+  // loaded machine and this file flaked, on a different test each time. Wait
+  // for the shell, take focus out of any input, and let the keypress be
+  // retried until the palette is actually up.
+  await waitFor(() => {
+    if (!document.querySelector('.tab-bar')) throw new Error('shell not mounted');
+  });
+  document.activeElement?.blur?.();
+  await waitFor(async () => {
+    if (screen.queryByTestId('palette-input')) return;
+    await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
+    if (!screen.queryByTestId('palette-input')) throw new Error('palette did not open');
+  });
   const input = await screen.findByTestId('palette-input');
   await act(async () => { fireEvent.change(input, { target: { value: 'backdate' } }); });
   await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
