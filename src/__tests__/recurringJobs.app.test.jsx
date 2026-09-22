@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Ich muss Jira und Planr abgleichen, Urlaube eintragen. Mitarbeiter
-//  on-/offboarden."
+// Named as the recurring work: reconcile Jira with Planr, book holidays,
+// on- and offboard people.
 //
 // All three exist. All three are somewhere: a paste box two thirds down the
 // Briefing, an Add button on the Resources table, a vacation list under it.

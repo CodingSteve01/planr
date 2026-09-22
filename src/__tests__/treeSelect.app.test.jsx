@@ -1,7 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Wenn ich im Tree im Plugin ein Item auswähle dann kann ich nicht immer die
-//  Tastenkürzel auswählen? Jedenfalls ist es manchmal einfach nicht
-//  'selektiert' irgendwie. Es handelt sich hier um ein Parent item."
+// Reported: selecting an item in the tree does not always let the shortcuts
+// act on it — sometimes it is simply not selected. It happens on parent rows.
 //
 // Not a plugin problem, and not a misclick. The ▶/▼ triangle is only drawn on
 // rows that have children, which is why it only ever happened on a parent, and

@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Wenn ich im Tree versuche einen erledigten WorkItem zu fokussieren, dann
-//  fokussiert er irgendeinen ganz anderen. Jedenfalls springt er einfach weg."
+// Reported: trying to focus a finished item in the tree focuses a different
+// one — at any rate the selection just jumps away.
 //
 // Clicking a row is the most basic thing the tree does, so this is worth
 // pinning down with the plain case and the two filters that a finished item is

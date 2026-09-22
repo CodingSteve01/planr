@@ -1,7 +1,6 @@
 /** @vitest-environment happy-dom */
-// "Der Tree sieht so unübersichtlich aus, vermutlich nur, weil er teilweise
-//  einfach nicht tabellarisch ist, und unsere Reihenfolge sieht so schön
-//  übersichtlich aus."
+// Reported: the tree looks cluttered — probably because it is only partly
+// tabular — while the work order reads clearly.
 //
 // Right, and it is only the name column. Everything to the right of it —
 // effort, percent, schedule — was already in columns. Behind the name sat up

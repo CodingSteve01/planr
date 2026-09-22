@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// "Ist sichergestellt, dass die Sortierung bindend ist? Also auch für Gantt usw.?"
+// Asked: is the ordering actually binding — for the Gantt too?
 //
 // It has to be, or the Work order view is a wish list. The queue is an input to
 // `schedule()`, so the dates change and everything downstream reads those —

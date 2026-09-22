@@ -1,5 +1,5 @@
-// "Abgesehen davon sind ja immer noch Teile in Englisch, Teile in deutsch, wie
-//  du sehen kannst. Effort beispielsweise usw."
+// Reported: parts of the interface are still English while the rest is
+// German — the Effort column header, for one.
 //
 // The tree's column headers were written as literals — `<th>Effort</th>` — so
 // they stayed English in a German app. Nothing catches that: they render, they

@@ -1,6 +1,5 @@
 /** @vitest-environment happy-dom */
-// "Wenn ich zwischen den Dateien einfach umschalten will, dann wird das
-// Fenster einfach schwarz."
+// Reported: switching from one plan file to another turns the window black.
 //
 // React's unmount is deferred by a tick — Obsidian can close a leaf from
 // inside a click handler React is still committing, and unmounting there

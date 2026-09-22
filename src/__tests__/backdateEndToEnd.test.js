@@ -1,4 +1,4 @@
-// "Und wie genau arbeite ich jetzt zum Stichtag X?"
+// Asked: how exactly do I work "as of date X" now?
 //
 // The unit tests prove `diffSnapshots` stamps an effective date, and the app
 // tests prove the switch turns on and says so. Neither proves the thing that

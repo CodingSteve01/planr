@@ -1,7 +1,6 @@
-// "Wenn ich mehrere planr-Dateien in verschiedenen Tabs offen habe und dann
-// zwischen den Tabs wechsle, wandelt er irgendwie automatisch die Tabs in ein
-// Planr-Fenster um, die Dateien werden aber zuvor einfach in markdown
-// geöffnet."
+// Reported: with several plan files open in tabs, switching between them
+// converts each tab into a Planr view — but the file is shown as raw Markdown
+// first.
 //
 // A `.planr.md` is a note as far as Obsidian is concerned: extension `md`, so
 // it cannot be registered without taking every note in the vault away from the

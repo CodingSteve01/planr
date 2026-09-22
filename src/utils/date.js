@@ -34,7 +34,7 @@ export const addWorkDays = (d, n, workDays) => {
 };
 // Count workdays in [from, to] inclusive. Drops weekends + ISO-string holidays
 // passed via an iterable / Set of "YYYY-MM-DD" strings. Used for the
-// Soll/Ist workday-bereinigt delta so weekend gaps don't inflate "Ist".
+// Soll/Ist workday-adjusted delta so weekend gaps don't inflate "Ist".
 export const workDaysBetween = (from, to, workDays, holidayIso) => {
   if (!from || !to) return 0;
   const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;

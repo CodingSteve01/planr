@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
-// "Beim Durchtabben durch die Dropdowns gehen alle auf einmal auf. Und wenn
-// ich in einer Textbox bin, werden die regulären Textbearbeitungs-Shortkeys
-// durch die Spezial-Keys übersteuert."
+// Reported: tabbing through the dropdowns opens all of them at once, and
+// inside a text box the ordinary editing keys are overridden by the special
+// ones.
 //
 // Both come from the same place: the dropdown behaves like a popup that only
 // a mouse can dismiss, and like a listbox that happens to contain an input
@@ -99,8 +99,8 @@ describe('the keys that belong to the caret', () => {
 });
 
 // ── and the tooltip that shivered along the right edge ────────────────────
-// "Tooltips am rechten Bildschirmrand zuckeln, wenn man mit dem Cursor über
-// die Items fährt."
+// Reported: tooltips near the right edge of the screen jitter as the cursor
+// moves over the items.
 //
 // The flip needs the tooltip's size, and a size is only knowable after a
 // render — so every mouse move painted it overflowing the edge first and
@@ -134,8 +134,8 @@ describe('placing a tooltip', () => {
   });
 });
 
-// "Die Dropdown-Felder funktionieren nicht mehr. Die sind einfach nur noch
-// normale Textboxen und ich kann sie nicht mehr bedienen."
+// Reported: the dropdown fields no longer work — they are plain text boxes
+// now and cannot be operated.
 //
 // Two Planr views in Obsidian, and the popup of the one you are looking at
 // rendering into the other one's DOM, where it is invisible — an input with

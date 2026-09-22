@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// "Warum fühlt sich diese Liste so performant an und der Tree eher nicht?"
+// Asked: why does this list feel fast and the tree does not?
 //
 // Because the tree is rarely the only thing mounted. Every tab you visit stays
 // in the DOM behind the active one — deliberately, so switching back is

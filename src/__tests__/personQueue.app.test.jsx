@@ -39,9 +39,9 @@ const barOrder = () => [...document.querySelectorAll('[data-task-id]')].map(el =
 const storedQueues = () => JSON.parse(localStorage.getItem('planr_v2') || '{}').personQueues || null;
 
 describe('the schedule is not the queue', () => {
-  // "Dieser lustige Text nimmt den wenigen vertikalen Platz stark weg und dann
-  //  klappt es auch nicht, weil ich die Zeilen nicht anklicken kann. Wenn es
-  //  eine Queue wäre — wäre sie dann nicht flach?"
+  // Reported: that hint text eats the little vertical space there is, and it
+  // does not work anyway because the rows cannot be clicked. And: if this were
+  // a queue, would it not be flat?
   //
   // All true, and the last question is the one that settles it. Grouped by
   // resource the schedule still shows each person's work as the project

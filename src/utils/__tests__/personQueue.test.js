@@ -1,6 +1,5 @@
-// "Was ist, wenn ich mehrere große Projekte parallel bearbeite? Würde man
-//  dann nicht im Gantt oder der Roadmap genau so einfach wie im Tree eben die
-//  Reihenfolge festlegen wollen?"
+// Asked: what about several large projects running in parallel? Would you not
+// want to set the order in the Gantt or the roadmap as easily as in the tree?
 //
 // Yes — and the reason it cannot just be "drag it anywhere" is that the tree
 // is depth-first, so a project is a block: two projects and one shared person
@@ -29,10 +28,28 @@ describe('a queue that outlives the plan it was written for', () => {
     expect(reconcileQueue(['c', 'gone', 'a'], ['a', 'c'])).toEqual(['c', 'a']);
   });
 
-  test('appends what is new, in the order it arrived', () => {
-    // New work goes to the back of a hand-sorted queue: it was not part of
-    // the decision, so it must not silently jump it.
-    expect(reconcileQueue(['c', 'a'], ['a', 'b', 'c', 'd'])).toEqual(['c', 'a', 'b', 'd']);
+  test('puts what is new where the plan puts it', () => {
+    // The model, in the user's words: the tree sets the basic order, the
+    // queue sets the detail order.
+    //
+    // That is the model, and appending new work to the back broke it for
+    // exactly the case a plan grows into: add a task in the tree right after
+    // A, and it belongs after A here too. The queue is a statement about the
+    // items it names; for one it has never seen, the plan order is the only
+    // thing anybody has said, so it is what decides.
+    //
+    // Stored ['c','a'], plan [a,b,c,d]: 'b' follows 'a' in the plan and lands
+    // after it; 'd' follows 'c' and lands after it.
+    expect(reconcileQueue(['c', 'a'], ['a', 'b', 'c', 'd'])).toEqual(['c', 'd', 'a', 'b']);
+  });
+
+  test('a new item with nothing before it in the plan goes first', () => {
+    expect(reconcileQueue(['c', 'a'], ['new', 'a', 'c'])).toEqual(['new', 'c', 'a']);
+  });
+
+  test('and the decided order among the known items is untouched', () => {
+    // The point of the override: what was decided stays decided.
+    expect(reconcileQueue(['c', 'a', 'b'], ['a', 'b', 'c'])).toEqual(['c', 'a', 'b']);
   });
 
   test('is nothing at all when nothing was sorted', () => {
@@ -45,6 +62,7 @@ describe('applying a queue to the plan order', () => {
   const leaves = [leaf('A.1', 'M1'), leaf('A.2', 'M1'), leaf('B.1', 'M1'), leaf('B.2', 'M1')];
 
   test('permutes only that person\'s own slots', () => {
+    // The queue names all four, so it decides all four.
     const out = applyPersonQueues(leaves, { M1: ['B.1', 'A.1', 'A.2', 'B.2'] });
     expect(out.map(l => l.id)).toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
   });
@@ -76,7 +94,9 @@ describe('applying a queue to the plan order', () => {
     const out = applyPersonQueues(leaves, { M1: ['B.1', 'ghost', 'A.1'] });
     expect(out).toHaveLength(leaves.length);
     expect(new Set(out.map(l => l.id)).size).toBe(leaves.length);
-    expect(out.map(l => l.id)).toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
+    // Decided: B.1 before A.1. The two the queue never named follow their own
+    // plan-predecessors — B.2 goes with B.1, A.2 with A.1.
+    expect(out.map(l => l.id)).toEqual(['B.1', 'B.2', 'A.1', 'A.2']);
   });
 });
 
@@ -136,7 +156,7 @@ describe('a queue in the file', () => {
   });
 });
 
-// "Wie geht das mit WorkItems die nur einem Team zugeordnet sind usw?"
+// Asked: what happens to work items that are assigned only to a team?
 //
 // It did not. The queue keyed on the first assignee, so an item with a team
 // and nobody on it had no queue to be in — and those are exactly the items a

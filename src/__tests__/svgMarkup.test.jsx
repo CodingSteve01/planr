@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// "Die Subway-Map ist gar nicht mehr zu sehen."
+// Reported: the subway map is not visible at all any more.
 //
 // The roadmap's renderer returns two documents in one string: the map, then an
 // HTML legend as its sibling. Parsing that whole string as image/svg+xml — one

@@ -1,4 +1,4 @@
-// "Gibt es eigentlich einen Abgewiesen-Status? Erledigt und 0% wäre das?"
+// Asked: is there a rejected status? Would that be "done at 0 %"?
 //
 // It would, and that is the problem: an item nobody is going to do, marked
 // done at 0 %, is counted as delivered work. It inflates "65/132 done", it
