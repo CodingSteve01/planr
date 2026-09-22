@@ -130,7 +130,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Drag a bar horizontally (open/wip) | Sets pinnedStart to the drop date | src/components/views/GanttView.jsx:2681 (start), 2078 (effect) | Plan | 1 | ⚠ writes data outside the tree — writes pinnedStart |
 | Drag a bar horizontally (done) | Moves completedStart+completedEnd as a block | src/components/views/GanttView.jsx:2681 (start), 1963-1967 (effect) | Run | 1 | ⚠ writes data outside the tree — writes completedStart/completedEnd; unsure whether Run or Review fits better |
 | Drag a bar vertically (tree grouping) | Reorders siblings | src/components/views/GanttView.jsx:2681 (start), 1968-1971 (effect) | Plan | 1 | ⚠ writes data outside the tree — onReorderSibling |
-| Drag a bar vertically (resource grouping) | Writes a new seq (and maybe prio) to reposition the task in a person's queue | src/components/views/GanttView.jsx:2681 (start), 1972-2023 (effect) | Plan | 1 | ⚠ writes data outside the tree — seq/prio |
+| Drag a bar vertically | Moves the item in the tree — the same move as ⌥↑/⌥↓ on its row | src/components/views/GanttView.jsx:2681 (start) | Plan | 1 | ✓ writes through the tree's own reorder |
 | Drag the right bar edge (open/wip) | Sets fixedDurationDays | src/components/views/GanttView.jsx:2851 (handle), 1934 (effect) | Plan | 1 | ⚠ writes data outside the tree |
 | Drag the right bar edge (done) | Moves completedEnd/completedAt | src/components/views/GanttView.jsx:2849-2851 (handle), 1944 (effect) | Run | 1 | ⚠ writes data outside the tree; unsure whether Run or Review fits better |
 | Drag the left bar edge (done) | Moves completedStart | src/components/views/GanttView.jsx:2842-2845 (handle), 1951 (effect) | Run | 1 | ⚠ writes data outside the tree |
@@ -149,7 +149,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Critical-path badge (filter toggle) | Hides non-critical rows/lines | src/components/views/GanttView.jsx:3074 | Plan | 1 | |
 | Load-heatmap week-strip click (header) | Switches grouping to "Resource" | src/components/views/GanttView.jsx:2397 | Plan | 1 | ↔ duplicates the "Resource" grouping button |
 | "Link" (multi-selection) | Chains the selected tasks into a dependency sequence | src/components/views/GanttView.jsx:3093 (fn 1121-1126) | Plan | 2 | ⚠ writes data outside the tree — onAddDep; ↔ duplicates the "+" link connector; only shown with an active selection |
-| ⏮ / ◀ / ▶ / ⏭ (multi-selection reorder) | Moves the selection to start/up/down/end of a team queue (seq, maybe prio) | src/components/views/GanttView.jsx:3097-3100 (fn 1042-1105) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates vertical bar drag |
+| ⏮ / ◀ / ▶ / ⏭ (multi-selection reorder) | Moves the selection first/up/down/last among its siblings | src/components/views/GanttView.jsx:3097-3100 | Plan | 2 | ✓ writes through the tree's own reorder; ↔ duplicates vertical bar drag |
 | Priority ⏫ / ⏬ (multi-selection) | Changes selection's prio by ±1 | src/components/views/GanttView.jsx:3103-3104 (fn 1110-1120) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates the priority field in QuickEdit/NodeModal |
 | "Bulk edit…" (multi-selection) | Opens the external bulk-edit dialog | src/components/views/GanttView.jsx:3106-3114 | Plan | 2 | mutation itself happens in the bulk-edit dialog (see above) |
 | "Remove links" (multi-selection) | Removes all hard/soft dependencies of the selection | src/components/views/GanttView.jsx:3116 (fn 1127-1171) | Plan | 2 | ⚠ writes data outside the tree; ↔ duplicates the single × badge |
@@ -467,7 +467,7 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | Successor list (navigate only) (Timing) | Opens a successor item | src/components/modals/NodeModal.jsx:618-637 | Build | 2 | ↔ duplicates QuickEdit Timing |
 | History tab (ItemHistoryTimeline) | Shows/edits the item's change history | src/components/modals/NodeModal.jsx:641-645 | Review | 2 | not present in QuickEdit at all — unique to NodeModal |
 | Advanced — parent SearchSelect (move node) | Moves the node to a new parent | src/components/modals/NodeModal.jsx:649-657 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; not present in QuickEdit |
-| Advanced — seq number input | Sets the raw scheduler seq field | src/components/modals/NodeModal.jsx:658 | Build | 2 | 🔧 mechanics exposed (raw internal field); not present in QuickEdit |
+| ~~Advanced — seq number input~~ | — | — | — | — | ✗ removed: the field it set is no longer read by anything. Order is the tree's. |
 | Footer — Delete | Deletes the item | src/components/modals/NodeModal.jsx:663 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit |
 | Footer — Duplicate | Duplicates the item + subtree | src/components/modals/NodeModal.jsx:664-668 | Build | 2 | ↔ duplicates QuickEdit |
 | Footer — Split | Splits the task | src/components/modals/NodeModal.jsx:669-684 | Build | 2 | ↔ duplicates QuickEdit |

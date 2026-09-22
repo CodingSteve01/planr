@@ -149,7 +149,6 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const assign = (r.assign || []).length ? ` [${r.assign.map(memberShort).join(', ')}]` : '';
     const tags = [];
     if (r.prio && r.prio !== 2) tags.push(`prio:${r.prio}`);
-    if (r.seq) tags.push(`seq:${r.seq}`);
     if (!r.id.includes('.') && r.severity && r.severity !== 'high') tags.push(r.severity);
     if (r.confidence) tags.push(`conf:${r.confidence}`);
     if (r.completedAt) tags.push(`done:${r.completedAt}`);

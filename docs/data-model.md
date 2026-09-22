@@ -42,7 +42,8 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
   assign,        // [memberId] — assignees (usually 1; multiple means any of them can pick it up)
   progress,      // 0-100 on leaves, auto-cascaded on parents (never set manually on parents)
   note,          // short free-form text, shown in tooltips
-  seq,           // legacy sequencing hint, optional — superseded by deps/softDeps + displayOrder
+  seq,           // dead. Parsed from older plan files and ignored, never written.
+                 // Order is the tree's (see displayOrder + docs/scheduler.md).
   parallel,      // legacy flag: bypass person capacity (kept for MD round-trip, not in UI)
   displayOrder,  // integer — per-sibling layout rank (Reorganize button → topo sort of deps+softDeps).
                  // Drives TreeView/Gantt row order. Falls back to id-numeric when unset.

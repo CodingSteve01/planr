@@ -1025,79 +1025,27 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [visibleTaskIds]);
-  // Z-order style reorder for the current multi-selection. Scoped per-team:
-  // for each team that has selected items, sort the team's leaves by current
-  // seq, splice the selected ones at the new position, then rewrite seq in
-  // dense steps of 5 across the whole team. Steps of 5 leave room for later
-  // up/down nudges without renumbering everyone.
+  // Move the current selection earlier or later. One line of code now,
+  // because there is one order: the tree's.
   //
-  // ⏮/⏭ also sync the selection's prio to the destination neighbourhood
-  // (min/max of the team's non-selected leaves) so the scheduler actually
-  // moves the bars — seq alone is only a tiebreak, prio dominates the sort.
-  // ◀/▶ stay seq-only: small nudges should not silently change priority.
+  // What stood here was a second ordering system — sort each team's leaves by
+  // `seq`, splice the selection in, rewrite `seq` in steps of five, and for
+  // ⏮/⏭ also rewrite the selection's PRIORITY to match the destination
+  // neighbourhood, because (the comment said) "seq alone is only a tiebreak,
+  // prio dominates the sort". It did, and that was the bug: the plan you
+  // arranged in the tree and the plan the scheduler ran were two different
+  // plans. Changing importance to express order was the workaround for it.
+  //
+  // The cost, stated plainly: this moves an item among its siblings, so it
+  // cannot lift a task out of the middle of one project to the front of a
+  // team's queue while leaving it at the bottom of the tree. That was never a
+  // coherent thing to ask for — it is the disagreement itself.
   const reorderSelectionInTime = (dir) => {
-    if (!onTaskUpdate || selectedTaskIds.length === 0) return;
-    const byTeam = new Map();
-    selectedTaskIds.forEach(id => {
-      const node = iMap[id];
-      if (!node || !leafIdSet.has(id)) return;
-      const teamKey = node.team || '';
-      if (!byTeam.has(teamKey)) byTeam.set(teamKey, new Set());
-      byTeam.get(teamKey).add(id);
-    });
-    byTeam.forEach((selIds, teamKey) => {
-      const teamLeaves = (tree || [])
-        .filter(n => leafIdSet.has(n.id) && (n.team || '') === teamKey)
-        .sort((a, b) => {
-          const aSeq = a.seq ?? a.displayOrder ?? 0;
-          const bSeq = b.seq ?? b.displayOrder ?? 0;
-          return aSeq - bSeq || a.id.localeCompare(b.id);
-        });
-      if (!teamLeaves.length) return;
-      const orderedIds = teamLeaves.map(n => n.id);
-      const others = teamLeaves.filter(n => !selIds.has(n.id));
-      // Target prio for the extreme actions. Scheduler treats undefined as 4.
-      let targetPrio = null;
-      if (dir === 'last' && others.length) {
-        targetPrio = others.reduce((m, n) => Math.max(m, n.prio || 4), 1);
-      } else if (dir === 'first' && others.length) {
-        targetPrio = others.reduce((m, n) => Math.min(m, n.prio || 4), 4);
-      }
-      const selectedInOrder = orderedIds.filter(id => selIds.has(id));
-      const othersOrdered = orderedIds.filter(id => !selIds.has(id));
-      let next = [];
-      if (dir === 'first') next = [...selectedInOrder, ...othersOrdered];
-      else if (dir === 'last') next = [...othersOrdered, ...selectedInOrder];
-      else if (dir === 'up') {
-        next = orderedIds.slice();
-        for (let i = 1; i < next.length; i++) {
-          if (selIds.has(next[i]) && !selIds.has(next[i - 1])) {
-            [next[i - 1], next[i]] = [next[i], next[i - 1]];
-          }
-        }
-      } else if (dir === 'down') {
-        next = orderedIds.slice();
-        for (let i = next.length - 2; i >= 0; i--) {
-          if (selIds.has(next[i]) && !selIds.has(next[i + 1])) {
-            [next[i + 1], next[i]] = [next[i], next[i + 1]];
-          }
-        }
-      } else return;
-      next.forEach((id, idx) => {
-        const node = iMap[id];
-        if (!node) return;
-        const newSeq = (idx + 1) * 5;
-        const patch = { ...node };
-        let changed = false;
-        if (node.seq !== newSeq) { patch.seq = newSeq; changed = true; }
-        // Only selected items get the prio sync; others keep their own prio.
-        if (targetPrio != null && selIds.has(id) && (node.prio || 4) !== targetPrio) {
-          patch.prio = targetPrio;
-          changed = true;
-        }
-        if (changed) onTaskUpdate(patch);
-      });
-    });
+    if (!onReorderSibling || selectedTaskIds.length === 0) return;
+    const ids = selectedTaskIds.filter(id => leafIdSet.has(id));
+    // Down/last runs bottom-up so the selection does not step over itself.
+    const ordered = dir === 'down' || dir === 'last' ? [...ids].reverse() : ids;
+    ordered.forEach(id => onReorderSibling(id, dir));
   };
   // Bulk prio nudge for the current selection. step = -1 → more urgent
   // (lower number), +1 → less urgent. Clamped to 1..4. This is the real
@@ -1973,65 +1921,24 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           completedEnd: iso(cappedEnd),
           completedAt: iso(cappedEnd),
         });
-      } else if (d.isReorder && d.lastDy && d.reorderMode === 'tree') {
+      } else if (d.isReorder && d.lastDy) {
+        // Dragging a bar up or down moves the item in the TREE, whichever view
+        // the drag started in. The resource view used to write a `seq` value
+        // instead, plus a "match the neighbour's priority so the scheduler
+        // honours it" patch — a second ordering system that existed only
+        // because the scheduler ignored the tree. It follows the tree now
+        // (utils/displayOrder.js, `treeOrderRank`), so there is one order, and
+        // dragging a bar and pressing ⌥↓ on the row do the same thing.
         const rowShift = Math.max(1, Math.abs(Math.round(d.lastDy / RH)));
         const dir = d.lastDy > 0 ? (rowShift > 1 ? 'last' : 'down') : (rowShift > 1 ? 'first' : 'up');
-        onReorderSibling?.(d.id, dir);
-      } else if (d.isReorder && d.lastDy && d.reorderMode === 'resource') {
-        // Resource-view vertical reorder writes a `seq` value so the scheduler
-        // picks the dragged task up in that order on the assignee's queue.
-        // Half-step between the neighbours bracketing the drop position
-        // keeps existing seq values stable for everything else.
-        const rowShift = Math.round(d.lastDy / RH);
-        if (rowShift !== 0) {
-          const sourceIdx = visibleRows.findIndex(r => r?.type === 'task' && r.s?.id === d.id);
-          if (sourceIdx >= 0 && onTaskUpdate) {
-            const targetIdx = Math.max(0, Math.min(visibleRows.length - 1, sourceIdx + rowShift));
-            const sourcePerson = d.personId || (d.assign && d.assign[0]);
-            const personRows = visibleRows.filter(r => {
-              if (r?.type !== 'task') return false;
-              const p = r.s?.personId || (r.s?.assign && r.s.assign[0]);
-              return p && p === sourcePerson;
-            });
-            const personIdxOfSource = personRows.findIndex(r => r.s?.id === d.id);
-            const tgtRow = visibleRows[targetIdx];
-            const personIdxOfTarget = personRows.findIndex(r => r.s?.id === tgtRow?.s?.id);
-            if (personIdxOfTarget >= 0 && personIdxOfTarget !== personIdxOfSource) {
-              // Compute insertion position in the person-row list (after target
-              // when dragging down, before when dragging up).
-              const insertAt = rowShift > 0 ? personIdxOfTarget : personIdxOfTarget;
-              // Neighbour seqs bracketing the new slot.
-              const reordered = personRows.filter(r => r.s?.id !== d.id);
-              const clamped = Math.max(0, Math.min(reordered.length, insertAt));
-              const prev = reordered[clamped - 1]?.s;
-              const next = reordered[clamped]?.s;
-              const prevSeq = prev?.seq || prev?.displayOrder || (clamped) * 10;
-              const nextSeq = next?.seq || next?.displayOrder || (clamped + 2) * 10;
-              const newSeq = Math.round((prevSeq + nextSeq) / 2) || (prevSeq + 5);
-              // Match the prio of whichever neighbour we land next to so the
-              // scheduler honours the new position. Without this, dragging a
-              // prio-3 bar past prio-4 neighbours snaps back via prio sort.
-              const targetPrio = (prev?.prio) || (next?.prio) || null;
-              const node = iMap[d.treeId || d.id];
-              if (node) {
-                const patch = { ...node, seq: newSeq };
-                if (targetPrio != null && (node.prio || 4) !== targetPrio) patch.prio = targetPrio;
-                onTaskUpdate(patch);
-              }
-              // Multi-row drag: keep the rest of the current selection together
-              // by spacing them around `newSeq` in their visible order.
-              if (selectedIds.has(d.id) && selectedTaskIds.length > 1) {
-                const ordered = selectedTaskIds.filter(id => id !== d.id);
-                ordered.forEach((id, i) => {
-                  const n = iMap[id]; if (!n) return;
-                  const patch = { ...n, seq: newSeq + (i + 1) };
-                  if (targetPrio != null && (n.prio || 4) !== targetPrio) patch.prio = targetPrio;
-                  onTaskUpdate(patch);
-                });
-              }
-            }
-          }
-        }
+        const ids = selectedIds.has(d.id) && selectedTaskIds.length > 1
+          ? selectedTaskIds
+          : [d.treeId || d.id];
+        // Moving down, start from the bottom of the selection: otherwise the
+        // first move puts the top item past the second, and the second move
+        // puts it back.
+        const ordered = dir === 'down' || dir === 'last' ? [...ids].reverse() : ids;
+        ordered.forEach(id => onReorderSibling?.(id, dir));
       } else if (d.canPin && dDelta !== 0) {
         // Day mode: offset from the bar's actual start date (not the week's Monday).
         // Week mode: offset from the start week's Monday (bar is week-aligned).

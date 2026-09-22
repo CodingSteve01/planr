@@ -30,9 +30,17 @@ Week indices (`startWi`, `endWi`) reference the precomputed week grid.
 
 Only leaves are scheduled. Leaves are detected structurally via `isLeafNode(tree, id)` — no fixed depth.
 
-### 3. Topological order
+### 3. Order of work
 
-`visit(id)` walks effective dependencies (own + inherited from all ancestors) depth-first, accumulating into `ord[]`. Cycles are not explicitly detected — cyclic trees produce undefined ordering (tracked as a future improvement).
+**The sequence in the tree is the sequence of the work.** What you move to the top with ⌥↑ starts first; what you push down waits. `treeOrderRank()` in [displayOrder.js](../src/utils/displayOrder.js) walks the tree depth-first and hands back a rank that compares across projects — `displayOrder` on its own counts 1..N inside each parent and cannot say whether the third task of one project comes before the first task of another.
+
+Pinned tasks are considered first, and that is mechanics rather than intent: their capacity has to be on the books before auto-assigned work is placed, or both land in the same window on the same person.
+
+`visit(id)` then walks effective dependencies (own + inherited from all ancestors) depth-first, accumulating into `ord[]`, so a link still overrides the tree order. Cycles are not explicitly detected — cyclic trees produce undefined ordering (tracked as a future improvement).
+
+**Priority and due date do not reorder anything.** They used to: the sort was `priority → assigned-first → due date → seq → id`, with a `dueBump` that promoted anything due within 90 days toward critical. That is why work appeared at the front of the timeline that the planner had deliberately moved to the bottom of the tree — and why the Gantt grew a second ordering system (`seq` plus a "match the neighbour's priority" patch) to fight it back. Priority is importance and due date is a commitment; a deadline that will not hold is now a warning from [`timeline.js`](../src/utils/timeline.js)'s `deadlineStatus`, which you can act on, rather than a reshuffle you have to discover.
+
+`seq` is gone as an input. It is still parsed from older plan files and ignored; it is no longer written.
 
 ### 4. Inherit deps from ancestors
 
@@ -121,13 +129,13 @@ Pinning never pulls a task earlier than its natural deps/capacity allow.
 
 ## Parallel flag
 
-Default behaviour: a leaf without any `deps` / `softDeps` bypasses the assignee's `pF` counter and starts from its earliest legal floor (planStart / today / member-start). Sequencing is **link-driven** — the only way to make one task wait for another is an explicit dependency. Removing the last link is the user's explicit signal that the task should overlap with whatever the resource is already doing.
+Default behaviour: every leaf queues on its assignee's `pF` cursor, in tree order. One person, one thing at a time, in the order the plan says.
 
-`parallel: false` is the explicit opt-out: the leaf re-enters the person queue even though it has no dependencies. Useful for "I have no formal predecessor but please don't double-book the assignee".
+`parallel: true` is the explicit opt-out: the leaf bypasses the queue and starts from its earliest legal floor (planStart / today / member-start), overlapping whatever the assignee is already doing. It only applies to a leaf without `deps` / `softDeps` — once a dependency is present the dep is the binding floor. Set per item in the node editor and in multi-select; it round-trips as `{parallel:true}` and shows as `≡` on the bar.
 
-`parallel: true` is redundant with the default for no-dep leaves and has no effect once a dependency is present (the dep is the binding floor). It stays writeable so Markdown round-trips don't lose intent and so the UI can persist the auto-flip described below.
+A pinned task bypasses the queue too, so a manual date stays visible as a conflict instead of being silently moved.
 
-The UI sets `parallel: true` automatically whenever a leaf loses its last `deps` / `softDeps` link via any path (NodeModal × button, Gantt arrow-X, multi-select "clear all"). The helper `shouldAutoParallelizeOnDepFree(node, isLeaf)` encodes the rule: leaf + open status + no remaining deps + not already parallel. Re-adding a dep later does not flip the flag back; the user must clear it explicitly. Done leaves are never flipped — their dates are historical.
+> This section described the opposite until September 2026 — "sequencing is link-driven", dep-free leaves run in parallel by default, and the UI auto-sets `parallel` when the last link goes. The code had moved on; the documentation had not, and it sent at least one planner looking for links to express an order the scheduler was never going to read. `docs/` is part of the change, not a follow-up to it.
 
 ## Holidays
 

@@ -20,6 +20,53 @@ function parentOf(id) {
   return parts.length > 1 ? parts.slice(0, -1).join('.') : '';
 }
 
+/**
+ * Every node's position in the order the tree actually shows it, as a rank
+ * you can compare across the whole plan: 0, 1, 2 … depth-first, children
+ * directly under their parent.
+ *
+ * `displayOrder` on its own cannot answer "does A come before B" unless A and
+ * B are siblings — it counts 1..N inside each parent, so the third child of
+ * the first project and the third child of the last project both say "3".
+ * Walking the tree turns that sibling-local number into a global one, which
+ * is what anything ordering work across projects needs. The scheduler is the
+ * caller that matters: the sequence in the tree is the sequence of the work
+ * (docs/scheduler.md, "Order").
+ */
+export function treeOrderRank(tree) {
+  const ranks = new Map();
+  if (!Array.isArray(tree)) return ranks;
+
+  const known = new Set(tree.map(r => r.id));
+  const byParent = new Map();
+  for (const r of tree) {
+    // A node whose parent is missing is a root here rather than nowhere: an
+    // orphan that sorted last would quietly schedule last.
+    const p = parentOf(r.id);
+    const key = p && known.has(p) ? p : '';
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(r);
+  }
+  for (const sibs of byParent.values()) {
+    sibs.sort((a, b) => (
+      (a.displayOrder ?? idNum(a.id)) - (b.displayOrder ?? idNum(b.id))
+      || idNum(a.id) - idNum(b.id)
+      || a.id.localeCompare(b.id)
+    ));
+  }
+
+  let next = 0;
+  const walk = id => {
+    for (const child of byParent.get(id) || []) {
+      if (ranks.has(child.id)) continue;   // a cycle in dotted ids cannot happen, but cheap
+      ranks.set(child.id, next++);
+      walk(child.id);
+    }
+  };
+  walk('');
+  return ranks;
+}
+
 export function computeDisplayOrder(tree) {
   if (!Array.isArray(tree)) return {};
   const byParent = new Map();

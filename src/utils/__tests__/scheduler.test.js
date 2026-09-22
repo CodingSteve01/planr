@@ -617,10 +617,12 @@ describe('schedule(): WIP progress discount', () => {
 describe('schedule(): auto-assign respects committed assigned work', () => {
   // Regression — venneker dataset 2026-05-05. SL has a heavy explicit-assign
   // queue (cap=0.5, ~50 effort committed). MZ and JF are full-cap and free.
-  // A due-bumped UNASSIGNED task sorted before SL's queue used to land on SL
-  // because pF[SL] was still empty at sort time → unassigned starved on the
-  // slowest body. Fix: virtual fd/fw floor from committedRem so SL looks as
-  // loaded as he actually is.
+  // An UNASSIGNED task scheduled before SL's queue used to land on SL because
+  // pF[SL] was still empty at sort time → unassigned starved on the slowest
+  // body. Fix: virtual fd/fw floor from committedRem so SL looks as loaded as
+  // he actually is. (What put the task ahead of SL's stack back then was the
+  // due-date bump; the order comes from the tree now, and the floor is what
+  // this test is about either way.)
   const SL = { id: 'SL', name: 'Steffen', team: 'T', cap: 0.5, vac: 0, start: '2026-01-01' };
   const MZ = { id: 'MZ', name: 'Marco',   team: 'T', cap: 1,   vac: 0, start: '2026-01-01' };
   const JF = { id: 'JF', name: 'Jonas',   team: 'T', cap: 1,   vac: 0, start: '2026-01-05' };
@@ -628,8 +630,8 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
   test('due-bumped unassigned task lands on free body, not slow committed assignee', () => {
     // SL: 5 explicit assigned tasks of 10d each = 50d committed → ~100 work
     // days at cap 0.5. MZ and JF: zero committed work. A small unassigned
-    // task with a near-term due gets dueBumped (effectivePrio < default 4)
-    // so it sorts before SL's prio=4 stack.
+    // task with a near-term due has to find a free body rather than queue
+    // behind all of it.
     const tree = [
       { id: 'P', name: 'Root', team: '', best: 0 },
       { id: 'P.A', name: 'SL-1', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 10 },
@@ -637,8 +639,7 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
       { id: 'P.C', name: 'SL-3', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 30 },
       { id: 'P.D', name: 'SL-4', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 40 },
       { id: 'P.E', name: 'SL-5', team: 'T', best: 10, factor: 1, assign: ['SL'], prio: 4, seq: 50 },
-      // Unassigned, due in 60 days → bumped to prio 3, sorts BEFORE SL stack.
-      { id: 'P.U', name: 'urgent', team: 'T', best: 5, factor: 1, prio: 4, seq: 5, due: '2026-03-06' },
+      { id: 'P.U', name: 'urgent', team: 'T', best: 5, factor: 1, prio: 4, due: '2026-03-06' },
     ];
     const r = runSchedule({
       tree,
@@ -851,5 +852,103 @@ describe('nextChildId()', () => {
   test('child ids continue the sibling sequence under a given parent', () => {
     const tree = [{ id: 'P1' }, { id: 'P1.1' }, { id: 'P1.3' }];
     expect(nextChildId(tree, 'P1')).toBe('P1.4');
+  });
+});
+
+// "Ich kann nicht mal eben so wie im Tree die Umsetzungsreihenfolge festlegen,
+//  dadurch stehen Sachen auf der Zeitachse ganz vorne die eigentlich erst viel
+//  später gemacht werden müssen."
+//
+// The queue was ordered by priority → assigned-first → due date → `seq` → id,
+// and `displayOrder` — what ⌥↑↓ writes — was deliberately excluded because it
+// only counts within one parent. So the plan you arranged and the plan the
+// scheduler ran were two different plans, and the tree had no say in either.
+//
+// The promise these tests hold: what is above in the tree starts first.
+describe('the tree is the order of the work', () => {
+  const one = { id: 'M1', name: 'Solo', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const leaf = (id, extra = {}) => ({ id, name: id, team: 'T', best: 5, factor: 1, assign: ['M1'], ...extra });
+  const startOf = (r, id) => iso(r.results.find(x => x.id === id).startD);
+
+  test('moving a row up in the tree moves it earlier on the timeline', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A'), leaf('P.B'), leaf('P.C'),
+    ];
+    const before = runSchedule({ tree, members: [one] });
+    expect(startOf(before, 'P.A') < startOf(before, 'P.C')).toBe(true);
+
+    // The one gesture the user has: ⌥↑ on P.C until it is first. That writes
+    // displayOrder, and nothing else about the plan changes.
+    const after = runSchedule({
+      tree: tree.map(r => ({ ...r, displayOrder: { 'P.C': 1, 'P.A': 2, 'P.B': 3 }[r.id] })),
+      members: [one],
+    });
+    expect(startOf(after, 'P.C')).toBe(startOf(before, 'P.A'));
+    expect(startOf(after, 'P.C') < startOf(after, 'P.A')).toBe(true);
+  });
+
+  test('a low-priority row above a high-priority one still goes first', () => {
+    // This is the whole change in one assertion. Before, prio 1 jumped the
+    // queue no matter where you put it, which is why "just move it down"
+    // never worked.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { prio: 4 }),
+      leaf('P.B', { prio: 1 }),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
+  });
+
+  test('a near-term due date warns rather than silently reordering', () => {
+    // The old dueBump promoted anything due within 90 days toward critical.
+    // A deadline that will not hold is now something the plan says out loud
+    // (utils/timeline.js, `deadlineStatus`) instead of a reshuffle nobody
+    // asked for.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A'),
+      leaf('P.B', { due: '2026-01-20' }),
+    ];
+    const r = runSchedule({ tree, members: [one], options: { now: '2026-01-05' } });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
+  });
+
+  test('order compares across projects, not just between siblings', () => {
+    // `displayOrder` is 1..N per parent, so the first child of the second
+    // project and the first child of the first project both say "1". Walking
+    // the tree is what makes them comparable — without it the second
+    // project's work interleaved with the first project's by id.
+    const tree = [
+      { id: 'P1', name: 'First', team: '', best: 0 },
+      leaf('P1.1'), leaf('P1.2'),
+      { id: 'P2', name: 'Second', team: '', best: 0 },
+      leaf('P2.1'), leaf('P2.2'),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P1.2') <= startOf(r, 'P2.1')).toBe(true);
+  });
+
+  test('a dependency still wins over the tree order', () => {
+    // Order is the default, not an override: if A genuinely cannot start
+    // before B, the link says so and the link holds.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { deps: ['P.B'] }),
+      leaf('P.B'),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.B') < startOf(r, 'P.A')).toBe(true);
+  });
+
+  test('seq is no longer an input', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { seq: 999 }),
+      leaf('P.B', { seq: 1 }),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
   });
 });

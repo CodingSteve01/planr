@@ -2,6 +2,7 @@ import { addD, iso, addWorkDays, localDate, eachDayInclusive, normalizeVacation 
 import { buildWeeks } from './holidays.js';
 import { phaseProgress } from './phases.js';
 import { deriveCap, memberAtDate } from './capacity.js';
+import { treeOrderRank } from './displayOrder.js';
 // Cyclic by design: progress.js needs leafProgress/scheduleEffort from here and
 // treeStats needs the one aggregate formula from there. Both sides only touch
 // the other at call time, so the cycle resolves cleanly.
@@ -214,48 +215,34 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const planEndDate = localDate(pe);
   const planStartWi = Math.max(0, wks.findIndex(w => addD(w.mon, 7) > effectiveFloor));
   const vis = new Set(), ord = [];
+  // ── Order of work ────────────────────────────────────────────────────────
+  // The sequence in the tree IS the sequence of the work. What you drag to
+  // the top with ⌥↑ starts first; what you push down waits.
+  //
+  // This used to sort by priority → assigned-first → due date → `seq` → id,
+  // with a comment saying `displayOrder` was deliberately left out because it
+  // is sibling-local. That was true of the raw field and is why the timeline
+  // kept disagreeing with the tree: you arranged the plan, and the scheduler
+  // re-sorted it by importance and id behind your back. `treeOrderRank` walks
+  // the tree instead and hands back a rank that compares across projects, so
+  // the arrangement survives.
+  //
+  // Priority and due date still mean what they say — they just no longer move
+  // work around on their own. A deadline that will not hold is a warning
+  // (utils/timeline.js, `deadlineStatus`), not a silent reordering, and a
+  // warning is something you can act on.
+  //
+  // Pinned tasks stay first, and that is mechanics rather than intent: their
+  // capacity has to be on the books before auto-assigned work is placed, or
+  // both land in the same window on the same person.
+  const rank = treeOrderRank(tree);
   const sv = [...lvs].sort((a, b) => {
-    // Pinned tasks schedule FIRST so their person-capacity (pF) consumption is visible
-    // to subsequent auto-assigned work. Otherwise auto tasks fill the same window as
-    // a future-pinned task and overlap on the same person.
     const aPinned = a.pinnedStart ? 0 : 1;
     const bPinned = b.pinnedStart ? 0 : 1;
     if (aPinned !== bPinned) return aPinned - bPinned;
-    // Assigned tasks schedule before unassigned at same priority — ensures person
-    // capacity (pF) is consumed by committed work before speculative tasks are placed.
-    const aHasPerson = (a.assign?.length > 0) ? 0 : 1;
-    const bHasPerson = (b.assign?.length > 0) ? 0 : 1;
-    // Effective priority: tasks with a near-term due date (≤ 90d from now)
-    // are promoted toward critical so they jump in front of priority-driven
-    // backlog work. The closer the due, the stronger the bump:
-    //   ≤ 14d → effectivePrio = 1 (critical)
-    //   ≤ 30d → max(prio - 2, 1)
-    //   ≤ 90d → max(prio - 1, 1)
-    // Without this, low-prio dated work stays buried behind high-prio
-    // undated work and silently slips past its due date.
-    const dueBump = (r) => {
-      if (!r.due) return r.prio || 4;
-      const daysToDue = Math.round((localDate(r.due) - _now) / 86400000);
-      const base = r.prio || 4;
-      if (daysToDue <= 14) return 1;
-      if (daysToDue <= 30) return Math.max(1, base - 2);
-      if (daysToDue <= 90) return Math.max(1, base - 1);
-      return base;
-    };
-    const aPrio = dueBump(a);
-    const bPrio = dueBump(b);
-    // Within the same effective priority + same assignment-state, earlier
-    // due dates schedule first. Tasks without due sort after dated ones.
-    const aDue = a.due ? a.due : '9999-99-99';
-    const bDue = b.due ? b.due : '9999-99-99';
-    // Tiebreak order: prio → assigned-first → due → manual rank → id.
-    // `seq` is the global manual order written by Gantt D&D and the
-    // selection z-order buttons. `displayOrder` is intentionally NOT used
-    // here — it is sibling-local (1..N per parent in the TreeView) and
-    // would mis-compare items from different parents.
-    const aRank = (a.seq ?? 0);
-    const bRank = (b.seq ?? 0);
-    return aPrio - bPrio || aHasPerson - bHasPerson || aDue.localeCompare(bDue) || aRank - bRank || a.id.localeCompare(b.id);
+    const aRank = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+    const bRank = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+    return aRank - bRank || a.id.localeCompare(b.id);
   });
   // Collect deps including those inherited from ancestors (so a parent dep blocks all its leaves)
   const effectiveDeps = id => {

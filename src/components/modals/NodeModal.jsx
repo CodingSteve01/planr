@@ -660,7 +660,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             onMove(node.id, newPid);
           }} placeholder={t('nm.topLevel')} showIds />
         </div>}
-        {isLeaf && <div className="field"><label>{t('nm.seq')}</label><input type="number" value={f.seq || 0} onChange={e => s('seq', +e.target.value)} style={{ width: 80, fontFamily: 'var(--mono)' }} /></div>}
       </>}
 
       {/* ── ACTIONS ── */}
