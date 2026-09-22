@@ -33,6 +33,8 @@ const en = {
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Report', 'tab.order': 'Work order', 'tab.barLabel': 'Views',
   'col.name': 'Name', 'col.effort': 'Effort', 'col.schedule': 'Schedule', 'col.item': 'Item',
+  'col.team': 'Team', 'col.who': 'Who', 'col.signal': 'Signal',
+  'tv.leafCount': '({0} tasks)',
 
   // ── Modes ── (docs/principles.md, principle 1 — tooltips take their
   // wording from that document's mode table)
@@ -1101,6 +1103,8 @@ const de = {
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Bericht', 'tab.order': 'Reihenfolge', 'tab.barLabel': 'Ansichten',
   'col.name': 'Name', 'col.effort': 'Aufwand', 'col.schedule': 'Zeitraum', 'col.item': 'Eintrag',
+  'col.team': 'Team', 'col.who': 'Wer', 'col.signal': 'Signal',
+  'tv.leafCount': '({0} Aufgaben)',
 
   // ── Modi ── (docs/principles.md, Prinzip 1 — Tooltips übernehmen den
   // Wortlaut aus der Mode-Tabelle dort)

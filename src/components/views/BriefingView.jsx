@@ -138,16 +138,25 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
   // screen behind a collapsed section. The command opens the section and puts
   // the cursor in the box, so the job starts with a paste.
   const jiraBoxRef = useRef(null);
+  const [focusJira, setFocusJira] = useState(false);
   useEffect(() => {
     const onJob = e => {
       if (e.detail?.job !== 'jira') return;
       setJiraOpen(true);
-      // One tick: the box does not exist until the section has rendered.
-      window.setTimeout(() => jiraBoxRef.current?.focus(), 0);
+      setFocusJira(true);
     };
     window.addEventListener(BRIEFING_JOB_EVENT, onJob);
     return () => window.removeEventListener(BRIEFING_JOB_EVENT, onJob);
   }, []);
+  // A flag rather than a `setTimeout(…, 0)` after opening the section. The
+  // timeout won a race it had no business being in: the box does not exist
+  // until the section has rendered, and if React re-rendered it again after
+  // the tick the focus went with it. This runs when the box is actually there.
+  useEffect(() => {
+    if (!focusJira || !jiraOpen || !jiraBoxRef.current) return;
+    jiraBoxRef.current.focus();
+    setFocusJira(false);
+  }, [focusJira, jiraOpen]);
   // Ids the user has *un*checked — defaulting to "all accepted" makes the
   // common case (take everything Jira says) one click; the inverted set
   // survives re-parsing the paste without resurrecting stale unchecks.

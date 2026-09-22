@@ -202,8 +202,14 @@ JSX moves there. Done in phase 2; the tokens, the mapping rules and the
 colours whose meaning is still ambiguous are in
 [design-tokens.md](design-tokens.md).
 
+A column is a promise that the next row's value starts in the same place. An
+optional badge appended to a cell breaks it for every row that does not have
+one — the work tree carried eleven such badges behind its name column and read
+as a wall. If a value is worth showing on a dense row, it is worth a column; if
+it is not worth a column, it belongs in the tooltip or the dialog.
+
 > **Check:** does this element have a colour that means no state? A border
-> that separates no column?
+> that separates no column? A badge appended where a column should be?
 
 ---
 
