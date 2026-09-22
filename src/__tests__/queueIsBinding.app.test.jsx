@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
+import { schedule } from '../utils/scheduler.js';
 
 function seedProject() {
   localStorage.setItem('planr_v2', JSON.stringify({
@@ -66,11 +67,25 @@ describe('the order is binding', () => {
       if (ids[0] !== 'B.1') throw new Error(ids.join());
     });
 
-    await goToTab('Schedule');
-    await waitFor(() => { if (!barOrder().length) throw new Error('no bars'); });
-    // The Gantt draws B.1 first because it is scheduled first, not because the
-    // view was told to sort differently.
-    expect(barOrder()[0]).toBe('B.1');
+    // Binding means the DATES follow. The Gantt's ROWS follow the tree — that
+    // is the plan's structure, a separate question — so "B.1 is drawn first"
+    // would be the wrong evidence for the right claim. Take what the app
+    // actually stored and run the real scheduler on it.
+    const stored = await waitFor(() => {
+      const d = JSON.parse(localStorage.getItem('planr_v2') || '{}');
+      if (!d.personQueues) throw new Error('queue not stored');
+      return d;
+    }, { timeout: 4000 });
+    expect(stored.personQueues.M1[0]).toBe('B.1');
+
+    const withQueue = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5],
+      '2026-01-05', { now: '2026-01-05', personQueues: stored.personQueues });
+    const without = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5],
+      '2026-01-05', { now: '2026-01-05' });
+    const order = r => r.results.slice().sort((a, b) => a.startD - b.startD).map(x => x.id);
+
+    expect(order(withQueue)[0]).toBe('B.1');
+    expect(order(without)[0]).toBe('A.1');
   });
 
   it('and the tree, which knows nothing about queues, is untouched', async () => {
