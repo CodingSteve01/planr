@@ -98,6 +98,19 @@ export function applyPersonQueues(leaves, queues) {
 }
 
 /**
+ * The queue after moving `id` to sit where `targetId` sits. Returns the new
+ * order — the caller stores it. This is the drag; `moveInQueue` is the keys.
+ */
+export function placeInQueue(order, id, targetId) {
+  const list = Array.isArray(order) ? [...order] : [];
+  const from = list.indexOf(id);
+  const to = list.indexOf(targetId);
+  if (from < 0 || to < 0 || from === to) return list;
+  list.splice(to, 0, list.splice(from, 1)[0]);
+  return list;
+}
+
+/**
  * The queue after moving `id` one place, or to either end, within its own
  * person's list. Returns the new order — the caller stores it.
  */

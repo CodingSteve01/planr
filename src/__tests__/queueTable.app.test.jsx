@@ -146,3 +146,52 @@ describe('working from the queue, not just looking at it', () => {
     expect(dialog.getAttribute('data-node-id')).toBe('B.1');
   });
 });
+
+// "Die Zeilen kann ich auch nicht per D&D umsortieren."
+//
+// The keyboard is the fast path once you know it; dragging is how you find out
+// the list can be rearranged at all. The tree has both, so this has both.
+describe('dragging a row', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
+
+  // happy-dom has no DataTransfer, so carry the payload the way the handlers do.
+  const dt = () => {
+    const store = {};
+    return { setData: (k, v) => { store[k] = String(v); }, getData: k => store[k] || '', effectAllowed: '', dropEffect: '' };
+  };
+
+  it('drops a task onto another and lands it there', async () => {
+    await openWorkOrder();
+    expect(rowIds()).toEqual(['A.1', 'A.2', 'B.1']);
+
+    const data = dt();
+    await act(async () => {
+      fireEvent.dragStart(rowOf('B.1'), { dataTransfer: data });
+      fireEvent.dragOver(rowOf('A.1'), { dataTransfer: data });
+      fireEvent.drop(rowOf('A.1'), { dataTransfer: data });
+    });
+
+    await waitFor(() => { if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['B.1', 'A.1', 'A.2']);
+  });
+
+  it('ignores a drop on itself', async () => {
+    await openWorkOrder();
+    const data = dt();
+    await act(async () => {
+      fireEvent.dragStart(rowOf('A.1'), { dataTransfer: data });
+      fireEvent.drop(rowOf('A.1'), { dataTransfer: data });
+    });
+    expect(rowIds()).toEqual(['A.1', 'A.2', 'B.1']);
+  });
+});

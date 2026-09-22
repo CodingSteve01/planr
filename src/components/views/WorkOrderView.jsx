@@ -28,6 +28,8 @@ import { withKey } from '../../utils/shortcuts.js';
 function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [dropId, setDropId] = useState(null);
 
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
   const byOwner = useMemo(() => {
@@ -119,8 +121,21 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
                 onFocus={() => setCursor(id)}
                 onClick={() => setCursor(id)}
                 onKeyDown={e => onKeyDown(e, node)}
-                style={{ outline: 'none' }}>
-                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>{i + 1}</td>
+                draggable
+                onDragStart={e => { setDragId(id); e.dataTransfer?.setData?.('text/plain', id); }}
+                onDragOver={e => { if (dragId && dragId !== id) { e.preventDefault(); setDropId(id); } }}
+                onDragLeave={() => setDropId(cur => (cur === id ? null : cur))}
+                onDragEnd={() => { setDragId(null); setDropId(null); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  const moved = dragId || e.dataTransfer?.getData?.('text/plain');
+                  setDragId(null); setDropId(null);
+                  if (moved && moved !== id) onQueueReorder?.(moved, { before: id });
+                }}
+                style={{ outline: 'none', opacity: dragId === id ? .4 : 1,
+                  boxShadow: dropId === id ? 'inset 0 2px 0 0 var(--ac)' : undefined }}>
+                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab' }}
+                  data-htip={t('wo.dragTip')}>{i + 1}</td>
                 <td style={{ width: 20 }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
                 <td style={{ width: 80, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{id}</td>
                 <td><span className="tn">{node.name || id}</span></td>
