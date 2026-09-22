@@ -2235,7 +2235,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             const isCol = collapsed.has(row.collapseKey || row.key);
             const isCp = rowIsCp(row);
             const dim = cpOnly && !rowRelevantToCp(row);
-            return <div key={row.key} className="gteam" style={{ color: isCp ? 'var(--re)' : row.color, borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`, background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', opacity: dim ? .25 : 1 }}>
+            return <div key={row.key} className="gteam" style={{ color: isCp ? 'var(--re)' : row.color, borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`, background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)', paddingLeft: 6, height: RH, cursor: 'default', display: 'flex', alignItems: 'center', gap: 4, // Sentence case. A group header is a person's or a project's NAME
+                // — uppercase with letter-spacing is a label style, and on a
+                // real plan it made every name both wider and harder to read
+                // for no gain. The colour bar on the left already says "this
+                // is a header".
+                fontSize: 12.5, fontWeight: 600, letterSpacing: '.005em', opacity: dim ? .25 : 1 }}>
               <button
                 type="button"
                 aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
@@ -2291,8 +2296,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
+            {/* "kein Aufwand" used to be a full amber badge on every such row.
+                On the real plan that is nine identical pills down one group,
+                shouting the same thing nine times and drowning out the names
+                beside them. The count is already on the footer bar and in the
+                quick filters; here it only has to mark the row, so it is a
+                mark. */}
             {!isSummary && (s._unestimated
-              ? <span className="badge bw" style={{ fontSize: 9, marginLeft: 'auto', flexShrink: 0 }}>{t('g.noEstimate')}</span>
+              ? <span data-htip={t('g.noEstimate')} style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--st-wip)', letterSpacing: '.08em' }}>—</span>
               : s.autoAssigned
                 ? <AutoAssignBadge title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{snAll(s)}</AutoAssignBadge>
                 : <span style={{ background: 'var(--bg4)', color: 'var(--tx2)', fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0, fontFamily: 'var(--mono)', marginLeft: 'auto' }} data-htip={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}>{snAll(s)}</span>)}
