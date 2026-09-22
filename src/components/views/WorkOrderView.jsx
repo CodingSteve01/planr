@@ -25,24 +25,52 @@ import { withKey } from '../../utils/shortcuts.js';
 // when nobody is (utils/personQueue.js, `queueOwnerOf`) — a plan's early items
 // mostly have a team and nobody, and those are exactly the ones where the
 // question matters most.
-function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
+function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', teamFilter = '', personFilter = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [dropId, setDropId] = useState(null);
 
+  const byId = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
+  // Where an item lives, as the item dialog writes it. A title alone is not
+  // enough to tell two tasks apart — "Page: Wochenpflege" means one thing
+  // under Abrechnung and another under Kundenportal — and the id is a label
+  // for the path rather than the path itself.
+  const pathOf = id => {
+    const parts = id.split('.');
+    const out = [];
+    for (let i = 1; i < parts.length; i++) {
+      const node = byId.get(parts.slice(0, i).join('.'));
+      if (node) out.push(node.name || node.id);
+    }
+    return out;
+  };
+
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
+  // The same three filters every other working surface carries. A list of
+  // everything everybody has is the one place you most want to narrow to one
+  // team — and it narrows what is SHOWN, never the order that is stored: a
+  // queue is the plan's, not the filter's (principle 3).
   const byOwner = useMemo(() => {
     const out = new Map();
     for (const node of tree) {
       if (!leafIds.has(node.id)) continue;
+      // An order is a statement about work still to be done; a finished task
+      // has no ordering decision left in it. Out of the list rather than
+      // sorted to the bottom, where it would still be scrolled past. It stays
+      // in the STORED queue, though — a task finishing must not quietly
+      // rewrite a decision somebody made.
+      if (node.status === 'done') continue;
+      if (rootFilter && node.id.split('.')[0] !== rootFilter) continue;
+      if (teamFilter && (node.team || '') !== teamFilter) continue;
+      if (personFilter && !(node.assign || []).includes(personFilter)) continue;
       const owner = queueOwnerOf(node);
       if (!owner) continue;
       if (!out.has(owner)) out.set(owner, []);
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds]);
+  }, [tree, leafIds, rootFilter, teamFilter, personFilter]);
 
   const ownerLabel = owner => {
     if (owner.startsWith('team:')) {
@@ -110,7 +138,6 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
             {ordered.map((id, i) => {
               const node = byId.get(id);
               if (!node) return null;
-              const root = tree.find(r => r.id === id.split('.')[0]);
               const prog = node.progress ?? (node.status === 'done' ? 100 : node.status === 'wip' ? 50 : 0);
               return <tr key={id}
                 data-queue-row={id}
@@ -134,14 +161,30 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
                 }}
                 style={{ outline: 'none', opacity: dragId === id ? .4 : 1,
                   boxShadow: dropId === id ? 'inset 0 2px 0 0 var(--ac)' : undefined }}>
-                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab' }}
+                <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab', verticalAlign: 'middle' }}
                   data-htip={t('wo.dragTip')}>{i + 1}</td>
-                <td style={{ width: 20 }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
-                <td style={{ width: 80, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{id}</td>
-                <td><span className="tn">{node.name || id}</span></td>
-                <td style={{ width: 150, fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{root?.name || ''}</td>
-                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>
+                <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
+                <td style={{ padding: '3px 6px' }}>
+                  <div data-queue-path style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
+                    {pathOf(id).map((name, pi) => <span key={pi}>
+                      <span style={{ color: 'var(--b3)' }}> › </span>{name}
+                    </span>)}
+                  </div>
+                  <div data-queue-title className="tn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name || id}</div>
+                </td>
+                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
                   {node.best ? `${node.best}T` : ''}
+                </td>
+                <td style={{ width: 28, verticalAlign: 'middle' }}>
+                  {/* `E` did this from the first version, which is fine once
+                      you know and invisible until then — the tree carries a ⊞
+                      for the same reason. */}
+                  <button type="button" className="tv-act-btn" data-testid={`wo-edit-${id}`}
+                    data-htip={withKey(t('nm.fullEditTip'), 'fullEdit')}
+                    onClick={e => { e.stopPropagation(); setCursor(id); onFullEdit?.(node); }}
+                    onDragStart={e => e.preventDefault()}
+                  >⊞</button>
                 </td>
               </tr>;
             })}

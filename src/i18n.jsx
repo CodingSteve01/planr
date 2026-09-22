@@ -32,6 +32,7 @@ const en = {
   'tab.gantt': 'Schedule', 'tab.net': 'Network', 'tab.resources': 'Resources', 'tab.holidays': 'Holidays',
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Report', 'tab.order': 'Work order', 'tab.barLabel': 'Views',
+  'col.name': 'Name', 'col.effort': 'Effort', 'col.schedule': 'Schedule', 'col.item': 'Item',
 
   // ── Modes ── (docs/principles.md, principle 1 — tooltips take their
   // wording from that document's mode table)
@@ -1099,6 +1100,7 @@ const de = {
   'tab.gantt': 'Zeitplan', 'tab.net': 'Netzwerk', 'tab.resources': 'Ressourcen', 'tab.holidays': 'Feiertage',
   'tab.roadmap': 'Roadmap',
   'tab.report': 'Bericht', 'tab.order': 'Reihenfolge', 'tab.barLabel': 'Ansichten',
+  'col.name': 'Name', 'col.effort': 'Aufwand', 'col.schedule': 'Zeitraum', 'col.item': 'Eintrag',
 
   // ── Modi ── (docs/principles.md, Prinzip 1 — Tooltips übernehmen den
   // Wortlaut aus der Mode-Tabelle dort)

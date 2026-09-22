@@ -22,11 +22,11 @@
 export const TAB_IDS = [
   'summary',    // the subway map — where a week starts
   'tree',       // the one place the plan is changed
+  'order',      // …and in which order it gets done
   'gantt',      // when it happens
   'roadmap',    // one project, as a calendar
   'net',        // how it hangs together
   'plan',       // planning review
-  'order',      // in which order does who work
   'briefing',   // the day
   'resources',  // who there is
   'holidays',   // when nobody is there

@@ -1288,10 +1288,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     <table className="tree-tbl">
       <thead><tr>
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{showIds ? 'ID' : ''}</th>
-        <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>Name</th>
-        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Effort</th>
+        <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>{t('col.name')}</th>
+        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.effort')}</th>
         <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>Schedule</th>
+        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.schedule')}</th>
         <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
       </tr></thead>
       <tbody>
