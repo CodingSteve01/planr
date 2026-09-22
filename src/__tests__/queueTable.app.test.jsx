@@ -249,3 +249,105 @@ describe('where it sits and what a row says', () => {
     expect(path).toContain('Preise');
   });
 });
+
+// "Kann ich in der Reihenfolge-Liste nicht auch die Items editieren (also
+//  einfach den Dialog öffnen per edit-button)? Die Filter, die wir ja überall
+//  haben, fehlen mir hier ein wenig."
+//
+// `E` opened the dialog from the first version, which is fine once you know
+// and invisible until then — the tree carries a ⊞ button for the same reason.
+// And the filter row is on every other working surface; a list of everything
+// everybody has is the one place you most want to narrow to one team.
+describe('working in the list', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  it('has a visible way into the dialog, not only a key', async () => {
+    await openWorkOrder();
+    await act(async () => { fireEvent.click(screen.getByTestId('wo-edit-A.2')); });
+    const dialog = await screen.findByTestId('node-modal');
+    expect(dialog.getAttribute('data-node-id')).toBe('A.2');
+  });
+
+  it('opening the dialog does not reorder anything', async () => {
+    // The button sits on a draggable row; a click must not read as a drop.
+    await openWorkOrder();
+    const before = rowIds();
+    await act(async () => { fireEvent.click(screen.getByTestId('wo-edit-A.2')); });
+    expect(rowIds()).toEqual(before);
+  });
+
+  it('carries the same filter row as every other working surface', async () => {
+    await openWorkOrder();
+    expect(document.querySelector('.subtoolbar')).toBeTruthy();
+  });
+
+  it('narrows to one person when the filter says so', async () => {
+    localStorage.setItem('planr_person_filter', 'M1');
+    await openWorkOrder();
+    // Only Anna's block; the unassigned team block is filtered away.
+    expect(document.querySelectorAll('table.tree-tbl')).toHaveLength(1);
+  });
+});
+
+// "Und warum sind erledigte nicht ganz oben (eigentlich will man die ja meist
+//  nicht sehen)?"
+//
+// They were at the top because the list follows the plan order and finished
+// work tends to sit early in it. But the question answers itself: an order is a
+// statement about work still to be done. A finished task has no ordering
+// decision left in it, so it is not in the list at all — not sorted to the
+// bottom, where it would still be scrolled past.
+//
+// It stays in the stored queue if it is already there; dropping it from the
+// file would mean a task finishing quietly rewrote a decision.
+describe('finished work', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'order');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  it('is not in the order at all', async () => {
+    localStorage.setItem('planr_v2', JSON.stringify({
+      ...JSON.parse(localStorage.getItem('planr_v2')),
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      ],
+    }));
+    await openWorkOrder();
+    expect(rowIds()).toEqual(['A.2', 'A.3']);
+  });
+
+  it('and a queue that still names it keeps naming it', async () => {
+    localStorage.setItem('planr_v2', JSON.stringify({
+      ...JSON.parse(localStorage.getItem('planr_v2')),
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      ],
+      personQueues: { M1: ['A.3', 'A.1', 'A.2'] },
+    }));
+    await openWorkOrder();
+    // Shown: the unfinished two, in the order that was set.
+    expect(rowIds()).toEqual(['A.3', 'A.2']);
+    // Stored: untouched — finishing a task must not rewrite a decision.
+    expect(JSON.parse(localStorage.getItem('planr_v2')).personQueues.M1).toEqual(['A.3', 'A.1', 'A.2']);
+  });
+});

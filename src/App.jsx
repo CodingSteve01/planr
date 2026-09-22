@@ -41,6 +41,7 @@ import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
 import { WorkOrderView } from './components/views/WorkOrderView.jsx';
+import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
 import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
@@ -1516,14 +1517,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const visibleIdSet = useMemo(() => new Set(visibleTree.map(r => r.id)), [visibleTree]);
   const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
   const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
-  useEffect(() => {
-    if (!hideDone) return;
-    if (selId && !visibleIdSet.has(selId)) _setSelId(null);
-    setMultiSel(prev => {
-      const next = new Set([...prev].filter(id => visibleIdSet.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [hideDone, selId, visibleIdSet]);
   const netTree = useMemo(() => {
     let items = visibleTree;
     if (rootFilter) items = items.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
@@ -1930,6 +1923,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     return activeTree.filter(r => keep.has(r.id));
   }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
   const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
+  // Don't keep the cursor on a row nobody can see.
+  //
+  // This used to consult `visibleIdSet` — the hide-done list — while the tree
+  // renders from `visibleTreeForViews`, which deliberately puts finished items
+  // back when a Δ review window is open. Two lists, one for drawing and one
+  // for guarding, and they disagreed about exactly the rows a review is for:
+  // you clicked a done item that was plainly on screen and the highlight
+  // vanished a beat later, because an effect had decided it was not there.
+  // One list now — the one that decides what is drawn.
+  useEffect(() => {
+    if (!hideDone) return;
+    if (selId && !visibleViewIdSet.has(selId)) _setSelId(null);
+    setMultiSel(prev => {
+      const next = new Set([...prev].filter(id => visibleViewIdSet.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [hideDone, selId, visibleViewIdSet]);
   const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
   const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
   const viewStats = useMemo(() => {
@@ -3351,7 +3361,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       ))}
       <div style={{ flex: 1 }} />
     </div>
-    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing') && <div className="subtoolbar">
+    {(tab === 'tree' || tab === 'gantt' || tab === 'net' || tab === 'plan' || tab === 'briefing' || tab === 'order') && <div className="subtoolbar">
       {/* Root + Team + Person filters: shared across Tree, Gantt, Network, Plan */}
       <div style={{ width: 160 }}><SearchSelect value={rootFilter} options={netRootOptions} onSelect={v => { setRootFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allRoots')} allowEmpty emptyLabel={_t('tv.allRoots')} showIds /></div>
       <div style={{ width: 130 }}><SearchSelect value={teamFilter} options={teams.map(t => ({ id: t.id, label: t.name || t.id }))} onSelect={v => { setTeamFilter(v); setSearchIdx(0); }} placeholder={_t('tv.allTeams')} allowEmpty emptyLabel={_t('tv.allTeams')} /></div>
@@ -3402,7 +3412,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
     </div>}
     <div className="main">
-      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><Frozen active={tab === 'summary'}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         historyEvents={data?.historyEvents || []}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
@@ -3416,8 +3426,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         archiveDays={archiveDays} setArchiveDays={setArchiveDays}
         onNavigate={onSumNavigate}
         onOpenItem={onOpenItemDialog}
-        onExportTodo={onSumExportTodo} /></div>}
-      {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><BriefingView
+        onExportTodo={onSumExportTodo} /></Frozen></div>}
+      {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><Frozen active={tab === 'briefing'}><BriefingView
         tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
@@ -3429,13 +3439,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onUpdate={onBriefingUpdate}
         onApplyStatus={onJiraApplyStatus}
         onExportTodo={onSumExportTodo}
-      /></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+      /></Frozen></div>}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><Frozen active={tab === 'plan'}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
         onOpenItem={onOpenItemDialog}
-        onUpdate={onPlanReviewUpdate} /></div>}
+        onUpdate={onPlanReviewUpdate} /></Frozen></div>}
       {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>
           {!visibleTreeForViews.length
@@ -3488,11 +3498,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           </>}
         </div>}
       </div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><Frozen active={tab === 'gantt'}>
         <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
           <GanttView scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
         </div>
-      </div>}
+      </Frozen></div>}
       {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
           per-project roadmap, a TAB of its own beside the Gantt rather than a
           panel hanging off it. It was a chip in the filter row opening a
@@ -3515,17 +3525,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           onOpenItem={onOpenItemDialog}
         />
       </div>}
-      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><Frozen active={tab === 'net'}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
         diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
         horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
         onNodeClick={onNetNodeClick}
         onAddNode={onNetAddNode}
-        onDeleteNode={onNetDeleteNode} /></div>}
-      {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><WorkOrderView
-        tree={tree} members={members} teams={teams} sizes={data?.sizes || []}
+        onDeleteNode={onNetDeleteNode} /></Frozen></div>}
+      {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
+        tree={visibleTreeForViews} members={members} teams={teams} sizes={data?.sizes || []}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
         personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
-        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></div>}
-      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><ResView members={members} teams={teams} vacations={vacations}
+        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></Frozen></div>}
+      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><Frozen active={tab === 'resources'}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
         tree={tree} scheduled={scheduled} weeks={weeks}
         teamFilter={teamFilter} personFilter={personFilter}
@@ -3533,9 +3544,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}
         onTeamUpd={onResTeamUpd}
         onTeamAdd={onResTeamAdd}
-        onTeamDel={onResTeamDel} /></div>}
-      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></div>}
-      {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><ReportView {...exportHandlerProps} /></div>}
+        onTeamDel={onResTeamDel} /></Frozen></div>}
+      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><Frozen active={tab === 'holidays'}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></Frozen></div>}
+      {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><Frozen active={tab === 'report'}><ReportView {...exportHandlerProps} /></Frozen></div>}
     </div>
     {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}

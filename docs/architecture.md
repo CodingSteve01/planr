@@ -165,6 +165,29 @@ Phase 4 (docs/principles.md principle 5, "Fast means reversible") adds the keybo
 
 Applying a field (`1`–`4`, size, `Space`) to a multi-selection reuses the pattern the selection bar's own status buttons already use in `TreeView.jsx`: loop `onTaskUpdate` once per selected node. This is safe (unlike the delete case above) because `updateNode` — what `onTaskUpdate` ultimately calls — reads the tree from `mutate`'s functional updater argument, and safe *for undo* because `push()`'s 300 ms coalescing window (see above) collapses same-tick `mutate()` calls into the one entry that was on top when the burst started — the same reason a dragged slider or a burst of clicks already costs one ⌘Z, not one per event.
 
+### Hidden panes do no work
+
+Every tab you visit stays mounted behind the active one (`visitedTabs` in
+`App.jsx`) so switching back is instant and scroll position, zoom and sub-tab
+state survive. The cost was hidden in plain sight: each pane takes `tree` as a
+prop, so one keystroke in the tree re-rendered the Gantt, the roadmap and the
+network graph as well — all of them invisible.
+
+Measured at 1000 tasks, per keystroke:
+
+| | tree only | after visiting 4 more tabs |
+|---|---|---|
+| before | 525 ms | 1287 ms |
+| after | 483 ms | 542 ms |
+
+[`Frozen`](../src/components/shared/Frozen.jsx) wraps each pane. React cannot
+pause a subtree, but it can be told there is nothing new: an element it has
+already rendered, handed back **by identity**, makes it bail out of that branch.
+So while a pane is hidden it returns the last children it was given — the same
+object, not a copy — and keeps its DOM, its state and its scroll while doing no
+work. The moment it is shown again it takes the current children, so what
+appears is never stale.
+
 ### Views and the command palette
 
 `tab` is a small piece of App-level state (`useState`, persisted in

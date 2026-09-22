@@ -25,7 +25,7 @@ import { withKey } from '../../utils/shortcuts.js';
 // when nobody is (utils/personQueue.js, `queueOwnerOf`) — a plan's early items
 // mostly have a team and nobody, and those are exactly the ones where the
 // question matters most.
-function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
+function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', teamFilter = '', personFilter = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
   const [dragId, setDragId] = useState(null);
@@ -47,17 +47,30 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
   };
 
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
+  // The same three filters every other working surface carries. A list of
+  // everything everybody has is the one place you most want to narrow to one
+  // team — and it narrows what is SHOWN, never the order that is stored: a
+  // queue is the plan's, not the filter's (principle 3).
   const byOwner = useMemo(() => {
     const out = new Map();
     for (const node of tree) {
       if (!leafIds.has(node.id)) continue;
+      // An order is a statement about work still to be done; a finished task
+      // has no ordering decision left in it. Out of the list rather than
+      // sorted to the bottom, where it would still be scrolled past. It stays
+      // in the STORED queue, though — a task finishing must not quietly
+      // rewrite a decision somebody made.
+      if (node.status === 'done') continue;
+      if (rootFilter && node.id.split('.')[0] !== rootFilter) continue;
+      if (teamFilter && (node.team || '') !== teamFilter) continue;
+      if (personFilter && !(node.assign || []).includes(personFilter)) continue;
       const owner = queueOwnerOf(node);
       if (!owner) continue;
       if (!out.has(owner)) out.set(owner, []);
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds]);
+  }, [tree, leafIds, rootFilter, teamFilter, personFilter]);
 
   const ownerLabel = owner => {
     if (owner.startsWith('team:')) {
@@ -162,6 +175,16 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], personQueues, onQ
                 </td>
                 <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
                   {node.best ? `${node.best}T` : ''}
+                </td>
+                <td style={{ width: 28, verticalAlign: 'middle' }}>
+                  {/* `E` did this from the first version, which is fine once
+                      you know and invisible until then — the tree carries a ⊞
+                      for the same reason. */}
+                  <button type="button" className="tv-act-btn" data-testid={`wo-edit-${id}`}
+                    data-htip={withKey(t('nm.fullEditTip'), 'fullEdit')}
+                    onClick={e => { e.stopPropagation(); setCursor(id); onFullEdit?.(node); }}
+                    onDragStart={e => e.preventDefault()}
+                  >⊞</button>
                 </td>
               </tr>;
             })}
