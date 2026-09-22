@@ -25,13 +25,54 @@ import { withKey } from '../../utils/shortcuts.js';
 // when nobody is (utils/personQueue.js, `queueOwnerOf`) — a plan's early items
 // mostly have a team and nobody, and those are exactly the ones where the
 // question matters most.
-function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', teamFilter = '', personFilter = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
+function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], rootFilter = '', teamFilter = '', personFilter = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
+  // The tree's selection model, because it is the same act: click, shift for a
+  // range, cmd for a pick. A move then takes the whole selection in one step —
+  // five items moved one at a time is five keystrokes and a different result,
+  // because each would step over the next.
+  const [picked, setPicked] = useState(() => new Set());
+  const selectRow = (id, e, visible) => {
+    const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
+    if (e?.shiftKey && cursor) {
+      const a = visible.indexOf(cursor), b = visible.indexOf(id);
+      if (a >= 0 && b >= 0) setPicked(new Set(visible.slice(Math.min(a, b), Math.max(a, b) + 1)));
+    } else if (ctrlLike) {
+      setPicked(prev => {
+        const next = new Set(prev.size ? prev : (cursor ? [cursor] : []));
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+      setCursor(id);
+    } else {
+      setPicked(new Set());
+      setCursor(id);
+    }
+  };
+  const movingFrom = id => (picked.size > 1 && picked.has(id) ? [...picked] : id);
   const [dragId, setDragId] = useState(null);
   const [dropId, setDropId] = useState(null);
 
   const byId = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
+  // Who will actually do it. An item with a team and nobody on it belongs to
+  // the TEAM's queue, and the schedule then picks whoever comes free first —
+  // so the row says who that turned out to be, marked as the schedule's answer
+  // rather than yours.
+  //
+  // The order cannot live on that person: the auto-assignment is an output of
+  // the schedule and the queue is an input to it, so reordering can change who
+  // comes free first, and blocks keyed on it would reshuffle themselves while
+  // you drag. The team queue is the same decision without the circle.
+  const doerById = useMemo(() => {
+    const out = new Map();
+    for (const row of scheduled) {
+      if (row.isHandoff || !row.personId) continue;
+      const id = row.treeId || row.id;
+      if (!out.has(id)) out.set(id, { name: row.personShort || row.person, auto: !!row.autoAssigned });
+    }
+    return out;
+  }, [scheduled]);
   // Where an item lives, as the item dialog writes it. A title alone is not
   // enough to tell two tasks apart — "Page: Wochenpflege" means one thing
   // under Abrechnung and another under Kundenportal — and the id is a label
@@ -90,7 +131,7 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', 
       const dir = e.shiftKey
         ? (e.key === 'ArrowDown' ? 'last' : 'first')
         : (e.key === 'ArrowDown' ? 'down' : 'up');
-      onQueueReorder?.(node.id, dir);
+      onQueueReorder?.(movingFrom(node.id), dir);
       return;
     }
     if (e.altKey) return;
@@ -143,10 +184,10 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', 
                 data-queue-row={id}
                 data-status={node.status || 'open'}
                 data-prio={node.prio || ''}
-                className={`tr${cursor === id ? ' sel' : ''}`}
+                className={`tr${cursor === id || picked.has(id) ? ' sel' : ''}`}
                 tabIndex={0}
-                onFocus={() => setCursor(id)}
-                onClick={() => setCursor(id)}
+                onFocus={() => { if (!picked.size) setCursor(id); }}
+                onClick={e => selectRow(id, e, ordered)}
                 onKeyDown={e => onKeyDown(e, node)}
                 draggable
                 onDragStart={e => { setDragId(id); e.dataTransfer?.setData?.('text/plain', id); }}
@@ -157,13 +198,24 @@ function WorkOrderViewImpl({ tree, members, teams, sizes = [], rootFilter = '', 
                   e.preventDefault();
                   const moved = dragId || e.dataTransfer?.getData?.('text/plain');
                   setDragId(null); setDropId(null);
-                  if (moved && moved !== id) onQueueReorder?.(moved, { before: id });
+                  if (moved && moved !== id) onQueueReorder?.(movingFrom(moved), { before: id });
                 }}
                 style={{ outline: 'none', opacity: dragId === id ? .4 : 1,
                   boxShadow: dropId === id ? 'inset 0 2px 0 0 var(--ac)' : undefined }}>
                 <td style={{ width: 30, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', cursor: 'grab', verticalAlign: 'middle' }}
                   data-htip={t('wo.dragTip')}>{i + 1}</td>
                 <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
+                <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+                  {(() => {
+                    const doer = doerById.get(id);
+                    if (!doer) return null;
+                    return <span data-queue-who data-auto={doer.auto ? 'true' : undefined}
+                      data-htip={doer.auto ? t('wo.autoWho') : t('wo.fixedWho')}
+                      style={{ opacity: doer.auto ? .7 : 1, fontStyle: doer.auto ? 'italic' : 'normal' }}>
+                      {doer.auto ? '~' : ''}{doer.name}
+                    </span>;
+                  })()}
+                </td>
                 <td style={{ padding: '3px 6px' }}>
                   <div data-queue-path style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>

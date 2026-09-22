@@ -189,8 +189,20 @@ describe('dropping a task onto a place', () => {
     expect(placeInQueue(q, 'd', 'b')).toEqual(['a', 'd', 'b', 'c']);
   });
 
-  test('works downwards too', () => {
-    expect(placeInQueue(q, 'a', 'c')).toEqual(['b', 'c', 'a', 'd']);
+  test('works downwards too, and means the same thing', () => {
+    // The dropped item takes the target's place in both directions. The other
+    // reading — "after the target when dragging down, before it when dragging
+    // up" — makes the result depend on where you started, which is not
+    // something a drop should have to remember.
+    expect(placeInQueue(q, 'a', 'c')).toEqual(['b', 'a', 'c', 'd']);
+  });
+
+  test('a selection lands as a block, in its own order', () => {
+    expect(placeInQueue(q, ['c', 'd'], 'b')).toEqual(['a', 'c', 'd', 'b']);
+  });
+
+  test('a drop onto a member of the selection changes nothing', () => {
+    expect(placeInQueue(q, ['b', 'c'], 'c')).toEqual(q);
   });
 
   test('a drop on itself changes nothing', () => {
@@ -200,5 +212,45 @@ describe('dropping a task onto a place', () => {
   test('a drop on something that is not in the list changes nothing', () => {
     expect(placeInQueue(q, 'b', 'zzz')).toEqual(q);
     expect(placeInQueue(q, 'zzz', 'b')).toEqual(q);
+  });
+});
+
+// Moving several at once. The selection keeps its own order and lands as a
+// block; doing it one item at a time would be a different result, because each
+// would step over the next.
+describe('moving a selection', () => {
+  const q = ['a', 'b', 'c', 'd', 'e'];
+
+  test('up by one, as a block', () => {
+    expect(moveInQueue(q, ['c', 'd'], 'up')).toEqual(['a', 'c', 'd', 'b', 'e']);
+  });
+
+  test('down by one, as a block', () => {
+    expect(moveInQueue(q, ['b', 'c'], 'down')).toEqual(['a', 'd', 'b', 'c', 'e']);
+  });
+
+  test('a selection with gaps closes up and keeps its order', () => {
+    // The block moves past the item below the WHOLE block — 'e' — not past
+    // whatever happened to follow its first member. Anything else would make
+    // the result depend on which gap you selected around.
+    expect(moveInQueue(q, ['a', 'd'], 'down')).toEqual(['b', 'c', 'e', 'a', 'd']);
+  });
+
+  test('to either end', () => {
+    expect(moveInQueue(q, ['d', 'e'], 'first')).toEqual(['d', 'e', 'a', 'b', 'c']);
+    expect(moveInQueue(q, ['a', 'b'], 'last')).toEqual(['c', 'd', 'e', 'a', 'b']);
+  });
+
+  test('already at the top stays put', () => {
+    expect(moveInQueue(q, ['a', 'b'], 'up')).toEqual(q);
+  });
+
+  test('selecting everything is a no-op, not an empty list', () => {
+    expect(moveInQueue(q, [...q], 'up')).toEqual(q);
+  });
+
+  test('a single id still works, spelled either way', () => {
+    expect(moveInQueue(q, 'c', 'up')).toEqual(['a', 'c', 'b', 'd', 'e']);
+    expect(moveInQueue(q, ['c'], 'up')).toEqual(['a', 'c', 'b', 'd', 'e']);
   });
 });
