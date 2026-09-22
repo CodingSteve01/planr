@@ -215,3 +215,70 @@ describe('a completed deadline is not reported as at risk', () => {
     expect(html).toContain('abgeschlossen · verspätet');
   });
 });
+
+// The two fields added in September 2026 — `dropped` and `personQueues` — are
+// exactly the kind that split screen and export apart: one changes what counts,
+// the other changes when things happen. A PDF that a steering committee reads
+// has to say what the screen said.
+const DROPPED_TREE = [
+  ...TREE,
+  { id: 'P1.6', name: 'Not going to happen', status: 'open', best: 40, factor: 1, team: 'T1', assign: ['m1'], dropped: true },
+];
+const DROPPED_SCHEDULED = SCHEDULED;
+
+function screenPctOf(tree, scheduled) {
+  const { container } = render(
+    <I18nProvider>
+      <ThemeProvider>
+        <SumView tree={tree} scheduled={scheduled} goals={tree.filter(r => r.type)}
+          members={MEMBERS} teams={TEAMS} cpSet={new Set()} goalPaths={{}}
+          stats={treeStats(tree)} confidence={{}}
+          onNavigate={() => {}} onOpenItem={() => {}} onExportTodo={() => {}} />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+  const match = container.textContent.match(/(\d+(?:\.\d+)?)%/);
+  expect(match, 'no percentage rendered').toBeTruthy();
+  return match[1];
+}
+
+describe('dropped work is dropped everywhere, or nowhere', () => {
+  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  afterEach(() => cleanup());
+
+  it('does not move the headline percentage at all', () => {
+    // A 40-day item nobody will do would swing any naive figure hard. It must
+    // swing nothing: not counted as delivered, not counted as outstanding.
+    expect(screenPctOf(DROPPED_TREE, DROPPED_SCHEDULED)).toBe(screenPctOf(TREE, SCHEDULED));
+  });
+
+  it('and the HTML report prints that same figure', () => {
+    const model = buildReportModel({ ...ctx(), tree: DROPPED_TREE, stats: treeStats(DROPPED_TREE) });
+    const html = generateReport({ ...ctx(), tree: DROPPED_TREE, stats: treeStats(DROPPED_TREE) });
+    expect(html).toContain(`${model.progLabel}%`);
+    expect(model.progLabel).toBe(screenPctOf(DROPPED_TREE, DROPPED_SCHEDULED));
+  });
+
+  it('is not in the exported item count either', () => {
+    const withIt = buildReportModel({ ...ctx(), tree: DROPPED_TREE, stats: treeStats(DROPPED_TREE) });
+    const without = buildReportModel(ctx());
+    expect(withIt.lvs.length).toBe(without.lvs.length);
+  });
+
+  it('and its effort is not in the exported total', () => {
+    const withIt = buildReportModel({ ...ctx(), tree: DROPPED_TREE, stats: treeStats(DROPPED_TREE) });
+    const without = buildReportModel(ctx());
+    expect(withIt.totalPt).toBe(without.totalPt);
+  });
+
+  it('— and the same item, not dropped, does move all three, so this is not a no-op', () => {
+    // Without this the four tests above would still pass if the fixture item
+    // were silently ignored for some unrelated reason.
+    const live = DROPPED_TREE.map(r => (r.id === 'P1.6' ? { ...r, dropped: false } : r));
+    const m = buildReportModel({ ...ctx(), tree: live, stats: treeStats(live) });
+    const without = buildReportModel(ctx());
+    expect(m.lvs.length).toBeGreaterThan(without.lvs.length);
+    expect(m.totalPt).toBeGreaterThan(without.totalPt);
+    expect(m.progLabel).not.toBe(without.progLabel);
+  });
+});

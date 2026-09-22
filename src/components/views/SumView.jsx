@@ -156,7 +156,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Progress header */}
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
-      <span style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{progressPctLabel(prog)}%</span>
+      <span data-testid="overview-progress" style={{ fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 700, color: 'var(--gr)' }}>{progressPctLabel(prog)}%</span>
       {overallDelta != null && Math.abs(overallDelta) >= MIN_VISIBLE_PROGRESS_DELTA_PCT && (
         <span data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
           style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: overallDelta >= 0 ? '#f59e0b' : 'var(--re)',

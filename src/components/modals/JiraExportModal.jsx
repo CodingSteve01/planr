@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { leafNodes, isLeafNode } from '../../utils/scheduler.js';
+import { leafNodes, isLeafNode, treeIndex } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { exportJiraCSV } from '../../utils/exports.js';
 import { useT } from '../../i18n.jsx';
@@ -17,7 +17,11 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
   const sMap = useMemo(() => Object.fromEntries((scheduled || []).map(s => [s.id, s])), [scheduled]);
 
   const preview = useMemo(() => {
+    // Dropped work is not offered: exportJiraCSV drops it anyway, so listing
+    // it here would only promise tickets that never get written.
+    const dropped = treeIndex(tree).droppedIds;
     let items = tree.filter(r => {
+      if (dropped.has(r.id)) return false;
       const root = r.id.split('.')[0];
       if (!selectedRoots.has(root)) return false;
       if (skipDone && r.status === 'done') return false;
