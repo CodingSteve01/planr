@@ -1,110 +1,44 @@
-// Mode state — pure data + small helpers, no React.
+// The views the shell knows about, in the order the tab bar shows them.
 //
-// A mode is the state of the WHOLE surface (docs/principles.md, principle 1):
-// which view tabs belong to it, which one is the default, and which
-// sub-toolbar chips/filters are relevant while it is active. The five modes
-// follow the moments of a week, not the features of the app — see the mode
-// table in docs/principles.md for the "moment" / "intent" wording the i18n
-// tooltips are drawn from.
+// This file used to declare five modes — Build, Plan, Run, Review, Report —
+// each owning a subset of the tabs, with the top bar switching between them
+// (docs/principles.md, principle 1: "mode before feature"). The idea was that
+// a planner is doing one thing at a time and the app should show only that.
 //
-// `tabs` lists every existing App.jsx tab id that belongs to this mode.
-// `chips` names the sub-toolbar filters/chips this mode cares about — it is
-// informational (used to decide what stays visible/relevant), not a hard
-// gate: the shared filter row (root/team/person/hideDone) already renders
-// for every tab that had it before this phase, so nothing is hidden by this
-// list. `report` is a new, mode-exclusive tab introduced in this phase (the
-// former Export modal, lifted into a normal view — see ReportView.jsx).
-export const MODES = [
-  {
-    id: 'build',
-    labelKey: 'mode.build',
-    tooltipKey: 'mode.build.tip',
-    tabs: ['tree', 'net'],
-    defaultTab: 'tree',
-    chips: ['rootFilter', 'teamFilter', 'personFilter', 'hideDone'],
-  },
-  {
-    id: 'plan',
-    labelKey: 'mode.plan',
-    tooltipKey: 'mode.plan.tip',
-    // Resources and Holidays are capacity inputs to a planning session —
-    // both stay reachable here rather than only behind settings (principle 6:
-    // subtractive means fewer paths, not fewer capabilities).
-    tabs: ['gantt', 'roadmap', 'plan', 'resources', 'holidays'],
-    defaultTab: 'gantt',
-    chips: ['rootFilter', 'teamFilter', 'personFilter', 'hideDone', 'horizon'],
-  },
-  {
-    id: 'run',
-    labelKey: 'mode.run',
-    tooltipKey: 'mode.run.tip',
-    tabs: ['briefing', 'summary'],
-    defaultTab: 'briefing',
-    chips: ['rootFilter', 'teamFilter', 'personFilter'],
-  },
-  {
-    id: 'review',
-    labelKey: 'mode.review',
-    tooltipKey: 'mode.review.tip',
-    tabs: ['summary'],
-    defaultTab: 'summary',
-    chips: ['sinceDays', 'diffOnlyChanged'],
-  },
-  {
-    id: 'report',
-    labelKey: 'mode.report',
-    tooltipKey: 'mode.report.tip',
-    tabs: ['report'],
-    defaultTab: 'report',
-    chips: [],
-  },
+// It did not survive contact with the work. A real loop is: look at the
+// roadmap, restructure the tree, set the order, update progress, reconcile
+// Jira — four modes deep, several times an hour. Modes did not remove a
+// decision, they added one: every jump became "which mode was that in?" on top
+// of "which view was that?". And with Review owning exactly one tab, the app
+// showed a tab bar containing one tab underneath a row of five mode buttons.
+//
+// So: one flat row. Ten destinations, one level, no hidden ones. The overlays
+// modes were supposed to keep apart — the Δ window for a review, the horizon
+// for planning — live in the filter popup where they are switched on
+// deliberately and say so while they are on.
+//
+// Order follows the loop rather than the feature list: where you look first,
+// where you change things, where time is, then the inputs, then the output.
+export const TAB_IDS = [
+  'summary',    // the subway map — where a week starts
+  'tree',       // the one place the plan is changed
+  'gantt',      // when it happens
+  'roadmap',    // one project, as a calendar
+  'net',        // how it hangs together
+  'plan',       // planning review
+  'briefing',   // the day
+  'resources',  // who there is
+  'holidays',   // when nobody is there
+  'report',     // what leaves the building
 ];
 
-// Which mode a fresh install opens in. Deliberate rather than derived: before
-// modes existed the app opened on the Overview tab, and since Run happens to
-// list that tab first, deriving the mode from the tab silently made Run the
-// default. Build is the answer to "what is this tool for" — a plan has to be
-// authored before it can be planned, run, reviewed or reported on — so that is
-// where a first open lands. A returning user's own `planr_mode` always wins.
-export const DEFAULT_MODE = 'build';
+// Where a fresh install lands. A returning user's own `planr_tab` wins.
+export const DEFAULT_TAB = 'tree';
 
-const MODE_BY_ID = new Map(MODES.map(m => [m.id, m]));
-
-export function isValidMode(id) {
-  return MODE_BY_ID.has(id);
+export function isValidTab(id) {
+  return TAB_IDS.includes(id);
 }
 
-export function getMode(id) {
-  return MODE_BY_ID.get(id) || MODES[0];
+export function initialTab(savedTab) {
+  return savedTab && isValidTab(savedTab) ? savedTab : DEFAULT_TAB;
 }
-
-export function tabsForMode(id) {
-  return getMode(id).tabs;
-}
-
-export function defaultTabForMode(id) {
-  return getMode(id).defaultTab;
-}
-
-// The mode that OWNS this tab — the one whose core surface it is, not merely
-// the first one in declaration order that happens to list it. Overview is the
-// clearest case: it is Review's core surface and Run only borrows it, so
-// `ownerMode` is what decides, and declaration order stays free to read well.
-const TAB_OWNER = {
-  tree: 'build', net: 'build',
-  gantt: 'plan', roadmap: 'plan', plan: 'plan', resources: 'plan', holidays: 'plan',
-  briefing: 'run',
-  summary: 'review',
-  report: 'report',
-};
-
-export function modeForTab(tabId) {
-  const owner = TAB_OWNER[tabId];
-  if (owner && MODE_BY_ID.has(owner)) return MODE_BY_ID.get(owner);
-  return MODES.find(m => m.tabs.includes(tabId)) || getMode(DEFAULT_MODE);
-}
-
-// Every tab id that appears in at least one mode. Used by App.jsx to build
-// the tab bar from a single source of truth, and by modes.test.js to guard
-// that nothing lost its home.
-export const ALL_MODE_TAB_IDS = [...new Set(MODES.flatMap(m => m.tabs))];

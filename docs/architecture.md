@@ -52,10 +52,10 @@ src/
       LazyInput.jsx        — debounced text input for perf in long lists
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
-      CommandPalette.jsx   — `/` / ⌘K palette — see "Modes and the command palette" below
+      CommandPalette.jsx   — `/` / ⌘K palette — see "Views and the command palette" below
       ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
   utils/
-    modes.js                — the five modes as data + helpers (getMode, tabsForMode, modeForTab, …)
+    modes.js                — the views the shell knows about, in bar order (TAB_IDS, initialTab)
     palette.js               — pure command-palette filter/rank logic (filterCommands)
     scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
     treeEdit.js             — pure logic for TreeView's keyboard model (row order, Tab/⌥ moves,
@@ -165,38 +165,30 @@ Phase 4 (docs/principles.md principle 5, "Fast means reversible") adds the keybo
 
 Applying a field (`1`–`4`, size, `Space`) to a multi-selection reuses the pattern the selection bar's own status buttons already use in `TreeView.jsx`: loop `onTaskUpdate` once per selected node. This is safe (unlike the delete case above) because `updateNode` — what `onTaskUpdate` ultimately calls — reads the tree from `mutate`'s functional updater argument, and safe *for undo* because `push()`'s 300 ms coalescing window (see above) collapses same-tick `mutate()` calls into the one entry that was on top when the burst started — the same reason a dragged slider or a burst of clicks already costs one ⌘Z, not one per event.
 
-### Modes and the command palette
+### Views and the command palette
 
-`mode` is a small piece of App-level state (`useState`, persisted in
-`localStorage['planr_mode']`) alongside `tab`. The five modes themselves are
-data, not state: [`src/utils/modes.js`](../src/utils/modes.js) exports
-`MODES` (id, `labelKey`, `tooltipKey`, the tab ids that belong to the mode,
-its one `defaultTab`) plus small pure helpers (`getMode`, `tabsForMode`,
-`defaultTabForMode`, `modeForTab`, `isValidMode`). `App.jsx` exports
-`TAB_IDS` — the single source of truth both for building the tab bar (with
-i18n labels) and for `src/utils/__tests__/modes.test.js`, which asserts every
-`TAB_IDS` entry is reachable from at least one mode. That test is the guard
-against a future tab silently becoming unreachable.
+`tab` is a small piece of App-level state (`useState`, persisted in
+`localStorage['planr_tab']`). The views themselves are data, not state:
+[`src/utils/modes.js`](../src/utils/modes.js) exports `TAB_IDS` — every view
+in bar order — plus `DEFAULT_TAB`, `isValidTab` and `initialTab`. `App.jsx`
+re-exports `TAB_IDS`, and `src/utils/__tests__/tabs.test.js` asserts the two
+have not drifted apart.
 
-Which mode and tab a load STARTS on is one decision, taken in one place:
-`initialShell()` in `App.jsx`. A saved `planr_mode` wins; failing that the
-saved tab decides (via `modeForTab`); failing that `DEFAULT_MODE` (`build` —
-a plan has to be authored before it can be planned, run, reviewed or reported
-on) and its own default tab. In every branch the tab is forced to belong to
-the mode, so the two cannot disagree on the first paint — they did in the
-first draft, where a fresh install opened in Build while still showing the
-Overview, because the tab default (`'summary'`) predates modes.
+Which view a load starts on is one decision, taken in one place:
+`initialShell()` in `App.jsx`. The saved tab wins if it still exists;
+otherwise `DEFAULT_TAB` (`tree` — a plan has to be authored before it can be
+planned, run, reviewed or reported on).
 
-For the same reason `modeForTab` consults an explicit `TAB_OWNER` map rather
-than "first mode in declaration order that lists this tab". Overview is the
-clearest case: it is Review's core surface and Run only borrows it, so
-declaration order must not be what decides.
-
-Switching mode (`switchMode` in `App.jsx`) sets `mode` and jumps to that
-mode's `defaultTab`. The tab bar renders only the active mode's tabs plus
-whichever tab is currently open (`visibleTabs` in `App.jsx`), so a view
-reached from outside its owning mode — the palette, a stale `planr_tab` value
-from before modes existed — never traps the user with no way back.
+There were five **modes** here until September 2026 — Build, Plan, Run,
+Review, Report — each owning a subset of the tabs, switched from a segmented
+control in the top bar, with `TAB_OWNER`, `modeForTab`, `switchMode`,
+`visibleTabs` and a guard test that no tab became unreachable. The premise
+(docs/principles.md, principle 1) was that a planner does one thing at a time.
+A real loop turned out to be: look at the roadmap, restructure the tree, set
+the order, update progress, reconcile Jira — four modes deep, several times an
+hour. The mode did not remove a decision, it added one, and `visibleTabs`
+existed only to undo the hiding the modes had just done. One flat row replaced
+all of it.
 
 The `/` command palette (`src/components/shared/CommandPalette.jsx`) is a
 self-contained component: it owns its own open/closed state, listens for `/`

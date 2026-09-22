@@ -7,40 +7,43 @@ finished; the rule is not too strict.
 
 Written in September 2026, at the point where Planr had some 70 controls across
 eight tabs, could do everything, showed everything — and therefore felt neither
-light nor powerful. The as-is picture is in [ui-inventory.md](ui-inventory.md);
+light nor powerful. Principle 1 has since been replaced by its own opposite —
+the reasoning is kept in place rather than deleted, because a contract that
+quietly forgets what it used to say is not one. The as-is picture is in [ui-inventory.md](ui-inventory.md);
 the order of the rebuild is the [last section](#the-rebuild) here.
 
 ---
 
 ## The eight principles
 
-### 1. Mode before feature
+### 1. One flat row of views
 
-Planr has five modes. A mode is the state of the **whole** surface: which views
-exist, which toolbar, which columns, which exports come first. The user picks
-what they are doing; the app decides what it shows.
+Planr has ten views in one row. Each answers a question; you pick the question.
+There is no second level of navigation above them.
 
-Modes follow the moments of a week, not the features of the app:
+This principle used to read **"Mode before feature"**: five modes — Build,
+Plan, Run, Review, Report — each the state of the *whole* surface, following
+the moments of a week rather than the features of the app. The user picks what
+they are doing; the app decides what it shows.
 
-| Mode | Moment | Intent | Core surface |
-|---|---|---|---|
-| **Build** | at the desk, wireframes alongside | capture work packages, build structure, set order and priorities — bottom-up *and* top-down | tree editor, project roadmap beside it |
-| **Plan** | planning session | who, when, how much capacity, which deadline holds | Gantt, capacity, assignment |
-| **Run** | daily / stand-up | what is due today, who is stuck, set status, Jira drift | briefing, per-person queues, Jira reconcile |
-| **Review** | retro / status meeting | what happened since X, estimate vs. actual, what we learn | Overview with Δ window, estimate vs. actual |
-| **Report** | before the steering committee | a document that works without its author | management summary, roadmaps, Word |
+It was wrong, and the way it was wrong is worth keeping. The premise is that a
+planner does one thing at a time. The loop that actually happens is: look at
+the roadmap, restructure the tree, set the order, update progress, reconcile
+Jira — four modes deep, several times an hour. A mode did not remove a
+decision, it added one: every jump asked "which mode was that in?" on top of
+"which view was that?". And the escape hatch gave it away — the tab bar had to
+show the active mode's tabs *plus whichever tab you actually had open*, so that
+nothing became unreachable. A rule that needs a clause undoing it is not
+carrying its weight. With Review owning exactly one tab, the app drew a tab bar
+of one tab under a row of five buttons.
 
-Capture and structure are **one** mode: whoever types bottom-up re-parents in
-the next breath. Two modes for that would be a switch you press constantly.
+What modes got right is kept: a view answers one question, and an overlay that
+belongs to a moment is switched on deliberately rather than left lying around.
+The Δ window and the planning horizon live in the filter popup and announce
+themselves as chips while they are on (principle 3).
 
-No mode is maintenance: resources, holidays, templates, sizes, risks, custom
-fields, file. Those are settings (tier 3).
-
-Two roles besides the planner: the **team** reads Run ("what is mine?");
-**management** receives Report. Neither ever needs the tree editor.
-
-> **Check:** every feature belongs to exactly one mode. If none can be named,
-> the feature is not finished.
+> **Check:** which question does this answer? If a view already answers it, it
+> belongs there.
 
 ### 2. One surface for changing, all others for seeing
 
@@ -59,7 +62,7 @@ may not drag it. A status change in Run is a tree row in different clothes
 
 ### 3. A view is never the truth
 
-Filters, archive, modes, zoom, single-line all change only what is visible.
+Filters, archive, zoom, single-line all change only what is visible.
 Numbers, exports and the file always describe the whole plan. A hidden project
 stays 100 % finished; a filtered tree changes no percentage; a PDF cannot leave
 out anything the plan contains.
@@ -75,12 +78,12 @@ erode.
 
 | Tier | where | example |
 |---|---|---|
-| **1 — immediate** | on the surface | the tree, the Gantt, the mode's three chips |
+| **1 — immediate** | on the surface | the tree, the Gantt, the view's own toolbar |
 | **2 — one reach away** | `/` palette, "More", context menu, popup | set a dependency, pick the Δ window, export options |
 | **3 — settings** | the gear | size catalogue, custom fields, language |
 
-Every control sits on exactly one tier. Tier 1 has a **budget per mode**: one
-toolbar row, one core view, at most one side view. When it is full, something
+Every control sits on exactly one tier. Tier 1 has a **budget per view**: one
+toolbar row, the view itself, at most one side panel. When it is full, something
 moves down a tier before anything new arrives.
 
 > **Check:** new element on tier 1? What moves to tier 2 for it?
@@ -119,7 +122,7 @@ has *more* controls needs one sentence of justification in its description.
 can do today is dropped. A control may be *removed* only when its inventory
 row proves one of two things: it is dead code (no caller anywhere), or it is
 a duplicate — and then the row names the path that stays (`↔ duplicate of …`).
-Everything else keeps its capability and moves to the tier and mode where it
+Everything else keeps its capability and moves to the tier and view where it
 belongs. A "remove" without that proof is a mistake in the inventory, not a
 decision.
 
@@ -143,8 +146,9 @@ Gantt as in the PDF.
 ### 8. Names, not mechanics
 
 The surface speaks the user's words: work package, milestone, priority, order,
-project, person. IDs, `seq`, `displayOrder`, `routeIdx`, `WPX`, `t` are
-implementation and stay invisible or on tier 3.
+project, person. IDs, `displayOrder`, `routeIdx`, `WPX`, `t` are implementation
+and stay invisible or on tier 3. (`seq` used to head that list; it is gone —
+see docs/scheduler.md.)
 
 > **Check:** would the user say this word in a meeting?
 
@@ -152,7 +156,7 @@ implementation and stay invisible or on tier 3.
 
 ## Design language
 
-Five modes and a single editor need a surface that *steps back*. Not less
+Ten views and a single editor need a surface that *steps back*. Not less
 information — less decoration. The reference is deliberately "Apple": clarity,
 deference, hierarchy through typography rather than through borders.
 

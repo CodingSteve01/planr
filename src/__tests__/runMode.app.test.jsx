@@ -6,7 +6,7 @@
 // drive the real App, seed a real plan, click the real buttons, and read the
 // real tree back.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, screen, act, within } from '@testing-library/react';
+import { render, cleanup, fireEvent, screen, act, waitFor, within } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
@@ -55,20 +55,25 @@ function planTree() {
 }
 const statusOf = id => planTree().find(n => n.id === id)?.status;
 
-async function goToBuildTree() {
-  await act(async () => { fireEvent.click(screen.getByRole('tab', { name: /^Build$/ })); });
-  const treeTab = await screen.findByText('Work Tree');
-  await act(async () => { fireEvent.mouseDown(treeTab, { button: 0 }); });
-}
+// A tab's textContent can carry a trailing "New!" badge, so match the label
+// node rather than the whole row.
+const tabNamed = name => [...document.querySelectorAll('.tab')]
+  .find(el => (el.firstChild?.textContent || '').trim() === name);
 
-describe('Run mode', () => {
+async function goToTab(name) {
+  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
+  await act(async () => { fireEvent.mouseDown(tabNamed(name), { button: 0 }); });
+}
+const goToBuildTree = () => goToTab('Work Tree');
+
+describe('the Briefing view', () => {
   beforeEach(() => {
     cleanup();
     try {
       localStorage.clear();
       localStorage.setItem('planr_lang', 'en');
       localStorage.setItem('planr_tree_ids', 'true');
-      localStorage.setItem('planr_mode', 'run'); // land directly on Briefing
+      localStorage.setItem('planr_tab', 'briefing'); // land directly on Briefing
     } catch { /* ignore */ }
     seedProject();
   });
@@ -77,7 +82,7 @@ describe('Run mode', () => {
     try { localStorage.clear(); } catch { /* ignore */ }
   });
 
-  it('lands on the Briefing tab in Run mode and builds the attention list', async () => {
+  it('lands on the Briefing tab and builds the attention list', async () => {
     renderApp();
     expect(await screen.findByTestId('bv-attn-unestimated-P1.2')).toBeTruthy();
     expect(await screen.findByTestId('bv-attn-blocked-P1.3')).toBeTruthy();

@@ -97,7 +97,7 @@ describe('the tree editor writes through to the plan', () => {
     localStorage.clear();
     localStorage.setItem('planr_lang', 'en');
     localStorage.setItem('planr_tree_ids', 'true');
-    localStorage.setItem('planr_mode', 'build');   // the Work Tree lives in Build
+    localStorage.setItem('planr_tab', 'tree');
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
