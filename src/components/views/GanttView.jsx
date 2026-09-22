@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { tipLines } from '../../utils/tipText.js';
+import { withKey } from '../../utils/shortcuts.js';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
 import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
@@ -2154,14 +2155,30 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <div className="gh-fix" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* group label removed — buttons are self-explanatory and the row was too wide */}
+          {/* The chips had no tooltips at all, so which question each grouping
+              answers — and that one of them is where a person's order is set —
+              was something you had to already know. */}
           {[['project', t('g.project')], ['team', t('g.team')], ['resource', t('g.resource')], ['thread', t('g.thread')]].map(([k, l]) =>
             <button
               key={k}
+              data-htip={t(`g.group.${k}Tip`)}
               className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
               onMouseDown={e => activateMode(e, () => setGB(k))}
               onClick={e => { if (e.detail === 0) setGB(k); }}
               style={{ padding: '2px 7px', fontSize: 10 }}
             >{l}</button>)}
+          {/* The gesture is the same keystroke everywhere; what it moves is
+              not. Grouped by resource you are looking at one person's order of
+              work, so ⌥↑↓ moves the task in their queue — and that is worth a
+              line, because nothing else on screen says so until after you have
+              already done it. Only here: anywhere else the same keys move the
+              item in the tree, and this hint would be a lie. */}
+          {groupBy === 'resource' && onQueueReorder && <span
+            data-testid="queue-hint"
+            data-htip={t('g.queueHintTip')}
+            style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 2 }}>
+            {withKey(t('g.queueHint'), 'ganttReorder')}
+          </span>}
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
             aria-pressed={showLoadHeatmap}

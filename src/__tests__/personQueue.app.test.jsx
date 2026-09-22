@@ -144,3 +144,50 @@ describe('a hand-sorted queue says so', () => {
     expect(barOrder()).toEqual(['A.1', 'A.2', 'B.1']);
   });
 });
+
+// "Hm, und WO sind jetzt diese Queues?!?"
+//
+// Under a chip called "Resource" in the schedule's header, which is not the
+// default grouping, with a gesture that is the same keystroke as everywhere
+// else but means something different there — and no sign any of that exists
+// until you have already used it, because the only marker appeared after the
+// first sort.
+//
+// A capability you have to be told about in a commit message is not a
+// capability. The grouping that owns the gesture says what the gesture does,
+// and only that grouping, because everywhere else ⌥↑↓ moves the item in the
+// tree and a hint about queues would be a lie.
+describe('finding the queue at all', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'gantt');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ resource: [], project: [] }));
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const openSchedule = async () => {
+    renderApp();
+    await waitFor(() => { if (!tabNamed('Schedule')) throw new Error('no tab'); });
+    await act(async () => { fireEvent.mouseDown(tabNamed('Schedule'), { button: 0 }); });
+    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+  };
+
+  it('says what the gesture does, before anybody has used it', async () => {
+    localStorage.setItem('planr_gantt_group', 'resource');
+    await openSchedule();
+
+    const hint = screen.getByTestId('queue-hint');
+    expect(hint.textContent.toLowerCase()).toMatch(/order/);
+  });
+
+  it('stays quiet in the groupings where the gesture means the tree', async () => {
+    localStorage.setItem('planr_gantt_group', 'project');
+    await openSchedule();
+
+    expect(screen.queryByTestId('queue-hint')).toBeNull();
+  });
+});
