@@ -1067,16 +1067,30 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
 
   // rowIdx maps task ID → array of ALL visible row indices (a multi-assigned task appears
   // in multiple person/team groups, so we need every occurrence for dep-line drawing).
+  //
+  // Only rows that actually DRAW a bar. A dependency line is an arrow between
+  // two bars, so a row with nothing on it cannot be one of its ends — and the
+  // row renderer bails out on two cases, not one: an unestimated task and a
+  // finished one with no dates. This map excluded only the first, so a line
+  // ran to a blank row in the middle of a group and looked like it had come
+  // adrift. In compact it is worse: a row with no bar takes no lane, so the
+  // line landed on a lane belonging to other work entirely.
+  const rowDrawsBar = row => {
+    if (row?.type !== 'task' || !row.s) return false;
+    if (row.s._unestimated) return false;
+    if (row.s._completed && (!row.s.startD || !row.s.endD)) return false;
+    return true;
+  };
   const rowIdx = useMemo(() => {
     const m = {};
     visibleRows.forEach((r, i) => {
-      if (r.type === 'task' && !r.s._unestimated) {
-        if (!m[r.s.id]) m[r.s.id] = [];
-        m[r.s.id].push(i);
-      }
+      if (!rowDrawsBar(r)) return;
+      if (compact && rowLayout.lanes?.[i] === -1) return;
+      if (!m[r.s.id]) m[r.s.id] = [];
+      m[r.s.id].push(i);
     });
     return m;
-  }, [visibleRows]);
+  }, [visibleRows, compact, rowLayout]);
   const sMap = useMemo(() => Object.fromEntries(
     allItems
       .filter(s => !s._unestimated && s.startWi >= 0 && s.endWi >= 0)
@@ -2296,6 +2310,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <button className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`} onClick={toggleLoadHeatmap}
             aria-pressed={showLoadHeatmap}
             data-htip={showLoadHeatmap ? loadRiskSummary.tip : t('g.loadHeatmapTip')}
+            data-testid="gantt-load-toggle"
             style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}</button>
           {/* Overbooking now surfaces as a global quick-filter chip in the
               app's subtoolbar so the same indicator works for every view. */}
@@ -2461,9 +2476,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           })();
           if (!compact || !_el) return _el;
           // Next row that gets a label of its own; everything between is a
-          // lane, and its height belongs to this block.
+          // lane and its height belongs to this block.
+          //
+          // "Everything between" has to mean every row compact hides, and that
+          // is not only the tasks: the work packages inside a group are hidden
+          // too. Skipping only the tasks made this stop at the first package,
+          // whose top is the top of the group's lane area — so the block was
+          // one row tall, every label after it slid up, and the two columns
+          // came apart by a little more with each group.
+          const _hidden = r => r.type === 'task' || (rowDepth.get(r) ?? 0) > 0;
           let _next = _ri + 1;
-          while (_next < visibleRows.length && visibleRows[_next].type === 'task') _next++;
+          while (_next < visibleRows.length && _hidden(visibleRows[_next])) _next++;
           const _h = (_next < visibleRows.length ? rowLayout.tops[_next] : rowLayout.height) - rowLayout.tops[_ri];
           return <div key={`lane-block-${_ri}`} style={{ height: Math.max(RH, _h), overflow: 'hidden' }}>{_el}</div>;
         }); })()}
@@ -2593,8 +2616,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             // given. Everything inside a row is already positioned relative to
             // it, so the bars, the arrows and the hit areas are untouched.
             if (rowHidden(_ri)) return null;
+            // FLAG_ROW_H, because that is where the rows begin: in classic they
+            // sit in normal flow after the deadline-flag strip, and `rowTop` is
+            // measured from the first row, not from the top of the box. Without
+            // it every bar in compact sat 18px above where the arrows, the
+            // label column and `rowCenterY` all agree it is — which is exactly
+            // what "the connecting lines are not where they belong" looks like.
             const _pos = compact
-              ? { position: 'absolute', top: rowTop(_ri), left: 0, right: 0, minWidth: tw }
+              ? { position: 'absolute', top: FLAG_ROW_H + rowTop(_ri), left: 0, right: 0, minWidth: tw }
               : null;
             const _el = (() => {
             if (row.type === 'group') {
@@ -2997,8 +3026,16 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     }} />
                   ))}
                 </div>}
-                {/* Absence, clipped to the bar and stacked over the load line
-                    when both are on. Two people away get two lines. */}
+                {/* Absence, clipped to the bar and stacked over the load line.
+                    Two people away get two lines.
+                    Always drawn, because "somebody was away in the middle of
+                    this" is a fact about the work rather than a reading you
+                    switch on — it is what explains a five-day task spanning
+                    three weeks. It is HATCHED rather than solid, which is the
+                    part that was missing: a thin solid amber line under a bar
+                    with the load reading switched OFF was unexplainable, and
+                    it looked exactly like the load line it was not. Solid
+                    means how full, hatched means not there. */}
                 {!isSummary && (() => {
                   const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
                   if (!bands.length) return null;
@@ -3016,7 +3053,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       <div key={band.key} style={{
                         position: 'absolute', left, width,
                         bottom: base + band.lane * 4, height: 3,
-                        background: 'var(--st-wip)',
+                        background: 'repeating-linear-gradient(45deg, var(--st-wip) 0 2px, transparent 2px 4px)',
                         pointerEvents: 'auto',
                       }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />
                     ))}

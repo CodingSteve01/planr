@@ -58,6 +58,10 @@ back as a terrace.
 
 All vertical positions — the dependency arrows, the bar rectangles, both
 columns — go through one `rowLayout`, so the two modes cannot drift apart.
+`rowLayout` measures from the **first row**, not from the top of the box, so an
+absolutely placed compact row adds `FLAG_ROW_H` the way normal flow does: it
+did not at first, and every bar sat 18px above where the arrows and the label
+column agreed it was.
 Persisted in `localStorage['planr_gantt_compact']`.
 
 Dragging a bar sideways still pins it and the edge handles still resize it —
@@ -132,6 +136,13 @@ To **unpin**, right-click the bar → `📌 Unpin (currently YYYY-MM-DD)`.
 
 ## Dependencies
 
+A line is an arrow between two **bars**, so a row that draws nothing cannot be
+one of its ends. The row renderer bails out on two cases — an unestimated task,
+and a finished one with no dates — and the index the lines were built from
+excluded only the first. A line then ran to a blank row in the middle of a
+group and looked like it had come adrift; in compact, where a bar-less row
+takes no lane at all, it landed on a lane holding other work entirely.
+
 Arrows are drawn in the Gantt background with SVG. Shape:
 
 - **10 px straight stubs** horizontally out of the source end and into the target start — the "runway" keeps the line readable at large vertical gaps
@@ -189,7 +200,7 @@ Every task row marks any vacation period of its assignees — regardless of the 
 
 **One line under the work package, and nowhere else.** Two earlier shapes were wrong in the same direction. It began as an amber block at the full row height drawn on every task row of the person away — one week off across a hundred rows painted a hundred blocks, and the chart read as if somebody had gone over it with a highlighter. Making it a strip along the whole ROW fixed the wash and left the other half: a week the task has nothing to do with became a loose line floating in the row's empty half, and in compact, where several tasks share a lane, those lines piled onto each other.
 
-So both absence and load are drawn **inside the bar**, clipped to it, 3px on its foot: load at the very bottom, absence stacked directly above when both are on. That answers the question they are there for — what the load was while the work was happening, and why five days of work span three weeks — and nothing else competes for the row.
+So both absence and load are drawn **inside the bar**, clipped to it, 3px on its foot: load at the very bottom, absence stacked directly above when both are on. Load follows the Load toggle; **absence is always drawn**, because "somebody was away in the middle of this" is a fact about the work rather than a reading you switch on — it is what explains a five-day task spanning three weeks. It is **hatched** where load is solid, which is the part that was missing at first: a thin solid amber line appearing under a bar with the load reading switched off was unexplainable, and it looked exactly like the load line it was not. That answers the question they are there for — what the load was while the work was happening, and why five days of work span three weeks — and nothing else competes for the row.
 
 - Two people away on the same task get two lines, one above the other.
 - Hover for the person and the dates; the line is too small to label.
