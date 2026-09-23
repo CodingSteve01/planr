@@ -16,6 +16,28 @@ process.env.NODE_ENV = 'test';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    // Test THIS checkout, not the ones parked beside it.
+    //
+    // `.claude/worktrees/` holds live git worktrees at other commits, each
+    // with its own `src/__tests__`. The default glob walked into them, so a
+    // full run executed a couple of hundred tests from branches that have
+    // nothing to do with the one in hand — and their failures arrived
+    // indistinguishable from a regression here, right down to the file name.
+    // A worktree has `vitest.worktree.config.js` for running its own suite.
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/worktrees/**'],
+    // A whole-App render is not a 5-second unit test.
+    //
+    // Most files here mount the real App, schedule a plan and wait for the
+    // result, and on a busy machine that is comfortably slower than the 5s
+    // default. The symptom was a suite that failed two or three times per
+    // run with a different set of tests each time — every one of them green
+    // on its own, every one of them ending in "Test timed out in 5000ms" or
+    // a `findBy` that ran out of patience. Hours go into reading that as a
+    // regression in whatever was just edited.
+    testTimeout: 20000,
+    hookTimeout: 20000,
+  },
   resolve: {
     alias: {
       // The plugin's vault layer imports `obsidian`, a module that only

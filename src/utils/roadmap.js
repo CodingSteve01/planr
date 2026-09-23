@@ -46,44 +46,68 @@ const DAY = 864e5;
 // two 16-unit curves either side of a 36-unit drop meet as a single S, which
 // is what a metro map draws. A 45° diagonal reads as a line going somewhere
 // else; a curve reads as the same line continuing.
-const ROUTES = [
-  // Route 0 — lane 0, one jog between x=300 and x=780
-  [
-    { x: 60, y: 80 }, { x: 300, y: 80 }, { x: 300, y: 116 }, { x: 780, y: 116 }, { x: 780, y: 80 }, { x: 1340, y: 80 },
-  ],
-  // Route 1 — lane 1, one jog between x=420 and x=900
-  [
-    { x: 60, y: 172 }, { x: 420, y: 172 }, { x: 420, y: 208 }, { x: 900, y: 208 }, { x: 900, y: 172 }, { x: 1340, y: 172 },
-  ],
-  // Route 2 — lane 2, one jog between x=200 and x=660
-  [
-    { x: 60, y: 264 }, { x: 200, y: 264 }, { x: 200, y: 300 }, { x: 660, y: 300 }, { x: 660, y: 264 }, { x: 1340, y: 264 },
-  ],
-  // Route 3 — lane 3, one jog between x=540 and x=1000
-  [
-    { x: 60, y: 356 }, { x: 540, y: 356 }, { x: 540, y: 392 }, { x: 1000, y: 392 }, { x: 1000, y: 356 }, { x: 1340, y: 356 },
-  ],
-  // Route 4 — lane 4, one jog between x=320 and x=840
-  [
-    { x: 60, y: 448 }, { x: 320, y: 448 }, { x: 320, y: 484 }, { x: 840, y: 484 }, { x: 840, y: 448 }, { x: 1340, y: 448 },
-  ],
-  // Route 5 — lane 5, one jog between x=620 and x=1080
-  [
-    { x: 60, y: 540 }, { x: 620, y: 540 }, { x: 620, y: 576 }, { x: 1080, y: 576 }, { x: 1080, y: 540 }, { x: 1340, y: 540 },
-  ],
-  // Route 6 — lane 6, one jog between x=260 and x=720
-  [
-    { x: 60, y: 632 }, { x: 260, y: 632 }, { x: 260, y: 668 }, { x: 720, y: 668 }, { x: 720, y: 632 }, { x: 1340, y: 632 },
-  ],
-  // Route 7 — lane 7, one jog between x=460 and x=940
-  [
-    { x: 60, y: 724 }, { x: 460, y: 724 }, { x: 460, y: 688 }, { x: 940, y: 688 }, { x: 940, y: 724 }, { x: 1340, y: 724 },
-  ],
-];
+// The board the lines run on.
+//
+// It was a literal table of eight lanes, and two things were wrong with that.
+//
+// A plan with more than eight projects ran out: `nextFreeRoute` wrapped to
+// route 0 with the comment "two lines will share a route", and the spacing
+// pass below then found two routes sitting exactly on top of each other and
+// shoved them apart — whole routes, horizontally as well as vertically, ten
+// passes of it. The result was the reported "looks odd": lines no longer
+// starting at a common left edge, a lane pushed off the top with its title
+// gone. The filters made it come and go because they change how many
+// projects there are to draw.
+//
+// And the table contradicted itself. Seven lanes jogged DOWN and the eighth
+// jogged UP, so lane 6's jog at y=668 and lane 7's at y=688 sat 20px apart —
+// under the 50px minimum — and collided every single time both were in use.
+// The spacing pass was cleaning up after the board rather than after the data.
+//
+// Generated instead: one lane per line, always, every jog in the same
+// direction. Lane i runs at y = 80 + 92i and jogs down 36 in the middle, so
+// a jog clears the next lane by 56 and the next jog by 92. Nothing on this
+// board is ever closer than the minimum, which leaves the spacing pass as
+// what it should have been — a guard that normally does nothing.
+const LANE_Y0 = 80;      // first lane's y
+const LANE_GAP = 92;     // between lanes
+const LANE_JOG = 36;     // how far the middle of a lane drops
+const LANE_X0 = 60;      // where every line starts
+const LANE_X1 = 1340;    // and ends
+const LANE_MIN = 8;      // keep the familiar board for small plans
+// Where each lane's jog sits. Staggered so the vertical segments of nearby
+// lanes do not line up into a column; the cycle is deliberately not a
+// divisor of the lane count, so it takes a while to repeat.
+const JOG_STARTS = [300, 420, 200, 540, 320, 620, 260, 460, 380, 240, 560, 340];
+const JOG_WIDTH = 480;
 
+export function buildRoutes(count) {
+  const lanes = Math.max(LANE_MIN, count || 0);
+  const out = [];
+  for (let i = 0; i < lanes; i++) {
+    const y = LANE_Y0 + LANE_GAP * i;
+    const jogY = y + LANE_JOG;
+    const xa = JOG_STARTS[i % JOG_STARTS.length];
+    const xb = Math.min(xa + JOG_WIDTH, LANE_X1 - 120);
+    out.push([
+      { x: LANE_X0, y }, { x: xa, y }, { x: xa, y: jogY },
+      { x: xb, y: jogY }, { x: xb, y }, { x: LANE_X1, y },
+    ]);
+  }
+  return out;
+}
+
+/** How tall the board is for a given number of lines, with room to breathe. */
+export function boardHeight(count) {
+  const lanes = Math.max(LANE_MIN, count || 0);
+  return LANE_Y0 + LANE_GAP * (lanes - 1) + LANE_JOG + 60;
+}
 // ─── Canvas dimensions ────────────────────────────────────────────────────────
 const SVG_W = 1400;
-const SVG_H = 800;
+// The tallest board the fixed eight lanes need. `boardHeight()` is the real
+// answer once the line count is known; this is the floor everything that has
+// no line count to hand can use.
+const SVG_H = boardHeight(LANE_MIN);
 const ROUTE_T_LO = 0.04;
 const ROUTE_T_HI = 0.96;
 const MIN_VISIBLE_PROGRESS_DELTA = 0.00005; // 0.005 percentage points = 0.05 permille
@@ -825,7 +849,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 
   // ── Route assignment ──────────────────────────────────────────────────────
   // Sort routes by pixel length (longest first).
-  const routesWithLen = ROUTES.map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
+  const routesWithLen = buildRoutes(rawLines.length).map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
     .sort((a, b) => b.len - a.len);
 
   // Sort projects by duration (longest first). Ties broken by hash of root.id for stability.
@@ -1302,6 +1326,11 @@ export function placeStationLabels(lines, isVisible = () => true) {
   const placement = new Map();
   const occupied = [];
   const candidates = [];
+  // How far down labels may be placed. Follows the lanes actually in use —
+  // a fixed board height would have silently dropped every label on the
+  // lanes a plan with more than eight projects grew.
+  const allYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
+  const labelFloor = Math.max(SVG_H, allYs.length ? Math.max(...allYs) + 60 : 0);
 
   lines.forEach((line, lineIdx) => {
     // The project's name, drawn above the start of its own line, is an
@@ -1348,7 +1377,7 @@ export function placeStationLabels(lines, isVisible = () => true) {
     const width = String(station.abbrev || '').length * LABEL_CH_W + 4;
     const slot = LABEL_SLOTS
       .map(({ dx, dy, anchor }) => ({ x: station.x + dx, y: station.y + dy, anchor }))
-      .filter(pos => pos.x > 6 && pos.x < SVG_W - 6 && pos.y > 12 && pos.y < SVG_H - 6)
+      .filter(pos => pos.x > 6 && pos.x < SVG_W - 6 && pos.y > 12 && pos.y < labelFloor - 6)
       .find(pos => {
         const box = labelBox(pos.x, pos.y, width, pos.anchor);
         return !occupied.some(other => other.owner !== station.id && boxesOverlap(box, other));
@@ -1461,10 +1490,14 @@ export function renderRoadmapSvg(args) {
   const ROUTE_PAD_TOP = 58;
   const ROUTE_PAD_BOTTOM = 46;
   const usedYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
-  const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, SVG_H) : 0;
+  // The board is as tall as the lanes in use, which is more than the eight
+  // lanes' worth once a plan has more projects than that. Clamping to a fixed
+  // 800 here would have cropped the very lines the board grew for.
+  const boardH = Math.max(SVG_H, usedYs.length ? Math.max(...usedYs) + ROUTE_PAD_BOTTOM : 0);
+  const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, boardH) : 0;
   const viewH = usedYs.length
-    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, SVG_H - viewY)
-    : SVG_H;
+    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, boardH - viewY)
+    : boardH;
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
 
   // ── Styles ──────────────────────────────────────────────────────────────────

@@ -41,7 +41,11 @@ beforeEach(() => {
     meta: { name: 'Order', planStart: '2026-01-01', planEnd: '2027-01-01' },
   }));
 });
-afterEach(cleanup);
+// The app persists its filter chips to localStorage, so a seeded root filter
+// outlives this file unless it is cleared: the next test to run in the same
+// environment would open on a plan narrowed to P1 and fail for a reason
+// nothing in it mentions.
+afterEach(() => { cleanup(); localStorage.clear(); });
 
 const renderApp = () => render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
 

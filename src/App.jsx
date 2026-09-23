@@ -18,7 +18,7 @@ import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped } from './utils/scheduler.js';
 import { buildPasteNodes, compareSiblings, sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
@@ -1574,7 +1574,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (!node) return false;
       const children = byParent[id] || [];
       if (!children.length) {
-        const shouldShow = node.status !== 'done';
+        // Dropped counts as finished here. "Hide done" is a request to see
+        // what is still to be done, and a task that was rejected has no work
+        // left in it either — it stayed on screen alongside the open ones,
+        // struck through, in a view whose whole point was that it is not.
+        const shouldShow = node.status !== 'done' && !isDropped(node);
         if (shouldShow) keep.add(id);
         return shouldShow;
       }
