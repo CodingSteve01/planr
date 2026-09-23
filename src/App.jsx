@@ -2851,6 +2851,27 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (newId) setSel({ id: newId });
     return newId;   // the inline editor follows the row to its new id
   });
+  // The tree calls this when the row it just moved is not on screen any more.
+  //
+  // Re-parenting out a level renumbers the subtree into a project of its own
+  // — P1.1 becomes P4 — and every filter keyed on where a row USED to be then
+  // excludes it: the project filter above all, a search over ids, a review
+  // window it is no longer part of. The row is in the plan and nowhere on the
+  // screen, which reads as losing it.
+  //
+  // So the view widens to where the row went. Everything that narrows the
+  // tree comes off at once rather than guessing which one did it; the guard
+  // on the other side only fires when the row really has vanished, and the
+  // filter chips going quiet is itself the notice that they were dropped.
+  const onTreeRevealHidden = useStableCallback(() => {
+    setRootFilter('');
+    setTeamFilter('');
+    setPersonFilter('');
+    setSearch('');
+    setHideDone(false);
+    setDiffOnlyChanged(false);
+    setHorizonOnlyPlanned(false);
+  });
   // Enter, mid-edit: create an empty sibling directly after `afterId` (same
   // parent) and hand back its id so TreeView can immediately edit it. Empty
   // on purpose — see onTreeBulkDelete's neighbour, commitEdit in
@@ -3655,6 +3676,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               onClearSelection={() => setMultiSel(new Set())}
               onOpenBulkEdit={() => setBulkEditModalOpen(true)}
               onMove={onTreeMove}
+              onRevealHidden={onTreeRevealHidden}
               onInsertAfter={onTreeInsertAfter}
               onInsertChild={onTreeInsertChild}
               onBulkDelete={onTreeBulkDelete}

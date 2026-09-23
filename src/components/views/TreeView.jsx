@@ -18,7 +18,7 @@ import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
-import { sortTree, filterCollapsedRows, indentTarget, outdentTarget, moveStep, visibleSiblingTarget, visibleIndentTarget, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
+import { sortTree, filterCollapsedRows, indentTarget, outdentTarget, moveStep, visibleSiblingTarget, outOfGroupTarget, visibleIndentTarget, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
 import { withKey, keyHint, ALT } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
@@ -92,7 +92,7 @@ export function isTypingTarget(el) {
   return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
 }
 
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -270,7 +270,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const collapseAll = () => setCollapsed(s => { const n = new Set(s); targetIds().forEach(id => n.add(id)); return n; });
   const expandAll = () => setCollapsed(s => { const n = new Set(s); targetIds().forEach(id => n.delete(id)); return n; });
 
-  const filt = useMemo(() => {
+  // Every filter EXCEPT the collapse state. Kept apart from `filt` below
+  // because the two answer different questions: a row inside a folded branch
+  // is one keystroke from being seen, a row a filter excludes is not there at
+  // all. `noMoveIsLost` below depends on telling those apart.
+  const filteredRows = useMemo(() => {
     let f = sorted;
     if (rootFilter) {
       f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
@@ -314,8 +318,33 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       }
       f = f.filter(r => keep.has(r.id));
     }
-    return filterCollapsedRows(f, collapsed);
-  }, [sorted, search, teamFilter, rootFilter, personFilter, collapsed, diffKeepIds, horizonIds, horizonOnlyPlanned]);
+    return f;
+  }, [sorted, search, teamFilter, rootFilter, personFilter, diffKeepIds, horizonIds, horizonOnlyPlanned]);
+  const filt = useMemo(() => filterCollapsedRows(filteredRows, collapsed), [filteredRows, collapsed]);
+
+  // A move never hides what it moved.
+  //
+  // Reported: items "simply disappear" while being pushed around the tree,
+  // especially on the way out a level. They are not lost — re-parenting to
+  // the top renumbers the subtree into a project of its own (P1.1 becomes
+  // P4), and with the project filter set to P1 the filter then excludes the
+  // very rows you were dragging. Same shape for a search over ids: the id
+  // changes under the query. From where you are sitting the item is gone, and
+  // nothing says where it went.
+  //
+  // Rather than enumerate the filters that can do this, watch the outcome:
+  // the moved row is marked, and when the next filtered list does not contain
+  // it the view asks to be widened. Collapse is deliberately not part of this
+  // test — an ancestor gets expanded a few lines above, and a folded branch
+  // is one keystroke from being open anyway.
+  const revealRef = useRef(null);
+  useEffect(() => {
+    const id = revealRef.current;
+    if (!id) return;
+    revealRef.current = null;
+    if (filteredRows.some(r => r.id === id)) return;
+    onRevealHidden?.(id);
+  }, [filteredRows]);
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {
@@ -554,14 +583,33 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   function reparentVisible(id, outward) {
     if (!onMove || !id) return;
     const target = reparentTarget(id, outward);
-    if (target !== null) onMove(id, target);
+    if (target === null) return;
+    revealRef.current = onMove(id, target) || id;
+  }
+
+  // The end of the run is not the end of the press: the row steps out a level
+  // and lands where it was pressing. See outOfGroupTarget. Returns the row's
+  // new id — it changes, because re-parenting renumbers the whole subtree.
+  function stepOutOfGroup(id, direction) {
+    const out = outOfGroupTarget(visibleIds, id, direction);
+    if (!out || !onMove || !onReorder) return null;
+    const newId = onMove(id, out.parentId);
+    if (!newId) return null;
+    revealRef.current = newId;
+    onReorder(newId, { targetId: out.targetId, position: out.position });
+    return newId;
   }
 
   function reorderVisible(id, direction) {
     if (!onReorder || !id) return;
     const target = visibleSiblingTarget(visibleIds, id, direction);
-    if (target) onReorder(id, target);
+    if (target) { onReorder(id, target); return; }
+    stepOutOfGroup(id, direction);
   }
+  // Can ⌥↑/⌥↓ do anything from here — within the run, or out of it.
+  const canReorder = (id, direction) =>
+    !!visibleSiblingTarget(visibleIds, id, direction)
+    || (!!onMove && !!outOfGroupTarget(visibleIds, id, direction));
 
   function startNewSibling(afterIdVal) {
     if (!onInsertAfter) return;
@@ -683,6 +731,25 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // field has to follow the row to its new id — App's onMove hands it back.
   // The name is committed first and moveNode applies its change
   // functionally, so the two writes in this one keypress don't race.
+  // ⌥↑/⌥↓ with the name still open. Inside its own run this is a plain
+  // reorder and the id holds; across the boundary it is a re-parent, the id
+  // is renumbered underneath the open editor, and the typed name has to be
+  // carried across with it — the same care reparentWhileEditing takes, for
+  // the same reason.
+  function reorderWhileEditing(direction) {
+    if (!editing) return;
+    const target = visibleSiblingTarget(visibleIds, editing.id, direction);
+    if (target) { onReorder?.(editing.id, target); return; }
+    if (!outOfGroupTarget(visibleIds, editing.id, direction) || !onMove) return;
+    markStructuralEdit();
+    const name = editing.draft;
+    commitDraftInPlace();
+    suppressBlurRef.current = true;
+    const newId = stepOutOfGroup(editing.id, direction);
+    if (!newId) return;
+    setEditing(cur => (cur ? { ...cur, id: newId, draft: name, isNew: false } : cur));
+  }
+
   function reparentWhileEditing(outward) {
     if (!editing || !onMove) return;
     const target = reparentTarget(editing.id, outward);
@@ -694,6 +761,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     commitDraftInPlace();
     suppressBlurRef.current = true;
     const newId = onMove(editing.id, target);
+    revealRef.current = newId || editing.id;
     setEditing(cur => (cur ? { ...cur, id: newId || cur.id, draft: name, isNew: false } : cur));
   }
 
@@ -751,7 +819,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         // id is stable and the editor simply rides along.
         stop();
         markStructuralEdit();
-        reorderVisible(editing.id, e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
+        reorderWhileEditing(e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
         return;
       }
       stop();
@@ -794,7 +862,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       if (e.shiftKey && e.target?.selectionStart != null) return;
       stop();
       const dir = e.key === 'ArrowDown' ? 'down' : 'up';
-      reorderVisible(editing.id, e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
+      reorderWhileEditing(e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
     }
   }
 
@@ -1395,11 +1463,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           {toolBtn('', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null, 'outdent', 'tv-outdent')}
           {toolBtn('', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null, 'indent', 'tv-indent')}
         </>}
-        {onReorder && selPos.count > 1 && <>
+        {onReorder && (selPos.count > 1 || canReorder(selected.id, 'up') || canReorder(selected.id, 'down')) && <>
           <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
           {toolBtn(t('tv.moveFirst'), withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'), 'moveTop', 'tv-move-first')}
-          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !visibleSiblingTarget(visibleIds, selected.id, 'up'), 'moveUp', 'tv-move-up')}
-          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !visibleSiblingTarget(visibleIds, selected.id, 'down'), 'moveDown', 'tv-move-down')}
+          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !canReorder(selected.id, 'up'), 'moveUp', 'tv-move-up')}
+          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !canReorder(selected.id, 'down'), 'moveDown', 'tv-move-down')}
           {toolBtn(t('tv.moveLast'), withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'), 'moveBottom', 'tv-move-last')}
         </>}
         <span style={{ flex: 1 }} />
