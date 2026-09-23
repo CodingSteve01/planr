@@ -1,8 +1,10 @@
 import { useMemo, useState, memo } from 'react';
 import { CONF_COLOR } from '../../constants.js';
+import { isOnboard } from '../../utils/capacity.js';
+import { memberShades } from '../../utils/teamShades.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
-import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
+import { leafProgress, leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
 import { diffDays, iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -102,16 +104,25 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
   // ── CAPACITY ──
   const teamCapacity = useMemo(() => {
     const cap = {};
-    teams.forEach(tm => { cap[tm.id] = { name: tm.name, color: tm.color, members: [], committedPt: 0, unassignedPt: 0, unassignedCount: 0 }; });
-    members.forEach(m => { if (cap[m.team]) cap[m.team].members.push(m); });
+    teams.forEach(tm => { cap[tm.id] = { id: tm.id, name: tm.name, color: tm.color, members: [], committedPt: 0, unassignedPt: 0, unassignedCount: 0 }; });
+    // People who have left are not capacity, and a team of nothing but leavers
+    // is not a team any more. Both were listed here at 0 PT beside the teams
+    // actually doing the work.
+    members.filter(m => isOnboard(m)).forEach(m => { if (cap[m.team]) cap[m.team].members.push(m); });
+    // "Has someone on it" means the SCHEDULE placed a person, not that a name
+    // was typed in: most work in a long plan is auto-assigned, so the explicit
+    // test reported a team as almost entirely unstaffed while its people were
+    // carrying hundreds of PT two rows above.
+    const staffedIds = new Set();
+    (scheduled || []).forEach(sc => { if (sc.personId) staffedIds.add(sc.treeId || sc.id); });
     lvs.filter(r => r.status !== 'done').forEach(r => {
       const tk = r.team; if (!cap[tk]) return;
       const pt = re(r.best || 0, r.factor || 1.5);
-      if ((r.assign || []).length > 0) cap[tk].committedPt += pt;
+      if ((r.assign || []).length > 0 || staffedIds.has(r.id)) cap[tk].committedPt += pt;
       else if (r.best > 0) { cap[tk].unassignedPt += pt; cap[tk].unassignedCount++; }
     });
     return Object.values(cap).filter(tm => tm.committedPt > 0 || tm.unassignedPt > 0 || tm.members.length > 0);
-  }, [teams, members, lvs]);
+  }, [teams, members, lvs, scheduled]);
 
   // ── Accept auto-assign ──
   const acceptAuto = (node) => {
@@ -292,26 +303,46 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
     {/* ══════ CAPACITY — compact cards ══════ */}
     {section === 'capacity' && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
       {teamCapacity.map(tc => {
-        const totalPt = tc.committedPt + tc.unassignedPt;
-        const commitPct = totalPt > 0 ? tc.committedPt / totalPt * 100 : 0;
+        // The card is about THIS team's open work, and every number on it adds
+        // up to the bar: each member's share in their own dot colour, plus a
+        // neutral remainder for work nobody is on. The dots are the bar's
+        // legend, which is the whole reason they are there.
+        const isLight = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+        const shades = memberShades(tc.color, tc.members.length, { dark: !isLight });
+        const memberShares = tc.members.map((m, mi) => ({
+          m,
+          color: shades[mi] || tc.color,
+          pt: (scheduled || [])
+            .filter(r => r.status !== 'done' && !r.unscheduled && r.personId === m.id && (r.team || '') === (tc.id || ''))
+            .reduce((acc, r) => acc + (r.effort || 0), 0),
+        }));
+        const staffedPt = memberShares.reduce((acc, x) => acc + x.pt, 0);
+        const teamTotal = staffedPt + tc.unassignedPt;
         return <div key={tc.name} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderLeft: `3px solid ${tc.color}`, borderRadius: 'var(--r)', padding: '10px 12px' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: tc.color, marginBottom: 6 }}>{tc.name}</div>
-          {tc.members.map(m => {
-            const pt = lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)).reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0);
-            return <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, marginBottom: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: tc.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{tc.name}</span>
+          </div>
+          {memberShares.map(({ m, pt, color }) => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, marginBottom: 2 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
               <span style={{ flex: 1 }}>{m.name}</span>
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{m.cap < 1 ? `${Math.round(m.cap * 100)}%` : ''}</span>
-              <span style={{ fontFamily: 'var(--mono)', color: pt > 0 ? 'var(--gr)' : 'var(--tx3)' }}>{pt.toFixed(0)} PT</span>
-            </div>;
-          })}
-          <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', background: 'var(--bg4)', margin: '6px 0 4px' }}>
-            <div style={{ width: `${commitPct}%`, background: 'var(--gr)' }} />
-            {tc.unassignedPt > 0 && <div style={{ width: `${100 - commitPct}%`, background: 'var(--am)' }} />}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
-            <span style={{ color: 'var(--gr)' }}>{tc.committedPt.toFixed(0)} PT</span>
-            {tc.unassignedPt > 0 && <span style={{ color: 'var(--am)' }}>{t('pr.ptOpen', tc.unassignedPt.toFixed(0), tc.unassignedCount)}</span>}
-          </div>
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{pt.toFixed(0)} PT</span>
+            </div>
+          ))}
+          {teamTotal > 0 && <>
+            <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', background: 'var(--bg4)', margin: '7px 0 4px' }}>
+              {memberShares.map(({ m, pt, color }) => pt > 0 && (
+                <div key={m.id} style={{ width: `${pt / teamTotal * 100}%`, background: color }} />
+              ))}
+              {tc.unassignedPt > 0 && <div style={{ width: `${tc.unassignedPt / teamTotal * 100}%`, background: 'var(--b2)' }} />}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
+              <span style={{ color: 'var(--tx2)' }}>{teamTotal.toFixed(0)} PT {t('pr.open')}</span>
+              {tc.unassignedPt > 0 && <span>{t('pr.ptOpen', tc.unassignedPt.toFixed(0), tc.unassignedCount)}</span>}
+            </div>
+          </>}
         </div>;
       })}
     </div>}

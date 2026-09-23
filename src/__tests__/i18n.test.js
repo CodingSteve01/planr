@@ -16,7 +16,7 @@
 // components": the older views are full of literals, and a test that fails
 // everywhere teaches nothing. Add a file here when you rework it.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const SRC = join(__dirname, '..');
@@ -30,7 +30,11 @@ function keysOfDictionary(name) {
   expect(start, `dictionary "${name}" not found`).toBeGreaterThan(-1);
   const end = i18nSource.indexOf('\n};', start);
   const body = i18nSource.slice(start, end);
-  return new Set([...body.matchAll(/^\s*'([^']+)':/gm)].map(m => m[1]));
+  // Every key on the line, not just the first. Many lines pack several
+  // (`'open': 'Open', 'wip': 'In Progress', 'done': '✓ Done',`), and matching
+  // only line-leading keys quietly excluded most of them from the parity
+  // check for as long as it has existed.
+  return new Set([...body.matchAll(/'([a-zA-Z][\w.]*)'\s*:/g)].map(m => m[1]));
 }
 
 describe('both languages carry the same keys', () => {
@@ -139,7 +143,8 @@ describe('German is not leaking into English keys', () => {
   const en = keysOfDictionary('en');
   const start = i18nSource.indexOf('const en = {');
   const body = i18nSource.slice(start, i18nSource.indexOf('\n};', start));
-  const values = [...body.matchAll(/^\s*'[^']+':\s*'((?:[^'\\]|\\.)*)'/gm)].map(m => m[1]);
+  // Same "several keys per line" correction as keysOfDictionary above.
+  const values = [...body.matchAll(/'[a-zA-Z][\w.]*'\s*:\s*'((?:[^'\\]|\\.)*)'/g)].map(m => m[1]);
 
   it('has as many readable values as keys', () => {
     // Sanity check on the parse itself before asserting anything about it.
@@ -151,5 +156,42 @@ describe('German is not leaking into English keys', () => {
     // before (UI labels quoted from the German locale).
     const GERMAN = /\b(Kennzahlen|Terminübersicht|Aufgaben je|reimportierbar|verfügbar|Vollständiges|Nahfristige|Hochauflösendes|Konfigurierbarer|übernehmen|einfügen|ausblenden|erledigt|Projekte|Personen)\b/;
     expect(values.filter(v => GERMAN.test(v))).toEqual([]);
+  });
+});
+
+// ── Every key a component asks for actually exists ─────────────────────────
+// The parity check above compares the two dictionaries with each other, so a
+// key missing from BOTH passes it. `t()` returns the key itself when it finds
+// nothing, and a `t('x') || 'fallback'` never reaches its fallback because the
+// key string is truthy — so the Auslastung view shipped with `rv.loadSortBy:`
+// and three bare key names printed as its own labels.
+describe('every key the code asks for is in the dictionary', () => {
+  const en = keysOfDictionary('en');
+
+  function sourceFiles(dir, acc = []) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) sourceFiles(full, acc);
+      else if (/\.jsx?$/.test(entry.name) && entry.name !== 'i18n.jsx') acc.push(full);
+    }
+    return acc;
+  }
+
+  it('resolves every literal passed to t()', () => {
+    const missing = [];
+    for (const file of sourceFiles(SRC)) {
+      const text = readFileSync(file, 'utf8');
+      // The report/export layer has its own `t(english, german)` helper that
+      // takes two literal sentences, not a dictionary key. Same name, other
+      // job — checking those against the dictionary would be nonsense.
+      if (text.includes('buildReportModel')) continue;
+      // Only literal single-argument keys — a computed key (`t('s.' + x)`)
+      // cannot be checked from here and is skipped by the pattern.
+      for (const m of text.matchAll(/\bt\(\s*'([a-zA-Z][\w.]*)'\s*[,)]/g)) {
+        if (!en.has(m[1])) missing.push(`${file.slice(SRC.length + 1)}: ${m[1]}`);
+      }
+    }
+    expect([...new Set(missing)], `keys used in code but absent from the dictionary:\n${missing.join('\n')}`).toEqual([]);
   });
 });

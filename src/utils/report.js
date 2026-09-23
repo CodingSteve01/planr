@@ -126,12 +126,21 @@ export function buildReportModel(rawCtx) {
 
   // Team capacity.
   const teamCap = {};
-  teams.forEach(tm => { teamCap[tm.id] = { name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
+  teams.forEach(tm => { teamCap[tm.id] = { id: tm.id, name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
   members.forEach(m => { if (teamCap[m.team]) teamCap[m.team].members.push(m); });
+  // Placed by the SCHEDULER, not just by an explicit `assign`. Most work in a
+  // long plan has no name typed on it — the scheduler picks the person — so
+  // the old test reported a team of three people as "20 PT assigned, 488 PT
+  // with nobody on it" while those three carried 506 PT between them on the
+  // very next page. What is left over here is work the schedule genuinely
+  // could not place.
+  const scheduledPerson = new Set();
+  scheduled.forEach(sc => { if (sc.personId) scheduledPerson.add(sc.treeId || sc.id); });
   lvs.filter(r => r.status !== 'done').forEach(r => {
     if (!teamCap[r.team]) return;
     const pt = scheduleEffort(r) || 0;
-    if ((r.assign || []).length > 0) teamCap[r.team].committed += pt;
+    const staffed = (r.assign || []).length > 0 || scheduledPerson.has(r.id);
+    if (staffed) teamCap[r.team].committed += pt;
     else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
   });
 

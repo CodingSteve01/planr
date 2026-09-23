@@ -3046,6 +3046,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   if (!data) return <>
     <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
       onJiraImport={() => setModal('jiraImport')}
+      onBackdate={() => setModal('backdate')}
       onLoadDemo={() => {
         import('./utils/demoProject.js').then(m => {
           const demo = m.buildDemoProject(_t);
@@ -3350,7 +3351,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', keywords: ['backdate', 'rückdatieren', 'nachtragen', 'sprint', 'review'], group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
@@ -3475,6 +3476,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onExport={() => setTab('report')}
         onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
         onJiraImport={() => setModal('jiraImport')}
+        onBackdate={() => setModal('backdate')}
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
