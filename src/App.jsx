@@ -8,6 +8,7 @@ import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exp
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate } from './utils/history.js';
+import { structuralEditPending } from './utils/structuralEdit.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -1503,7 +1504,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const active = document.activeElement;
         const tag = active?.tagName;
         const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-        if (!isEditable) {
+        // …unless the last thing that happened was a structure command issued
+        // from inside that field. Then there is nothing in the text to undo
+        // and everything in the plan to undo (utils/structuralEdit.js).
+        if (!isEditable || structuralEditPending()) {
           const isRedo = (e.key === 'y' || e.key === 'Y') || e.shiftKey;
           e.preventDefault();
           if (isRedo) handleRedo(); else handleUndo();

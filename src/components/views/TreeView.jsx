@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { markStructuralEdit, clearStructuralEdit } from '../../utils/structuralEdit.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
@@ -33,6 +34,48 @@ function depth(id) { return id.split('.').length; }
 // carries the meaning without the colour, which four coloured dots would not.
 const PRIO_ICON = { 1: 'prioCritical', 2: 'prioHigh', 3: 'prioMedium', 4: 'prioLow' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
+// Text entry, as far as a keyboard shortcut is concerned. Checkboxes and the
+// like are excluded deliberately: arrows there are navigation, not editing.
+const NON_TEXT_INPUT = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
+
+// ── Where the caret is, and whether the key belongs to the text ────────────
+// A structure gesture that also means something inside a text field must lose
+// to the text. On macOS ⌥←/⌥→ walks by word and ⇧⌥←/⇧⌥→ selects by word — the
+// exact keys this used to spend on outdent/indent, unguarded by shift.
+// Reaching for the start of a word in a name and re-parenting the item instead
+// is a structural edit you did not ask for, from a keystroke that has meant
+// something else in every text field you have ever used.
+function caretAtStart(el) {
+  if (!el || typeof el.selectionStart !== 'number') return false;
+  return el.selectionStart === 0 && el.selectionEnd === 0;
+}
+function caretAtEnd(el) {
+  if (!el || typeof el.selectionStart !== 'number') return false;
+  const len = (el.value ?? '').length;
+  return el.selectionStart === len && el.selectionEnd === len;
+}
+
+/**
+ * Does this ⌥+arrow belong to the tree rather than to the text under the
+ * caret? Only when the caret has nowhere left to go — so the gesture still
+ * works from the end of a name, which is where you are when you have just
+ * typed it, and never eats a word jump in the middle.
+ */
+export function altArrowIsStructural(e) {
+  if (e.shiftKey) return false;        // a selection gesture, always the text's
+  const el = e.target;
+  return e.key === 'ArrowLeft' ? caretAtStart(el) : caretAtEnd(el);
+}
+
+export function isTypingTarget(el) {
+  if (!el || typeof el !== 'object') return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag !== 'INPUT') return false;
+  return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
+}
+
 function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
@@ -596,6 +639,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (!editing || !onMove) return;
     const target = reparentTarget(editing.id, outward);
     if (target === null) return;
+    // ⌘Z is left to the browser while a field has focus, which would make this
+    // the one edit you cannot take back without clicking away first.
+    markStructuralEdit();
     const name = editing.draft;
     commitDraftInPlace();
     suppressBlurRef.current = true;
@@ -639,18 +685,24 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1); return; }
     if (e.key === 'Tab') return;   // let the browser move to the next field
 
-    // ⌥←/⌥→ re-parent. Tab used to do this, but Tab belongs to the form now,
-    // and ⌥+arrow already means "move this row in the structure" (⌥↑/⌥↓).
+    // ⌥←/⌥→ re-parent — but only when the caret cannot move (see
+    // altArrowIsStructural). Tab used to do this, but Tab belongs to the form
+    // now, and ⌥+arrow already means "move this row in the structure" (⌥↑/⌥↓).
     if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && alt) {
+      if (!altArrowIsStructural(e)) return;   // the text keeps its word jump
       stop(); reparentWhileEditing(e.key === 'ArrowLeft'); return;
     }
 
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const dir = e.key === 'ArrowDown' ? 'down' : 'up';
+      // ⇧⌥↑/⇧⌥↓ selects to the start or end of the text on macOS, so it is
+      // not ours to take either.
+      if (alt && e.shiftKey && e.target?.selectionStart != null) return;
       if (alt) {
         // Reorder among siblings. reorderSibling writes displayOrder, so the
         // id is stable and the editor simply rides along.
         stop();
+        markStructuralEdit();
         reorderVisible(editing.id, e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
         return;
       }
@@ -683,8 +735,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (e.key === 'Tab' && !e.shiftKey && isLast) { stop(); commitEdit('sibling'); return; }
     if (e.key === 'Tab') return;
     if (!alt) return;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { stop(); reparentWhileEditing(e.key === 'ArrowLeft'); return; }
+    // Same rule as the name editor: a text-entry field keeps its word jumps
+    // and its selection gestures. These fields are dropdowns and short inputs,
+    // so where there is no caret there is nothing to lose.
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      if (e.target?.selectionStart != null && !altArrowIsStructural(e)) return;
+      stop(); reparentWhileEditing(e.key === 'ArrowLeft'); return;
+    }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (e.shiftKey && e.target?.selectionStart != null) return;
       stop();
       const dir = e.key === 'ArrowDown' ? 'down' : 'up';
       reorderVisible(editing.id, e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
@@ -780,6 +839,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
   function handleContainerKeyDown(e) {
     if (editing) return; // the inline <input> owns Enter/⇧Enter/Esc — see handleEditKeyDown
+    // Anything typed into a field bubbles up to here, and `editing` only knows
+    // about the inline name editor. Every other input inside the tree — the
+    // search box, a custom field, whatever a row grows next — was handing its
+    // keystrokes to the row shortcuts: one ⌥← while a caret was in a box and
+    // the item moved. A key pressed inside a text entry belongs to that entry.
+    if (isTypingTarget(e.target)) return;
     const key = e.key;
     const bare = !e.ctrlKey && !e.metaKey; // leave Cmd/Ctrl combos (save, undo, find…) alone
 
@@ -1021,7 +1086,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                     className="tn-edit-input"
                     value={editing.draft}
                     data-testid={`tree-name-input-${r.id}`}
-                    onChange={e => { const v = e.target.value; setEditing(cur => cur ? { ...cur, draft: v } : cur); }}
+                    onChange={e => { const v = e.target.value; clearStructuralEdit(); setEditing(cur => cur ? { ...cur, draft: v } : cur); }}
                     onKeyDown={handleEditKeyDown}
                     style={{ font: 'inherit', fontSize: 12, padding: '1px 5px', border: '1px solid var(--ac)', borderRadius: 3, background: 'var(--bg)', color: 'var(--tx)', minWidth: 150 }}
                   />

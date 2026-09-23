@@ -27,6 +27,22 @@ Full catalog of what Planr does. Grouped by area. Links point to detail docs whe
 - **The row editor is a small form, not a name-only mode** — the row being named renders its name field plus four labelled dropdowns, in `Tab` order: **name → Priority → Size → Status → Team**. `Tab` walks them, because that is what `Tab` means inside a field everywhere else; `⇧Tab` off the name goes back to the row above, and `Tab` off the last dropdown finishes the row and opens the next one, so a whole item is one uninterrupted run of `Tab`s. The size dropdown offers the project's own catalogue (falling back to the shared default set) and says *"— own estimate"* when the row's numbers came from the wizard rather than a size, instead of silently showing the nearest one.
   Keyboard equivalents, all without leaving the field: `↑`/`↓` commit the name and carry the field to the row above or below (the spreadsheet gesture — editing follows the cursor instead of being a mode you leave and re-enter per row); `⌥↑`/`⌥↓` move the row itself among its siblings; `⌥←`/`⌥→` outdent/indent it and the field follows the row to its new id; `⌥1`–`⌥4` priority, `⌥S`/`⌥M`/`⌥L`/`⌥X` size, `⌥Space` status, `⌥T` jumps to the team dropdown. Every one of these writes the typed name and the field in a *single* update, so neither can overwrite the other.
   Re-parenting moved off `Tab` onto `⌥←`/`⌥→` when the dropdowns arrived — `⌥`+arrow already meant "move this row in the structure" (`⌥↑`/`⌥↓`), so the two now read as one gesture. Outside the editor, with the cursor on a row, `Tab`/`⇧Tab` still indent and outdent.
+
+  Inside the field those same keys mean something to the text, and the text
+  wins. On macOS `⌥←`/`⌥→` walks by word and `⇧⌥←`/`⇧⌥→` selects by word; the
+  handler tested `altKey` and nothing else, so reaching for the start of a word
+  in a name re-parented the item — repeatedly, and reported as "I have
+  destroyed my structure X times just trying to jump in front of a word". So
+  `⇧`+`⌥`+arrow is never structural, and a plain `⌥←`/`⌥→` only re-parents when
+  the caret has nowhere left to go: at the very start or the very end of the
+  name, which is where it sits once the name is typed. `⇧⌥↑`/`⇧⌥↓` likewise
+  belong to the selection.
+
+  `⌘Z` is left to the browser while a field has focus, so that undoing a typo
+  undoes the typo. That made a structure command issued from the field the one
+  edit you could not take back without clicking away first — so a structure
+  command now says so (`utils/structuralEdit.js`) and `⌘Z` is the app's until
+  the next keystroke edits the text again.
 - **The dropdowns filter as you type** — each field is a `SearchSelect`, not a `<select>`: focus it, type `fro`, press `Enter`. With a dozen teams, hunting a native dropdown by eye is the slow path. Its popup renders into a portal to escape the table's overflow clipping, which is why the editor treats focus landing there as still being inside itself.
 - **A new row has no priority** — it used to be created as *high*, which made every fresh plan look urgent while saying nothing: you could not tell what you had decided from what the editor guessed. Unset shows no glyph and reads *"— not prioritised"* in the dropdown. The **team** *is* inherited from the sibling or parent, because that is a fact about where you are rather than a guess about what you meant.
 - **Leaving the editor** — `Escape` cancels, clicking another row ends edit mode and keeps what was typed, and either way focus returns to the grid so the arrow keys keep working. Backing out of a row you *just* created puts the cursor back on the row it came from, rather than leaving you with no cursor at all. (Both were bugs: the `<input>` unmounting dropped focus to the document body, and a `<tr>` is not focusable so the field never blurred.)

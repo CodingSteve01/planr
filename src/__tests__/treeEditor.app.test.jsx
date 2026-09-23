@@ -86,9 +86,31 @@ async function commitAndClose(input) {
   if (trailing) await press(trailing, 'Escape');
 }
 
+// Matched on the id CELL, not with findByText. Once a project's line colour
+// resolves, the id cell splits its root segment into its own span and the id
+// is no longer the text of one element — so findByText worked or did not
+// depending on how far the app had got, which made this file quietly
+// order-dependent.
 async function selectRow(id) {
-  const cell = await screen.findByText(id);
-  await act(async () => { fireEvent.click(cell.closest('tr')); });
+  let row = null;
+  await waitFor(() => {
+    row = [...document.querySelectorAll('tr')]
+      .find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
+    if (!row) throw new Error(`no row ${id}`);
+  });
+  await act(async () => { fireEvent.click(row); });
+}
+
+/** Rows by their NAME, which is on screen whether or not ids are shown. */
+async function selectRowNamed(name) {
+  let row = null;
+  await waitFor(() => {
+    row = [...document.querySelectorAll('[data-testid="tree-row-name"]')]
+      .find(el => el.textContent.trim().startsWith(name))?.closest('tr');
+    if (!row) throw new Error(`no row named ${name}`);
+  });
+  await act(async () => { fireEvent.click(row); });
+  return row;
 }
 
 describe('the tree editor writes through to the plan', () => {
@@ -761,5 +783,61 @@ describe('the tree editor writes through to the plan', () => {
     const parent = planTree().find(n => n.name.includes('Pig invoices'));
     const child = planTree().find(n => n.name.includes('PO variant'));
     expect(child.id.startsWith(parent.id + '.'), `${child.id} under ${parent.id}`).toBe(true);
+  });
+});
+
+
+// ── Where Enter puts the next row ──────────────────────────────────────────
+// Reported: "with Enter I land in a sub-item and not in an item below the
+// current one". The list test above proves rows appear; it never asked at what
+// depth, which is the only part that was wrong.
+describe('Enter makes a sibling, ⇧Enter makes a child', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const depthOf = id => id.split('.').length;
+
+  it('puts the new row beside the one you were on, not under it', async () => {
+    renderApp();
+    await selectRowNamed('Prices');
+
+    await press(grid(), 'Enter');
+    const input = screen.getByTestId('tree-name-input-P1.1');
+    await act(async () => { fireEvent.change(input, { target: { value: 'Prices' } }); });
+    await press(input, 'Enter');
+
+    const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
+    expect(open, 'no editor opened for the next row').toBeTruthy();
+    const newId = open.getAttribute('data-testid').replace('tree-name-input-', '');
+
+    expect(depthOf(newId), `${newId} is not a sibling of P1.1`).toBe(depthOf('P1.1'));
+    expect(newId.startsWith('P1.')).toBe(true);
+
+    await press(open, 'Escape');
+  });
+
+  it('puts it underneath when ⇧ is held', async () => {
+    renderApp();
+    await selectRowNamed('Prices');
+
+    await press(grid(), 'Enter');
+    const input = screen.getByTestId('tree-name-input-P1.1');
+    await press(input, 'Enter', { shiftKey: true });
+
+    const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
+    expect(open).toBeTruthy();
+    const newId = open.getAttribute('data-testid').replace('tree-name-input-', '');
+
+    expect(depthOf(newId), `${newId} is not a child of P1.1`).toBe(depthOf('P1.1') + 1);
+    expect(newId.startsWith('P1.1.')).toBe(true);
+
+    await press(open, 'Escape');
   });
 });
