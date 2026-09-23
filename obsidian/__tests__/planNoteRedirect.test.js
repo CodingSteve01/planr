@@ -11,7 +11,7 @@
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { WorkspaceLeaf } from 'obsidian';
-import PlanrPlugin, { VIEW_TYPE_PLANR } from '../src/main.jsx';
+import PlanrPlugin, { PlanrView, VIEW_TYPE_PLANR, isPlanFile } from '../src/main.jsx';
 
 // The patch only needs `settings`, `fileModes` and `register`; building a real
 // plugin would mean stubbing half of Obsidian's API for no extra coverage.
@@ -113,5 +113,32 @@ describe('unloading the plugin', () => {
     WorkspaceLeaf.prototype.setViewState = theirs;
     plugin.cleanups.forEach(fn => fn());
     expect(WorkspaceLeaf.prototype.setViewState).toBe(theirs);
+  });
+});
+
+// ── Which files the view will take ─────────────────────────────────────────
+// Reported: with a plan open, opening an ordinary note loads that note INSIDE
+// the plugin. Obsidian keeps the current view whenever it can accept the new
+// file's extension, and this one answered yes to 'md' and 'json' — so every
+// note opened while a plan had focus was pulled into the plan's tab.
+describe('the view only claims the files it owns', () => {
+  const view = Object.create(PlanrView.prototype);
+
+  it('takes a .planr file', () => {
+    expect(view.canAcceptExtension('planr')).toBe(true);
+  });
+
+  it('does not take an ordinary note or a stray json', () => {
+    expect(view.canAcceptExtension('md')).toBe(false);
+    expect(view.canAcceptExtension('json')).toBe(false);
+    expect(view.canAcceptExtension('canvas')).toBe(false);
+  });
+
+  it('still recognises the two shapes a plan comes in', () => {
+    // The redirect and the "Open in Planr" menu name the view type themselves,
+    // so narrowing the extension test does not close either route.
+    expect(isPlanFile({ name: 'venneker.planr', extension: 'planr' })).toBe(true);
+    expect(isPlanFile({ name: 'venneker.planr.md', extension: 'md' })).toBe(true);
+    expect(isPlanFile({ name: 'Daily note.md', extension: 'md' })).toBe(false);
   });
 });

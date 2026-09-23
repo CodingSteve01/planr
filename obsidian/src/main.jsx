@@ -79,10 +79,30 @@ export class PlanrView extends FileView {
   getDisplayText() { return this.file ? planTitle(this.file.path) : 'Planr'; }
 
   canAcceptExtension(extension) {
-    return extension === PLAN_EXTENSION || extension === 'md' || extension === 'json';
+    // Only the extension Planr owns outright. This used to answer yes for
+    // 'md' and 'json' as well, and Obsidian keeps the current view whenever it
+    // can accept the new file's extension — so opening any ordinary note while
+    // a plan had focus loaded that note INTO the plan's tab.
+    //
+    // The other two ways in do not need this. A `.planr.md` is redirected in
+    // patchLeafViewState, which rewrites the requested type before the leaf
+    // acts on it, and a `.json` plan arrives through "Open in Planr", which
+    // sets the view state explicitly. Both name the view type themselves.
+    return extension === PLAN_EXTENSION;
   }
 
   async onLoadFile(file) {
+    // Belt and braces for the same thing: should a foreign file reach this
+    // view anyway, hand it back rather than mounting the app against a note.
+    if (!isPlanFile(file) && !/\.json$/i.test(file?.name || '')) {
+      delete this.plugin.fileModes[this.leaf.id];
+      this.leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source' }, active: true });
+      return;
+    }
+    return this.onLoadPlanFile(file);
+  }
+
+  async onLoadPlanFile(file) {
     // Already showing this plan — a Save As that the leaf is only now catching
     // up with. Remounting would throw away the session (undo stack, open tab,
     // selection) to load a file the app just wrote itself.

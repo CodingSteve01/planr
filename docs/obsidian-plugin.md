@@ -29,6 +29,16 @@ Step-by-step instructions live in the [README](../README.md#or-run-it-in-obsidia
   build with an inline sourcemap). Obsidian picks up a new build after *Reload
   app without saving* (`Ctrl/Cmd+R`) or toggling the plugin off and on.
 
+`npm run obsidian:install` writes the vault path to `obsidian/.vault-path`, and
+this checkout carries three git hooks that rebuild into that vault whenever
+something the plugin contains has changed — on `post-commit`, `post-checkout`
+and `post-merge`. They live in `.git/hooks`, are never committed, and run on
+one machine only. For a while only the last two existed, so a run of commits on
+one branch left the vault on whatever the previous branch switch had built,
+which reads as "it updates itself" right up until it does not. Either way the
+vault only changes when a build succeeds: a failed build leaves the previous
+one in place and says so.
+
 ## Using it
 
 A Planr tab is an editor tab: one tab, one plan, as many at once as you like.
@@ -88,6 +98,14 @@ Four files carry all of it:
   React tree per open plan, registers the ribbon icon, the command and the
   file-menu entry, redirects a plan note away from the Markdown editor, and
   hands each view the container its own modals and dropdowns portal into.
+
+  `canAcceptExtension` answers for `.planr` and nothing else. Obsidian keeps
+  the current view whenever it can accept the new file's extension, so while
+  this also answered yes to `md` and `json`, opening an ordinary note with a
+  plan in focus loaded that note *into the plan's tab*. The other two ways in
+  do not need it: a `.planr.md` is redirected in `patchLeafViewState`, which
+  rewrites the requested type before the leaf acts on it, and a `.json` plan
+  arrives through "Open in Planr" — both name the view type themselves.
 - **`obsidian/src/vaultFs.js`** — the file pickers and the handle objects they
   return, implemented on `app.vault`.
 - **`obsidian/src/filePickers.js`** and **`obsidian/src/fileHandleStore.js`** —
