@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { CONF_COLOR } from '../../constants.js';
 import { isLeafNode, leafNodes, leafProgress, parentId, re } from '../../utils/scheduler.js';
 import { aggregateProgressPct, progressPctLabel } from '../../utils/progress.js';
 import { iso, diffDays, localDate } from '../../utils/date.js';
@@ -13,7 +14,6 @@ const S_DOT = { open: '○', wip: '◐', done: '●' };
 const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
 const S_LABEL = { open: 'tv.statusOpen', wip: 'tv.statusWip', done: 'tv.statusDone' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
-const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const PH_DOT = { done: '●', wip: '◐', open: '○' };
 const PH_COLOR = { done: 'var(--gr)', wip: 'var(--am)', open: 'var(--tx3)' };
 

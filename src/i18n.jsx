@@ -511,6 +511,7 @@ const en = {
   'rm.arrived': 'Arrived — every work package on this line is done',
   's.otherProjects': 'Projects',
   'rm.showMore': '+{0} more', 'rm.showLess': 'Show fewer',
+  's.peopleLeft': '{0} left the team',
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff since', 'diff.progressSince': 'Progress since',
@@ -1643,6 +1644,7 @@ const de = {
   'rm.arrived': 'Angekommen — jedes Arbeitspaket dieser Linie ist erledigt',
   's.otherProjects': 'Projekte',
   'rm.showMore': '+{0} weitere anzeigen', 'rm.showLess': 'Weniger anzeigen',
+  's.peopleLeft': '{0} ausgeschieden',
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
   'diff.since': 'Diff seit', 'diff.progressSince': 'Fortschritt seit',

@@ -395,7 +395,7 @@ tr:nth-child(even) td{background:${PRINT.ground}}
   // ── 3. RISKS ──
   if (risks.length) {
     h += `<h2>${t('Risks & Alerts','Risiken & Warnungen')}</h2>`;
-    risks.forEach(r => h += `<div class="risk risk-${r.severity === 'critical' ? 'crit' : r.severity === 'high' ? 'high' : 'med'}">${r.severity === 'critical' ? '⚠ ' : r.severity === 'high' ? '⚡ ' : 'ℹ '}${r.text}</div>`);
+    risks.forEach(r => h += `<div class="risk risk-${r.severity === 'critical' ? 'crit' : r.severity === 'high' ? 'high' : 'med'}">${r.title ? `<b>${r.title}</b> — ` : ''}${r.text}${r.ask ? ` <i>${r.ask}</i>` : ''}</div>`);
   }
 
   // ── 4. PLANNING CONFIDENCE ──
@@ -471,7 +471,7 @@ tr:nth-child(even) td{background:${PRINT.ground}}
       // Same state machine as the Overview cards: finished work reports done,
       // never "at risk".
       const ds = deadlineStates[g.id];
-      const risk = ds?.state === 'atRisk' ? `<span style="color:${PRINT.risk};font-weight:700">⚠ ${t('AT RISK','GEFÄHRDET')}</span>`
+      const risk = ds?.state === 'atRisk' ? `<span style="color:${PRINT.risk};font-weight:700">${t('AT RISK','GEFÄHRDET')}</span>`
         : ds?.state === 'doneLate' ? `<span style="color:${PRINT.wip};font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
           : ds?.state === 'done' ? `<span style="color:${PRINT.done};font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
             : rd?.endD ? `<span style="color:${PRINT.done}">✓ ${t('on track','im Plan')}</span>` : '—';

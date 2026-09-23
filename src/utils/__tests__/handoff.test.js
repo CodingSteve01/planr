@@ -11,7 +11,7 @@ describe('segmentShorts', () => {
     expect(segmentShorts({ assign: ['m1', 'm2'] }, shortMap)).toBe('AB/CD');
   });
   test('unscheduled → warning glyph', () => {
-    expect(segmentShorts({ unscheduled: true }, shortMap)).toBe('⚠');
+    expect(segmentShorts({ unscheduled: true }, shortMap)).toBe('!');
   });
   test('unknown id → first two chars uppercase', () => {
     expect(segmentShorts({ personId: 'foo' }, shortMap)).toBe('FO');
@@ -44,7 +44,7 @@ describe('chainShorts', () => {
   });
   test('unscheduled tail gets warning', () => {
     const s = { segments: [{ personId: 'm1' }, { unscheduled: true }] };
-    expect(chainShorts(s, shortMap)).toBe('AB→⚠');
+    expect(chainShorts(s, shortMap)).toBe('AB→!');
   });
   test('primaryShorts override respected', () => {
     const s = { segments: [{ personId: 'm1' }, { personId: 'm2' }] };
@@ -75,6 +75,6 @@ describe('chainTooltip', () => {
       { personId: 'm1', personName: 'Alex' },
       { unscheduled: true, effort: 5.5 },
     ]};
-    expect(chainTooltip(s)).toBe('Alex → ⚠ unassigned (5.5 PT)');
+    expect(chainTooltip(s)).toBe('Alex → ! unassigned (5.5 PT)');
   });
 });

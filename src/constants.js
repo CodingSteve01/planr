@@ -13,3 +13,11 @@ export const GT = { goal: '🎯', painpoint: '⚡', deadline: '!' };
 // the font rather than the layout — see components/shared/Icon.jsx.
 export const GT_ICON = { goal: 'target', painpoint: 'bolt', deadline: 'clock' };
 export const GL = { goal: 'Goal', painpoint: 'Painpoint', deadline: 'Deadline' };
+
+// Planning confidence is an ORDINAL scale, not a status: nothing about
+// "exploratory" is bad, it is simply less settled than "committed". It used to
+// be drawn in green/amber/grey — the status triple — in four separate copies
+// of this map, which spent the three status hues on a quantity that is never
+// good or bad. One hue, three steps, defined once. The print palette mirrors
+// the same tokens so the paper and the screen agree.
+export const CONF_COLOR = { committed: 'var(--cf-hi)', estimated: 'var(--cf-mid)', exploratory: 'var(--cf-lo)' };

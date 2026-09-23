@@ -1,4 +1,5 @@
 import { useMemo, useState, memo } from 'react';
+import { CONF_COLOR } from '../../constants.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
@@ -145,7 +146,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     {/* Confidence bar */}
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
-      {[['committed', 'var(--gr)'], ['estimated', 'var(--am)'], ['exploratory', 'var(--tx3)']].map(([c, col]) =>
+      {['committed', 'estimated', 'exploratory'].map(c => CONF_COLOR[c] && [c, CONF_COLOR[c]]).map(([c, col]) =>
         <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12, color: col }}>{CL[c]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700, color: col }}>{confCounts[c]}</span>
@@ -154,9 +155,9 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{confCounts.done} {t('p.finished')}</span>
     </div>
     {total > 0 && <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 20, background: 'var(--bg4)' }}>
-      <div style={{ width: `${confCounts.committed / total * 100}%`, background: 'var(--gr)' }} />
-      <div style={{ width: `${confCounts.estimated / total * 100}%`, background: 'var(--am)' }} />
-      <div style={{ width: `${confCounts.exploratory / total * 100}%`, background: 'var(--tx3)' }} />
+      <div style={{ width: `${confCounts.committed / total * 100}%`, background: CONF_COLOR.committed }} />
+      <div style={{ width: `${confCounts.estimated / total * 100}%`, background: CONF_COLOR.estimated }} />
+      <div style={{ width: `${confCounts.exploratory / total * 100}%`, background: CONF_COLOR.exploratory }} />
     </div>}
 
     {/* Section tabs. They WRAP rather than pushing the pane wide: seven of

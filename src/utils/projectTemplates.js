@@ -12,7 +12,9 @@ export const PROJECT_TEMPLATES = [
     id: 'software-dev',
     nameKey: 'tpl.softwareDev',
     descKey: 'tpl.softwareDev.desc',
-    icon: '💻',
+    // A drawn icon, not an emoji: emoji come from a different font on every
+    // machine and ignore the colour of what they sit in. See shared/Icon.jsx.
+    icon: 'network',
     risks: [
       { id: 'new_tech',    nameKey: 'tpl.sw.risk.newTech',    weight: 0.15 },
       { id: 'external',    nameKey: 'tpl.sw.risk.external',   weight: 0.10 },
@@ -57,7 +59,7 @@ export const PROJECT_TEMPLATES = [
     id: 'generic',
     nameKey: 'tpl.generic',
     descKey: 'tpl.generic.desc',
-    icon: '📋',
+    icon: 'list',
     risks: [
       { id: 'unclear',  nameKey: 'tpl.gen.risk.unclear',  weight: 0.15 },
       { id: 'external', nameKey: 'tpl.gen.risk.external', weight: 0.10 },

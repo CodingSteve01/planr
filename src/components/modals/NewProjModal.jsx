@@ -81,7 +81,7 @@ export function NewProjModal({ onCreate, onClose }) {
                   border: `1px solid ${templateId === tpl.id ? 'var(--ac)' : 'var(--b2)'}`,
                   color: 'var(--tx)', fontFamily: 'var(--font)',
                 }}>
-                <span style={{ fontSize: 20, lineHeight: 1 }}>{tpl.icon}</span>
+                <span style={{ display: 'inline-flex', color: templateId === tpl.id ? 'var(--ac)' : 'var(--tx3)' }}><Icon name={tpl.icon} size={18} /></span>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{t(tpl.nameKey)}</span>
                 <span style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>{t(tpl.descKey)}</span>
               </button>
