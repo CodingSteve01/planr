@@ -178,6 +178,39 @@ export function visibleSiblingTarget(visibleIds, id, direction) {
   return null;
 }
 
+// Where ⌥↑/⌥↓ should take a row that has run out of siblings.
+//
+// Reported: reaching the end of a branch, the row simply stops — and to carry
+// it on you had to outdent, reorder, indent again, in the right order. So the
+// press keeps its meaning at the boundary: the row steps OUT one level and
+// lands immediately above (or below) the parent it just left, which is the
+// row it was pressing against. Repeat it and the row walks out of any nesting
+// and on through the top level; `Tab` is still how it goes back in, because
+// diving into whatever branch happens to be next is not something a plain
+// arrow should decide.
+//
+// Returns `{ parentId, targetId, position }` — a re-parent followed by a
+// placement — or null when there is nowhere further out (a root) or the row
+// is not at that end of its run after all.
+export function outOfGroupTarget(visibleIds, id, direction) {
+  if (direction !== 'up' && direction !== 'down') return null;
+  const parent = id.split('.').slice(0, -1).join('.');
+  // A root item is already as far out as it goes.
+  if (!parent) return null;
+  // The parent has to be on screen: everything below is positioned relative
+  // to it, and a filter that hides it hides the ground this stands on.
+  if (!visibleIds.includes(parent)) return null;
+  const sameParent = visibleIds.filter(v => v.split('.').slice(0, -1).join('.') === parent);
+  const idx = sameParent.indexOf(id);
+  if (idx < 0) return null;
+  if (direction === 'up' ? idx !== 0 : idx !== sameParent.length - 1) return null;
+  return {
+    parentId: parent.split('.').slice(0, -1).join('.'),
+    targetId: parent,
+    position: direction === 'up' ? 'before' : 'after',
+  };
+}
+
 // ── Keeping the cursor on screen ─────────────────────────────────────────
 // How far to scroll so a row is comfortably inside its scroll container.
 // Pure geometry, because the version this replaces got the geometry wrong
