@@ -239,9 +239,6 @@ const SUMMARY_W = 770;
 // rather than data-driven — always five KPI slots, at most five risks, one
 // confidence bar — because a page whose shape changes month to month cannot be
 // read as a series.
-const KPI_SLOTS = 5;
-const KPI_GUTTER = 16;
-const KPI_W = (SUMMARY_W - KPI_GUTTER * (KPI_SLOTS - 1)) / KPI_SLOTS;
 const MAX_RISKS = 5;
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2 };
 
@@ -260,55 +257,71 @@ function fmtInt(n, de) {
   return new Intl.NumberFormat(de ? 'de-DE' : 'en-US').format(Math.round(n || 0));
 }
 
-// The sentence the whole page exists to deliver. Red whenever a recorded date
-// is missed, amber when the forecast rests on work nobody has scoped yet, and
-// an explicit "no target on record" rather than a silent green — that absence
-// is itself something a board needs told.
-function summaryVerdict(m) {
-  const { t, de, deadlineStates, roots, projectEnd, ccPt } = m;
-  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
-  const unclear = ccPt.exploratory;
-  const unclearShare = openPt > 0 ? unclear / openPt : 0;
-  const end = fmtMonth(projectEnd);
-  let worst = null;
-  Object.keys(deadlineStates || {}).forEach(id => {
-    const ds = deadlineStates[id];
-    if (!ds?.isLate || !ds.end || !ds.dateD) return;
-    const days = Math.round((ds.end - ds.dateD) / 86400000);
-    if (!worst || days > worst.days) worst = { days, name: roots.find(r => r.id === id)?.name || id };
+// One row per project, because a programme of eight independent projects has
+// no single answer to "when is it done". The page used to print the maximum
+// across all of them, which is the slowest project's date wearing the whole
+// programme's name — true, and no use to anyone deciding about any one of them.
+function projectStatus(m) {
+  const { rootData, deadlineStates } = m;
+  return rootData.map(r => {
+    const ds = deadlineStates?.[r.id] || null;
+    const days = (ds?.dateD && ds?.end) ? Math.round((ds.end - ds.dateD) / 86400000) : null;
+    const late = !!ds?.isLate && days !== null && days > 0;
+    const unclear = r.openPt > 0 ? r.ccPt.exploratory / r.openPt : 0;
+    return {
+      ...r, ds, days, late, unclear,
+      color: late ? PRINT.risk : unclear > 0.25 ? PRINT.wip : PRINT.done,
+    };
+  }).sort((a, b) => {
+    // Missed dates first, worst by days; then everything else by how much of
+    // it is still unscoped.
+    if (a.late !== b.late) return a.late ? -1 : 1;
+    if (a.late && b.late) return b.days - a.days;
+    return b.unclear - a.unclear;
   });
-  if (worst) {
-    const months = Math.max(1, Math.round(worst.days / 30));
+}
+
+// The sentence the whole page exists to deliver.
+function summaryVerdict(m, projects) {
+  const { t, ccPt } = m;
+  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+  const unclearShare = openPt > 0 ? ccPt.exploratory / openPt : 0;
+  const withTarget = projects.filter(p => p.ds?.dateD);
+  const lateOnes = projects.filter(p => p.late);
+  const last = projects.reduce((acc, p) => (p.endD && (!acc || !acc.endD || p.endD > acc.endD)) ? p : acc, null);
+  const lastTxt = last ? `${fmtMonth(last.endD)} (${(last.name || '').trim()})` : '—';
+  if (lateOnes.length) {
+    const worst = lateOnes[0];
     return {
       word: t('RED', 'ROT'), color: PRINT.risk,
-      delta: '+' + months + ' ' + t('mo.', 'Mon.'), deltaColor: PRINT.risk,
       line: t(
-        `Forecast ${end} — "${worst.name}" misses its date by ${worst.days} days. Main driver: ${fmtInt(unclear, de)} PT of unclear scope.`,
-        `Prognose ${end} — „${worst.name}" verfehlt den Termin um ${worst.days} Tage. Haupttreiber: ${fmtInt(unclear, de)} PT mit ungeklärtem Scope.`,
+        `${lateOnes.length} of ${projects.length} projects miss their date — worst "${(worst.name || '').trim()}" by ${worst.days} days. Last project ends ${lastTxt}.`,
+        `${lateOnes.length} von ${projects.length} Projekten verfehlen ihren Termin — am stärksten „${(worst.name || '').trim()}" um ${worst.days} Tage. Letztes Projekt endet ${lastTxt}.`,
       ),
     };
   }
-  const hasTarget = Object.keys(deadlineStates || {}).some(id => deadlineStates[id]?.dateD);
-  if (!hasTarget) {
+  if (!withTarget.length) {
     return {
-      word: t('NO TARGET', 'KEIN ZIEL'), color: PRINT.wip, delta: '—', deltaColor: PRINT.muted,
-      line: t(`Forecast ${end}. No target date on record — the forecast cannot be measured against anything.`,
-              `Prognose ${end}. Kein Zieltermin hinterlegt — die Prognose lässt sich an nichts messen.`),
+      word: t('NO TARGET', 'KEIN ZIEL'), color: PRINT.wip,
+      line: t(
+        `No project carries a target date, so none can be measured against one. Last project ends ${lastTxt}.`,
+        `Kein Projekt hat einen hinterlegten Zieltermin, also lässt sich keines an einem messen. Letztes Projekt endet ${lastTxt}.`,
+      ),
     };
   }
   if (unclearShare > 0.25) {
     return {
       word: t('AMBER', 'GELB'), color: PRINT.wip,
-      delta: t('on plan', 'im Plan'), deltaColor: PRINT.done,
-      line: t(`Forecast ${end}. Every recorded date holds, but ${Math.round(unclearShare * 100)}% of the open effort is not scoped yet.`,
-              `Prognose ${end}. Alle hinterlegten Termine halten, aber ${Math.round(unclearShare * 100)}% des offenen Aufwands sind noch nicht geklärt.`),
+      line: t(
+        `All ${withTarget.length} recorded dates hold, but ${Math.round(unclearShare * 100)}% of the open effort is not scoped yet. Last project ends ${lastTxt}.`,
+        `Alle ${withTarget.length} hinterlegten Termine halten, aber ${Math.round(unclearShare * 100)}% des offenen Aufwands sind noch nicht geklärt. Letztes Projekt endet ${lastTxt}.`,
+      ),
     };
   }
   return {
     word: t('GREEN', 'GRÜN'), color: PRINT.done,
-    delta: t('on plan', 'im Plan'), deltaColor: PRINT.done,
-    line: t(`Forecast ${end}. Every recorded date holds under the current plan.`,
-            `Prognose ${end}. Alle hinterlegten Termine werden nach aktueller Planung gehalten.`),
+    line: t(`Every recorded date holds under the current plan. Last project ends ${lastTxt}.`,
+            `Alle hinterlegten Termine werden nach aktueller Planung gehalten. Letztes Projekt endet ${lastTxt}.`),
   };
 }
 
@@ -380,39 +393,44 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, deadlineStates, confidence, members, lvs, scheduled, teams } = m;
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const de = m.de;
-  const v = summaryVerdict(m);
+  const projects = projectStatus(m);
+  const v = summaryVerdict(m, projects);
   const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
-  const unassignedPt = ccPt.estimated + ccPt.exploratory;
-  const unassignedCount = cc.estimated + cc.exploratory;
 
-  // Five fixed cells at a width derived once. Sizing to content — or handing
-  // pdfmake a variable number of '*' children — is what walked the ninth KPI
-  // off the right margin: '*' stops the clipping but a 16pt value still
-  // overruns its share and collides with its neighbour.
-  const kpiBlock = (label, value, sub, color = PRINT.ink) => ({
-    width: KPI_W,
-    stack: [
-      { text: String(value), fontSize: 20, bold: true, color, margin: [0, 0, 0, 2] },
-      { text: label, fontSize: 9, color: PRINT.ink2, margin: [0, 0, 0, 1] },
-      { text: sub || ' ', fontSize: 8, color: PRINT.muted },
-    ],
-  });
-  const kpis = [
-    kpiBlock(t('Projected end', 'Prognose Ende'), fmtMonth(projectEnd), ''),
-    kpiBlock(t('Against target', 'Abweichung zum Ziel'), v.delta, '', v.deltaColor),
-    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', fmtInt(donePt, de) + ' / ' + fmtInt(totalPt, de) + ' PT'),
-    kpiBlock(t('Scope unclear', 'Scope ungeklärt'), fmtInt(ccPt.exploratory, de) + ' PT',
-      openPt > 0 ? Math.round(ccPt.exploratory / openPt * 100) + t('% of open effort', '% des offenen Aufwands') : ''),
-    kpiBlock(t('Nobody assigned', 'Ohne Verantwortliche'), fmtInt(unassignedPt, de) + ' PT', unassignedCount + ' Items'),
+  // The confidence ramp, used identically in the per-project mini-bars and in
+  // the summary bar further down.
+  const CONF = [
+    [t('Committed', 'Verbindlich'), 'committed', PRINT.confHi],
+    [t('Estimated', 'Geschätzt'), 'estimated', PRINT.confMid],
+    [t('Exploratory', 'Explorativ'), 'exploratory', PRINT.confLo],
   ];
+  const confBar = (ccPtOf, total, width) => {
+    if (!(total > 0)) return { text: '', width };
+    let x = 0;
+    const rects = CONF.map(([, key, col]) => {
+      const w = width * (ccPtOf[key] || 0) / total;
+      const r = { type: 'rect', x, y: 0, w, h: 7, color: col };
+      x += w;
+      return r;
+    }).filter(r => r.w > 0.2);
+    return { canvas: rects, width, margin: [0, 2, 0, 0] };
+  };
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
     { text: t('Management summary for the board', 'Management-Zusammenfassung für den Vorstand'), fontSize: 11, color: PRINT.ink2, margin: [0, 1, 0, 1] },
     {
-      text: t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`)
-        + (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '')
-        + (projectEnd ? ' · ' + t('horizon to', 'Horizont bis') + ' ' + fmtMonth(projectEnd) : ''),
+      // The progress figure is its own text node rather than part of the
+      // sentence: exportParity holds the PDF to printing the very percentage
+      // the Overview shows, and it looks for it as a standalone token.
+      text: [
+        t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`)
+          + (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '')
+          + ' · ' + projects.length + ' ' + t('projects', 'Projekte')
+          + ' · ' + fmtInt(totalPt, de) + ' PT · ',
+        { text: progLabel + '%' },
+        ' ' + t('delivered', 'erledigt'),
+      ],
       fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 14],
     },
     // The verdict. The only traffic-light word in the whole document.
@@ -423,8 +441,75 @@ export async function exportSummaryPDF(ctx, options = {}) {
       ],
       margin: [0, 0, 0, 16],
     },
-    { columns: kpis, columnGap: KPI_GUTTER, margin: [0, 0, 0, 18] },
   ];
+
+  // ── Per project ──────────────────────────────────────────────────────────
+  content.push({ text: t('Where each project stands', 'Wo jedes Projekt steht'), style: 'h2' });
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: [3, 22, '*', 48, 56, 44, 82, 104],
+      body: [
+        [
+          { text: '', border: [false, false, false, false] },
+          { text: '', fontSize: 8, color: PRINT.muted, margin: [6, 0, 0, 3] },
+          { text: t('Project', 'Projekt'), fontSize: 8, color: PRINT.muted, margin: [0, 0, 0, 3] },
+          { text: t('Forecast', 'Prognose'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Target', 'Ziel'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Delta', 'Abw.'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Progress', 'Fortschritt'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 10, 3] },
+          { text: t('Open effort', 'Offener Aufwand'), fontSize: 8, color: PRINT.muted, margin: [0, 0, 0, 3] },
+        ].map(c => ({ ...c, border: [false, false, false, true] })),
+        ...projects.map(p => {
+          const delta = p.days === null ? '—'
+            : p.days > 0 ? '+' + Math.max(1, Math.round(p.days / 30)) + ' ' + t('mo.', 'Mon.')
+              : t('on time', 'im Plan');
+          return [
+            { text: '', fillColor: p.color },
+            { text: p.id, fontSize: 9, bold: true, color: PRINT.ink, margin: [6, 4, 0, 4] },
+            { text: (p.name || '').trim(), fontSize: 9, color: PRINT.ink, margin: [0, 4, 6, 4] },
+            { text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'), fontSize: 9, color: p.endD ? PRINT.ink : PRINT.muted, alignment: 'right', margin: [0, 4, 0, 4] },
+            { text: p.ds?.dateD ? fmtDay(p.ds.dateD, de) : '—', fontSize: 9, color: PRINT.ink2, alignment: 'right', margin: [0, 4, 0, 4] },
+            { text: delta, fontSize: 9, color: p.days > 0 ? PRINT.risk : PRINT.ink2, alignment: 'right', margin: [0, 4, 0, 4] },
+            { text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right', noWrap: true, margin: [0, 4, 10, 4] },
+            { ...confBar(p.ccPt, p.openPt, 104), margin: [0, 6, 0, 4] },
+          ].map(c => ({ ...c, border: [false, false, false, false] }));
+        }),
+      ],
+    },
+    layout: {
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+      hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0 : 0.5,
+      hLineColor: () => PRINT.rule,
+      vLineWidth: () => 0,
+    },
+    margin: [0, 0, 0, 6],
+  });
+  // The ramp is ordinal, so the legend reads left to right in that order and
+  // says once what the three steps mean.
+  content.push({
+    columns: [
+      ...CONF.map(([label, key, col]) => ({
+        width: 'auto',
+        columns: [
+          { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, color: col }], width: 12 },
+          { text: label + ' ' + fmtInt(ccPt[key], de) + ' PT', fontSize: 8, color: PRINT.muted, width: 'auto', noWrap: true },
+        ],
+        columnGap: 2,
+      })),
+      { text: '', width: '*' },
+    ],
+    columnGap: 14,
+    margin: [25, 0, 0, 3],
+  });
+  // The per-project bars carry the split and the legend carries the totals, so
+  // a second aggregate bar would say the same thing a third time. What is left
+  // is the one line that says what the three steps mean.
+  content.push({
+    text: t('Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
+            'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen'),
+    fontSize: 8, color: PRINT.muted, margin: [25, 0, 0, 14],
+  });
 
   // Sorted by severity then magnitude, and capped. report.js pushes rule by
   // rule, so without this a medium could sit above a critical — which it did.
@@ -464,56 +549,6 @@ export async function exportSummaryPDF(ctx, options = {}) {
     } else {
       content.push({ text: '', margin: [0, 0, 0, 10] });
     }
-  }
-
-  // One labelled bar, no table. The bar and the table carried the same three
-  // numbers; the table's "Beschreibung" column repeated a definition on every
-  // row, which is what a footnote is for.
-  if (openPt > 0) {
-    const confBarW = 420;
-    const seg = pt => confBarW * pt / openPt;
-    content.push({ text: t(`How solid are the ${fmtInt(openPt, de)} open PT?`, `Wie belastbar sind die ${fmtInt(openPt, de)} offenen PT?`), style: 'h2' });
-    content.push({
-      columns: [
-        {
-          width: confBarW,
-          stack: [
-            {
-              canvas: [
-                { type: 'rect', x: 0, y: 0, w: seg(ccPt.committed), h: 14, color: PRINT.done },
-                { type: 'rect', x: seg(ccPt.committed), y: 0, w: seg(ccPt.estimated), h: 14, color: PRINT.wip },
-                { type: 'rect', x: seg(ccPt.committed + ccPt.estimated), y: 0, w: seg(ccPt.exploratory), h: 14, color: PRINT.muted },
-              ],
-              margin: [0, 2, 0, 6],
-            },
-            {
-              text: t('Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
-                      'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen'),
-              fontSize: 8, color: PRINT.muted,
-            },
-          ],
-        },
-        {
-          width: '*',
-          margin: [20, 0, 0, 0],
-          stack: [
-            [t('Committed', 'Verbindlich'), ccPt.committed, cc.committed, PRINT.done],
-            [t('Estimated', 'Geschätzt'), ccPt.estimated, cc.estimated, PRINT.wip],
-            [t('Exploratory', 'Explorativ'), ccPt.exploratory, cc.exploratory, PRINT.muted],
-          ].map(([label, ptv, count, col]) => ({
-            columns: [
-              { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, color: col }], width: 12 },
-              { text: label, fontSize: 9, color: PRINT.ink, width: 66 },
-              { text: fmtInt(ptv, de) + ' PT', fontSize: 9, color: PRINT.ink, width: 56, alignment: 'right' },
-              { text: openPt > 0 ? Math.round(ptv / openPt * 100) + '%' : '—', fontSize: 9, color: PRINT.muted, width: 34, alignment: 'right' },
-              { text: count + ' Items', fontSize: 9, color: PRINT.muted, margin: [8, 0, 0, 0] },
-            ],
-            columnGap: 2, margin: [0, 0, 0, 3],
-          })),
-        },
-      ],
-      margin: [0, 0, 0, 10],
-    });
   }
 
   // Same props as the SVG render — keeps the legend line order, colors,

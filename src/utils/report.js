@@ -49,6 +49,13 @@ export function buildReportModel(rawCtx) {
   const lvs = leafNodes(tree);
   const now = new Date();
   const dateStr = now.toLocaleDateString(de ? 'de-DE' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  // One date format per document. ISO inside a German sentence reads as a
+  // build number, and the summary printed both forms three lines apart.
+  const dt = isoStr => {
+    const v = String(isoStr || '');
+    if (!de || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return v || '—';
+    return v.slice(8, 10) + '.' + v.slice(5, 7) + '.' + v.slice(0, 4);
+  };
   const GT = { goal: '🎯', painpoint: '⚡', deadline: '⏰' };
 
   // ── Compute all metrics from SCHEDULED data (real scheduler output) ─────
@@ -80,7 +87,23 @@ export function buildReportModel(rawCtx) {
     // materially different number to management than the screen showed.
     // doneCount/leafCount stay available as what they are: a task count.
     const pt = totalEffort(childLeaves);
-    return { ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC, prog: aggregateProgressPct(childLeaves), pt, conf: confidence[root.id] || 'committed' };
+    // Confidence split for this root alone. A programme of eight independent
+    // projects has no single answer to "how solid is the plan" — the aggregate
+    // is dominated by whichever project is largest, so each one carries its
+    // own. Remaining effort, matching the global buckets.
+    const rootCc = { committed: 0, estimated: 0, exploratory: 0 };
+    const rootCcPt = { committed: 0, estimated: 0, exploratory: 0 };
+    childLeaves.filter(r => r.status !== 'done').forEach(r => {
+      const c = confidence[r.id] || 'committed';
+      rootCc[c]++;
+      rootCcPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
+    });
+    return {
+      ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC,
+      prog: aggregateProgressPct(childLeaves), pt, conf: confidence[root.id] || 'committed',
+      cc: rootCc, ccPt: rootCcPt,
+      openPt: rootCcPt.committed + rootCcPt.estimated + rootCcPt.exploratory,
+    };
   });
 
   // Confidence
@@ -137,7 +160,7 @@ export function buildReportModel(rawCtx) {
     risks.push({
       severity: 'critical', rank: daysLate,
       title: t(`Deadline "${dl.name}"`, `Termin „${dl.name}"`),
-      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${iso(ds.end)} gegen ${dl.date}`),
+      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${dt(iso(ds.end))} gegen ${dt(dl.date)}`),
       ask: t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
     });
   });
@@ -149,14 +172,11 @@ export function buildReportModel(rawCtx) {
     text: t(`${expOnCp.length} exploratory items determine the end date`, `${expOnCp.length} explorative Items bestimmen den Endtermin`),
     ask: t('Commission concept work', 'Konzeption beauftragen'),
   });
-  // 3. Unassigned work blocking progress
-  const unassignedPt = ccPt.estimated + ccPt.exploratory;
-  if (unassignedPt > 100) risks.push({
-    severity: 'medium', rank: unassignedPt,
-    title: t('No one assigned', 'Keine Verantwortlichen'),
-    text: t(`${unassignedPt.toFixed(0)} PT across ${cc.estimated + cc.exploratory} items have no person`, `${unassignedPt.toFixed(0)} PT in ${cc.estimated + cc.exploratory} Items ohne Person`),
-    ask: t('Decide on staffing', 'Besetzung entscheiden'),
-  });
+  // 3. Work with nobody on it is NOT a risk here. Names are settled at the
+  //    start of a sprint, not years out, so a long-horizon plan is expected to
+  //    carry most of its effort unnamed — reporting that as a finding buried
+  //    the real ones under a number that is true every single month.
+  //    Unscoped work still counts (rule 2): that one does move the end date.
   // 4. Overloaded team members. Capacity scales with actual project span
   //    (not a fixed year).
   const planStart = meta.planStart ? new Date(meta.planStart) : null;
@@ -194,21 +214,32 @@ export function buildReportModel(rawCtx) {
   // 5. Offboard-truncated tasks — last segment's assignee offboards and no
   //    further team member can absorb the remainder. Critical — work will
   //    silently go undone without intervention.
+  //    One departure that strands four tasks is one decision to make, not four
+  //    findings — listing them per task pushed everything else off the page.
+  //    Grouped by the person leaving.
   const truncatedTasks = scheduled.filter(s => s.truncatedByOffboard);
+  const byLeaver = new Map();
   truncatedTasks.forEach(s => {
     const tr = s.truncatedByOffboard;
+    const key = tr.personId || tr.personName || '?';
+    if (!byLeaver.has(key)) byLeaver.set(key, { name: tr.personName, date: tr.offboardDate, pt: 0, tasks: [] });
+    const g = byLeaver.get(key);
+    g.pt += tr.remainingEffort;
+    g.tasks.push(s.name);
+    // The earliest departure date wins; they should all be the same person's.
+    if (tr.offboardDate < g.date) g.date = tr.offboardDate;
+  });
+  byLeaver.forEach(g => {
     // A truncated task can have no named assignee at all; say so rather than
     // printing the missing name into the sentence.
-    const who = t(
-      tr.personName ? `${tr.personName} offboards` : 'the assignee offboards',
-      tr.personName ? `${tr.personName} verlässt das Team` : 'die zugewiesene Person verlässt das Team',
-    );
+    const who = g.name || t('The assignee', 'Die zugewiesene Person');
+    const n = g.tasks.length;
     risks.push({
-      severity: 'critical', rank: tr.remainingEffort,
-      title: t(`Work left behind: ${s.name}`, `Arbeit bleibt liegen: ${s.name}`),
+      severity: 'critical', rank: g.pt,
+      title: t(`${who} leaves — work stays behind`, `${who} geht — Arbeit bleibt liegen`),
       text: t(
-        `${tr.remainingEffort.toFixed(0)} PT unscheduled — ${who} ${tr.offboardDate}, no replacement in team`,
-        `${tr.remainingEffort.toFixed(0)} PT nicht eingeplant — ${who} am ${tr.offboardDate}, keine Nachbesetzung im Team`,
+        `${g.pt.toFixed(0)} PT across ${n} ${n === 1 ? 'task' : 'tasks'} unscheduled from ${dt(g.date)}, no replacement in team`,
+        `${g.pt.toFixed(0)} PT in ${n} ${n === 1 ? 'Aufgabe' : 'Aufgaben'} ab ${dt(g.date)} nicht eingeplant, keine Nachbesetzung im Team`,
       ),
       ask: t('Appoint a successor', 'Nachfolge benennen'),
     });

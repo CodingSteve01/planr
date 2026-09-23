@@ -127,6 +127,13 @@ describe('sanitizePdfText', () => {
     expect(sanitizePdfText('Status 🟢 grün')).toBe('Status grün');
   });
 
+  it('does not leave the dropped symbol\'s space in front of punctuation', () => {
+    // A project named with a trailing icon printed inside quotes as
+    // „Abrechnung in VOffice " — the gap where the icon had been.
+    expect(sanitizePdfText('„Abrechnung in VOffice ⏰\u201c')).toBe('„Abrechnung in VOffice\u201c');
+    expect(sanitizePdfText('fertig 🎯.')).toBe('fertig.');
+  });
+
   it('walks a whole docDefinition but never touches embedded svg', () => {
     const svg = '<svg><text>✓ keep</text></svg>';
     const out = sanitizePdfDoc({

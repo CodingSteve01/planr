@@ -48,6 +48,9 @@ describe('the printed palette', () => {
     ['doneSoft', 'st-done-soft'],
     ['wipSoft', 'st-wip-soft'],
     ['riskSoft', 'st-risk-soft'],
+    ['confHi', 'cf-hi'],
+    ['confMid', 'cf-mid'],
+    ['confLo', 'cf-lo'],
   ])('%s is the stylesheet\'s --%s', (printKey, cssName) => {
     const want = token(cssName);
     expect(want, `--${cssName} is not a literal in the light block`).toBeTruthy();

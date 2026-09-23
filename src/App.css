@@ -34,6 +34,12 @@
      amber (#f59e0b) written out at eight separate places, so it sat a shade
      off every other warm thing in the app and did not follow the theme. */
   --diff:var(--st-wip);
+  /* Planning confidence is an ORDINAL scale — solid, less solid, unknown —
+     not a status. Painting it green/amber/grey spends the three status hues
+     on a quantity that is never good or bad, and leaves nothing to say "this
+     is going wrong". One hue, three steps: more saturated means more certain.
+     Same ramp on screen, in the PDFs and in the HTML report. */
+  --cf-hi:#7eb3e0;--cf-mid:#4d7ba3;--cf-lo:#39434d;
   /* Three surfaces — ground / card / raised. Mapped onto the pre-existing bg
      ladder 1:1 so nothing shifts; only the concept ("what layer is this on")
      is new. Defined once here — the light block below overrides --bg/--bg2/
@@ -623,6 +629,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
   --st-done-soft:#e8f1ea;--st-wip-soft:#f7efe2;--st-risk-soft:#f7eae8;
   --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#7a5c8c;
   --diff:var(--st-wip);
+  --cf-hi:#1e4467;--cf-mid:#5d87ad;--cf-lo:#b6c9d9;
   /* Spacing/type scale and --surf0/1/2 are not redeclared here: they resolve
      against this same element's --bg/--bg2/--bg3 (overridden above), so they
      already carry the correct light values without repeating them. */
