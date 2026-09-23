@@ -228,15 +228,101 @@ function buildRoadmapSvgForPdf(ctx) {
   return prepareRoadmapSvg(svgStr, 1400, 800);
 }
 
+// A4 landscape (841.89pt) less the 36pt margins the summary uses on both
+// sides. Every full-width element on that page measures itself against this
+// rather than carrying its own rounded-down copy.
+const SUMMARY_W = 770;
+
+// ── Summary page 1 ─────────────────────────────────────────────────────────
+// A board reads top-left first and forwards this page on its own, so it states
+// its conclusion before any figure that supports it. The composition is fixed
+// rather than data-driven — always five KPI slots, at most five risks, one
+// confidence bar — because a page whose shape changes month to month cannot be
+// read as a series.
+const KPI_SLOTS = 5;
+const KPI_GUTTER = 16;
+const KPI_W = (SUMMARY_W - KPI_GUTTER * (KPI_SLOTS - 1)) / KPI_SLOTS;
+const MAX_RISKS = 5;
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2 };
+
+// One date format per document. ISO belongs in engineering appendices, not in
+// a German board pack that also prints "23. September 2026" two lines above.
+function fmtDay(d, de) {
+  if (!d) return '—';
+  const s = iso(d);
+  return de ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : s;
+}
+function fmtMonth(d) {
+  if (!d) return '—';
+  return String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+function fmtInt(n, de) {
+  return new Intl.NumberFormat(de ? 'de-DE' : 'en-US').format(Math.round(n || 0));
+}
+
+// The sentence the whole page exists to deliver. Red whenever a recorded date
+// is missed, amber when the forecast rests on work nobody has scoped yet, and
+// an explicit "no target on record" rather than a silent green — that absence
+// is itself something a board needs told.
+function summaryVerdict(m) {
+  const { t, de, deadlineStates, roots, projectEnd, ccPt } = m;
+  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+  const unclear = ccPt.exploratory;
+  const unclearShare = openPt > 0 ? unclear / openPt : 0;
+  const end = fmtMonth(projectEnd);
+  let worst = null;
+  Object.keys(deadlineStates || {}).forEach(id => {
+    const ds = deadlineStates[id];
+    if (!ds?.isLate || !ds.end || !ds.dateD) return;
+    const days = Math.round((ds.end - ds.dateD) / 86400000);
+    if (!worst || days > worst.days) worst = { days, name: roots.find(r => r.id === id)?.name || id };
+  });
+  if (worst) {
+    const months = Math.max(1, Math.round(worst.days / 30));
+    return {
+      word: t('RED', 'ROT'), color: PRINT.risk,
+      delta: '+' + months + ' ' + t('mo.', 'Mon.'), deltaColor: PRINT.risk,
+      line: t(
+        `Forecast ${end} — "${worst.name}" misses its date by ${worst.days} days. Main driver: ${fmtInt(unclear, de)} PT of unclear scope.`,
+        `Prognose ${end} — „${worst.name}" verfehlt den Termin um ${worst.days} Tage. Haupttreiber: ${fmtInt(unclear, de)} PT mit ungeklärtem Scope.`,
+      ),
+    };
+  }
+  const hasTarget = Object.keys(deadlineStates || {}).some(id => deadlineStates[id]?.dateD);
+  if (!hasTarget) {
+    return {
+      word: t('NO TARGET', 'KEIN ZIEL'), color: PRINT.wip, delta: '—', deltaColor: PRINT.muted,
+      line: t(`Forecast ${end}. No target date on record — the forecast cannot be measured against anything.`,
+              `Prognose ${end}. Kein Zieltermin hinterlegt — die Prognose lässt sich an nichts messen.`),
+    };
+  }
+  if (unclearShare > 0.25) {
+    return {
+      word: t('AMBER', 'GELB'), color: PRINT.wip,
+      delta: t('on plan', 'im Plan'), deltaColor: PRINT.done,
+      line: t(`Forecast ${end}. Every recorded date holds, but ${Math.round(unclearShare * 100)}% of the open effort is not scoped yet.`,
+              `Prognose ${end}. Alle hinterlegten Termine halten, aber ${Math.round(unclearShare * 100)}% des offenen Aufwands sind noch nicht geklärt.`),
+    };
+  }
+  return {
+    word: t('GREEN', 'GRÜN'), color: PRINT.done,
+    delta: t('on plan', 'im Plan'), deltaColor: PRINT.done,
+    line: t(`Forecast ${end}. Every recorded date holds under the current plan.`,
+            `Prognose ${end}. Alle hinterlegten Termine werden nach aktueller Planung gehalten.`),
+  };
+}
+
 // ── Roadmap legend for pdfmake ──────────────────────────────────────────────
-// Same structure as the HTML legend beneath the Subway-Map in Overview:
-// per-line column with station rows + cluster items. Rendered via pdfmake
-// `columns` so multiple lines sit side-by-side on the page.
+// Per line: a header and one row per station. Unlike the on-screen legend
+// this never lists what sits under a station — a management summary has no
+// expand toggle, and the unfolded form ran to five pages of ellipsised
+// fragments. Done stations are marked with a check, not struck through:
+// a line through a name reads as cancelled, which is the opposite of what
+// a finished station means.
 function truncateStr(s, n) { return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || ''); }
 function buildRoadmapLegendPdf(model) {
   if (!model?.lines?.length) return null;
-  // ◐ and ◆ both missing from pdfmake's Roboto. ● + amber color for WIP.
-  const statusGlyph = (s) => s === 'done' ? '●' : s === 'wip' ? '●' : '○';
+  const statusGlyph = (s) => s === 'done' ? '✓' : s === 'wip' ? '●' : '○';
   const columns = model.lines.map(line => {
     const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
     if (!allStations.length) return { text: '', width: '*' };
@@ -244,8 +330,8 @@ function buildRoadmapLegendPdf(model) {
       {
         columns: [
           { canvas: [{ type: 'rect', x: 0, y: 3, w: 20, h: 10, r: 2, color: line.color }], width: 24 },
-          { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', margin: [2, 2, 4, 0] },
-          { text: truncateStr(line.root.name, 22), color: PRINT.ink2, fontSize: 8, margin: [0, 2, 0, 0] },
+          { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', noWrap: true, margin: [2, 2, 4, 0] },
+          { text: truncateStr(line.root.name, 22), color: PRINT.ink2, fontSize: 8, noWrap: true, margin: [0, 2, 0, 0] },
         ],
         columnGap: 3,
         margin: [0, 0, 0, 3],
@@ -254,25 +340,15 @@ function buildRoadmapLegendPdf(model) {
     allStations.forEach(st => {
       const stStatus = st.allDone ? 'done' : st.done > 0 ? 'wip' : 'open';
       const badge = st.allDone ? '' : ` ${st.done}/${st.total}`;
-      const decor = st.allDone ? PRINT.muted : PRINT.ink;
       stack.push({
         columns: [
-          { text: statusGlyph(stStatus), color: line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
-          { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
-          { text: truncateStr(st.name, 24) + badge, color: decor, fontSize: 7.5, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
+          { text: statusGlyph(stStatus), color: stStatus === 'open' ? PRINT.muted : line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
+          { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, noWrap: true, margin: [0, 1, 0, 0] },
+          { text: truncateStr(st.name, 24) + badge, color: st.allDone ? PRINT.muted : PRINT.ink, fontSize: 7.5, margin: [0, 1, 0, 0] },
         ],
         columnGap: 2,
         margin: [0, 0, 0, 1],
       });
-      if (st.clusterSize > 1) {
-        const extras = st.clusterItems.filter(c => c.id !== st.id);
-        extras.forEach(c => {
-          stack.push({
-            text: '    · ' + truncateStr(c.name || c.id, 26),
-            fontSize: 7, color: PRINT.muted, margin: [0, 0, 0, 0.5],
-          });
-        });
-      }
     });
     return { stack, width: '*' };
   });
@@ -302,88 +378,143 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
   const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, deadlineStates, confidence, members, lvs, scheduled, teams } = m;
-  // Progress bar geometry must never diverge from the printed number.
-  const progPct = Math.max(0, Math.min(100, prog));
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
+  const de = m.de;
+  const v = summaryVerdict(m);
+  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+  const unassignedPt = ccPt.estimated + ccPt.exploratory;
+  const unassignedCount = cc.estimated + cc.exploratory;
 
-  const kpiBlock = (label, value, color = PRINT.ink) => ({
+  // Five fixed cells at a width derived once. Sizing to content — or handing
+  // pdfmake a variable number of '*' children — is what walked the ninth KPI
+  // off the right margin: '*' stops the clipping but a 16pt value still
+  // overruns its share and collides with its neighbour.
+  const kpiBlock = (label, value, sub, color = PRINT.ink) => ({
+    width: KPI_W,
     stack: [
-      { text: String(value), fontSize: 16, bold: true, color, margin: [0, 0, 0, 2] },
-      { text: label, style: 'kpiL' },
+      { text: String(value), fontSize: 20, bold: true, color, margin: [0, 0, 0, 2] },
+      { text: label, fontSize: 9, color: PRINT.ink2, margin: [0, 0, 0, 1] },
+      { text: sub || ' ', fontSize: 8, color: PRINT.muted },
     ],
-    margin: [0, 0, 0, 0],
   });
   const kpis = [
-    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', PRINT.done),
-    kpiBlock(t('Items', 'Items'), lvs.length),
-    kpiBlock(t('Done', 'Erledigt'), done, PRINT.done),
-    kpiBlock(t('Open', 'Offen'), wip + open, PRINT.wip),
-    kpiBlock(t('PT done', 'PT erledigt'), Math.round(donePt), PRINT.done),
-    kpiBlock(t('Total PT', 'Gesamt PT'), totalPt.toFixed(0)),
-    kpiBlock(t('People', 'Personen'), members.length),
-    kpiBlock(t('Projected End', 'Voraussichtl. Ende'), projectEnd ? iso(projectEnd) : '—'),
+    kpiBlock(t('Projected end', 'Prognose Ende'), fmtMonth(projectEnd), ''),
+    kpiBlock(t('Against target', 'Abweichung zum Ziel'), v.delta, '', v.deltaColor),
+    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', fmtInt(donePt, de) + ' / ' + fmtInt(totalPt, de) + ' PT'),
+    kpiBlock(t('Scope unclear', 'Scope ungeklärt'), fmtInt(ccPt.exploratory, de) + ' PT',
+      openPt > 0 ? Math.round(ccPt.exploratory / openPt * 100) + t('% of open effort', '% des offenen Aufwands') : ''),
+    kpiBlock(t('Nobody assigned', 'Ohne Verantwortliche'), fmtInt(unassignedPt, de) + ' PT', unassignedCount + ' Items'),
   ];
-  if (cpItems.length) kpis.push(kpiBlock(t('Critical Path', 'Krit. Pfad'), cpItems.length, PRINT.risk));
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('Management Summary', 'Management-Zusammenfassung') + ' · ' + dateStr + (meta.planStart ? ' · ' + t('Plan', 'Plan') + ': ' + meta.planStart : '') + (projectEnd ? ' → ' + iso(projectEnd) : ''), style: 'sub' },
-    { text: t('Key Figures', 'Kennzahlen'), style: 'h2' },
-    { columns: kpis, columnGap: 8, margin: [0, 0, 0, 8] },
+    { text: t('Management summary for the board', 'Management-Zusammenfassung für den Vorstand'), fontSize: 11, color: PRINT.ink2, margin: [0, 1, 0, 1] },
     {
-      canvas: [
-        { type: 'rect', x: 0, y: 0, w: 760, h: 8, r: 2, color: PRINT.rule },
-        { type: 'rect', x: 0, y: 0, w: 760 * progPct / 100, h: 8, r: 2, color: PRINT.done },
-      ],
-      margin: [0, 0, 0, 10],
+      text: t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`)
+        + (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '')
+        + (projectEnd ? ' · ' + t('horizon to', 'Horizont bis') + ' ' + fmtMonth(projectEnd) : ''),
+      fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 14],
     },
+    // The verdict. The only traffic-light word in the whole document.
+    {
+      columns: [
+        { text: v.line, fontSize: 14, color: PRINT.ink, width: '*' },
+        { text: v.word, fontSize: 12, bold: true, color: v.color, width: 'auto', alignment: 'right', noWrap: true, margin: [10, 2, 0, 0] },
+      ],
+      margin: [0, 0, 0, 16],
+    },
+    { columns: kpis, columnGap: KPI_GUTTER, margin: [0, 0, 0, 18] },
   ];
 
-  if (risks.length) {
-    content.push({ text: t('Risks & Alerts', 'Risiken & Warnungen'), style: 'h2' });
+  // Sorted by severity then magnitude, and capped. report.js pushes rule by
+  // rule, so without this a medium could sit above a critical — which it did.
+  const ranked = [...risks].sort((a, b) =>
+    (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || (b.rank || 0) - (a.rank || 0));
+  const shown = ranked.slice(0, MAX_RISKS);
+  if (shown.length) {
+    content.push({ text: t('What threatens the date', 'Was den Termin gefährdet'), style: 'h2' });
     content.push({
       table: {
-        widths: ['*'],
-        body: risks.map(r => ([{
-          // Bundled Roboto in pdfmake misses ⚠ ⚡ ℹ ▲ ◆ ★. Confirmed-working
-          // glyphs in the VFS subset: ● ○ ■ ✓ · plus Latin. Use ■ for all
-          // severities; color carries the urgency.
-          text: (r.severity === 'critical' ? '■ ' : r.severity === 'high' ? '■ ' : '■ ') + r.text,
-          fontSize: 10,
-          color: r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.ink2,
-          fillColor: r.severity === 'critical' ? PRINT.riskSoft : r.severity === 'high' ? PRINT.wipSoft : PRINT.band,
-          margin: [6, 5, 6, 5],
-          border: [false, false, false, false],
-        }])),
+        widths: [3, 170, 330, '*'],
+        body: shown.map(r => {
+          const color = r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.muted;
+          // A rule at the row's edge instead of a tinted ground: fills turn the
+          // page into a heat map and print as dirty grey on an office laser.
+          return [
+            { text: '', fillColor: color, border: [false, false, false, false] },
+            { text: r.title || '', fontSize: 10, bold: true, color: PRINT.ink, margin: [8, 4, 6, 4], border: [false, false, false, false] },
+            { text: r.text || '', fontSize: 10, color: PRINT.ink2, margin: [0, 4, 6, 4], border: [false, false, false, false] },
+            { text: r.ask || '', fontSize: 9, color: PRINT.ink2, margin: [0, 4, 0, 4], border: [false, false, false, false] },
+          ];
+        }),
       },
-      layout: { paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 1, paddingBottom: () => 1 },
-      margin: [0, 0, 0, 8],
+      layout: {
+        paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+        hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0 : 0.5,
+        hLineColor: () => PRINT.rule,
+        vLineWidth: () => 0,
+      },
+      margin: [0, 0, 0, 4],
     });
+    if (ranked.length > shown.length) {
+      content.push({
+        text: t(`+${ranked.length - shown.length} further findings in the appendix`, `+${ranked.length - shown.length} weitere Hinweise im Anhang`),
+        fontSize: 9, color: PRINT.muted, margin: [11, 0, 0, 14],
+      });
+    } else {
+      content.push({ text: '', margin: [0, 0, 0, 10] });
+    }
   }
 
-  content.push({ text: t('Planning Confidence', 'Planungssicherheit'), style: 'h2' });
-  if (ccTotal > 0) {
-    const barW = 760;
+  // One labelled bar, no table. The bar and the table carried the same three
+  // numbers; the table's "Beschreibung" column repeated a definition on every
+  // row, which is what a footnote is for.
+  if (openPt > 0) {
+    const confBarW = 420;
+    const seg = pt => confBarW * pt / openPt;
+    content.push({ text: t(`How solid are the ${fmtInt(openPt, de)} open PT?`, `Wie belastbar sind die ${fmtInt(openPt, de)} offenen PT?`), style: 'h2' });
     content.push({
-      canvas: [
-        { type: 'rect', x: 0, y: 0, w: barW * cc.committed / ccTotal, h: 8, color: PRINT.done },
-        { type: 'rect', x: barW * cc.committed / ccTotal, y: 0, w: barW * cc.estimated / ccTotal, h: 8, color: PRINT.wip },
-        { type: 'rect', x: barW * (cc.committed + cc.estimated) / ccTotal, y: 0, w: barW * cc.exploratory / ccTotal, h: 8, color: PRINT.muted },
+      columns: [
+        {
+          width: confBarW,
+          stack: [
+            {
+              canvas: [
+                { type: 'rect', x: 0, y: 0, w: seg(ccPt.committed), h: 14, color: PRINT.done },
+                { type: 'rect', x: seg(ccPt.committed), y: 0, w: seg(ccPt.estimated), h: 14, color: PRINT.wip },
+                { type: 'rect', x: seg(ccPt.committed + ccPt.estimated), y: 0, w: seg(ccPt.exploratory), h: 14, color: PRINT.muted },
+              ],
+              margin: [0, 2, 0, 6],
+            },
+            {
+              text: t('Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
+                      'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen'),
+              fontSize: 8, color: PRINT.muted,
+            },
+          ],
+        },
+        {
+          width: '*',
+          margin: [20, 0, 0, 0],
+          stack: [
+            [t('Committed', 'Verbindlich'), ccPt.committed, cc.committed, PRINT.done],
+            [t('Estimated', 'Geschätzt'), ccPt.estimated, cc.estimated, PRINT.wip],
+            [t('Exploratory', 'Explorativ'), ccPt.exploratory, cc.exploratory, PRINT.muted],
+          ].map(([label, ptv, count, col]) => ({
+            columns: [
+              { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, color: col }], width: 12 },
+              { text: label, fontSize: 9, color: PRINT.ink, width: 66 },
+              { text: fmtInt(ptv, de) + ' PT', fontSize: 9, color: PRINT.ink, width: 56, alignment: 'right' },
+              { text: openPt > 0 ? Math.round(ptv / openPt * 100) + '%' : '—', fontSize: 9, color: PRINT.muted, width: 34, alignment: 'right' },
+              { text: count + ' Items', fontSize: 9, color: PRINT.muted, margin: [8, 0, 0, 0] },
+            ],
+            columnGap: 2, margin: [0, 0, 0, 3],
+          })),
+        },
       ],
-      margin: [0, 0, 0, 6],
+      margin: [0, 0, 0, 10],
     });
   }
-  content.push(headerTable(
-    [t('Confidence', 'Sicherheit'), 'Items', 'PT', t('Description', 'Beschreibung')],
-    [
-      [{ text: '● Committed', color: PRINT.done }, cc.committed, ccPt.committed.toFixed(0), t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')],
-      // ◐ and ◆ are both missing from pdfmake's Roboto. Reuse ● with amber so
-      // Estimated stays visually distinct from Committed via color alone.
-      [{ text: '● Estimated', color: PRINT.wip }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
-      [{ text: '○ Exploratory', color: PRINT.muted }, cc.exploratory, ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?', t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')],
-    ],
-    [90, 50, 50, '*'],
-  ));
 
   // Same props as the SVG render — keeps the legend line order, colors,
   // station progress, and diff overlays in lockstep with the on-screen
@@ -397,12 +528,17 @@ export async function exportSummaryPDF(ctx, options = {}) {
   };
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
-    content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
+    content.push({ svg: roadmapSvg, width: SUMMARY_W, margin: [0, 0, 0, 8] });
     // Legend mirrors the Overview-tab block: per-line column with station rows.
     const { computeRoadmapModel } = await import('./roadmap.js');
     const rmModel = computeRoadmapModel(rmModelArgs);
     const legendRows = buildRoadmapLegendPdf(rmModel);
-    if (legendRows) legendRows.forEach(r => content.push(r));
+    if (legendRows) {
+      // The legend used to run straight on from the map with no heading, so
+      // whoever turned the page met a bare grid of abbreviations.
+      content.push({ text: t('Stations', 'Haltestellen'), style: 'h3', pageBreak: 'before', margin: [0, 0, 0, 6] });
+      legendRows.forEach(r => content.push(r));
+    }
   }
 
   // ── Per-project roadmaps ────────────────────────────────────────────────
@@ -443,7 +579,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
         first = false;
       }
       // Scale to the text width, keeping the aspect ratio of the model height.
-      content.push({ svg: prepared, width: 760, margin: [0, 0, 0, 14] });
+      content.push({ svg: prepared, width: SUMMARY_W, margin: [0, 0, 0, 14] });
     });
   }
 
@@ -480,7 +616,15 @@ export async function exportSummaryPDF(ctx, options = {}) {
             return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
           }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
+          // A timetable answers "when". A station with no scheduled segment has
+          // no answer, and printing it filled whole pages with "— / —" rows.
+          // The ones dropped are named in a single line below the table rather
+          // than vanishing silently.
+          const dated = rows.filter(r => r.startD);
+          const undated = rows.filter(r => !r.startD);
+
           return {
+            unbreakable: true,
             stack: [
               {
                 text: [
@@ -489,16 +633,20 @@ export async function exportSummaryPDF(ctx, options = {}) {
                 ],
                 fontSize: 10, margin: [0, 0, 0, 3],
               },
-              headerTable(
+              dated.length ? headerTable(
                 [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
-                rows.map(r => [
+                dated.map(r => [
                   { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
-                  { text: r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—', fontSize: 8 },
+                  { text: `${kwTag(r.startD)} ${iso(r.startD).slice(5)}`, fontSize: 8 },
                   { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
                   { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? PRINT.done : r.status === '●' ? PRINT.wip : PRINT.muted },
                 ]),
                 [45, 80, 60, 20],
-              ),
+              ) : { text: t('No scheduled stations.', 'Keine terminierten Haltestellen.'), fontSize: 8, color: PRINT.muted, italics: true },
+              undated.length ? {
+                text: t('Not scheduled: ', 'Nicht terminiert: ') + undated.map(r => r.abbrev).join(', '),
+                fontSize: 7.5, color: PRINT.muted, margin: [0, 3, 0, 0],
+              } : '',
             ],
             margin: [0, 0, 0, 10],
           };
@@ -560,6 +708,9 @@ export async function exportSummaryPDF(ctx, options = {}) {
     for (let i = 0; i < capCards.length; i += 2) pairs.push(capCards.slice(i, i + 2));
     pairs.forEach(pair => {
       content.push({
+        // Without this a card broke over the page boundary and left its two
+        // summary numbers alone at the top of the next page.
+        unbreakable: true,
         columns: pair.map(tc => {
           const total = tc.committed + tc.unassigned;
           const wBar = 340;
@@ -577,7 +728,9 @@ export async function exportSummaryPDF(ctx, options = {}) {
           const footerCol = total > 0 ? {
             columns: [
               { text: tc.committed.toFixed(0) + ' PT ' + t('assigned', 'zugewiesen'), fontSize: 8, color: PRINT.done },
-              tc.unassigned > 0 ? { text: tc.unassigned.toFixed(0) + ' PT ' + t('open', 'offen') + ' (' + tc.count + ')', fontSize: 8, color: PRINT.wip, alignment: 'right' } : { text: '' },
+              // The bare "(91)" beside the open PT read as a footnote marker.
+              // Say what it counts.
+              tc.unassigned > 0 ? { text: tc.unassigned.toFixed(0) + ' PT ' + t('open', 'offen') + ' · ' + tc.count + ' ' + t('items', 'Items'), fontSize: 8, color: PRINT.wip, alignment: 'right' } : { text: '' },
             ],
           } : null;
           return {

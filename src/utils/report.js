@@ -1,7 +1,7 @@
 // Generates a self-contained HTML project report.
 // Opens in a new tab and auto-triggers the print dialog (→ save as PDF).
 import { iso, isoWeek, isoWeekYear } from './date.js';
-import { leafNodes, scheduleEffort } from './scheduler.js';
+import { leafNodes, leafProgress, scheduleEffort } from './scheduler.js';
 import { aggregateProgressPct, deliveredEffort, progressPctLabel, totalEffort } from './progress.js';
 import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineStatus } from './timeline.js';
@@ -89,7 +89,13 @@ export function buildReportModel(rawCtx) {
   lvs.filter(r => r.status !== 'done').forEach(r => {
     // scheduleEffort, not re(): honors fixed-duration tasks exactly like the
     // Planning-Confidence block in Overview / PlanReview.
-    const c = confidence[r.id] || 'committed'; cc[c]++; ccPt[c] += scheduleEffort(r) || 0;
+    //
+    // REMAINING effort, not full effort. Counting the whole of a half-finished
+    // item made the three buckets sum to more than "open PT" on the summary
+    // page — 1647 against 1537 — and two totals that don't reconcile on one
+    // board page cost more credibility than the extra precision is worth.
+    const c = confidence[r.id] || 'committed'; cc[c]++;
+    ccPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
   });
   const ccTotal = cc.committed + cc.estimated + cc.exploratory;
 
@@ -114,22 +120,43 @@ export function buildReportModel(rawCtx) {
   //    misreports delivered work as a problem (deadlineStatus, utils/timeline.js).
   //    States are keyed by root id for every typed root, so the Goals &
   //    Deadlines table badge and this risk list can never contradict.
+  //
+  //    A root carries a date whether or not it was typed as a "deadline" —
+  //    the Gantt and the project roadmaps have always drawn that date. This
+  //    used to filter on the type alone, so a project with a real date but no
+  //    type was never measured against it and the summary reported no target
+  //    on record while one was sitting in the plan.
   const deadlineStates = {};
-  roots.filter(r => r.type).forEach(root => {
+  roots.filter(r => r.type || r.date).forEach(root => {
     deadlineStates[root.id] = deadlineStatus(tree, scheduled, root);
   });
-  roots.filter(r => r.type === 'deadline' && r.date).forEach(dl => {
+  roots.filter(r => r.date).forEach(dl => {
     const ds = deadlineStates[dl.id];
     if (!ds?.isLate || !ds.end) return;
     const daysLate = Math.round((ds.end - ds.dateD) / 86400000);
-    risks.push({ severity: 'critical', text: t(`Deadline "${dl.name}" (${dl.date}) is projected to be ${daysLate} days late (scheduled end: ${iso(ds.end)})`, `Deadline „${dl.name}" (${dl.date}) wird voraussichtlich ${daysLate} Tage verspätet (geplantes Ende: ${iso(ds.end)})`) });
+    risks.push({
+      severity: 'critical', rank: daysLate,
+      title: t(`Deadline "${dl.name}"`, `Termin „${dl.name}"`),
+      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${iso(ds.end)} gegen ${dl.date}`),
+      ask: t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
+    });
   });
   // 2. Exploratory items on critical path
   const expOnCp = cpItems.filter(s => confidence[s.id] === 'exploratory');
-  if (expOnCp.length) risks.push({ severity: 'high', text: t(`${expOnCp.length} exploratory items are on the critical path — unreliable schedule`, `${expOnCp.length} explorative Items liegen auf dem kritischen Pfad — Zeitplan unsicher`) });
+  if (expOnCp.length) risks.push({
+    severity: 'high', rank: expOnCp.length,
+    title: t('Unclear scope on the critical path', 'Ungeklärter Scope im kritischen Pfad'),
+    text: t(`${expOnCp.length} exploratory items determine the end date`, `${expOnCp.length} explorative Items bestimmen den Endtermin`),
+    ask: t('Commission concept work', 'Konzeption beauftragen'),
+  });
   // 3. Unassigned work blocking progress
   const unassignedPt = ccPt.estimated + ccPt.exploratory;
-  if (unassignedPt > 100) risks.push({ severity: 'medium', text: t(`${(cc.estimated + cc.exploratory)} items (${unassignedPt.toFixed(0)} PT) have no person assigned`, `${(cc.estimated + cc.exploratory)} Items (${unassignedPt.toFixed(0)} PT) haben keine zugewiesene Person`) });
+  if (unassignedPt > 100) risks.push({
+    severity: 'medium', rank: unassignedPt,
+    title: t('No one assigned', 'Keine Verantwortlichen'),
+    text: t(`${unassignedPt.toFixed(0)} PT across ${cc.estimated + cc.exploratory} items have no person`, `${unassignedPt.toFixed(0)} PT in ${cc.estimated + cc.exploratory} Items ohne Person`),
+    ask: t('Decide on staffing', 'Besetzung entscheiden'),
+  });
   // 4. Overloaded team members. Capacity scales with actual project span
   //    (not a fixed year).
   const planStart = meta.planStart ? new Date(meta.planStart) : null;
@@ -144,19 +171,23 @@ export function buildReportModel(rawCtx) {
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
     if (util > 100) {
       risks.push({
-        severity: 'critical',
+        severity: 'critical', rank: util,
+        title: t(`${m.name} overbooked`, `${m.name} überbucht`),
         text: t(
-          `${m.name} is ${util}% loaded (${primaryPt.toFixed(0)} PT committed vs. ${capDays.toFixed(0)} PT capacity over ${projectSpanDays} days)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''} — overbooked, something will slip`,
-          `${m.name} zu ${util}% ausgelastet (${primaryPt.toFixed(0)} PT zugewiesen vs. ${capDays.toFixed(0)} PT Kapazität über ${projectSpanDays} Tage)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''} — überbucht, etwas wird verrutschen`,
+          `${util}% loaded — ${primaryPt.toFixed(0)} PT assigned against ${capDays.toFixed(0)} PT capacity; something will slip`,
+          `${util}% ausgelastet — ${primaryPt.toFixed(0)} PT zugewiesen gegen ${capDays.toFixed(0)} PT Kapazität; etwas wird verrutschen`,
         ),
+        ask: t('Offload work or add a person', 'Arbeit umverteilen oder nachbesetzen'),
       });
     } else if (util > 80) {
       risks.push({
-        severity: 'medium',
+        severity: 'medium', rank: util,
+        title: t(`${m.name} near capacity`, `${m.name} nahe an der Grenze`),
         text: t(
-          `${m.name} is ${util}% loaded (${primaryPt.toFixed(0)} PT committed vs. ${capDays.toFixed(0)} PT capacity)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''}`,
-          `${m.name} zu ${util}% ausgelastet (${primaryPt.toFixed(0)} PT zugewiesen vs. ${capDays.toFixed(0)} PT Kapazität)${parallelPt > 0 ? ` + ${parallelPt.toFixed(0)} PT parallel` : ''}`,
+          `${util}% loaded — ${primaryPt.toFixed(0)} PT assigned against ${capDays.toFixed(0)} PT capacity`,
+          `${util}% ausgelastet — ${primaryPt.toFixed(0)} PT zugewiesen gegen ${capDays.toFixed(0)} PT Kapazität`,
         ),
+        ask: t('Watch; no action yet', 'Beobachten, noch kein Handlungsbedarf'),
       });
     }
   });
@@ -166,12 +197,20 @@ export function buildReportModel(rawCtx) {
   const truncatedTasks = scheduled.filter(s => s.truncatedByOffboard);
   truncatedTasks.forEach(s => {
     const tr = s.truncatedByOffboard;
+    // A truncated task can have no named assignee at all; say so rather than
+    // printing the missing name into the sentence.
+    const who = t(
+      tr.personName ? `${tr.personName} offboards` : 'the assignee offboards',
+      tr.personName ? `${tr.personName} verlässt das Team` : 'die zugewiesene Person verlässt das Team',
+    );
     risks.push({
-      severity: 'critical',
+      severity: 'critical', rank: tr.remainingEffort,
+      title: t(`Work left behind: ${s.name}`, `Arbeit bleibt liegen: ${s.name}`),
       text: t(
-        `"${s.name}" (${s.id}): ${tr.remainingEffort.toFixed(1)} PT unscheduled — ${tr.personName} offboards ${tr.offboardDate} before the task completes, no replacement in team`,
-        `„${s.name}" (${s.id}): ${tr.remainingEffort.toFixed(1)} PT nicht eingeplant — ${tr.personName} verlässt Team am ${tr.offboardDate} vor Fertigstellung, keine Nachbesetzung im Team`,
+        `${tr.remainingEffort.toFixed(0)} PT unscheduled — ${who} ${tr.offboardDate}, no replacement in team`,
+        `${tr.remainingEffort.toFixed(0)} PT nicht eingeplant — ${who} am ${tr.offboardDate}, keine Nachbesetzung im Team`,
       ),
+      ask: t('Appoint a successor', 'Nachfolge benennen'),
     });
   });
   // 6. Offboard-handoff tasks — task was split into multiple person-segments
@@ -182,11 +221,13 @@ export function buildReportModel(rawCtx) {
     const chain = segs.map(seg => seg.personName).join(' → ');
     const effortChain = segs.slice(1).map(seg => seg.effort.toFixed(1) + ' PT').join(' + ');
     risks.push({
-      severity: 'high',
+      severity: 'high', rank: segs.length,
+      title: t(`Handover: ${s.name}`, `Übergabe: ${s.name}`),
       text: t(
-        `"${s.name}" (${s.id}): split across ${segs.length} people due to offboarding (${chain}); handed-off effort: ${effortChain} — verify intent`,
-        `„${s.name}" (${s.id}): aufgeteilt auf ${segs.length} Personen wegen Offboarding (${chain}); übergebene Aufwände: ${effortChain} — bitte prüfen`,
+        `Split across ${segs.length} people due to offboarding (${chain}); handed over: ${effortChain}`,
+        `Auf ${segs.length} Personen aufgeteilt wegen Offboarding (${chain}); übergeben: ${effortChain}`,
       ),
+      ask: t('Confirm the handover', 'Übergabe bestätigen'),
     });
   });
 

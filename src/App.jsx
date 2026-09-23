@@ -3289,7 +3289,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // The two picture exports are taken from a live view, so from anywhere
     // else their card can only say no. Given the way there, it stops being a
     // dead card and becomes one click of setup.
-    onGoTab: setTab,
   };
 
   // `/` command palette — every control displaced from the topbar (principle

@@ -161,9 +161,11 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
 
   it('would have failed before the guard — the raw document does contain them', async () => {
     // Guards the guard: if the app ever stops emitting these symbols, this
-    // test turns green for the wrong reason and can be deleted.
-    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
-    await exportSummaryPDF(ctx(), { includeTimetable: true, includeProjectRoadmaps: false });
+    // test turns green for the wrong reason and can be deleted. The summary's
+    // page 1 no longer carries a status glyph — swatches replaced them — so
+    // this asks the Todo export, whose confidence column still writes one.
+    const { exportTodoPDF } = await import('../utils/pdfExports.js');
+    await exportTodoPDF(ctx(), 90);
     const rendered = pdfStrings(captured[0].content).join(' ');
 
     expect(rendered).toContain('•');       // was ●

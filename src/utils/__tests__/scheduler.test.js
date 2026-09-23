@@ -107,6 +107,23 @@ describe('schedule(): offboard cascade', () => {
     expect(ghost.effort).toBeGreaterThan(0);
   });
 
+  test('truncation names the person who left, without a cascade ghost', () => {
+    // autoCascade is off by default in the app, so no "(unassigned)" ghost
+    // segment is appended and the task keeps its single segment. Reading the
+    // second-to-last segment then fell off the start of the array, and the
+    // risk list printed the literal word "undefined" into the exported PDF.
+    const soloTeam = [members[0]];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: soloTeam, options: { autoCascade: false } });
+    const tr = results.find(s => s.id === 'P1.1').truncatedByOffboard;
+    expect(tr).toBeTruthy();
+    expect(tr.personId).toBe('M1');
+    expect(tr.personName).toBe('Alex');
+  });
+
   test('cross-team cascade when same-team exhausted', () => {
     const cross = [
       { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },

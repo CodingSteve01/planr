@@ -57,15 +57,11 @@ const en = {
   'ex.mermaid.desc': 'Structure graph as a Mermaid flowchart. Paste into Confluence.',
   'ex.netPng': 'Network image',
   'ex.netPng.desc': 'The current network graphic as a PNG.',
-  'ex.netPng.off': 'Only available from the Network view.',
   'ex.ganttPng': 'Gantt image',
   'ex.ganttPng.desc': 'The current Gantt graphic as a PNG.',
-  'ex.ganttPng.off': 'Only available from the Schedule view.',
   'ex.backup': 'Backup',
   'ex.backup.desc': 'The complete project as JSON — re-importable, 1:1 round-trip.',
   'ex.dialog': 'Dialog',
-  'ex.goToView': 'Open view',
-  'ex.goToViewTip': 'The picture is taken from the view itself — this opens it, and the card is live there.',
   'ex.cat.pdf': 'PDF', 'ex.cat.word': 'Word', 'ex.cat.tool': 'Tool', 'ex.cat.img': 'Image', 'ex.cat.raw': 'Data',
 
   // ── Command palette ──
@@ -1193,15 +1189,11 @@ const de = {
   'ex.mermaid.desc': 'Struktur-Graph als Mermaid-Flowchart. In Confluence einfügen.',
   'ex.netPng': 'Netzwerk-Bild',
   'ex.netPng.desc': 'Die aktuelle Netzwerkgrafik als PNG.',
-  'ex.netPng.off': 'Nur aus der Netzwerk-Ansicht verfügbar.',
   'ex.ganttPng': 'Gantt-Bild',
   'ex.ganttPng.desc': 'Die aktuelle Gantt-Grafik als PNG.',
-  'ex.ganttPng.off': 'Nur aus der Zeitplan-Ansicht verfügbar.',
   'ex.backup': 'Backup',
   'ex.backup.desc': 'Das vollständige Projekt als JSON — reimportierbar, 1:1-Round-Trip.',
   'ex.dialog': 'Dialog',
-  'ex.goToView': 'Ansicht öffnen',
-  'ex.goToViewTip': 'Das Bild entsteht aus der Ansicht selbst — das öffnet sie, dort ist die Karte aktiv.',
   'ex.cat.pdf': 'PDF', 'ex.cat.word': 'Word', 'ex.cat.tool': 'Tool', 'ex.cat.img': 'Bild', 'ex.cat.raw': 'Daten',
 
   // ── Command Palette ──

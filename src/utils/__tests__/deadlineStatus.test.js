@@ -74,14 +74,25 @@ describe('exports inherit the same deadline state', () => {
   test('a completed deadline produces no "at risk" entry in the report risks', () => {
     const m = buildReportModel(ctx(LATE_DONE, LATE_DONE_SCHEDULED));
     expect(m.deadlineStates.D1.state).toBe('doneLate');
-    expect(m.risks.filter(r => /Deadline/.test(r.text))).toHaveLength(0);
+    expect(m.risks.filter(r => /Deadline|Termin/.test(r.title || ''))).toHaveLength(0);
   });
 
   test('an open late deadline still produces the critical risk entry', () => {
     const m = buildReportModel(ctx(LATE_OPEN, LATE_OPEN_SCHEDULED));
     expect(m.deadlineStates.D1.state).toBe('atRisk');
-    const dlRisk = m.risks.find(r => /Deadline/.test(r.text));
+    const dlRisk = m.risks.find(r => /Deadline|Termin/.test(r.title || ''));
     expect(dlRisk?.severity).toBe('critical');
+  });
+
+  test('a root with a date but no type is still measured against it', () => {
+    // Real plans carry a date on an ordinary project root without ever setting
+    // type: 'deadline'. Filtering on the type alone meant that date was never
+    // checked, and the summary claimed no target was on record.
+    const untyped = LATE_OPEN.map(n => n.id === 'D1' ? { ...n, type: undefined } : n);
+    const m = buildReportModel(ctx(untyped, LATE_OPEN_SCHEDULED));
+    expect(m.deadlineStates.D1).toBeTruthy();
+    expect(m.deadlineStates.D1.dateD).toBeTruthy();
+    expect(m.risks.some(r => /Deadline|Termin/.test(r.title || ''))).toBe(true);
   });
 
   test('the Subway-Map line drops its at-risk flag once the work is done', () => {
