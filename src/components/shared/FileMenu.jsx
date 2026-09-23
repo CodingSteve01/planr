@@ -17,6 +17,8 @@ import { keyHint } from '../../utils/shortcuts.js';
 //
 // Same popup mechanics as ViewFilters (the established pattern here):
 // anchored panel, closes on outside click and on Escape.
+const MENU_WIDTH = 230;
+
 export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJiraImport, onBackdate, fileName, dirty }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -35,6 +37,18 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
   }, [open]);
 
   const pick = run => { setOpen(false); run?.(); };
+
+  // Measured, not guessed: the trigger's position decides which way the menu
+  // opens, and it is re-measured every time it opens because a pane can be
+  // resized between two clicks.
+  const [flipped, setFlipped] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const box = ref.current?.getBoundingClientRect?.();
+    if (!box) return;
+    const room = (window.innerWidth || 0) - box.left;
+    setFlipped(room < MENU_WIDTH);
+  }, [open]);
 
   // `key` is a shortcuts.js id where one exists, so the menu teaches the
   // keystroke at the control instead of in a separate list.
@@ -66,8 +80,12 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
       role="menu"
       data-testid="file-menu"
       style={{
-        position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 120,
-        minWidth: 210, padding: 4, background: 'var(--bg2)',
+        // Anchored to whichever edge has room. In a narrow pane — an Obsidian
+        // sidebar, say — a menu pinned to the trigger's left edge ran off the
+        // right of the window and its items could not be reached.
+        position: 'absolute', top: 'calc(100% + 4px)', zIndex: 120,
+        ...(flipped ? { right: 0 } : { left: 0 }),
+        minWidth: 210, maxWidth: 'min(280px, calc(100vw - 16px))', padding: 4, background: 'var(--bg2)',
         border: '1px solid var(--b2)', borderRadius: 8,
         boxShadow: '0 12px 32px rgba(0,0,0,.32)',
       }}>
