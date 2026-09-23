@@ -228,9 +228,17 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
   out.push(`<rect x="${PAD}" y="${PAD - 10}" width="5" height="34" rx="2.5" fill="${esc(color)}"/>`);
   out.push(`<text class="pr-title" x="${PAD + 16}" y="${PAD + 12}" fill="var(--tx,#e8ecf4)">${esc(truncate(`${model.root.id} · ${model.root.name || ''}`, 68))}</text>`);
   out.push('</g>');
+  // The span in words, not left to be read off the axis. Each project draws
+  // its own axis at its own scale — which is right, a six-month project on a
+  // four-year axis is a sliver — but it means the reader has to be told what
+  // the axis covers instead of comparing two of them by eye.
+  const spanTxt = (model.months.length && model.months[0])
+    ? `${dateLabel(model.months[0])} → ${dateLabel(model.months[model.months.length - 1])}`
+    : '';
   const headSub = [
     `${pct}%`,
     `${model.doneCount}/${model.leafCount} ${esc(labels.tasks || 'tasks')}`,
+    spanTxt,
     model.deadline ? `${esc(labels.deadline || 'Deadline')} ${dateLabel(model.deadline)}` : '',
   ].filter(Boolean).join('  ·  ');
   out.push(`<text class="pr-sub" x="${W - PAD}" y="${PAD + 12}" text-anchor="end" fill="var(--tx3,#8b95a7)">${headSub}</text>`);
@@ -239,15 +247,22 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
   const axisY = HEADER_H;
   const gridTop = axisY + AXIS_H - 6;
   const gridBottom = H - FOOT_H;
+  // The year is printed on January, and on the FIRST tick whatever month that
+  // is. Without the second rule a project running April to November carried a
+  // month axis with no year anywhere on it, so its bars could have been any
+  // year at all.
+  let yearShown = false;
   model.months.forEach((month, idx) => {
     const mx = x(month);
     const isTick = idx % model.tickEvery === 0;
     const isJan = month.getMonth() === 0;
     out.push(`<line x1="${mx.toFixed(1)}" y1="${gridTop}" x2="${mx.toFixed(1)}" y2="${gridBottom}" stroke="var(--b,#2a3140)" stroke-width="${isJan ? 1.4 : 1}" opacity="${isJan ? 0.9 : 0.45}"/>`);
     if (!isTick) return;
+    const yr = ` '${String(month.getFullYear()).slice(2)}`;
     const label = model.tickEvery > 1
-      ? `Q${Math.floor(month.getMonth() / 3) + 1} '${String(month.getFullYear()).slice(2)}`
-      : `${monthNames[month.getMonth()]}${isJan ? ` '${String(month.getFullYear()).slice(2)}` : ''}`;
+      ? `Q${Math.floor(month.getMonth() / 3) + 1}${yr}`
+      : `${monthNames[month.getMonth()]}${(isJan || !yearShown) ? yr : ''}`;
+    yearShown = true;
     out.push(`<text class="pr-axis" x="${(mx + 4).toFixed(1)}" y="${axisY + 8}" fill="var(--tx3,#8b95a7)">${esc(label)}</text>`);
   });
   out.push(`<line x1="${PLOT_X}" y1="${gridTop}" x2="${PLOT_X + PLOT_W}" y2="${gridTop}" stroke="var(--b2,#364456)" stroke-width="1"/>`);

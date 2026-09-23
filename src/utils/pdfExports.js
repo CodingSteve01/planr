@@ -158,10 +158,9 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
   );
   // Symbols the bundled Roboto does not carry render as a missing-glyph box.
   // Embedded SVG bypasses the docDefinition sanitizer (svg-to-pdfkit does its
-  // own text handling), so apply the same substitution table by hand here.
-  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => {
-    patched = patched.split(from).join(to);
-  });
+  // own text handling), so apply the same substitution by hand — including the
+  // SVG-only swaps, because this is drawn in Roboto rather than Plex.
+  patched = swapUnsupportedGlyphs(patched);
   return patched
     .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
     .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
@@ -207,9 +206,18 @@ function prepareProjectRoadmapSvg(svgStr, height) {
 
 // Same substitution pass the docDefinition gets, for the glyphs that can end
 // up inside an SVG label (a task called "Release → UAT", say).
+//
+// Plus a second pass the docDefinition does NOT need. Embedded SVG is drawn by
+// svg-to-pdfkit against pdfmake's bundled Roboto, not the Plex faces the rest
+// of the document uses, and Roboto has no arrows — so the very characters
+// PDF_GLYPH_MAP maps TOWARDS come out as empty boxes in here. An en dash says
+// the same thing about a date range and about a handover.
+const SVG_ONLY_SWAPS = { '→': '–', '←': '–', '↑': '^', '↓': 'v', '◊': '○' };
+
 function swapUnsupportedGlyphs(svgStr) {
   let out = svgStr;
   Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => { out = out.split(from).join(to); });
+  Object.entries(SVG_ONLY_SWAPS).forEach(([from, to]) => { out = out.split(from).join(to); });
   return out;
 }
 
@@ -239,7 +247,10 @@ const SUMMARY_W = 770;
 // rather than data-driven — always five KPI slots, at most five risks, one
 // confidence bar — because a page whose shape changes month to month cannot be
 // read as a series.
-const MAX_RISKS = 5;
+// Three on the page, sorted by severity. The expert brief settled on three
+// with a hard cap of five; three is also what fits beside a project table of
+// this size without the block tearing across the page break.
+const MAX_RISKS = 3;
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2 };
 
 // One date format per document. ISO belongs in engineering appendices, not in
@@ -431,7 +442,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
         { text: progLabel + '%' },
         ' ' + t('delivered', 'erledigt'),
       ],
-      fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 14],
+      fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 10],
     },
     // The verdict. The only traffic-light word in the whole document.
     {
@@ -439,7 +450,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
         { text: v.line, fontSize: 14, color: PRINT.ink, width: '*' },
         { text: v.word, fontSize: 12, bold: true, color: v.color, width: 'auto', alignment: 'right', noWrap: true, margin: [10, 2, 0, 0] },
       ],
-      margin: [0, 0, 0, 16],
+      margin: [0, 0, 0, 12],
     },
   ];
 
@@ -466,13 +477,13 @@ export async function exportSummaryPDF(ctx, options = {}) {
               : t('on time', 'im Plan');
           return [
             { text: '', fillColor: p.color },
-            { text: p.id, fontSize: 9, bold: true, color: PRINT.ink, margin: [6, 4, 0, 4] },
-            { text: (p.name || '').trim(), fontSize: 9, color: PRINT.ink, margin: [0, 4, 6, 4] },
-            { text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'), fontSize: 9, color: p.endD ? PRINT.ink : PRINT.muted, alignment: 'right', margin: [0, 4, 0, 4] },
-            { text: p.ds?.dateD ? fmtDay(p.ds.dateD, de) : '—', fontSize: 9, color: PRINT.ink2, alignment: 'right', margin: [0, 4, 0, 4] },
-            { text: delta, fontSize: 9, color: p.days > 0 ? PRINT.risk : PRINT.ink2, alignment: 'right', margin: [0, 4, 0, 4] },
-            { text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right', noWrap: true, margin: [0, 4, 10, 4] },
-            { ...confBar(p.ccPt, p.openPt, 104), margin: [0, 6, 0, 4] },
+            { text: p.id, fontSize: 9, bold: true, color: PRINT.ink, margin: [6, 3, 0, 3] },
+            { text: (p.name || '').trim(), fontSize: 9, color: PRINT.ink, margin: [0, 3, 6, 3] },
+            { text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'), fontSize: 9, color: p.endD ? PRINT.ink : PRINT.muted, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: p.ds?.dateD ? fmtDay(p.ds.dateD, de) : '—', fontSize: 9, color: PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: delta, fontSize: 9, color: p.days > 0 ? PRINT.risk : PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right', noWrap: true, margin: [0, 3, 10, 3] },
+            { ...confBar(p.ccPt, p.openPt, 104), margin: [0, 5, 0, 3] },
           ].map(c => ({ ...c, border: [false, false, false, false] }));
         }),
       ],
@@ -517,25 +528,49 @@ export async function exportSummaryPDF(ctx, options = {}) {
     (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || (b.rank || 0) - (a.rank || 0));
   const shown = ranked.slice(0, MAX_RISKS);
   if (shown.length) {
-    content.push({ text: t('What threatens the date', 'Was den Termin gefährdet'), style: 'h2' });
+    // The heading is the table's FIRST ROW, spanning every column. pdfmake
+    // does not keep a heading with the table that follows it: `unbreakable`
+    // on the table pushed the table to the next page and left the heading
+    // behind, and wrapping both in an unbreakable stack changed nothing,
+    // because a stack is laid out one child at a time. As a row it cannot be
+    // separated from what it names.
     content.push({
       table: {
         widths: [3, 170, 330, '*'],
-        body: shown.map(r => {
-          const color = r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.muted;
-          // A rule at the row's edge instead of a tinted ground: fills turn the
-          // page into a heat map and print as dirty grey on an office laser.
-          return [
-            { text: '', fillColor: color, border: [false, false, false, false] },
-            { text: r.title || '', fontSize: 10, bold: true, color: PRINT.ink, margin: [8, 4, 6, 4], border: [false, false, false, false] },
-            { text: r.text || '', fontSize: 10, color: PRINT.ink2, margin: [0, 4, 6, 4], border: [false, false, false, false] },
-            { text: r.ask || '', fontSize: 9, color: PRINT.ink2, margin: [0, 4, 0, 4], border: [false, false, false, false] },
-          ];
-        }),
+        body: [
+          [
+            { text: '' },
+            // Deliberately NOT style 'h2': that style carries headlineLevel,
+            // which asks pdfmake to break the page BEFORE the heading so it
+            // stays with what follows — and inside a table that threw the
+            // whole table onto the next page with two thirds of this one
+            // still empty. Same size, weight and colour, no headlineLevel.
+            { text: t('What threatens the date', 'Was den Termin gefährdet'), fontSize: 14, bold: true, color: PRINT.accent, colSpan: 3, margin: [8, 2, 0, 6] },
+            // The two cells a colSpan swallows still have to be present, and
+            // they have to carry `text` — an object of nothing but `border`
+            // is rejected outright ("Unrecognized document structure"), which
+            // aborted the whole export.
+            { text: '' }, { text: '' },
+          ].map(c => ({ ...c, border: [false, false, false, false] })),
+          ...shown.map(r => {
+            const color = r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.muted;
+            // A rule at the row's edge instead of a tinted ground: fills turn
+            // the page into a heat map and print as dirty grey on an office
+            // laser printer.
+            return [
+              { text: '', fillColor: color },
+              { text: r.title || '', fontSize: 10, bold: true, color: PRINT.ink, margin: [8, 4, 6, 4] },
+              { text: r.text || '', fontSize: 10, color: PRINT.ink2, margin: [0, 3, 6, 3] },
+              { text: r.ask || '', fontSize: 9, color: PRINT.ink2, margin: [0, 3, 0, 3] },
+            ].map(c => ({ ...c, border: [false, false, false, false] }));
+          }),
+        ],
       },
       layout: {
         paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
-        hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0 : 0.5,
+        // No rule under the heading row, none above the first finding, none
+        // below the last.
+        hLineWidth: (i, node) => (i <= 1 || i === node.table.body.length) ? 0 : 0.5,
         hLineColor: () => PRINT.rule,
         vLineWidth: () => 0,
       },
@@ -543,7 +578,10 @@ export async function exportSummaryPDF(ctx, options = {}) {
     });
     if (ranked.length > shown.length) {
       content.push({
-        text: t(`+${ranked.length - shown.length} further findings in the appendix`, `+${ranked.length - shown.length} weitere Hinweise im Anhang`),
+        text: (n => t(
+          `+${n} further ${n === 1 ? 'finding' : 'findings'} of lower urgency, not shown`,
+          `+${n} ${n === 1 ? 'weiterer Hinweis' : 'weitere Hinweise'} geringerer Dringlichkeit, hier nicht gezeigt`,
+        ))(ranked.length - shown.length),
         fontSize: 9, color: PRINT.muted, margin: [11, 0, 0, 14],
       });
     } else {
