@@ -18,6 +18,10 @@ const S_DOT = { open: '○', wip: '◐', done: '●' };
 const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
 const ATTN_TONE = { overdue: 'var(--re)', drift: 'var(--ac)', atRisk: 'var(--am)', blocked: 'var(--am)', unestimated: 'var(--tx3)' };
 const ATTN_ICON = { overdue: 'clock', drift: 'swap', atRisk: 'alert', blocked: 'ban', unestimated: 'help' };
+// Kinds in the order a briefing wants them, and how many of each to show
+// before the rest go behind a toggle.
+const ATTN_ORDER = ['overdue', 'drift', 'atRisk', 'blocked', 'unestimated'];
+const ATTN_PREVIEW = 5;
 const REASON_KEY = { overdue: 'bv.overdue', late: 'bv.lateEnd', exploratoryClose: 'bv.exploratoryDeadline', blocked: 'bv.attn.blocked', unestimated: 'bv.attn.unestimated', drift: 'bv.attn.drift' };
 
 function fmtDateDE(d) {
@@ -191,6 +195,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
     tree, scheduled, confidence, now, rootFilter, teamFilter, personFilter,
     driftItems: jiraStatusDiff.map(d => ({ id: d.id, name: d.name, key: d.key, target: d.target, jiraStatus: d.jiraStatus })),
   }), [tree, scheduled, confidence, now, rootFilter, teamFilter, personFilter, jiraStatusDiff]);
+  const [expandedAttn, setExpandedAttn] = useState(() => new Set());
   const attnCounts = useMemo(() => attentionCounts(attentionItems), [attentionItems]);
 
   // Vacations in horizon
@@ -337,30 +342,61 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
       </div>
       {attentionItems.length === 0
         ? <div style={{ fontSize: 12, color: 'var(--tx3)', padding: '8px 0', marginBottom: 18 }}>{t('bv.attn.empty')}</div>
-        : <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 18 }}>
-          {attentionItems.map((item, i) => {
-            const node = iMap[item.id];
-            const leaf = node ? isLeafNode(tree, node.id) : false;
-            return (
-              <div key={`${item.kind}:${item.id}:${i}`}
-                data-testid={`bv-attn-${item.kind}-${item.id}`}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 4, cursor: 'pointer', background: 'var(--bg3)', border: `1px solid ${ATTN_TONE[item.kind]}`, borderLeftWidth: 3 }}
-                onClick={() => onOpenItem?.(item.id)}>
-                <span style={{ color: ATTN_TONE[item.kind], flexShrink: 0, display: 'inline-flex' }}><Icon name={ATTN_ICON[item.kind]} size={13} /></span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{item.id}</span>
-                <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                <span style={{ fontSize: 10, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{t(REASON_KEY[item.reason] || REASON_KEY[item.kind])}</span>
-                {item.kind === 'drift' && (
-                  <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
-                    onClick={e => { e.stopPropagation(); applyJiraDiffs([item], new Set([item.id])); }}
-                    data-htip={t('js.applyTip')}>
-                    {t('bv.attn.apply')} → {t(item.target)}
-                  </button>
-                )}
-                {item.date && item.kind !== 'drift' && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{item.date}</span>}
-                {leaf && item.kind !== 'drift' && node && <StatusCycleButton node={node} onUpdate={onUpdate} t={t} />}
+        : <div style={{ marginBottom: 18 }}>
+          {/* Grouped, not one flat run. Ordered by kind it already was, but
+              thirty-five rows in a column with no breaks reads as one problem
+              thirty-five items long. Each kind is its own short block with its
+              count, and only the first few show — an unestimated backlog is a
+              standing fact, not five separate things to look at this morning. */}
+          {ATTN_ORDER.filter(kind => attentionItems.some(i => i.kind === kind)).map(kind => {
+            const group = attentionItems.filter(i => i.kind === kind);
+            const open = expandedAttn.has(kind);
+            // An unestimated backlog is a standing fact, not today's news, so
+            // it shows fewer — but not none: a group you cannot see at all is
+            // a group you forget exists.
+            const limit = kind === 'unestimated' ? 3 : ATTN_PREVIEW;
+            const shown = open ? group : group.slice(0, limit);
+            const hidden = group.length - shown.length;
+            return <div key={kind} style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px' }}>
+                <span style={{ color: ATTN_TONE[kind], display: 'inline-flex' }}><Icon name={ATTN_ICON[kind]} size={12} /></span>
+                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--tx2)' }}>
+                  {t(kind === 'atRisk' ? 'bv.attn.atRisk' : `bv.attn.${kind}`)}
+                </span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{group.length}</span>
+                {(hidden > 0 || open) && <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '1px 6px', fontSize: 9 }}
+                  onClick={() => setExpandedAttn(prev => { const n = new Set(prev); n.has(kind) ? n.delete(kind) : n.add(kind); return n; })}>
+                  {open ? t('rm.showLess') : t('rm.showMore', hidden)}
+                </button>}
               </div>
-            );
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {shown.map((item, i) => {
+                  const node = iMap[item.id];
+                  const leaf = node ? isLeafNode(tree, node.id) : false;
+                  return (
+                    <div key={`${item.kind}:${item.id}:${i}`}
+                      data-testid={`bv-attn-${item.kind}-${item.id}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 4, cursor: 'pointer', background: 'var(--bg3)', borderLeft: `3px solid ${ATTN_TONE[item.kind]}` }}
+                      onClick={() => onOpenItem?.(item.id)}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{item.id}</span>
+                      <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                      {item.reason && REASON_KEY[item.reason] && REASON_KEY[item.reason] !== REASON_KEY[item.kind] && (
+                        <span style={{ fontSize: 10, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{t(REASON_KEY[item.reason])}</span>
+                      )}
+                      {item.kind === 'drift' && (
+                        <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
+                          onClick={e => { e.stopPropagation(); applyJiraDiffs([item], new Set([item.id])); }}
+                          data-htip={t('js.applyTip')}>
+                          {t('bv.attn.apply')} → {t(item.target)}
+                        </button>
+                      )}
+                      {item.date && item.kind !== 'drift' && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{item.date}</span>}
+                      {leaf && item.kind !== 'drift' && node && <StatusCycleButton node={node} onUpdate={onUpdate} t={t} />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>;
           })}
         </div>}
 

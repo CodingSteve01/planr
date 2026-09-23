@@ -582,6 +582,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .tour-progress{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bg3);}
 .tour-progress-fill{height:100%;background:var(--ac2);transition:width .25s ease;}
 .tour-counter{font-size:10px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:16px;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0;font-size:14px;font-weight:600;color:var(--tx);}
 .tour-icon{display:flex;justify-content:center;margin-bottom:12px;line-height:0;color:var(--ac);}
 .tour-title{font-size:17px;font-weight:700;color:var(--tx);margin:0 0 10px;}
 .tour-body{font-size:13px;color:var(--tx2);line-height:1.6;margin:0 0 18px;}

@@ -10,7 +10,7 @@
 // in a dialog.
 
 import { describe, test, expect } from 'vitest';
-import { diffSnapshots, leafSnapshot } from '../history.js';
+import { diffSnapshots, leafSnapshot, supersededByBackdate } from '../history.js';
 import { effectiveDateOfEvent } from '../historyView.js';
 
 const tree = rows => rows.map(([id, status, progress]) => ({ id, status, progress }));
@@ -60,5 +60,48 @@ describe('writing history as of an earlier day', () => {
 
     expect(inWindow.map(e => e.id)).toEqual(['P1.1']);
     expect(inWindow[0].progress).toBe(60);
+  });
+});
+
+// ── Entries that already sit after the day being caught up on ──────────────
+// Asked, and it is the right question: if I record something as done on the
+// 14th and the log already says "wip" on the 20th, the replay walks
+// done → wip → done and every review in between reports the wrong state.
+describe('a backdated entry and the ones after it', () => {
+  const ev = (id, on, fields) => ({ ts: TS, id, effectiveAt: on, ...fields });
+
+  test('drops the later entries for that item that claim the same fields', () => {
+    const existing = [
+      ev('P1.1', '2026-09-10', { status: 'wip' }),   // before — untouched
+      ev('P1.1', '2026-09-20', { status: 'wip' }),   // after, same field — gone
+      ev('P1.2', '2026-09-20', { status: 'wip' }),   // another item — untouched
+    ];
+    const { kept, dropped } = supersededByBackdate(existing, [ev('P1.1', '2026-09-14', { status: 'done' })]);
+
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0].id).toBe('P1.1');
+    expect(kept.map(e => `${e.id}@${e.effectiveAt}`)).toEqual(['P1.1@2026-09-10', 'P1.2@2026-09-20']);
+  });
+
+  test('leaves a later entry alone when it is about something else', () => {
+    const existing = [ev('P1.1', '2026-09-20', { progress: 60 })];
+    const { kept, dropped } = supersededByBackdate(existing, [ev('P1.1', '2026-09-14', { status: 'done' })]);
+
+    expect(dropped).toEqual([]);
+    expect(kept).toHaveLength(1);
+  });
+
+  test('changes nothing at all when the new events are not backdated', () => {
+    const existing = [ev('P1.1', '2026-09-20', { status: 'wip' })];
+    const { kept, dropped } = supersededByBackdate(existing, [{ ts: TS, id: 'P1.1', status: 'done' }]);
+
+    expect(dropped).toEqual([]);
+    expect(kept).toBe(existing);
+  });
+
+  test('an entry on the very same day is a peer, not a contradiction', () => {
+    const existing = [ev('P1.1', '2026-09-14', { status: 'wip' })];
+    const { dropped } = supersededByBackdate(existing, [ev('P1.1', '2026-09-14', { status: 'done' })]);
+    expect(dropped).toEqual([]);
   });
 });

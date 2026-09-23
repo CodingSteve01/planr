@@ -31,12 +31,17 @@ function weekNum(d) {
   return Math.ceil((((x - yearStart) / 86400000) + 1) / 7);
 }
 
+// The tint and the border carry the band; the TEXT does not. It used to be set
+// in a pale version of the same hue — green on green, amber on amber — which
+// was picked against a dark ground and is unreadable on a light one. The
+// legend above the table says what each band means, so the number only has to
+// be legible.
 function loadTone(percent) {
   if (!Number.isFinite(percent) || percent <= 0) return { bg: 'rgba(148,163,184,.08)', fg: 'var(--tx3)', bd: 'rgba(148,163,184,.22)' };
-  if (percent < 50) return { bg: 'rgba(59,130,246,.16)', fg: '#93c5fd', bd: 'rgba(59,130,246,.45)' };
-  if (percent < 90) return { bg: 'rgba(16,185,129,.18)', fg: '#86efac', bd: 'rgba(16,185,129,.50)' };
-  if (percent <= 110) return { bg: 'rgba(245,158,11,.24)', fg: '#fbbf24', bd: 'rgba(245,158,11,.60)' };
-  return { bg: 'rgba(239,68,68,.30)', fg: '#fca5a5', bd: 'rgba(239,68,68,.78)' };
+  if (percent < 50) return { bg: 'rgba(59,130,246,.16)', fg: 'var(--tx)', bd: 'rgba(59,130,246,.45)' };
+  if (percent < 90) return { bg: 'rgba(16,185,129,.18)', fg: 'var(--tx)', bd: 'rgba(16,185,129,.50)' };
+  if (percent <= 110) return { bg: 'rgba(245,158,11,.24)', fg: 'var(--tx)', bd: 'rgba(245,158,11,.60)' };
+  return { bg: 'rgba(239,68,68,.30)', fg: 'var(--tx)', bd: 'rgba(239,68,68,.78)' };
 }
 
 export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlans, scheduled, weeks }) {

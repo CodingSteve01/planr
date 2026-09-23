@@ -7,7 +7,7 @@ import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
-import { parseHistoryBlock, leafSnapshot, diffSnapshots } from './utils/history.js';
+import { parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -591,6 +591,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         // localStorage save is always successful → data is "saved" (just maybe not to file yet)
         setSaved(true);
         setLastSavedAt(new Date());
+        // Every history-recording path used to hang off a file handle, so with
+        // nothing mounted the log stayed empty for ever — which silently took
+        // the diff/review window and backdating with it: you could switch
+        // backdating on, record a sprint's worth of catching up, and nothing
+        // was written anywhere. This is the only persist that happens without
+        // a file, so it is where the log has to be written.
+        if (!fileHandleRef.current) recordHistoryForLocalSave();
       }, 1200);
     }, 800);
     return () => {
@@ -2668,19 +2675,32 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (lastSavedLeavesRef.current) {
       newEvents = diffSnapshots(lastSavedLeavesRef.current, currSnapshot, new Date().toISOString(), backdate || null);
     }
-    const eventsForFile = newEvents.length
-      ? [...(data?.historyEvents || []), ...newEvents]
-      : (data?.historyEvents || []);
+    // A backdated entry supersedes the later ones it contradicts, or the
+    // replay walks done → wip → done and every review in between reports the
+    // wrong state (utils/history.js).
+    const { kept } = supersededByBackdate(data?.historyEvents || [], newEvents);
+    const eventsForFile = newEvents.length ? [...kept, ...newEvents] : kept;
     const dataForFile = eventsForFile.length ? { ...data, historyEvents: eventsForFile } : data;
     const content = isMdFile
       ? _buildMd({ tree, members, teams, vacations, data: dataForFile, meta })
       : JSON.stringify(dataForFile, null, 2);
     return { content, newEvents, snapshot: currSnapshot };
   }
+  // The same diff the file-save path takes, for when there is no file. Kept
+  // separate because composeFileForSave also serialises the whole project,
+  // which this does not need.
+  function recordHistoryForLocalSave() {
+    if (!Array.isArray(tree)) return;
+    const snapshot = leafSnapshot(tree);
+    if (!lastSavedLeavesRef.current) { lastSavedLeavesRef.current = snapshot; return; }
+    const newEvents = diffSnapshots(lastSavedLeavesRef.current, snapshot, new Date().toISOString(), backdate || null);
+    lastSavedLeavesRef.current = snapshot;
+    if (newEvents.length) setData(d => ({ ...d, historyEvents: [...supersededByBackdate(d?.historyEvents || [], newEvents).kept, ...newEvents] }));
+  }
   function commitSaveSideEffects({ newEvents, snapshot }) {
     lastSavedLeavesRef.current = snapshot;
     if (newEvents && newEvents.length) {
-      setData(d => ({ ...d, historyEvents: [...(d?.historyEvents || []), ...newEvents] }));
+      setData(d => ({ ...d, historyEvents: [...supersededByBackdate(d?.historyEvents || [], newEvents).kept, ...newEvents] }));
     }
   }
   function buildMarkdownText() { return _buildMd({ tree, members, teams, vacations, data, meta }); }
