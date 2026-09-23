@@ -27,6 +27,24 @@ as before.
 | `--st-risk` | State: at risk / overdue (red) | `#e08276` | `#a8443a` |
 | `--st-archived` | State: archived (muted) | `= var(--b3)` (`#504e45`) | `= var(--b3)` (`#b5b2aa`) |
 | `--st-done-soft` / `--st-wip-soft` / `--st-risk-soft` | Tinted badge grounds. Each carries its own state colour as the label, so the pair is held to the **text** bar, not the decoration bar | `#17281d` / `#2c2317` / `#2e1c19` | `#e8f1ea` / `#f7efe2` / `#f7eae8` |
+| `--cf-hi` / `--cf-mid` / `--cf-lo` | Planning confidence: committed / estimated / exploratory. An **ordinal ramp in one hue**, not three states — see below | `#7eb3e0` / `#4d7ba3` / `#39434d` | `#1e4467` / `#5d87ad` / `#b6c9d9` |
+
+### Confidence is a scale, not a status
+
+Planning confidence — committed, estimated, exploratory — used to be drawn in
+`--gr`, `--am` and `--tx3`: the three status colours, in four separate copies
+of the same map. That is a category error. Nothing about "exploratory" is bad;
+it is simply less settled than "committed". Spending green, amber and red on a
+quantity that is never good or bad also leaves nothing to say *this is going
+wrong* — everything on the page was already amber.
+
+It has its own three-step ramp in one hue, more saturated meaning more certain.
+One map, `CONF_COLOR` in [`constants.js`](../src/constants.js), used by the
+Overview bar, Plan review, QuickEdit, the node editor and task insights.
+[`printPalette.js`](../src/utils/printPalette.js) mirrors the same three
+values, so the per-project bars in the Management-Summary PDF and the HTML
+report are the same scale as the screen — held there by
+[`printPalette.test.js`](../src/utils/__tests__/printPalette.test.js).
 
 ## Two rules the palette is held to
 
@@ -199,12 +217,18 @@ Two things are deliberately **not** icons:
 - **Typographic arrows and key symbols** — `→` in a date range, `⇧ ⌥ ↵ ⇥` in a
   shortcut hint. Those are text, and a drawn arrow in a line of type would be
   worse.
-- **`GT` in [`constants.js`](../src/constants.js)** — `🎯 ⚡ ⏰`, and the phase
-  and pin markers `✅ 🟡 📌`. These are the **markdown file format**: a plan
-  note on disk writes `📌2026-01-05` and `*Phases: ✅RE, 🟡Development*`, and
-  the PDF layer substitutes them through `pdfGlyphs.js`. Replacing them would
-  not change an icon, it would stop every saved plan from parsing. The screen
-  draws the same three from `GT_ICON` instead.
+- **The phase and pin markers `✅ 🟡 📌` in [`constants.js`](../src/constants.js)**
+  — these are the **markdown file format**: a plan note on disk writes
+  `📌2026-01-05` and `*Phases: ✅RE, 🟡Development*`, and the PDF layer
+  substitutes them through `pdfGlyphs.js`. Replacing them would not change an
+  icon, it would stop every saved plan from parsing.
+
+  `GT` (the root's focus type) used to belong in this list and no longer does:
+  it writes `[goal]`, `[painpoint]`, `[deadline]`. The emoji form leaked out
+  of the file and into project names whenever writer and reader disagreed
+  about which marker to use, and a bracketed word is greppable and identical
+  in every editor. `GT_MARKS` keeps the old forms readable. The screen draws
+  these three from `GT_ICON`.
 
 [`src/__tests__/icons.test.jsx`](../src/__tests__/icons.test.jsx) holds the set
 to `currentColor` and one viewBox, requires `aria-hidden` unless an icon is
