@@ -2,7 +2,7 @@ import { useT } from '../../i18n.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { FeatureCarousel } from '../shared/FeatureCarousel.jsx';
 
-export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
+export function Onboard({ onCreate, onLoad, onLoadDemo, onJiraImport, fRef }) {
   const { t } = useT();
 
   // 4 unique-selling features promoted to hero tiles (below the hero row).
@@ -47,6 +47,14 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
             <button className="ob-link" onClick={() => fRef.current?.click()}>
               {t('ob.loadProject')}
             </button>
+            {/* The third way in, and for most people the real one: the work is
+                already in a Jira project and nobody retypes two hundred
+                tickets to try a planner. */}
+            {onJiraImport && (
+              <button className="ob-link" data-testid="onboard-jira-import" onClick={onJiraImport}>
+                {t('ob.jiraImport')}
+              </button>
+            )}
           </div>
 
           <FeatureCarousel />

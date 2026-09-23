@@ -54,6 +54,9 @@ import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
 import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
 import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
+import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
+import { buildImportedProject } from './utils/jiraImport.js';
+import { detectJiraFieldId } from './utils/jiraSync.js';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
 import { BackdateModal } from './components/modals/BackdateModal.jsx';
@@ -2198,6 +2201,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const byId = new Map(patches.map(patch => [patch.id, patch]));
     mutate(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
   });
+  // First-start import (JiraImportModal.jsx): the tickets already exist in
+  // Jira and nobody types two hundred of them again. The nodes arrive fully
+  // formed and already numbered past whatever the plan has, so this appends
+  // rather than merges — and it goes through `mutate`, so ⌘Z takes the whole
+  // import back in one press, which is the only thing that makes trying it
+  // safe.
+  const applyJiraImport = useStableCallback(({ nodes = [], newMembers = [] }) => {
+    if (!nodes.length) return;
+    mutate(d => ({
+      ...d,
+      tree: [...(d.tree || []), ...nodes],
+      members: newMembers.length ? [...(d.members || []), ...newMembers] : d.members,
+    }));
+    setModal(null);
+    setTab('tree');
+    setSel(nodes[0]);
+  });
   // Targeted dep mutations: read current tree state and touch ONLY the deps field.
   // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
   // out unrelated field changes that happened after the callback was created.
@@ -3000,6 +3020,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   if (!data) return <>
     <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
+      onJiraImport={() => setModal('jiraImport')}
       onLoadDemo={() => {
         import('./utils/demoProject.js').then(m => {
           const demo = m.buildDemoProject(_t);
@@ -3011,6 +3032,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Auto-start tour for first-time users (tour not yet dismissed)
       try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
     }} />}
+    {/* The other way to start: the work is already in Jira. Same shell the
+        wizard builds — standard template, NRW holidays, two teams — with the
+        tree coming from the paste instead of from an empty form. */}
+    {modal === 'jiraImport' && <JiraImportModal
+      onClose={() => setModal(null)}
+      onImport={({ nodes, newMembers, projectName }) => {
+        const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
+        setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
+      }} />}
     <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
   </>;
 
@@ -3291,6 +3321,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // so nothing that worked before stops working.
     { id: 'export', icon: 'upload', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
     { id: 'exportDialog', icon: 'doc', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'jiraImport', icon: 'download', labelKey: 'ji.title', group: 'file', groupLabel: fileGroup,
+      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'], run: () => setModal('jiraImport') },
     { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
@@ -3418,6 +3450,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onSnapshots={() => setModal('snapshots')}
         onExport={() => setTab('report')}
         onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
+        onJiraImport={() => setModal('jiraImport')}
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
@@ -3717,6 +3750,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
       onClose={() => { setModal(null); setMN(null); }} />}
     {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
+    {modal === 'jiraImport' && <JiraImportModal
+      tree={tree} members={members}
+      jiraFieldId={detectJiraFieldId(data?.customFields || DEFAULT_CUSTOM_FIELDS, tree) || 'jira'}
+      hasProject
+      onClose={() => setModal(null)}
+      onImport={applyJiraImport} />}
     {modal === 'export' && <ExportModal
       onClose={() => setModal(null)}
       {...exportHandlerProps}

@@ -30,6 +30,19 @@ const SUMMARY_ALIASES = ['summary', 'zusammenfassung', 'titel', 'title', 'betref
 const STATUS_ALIASES = ['status', 'workflow status', 'issue status'];
 const ASSIGNEE_ALIASES = ['assignee', 'bearbeiter', 'zugewiesen an', 'zugewiesen'];
 const PLANR_ALIASES = ['planr id', 'planrid', 'planr-id'];
+// Columns only the first-start IMPORT needs (jiraImport.js). Reconciliation
+// ignores them, but there is one parser and one place that knows what Jira
+// calls things, so the aliases live here with the rest.
+const TYPE_ALIASES = ['issue type', 'issuetype', 'vorgangstyp', 'type', 'typ'];
+// Jira writes the hierarchy under different names depending on the export and
+// the plan: "Parent" on a company-managed next-gen board, "Epic Link" on a
+// classic one, "Parent key"/"Parent id" on some CSV exports.
+const PARENT_ALIASES = ['parent', 'parent key', 'parent id', 'übergeordneter vorgang',
+  'uebergeordneter vorgang', 'übergeordnet'];
+const EPIC_ALIASES = ['epic link', 'epic', 'epic name', 'epos-link', 'epic key'];
+const PRIORITY_ALIASES = ['priority', 'priorität', 'prioritaet'];
+const ESTIMATE_ALIASES = ['original estimate', 'originalestimate', 'estimate', 'story points',
+  'ursprüngliche schätzung', 'urspruengliche schaetzung', 'story-points'];
 
 const JIRA_KEY_RE = /^[A-Z][A-Z0-9_]+-\d+$/;
 
@@ -122,6 +135,11 @@ export function parseJiraTable(text) {
     status: matchColumn(headers, STATUS_ALIASES),
     assignee: matchColumn(headers, ASSIGNEE_ALIASES),
     planrId: matchColumn(headers, PLANR_ALIASES),
+    type: matchColumn(headers, TYPE_ALIASES),
+    parent: matchColumn(headers, PARENT_ALIASES),
+    epic: matchColumn(headers, EPIC_ALIASES),
+    priority: matchColumn(headers, PRIORITY_ALIASES),
+    estimate: matchColumn(headers, ESTIMATE_ALIASES),
   };
   let body = lines.slice(1);
 
@@ -130,7 +148,7 @@ export function parseJiraTable(text) {
     // by shape on the first row.
     const keyIdx = first.findIndex(cell => JIRA_KEY_RE.test(normalizeKey(cell)));
     if (keyIdx < 0) return { rows: [], columns: {}, skipped: lines.length, error: 'noKeyColumn' };
-    columns = { key: keyIdx, summary: -1, status: -1, assignee: -1, planrId: -1 };
+    columns = { key: keyIdx, summary: -1, status: -1, assignee: -1, planrId: -1, type: -1, parent: -1, epic: -1, priority: -1, estimate: -1 };
     // A bare two-column paste is almost always key + status.
     if (first.length === 2) columns.status = keyIdx === 0 ? 1 : 0;
     else if (first.length > 2) { columns.summary = keyIdx + 1; columns.status = keyIdx + 2; }
@@ -154,6 +172,16 @@ export function parseJiraTable(text) {
       mapped: mapJiraStatus(status),
       assignee: columns.assignee >= 0 ? (cells[columns.assignee] || '').trim() : '',
       planrId: columns.planrId >= 0 ? (cells[columns.planrId] || '').trim() : '',
+      type: columns.type >= 0 ? (cells[columns.type] || '').trim() : '',
+      // A row's place in the hierarchy: whichever of the two Jira columns is
+      // filled. `Parent` wins when both are, because on a board that has both
+      // the epic link is the grandparent.
+      parent: normalizeKey(
+        (columns.parent >= 0 ? cells[columns.parent] : '')
+        || (columns.epic >= 0 ? cells[columns.epic] : ''),
+      ),
+      priority: columns.priority >= 0 ? (cells[columns.priority] || '').trim() : '',
+      estimate: columns.estimate >= 0 ? (cells[columns.estimate] || '').trim() : '',
     });
   });
 

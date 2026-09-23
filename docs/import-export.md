@@ -132,6 +132,52 @@ Why not just re-request permission silently? The browser's `requestPermission()`
 
 Appears next to the filename whenever there's anything to save — **dirty** (localStorage ahead of disk) **or** pending (debounce window not yet elapsed). One click skips the countdown and writes immediately. `Ctrl/Cmd+S` does the same.
 
+## Importing a Jira board
+
+Both existing Jira paths went outwards: the CSV export creates the tickets, and
+the reconcile half (Run mode's drift section, `jiraSync.js`) keeps the plan
+honest against them afterwards. The direction everybody actually starts in was
+missing — the tickets are already in Jira, and nobody retypes two hundred of
+them to try a planner.
+
+**Where**: the onboarding screen ("Stattdessen aus Jira importieren"), the File
+menu, and the `/` palette. The first two are the same dialog; the difference is
+that without a plan it creates one, and with a plan it appends to it.
+
+**What goes in**: Jira's own *Export → CSV (all fields)*, or a copied search
+result. Parsing is `parseJiraTable()` from [`jiraSync.js`](../src/utils/jiraSync.js)
+— the same forgiving one reconciliation uses, so a paste that works for one
+works for the other. It finds its columns by alias in both languages and gives
+up on a row rather than on the file.
+
+**What comes across** ([`jiraImport.js`](../src/utils/jiraImport.js)):
+
+| Jira | plan | notes |
+|---|---|---|
+| `Parent` / `Epic Link` | tree position | `Parent` wins when both are filled. A parent outside the paste makes the row a root rather than losing it; a cycle is refused rather than followed. |
+| `Summary` | name | |
+| `Status` | status + progress | via `mapJiraStatus` — the same word list reconciliation uses, German included. Anything unrecognised is open, never done. |
+| `Priority` | `prio` 1–4 | an unknown word lands at 3. Guessing "critical" out of a word we do not know would put work at the front of the schedule on no evidence. |
+| `Original Estimate` | `best` (days) | seconds (28800 = 1d), `3d 4h`, `2w`, or a bare story-point number. A parent's estimate is dropped: the plan derives it from its children, so keeping Jira's would double-count. |
+| `Assignee` | `assign` | matched against the plan's people by name, by the local part of an email, or by id. **No fuzzy match** — a wrong assignee is worse than none, because the scheduler acts on it. |
+| `Issue key` | `customValues.jira` | which is exactly where `linkHealth()` looks. Import on Monday, reconcile on Friday. |
+
+**What does not**: everything the plan is for — dependencies, capacity, dates,
+teams. Those are the work the import saves you time for.
+
+Two choices, both in the dialog and both visible in the preview before anything
+is written: whether to wrap the import in one project (on by default, so an
+import never scatters loose projects into a plan that has its own), and whether
+to create the people the paste names that nobody on the plan matches (off by
+default — importing a board can name a dozen people who are not on this team,
+and a resource list quietly filled with them makes the capacity numbers wrong
+in a way nobody would think to look for).
+
+Numbering starts past whatever the plan already has, so an import cannot land
+on top of an existing project, and the whole thing goes through `mutate()` —
+one ⌘Z takes it back, which is the only thing that makes trying it safe.
+
+
 ## Export-only formats
 
 ### CSV

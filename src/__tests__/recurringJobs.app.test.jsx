@@ -58,11 +58,29 @@ describe('the jobs that come back every week have a way in', () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
 
-    await runCommand('jira');
+    // "jira" alone is genuinely ambiguous now that a plan can also be
+    // IMPORTED from Jira, and the palette offers both — see the next test.
+    // This one is about the recurring job, so it says which.
+    await runCommand('reconcile');
 
     expect(activeTabName()).toBe('Briefing');
     const box = await screen.findByTestId('jira-paste');
     await waitFor(() => { if (document.activeElement !== box) throw new Error('not focused'); });
+  });
+
+  it('typing just "jira" offers both the reconcile and the import', async () => {
+    // Neither may hide the other. Which one ranks first is a matter of taste;
+    // one of them vanishing from the list is a bug.
+    renderApp();
+    await screen.findByTestId('view-filters-trigger');
+
+    await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
+    const input = await screen.findByTestId('palette-input');
+    await act(async () => { fireEvent.change(input, { target: { value: 'jira' } }); });
+
+    const labels = [document.querySelector('[data-testid="command-palette"]')?.textContent || ''];
+    expect(labels.some(text => /reconcile/i.test(text)), labels.join(' | ')).toBe(true);
+    expect(labels.some(text => /import/i.test(text)), labels.join(' | ')).toBe(true);
   });
 
   it('booking a holiday lands on the vacation list with a row already added', async () => {
