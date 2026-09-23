@@ -256,7 +256,12 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
    floor now, and the columns that are readouts rather than identity step
    aside ahead of it. The row's own action buttons go too — every one of them
    is on the toolbar above and on a key. */
-.tv-surface{container-type:inline-size;container-name:tv;}
+/* Where the sticky stack starts each of its parts. TreeView measures the
+   toolbar and the selection bar and overwrites these on the element; the
+   values here are what one unwrapped toolbar comes to, so a first paint —
+   before there is any layout to measure — already lands in the right place. */
+.tv-surface{container-type:inline-size;container-name:tv;--tv-bar0-top:0px;--tv-bar1-top:34px;--tv-head-top:34px;}
+.tv-surface .tree-tbl th{top:var(--tv-head-top);}
 @container tv (max-width: 1080px){
   .tree-tbl td[data-col="schedule"],.tree-tbl th[data-col="schedule"]{display:none;}
 }

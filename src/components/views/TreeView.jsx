@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, memo } from 'react';
 import { markStructuralEdit, clearStructuralEdit } from '../../utils/structuralEdit.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
@@ -61,6 +61,22 @@ function caretAtEnd(el) {
  * works from the end of a name, which is where you are when you have just
  * typed it, and never eats a word jump in the middle.
  */
+/**
+ * Where each element of a sticky stack starts, and where the next thing after
+ * it starts. Given the heights of the bars that stick above a table head, top
+ * to bottom, returns one offset per bar plus a final one for the head.
+ *
+ * A missing bar counts as nothing, so the same call works whether or not the
+ * selection bar is on screen.
+ */
+export function stickyTops(heights) {
+  const tops = [];
+  let acc = 0;
+  for (const h of heights) { tops.push(acc); acc += h > 0 ? h : 0; }
+  tops.push(acc);
+  return tops;
+}
+
 export function altArrowIsStructural(e) {
   if (e.shiftKey) return false;        // a selection gesture, always the text's
   const el = e.target;
@@ -101,6 +117,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // id → { sig, el } for the row cache; see the comment at the row map.
   const rowCacheRef = useRef(new Map());
   const containerRef = useRef(null);
+  const toolbarRef = useRef(null);
+  const selBarRef = useRef(null);
   const editInputRef = useRef(null);
   // Guards against handleEditBlur double-committing when Enter/Escape
   // already resolved the edit and the outgoing <input> unmounts (browsers /
@@ -397,6 +415,36 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const idx = siblings.findIndex(x => x.id === selected.id);
     return { idx, count: siblings.length };
   }, [selected?.id, tree]);
+
+  // The sticky stack measures itself.
+  //
+  // Toolbar, selection bar and table head all stick to the top of the same
+  // scroller, so each one has to begin where the one above it ends. Those
+  // offsets were written in as 0 / 33 / 32 — three numbers that were never
+  // true together. The toolbar is 34px tall here and taller inside Obsidian,
+  // where the host's own control metrics apply, so the head sat under it and
+  // lost its top edge. And 32 is less than 33, which put the head ABOVE the
+  // selection bar in the stack: with a row selected it vanished completely.
+  //
+  // Both bars wrap on a narrow pane, so their heights are not constants to
+  // find once either. A ResizeObserver writes the running total onto the
+  // container and the stylesheet reads it back.
+  useLayoutEffect(() => {
+    const box = containerRef.current;
+    if (!box) return;
+    const bars = [toolbarRef, selBarRef];
+    const measure = () => {
+      const tops = stickyTops(bars.map(ref => ref.current?.getBoundingClientRect().height || 0));
+      bars.forEach((_, i) => box.style.setProperty(`--tv-bar${i}-top`, `${tops[i]}px`));
+      box.style.setProperty('--tv-head-top', `${tops[bars.length]}px`);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    bars.forEach(ref => { if (ref.current) ro.observe(ref.current); });
+    return () => ro.disconnect();
+  }, [selected?.id, !!selPos]);
+
   const siblingKeyOf = id => {
     const parent = id.split('.').slice(0, -1).join('.');
     if (parent) return parent;
@@ -1306,7 +1354,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     className="tv-surface"
     style={{ outline: 'none' }}
     data-testid="tree-editor-surface">
-    <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+    <div ref={toolbarRef} style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar0-top)', zIndex: 12 }}>
       <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={withKey(hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll'), 'collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
       <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={withKey(hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll'), 'expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
       {/* One help affordance, not two. The shortcuts used to be printed above
@@ -1326,7 +1374,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}
     {selected?.id && selPos && (
-      <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 33, zIndex: 10 }}>
+      <div ref={selBarRef} style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar1-top)', zIndex: 11 }}>
         <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
         <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
         <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
@@ -1362,15 +1410,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     )}
     <table className="tree-tbl">
       <thead><tr>
-        <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{showIds ? 'ID' : ''}</th>
-        <th data-col="name" style={{ background: 'var(--bg)', width: '100%', top: 32 }}>{t('col.name')}</th>
-        <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.team')}</th>
-        <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.who')}</th>
-        <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.signal')}</th>
-        <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.effort')}</th>
-        <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
-        <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.schedule')}</th>
-        <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
+        <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{showIds ? 'ID' : ''}</th>
+        <th data-col="name" style={{ background: 'var(--bg)', width: '100%' }}>{t('col.name')}</th>
+        <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.team')}</th>
+        <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.who')}</th>
+        <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.signal')}</th>
+        <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.effort')}</th>
+        <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>%</th>
+        <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.schedule')}</th>
+        <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center' }}></th>
       </tr></thead>
       <tbody>
         {filt.map((r, idx) => {
