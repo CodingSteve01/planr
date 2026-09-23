@@ -290,25 +290,57 @@ the only family in pdfmake's bundled font store (see below). Matching it means
 embedding Plex as base64 in the bundle, which is a separate decision about
 download size.
 
-### Fonts: only Roboto exists
+### The typeface: IBM Plex Sans, embedded
 
-pdfmake bundles one font family and draws a missing-glyph box — silently — for
-anything it does not cover. Several characters this app uses every day are
-outside it: `✓ → ◐ ⚠ ⊕ ▪` and every emoji.
+pdfmake bundles exactly one family — Roboto — and a PDF cannot resolve a
+webfont, so a document that should look like the app has to carry the app's
+face with it. The PDFs are set in **IBM Plex Sans**, the screen's own, embedded
+and subsetted in [`pdfFonts.js`](../src/utils/pdfFonts.js).
 
-[`src/utils/pdfGlyphs.js`](../src/utils/pdfGlyphs.js) holds the **real cmap of
-the bundled `Roboto-Regular`** (927 code points, 82 ranges) plus a substitution
-table checked against it. `sanitizePdfDoc` runs over every docDefinition right
-before `createPdf`; the roadmap SVG preparers apply the same table by hand,
-because embedded SVG deliberately bypasses the doc pass (svg-to-pdfkit does its
-own text handling).
+**Subsetted, because the full faces are ~218 KB each.** Cut to exactly the code
+points the PDF layer promises to render, Regular and Bold together are 143 KB
+of base64, landing in their own lazily-loaded chunk (75 KB gzipped) that is
+fetched only when somebody exports. Regenerate with
+[`tools/build-pdf-fonts.mjs`](../tools/build-pdf-fonts.mjs), which reads the
+promise out of `pdfGlyphs.js` and subsets to it — so the font and the promise
+define each other rather than drifting.
+
+**Sans only.** Plex Mono is not embedded: pdfmake's `mono` style is defined and
+applied by no export, and Mono's coverage is narrower than Sans's — carrying it
+would have cost 94 KB and forced the supported set down to the intersection,
+which loses modern Greek. The script will generate it the day something needs
+it.
+
+### What the font can draw
+
+pdfmake draws a missing-glyph box — silently — for anything the face does not
+cover, so [`pdfGlyphs.js`](../src/utils/pdfGlyphs.js) holds the **real cmap of
+the embedded faces** (the intersection of Plex Sans Regular and Bold: 804 code
+points, 74 ranges) plus a substitution table checked against it.
+`sanitizePdfDoc` runs over every docDefinition right before `createPdf`; the
+roadmap SVG preparers apply the same table by hand, because embedded SVG
+deliberately bypasses the doc pass (svg-to-pdfkit does its own text handling).
+
+The swap from Roboto's 927 code points is **not one-sided**. Plex has real
+arrows and a real tick, which Roboto did not — `→` and `✓` now print as
+themselves instead of as `»` and `√`, which read as typos in a document you
+hand to somebody. What it lacks is the geometric shapes `● ○ ■`, so the status
+triple keeps its meaning through fill instead: `•` for work under way or done,
+`◊` for work not started. Also gone: archaic Cyrillic and a handful of rare
+typographic symbols. Every modern Greek and Cyrillic letter is still there.
 
 `src/__tests__/pdfGlyphs.test.jsx` walks all four PDFs and fails on any
-character outside that set.
+character outside the set.
 
-To regenerate the ranges after a pdfmake upgrade, read the cmap of
-`node_modules/pdfmake/build/vfs_fonts.js` → `Roboto-Regular.ttf` (base64 TTF,
-format-4 cmap) and re-emit the sorted code points as ranges.
+To regenerate the ranges after changing the embedded font, read the cmap of
+both subsetted faces in `pdfFonts.js` (base64 TTF), intersect them, and re-emit
+the sorted code points as ranges.
+
+**Still Roboto**: the text *inside* embedded SVG images — the subway map's
+station labels. svg-to-pdfkit resolves font names through pdfkit's own registry
+rather than pdfmake's, and pinning those to a family it may not find is how you
+get an invisible label in a picture nobody checks. One picture's labels, noted
+rather than quietly left.
 
 ### Scope: exports describe the plan, not the screen
 

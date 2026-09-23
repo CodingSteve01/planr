@@ -29,6 +29,19 @@ async function loadPdfMake() {
     if (typeof pdfMake.addVirtualFileSystem === 'function') pdfMake.addVirtualFileSystem(vfs);
     else pdfMake.vfs = vfs;
   }
+  // …and then the app's own typeface on top of Roboto.
+  //
+  // A PDF cannot resolve a webfont, so a document that should look like the
+  // app has to carry the app's faces with it. These are IBM Plex Sans and
+  // Mono, subsetted to exactly the code points the PDF layer promises to
+  // render (utils/pdfFonts.js). Roboto stays in the VFS underneath as the
+  // fallback pdfmake expects to find.
+  const { PLEX_VFS, PLEX_FONTS } = await import('./pdfFonts.js');
+  if (typeof pdfMake.addVirtualFileSystem === 'function') pdfMake.addVirtualFileSystem(PLEX_VFS);
+  else pdfMake.vfs = { ...(pdfMake.vfs || {}), ...PLEX_VFS };
+  pdfMake.addFonts
+    ? pdfMake.addFonts(PLEX_FONTS)
+    : (pdfMake.fonts = { ...(pdfMake.fonts || {}), ...PLEX_FONTS });
   _pdfMake = pdfMake;
   return pdfMake;
 }
@@ -598,7 +611,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — Management Summary', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: PRINT.ink },
+    defaultStyle: { font: 'PlexSans', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
@@ -650,7 +663,7 @@ export async function exportGanttPDF(ctx) {
     pageOrientation: 'landscape',
     pageMargins: [pageMargin, pageMargin, pageMargin, 40],
     info: { title: (meta.name || 'Project') + ' — Gantt', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 9, color: PRINT.ink },
+    defaultStyle: { font: 'PlexSans', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
@@ -718,7 +731,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — TODO', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 9, color: PRINT.ink },
+    defaultStyle: { font: 'PlexSans', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
@@ -823,7 +836,7 @@ export async function exportWhatWhenPDF(ctx) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — What comes when', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: PRINT.ink },
+    defaultStyle: { font: 'PlexSans', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,
