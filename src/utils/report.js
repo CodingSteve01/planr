@@ -382,10 +382,16 @@ tr:nth-child(even) td{background:#fafbfd}
     console.warn('[report] timetable generation failed', e);
   }
 
-  // ── 6. GOALS & DEADLINES ──
-  const goals = roots.filter(r => r.type);
+  // ── 6. PROJECTS, GOALS & DEADLINES ──
+  // Every project, not only the ones somebody labelled. `type` is an
+  // annotation — goal, pain point, deadline — and filtering on it dropped
+  // five of eight projects out of the summary on a real plan, the largest
+  // running one among them. A management PDF that omits the biggest project
+  // is worse than none. Dropped ones stay out: a decision not to do
+  // something is not a focus.
+  const goals = roots.filter(r => !r.dropped);
   if (goals.length) {
-    h += `<h2>${t('Goals & Deadlines','Ziele & Deadlines')}</h2>`;
+    h += `<h2>${t('Projects, Goals & Deadlines','Projekte, Ziele & Deadlines')}</h2>`;
     h += `<table><tr><th></th><th>${t('Name','Name')}</th><th>${t('Deadline','Deadline')}</th><th>${t('Progress','Fortschritt')}</th><th>${t('Scheduled End','Geplantes Ende')}</th><th>${t('Risk','Risiko')}</th></tr>`;
     goals.forEach(g => {
       const rd = rootData.find(x => x.id === g.id);
@@ -396,7 +402,7 @@ tr:nth-child(even) td{background:#fafbfd}
         : ds?.state === 'doneLate' ? `<span style="color:#a16207;font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
           : ds?.state === 'done' ? `<span style="color:#16a34a;font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
             : rd?.endD ? `<span style="color:#16a34a">✓ ${t('on track','im Plan')}</span>` : '—';
-      h += `<tr><td>${GT[g.type]||''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:#7a839a;font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
+      h += `<tr><td>${g.type ? (GT[g.type] || '') : ''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:#7a839a;font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
       h += `<td class="mono">${g.date||'—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:#7a839a">· ${rd?.doneCount||0}/${rd?.leafCount||0} ${t('tasks','Aufgaben')}</span></td>`;
       h += `<td class="mono">${rd?.endD ? iso(rd.endD) : '—'}</td>`;
       h += `<td>${risk}</td></tr>`;

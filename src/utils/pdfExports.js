@@ -502,9 +502,15 @@ export async function exportSummaryPDF(ctx, options = {}) {
     }
   }
 
-  const goals = roots.filter(r => r.type);
+  // Every project, not only the ones somebody labelled. `type` is an
+  // annotation — goal, pain point, deadline — and filtering on it dropped
+  // five of eight projects out of the summary on a real plan, the largest
+  // running one among them. A management PDF that omits the biggest project
+  // is worse than none. Dropped ones stay out: a decision not to do
+  // something is not a focus.
+  const goals = roots.filter(r => !r.dropped);
   if (goals.length) {
-    content.push({ text: t('Goals & Deadlines', 'Ziele & Deadlines'), style: 'h2' });
+    content.push({ text: t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines'), style: 'h2' });
     content.push(headerTable(
       ['ID', t('Name', 'Name'), t('Deadline', 'Deadline'), t('Progress', 'Fortschritt'), t('Scheduled End', 'Geplantes Ende'), t('Risk', 'Risiko')],
       goals.map(g => {

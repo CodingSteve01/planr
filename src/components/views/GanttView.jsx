@@ -3042,20 +3042,27 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     }} />
                   ))}
                 </div>}
-                {/* Absence, clipped to the bar and stacked over the load line.
-                    Two people away get two lines.
-                    Always drawn, because "somebody was away in the middle of
-                    this" is a fact about the work rather than a reading you
-                    switch on — it is what explains a five-day task spanning
-                    three weeks. It is HATCHED rather than solid, which is the
-                    part that was missing: a thin solid amber line under a bar
-                    with the load reading switched OFF was unexplainable, and
-                    it looked exactly like the load line it was not. Solid
-                    means how full, hatched means not there. */}
+                {/* Absence, clipped to the bar.
+                    Three shapes, and the third is the one a Gantt actually
+                    wants. It began as an amber block at full ROW height on
+                    every task row of the person away — a hundred blocks for
+                    one week off. Then a line, which stopped the wash and made
+                    absence a decoration on the bar: 3px of colour saying
+                    nothing about what it interrupts.
+                    What it interrupts is the point. An absence inside a bar
+                    is the stretch where no work happens — the reason five days
+                    of work span three weeks — so it is drawn as a HOLE in the
+                    bar: full height, hatched, the bar's own fill showing
+                    through the gaps. The bar visibly pauses there and resumes,
+                    which is what happened. Clipped to the bar, so a holiday
+                    two months away still says nothing about this task and
+                    cannot wash the chart.
+                    Always drawn: it is a fact about the work, not a reading
+                    you switch on. Load stays a line on the foot — solid, under
+                    the hatching — so the two never read as the same thing. */}
                 {!isSummary && (() => {
                   const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
                   if (!bands.length) return null;
-                  const base = loadCells.length ? 4 : 0;
                   const clipped = bands
                     .map(band => {
                       const left = Math.max(0, band.x1 - barLeft);
@@ -3067,9 +3074,17 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: isSummary ? 5 : 4, overflow: 'hidden' }}>
                     {clipped.map(({ band, left, width }) => (
                       <div key={band.key} style={{
-                        position: 'absolute', left, width,
-                        bottom: base + band.lane * 4, height: 3,
-                        background: 'repeating-linear-gradient(45deg, var(--st-wip) 0 2px, transparent 2px 4px)',
+                        position: 'absolute', left, width, top: 0, bottom: 0,
+                        // Faint enough to read the bar's own label straight
+                        // through it — at full strength the hatching simply
+                        // ate the name, which is the one thing on a bar you
+                        // must be able to read. The EDGES carry the meaning
+                        // instead: two solid seams say exactly where the pause
+                        // starts and ends, and the wash between them says it
+                        // is one stretch rather than two marks.
+                        background: 'repeating-linear-gradient(45deg, var(--st-wip) 0 2px, transparent 2px 6px)',
+                        opacity: .3,
+                        boxShadow: 'inset 1.5px 0 0 var(--st-wip), inset -1.5px 0 0 var(--st-wip)',
                         pointerEvents: 'auto',
                       }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />
                     ))}

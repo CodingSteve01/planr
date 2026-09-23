@@ -19,7 +19,14 @@ import { aggregateSollIst } from '../../utils/sollIst.js';
 // so screen and export can never print different percentages.
 import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
 
-const ORDER = ['goal', 'painpoint', 'deadline'];
+// The three focus types, and then everything else.
+//
+// `goals` is roots WITH a `type`, and this section listed only those — so a
+// project nobody had labelled a goal, a pain point or a deadline was not in
+// the overview and not in the PDF either. On a real plan that was five of
+// eight, the largest running project among them. A focus type is an
+// annotation on a project, not the thing that makes it exist.
+const ORDER = ['goal', 'painpoint', 'deadline', ''];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo }) {
@@ -86,7 +93,17 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     [tree, scheduled],
   );
 
-  const grouped = ORDER.map(tp => ({ type: tp, items: activeGoals.filter(g => g.type === tp) })).filter(g => g.items.length);
+  // Every root, not only the annotated ones. Dropped projects stay out: the
+  // decision not to do something is not a focus.
+  const untypedRoots = useMemo(() => tree.filter(node => (
+    !String(node.id).includes('.')
+    && !node.type
+    && !node.dropped
+    && !(archivedRootIds && archivedRootIds.has(node.id))
+  )), [tree, archivedRootIds]);
+  const grouped = ORDER
+    .map(tp => ({ type: tp, items: tp ? activeGoals.filter(g => g.type === tp) : untypedRoots }))
+    .filter(g => g.items.length);
 
   // `sinceDays`, `persistSince`, `sinceDate` now flow in from App.jsx so the
   // diff state is shared across all views (Roadmap, Tree, Timetable, Gantt,
@@ -379,7 +396,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type]} size={11} />{t(g.type + 's')}</div>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
