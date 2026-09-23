@@ -19,7 +19,7 @@ import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort } from './utils/scheduler.js';
-import { buildPasteNodes, compareSiblings } from './utils/treeEdit.js';
+import { buildPasteNodes, compareSiblings, sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -1518,7 +1518,25 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     return () => window.removeEventListener('keydown', h);
   });
 
-  const { tree = [], members = [], teams = [], vacations = [], meta = {} } = data || {};
+  const { members = [], teams = [], vacations = [], meta = {} } = data || {};
+  // One order, everywhere.
+  //
+  // Reported after a long afternoon rearranging the tree: the work order
+  // queues showed something else entirely. They did — `displayOrder` is a
+  // number written onto the rows, and nothing ever reordered the ARRAY, so
+  // every surface that simply walked `data.tree` was reading the order the
+  // rows happened to be stored in. That was the tree's order once, before the
+  // first reorder; after an afternoon of them the two had nothing to do with
+  // each other (measured on the plan reported: 171 of 181 positions differed).
+  // Only the tree view and the Gantt sorted; the queues, the resource views,
+  // the report and every PDF did not, and each of them was presenting itself
+  // as the plan's order.
+  //
+  // So the array carries the order. Sorting once here rather than in nine
+  // places is also the only version that stays true — a new view cannot
+  // forget to do it. The tree view still sorts its own rows, which is now a
+  // no-op, and the scheduler still ranks by the same comparator.
+  const tree = useMemo(() => sortTree(data?.tree || []), [data?.tree]);
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
   // ── Archive layer ────────────────────────────────────────────────────────

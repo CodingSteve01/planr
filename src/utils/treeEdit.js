@@ -39,14 +39,30 @@ export function compareSiblings(a, b) {
 }
 
 export function sortTree(tree) {
+  const rows = tree || [];
+  // A node whose parent is not in the tree is a root here rather than
+  // nowhere. The walk below starts at the roots and follows ids downwards, so
+  // an orphan used to be reachable from nothing and simply fell out of the
+  // result — a row present in the plan and absent from the screen. Same rule
+  // treeOrderRank already applies, for the same reason.
+  const known = new Set(rows.map(r => r.id));
   const byParent = {};
-  (tree || []).forEach(r => {
+  rows.forEach(r => {
     const pid = parentId(r.id);
-    (byParent[pid] || (byParent[pid] = [])).push(r);
+    const key = pid && known.has(pid) ? pid : '';
+    (byParent[key] || (byParent[key] = [])).push(r);
   });
   Object.values(byParent).forEach(arr => arr.sort(compareSiblings));
   const result = [];
-  const visit = pid => { (byParent[pid] || []).forEach(r => { result.push(r); visit(r.id); }); };
+  const seen = new Set();
+  const visit = pid => {
+    (byParent[pid] || []).forEach(r => {
+      if (seen.has(r.id)) return;   // a duplicate id cannot recurse forever
+      seen.add(r.id);
+      result.push(r);
+      visit(r.id);
+    });
+  };
   visit('');
   return result;
 }
