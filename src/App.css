@@ -40,6 +40,9 @@
      is going wrong". One hue, three steps: more saturated means more certain.
      Same ramp on screen, in the PDFs and in the HTML report. */
   --cf-hi:#7eb3e0;--cf-mid:#4d7ba3;--cf-lo:#39434d;
+  /* Icon.jsx's `bolt`, as a mask for the critical-path row marker. Theme
+     invariant: the colour comes from background-color, not from the file. */
+  --cp-bolt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 2 4 14h7l-1 8 9-12h-7l1-8Z'/%3E%3C/svg%3E");
   /* Three surfaces — ground / card / raised. Mapped onto the pre-existing bg
      ladder 1:1 so nothing shifts; only the concept ("what layer is this on")
      is new. Defined once here — the light block below overrides --bg/--bg2/
@@ -203,7 +206,17 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .tr.alt:not(.l1):not(.l2) td{background:color-mix(in srgb,var(--tx) 1.8%,var(--bg2));}
 /* Gantt left pane: zebra alternation for task labels (only when no other state paints inline) */
 .grow-l.alt{background:color-mix(in srgb,var(--tx) 1.8%,var(--bg2));}
-.tr.cp-row td:first-child{position:relative;}.tr.cp-row td:first-child::before{content:'⚡';position:absolute;left:2px;top:50%;transform:translateY(-50%);font-size:9px;opacity:.55;color:var(--am);}
+/* The critical-path mark. It was the ⚡ character, which is the one place an
+   emoji survived the sweep — the guard reads JS and JSX, not stylesheets. Same
+   bolt as Icon.jsx, as a mask so it takes a token colour and a layout size
+   instead of whatever the emoji font on the machine decides. */
+.tr.cp-row td:first-child{position:relative;}
+.tr.cp-row td:first-child::before{
+  content:'';position:absolute;left:2px;top:50%;transform:translateY(-50%);
+  width:9px;height:9px;opacity:.55;background-color:var(--am);
+  -webkit-mask:var(--cp-bolt) center/contain no-repeat;
+  mask:var(--cp-bolt) center/contain no-repeat;
+}
 .tr td{padding:5px 10px;vertical-align:middle;white-space:nowrap;}
 .tid{font-family:var(--mono);font-size:10px;color:var(--tx3);}
 .tn{font-size:12px;}

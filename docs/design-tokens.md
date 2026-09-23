@@ -212,6 +212,13 @@ were wrong with those and only the third is taste:
 - its size comes from the font rather than the layout, so it never lines up
   twice.
 
+The stylesheet draws too, and was missed. `.tr.cp-row td:first-child::before`
+carried `content: '⚡'` — an emoji used as an icon, in the one file the sweep
+never read, because it reads JS and JSX. It is the same bolt as `Icon.jsx` now,
+as a `mask-image` from `--cp-bolt`, so it takes a token colour through
+`background-color` and a size from the layout rather than from whatever emoji
+font the machine has. `icons.test.jsx` reads App.css as well now.
+
 Two things are deliberately **not** icons:
 
 - **Typographic arrows and key symbols** — `→` in a date range, `⇧ ⌥ ↵ ⇥` in a

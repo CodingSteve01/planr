@@ -40,6 +40,31 @@ const stripKeys = line => line.replace(KEY_SYMBOLS, '');
 const FORMAT_TOKENS = /[✅🟡📌⚡🎯]/u;
 const stripFormat = line => line.replace(new RegExp(FORMAT_TOKENS, 'gu'), '');
 
+// The stylesheet draws too. `.tr.cp-row td:first-child::before` carried
+// `content: '⚡'` — an emoji used as an icon, in the one file the sweep above
+// never looked at, because it reads JS and JSX. Reported after everything else
+// was clean: "the critical-path items still have an emoji in front".
+describe('no pictograph is typed by the stylesheet either', () => {
+  const css = read('src/App.css');
+
+  it('has no pictographic `content:` anywhere', () => {
+    const offenders = [];
+    css.split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(/content\s*:\s*(['"])(.*?)\1/g)) {
+        if (PICTOGRAPH.test(m[2])) offenders.push(`${i + 1}: ${line.trim()}`);
+      }
+    });
+    expect(offenders, `emoji drawn from CSS:\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('draws the critical-path mark instead of typing it', () => {
+    // Same bolt as Icon.jsx, as a mask, so it takes a token colour and a
+    // layout size rather than whatever the emoji font decides.
+    expect(css).toMatch(/--cp-bolt:\s*url\("data:image\/svg\+xml/);
+    expect(css).toMatch(/\.tr\.cp-row td:first-child::before\{[^}]*mask:\s*var\(--cp-bolt\)/);
+  });
+});
+
 describe('the icon set', () => {
   it('draws in the colour of the text around it', () => {
     const { container } = render(<Icon name="save" />);
