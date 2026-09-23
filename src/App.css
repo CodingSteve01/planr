@@ -34,6 +34,12 @@
      amber (#f59e0b) written out at eight separate places, so it sat a shade
      off every other warm thing in the app and did not follow the theme. */
   --diff:var(--st-wip);
+  /* Planning confidence is an ORDINAL scale — solid, less solid, unknown —
+     not a status. Painting it green/amber/grey spends the three status hues
+     on a quantity that is never good or bad, and leaves nothing to say "this
+     is going wrong". One hue, three steps: more saturated means more certain.
+     Same ramp on screen, in the PDFs and in the HTML report. */
+  --cf-hi:#7eb3e0;--cf-mid:#4d7ba3;--cf-lo:#39434d;
   /* Three surfaces — ground / card / raised. Mapped onto the pre-existing bg
      ladder 1:1 so nothing shifts; only the concept ("what layer is this on")
      is new. Defined once here — the light block below overrides --bg/--bg2/
@@ -576,7 +582,8 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .tour-progress{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bg3);}
 .tour-progress-fill{height:100%;background:var(--ac2);transition:width .25s ease;}
 .tour-counter{font-size:10px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:16px;}
-.tour-icon{font-size:32px;margin-bottom:12px;line-height:1;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 0;font-size:14px;font-weight:600;color:var(--tx);}
+.tour-icon{display:flex;justify-content:center;margin-bottom:12px;line-height:0;color:var(--ac);}
 .tour-title{font-size:17px;font-weight:700;color:var(--tx);margin:0 0 10px;}
 .tour-body{font-size:13px;color:var(--tx2);line-height:1.6;margin:0 0 18px;}
 .tour-dots{display:flex;gap:6px;margin-bottom:20px;}
@@ -623,6 +630,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
   --st-done-soft:#e8f1ea;--st-wip-soft:#f7efe2;--st-risk-soft:#f7eae8;
   --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#7a5c8c;
   --diff:var(--st-wip);
+  --cf-hi:#1e4467;--cf-mid:#5d87ad;--cf-lo:#b6c9d9;
   /* Spacing/type scale and --surf0/1/2 are not redeclared here: they resolve
      against this same element's --bg/--bg2/--bg3 (overridden above), so they
      already carry the correct light values without repeating them. */

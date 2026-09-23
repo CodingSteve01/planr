@@ -1943,7 +1943,24 @@ export function renderRoadmapSvg(args) {
       : allStations;
     const isLegendExpanded = expandedLegendIds.has(line.root.id);
     const visibleStations = diffMode && !isLegendExpanded ? compactStations : allStations;
-    const hiddenStationCount = allStations.length - compactStations.length;
+    const extrasOf = station => station.clusterSize > 1
+      ? (station.clusterItems || []).filter(c => c.id !== station.id)
+      : [];
+    const movedOrLive = c => {
+      const n = nodeMap[c.id];
+      return doneInWindow.has(c.id) || changedInWindow.has(c.id)
+        || n?.status === 'done' || n?.status === 'wip';
+    };
+    // A station names a stop; what sits under it is a drill-down. Collapsed,
+    // a line lists its stations and nothing else — otherwise a line with two
+    // hundred leaves buries the map under its own legend. Diff mode keeps
+    // whatever moved in the window visible even while collapsed.
+    const visibleExtrasOf = station => isLegendExpanded
+      ? extrasOf(station)
+      : diffMode ? extrasOf(station).filter(movedOrLive) : [];
+    const rowsExpanded = allStations.reduce((n, st) => n + 1 + extrasOf(st).length, 0);
+    const rowsNow = visibleStations.reduce((n, st) => n + 1 + visibleExtrasOf(st).length, 0);
+    const hiddenRowCount = rowsExpanded - rowsNow;
     // Line-level diff: two pills in the header — completions (✓) and
     // progress-only movements (▲). Either can be zero; the row stays quiet
     // when both are.
@@ -2010,16 +2027,7 @@ export function renderRoadmapSvg(args) {
 
       // Cluster details — indented rows below, each with own icon+text centered, clickable
       if (station.clusterSize > 1) {
-        const extras = station.clusterItems.filter(c => c.id !== station.id);
-        const visibleExtras = diffMode && !isLegendExpanded
-          ? extras.filter(c => {
-              const itemNode = nodeMap[c.id];
-              return doneInWindow.has(c.id)
-                || changedInWindow.has(c.id)
-                || itemNode?.status === 'done'
-                || itemNode?.status === 'wip';
-            })
-          : extras;
+        const visibleExtras = visibleExtrasOf(station);
         visibleExtras.forEach(c => {
           const itemNode = nodeMap[c.id];
           const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
@@ -2045,10 +2053,10 @@ export function renderRoadmapSvg(args) {
       }
     });
 
-    if (diffMode && hiddenStationCount > 0) {
+    if (hiddenRowCount > 0 || isLegendExpanded) {
       const toggleLabel = isLegendExpanded
         ? (labels.showLess || 'Show fewer')
-        : (labels.showMore || '+{0} more').replace('{0}', hiddenStationCount);
+        : (labels.showMore || '+{0} more').replace('{0}', hiddenRowCount);
       block.push(`<button type="button" data-rm-toggle="${esc(line.root.id)}" style="margin-top:6px;padding:2px 5px;font:700 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#cbd5e1);background:transparent;border:1px solid var(--b2,#364456);border-radius:4px;cursor:pointer">${esc(toggleLabel)}</button>`);
     }
 

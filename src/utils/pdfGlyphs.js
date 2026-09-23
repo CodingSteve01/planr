@@ -99,8 +99,15 @@ export function sanitizePdfText(text) {
     dropped = true;   // unknown AND unsupported: leave it out entirely
   }
   // Only tidy whitespace when something was actually removed, so every other
-  // string comes out byte-identical.
-  return dropped ? out.replace(/ {2,}/g, ' ').trim() : out;
+  // string comes out byte-identical. Dropping a decorative symbol also leaves
+  // a space stranded in front of whatever followed it — a project named
+  // "Abrechnung in VOffice ⏰" printed inside quotes as „Abrechnung in VOffice "
+  // — so a space that now sits before closing punctuation goes with it.
+  if (!dropped) return out;
+  return out
+    .replace(/ {2,}/g, ' ')
+    .replace(/ +([,.;:!?)\]}»"'“”’])/g, '$1')
+    .trim();
 }
 
 // Deep-map every string in a pdfmake docDefinition. Keys are left alone (they

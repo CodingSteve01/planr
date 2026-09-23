@@ -239,3 +239,50 @@ export function diffForUi(prev, curr) {
   }
   return out;
 }
+
+// ── Catching up on a day that already has entries after it ─────────────────
+// Recording "done as of the 14th" today, when the log already carries a "wip"
+// for that item on the 20th, leaves a replay that walks done → wip → done. The
+// 20th entry is not news, it is what the log believed while nobody had told it
+// the work was finished; keeping it means every review between those dates
+// reports the wrong state.
+//
+// So a backdated event supersedes the later entries for the SAME item that
+// claim the same fields. Only those: another item's history is untouched,
+// events before the effective date are untouched, and a field the backdated
+// event says nothing about (a progress entry, when only the status was
+// recorded) survives.
+export function supersededByBackdate(existing, newEvents) {
+  const backdated = (newEvents || []).filter(ev => ev && ev.effectiveAt);
+  if (!backdated.length) return { kept: existing || [], dropped: [] };
+
+  const FIELDS = ['status', 'progress', 'completedAt'];
+  const rules = new Map();
+  for (const ev of backdated) {
+    const fields = FIELDS.filter(f => ev[f] != null);
+    if (!fields.length) continue;
+    const prev = rules.get(ev.id);
+    const from = prev && prev.from < ev.effectiveAt ? prev.from : ev.effectiveAt;
+    rules.set(ev.id, { from, fields: new Set([...(prev?.fields || []), ...fields]) });
+  }
+
+  const kept = [];
+  const dropped = [];
+  for (const ev of existing || []) {
+    const rule = rules.get(ev?.id);
+    if (!rule) { kept.push(ev); continue; }
+    const on = eventEffectiveDate(ev);
+    // Strictly after: an entry ON the backdated day is a peer, not a
+    // contradiction, and ordering between the two is already decided by ts.
+    if (!on || on <= rule.from) { kept.push(ev); continue; }
+    const claims = FIELDS.filter(f => ev[f] != null);
+    if (!claims.length || !claims.every(f => rule.fields.has(f))) { kept.push(ev); continue; }
+    dropped.push(ev);
+  }
+  return { kept, dropped };
+}
+
+function eventEffectiveDate(ev) {
+  if (!ev) return '';
+  return ev.completedAt || ev.effectiveAt || (ev.ts ? String(ev.ts).slice(0, 10) : '');
+}

@@ -63,7 +63,6 @@ export function ExportCards({
   onNetworkPNG,
   onGanttPNG,
   onJSON,
-  onGoTab,
 }) {
   const { t } = useT();
   const [todoH, setTodoH] = useState(30);
@@ -95,14 +94,6 @@ export function ExportCards({
       {busy === k ? '…' : done[k] ? <Icon name="check" size={12} strokeWidth={2.4} /> : label}
     </button>
   );
-  // The stand-in for a card whose export needs another view open.
-  const G = target => onGoTab
-    ? <button className="btn btn-sec btn-sm" data-htip={t('ex.goToViewTip')}
-        onClick={() => onGoTab(target)}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-        {t('ex.goToView')}<Icon name="chevronRight" size={11} />
-      </button>
-    : null;
   const H = (val, setVal) => (
     <select className="btn btn-sec btn-sm" style={{ padding: '3px 6px', width: 58 }} value={val} onChange={e => setVal(parseInt(e.target.value))}>
       {[7, 14, 30, 60, 90].map(d => <option key={d} value={d}>{d}d</option>)}
@@ -166,20 +157,17 @@ export function ExportCards({
         desc={t('ex.mermaid.desc')}
         action={B('mermaid', 'MD', onMermaid)} />
 
-      {/* A picture is taken from the view that draws it, so from the Report
-          screen — which is never the Network or the Schedule — both of these
-          used to be permanently greyed out with a sentence explaining why.
-          A card that can only ever say no is not a card. It offers the way
-          there instead. */}
-      <Card cat="img" title={t('ex.netPng')}
-        desc={tab === 'net' ? t('ex.netPng.desc') : t('ex.netPng.off')}
-        action={tab === 'net' ? B('nN', 'PNG', onNetworkPNG) : G('net')}
-        disabled={tab !== 'net'} />
+      {/* A picture is taken from the view that draws it. From the Report screen
+          — which is never the Network or the Schedule — these two can only ever
+          offer a detour to another tab, and the detour was never taken. They
+          now appear where they can act and nowhere else. */}
+      {tab === 'net' && <Card cat="img" title={t('ex.netPng')}
+        desc={t('ex.netPng.desc')}
+        action={B('nN', 'PNG', onNetworkPNG)} />}
 
-      <Card cat="img" title={t('ex.ganttPng')}
-        desc={tab === 'gantt' ? t('ex.ganttPng.desc') : t('ex.ganttPng.off')}
-        action={tab === 'gantt' ? B('nG', 'PNG', onGanttPNG) : G('gantt')}
-        disabled={tab !== 'gantt'} />
+      {tab === 'gantt' && <Card cat="img" title={t('ex.ganttPng')}
+        desc={t('ex.ganttPng.desc')}
+        action={B('nG', 'PNG', onGanttPNG)} />}
 
       <Card cat="raw" title={t('ex.backup')}
         desc={t('ex.backup.desc')}

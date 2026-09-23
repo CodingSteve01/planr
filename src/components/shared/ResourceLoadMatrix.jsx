@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { isOnboard } from '../../utils/capacity.js';
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
@@ -30,12 +31,17 @@ function weekNum(d) {
   return Math.ceil((((x - yearStart) / 86400000) + 1) / 7);
 }
 
+// The tint and the border carry the band; the TEXT does not. It used to be set
+// in a pale version of the same hue — green on green, amber on amber — which
+// was picked against a dark ground and is unreadable on a light one. The
+// legend above the table says what each band means, so the number only has to
+// be legible.
 function loadTone(percent) {
   if (!Number.isFinite(percent) || percent <= 0) return { bg: 'rgba(148,163,184,.08)', fg: 'var(--tx3)', bd: 'rgba(148,163,184,.22)' };
-  if (percent < 50) return { bg: 'rgba(59,130,246,.16)', fg: '#93c5fd', bd: 'rgba(59,130,246,.45)' };
-  if (percent < 90) return { bg: 'rgba(16,185,129,.18)', fg: '#86efac', bd: 'rgba(16,185,129,.50)' };
-  if (percent <= 110) return { bg: 'rgba(245,158,11,.24)', fg: '#fbbf24', bd: 'rgba(245,158,11,.60)' };
-  return { bg: 'rgba(239,68,68,.30)', fg: '#fca5a5', bd: 'rgba(239,68,68,.78)' };
+  if (percent < 50) return { bg: 'rgba(59,130,246,.16)', fg: 'var(--tx)', bd: 'rgba(59,130,246,.45)' };
+  if (percent < 90) return { bg: 'rgba(16,185,129,.18)', fg: 'var(--tx)', bd: 'rgba(16,185,129,.50)' };
+  if (percent <= 110) return { bg: 'rgba(245,158,11,.24)', fg: 'var(--tx)', bd: 'rgba(245,158,11,.60)' };
+  return { bg: 'rgba(239,68,68,.30)', fg: 'var(--tx)', bd: 'rgba(239,68,68,.78)' };
 }
 
 export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlans, scheduled, weeks }) {
@@ -136,14 +142,29 @@ export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlan
 }
 
 
-export function ResourceLoadMatrix({ members, teams, weeks, vacations, meetingPlans, scheduled }) {
+export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacations, meetingPlans, scheduled }) {
   const { t } = useT();
+  // Someone who left has no capacity to be loaded against. They used to sit in
+  // this matrix with a full row of 0% cells, pushing the people who are
+  // actually overbooked further down it.
+  const members = useMemo(() => (allMembers || []).filter(m => isOnboard(m)), [allMembers]);
   const loadByPerson = useMemo(
     () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans, scheduled, weeks }),
     [members, teams, vacations, meetingPlans, scheduled, weeks],
   );
   const teamById = Object.fromEntries((teams || []).map(team => [team.id, team]));
-  const weekCols = weeks || [];
+  // Start at the week we are in. The plan's week list runs from the planning
+  // start, which for a multi-year programme means the matrix opened on a wall
+  // of past weeks at 0% while the count above it said three people were
+  // overbooked — those weeks were simply off to the right. Past weeks hold no
+  // decision; if the plan has not started yet, show it from the beginning.
+  const weekOffset = useMemo(() => {
+    const all = weeks || [];
+    const now = new Date();
+    const idx = all.findIndex(w => w.mon && new Date(w.mon) >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7));
+    return idx > 0 ? idx : 0;
+  }, [weeks]);
+  const weekCols = useMemo(() => (weeks || []).slice(weekOffset), [weeks, weekOffset]);
   const [overloadOnly, setOverloadOnly] = useState(() => {
     try { return localStorage.getItem('planr_load_overload_only') === 'true'; } catch { return false; }
   });
@@ -288,7 +309,10 @@ export function ResourceLoadMatrix({ members, teams, weeks, vacations, meetingPl
                     </div>
                   </td>
                   {weekCols.map((week, wi) => {
-                    const cell = cells[wi] || { availability: 0, load: 0, percent: 0, tasks: [], kw: week.kw || weekNum(week.mon), start: week.mon ? iso(week.mon) : '' };
+                    // `cells` is indexed against the FULL week list, so the
+                    // offset has to be added back or every row would show the
+                    // load of a different week than its column header.
+                    const cell = cells[wi + weekOffset] || { availability: 0, load: 0, percent: 0, tasks: [], kw: week.kw || weekNum(week.mon), start: week.mon ? iso(week.mon) : '' };
                     const tone = loadTone(cell.percent);
                     const overloaded = cell.percent > 110;
                     const empty = cell.load <= 0;

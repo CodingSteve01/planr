@@ -1,10 +1,11 @@
 import { useMemo, useState, memo } from "react";
 import { Icon } from '../shared/Icon.jsx';
 import { TBadge } from '../shared/Badges.jsx';
-import { leafNodes, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
+import { leafNodes, leafProgress, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
-import { GT, GT_ICON, GL } from '../../constants.js';
+import { GT_ICON, GL, CONF_COLOR } from '../../constants.js';
+import { onboardCount } from '../../utils/capacity.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
@@ -49,6 +50,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   const done = lvs.filter(r => r.status === 'done').length;
   const wip = lvs.filter(r => r.status === 'wip').length;
   const open = lvs.filter(r => r.status === 'open').length;
+  const onboard = useMemo(() => onboardCount(members), [members]);
   const tR = useMemo(() => totalEffort(lvs), [lvs]);
   // Absolute realistic PT delivered. The percentage above drops when new
   // scope lands; this number only ever goes up as work gets done, so users
@@ -312,24 +314,37 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       lvs.filter(r => r.status !== 'done').forEach(r => {
         const c = confidence[r.id] || 'committed';
         cc[c]++;
-        ccPt[c] += scheduleEffort(r) || 0;
+        // REMAINING effort, matching the exports: counting the whole of a
+        // half-finished item made the three tiers sum past the open total.
+        ccPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
       });
       const total = cc.committed + cc.estimated + cc.exploratory;
-      if (!total) return null;
+      const totalPtOpen = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+      if (!total || !totalPtOpen) return null;
       return <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('s.planConfidence')}</span>
           <span style={{ fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
-        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10, background: 'var(--bg4)' }}>
-          {cc.committed > 0 && <div style={{ width: `${cc.committed / total * 100}%`, background: 'var(--gr)', transition: 'width .3s' }} />}
-          {cc.estimated > 0 && <div style={{ width: `${cc.estimated / total * 100}%`, background: 'var(--am)', transition: 'width .3s' }} />}
-          {cc.exploratory > 0 && <div style={{ width: `${cc.exploratory / total * 100}%`, background: 'var(--tx3)', transition: 'width .3s' }} />}
+        {/* Split by EFFORT, not item count. A 45 PT rebuild and a 1 PT typo fix
+            counted the same here, so the bar could sit green while most of the
+            work in it was unscoped — the same reason the progress figure is
+            effort-weighted. The ●/◐/○ marks are gone: the swatch says which
+            tier a row is, and the glyph said it a second time. */}
+        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 8, background: 'var(--bg4)' }}>
+          {ccPt.committed > 0 && <div style={{ width: `${ccPt.committed / totalPtOpen * 100}%`, background: CONF_COLOR.committed, transition: 'width .3s' }} />}
+          {ccPt.estimated > 0 && <div style={{ width: `${ccPt.estimated / totalPtOpen * 100}%`, background: CONF_COLOR.estimated, transition: 'width .3s' }} />}
+          {ccPt.exploratory > 0 && <div style={{ width: `${ccPt.exploratory / totalPtOpen * 100}%`, background: CONF_COLOR.exploratory, transition: 'width .3s' }} />}
         </div>
-        <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
-          <span style={{ color: 'var(--gr)' }}>● {cc.committed} {t('conf.committed').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.committed.toFixed(0)} PT)</span></span>
-          <span style={{ color: 'var(--am)' }}>◐ {cc.estimated} {t('conf.estimated').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.estimated.toFixed(0)} PT)</span></span>
-          <span style={{ color: 'var(--tx3)' }}>○ {cc.exploratory} {t('conf.exploratory').toLowerCase()} <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>({ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) + ' PT' : '? PT'})</span></span>
+        <div style={{ display: 'flex', gap: 18, fontSize: 11, color: 'var(--tx2)', flexWrap: 'wrap' }}>
+          {[['committed', cc.committed, ccPt.committed], ['estimated', cc.estimated, ccPt.estimated], ['exploratory', cc.exploratory, ccPt.exploratory]]
+            .map(([key, count, pt]) => <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: CONF_COLOR[key], flexShrink: 0 }} />
+              {t('conf.' + key)}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+                {pt > 0 ? Math.round(pt) : '?'} PT · {count}
+              </span>
+            </span>)}
         </div>
       </div>;
     })()}
@@ -383,7 +398,17 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {/* Team effort - compact */}
     <div className="section-h">{t('s.resources')}</div>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v">{members.length}</div><div className="sum-l">{t('s.people')}</div></div>
+      {/* People on the team TODAY. The raw list keeps everyone who ever was,
+          so this used to count leavers beside a capacity figure they no longer
+          contribute to. Departed members are named underneath rather than
+          dropped silently. */}
+      <div className="sum-card" style={{ minWidth: 80 }}>
+        <div className="sum-v">{onboard}</div>
+        <div className="sum-l">{t('s.people')}</div>
+        {members.length > onboard && <div style={{ fontSize: 9, color: 'var(--tx3)', marginTop: 2 }}>
+          {t('s.peopleLeft', members.length - onboard)}
+        </div>}
+      </div>
       <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
       {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
         return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
@@ -429,7 +454,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type]} size={13} /></span>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type] || 'folder'} size={13} /></span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
@@ -450,13 +475,23 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               {timeline.deadline && <span data-htip={iso(timeline.deadline.start) + ' → ' + iso(timeline.deadline.end)}>{t('qe.affectsDeadline')}: {horizonLabel(timeline.deadline.start, null, isDe, now)} → {horizonLabel(timeline.deadline.end, null, isDe, now)}</span>}
             </div>
           )}
-          {gp && <>
+          {/* The progress block hung off goalPaths, which is only built for
+              TYPED roots — so an ordinary project showed its name and a date
+              and nothing else, while a goal beside it showed a bar, a count
+              and its critical items. The figures never needed goalPaths:
+              goalLeaves is derived from the live tree either way. Only the
+              critical-item chips do. */}
+          {gpTotal > 0 && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
-              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp.critical.size)}</span>
+              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp?.critical.size || 0)}</span>
               <span data-htip={t('s.progressTip', progressPctLabel(gpProg))}>{progressPctLabel(gpProg)}%</span>
             </div>
-            <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
-            {gp.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {/* Delivered work is green. This bar was amber for every project
+                that was not flagged critical, which reads as a warning about
+                having made progress; the severity already has the left edge
+                of the card. */}
+            <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: 'var(--st-done)' }} /></div>
+            {gp?.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
               {gp.critical.size > 6 && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
             </div>}

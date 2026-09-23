@@ -112,3 +112,58 @@ describe('backdating', () => {
     expect(chip()).toBeNull();
   });
 });
+
+// ── The point of the whole thing ───────────────────────────────────────────
+// Everything above checks the switch: that it turns on, says so, and forgets
+// itself on reload. None of it checked that a status recorded while it is on
+// actually lands on the chosen day — which is the only reason the feature
+// exists, and what someone catching up before a review depends on.
+describe('what gets written while backdating', () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+    localStorage.setItem('planr_tour_done', '1');
+    seedProject();
+  });
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const storedEvents = () => {
+    try { return JSON.parse(localStorage.getItem('planr_v2') || '{}').historyEvents || []; }
+    catch { return []; }
+  };
+
+  it('stamps a status change with the chosen day, and stops when switched off', { timeout: 20000 }, async () => {
+    renderApp();
+    await screen.findByTestId('view-filters-trigger');
+
+    const dialog = await openDialog();
+    const date = dialog.querySelector('input[type="date"]');
+    await act(async () => { fireEvent.change(date, { target: { value: '2026-09-14' } }); });
+    await act(async () => { fireEvent.click(screen.getByTestId('backdate-apply')); });
+    await waitFor(() => { if (!chip()) throw new Error('no chip'); });
+
+    // Cycle the leaf's status from the tree, the way you would when catching
+    // up on a sprint's worth of work.
+    const row = (await screen.findAllByTestId('tree-row-name')).find(el => /Prices/.test(el.textContent));
+    await act(async () => { fireEvent.click(row); });
+    // The key handler lives on the tree surface, not on window.
+    await act(async () => { fireEvent.keyDown(row, { key: ' ', bubbles: true }); });
+
+    // The localStorage persist waits 800ms and then writes on an idle
+    // callback with a 1200ms deadline, so the default 1s is far too short.
+    await waitFor(() => {
+      const backdated = storedEvents().filter(ev => ev.effectiveAt === '2026-09-14' && ev.status);
+      if (!backdated.length) throw new Error('nothing recorded as of 2026-09-14');
+    }, { timeout: 6000 });
+
+    const before = storedEvents().length;
+    await act(async () => { fireEvent.click(screen.getByTestId('backdate-clear')); });
+    await act(async () => { fireEvent.keyDown(row, { key: ' ', bubbles: true }); });
+
+    await waitFor(() => { if (storedEvents().length <= before) throw new Error('no further event'); }, { timeout: 6000 });
+    const after = storedEvents().slice(before);
+    expect(after.some(ev => ev.effectiveAt)).toBe(false);
+  });
+});

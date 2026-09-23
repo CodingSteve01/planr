@@ -51,6 +51,8 @@ async function loadPdfMake() {
 export { horizonLabel, horizonBucket } from './horizon.js';
 import { horizonLabel, horizonBucket } from './horizon.js';
 import { PRINT } from './printPalette.js';
+import { isOnboard } from './capacity.js';
+import { memberShades } from './teamShades.js';
 
 // ── Shared footer / header builders ─────────────────────────────────────────
 function footerBuilder({ meta, kind, dateStr }) {
@@ -107,15 +109,27 @@ function th(value) {
   return { text: value, style: 'th', alignment: 'left' };
 }
 
-function headerTable(headers, rows, widths) {
+// `title` puts the section heading INSIDE the table as its first row and
+// counts it among the repeating header rows, so a table that runs over a page
+// break carries its name onto the next page instead of leaving the reader
+// with a column header and no idea what is being listed. It also cannot be
+// stranded at the foot of a page with its table on the next one — pdfmake
+// lays a heading and the table after it out separately, and the heading style
+// carries `headlineLevel`, which makes that worse rather than better.
+function headerTable(headers, rows, widths, title) {
+  const width = widths || headers.map(() => '*');
+  const titleRow = title ? [[
+    { text: title, fontSize: 14, bold: true, color: PRINT.accent, colSpan: headers.length, margin: [0, 2, 0, 6], border: [false, false, false, false] },
+    ...headers.slice(1).map(() => ({ text: '', border: [false, false, false, false] })),
+  ]] : [];
   return {
     table: {
-      headerRows: 1,
+      headerRows: title ? 2 : 1,
       // Bumps the break point up if only 1-2 body rows would land at the top
       // of the next page — kills the header+orphan widow at section pages.
       keepWithHeaderRows: 3,
-      widths: widths || headers.map(() => '*'),
-      body: [headers.map(th), ...rows.map(row => row.map(cell => td(cell)))],
+      widths: width,
+      body: [...titleRow, headers.map(th), ...rows.map(row => row.map(cell => td(cell)))],
     },
     layout: TABLE_LAYOUT,
     margin: [0, 0, 0, 8],
@@ -158,10 +172,9 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
   );
   // Symbols the bundled Roboto does not carry render as a missing-glyph box.
   // Embedded SVG bypasses the docDefinition sanitizer (svg-to-pdfkit does its
-  // own text handling), so apply the same substitution table by hand here.
-  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => {
-    patched = patched.split(from).join(to);
-  });
+  // own text handling), so apply the same substitution by hand — including the
+  // SVG-only swaps, because this is drawn in Roboto rather than Plex.
+  patched = swapUnsupportedGlyphs(patched);
   return patched
     .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
     .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
@@ -207,9 +220,18 @@ function prepareProjectRoadmapSvg(svgStr, height) {
 
 // Same substitution pass the docDefinition gets, for the glyphs that can end
 // up inside an SVG label (a task called "Release → UAT", say).
+//
+// Plus a second pass the docDefinition does NOT need. Embedded SVG is drawn by
+// svg-to-pdfkit against pdfmake's bundled Roboto, not the Plex faces the rest
+// of the document uses, and Roboto has no arrows — so the very characters
+// PDF_GLYPH_MAP maps TOWARDS come out as empty boxes in here. An en dash says
+// the same thing about a date range and about a handover.
+const SVG_ONLY_SWAPS = { '→': '–', '←': '–', '↑': '^', '↓': 'v', '◊': '○' };
+
 function swapUnsupportedGlyphs(svgStr) {
   let out = svgStr;
   Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => { out = out.split(from).join(to); });
+  Object.entries(SVG_ONLY_SWAPS).forEach(([from, to]) => { out = out.split(from).join(to); });
   return out;
 }
 
@@ -228,15 +250,117 @@ function buildRoadmapSvgForPdf(ctx) {
   return prepareRoadmapSvg(svgStr, 1400, 800);
 }
 
+// A4 landscape (841.89pt) less the 36pt margins the summary uses on both
+// sides. Every full-width element on that page measures itself against this
+// rather than carrying its own rounded-down copy.
+const SUMMARY_W = 770;
+
+// ── Summary page 1 ─────────────────────────────────────────────────────────
+// A board reads top-left first and forwards this page on its own, so it states
+// its conclusion before any figure that supports it. The composition is fixed
+// rather than data-driven — always five KPI slots, at most five risks, one
+// confidence bar — because a page whose shape changes month to month cannot be
+// read as a series.
+// Three on the page, sorted by severity. The expert brief settled on three
+// with a hard cap of five; three is also what fits beside a project table of
+// this size without the block tearing across the page break.
+const MAX_RISKS = 3;
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2 };
+
+// One date format per document. ISO belongs in engineering appendices, not in
+// a German board pack that also prints "23. September 2026" two lines above.
+function fmtDay(d, de) {
+  if (!d) return '—';
+  const s = iso(d);
+  return de ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : s;
+}
+function fmtMonth(d) {
+  if (!d) return '—';
+  return String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+function fmtInt(n, de) {
+  return new Intl.NumberFormat(de ? 'de-DE' : 'en-US').format(Math.round(n || 0));
+}
+
+// One row per project, because a programme of eight independent projects has
+// no single answer to "when is it done". The page used to print the maximum
+// across all of them, which is the slowest project's date wearing the whole
+// programme's name — true, and no use to anyone deciding about any one of them.
+function projectStatus(m) {
+  const { rootData, deadlineStates } = m;
+  return rootData.map(r => {
+    const ds = deadlineStates?.[r.id] || null;
+    const days = (ds?.dateD && ds?.end) ? Math.round((ds.end - ds.dateD) / 86400000) : null;
+    const late = !!ds?.isLate && days !== null && days > 0;
+    const unclear = r.openPt > 0 ? r.ccPt.exploratory / r.openPt : 0;
+    return {
+      ...r, ds, days, late, unclear,
+      color: late ? PRINT.risk : unclear > 0.25 ? PRINT.wip : PRINT.done,
+    };
+  }).sort((a, b) => {
+    // Missed dates first, worst by days; then everything else by how much of
+    // it is still unscoped.
+    if (a.late !== b.late) return a.late ? -1 : 1;
+    if (a.late && b.late) return b.days - a.days;
+    return b.unclear - a.unclear;
+  });
+}
+
+// The sentence the whole page exists to deliver.
+function summaryVerdict(m, projects) {
+  const { t, ccPt } = m;
+  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+  const unclearShare = openPt > 0 ? ccPt.exploratory / openPt : 0;
+  const withTarget = projects.filter(p => p.ds?.dateD);
+  const lateOnes = projects.filter(p => p.late);
+  const last = projects.reduce((acc, p) => (p.endD && (!acc || !acc.endD || p.endD > acc.endD)) ? p : acc, null);
+  const lastTxt = last ? `${fmtMonth(last.endD)} (${(last.name || '').trim()})` : '—';
+  if (lateOnes.length) {
+    const worst = lateOnes[0];
+    return {
+      word: t('RED', 'ROT'), color: PRINT.risk,
+      line: t(
+        `${lateOnes.length} of ${projects.length} projects miss their date — worst "${(worst.name || '').trim()}" by ${worst.days} days. Last project ends ${lastTxt}.`,
+        `${lateOnes.length} von ${projects.length} Projekten verfehlen ihren Termin — am stärksten „${(worst.name || '').trim()}" um ${worst.days} Tage. Letztes Projekt endet ${lastTxt}.`,
+      ),
+    };
+  }
+  if (!withTarget.length) {
+    return {
+      word: t('NO TARGET', 'KEIN ZIEL'), color: PRINT.wip,
+      line: t(
+        `No project carries a target date, so none can be measured against one. Last project ends ${lastTxt}.`,
+        `Kein Projekt hat einen hinterlegten Zieltermin, also lässt sich keines an einem messen. Letztes Projekt endet ${lastTxt}.`,
+      ),
+    };
+  }
+  if (unclearShare > 0.25) {
+    return {
+      word: t('AMBER', 'GELB'), color: PRINT.wip,
+      line: t(
+        `All ${withTarget.length} recorded dates hold, but ${Math.round(unclearShare * 100)}% of the open effort is not scoped yet. Last project ends ${lastTxt}.`,
+        `Alle ${withTarget.length} hinterlegten Termine halten, aber ${Math.round(unclearShare * 100)}% des offenen Aufwands sind noch nicht geklärt. Letztes Projekt endet ${lastTxt}.`,
+      ),
+    };
+  }
+  return {
+    word: t('GREEN', 'GRÜN'), color: PRINT.done,
+    line: t(`Every recorded date holds under the current plan. Last project ends ${lastTxt}.`,
+            `Alle hinterlegten Termine werden nach aktueller Planung gehalten. Letztes Projekt endet ${lastTxt}.`),
+  };
+}
+
 // ── Roadmap legend for pdfmake ──────────────────────────────────────────────
-// Same structure as the HTML legend beneath the Subway-Map in Overview:
-// per-line column with station rows + cluster items. Rendered via pdfmake
-// `columns` so multiple lines sit side-by-side on the page.
+// Per line: a header and one row per station. Unlike the on-screen legend
+// this never lists what sits under a station — a management summary has no
+// expand toggle, and the unfolded form ran to five pages of ellipsised
+// fragments. Done stations are marked with a check, not struck through:
+// a line through a name reads as cancelled, which is the opposite of what
+// a finished station means.
 function truncateStr(s, n) { return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || ''); }
 function buildRoadmapLegendPdf(model) {
   if (!model?.lines?.length) return null;
-  // ◐ and ◆ both missing from pdfmake's Roboto. ● + amber color for WIP.
-  const statusGlyph = (s) => s === 'done' ? '●' : s === 'wip' ? '●' : '○';
+  const statusGlyph = (s) => s === 'done' ? '✓' : s === 'wip' ? '●' : '○';
   const columns = model.lines.map(line => {
     const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
     if (!allStations.length) return { text: '', width: '*' };
@@ -244,8 +368,8 @@ function buildRoadmapLegendPdf(model) {
       {
         columns: [
           { canvas: [{ type: 'rect', x: 0, y: 3, w: 20, h: 10, r: 2, color: line.color }], width: 24 },
-          { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', margin: [2, 2, 4, 0] },
-          { text: truncateStr(line.root.name, 22), color: PRINT.ink2, fontSize: 8, margin: [0, 2, 0, 0] },
+          { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', noWrap: true, margin: [2, 2, 4, 0] },
+          { text: truncateStr(line.root.name, 22), color: PRINT.ink2, fontSize: 8, noWrap: true, margin: [0, 2, 0, 0] },
         ],
         columnGap: 3,
         margin: [0, 0, 0, 3],
@@ -254,25 +378,15 @@ function buildRoadmapLegendPdf(model) {
     allStations.forEach(st => {
       const stStatus = st.allDone ? 'done' : st.done > 0 ? 'wip' : 'open';
       const badge = st.allDone ? '' : ` ${st.done}/${st.total}`;
-      const decor = st.allDone ? PRINT.muted : PRINT.ink;
       stack.push({
         columns: [
-          { text: statusGlyph(stStatus), color: line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
-          { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
-          { text: truncateStr(st.name, 24) + badge, color: decor, fontSize: 7.5, margin: [0, 1, 0, 0], decoration: st.allDone ? 'lineThrough' : null },
+          { text: statusGlyph(stStatus), color: stStatus === 'open' ? PRINT.muted : line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
+          { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, noWrap: true, margin: [0, 1, 0, 0] },
+          { text: truncateStr(st.name, 24) + badge, color: st.allDone ? PRINT.muted : PRINT.ink, fontSize: 7.5, margin: [0, 1, 0, 0] },
         ],
         columnGap: 2,
         margin: [0, 0, 0, 1],
       });
-      if (st.clusterSize > 1) {
-        const extras = st.clusterItems.filter(c => c.id !== st.id);
-        extras.forEach(c => {
-          stack.push({
-            text: '    · ' + truncateStr(c.name || c.id, 26),
-            fontSize: 7, color: PRINT.muted, margin: [0, 0, 0, 0.5],
-          });
-        });
-      }
     });
     return { stack, width: '*' };
   });
@@ -302,88 +416,192 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
   const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, deadlineStates, confidence, members, lvs, scheduled, teams } = m;
-  // Progress bar geometry must never diverge from the printed number.
-  const progPct = Math.max(0, Math.min(100, prog));
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
+  const de = m.de;
+  const projects = projectStatus(m);
+  const v = summaryVerdict(m, projects);
+  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
 
-  const kpiBlock = (label, value, color = PRINT.ink) => ({
-    stack: [
-      { text: String(value), fontSize: 16, bold: true, color, margin: [0, 0, 0, 2] },
-      { text: label, style: 'kpiL' },
-    ],
-    margin: [0, 0, 0, 0],
-  });
-  const kpis = [
-    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', PRINT.done),
-    kpiBlock(t('Items', 'Items'), lvs.length),
-    kpiBlock(t('Done', 'Erledigt'), done, PRINT.done),
-    kpiBlock(t('Open', 'Offen'), wip + open, PRINT.wip),
-    kpiBlock(t('PT done', 'PT erledigt'), Math.round(donePt), PRINT.done),
-    kpiBlock(t('Total PT', 'Gesamt PT'), totalPt.toFixed(0)),
-    kpiBlock(t('People', 'Personen'), members.length),
-    kpiBlock(t('Projected End', 'Voraussichtl. Ende'), projectEnd ? iso(projectEnd) : '—'),
+  // The confidence ramp, used identically in the per-project mini-bars and in
+  // the summary bar further down.
+  const CONF = [
+    [t('Committed', 'Verbindlich'), 'committed', PRINT.confHi],
+    [t('Estimated', 'Geschätzt'), 'estimated', PRINT.confMid],
+    [t('Exploratory', 'Explorativ'), 'exploratory', PRINT.confLo],
   ];
-  if (cpItems.length) kpis.push(kpiBlock(t('Critical Path', 'Krit. Pfad'), cpItems.length, PRINT.risk));
+  const confBar = (ccPtOf, total, width) => {
+    if (!(total > 0)) return { text: '', width };
+    let x = 0;
+    const rects = CONF.map(([, key, col]) => {
+      const w = width * (ccPtOf[key] || 0) / total;
+      const r = { type: 'rect', x, y: 0, w, h: 7, color: col };
+      x += w;
+      return r;
+    }).filter(r => r.w > 0.2);
+    return { canvas: rects, width, margin: [0, 2, 0, 0] };
+  };
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('Management Summary', 'Management-Zusammenfassung') + ' · ' + dateStr + (meta.planStart ? ' · ' + t('Plan', 'Plan') + ': ' + meta.planStart : '') + (projectEnd ? ' → ' + iso(projectEnd) : ''), style: 'sub' },
-    { text: t('Key Figures', 'Kennzahlen'), style: 'h2' },
-    { columns: kpis, columnGap: 8, margin: [0, 0, 0, 8] },
+    { text: t('Management summary for the board', 'Management-Zusammenfassung für den Vorstand'), fontSize: 11, color: PRINT.ink2, margin: [0, 1, 0, 1] },
     {
-      canvas: [
-        { type: 'rect', x: 0, y: 0, w: 760, h: 8, r: 2, color: PRINT.rule },
-        { type: 'rect', x: 0, y: 0, w: 760 * progPct / 100, h: 8, r: 2, color: PRINT.done },
+      // The progress figure is its own text node rather than part of the
+      // sentence: exportParity holds the PDF to printing the very percentage
+      // the Overview shows, and it looks for it as a standalone token.
+      text: [
+        t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`)
+          + (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '')
+          + ' · ' + projects.length + ' ' + t('projects', 'Projekte')
+          + ' · ' + fmtInt(totalPt, de) + ' PT · ',
+        { text: progLabel + '%' },
+        ' ' + t('delivered', 'erledigt'),
       ],
-      margin: [0, 0, 0, 10],
+      fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 10],
+    },
+    // The verdict. The only traffic-light word in the whole document.
+    {
+      columns: [
+        { text: v.line, fontSize: 14, color: PRINT.ink, width: '*' },
+        { text: v.word, fontSize: 12, bold: true, color: v.color, width: 'auto', alignment: 'right', noWrap: true, margin: [10, 2, 0, 0] },
+      ],
+      margin: [0, 0, 0, 12],
     },
   ];
 
-  if (risks.length) {
-    content.push({ text: t('Risks & Alerts', 'Risiken & Warnungen'), style: 'h2' });
+  // ── Per project ──────────────────────────────────────────────────────────
+  content.push({ text: t('Where each project stands', 'Wo jedes Projekt steht'), style: 'h2' });
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: [3, 22, '*', 48, 56, 44, 82, 104],
+      body: [
+        [
+          { text: '', border: [false, false, false, false] },
+          { text: '', fontSize: 8, color: PRINT.muted, margin: [6, 0, 0, 3] },
+          { text: t('Project', 'Projekt'), fontSize: 8, color: PRINT.muted, margin: [0, 0, 0, 3] },
+          { text: t('Forecast', 'Prognose'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Target', 'Ziel'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Delta', 'Abw.'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 0, 3] },
+          { text: t('Progress', 'Fortschritt'), fontSize: 8, color: PRINT.muted, alignment: 'right', margin: [0, 0, 10, 3] },
+          { text: t('Open effort', 'Offener Aufwand'), fontSize: 8, color: PRINT.muted, margin: [0, 0, 0, 3] },
+        ].map(c => ({ ...c, border: [false, false, false, true] })),
+        ...projects.map(p => {
+          const delta = p.days === null ? '—'
+            : p.days > 0 ? '+' + Math.max(1, Math.round(p.days / 30)) + ' ' + t('mo.', 'Mon.')
+              : t('on time', 'im Plan');
+          return [
+            { text: '', fillColor: p.color },
+            { text: p.id, fontSize: 9, bold: true, color: PRINT.ink, margin: [6, 3, 0, 3] },
+            { text: (p.name || '').trim(), fontSize: 9, color: PRINT.ink, margin: [0, 3, 6, 3] },
+            { text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'), fontSize: 9, color: p.endD ? PRINT.ink : PRINT.muted, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: p.ds?.dateD ? fmtDay(p.ds.dateD, de) : '—', fontSize: 9, color: PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: delta, fontSize: 9, color: p.days > 0 ? PRINT.risk : PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
+            { text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right', noWrap: true, margin: [0, 3, 10, 3] },
+            { ...confBar(p.ccPt, p.openPt, 104), margin: [0, 5, 0, 3] },
+          ].map(c => ({ ...c, border: [false, false, false, false] }));
+        }),
+      ],
+    },
+    layout: {
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+      hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0 : 0.5,
+      hLineColor: () => PRINT.rule,
+      vLineWidth: () => 0,
+    },
+    margin: [0, 0, 0, 6],
+  });
+  // The ramp is ordinal, so the legend reads left to right in that order and
+  // says once what the three steps mean.
+  content.push({
+    columns: [
+      ...CONF.map(([label, key, col]) => ({
+        width: 'auto',
+        columns: [
+          { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, color: col }], width: 12 },
+          { text: label + ' ' + fmtInt(ccPt[key], de) + ' PT', fontSize: 8, color: PRINT.muted, width: 'auto', noWrap: true },
+        ],
+        columnGap: 2,
+      })),
+      { text: '', width: '*' },
+    ],
+    columnGap: 14,
+    margin: [25, 0, 0, 3],
+  });
+  // The per-project bars carry the split and the legend carries the totals, so
+  // a second aggregate bar would say the same thing a third time. What is left
+  // is the one line that says what the three steps mean.
+  content.push({
+    text: t('Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
+            'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen'),
+    fontSize: 8, color: PRINT.muted, margin: [25, 0, 0, 14],
+  });
+
+  // Sorted by severity then magnitude, and capped. report.js pushes rule by
+  // rule, so without this a medium could sit above a critical — which it did.
+  const ranked = [...risks].sort((a, b) =>
+    (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || (b.rank || 0) - (a.rank || 0));
+  const shown = ranked.slice(0, MAX_RISKS);
+  if (shown.length) {
+    // The heading is the table's FIRST ROW, spanning every column. pdfmake
+    // does not keep a heading with the table that follows it: `unbreakable`
+    // on the table pushed the table to the next page and left the heading
+    // behind, and wrapping both in an unbreakable stack changed nothing,
+    // because a stack is laid out one child at a time. As a row it cannot be
+    // separated from what it names.
     content.push({
       table: {
-        widths: ['*'],
-        body: risks.map(r => ([{
-          // Bundled Roboto in pdfmake misses ⚠ ⚡ ℹ ▲ ◆ ★. Confirmed-working
-          // glyphs in the VFS subset: ● ○ ■ ✓ · plus Latin. Use ■ for all
-          // severities; color carries the urgency.
-          text: (r.severity === 'critical' ? '■ ' : r.severity === 'high' ? '■ ' : '■ ') + r.text,
-          fontSize: 10,
-          color: r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.ink2,
-          fillColor: r.severity === 'critical' ? PRINT.riskSoft : r.severity === 'high' ? PRINT.wipSoft : PRINT.band,
-          margin: [6, 5, 6, 5],
-          border: [false, false, false, false],
-        }])),
+        widths: [3, 170, 330, '*'],
+        body: [
+          [
+            { text: '' },
+            // Deliberately NOT style 'h2': that style carries headlineLevel,
+            // which asks pdfmake to break the page BEFORE the heading so it
+            // stays with what follows — and inside a table that threw the
+            // whole table onto the next page with two thirds of this one
+            // still empty. Same size, weight and colour, no headlineLevel.
+            { text: t('What threatens the date', 'Was den Termin gefährdet'), fontSize: 14, bold: true, color: PRINT.accent, colSpan: 3, margin: [8, 2, 0, 6] },
+            // The two cells a colSpan swallows still have to be present, and
+            // they have to carry `text` — an object of nothing but `border`
+            // is rejected outright ("Unrecognized document structure"), which
+            // aborted the whole export.
+            { text: '' }, { text: '' },
+          ].map(c => ({ ...c, border: [false, false, false, false] })),
+          ...shown.map(r => {
+            const color = r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.muted;
+            // A rule at the row's edge instead of a tinted ground: fills turn
+            // the page into a heat map and print as dirty grey on an office
+            // laser printer.
+            return [
+              { text: '', fillColor: color },
+              { text: r.title || '', fontSize: 10, bold: true, color: PRINT.ink, margin: [8, 4, 6, 4] },
+              { text: r.text || '', fontSize: 10, color: PRINT.ink2, margin: [0, 3, 6, 3] },
+              { text: r.ask || '', fontSize: 9, color: PRINT.ink2, margin: [0, 3, 0, 3] },
+            ].map(c => ({ ...c, border: [false, false, false, false] }));
+          }),
+        ],
       },
-      layout: { paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 1, paddingBottom: () => 1 },
-      margin: [0, 0, 0, 8],
+      layout: {
+        paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+        // No rule under the heading row, none above the first finding, none
+        // below the last.
+        hLineWidth: (i, node) => (i <= 1 || i === node.table.body.length) ? 0 : 0.5,
+        hLineColor: () => PRINT.rule,
+        vLineWidth: () => 0,
+      },
+      margin: [0, 0, 0, 4],
     });
+    if (ranked.length > shown.length) {
+      content.push({
+        text: (n => t(
+          `+${n} further ${n === 1 ? 'finding' : 'findings'} of lower urgency, not shown`,
+          `+${n} ${n === 1 ? 'weiterer Hinweis' : 'weitere Hinweise'} geringerer Dringlichkeit, hier nicht gezeigt`,
+        ))(ranked.length - shown.length),
+        fontSize: 9, color: PRINT.muted, margin: [11, 0, 0, 14],
+      });
+    } else {
+      content.push({ text: '', margin: [0, 0, 0, 10] });
+    }
   }
-
-  content.push({ text: t('Planning Confidence', 'Planungssicherheit'), style: 'h2' });
-  if (ccTotal > 0) {
-    const barW = 760;
-    content.push({
-      canvas: [
-        { type: 'rect', x: 0, y: 0, w: barW * cc.committed / ccTotal, h: 8, color: PRINT.done },
-        { type: 'rect', x: barW * cc.committed / ccTotal, y: 0, w: barW * cc.estimated / ccTotal, h: 8, color: PRINT.wip },
-        { type: 'rect', x: barW * (cc.committed + cc.estimated) / ccTotal, y: 0, w: barW * cc.exploratory / ccTotal, h: 8, color: PRINT.muted },
-      ],
-      margin: [0, 0, 0, 6],
-    });
-  }
-  content.push(headerTable(
-    [t('Confidence', 'Sicherheit'), 'Items', 'PT', t('Description', 'Beschreibung')],
-    [
-      [{ text: '● Committed', color: PRINT.done }, cc.committed, ccPt.committed.toFixed(0), t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')],
-      // ◐ and ◆ are both missing from pdfmake's Roboto. Reuse ● with amber so
-      // Estimated stays visually distinct from Committed via color alone.
-      [{ text: '● Estimated', color: PRINT.wip }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
-      [{ text: '○ Exploratory', color: PRINT.muted }, cc.exploratory, ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?', t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')],
-    ],
-    [90, 50, 50, '*'],
-  ));
 
   // Same props as the SVG render — keeps the legend line order, colors,
   // station progress, and diff overlays in lockstep with the on-screen
@@ -397,12 +615,17 @@ export async function exportSummaryPDF(ctx, options = {}) {
   };
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
-    content.push({ svg: roadmapSvg, width: 760, margin: [0, 0, 0, 8] });
+    content.push({ svg: roadmapSvg, width: SUMMARY_W, margin: [0, 0, 0, 8] });
     // Legend mirrors the Overview-tab block: per-line column with station rows.
     const { computeRoadmapModel } = await import('./roadmap.js');
     const rmModel = computeRoadmapModel(rmModelArgs);
     const legendRows = buildRoadmapLegendPdf(rmModel);
-    if (legendRows) legendRows.forEach(r => content.push(r));
+    if (legendRows) {
+      // The legend used to run straight on from the map with no heading, so
+      // whoever turned the page met a bare grid of abbreviations.
+      content.push({ text: t('Stations', 'Haltestellen'), style: 'h3', pageBreak: 'before', margin: [0, 0, 0, 6] });
+      legendRows.forEach(r => content.push(r));
+    }
   }
 
   // ── Per-project roadmaps ────────────────────────────────────────────────
@@ -443,7 +666,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
         first = false;
       }
       // Scale to the text width, keeping the aspect ratio of the model height.
-      content.push({ svg: prepared, width: 760, margin: [0, 0, 0, 14] });
+      content.push({ svg: prepared, width: SUMMARY_W, margin: [0, 0, 0, 14] });
     });
   }
 
@@ -480,7 +703,15 @@ export async function exportSummaryPDF(ctx, options = {}) {
             return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
           }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
+          // A timetable answers "when". A station with no scheduled segment has
+          // no answer, and printing it filled whole pages with "— / —" rows.
+          // The ones dropped are named in a single line below the table rather
+          // than vanishing silently.
+          const dated = rows.filter(r => r.startD);
+          const undated = rows.filter(r => !r.startD);
+
           return {
+            unbreakable: true,
             stack: [
               {
                 text: [
@@ -489,16 +720,20 @@ export async function exportSummaryPDF(ctx, options = {}) {
                 ],
                 fontSize: 10, margin: [0, 0, 0, 3],
               },
-              headerTable(
+              dated.length ? headerTable(
                 [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
-                rows.map(r => [
+                dated.map(r => [
                   { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
-                  { text: r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—', fontSize: 8 },
+                  { text: `${kwTag(r.startD)} ${iso(r.startD).slice(5)}`, fontSize: 8 },
                   { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
                   { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? PRINT.done : r.status === '●' ? PRINT.wip : PRINT.muted },
                 ]),
                 [45, 80, 60, 20],
-              ),
+              ) : { text: t('No scheduled stations.', 'Keine terminierten Haltestellen.'), fontSize: 8, color: PRINT.muted, italics: true },
+              undated.length ? {
+                text: t('Not scheduled: ', 'Nicht terminiert: ') + undated.map(r => r.abbrev).join(', '),
+                fontSize: 7.5, color: PRINT.muted, margin: [0, 3, 0, 0],
+              } : '',
             ],
             margin: [0, 0, 0, 10],
           };
@@ -524,7 +759,6 @@ export async function exportSummaryPDF(ctx, options = {}) {
   // something is not a focus.
   const goals = roots.filter(r => !r.dropped);
   if (goals.length) {
-    content.push({ text: t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines'), style: 'h2' });
     content.push(headerTable(
       ['ID', t('Name', 'Name'), t('Deadline', 'Deadline'), t('Progress', 'Fortschritt'), t('Scheduled End', 'Geplantes Ende'), t('Risk', 'Risiko')],
       goals.map(g => {
@@ -549,41 +783,94 @@ export async function exportSummaryPDF(ctx, options = {}) {
         ];
       }),
       [40, '*', 70, 80, 70, 80],
+      t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines'),
     ));
   }
 
   // Team capacity as per-team cards
-  const capCards = Object.values(teamCap).filter(tc => tc.members.length || tc.committed > 0 || tc.unassigned > 0);
+  // People who have left are not capacity. The raw team list keeps everyone
+  // who ever was, so a whole team of leavers drew a card of three names at
+  // 0 PT beside teams that are actually doing the work.
+  const capCards = Object.values(teamCap)
+    .map(tc => ({ ...tc, members: (tc.members || []).filter(mb => isOnboard(mb)) }))
+    .filter(tc => tc.members.length || tc.committed > 0 || tc.unassigned > 0);
   if (capCards.length) {
     content.push({ text: t('Team Capacity', 'Teamauslastung'), style: 'h2' });
     const pairs = [];
     for (let i = 0; i < capCards.length; i += 2) pairs.push(capCards.slice(i, i + 2));
     pairs.forEach(pair => {
       content.push({
+        // Without this a card broke over the page boundary and left its two
+        // summary numbers alone at the top of the next page.
+        unbreakable: true,
         columns: pair.map(tc => {
-          const total = tc.committed + tc.unassigned;
           const wBar = 340;
-          const memStack = tc.members.map(mb => {
-            const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(mb.id)));
-            return { columns: [{ text: mb.name + (mb.cap < 1 ? ' (' + Math.round(mb.cap * 100) + '%)' : ''), fontSize: 9 }, { text: pp.toFixed(0) + ' PT', fontSize: 9, alignment: 'right' }], columnGap: 4 };
-          });
-          const barCanvas = total > 0 ? {
-            canvas: [
-              { type: 'rect', x: 0, y: 0, w: wBar * tc.committed / total, h: 6, color: PRINT.done },
-              { type: 'rect', x: wBar * tc.committed / total, y: 0, w: wBar * tc.unassigned / total, h: 6, color: PRINT.wip },
-            ],
-            margin: [0, 4, 0, 2],
-          } : null;
-          const footerCol = total > 0 ? {
+          // From the SCHEDULE, not from explicit `assign`. Most work in a long
+          // plan has no name typed on it — the scheduler picks the person —
+          // so counting only explicit assignments put people at 0 PT on this
+          // page while the critical-path table on the next one showed them
+          // carrying a task. Handoff rows hold their own share and the primary
+          // row is trimmed to its, so summing every row is not double counting.
+          // The card is about THIS team's open work, and every number on it
+          // adds up to the bar: a dot per member in a step of the team's own
+          // colour, the same tints the Plan review draws, and the bar stacked
+          // from those same shares. The dots are the bar's legend — which is
+          // the whole reason they are there.
+          const shades = memberShades(tc.color, tc.members.length);
+          const shareOf = id => scheduled
+            .filter(r => r.status !== 'done' && !r.unscheduled && r.personId === id && (r.team || '') === (tc.id || ''))
+            .reduce((acc, r) => acc + (r.effort || 0), 0);
+          const memberShares = tc.members.map((mb, mi) => ({ mb, pt: shareOf(mb.id), color: shades[mi] || tc.color || PRINT.muted }));
+          const staffedPt = memberShares.reduce((acc, x) => acc + x.pt, 0);
+          const teamTotal = staffedPt + (tc.unassigned || 0);
+          const memRows = memberShares.map(({ mb, pt, color }) => ({
             columns: [
-              { text: tc.committed.toFixed(0) + ' PT ' + t('assigned', 'zugewiesen'), fontSize: 8, color: PRINT.done },
-              tc.unassigned > 0 ? { text: tc.unassigned.toFixed(0) + ' PT ' + t('open', 'offen') + ' (' + tc.count + ')', fontSize: 8, color: PRINT.wip, alignment: 'right' } : { text: '' },
+              { canvas: [{ type: 'ellipse', x: 3.5, y: 6, r1: 3.5, r2: 3.5, color }], width: 10 },
+              { text: mb.name + (mb.cap < 1 ? ' (' + Math.round(mb.cap * 100) + '%)' : ''), fontSize: 9, color: PRINT.ink },
+              { text: fmtInt(pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right' },
+            ],
+            columnGap: 4,
+          }));
+          const barCanvas = teamTotal > 0 ? {
+            canvas: (() => {
+              let x = 0;
+              const segs = memberShares.map(({ pt, color }) => {
+                const w = wBar * pt / teamTotal;
+                const r = { type: 'rect', x, y: 0, w, h: 8, color };
+                x += w;
+                return r;
+              });
+              if (tc.unassigned > 0) segs.push({ type: 'rect', x, y: 0, w: wBar * tc.unassigned / teamTotal, h: 8, color: PRINT.rule2 });
+              return segs.filter(r => r.w > 0.2);
+            })(),
+            margin: [0, 5, 0, 3],
+          } : null;
+          const footerCol = teamTotal > 0 ? {
+            columns: [
+              { text: fmtInt(teamTotal, de) + ' PT ' + t('open in this team', 'offen in diesem Team'), fontSize: 8, color: PRINT.ink2 },
+              tc.unassigned > 0
+                ? { text: fmtInt(tc.unassigned, de) + ' PT ' + t('nobody on it', 'ohne Person') + ' · ' + tc.count + ' Items', fontSize: 8, color: PRINT.muted, alignment: 'right' }
+                : { text: t('everything has a person', 'alles hat eine Person'), fontSize: 8, color: PRINT.muted, alignment: 'right' },
             ],
           } : null;
           return {
             stack: [
-              { text: tc.name, bold: true, color: tc.color, fontSize: 11, margin: [0, 0, 0, 3] },
-              ...memStack,
+              {
+                columns: [
+                  { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, r: 1.5, color: tc.color || PRINT.muted }], width: 12 },
+                  { text: tc.name, bold: true, color: PRINT.ink, fontSize: 11 },
+                ],
+                columnGap: 2, margin: [0, 0, 0, 4],
+              },
+              memRows.length ? {
+                columns: [
+                  { text: '', width: 10 },
+                  { text: t('Person', 'Person'), fontSize: 7.5, color: PRINT.muted },
+                  { text: t('open in this team', 'offen in diesem Team'), fontSize: 7.5, color: PRINT.muted, alignment: 'right' },
+                ],
+                columnGap: 4, margin: [0, 0, 0, 2],
+              } : '',
+              ...memRows,
               ...(barCanvas ? [barCanvas] : []),
               ...(footerCol ? [footerCol] : []),
             ],
@@ -597,12 +884,12 @@ export async function exportSummaryPDF(ctx, options = {}) {
   }
 
   if (cpItems.length) {
-    content.push({ text: t('Critical Path', 'Kritischer Pfad'), style: 'h2' });
-    content.push({ text: t('Any delay to these items delays the project end.', 'Jede Verzögerung dieser Items verzögert das Projektende.'), style: 'cap', margin: [0, 0, 0, 4] });
+    content.push({ text: t('Any delay to these items delays the project end.', 'Jede Verzögerung dieser Items verzögert das Projektende.'), style: 'cap', margin: [0, 8, 0, 4] });
     content.push(headerTable(
       ['ID', t('Name', 'Name'), t('Team', 'Team'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
       cpItems.map(s => [s.id, s.name, teamName(s.team), s.person || '—', s.startD ? iso(s.startD) : '—', s.endD ? iso(s.endD) : '—', s.effort?.toFixed(1) || '—']),
       [40, '*', 70, 80, 60, 60, 30],
+      t('Critical Path', 'Kritischer Pfad'),
     ));
   }
 
@@ -634,7 +921,10 @@ export async function exportGanttPDF(ctx) {
   // Choose the smallest page whose printable width ≥ gantt native width / 1.4 (shrink tolerance).
   const nativeW = gantt?.width || 1200;
   const pageSize = nativeW > 1600 ? 'A2' : nativeW > 1100 ? 'A3' : 'A4';
-  const pageMargin = 28;
+  // The same margin the other three documents use. At 28 this one sat its
+  // title and footer visibly closer to the paper edge than the summary beside
+  // it, which is the first thing that reads as "a different tool made this".
+  const pageMargin = 36;
   const printableW = { A4: 841 - pageMargin * 2, A3: 1191 - pageMargin * 2, A2: 1684 - pageMargin * 2 }[pageSize];
   const imgWidth = Math.min(printableW, nativeW);
 
@@ -643,18 +933,21 @@ export async function exportGanttPDF(ctx) {
     { text: t('Schedule / Gantt', 'Zeitplan / Gantt') + ' · ' + dateStr + ' · ' + scheduled.length + ' ' + t('tasks', 'Tasks') + ' · ' + weeks.length + ' ' + t('weeks', 'Wochen'), style: 'sub' },
   ];
   if (gantt) content.push({ image: gantt.url, width: imgWidth, margin: [0, 0, 0, 14] });
+  else content.push({ text: t('The timeline image could not be rendered; the table below carries the same schedule.', 'Das Timeline-Bild konnte nicht erzeugt werden; die Tabelle unten trägt denselben Zeitplan.'), style: 'cap', margin: [0, 6, 0, 0] });
 
-  content.push({ text: t('Schedule Table', 'Terminübersicht'), style: 'h2', pageBreak: 'before' });
+  // Only break when there is actually a picture above to break away from —
+  // otherwise page 1 was a title, a subtitle and nothing else.
+  content.push({ text: t('Schedule Table', 'Terminübersicht'), style: 'h2', ...(gantt ? { pageBreak: 'before' } : {}) });
   const byTeam = {};
   scheduled.forEach(s => { const k = s.team || '__none'; (byTeam[k] || (byTeam[k] = [])).push(s); });
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
-    content.push({ text: (tm?.name || t('No team', 'Kein Team')) + ' (' + items.length + ')', style: 'h3', color: tm?.color || PRINT.ink2 });
     items.sort((a, b) => (a.startD || 0) - (b.startD || 0));
     content.push(headerTable(
       ['ID', t('Name', 'Name'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
       items.map(s => [s.id, s.name, s.person || '—', s.startD ? iso(s.startD) : '—', s.endD ? iso(s.endD) : '—', s.effort?.toFixed(1) || '—']),
       [50, '*', 100, 65, 65, 35],
+      (tm?.name || t('No team', 'Kein Team')) + ' · ' + items.length + ' ' + t('tasks', 'Aufgaben'),
     ));
   });
 
@@ -699,7 +992,6 @@ export async function exportTodoPDF(ctx, horizonDays) {
     { text: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + dateStr + ' · ' + t('Horizon', 'Horizont') + ': ' + horizon + ' ' + t('days', 'Tage') + ' (' + iso(now) + ' → ' + iso(end) + ') · ' + up.length + ' ' + t('tasks', 'Tasks') + ', ' + sorted.length + ' ' + t('lanes', 'Lanes'), style: 'sub' },
   ];
   sorted.forEach(g => {
-    content.push({ text: g.label + '  (' + g.items.length + ')', style: 'h2' });
     content.push(headerTable(
       [t('Start', 'Start'), t('End', 'Ende'), 'ID', t('Task', 'Task'), t('Team', 'Team'), t('Effort', 'Aufw.'), t('Status', 'Status'), 'Conf.'],
       g.items.map(s => {
@@ -717,14 +1009,25 @@ export async function exportTodoPDF(ctx, horizonDays) {
           teamName(s.team),
           s.effort?.toFixed(1) || '—',
           s.status === 'wip' ? { text: '● WIP', color: PRINT.wip, bold: true } : { text: t('Open', 'Offen'), color: PRINT.ink2 },
-          { text: conf === 'committed' ? '●' : conf === 'estimated' ? '●' : '○', color: conf === 'committed' ? PRINT.done : conf === 'estimated' ? PRINT.wip : PRINT.muted, alignment: 'center' },
+          // Confidence in its own ramp, not the status hues: the same scale
+          // the summary and the screen use.
+          { text: '●', color: conf === 'committed' ? PRINT.confHi : conf === 'estimated' ? PRINT.confMid : PRINT.confLo, alignment: 'center' },
         ];
       }),
       [75, 75, 45, '*', 80, 40, 50, 25],
+      g.label + '  ·  ' + g.items.length + ' ' + t('tasks', 'Aufgaben'),
     ));
   });
 
-  content.push({ text: t('● Committed (green) · ● Estimated (amber) · ○ Exploratory (horizon-aware dates)', '● Verbindlich (grün) · ● Geschätzt (amber) · ○ Explorativ (horizontgerechte Daten)'), style: 'cap', margin: [0, 4, 0, 0] });
+  content.push({
+    text: [
+      { text: '● ', color: PRINT.confHi }, t('Committed', 'Verbindlich') + '  ',
+      { text: '● ', color: PRINT.confMid }, t('Estimated', 'Geschätzt') + '  ',
+      { text: '● ', color: PRINT.confLo }, t('Exploratory', 'Explorativ'),
+      '  ·  ' + t('dates are rounded to match confidence', 'Daten sind der Belastbarkeit entsprechend gerundet'),
+    ],
+    style: 'cap', margin: [0, 4, 0, 0],
+  });
 
   const dd = {
     pageSize: 'A4',
@@ -805,7 +1108,6 @@ export async function exportWhatWhenPDF(ctx) {
   ];
 
   sorted.forEach(bucket => {
-    content.push({ text: bucket.label + '  ·  ' + bucket.items.length + ' ' + t('topics', 'Themen'), style: 'h2' });
     bucket.items.sort((a, b) => (a.rd.endD || 0) - (b.rd.endD || 0));
     content.push(headerTable(
       [t('Projected End', 'Ende prognost.'), 'ID', t('Topic', 'Thema'), t('Teams', 'Teams'), t('Progress', 'Fortschritt'), 'PT', 'Conf.'],
@@ -823,9 +1125,10 @@ export async function exportWhatWhenPDF(ctx) {
         { text: teamNames, fontSize: 9 },
         { text: progressPctLabel(rd.prog) + '%  ·  ' + rd.doneCount + '/' + rd.leafCount, fontSize: 9 },
         { text: rd.pt.toFixed(0), fontSize: 9 },
-        { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '● ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? PRINT.done : worst === 'estimated' ? PRINT.wip : PRINT.muted },
+        { text: '● ' + (worst === 'committed' ? t('committed', 'verbindlich') : worst === 'estimated' ? t('estimated', 'geschätzt') : t('exploratory', 'explorativ')), fontSize: 8.5, color: worst === 'committed' ? PRINT.confHi : worst === 'estimated' ? PRINT.confMid : PRINT.confLo },
       ]),
       [90, 45, '*', 100, 80, 35, 85],
+      bucket.label + '  ·  ' + bucket.items.length + ' ' + t('topics', 'Themen'),
     ));
   });
 

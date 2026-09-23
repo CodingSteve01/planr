@@ -36,12 +36,18 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 **Work tree bullet format:**
 
 ```
-- **ID** Name [type-emoji] (date) (SIZE Nd ×factor) NN% — Team [assignees] {tags} ⏰decide:DATE 📌DATE ≡
+- **ID** Name [type] (date) (SIZE Nd ×factor) NN% — Team [assignees] {tags} ⏰decide:DATE 📌DATE ≡
   *Requires: depA (label), depB*
   *note*
 ```
 
-- `type-emoji`: `⏰` deadline, `⚡` painpoint, `🎯` goal
+- `type`: `[deadline]`, `[painpoint]`, `[goal]` — the root's focus type.
+  Files written before this carried `⏰` / `⚡` / `🎯` here and still read
+  correctly (`GT_MARKS` in `constants.js` lists every accepted form). The
+  writer used to emit `⏰` for a deadline while the reader looked for a
+  different marker, so a save-then-load moved the emoji into the project's
+  **name** and dropped the type; plans carrying that damage are repaired on
+  load.
 - `SIZE`: T-shirt label (XS/S/M/L/XL/XXL) — derived, not stored
 - `×factor`: only if factor != 1.5
 - `NN%`: progress (only if 1–99)
@@ -220,12 +226,45 @@ Four PDF variants:
 
 | Export | Purpose | Content |
 |---|---|---|
-| `exportSummaryPDF` | Management summary, shareable | KPIs, risks, planning confidence, roadmap image, goals/deadlines, team-capacity cards, critical path |
+| `exportSummaryPDF` | Management summary, shareable | Per-project status table, findings, roadmap image, goals/deadlines, team-capacity cards, critical path |
 | `exportGanttPDF` | Full schedule handoff | Hi-res Gantt image (page size picked automatically: A4 / A3 / A2 landscape based on native width) + schedule table grouped by team |
 | `exportWhatWhenPDF` | "What comes when" — horizon-aware | Items grouped into buckets (week / month / quarter). Near-term items show exact dates, far-term or uncertain items collapse to coarser granularity |
 | `exportTodoPDF` | Sprint / TODO list for a chosen horizon | Tasks per person within N days, with horizon-adjusted date labels and confidence badges (●/◐/○) |
 
 #### Numbers must match the screen
+
+### Page 1 of the management summary
+
+It opens with a verdict sentence and one status word, then one row per project
+— forecast, target date, deviation, progress and that project's own confidence
+split. It used to lead with nine KPIs and a single programme-wide end date,
+which is the slowest project's date wearing every other project's name: true,
+and no use to anyone deciding about any one of them.
+
+Below that, at most three findings, sorted by severity and then by magnitude,
+each split into what it is, what it costs and what is being asked. The
+remainder is counted in one line rather than listed.
+
+Three things that layout depends on, all of them learned the hard way:
+
+- The findings heading is the **first row of the findings table**, not a
+  heading above it. `STYLES.h2` carries `headlineLevel`, which asks pdfmake to
+  break the page *before* a heading so it stays with what follows; inside a
+  table that threw the whole table onto the next page.
+- A cell that a `colSpan` swallows still has to carry `text`. An object of
+  nothing but `border` is rejected with *Unrecognized document structure* and
+  the export produces no file at all. `pdfGlyphs.test.jsx` walks every node of
+  all four documents against pdfmake's own rule, because pdfmake is mocked in
+  the suite and never validates anything itself.
+- Embedded SVG is drawn by svg-to-pdfkit against pdfmake's bundled **Roboto**,
+  not the Plex faces the document body uses. Roboto has no arrows, so `→` —
+  the character `PDF_GLYPH_MAP` maps *towards* — prints as an empty box in
+  there. `SVG_ONLY_SWAPS` in `pdfExports.js` is the second pass that fixes it.
+
+Confidence is counted on **remaining** effort. Counting the whole of a
+half-finished item made the three buckets sum past the open total, and two
+figures that do not reconcile on one board page cost more than the precision
+is worth.
 
 Every export gets its aggregate figures from `buildReportModel()` (`src/utils/report.js`), which in turn uses `src/utils/progress.js` — the same module the Overview KPI row renders from. That module owns both the maths and the formatting:
 

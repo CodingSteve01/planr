@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GT_ICON } from '../../constants.js';
+import { SL, GT, GT_ICON, CONF_COLOR } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
@@ -23,7 +23,6 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 // REASON_TIP is built inside the component using t() — see reasonTip helper below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
-const CONF_COLOR = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 
 export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, tab: tabProp, onTabChange }) {
   const { t } = useT();

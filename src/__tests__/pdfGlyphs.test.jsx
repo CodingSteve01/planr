@@ -28,7 +28,11 @@ const tree = [];
   tree.push({
     id: root, name: `Projekt ${root} — Überführung mit einem absichtlich sehr langen Namen`,
     type: ri === 2 ? 'deadline' : 'goal', status: 'wip',
-    ...(ri === 2 ? { date: '2027-06-30' } : {}),
+    // D1's date sits BEFORE the work under it can finish, so the model
+    // produces a late-deadline risk. Without one the summary builds no
+    // findings table at all and every guard over it passes vacuously — which
+    // is exactly how a malformed cell in that table reached the browser.
+    ...(ri === 2 ? { date: '2026-01-15' } : {}),
   });
   for (let a = 1; a <= 3; a++) {
     tree.push({ id: `${root}.${a}`, name: `Paket ${a} — Änderungen`, status: 'wip' });
@@ -127,6 +131,13 @@ describe('sanitizePdfText', () => {
     expect(sanitizePdfText('Status 🟢 grün')).toBe('Status grün');
   });
 
+  it('does not leave the dropped symbol\'s space in front of punctuation', () => {
+    // A project named with a trailing icon printed inside quotes as
+    // „Abrechnung in VOffice " — the gap where the icon had been.
+    expect(sanitizePdfText('„Abrechnung in VOffice ⏰\u201c')).toBe('„Abrechnung in VOffice\u201c');
+    expect(sanitizePdfText('fertig 🎯.')).toBe('fertig.');
+  });
+
   it('walks a whole docDefinition but never touches embedded svg', () => {
     const svg = '<svg><text>✓ keep</text></svg>';
     const out = sanitizePdfDoc({
@@ -138,6 +149,97 @@ describe('sanitizePdfText', () => {
     expect(out.content[1].svg).toBe(svg);
     expect(out.content[2].table.body[0][0].text).toBe('a → b');
     expect(out.styles.h2.fontSize).toBe(13);
+  });
+});
+
+// ── The document pdfmake will actually accept ──────────────────────────────
+// pdfmake is mocked above, so createPdf never validates anything: a malformed
+// node sails through every test here and throws only in the browser, where the
+// export dies with "Unrecognized document structure" and no PDF at all. That
+// happened — a colSpan’s swallowed placeholder cells were given a `border`
+// and nothing else, which pdfmake rejects outright.
+//
+// This walks the same docDefinitions and applies pdfmake’s own rule: every
+// node has to carry one of the properties it knows how to draw.
+const DRAWABLE = ['text', 'table', 'columns', 'stack', 'ul', 'ol', 'image', 'svg', 'canvas', 'qr', 'toc', 'pageReference', 'textReference'];
+
+// Only the arrays pdfmake lays out hold NODES. `layout` and `styles` are
+// option bags that happen to share property names (fillColor, paddingTop) and
+// are walked without being judged.
+const NODE_ARRAYS = ['content', 'stack', 'columns', 'body'];
+const SKIP = ['layout', 'styles', 'defaultStyle', 'images', 'info'];
+
+function judge(node, path, out) {
+  if (node == null) return;
+  if (typeof node === 'string' || typeof node === 'number') return;  // bare text is fine
+  if (Array.isArray(node)) { node.forEach((n, i) => judge(n, `${path}[${i}]`, out)); return; }
+  if (typeof node !== 'object' || node instanceof Date) return;
+  const keys = Object.keys(node);
+  if (keys.length && !keys.some(k => DRAWABLE.includes(k))) {
+    out.push(`${path}: {${keys.join(', ')}}`);
+  }
+  badNodes(node, path, out);
+}
+
+function badNodes(node, path = '$', out = []) {
+  if (node == null || typeof node !== 'object' || node instanceof Date) return out;
+  if (Array.isArray(node)) {
+    node.forEach((n, i) => badNodes(n, `${path}[${i}]`, out));
+    return out;
+  }
+  Object.keys(node).forEach(k => {
+    if (SKIP.includes(k)) return;
+    const v = node[k];
+    if (NODE_ARRAYS.includes(k) && Array.isArray(v)) v.forEach((n, i) => judge(n, `${path}.${k}[${i}]`, out));
+    else badNodes(v, `${path}.${k}`, out);
+  });
+  return out;
+}
+
+describe('every export builds a document pdfmake can draw', () => {
+  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+
+  it.each([
+    ['exportSummaryPDF', [{ includeTimetable: true, includeProjectRoadmaps: true }]],
+    ['exportGanttPDF', []],
+    ['exportWhatWhenPDF', []],
+    ['exportTodoPDF', [90]],
+  ])('%s', async (name, args) => {
+    const mod = await import('../utils/pdfExports.js');
+    await mod[name](ctx(), ...args);
+    expect(captured).toHaveLength(1);
+    const bad = badNodes({ content: captured[0].content }, '$');
+    expect(bad, `nodes pdfmake cannot draw:\n${bad.join('\n')}`).toEqual([]);
+  });
+
+  it('leaves no arrow inside an embedded SVG, where Roboto draws a box', async () => {
+    // The document body is set in Plex and can print →. Embedded SVG is not:
+    // svg-to-pdfkit draws it with pdfmake's bundled Roboto, which has no
+    // arrows, so one in a roadmap header or a task name came out as a box.
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(ctx(), { includeTimetable: true, includeProjectRoadmaps: true });
+    const svgs = [];
+    (function walk(n) {
+      if (Array.isArray(n)) return n.forEach(walk);
+      if (n && typeof n === 'object') {
+        if (typeof n.svg === 'string') svgs.push(n.svg);
+        Object.values(n).forEach(walk);
+      }
+    })(captured[0].content);
+    expect(svgs.length).toBeGreaterThan(0);
+    svgs.forEach(svg => expect(svg).not.toMatch(/[→←↑↓]/u));
+  });
+
+  it('the summary really does build the blocks this guard is meant to cover', async () => {
+    // Without this the guard above can pass because a block was never built.
+    // The findings table is the one that broke, so its presence is the proof
+    // that the walk had something to walk.
+    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
+    await exportSummaryPDF(ctx(), { includeTimetable: true, includeProjectRoadmaps: true });
+    const strings = pdfStrings(captured[0].content);
+    // The fixture runs in German.
+    expect(strings).toContain('Wo jedes Projekt steht');
+    expect(strings).toContain('Was den Termin gefährdet');
   });
 });
 
@@ -161,9 +263,11 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
 
   it('would have failed before the guard — the raw document does contain them', async () => {
     // Guards the guard: if the app ever stops emitting these symbols, this
-    // test turns green for the wrong reason and can be deleted.
-    const { exportSummaryPDF } = await import('../utils/pdfExports.js');
-    await exportSummaryPDF(ctx(), { includeTimetable: true, includeProjectRoadmaps: false });
+    // test turns green for the wrong reason and can be deleted. The summary's
+    // page 1 no longer carries a status glyph — swatches replaced them — so
+    // this asks the Todo export, whose confidence column still writes one.
+    const { exportTodoPDF } = await import('../utils/pdfExports.js');
+    await exportTodoPDF(ctx(), 90);
     const rendered = pdfStrings(captured[0].content).join(' ');
 
     expect(rendered).toContain('•');       // was ●

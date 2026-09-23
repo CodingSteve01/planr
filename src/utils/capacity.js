@@ -142,3 +142,21 @@ export function capBreakdown(member, ctxOrPlans) {
   lines.push({ kind: 'result', text: `= ${avail.toFixed(2)} h  →  ${pct} % FTE` });
   return lines;
 }
+
+// Whether a member is on the team on a given day. `start`/`end` are inclusive
+// and either may be absent, which reads as "always" on that side.
+//
+// A headcount that ignores this counts people who left months ago, which is
+// how "12 Personen" ended up on an overview beside a capacity figure that
+// nine of them contribute to.
+export function isOnboard(member, on = new Date()) {
+  if (!member) return false;
+  const day = on instanceof Date ? on : new Date(on);
+  if (member.start && new Date(member.start + 'T00:00:00') > day) return false;
+  if (member.end && new Date(member.end + 'T23:59:59') < day) return false;
+  return true;
+}
+
+export function onboardCount(members, on = new Date()) {
+  return (members || []).filter(m => isOnboard(m, on)).length;
+}

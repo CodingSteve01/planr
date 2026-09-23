@@ -1,11 +1,13 @@
 import { useEffect, useCallback } from 'react';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 /**
  * Planr onboarding tour — lightweight custom step overlay.
  *
  * Props:
- *   steps   — array of { icon, title, body } (resolved from i18n in App.jsx)
+ *   steps   — array of { icon, title, body }; `icon` is an Icon name
+ *                (resolved from i18n in App.jsx)
  *   step    — current step index (0-based)
  *   onNext  — () => void
  *   onPrev  — () => void
@@ -44,7 +46,7 @@ export function Tour({ steps, step, onNext, onPrev, onSkip }) {
         </div>
 
         {/* Content */}
-        <div className="tour-icon">{current.icon}</div>
+        <div className="tour-icon"><Icon name={current.icon} size={26} strokeWidth={1.6} /></div>
         <h2 className="tour-title">{current.title}</h2>
         <p className="tour-body">{current.body}</p>
 

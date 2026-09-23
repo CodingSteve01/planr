@@ -36,6 +36,12 @@ export const PRINT = {
   doneSoft: '#e8f1ea',   // --st-done-soft
   wipSoft: '#f7efe2',    // --st-wip-soft
   riskSoft: '#f7eae8',   // --st-risk-soft
+
+  // Planning confidence — an ordinal ramp in one hue, not three status
+  // colours. See the note beside --cf-hi in App.css.
+  confHi: '#1e4467',     // --cf-hi
+  confMid: '#5d87ad',    // --cf-mid
+  confLo: '#b6c9d9',     // --cf-lo
 };
 
 export default PRINT;

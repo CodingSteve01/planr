@@ -22,12 +22,15 @@ export function filterCommands(commands, query) {
 
   const scored = [];
   for (const cmd of list) {
+    // `keywords` lets a command keep a label that says what it does while
+    // staying findable by the word people actually type for it — you look for
+    // "backdate", not for "work as of an earlier date".
     const label = String(cmd.label ?? cmd.labelKey ?? cmd.id ?? '');
-    const l = label.toLowerCase();
+    const l = (label + ' ' + (cmd.keywords || []).join(' ')).toLowerCase();
     const subIdx = l.indexOf(q);
     if (subIdx !== -1) {
       // Substring hit: rank by earliness, tie-broken by shorter label.
-      scored.push({ cmd, tier: 0, key: subIdx * 10000 + l.length });
+      scored.push({ cmd, tier: 0, key: subIdx * 10000 + label.length });
       continue;
     }
     let qi = 0;
@@ -35,7 +38,7 @@ export function filterCommands(commands, query) {
       if (l[i] === q[qi]) qi++;
     }
     if (qi === q.length) {
-      scored.push({ cmd, tier: 1, key: l.length });
+      scored.push({ cmd, tier: 1, key: label.length });
       continue;
     }
     const hit = (cmd.keywords || []).find(k => String(k).toLowerCase().includes(q));

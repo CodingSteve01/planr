@@ -2,6 +2,7 @@
 // parseMdToProject: reads .md text → project data object
 // buildMarkdownText: project data → .md text (for saving)
 import { iso } from './date.js';
+import { GT } from '../constants.js';
 import { buildMemberShortMap } from '../App.jsx';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
 import { DEFAULT_SIZES } from './sizes.js';
@@ -189,7 +190,11 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
         }).join('; ')}*`
       : '';
     const note = r.note ? `\n${indent}  *${r.note}*` : '';
-    const type = r.type ? ` ${r.type === 'deadline' ? '⏰' : r.type === 'painpoint' ? '⚡' : '🎯'}` : '';
+    // GT, not a third private copy of the map: this wrote ⏰ for a deadline
+    // while the reader only ever looked for GT.deadline, so a save-then-load
+    // round trip left the ⏰ sitting inside the project's NAME and dropped the
+    // type. That is where „Abrechnung in VOffice ⏰" came from.
+    const type = r.type ? ` ${GT[r.type] || GT.goal}` : '';
     const date = r.date ? ` (${r.date})` : '';
     const decideBy = r.decideBy ? ` ⏰decide:${r.decideBy}` : '';
     const pinned = r.pinnedStart ? ` 📌${r.pinnedStart}` : '';
