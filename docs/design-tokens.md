@@ -211,6 +211,33 @@ to `currentColor` and one viewBox, requires `aria-hidden` unless an icon is
 given a name of its own, and fails on a pictograph reappearing in the chrome
 (`App.jsx`, `FileMenu.jsx`) — with the five format tokens excluded by name.
 
+### The arrow exemption, and what it let through
+
+Saying "arrows are text" was right about arrows *in* text and wrong about the
+same marks standing alone. A second pass found them doing an icon's whole job
+in 40-odd places: `↶` and `↷` were the undo and redo buttons, `⊞` opened the
+editor, `⇤`/`⇥` moved a row a level, `⤒ ▲ ▼ ⤓` reordered it, `⧉` duplicated it,
+`▶`/`▼` folded a branch, `⎘` sat on the bulk-edit trigger, and `×` closed
+every dialog in the app. The tree's row actions had it both ways in a single
+button group: a drawn pencil between three typed marks.
+
+So the rule is about **position, not character**. A mark that is a control's
+entire visible face is an icon and is drawn; the same mark leading a phrase, a
+count, a shortcut hint or a date range is text and stays. The app's own state
+notation — `●` done, `◐` in progress, `○` open — is a vocabulary the shortcut
+dialog's legend teaches, so it stays too.
+
+The same rule covers the dictionary: a label must not carry its own glyph.
+`'× Löschen'`, `'↳ Split'`, `'⊕ NEU'`, `'← Zurück'` put the mark somewhere the
+component cannot size, colour or align it, so the label is now just the word
+and the component draws the icon beside it.
+
+[`src/__tests__/drawnControls.test.jsx`](../src/__tests__/drawnControls.test.jsx)
+holds both halves, and also checks that every `var(--token)` the app asks for
+is actually defined — `var(--gn)` had been colouring the one signal in the
+bulk editor's phase list since it was written, and there is no such token, so
+the "done" dot simply inherited the colour around it.
+
 
 ## Priority is chevrons
 
@@ -246,8 +273,25 @@ rather than a call to action:
 | `~Anna` | the schedule's answer, not yours — muted, italic |
 | `⇄ A→B` | a handoff chain, in `--st-wip`, because that one is worth noticing |
 
+The Jira export dialog was the last holdout: its preview printed a bare first
+name, the one place in the app that did. It shows the same chip now.
+
 Where an action belonged next to it (accepting the schedule's suggestion on the
 Planning tab), the action is its own small button and only the button looks
 like one. [`personChip.test.jsx`](../src/__tests__/personChip.test.jsx) holds
 the three states and fails if any view under `views/` dresses a person as a
 primary button again.
+
+
+## `--diff`: what changed since the date you are comparing against
+
+The diff marker — the stripe on the summary bar, the badge in the tree, the
+ring in the network graph, the border in the timetable and on a Gantt bar —
+was the literal `#f59e0b` written out at eight separate places. A raw Tailwind
+amber sits a shade off every other warm thing in this palette and does not
+follow the theme, so it is `--diff` now, aliased to `--st-wip` in both blocks
+next to `--gr` / `--am` / `--re`.
+
+Team colours stay literal on purpose: a team's colour is **data**, stored in
+the plan file and picked by the user, so `#3b82f6` as the default for a new
+team is a value, not a token.

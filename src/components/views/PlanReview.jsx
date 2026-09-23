@@ -432,7 +432,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                     const sc = sMap[id];
                     const dimmed = (teamFilter || personFilter) && !matchesFilter(node);
                     return <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                      {idx > 0 && <span style={{ color: 'var(--re)', fontWeight: 700, flexShrink: 0 }}>→</span>}
+                      {idx > 0 && <Icon name="chevronRight" size={11} strokeWidth={2.4} style={{ color: 'var(--re)', flexShrink: 0 }} />}
                       <button
                         className="btn btn-sec btn-xs"
                         onClick={() => onOpenItem?.(id)}

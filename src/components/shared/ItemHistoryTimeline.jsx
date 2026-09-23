@@ -5,6 +5,7 @@ import {
   sortEventsByEffectiveDate,
 } from '../../utils/historyView.js';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 // Simple read-only version-history list for one item. Heavy editing happens
 // elsewhere (global Time-Travel mode + raw delete here). Per-item tab is a
@@ -51,8 +52,8 @@ export function ItemHistoryTimeline({ item, events = [], onEventsChange }) {
               className="btn btn-ghost btn-xs"
               disabled={!onEventsChange}
               onClick={() => removeAt(idx)}
-              data-htip={t('hist.deleteEntryTip')}
-              style={{ color: 'var(--re)', padding: '0 4px', fontSize: 14 }}>×</button>
+              data-htip={t('hist.deleteEntryTip')} aria-label={t('delete')}
+              style={{ color: 'var(--re)', padding: '0 4px', fontSize: 14 }}><Icon name="x" size={11} /></button>
           </div>
         ))}
       </div>

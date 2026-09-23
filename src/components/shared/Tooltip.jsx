@@ -4,6 +4,7 @@ import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { CriticalPathBadge } from './CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
+import { Icon } from './Icon.jsx';
 
 function MetaChip({ label, value, tone = 'default' }) {
   const color = tone === 'danger' ? 'var(--re)'
@@ -162,7 +163,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
               <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
             </div>
           )}
-          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>▸ {item.pinnedStart}</div>}
+          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{item.pinnedStart}</div>}
           {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>! {node.decideBy}</div>}
           {item.blockedBy && (() => {
             const blocker = scheduled.find(x => x.id === item.blockedBy.id);

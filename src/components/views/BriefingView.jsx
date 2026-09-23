@@ -514,7 +514,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
         {t('js.title')}
         <button className="btn btn-ghost btn-xs" style={{ padding: '1px 6px', fontSize: 10, marginLeft: 'auto' }}
           onClick={() => setJiraOpen(o => !o)}>
-          {jiraOpen ? '▾' : '▸'} {jiraOpen ? t('js.tabCompare') : t('js.pasteLabel')}
+          <Icon name={jiraOpen ? 'chevronDown' : 'chevronRight'} size={11} /> {jiraOpen ? t('js.tabCompare') : t('js.pasteLabel')}
         </button>
       </div>
       <div style={{ marginBottom: 18 }}>

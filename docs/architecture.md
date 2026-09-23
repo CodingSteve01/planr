@@ -188,6 +188,23 @@ object, not a copy — and keeps its DOM, its state and its scroll while doing n
 work. The moment it is shown again it takes the current children, so what
 appears is never stale.
 
+**Except the tree pane**, which was written without it and stayed that way —
+the most expensive pane in the app, and the only one re-rendering unseen. A
+React `Profiler` around it, on a real 404-item plan in Chromium, put every tab
+switch at ~40 ms of TreeView reconciliation for pixels nobody was looking at.
+It is wrapped now like the rest.
+
+That measurement also settled the question it was taken to answer. On a real
+plan in a real browser — 404 items, 298 visible rows — **no interaction
+produced a single long task**: typing in the search box costs under 5 ms of
+synchronous work (`useDeferredValue` carries the rest), twenty real `↓`
+keypresses in a row produced none at all, and a tab switch produced none once
+the tree stopped re-rendering. Virtualising the tree would buy nothing. The
+happy-dom numbers that suggested otherwise (~0.5 s per cursor move at 500
+items) are a property of happy-dom, which is an order of magnitude slower than
+Chromium at exactly the work a table does, and should not be read as the
+app's behaviour.
+
 ### Views and the command palette
 
 `tab` is a small piece of App-level state (`useState`, persisted in

@@ -2,7 +2,7 @@
 // Reported: selecting an item in the tree does not always let the shortcuts
 // act on it — sometimes it is simply not selected. It happens on parent rows.
 //
-// Not a plugin problem, and not a misclick. The ▶/▼ triangle is only drawn on
+// Not a plugin problem, and not a misclick. The fold caret is only drawn on
 // rows that have children, which is why it only ever happened on a parent, and
 // it called `stopPropagation` so the row's own click handler — the one that
 // selects the row and gives the grid the keyboard — never ran. So the most
@@ -62,8 +62,7 @@ describe('selecting a row in the tree', () => {
     await act(async () => { fireEvent.click(rowOf('P1.2')); });
     expect(isSelected('P1.2')).toBe(true);
 
-    const caret = [...rowOf('P1.1').querySelectorAll('span')]
-      .find(el => ['▶', '▼'].includes(el.textContent.trim()));
+    const caret = rowOf('P1.1').querySelector('[data-testid="tree-caret-P1.1"]');
     expect(caret).toBeTruthy();
     await act(async () => { fireEvent.click(caret); });
 
@@ -78,8 +77,7 @@ describe('selecting a row in the tree', () => {
     await screen.findByText('P1.1');
 
     await act(async () => { fireEvent.click(rowOf('P1.2')); });
-    const caret = [...rowOf('P1.1').querySelectorAll('span')]
-      .find(el => ['▶', '▼'].includes(el.textContent.trim()));
+    const caret = rowOf('P1.1').querySelector('[data-testid="tree-caret-P1.1"]');
     await act(async () => { fireEvent.click(caret); });
 
     await act(async () => { fireEvent.keyDown(grid(), { key: '1', bubbles: true }); });
@@ -93,8 +91,7 @@ describe('selecting a row in the tree', () => {
     await screen.findByText('P1.1');
     expect(rowOf('P1.1.1')).toBeTruthy();
 
-    const caret = [...rowOf('P1.1').querySelectorAll('span')]
-      .find(el => ['▶', '▼'].includes(el.textContent.trim()));
+    const caret = rowOf('P1.1').querySelector('[data-testid="tree-caret-P1.1"]');
     await act(async () => { fireEvent.click(caret); });
 
     expect(rowOf('P1.1.1')).toBeFalsy();

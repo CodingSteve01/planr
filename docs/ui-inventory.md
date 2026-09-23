@@ -262,8 +262,8 @@ Every control on this surface is, by definition, Settings/tier 3 — Resources i
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Button "NRW importieren" | Imports statutory NRW holidays for the plan period | src/components/views/HolView.jsx:57 | Settings | 3 | |
-| Button "Add manually" | Creates an empty manual holiday | src/components/views/HolView.jsx:58 | Settings | 3 | |
+| Button "NRW importieren" | Imports statutory NRW holidays for the plan period; the years are shown as a range, not spelled out one by one | src/components/views/HolView.jsx | Settings | 3 | the label used to list all twelve, wider than the rest of the row together |
+| Button "Manuell hinzufügen" | Creates an empty manual holiday | src/components/views/HolView.jsx | Settings | 3 | |
 | Button "Clear all" (with confirm) | Clears the whole holiday list | src/components/views/HolView.jsx:60 | Settings | 3 | destructive but confirm()-guarded |
 | Year filter (select) | Filters the list by year | src/components/views/HolView.jsx:70-74 | Settings | 3 | |
 | Filter reset (×) | Clears the year filter | src/components/views/HolView.jsx:76-78 | Settings | 3 | |
@@ -536,8 +536,8 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | "Jira-Abgleich" card | Opens JiraSyncModal | src/components/modals/ExportModal.jsx:150-152 | Report | 2 | this is a Run-mode action surfaced from a Report-mode modal |
 | "Sprint (Markdown)" card + horizon-days select | Exports a markdown TODO list | src/components/modals/ExportModal.jsx:154-156 | Report | 2 | ↔ overlaps "TODO / Sprint" PDF above |
 | "Mermaid-Graph" card | Exports a Mermaid flowchart | src/components/modals/ExportModal.jsx:158-160 | Report | 2 | |
-| "Netzwerk-Bild" PNG card (Net tab only) | Exports the current network graphic | src/components/modals/ExportModal.jsx:162-165 | Report | 2 | |
-| "Gantt-Bild" PNG card (Gantt tab only) | Exports the current Gantt graphic | src/components/modals/ExportModal.jsx:167-170 | Report | 2 | |
+| "Netzwerk-Bild" PNG card (Net tab only) | Exports the current network graphic; from anywhere else the card offers "Ansicht öffnen" instead of a disabled button | src/components/shared/ExportCards.jsx | Report | 2 | on the Report screen the tab is never `net`, so this used to be permanently dead |
+| "Gantt-Bild" PNG card (Gantt tab only) | Exports the current Gantt graphic; same "Ansicht öffnen" fallback | src/components/shared/ExportCards.jsx | Report | 2 | same |
 | "Backup" JSON card | Exports the full project JSON | src/components/modals/ExportModal.jsx:172-174 | Settings | 2 | round-trippable backup, closer to Settings than Report |
 | "Cancel"/close | Closes the modal | src/components/modals/ExportModal.jsx:178 | Report | 2 | |
 

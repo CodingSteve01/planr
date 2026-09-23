@@ -5,6 +5,7 @@ import { SearchSelect } from './SearchSelect.jsx';
 import { createPhaseDraft, instantiateTemplatePhases, normalizePhases, phaseAssigneeIds, phaseTeamIds } from '../../utils/phases.js';
 import { derivePhaseStatus } from '../../utils/scheduler.js';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 /* ══════════════════════════════════════════════════════════════════════
    PhaseEditPopout — modal dialog for editing a single phase.
@@ -31,7 +32,7 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
 
       <div className="field"><label>{t('ph.phaseTeams')}</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: tIds.length ? 6 : 0 }}>
-          {tIds.map(tid => <span key={tid} className="tag">{teams.find(tm => tm.id === tid)?.name || tid}<span className="tag-x" onClick={() => patch('teams', tIds.filter(id => id !== tid))}>×</span></span>)}
+          {tIds.map(tid => <span key={tid} className="tag">{teams.find(tm => tm.id === tid)?.name || tid}<span className="tag-x" onClick={() => patch('teams', tIds.filter(id => id !== tid))}><Icon name="x" size={9} /></span></span>)}
         </div>
         <SearchSelect
           options={teams.filter(tm => !tIds.includes(tm.id)).map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
@@ -41,7 +42,7 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
 
       {showAssignees && <div className="field"><label>{t('ph.phaseAssignees')}</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: mIds.length ? 6 : 0 }}>
-          {mIds.map(mid => <span key={mid} className="tag">{members.find(m => m.id === mid)?.name || mid}<span className="tag-x" onClick={() => patch('assign', mIds.filter(id => id !== mid))}>×</span></span>)}
+          {mIds.map(mid => <span key={mid} className="tag">{members.find(m => m.id === mid)?.name || mid}<span className="tag-x" onClick={() => patch('assign', mIds.filter(id => id !== mid))}><Icon name="x" size={9} /></span></span>)}
         </div>
         <SearchSelect
           options={members.filter(m => !mIds.includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
@@ -147,9 +148,9 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
           {mIds.map(mid => <span key={mid} className="tag" style={{ fontSize: 9, margin: 0, padding: '1px 4px', borderColor: 'var(--ac)', color: 'var(--ac)' }}>{(members || []).find(m => m.id === mid)?.name || mid}</span>)}
         </div>
         {ph.effortPct > 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{ph.effortPct}%</span>}
-        <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === 0} onClick={() => move(i, -1)}>▲</button>
-        <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === phases.length - 1} onClick={() => move(i, 1)}>▼</button>
-        <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => remove(i)}>×</button>
+        <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('tv.moveUp')}><Icon name="moveUp" size={11} /></button>
+        <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === phases.length - 1} onClick={() => move(i, 1)} aria-label={t('tv.moveDown')}><Icon name="moveDown" size={11} /></button>
+        <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => remove(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
       </div>;
     })}
 

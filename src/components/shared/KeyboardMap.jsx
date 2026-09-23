@@ -124,7 +124,7 @@ export function KeyboardMap() {
             ['○', t('tv.statusOpen')], ['◐', t('wip')], ['●', t('tv.statusDone')],
             [{ icon: 'prioCritical' }, t('tv.prioCrit')], [{ icon: 'prioHigh' }, t('tv.prioHigh')],
             [{ icon: 'prioMedium' }, t('tv.prioMed')], [{ icon: 'prioLow' }, t('tv.prioLow')],
-            ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], ['⋮⋮', t('km.legendDrag')],
+            ['↯', t('km.legendCp')], ['⇄', t('km.legendChain')], [{ icon: 'grip' }, t('km.legendDrag')],
           ].map(([glyph, label]) => (
             <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx)', display: 'inline-flex', width: 16, justifyContent: 'center' }}>

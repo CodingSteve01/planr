@@ -7,7 +7,7 @@ import { hostTheme, onHostThemeChange } from './utils/embedHost.js';
 const en = {
   // ── Global / shared ──
   'save': 'Save', 'cancel': 'Cancel', 'delete': 'Delete', 'close': 'Close', 'back': 'Back', 'next': 'Next',
-  'yes': 'Yes', 'no': 'No', 'auto': 'Auto', 'none': '— None',
+  'yes': 'Yes', 'no': 'No', 'auto': 'Auto', 'none': '— None', 'ss.add': '+ Add…',
   'open': 'Open', 'wip': 'In Progress', 'done': '✓ Done',
   'critical': 'Critical', 'high': 'High', 'medium': 'Medium', 'low': 'Low',
   'goal': 'Goal', 'painpoint': 'Painpoint', 'deadline': 'Deadline',
@@ -64,6 +64,9 @@ const en = {
   'ex.backup': 'Backup',
   'ex.backup.desc': 'The complete project as JSON — re-importable, 1:1 round-trip.',
   'ex.dialog': 'Dialog',
+  'ex.goToView': 'Open view',
+  'ex.goToViewTip': 'The picture is taken from the view itself — this opens it, and the card is live there.',
+  'ex.cat.pdf': 'PDF', 'ex.cat.word': 'Word', 'ex.cat.tool': 'Tool', 'ex.cat.img': 'Image', 'ex.cat.raw': 'Data',
 
   // ── Command palette ──
   'palette.placeholder': 'Type a command…',
@@ -89,17 +92,28 @@ const en = {
   'q.includeOffboardedTip': 'Show queues for already-offboarded members (work that still needs to land somewhere).',
 
   // ── HolView ──
-  'hv.title': 'Holidays', 'hv.importNRW': '↓ Import NRW', 'hv.addManual': '+ Add manually',
+  'hv.title': 'Holidays', 'hv.importNRW': 'Import NRW', 'hv.addManual': '+ Add manually',
   'hv.clearAll': 'Clear all', 'hv.confirmClear': 'Delete all holidays?',
   'hv.stats': '{0} computed · {1} manual',
   'hv.desc': 'Holidays are excluded from working day calculations. NRW holidays are computed dynamically via Easter algorithm and stored in the project file.',
-  'hv.empty': 'No holidays configured', 'hv.emptyBtn': '↓ Import NRW holidays',
+  'hv.empty': 'No holidays configured', 'hv.emptyBtn': 'Import NRW holidays',
   'hv.day': 'Day', 'hv.date': 'Date', 'hv.name': 'Name', 'hv.source': 'Source',
   'hv.srcNRW': 'NRW', 'hv.srcCustom': 'custom',
 
   // ── AddModal ──
   'add.newTopItemPlaceholder': '— New top item —',
   'add.namePlaceholderTop': 'Goal, painpoint, or deadline name', 'add.namePlaceholderChild': 'Task name',
+  'add.titleTop': 'New focus item', 'add.titleChild': 'New child item',
+  'add.submitTop': 'Add focus item', 'add.submitChild': 'Add child item',
+  'add.parent': 'Parent', 'add.idAuto': 'ID (automatic)',
+  'add.levelUnder': 'Level {0}, under {1}', 'add.levelTop': 'Level {0}, top level',
+  'add.focusType': 'Focus type', 'add.severity': 'Severity', 'add.date': 'Date',
+  'add.description': 'Description', 'add.teamOptional': 'Team (optional)',
+  'add.workflowTemplate': 'Workflow template',
+  'add.quickEstimate': 'Quick estimate (optional)',
+  'add.quickEstimateHint': 'Leave at 0 for a grouping item — its estimate comes from its children.',
+  'sev.critical': 'Critical', 'sev.high': 'High', 'sev.medium': 'Medium',
+  'prio.1': '1 Critical', 'prio.2': '2 High', 'prio.3': '3 Medium', 'prio.4': '4 Low',
 
   // ── QuickEdit ──
   'qe.cpItem': 'Critical path item',
@@ -143,7 +157,7 @@ const en = {
   'qe.sollIstFactorTip': 'Estimate {0}d → Actual {1}d. Factor reality: {2}',
 
   // ── Split (interrupted task + handoff cascade) ──
-  'split.btn': '↳ Split',
+  'split.btn': 'Split',
   'split.task.tip': 'Split task at current progress — original is closed, the remaining effort moves into a follow-up task.',
   'split.task.prompt': 'How many percent of this task is done?\n(Currently: {0}%)',
   'split.task.invalid': 'Please enter a number between 1 and 99.',
@@ -243,6 +257,12 @@ const en = {
   'hp.addStageTip': 'Adds an extra stage — for offboardings not yet captured in the resource data',
 
   // ── SnapshotModal ──
+  'snap.title': 'Snapshots',
+  'snap.desc': 'The last {0} saves are kept locally as JSON. Pick one to restore the whole project, or download it as a backup file.',
+  'snap.empty': 'No snapshots yet. They are written automatically on every save.',
+  'snap.latest': 'Latest',
+  'snap.restore': 'Restore',
+  'snap.download': 'JSON',
   'snap.downloadTip': 'Download this snapshot as a .json file',
   'snap.restoreTip': 'Replace current project with this snapshot',
 
@@ -439,7 +459,7 @@ const en = {
   'np.teams': 'Teams', 'np.addTeam': '+ Add team',
   'np.teamId': 'ID', 'np.teamName': 'Name', 'np.teamNamePlaceholder': 'Team name',
   'np.teamColor': 'Color', 'np.removeTeam': 'Remove',
-  'np.nextFocus': 'Next →', 'np.backStep': '← Back',
+  'np.nextFocus': 'Next', 'np.backStep': 'Back',
   'np.createProject': 'Create project',
   'np.focusLead': 'Start with the big topics: goals, painpoints, and deadlines. Planr will create them as top-level items so you can break them down into causes, measures, and leaf tasks afterwards.',
   'np.addGoal': 'Add {0}',
@@ -513,7 +533,7 @@ const en = {
   'diff.holidays': '{0} holidays',
   'diff.utilisation': '{0}% utilisation',
   'diff.tipUtilisation': '{0}d effort vs {1}d net capacity',
-  'diff.labelNew': '⊕ NEW', 'diff.labelDone': '✓ done',
+  'diff.labelNew': 'NEW', 'diff.labelDone': '✓ done',
   'diff.legendDone': '✓ {0}',
   'diff.legendReachedTip': 'Reached in window',
   'diff.onlyChanged': 'Only changed',
@@ -625,9 +645,12 @@ const en = {
   'g.assign': 'Assign…',
   'g.bulkEdit': 'Bulk edit…',
   'g.bulkEditTip': 'Bulk-edit team, persons, status, effort, timing for every selected item',
-  'bulk.openModal': '⤢ Modal',
+  'bulk.openModal': 'Dialog',
   'bulk.openModalTip': 'Open the bulk-edit dialog instead of the side panel',
   'bulk.title': 'Bulk edit',
+  'bulk.hint': 'Ctrl+Click to add or remove items. Shared values are shown — a change applies to every selected item.',
+  'bulk.clearSelection': 'Clear selection',
+  'bulk.mixed': 'mixed',
   'bulk.chooseStatus': 'Choose status...', 'bulk.chooseTeam': 'Choose team...', 'bulk.choosePriority': 'Choose priority...',
   'bulk.notePlaceholder': '(empty)', 'bulk.removeFromSelected': 'Remove from all selected',
   'chip.clearTip': 'Remove the filter “{0}”',
@@ -797,7 +820,7 @@ const en = {
   'rv.vacDays': 'Vacation days/yr', 'rv.startDate': 'Start date', 'rv.endDate': 'End date',
   'rv.chooseTeam': 'Choose team...', 'rv.choosePerson': 'Choose person...',
   'rv.person': 'Person', 'rv.note': 'Note',
-  'rv.remove': 'Remove', 'rv.clone': '⧉ Clone',
+  'rv.remove': 'Remove', 'rv.clone': 'Clone',
   'rv.teamColor': 'Team color', 'rv.teamName': 'Team name', 'rv.collapse': 'Collapse',
   'rv.editTeam': 'Edit team', 'rv.editMember': 'Edit member', 'rv.editVacation': 'Edit vacation', 'rv.close': 'Close',
   'rv.name': 'Name', 'rv.team': 'Team', 'rv.plans': 'Meeting Plans',
@@ -859,7 +882,7 @@ const en = {
   'tv.collapseSelectionTitle': 'Collapse {0} selected items + their children',
   'tv.expandSelectionTitle': 'Expand {0} selected items + their children',
   'tv.selected': 'Selected',
-  'tv.deleteItem': '× Delete',
+  'tv.deleteItem': 'Delete',
   'tv.statusOpen': 'Open', 'tv.statusWip': 'In Progress', 'tv.statusDone': 'Done',
   'tv.prioCrit': 'crit', 'tv.prioHigh': 'high', 'tv.prioMed': 'med', 'tv.prioLow': 'low',
   'tv.priority': 'Priority',
@@ -996,6 +1019,8 @@ const en = {
   'tv.newRow': 'New row',
   'tv.newRowTip': 'New row below {0}, ready to type (Enter at the end of a name)',
   'tv.newChild': 'New child',
+  'tv.moveFirst': 'First', 'tv.moveUp': 'Up', 'tv.moveDown': 'Down', 'tv.moveLast': 'Last',
+  'tv.outdent': 'Outdent', 'tv.indent': 'Indent',
   'tv.newChildTip': 'New child under {0}, ready to type (⇧Enter)',
   'tv.outdentTip': 'Move {0} out one level, to its grandparent',
   'tv.indentTip': 'Subordinate {0} to the item above it on screen',
@@ -1095,7 +1120,7 @@ const en = {
 const de = {
   // ── Global / shared ──
   'save': 'Speichern', 'cancel': 'Abbrechen', 'delete': 'Löschen', 'close': 'Schließen', 'back': 'Zurück', 'next': 'Weiter',
-  'yes': 'Ja', 'no': 'Nein', 'auto': 'Auto', 'none': '— Keine',
+  'yes': 'Ja', 'no': 'Nein', 'auto': 'Auto', 'none': '— Keine', 'ss.add': '+ Hinzufügen…',
   'open': 'Offen', 'wip': 'In Bearbeitung', 'done': '✓ Erledigt',
   'critical': 'Kritisch', 'high': 'Hoch', 'medium': 'Mittel', 'low': 'Niedrig',
   'goal': 'Ziel', 'painpoint': 'Painpoint', 'deadline': 'Deadline',
@@ -1152,6 +1177,9 @@ const de = {
   'ex.backup': 'Backup',
   'ex.backup.desc': 'Das vollständige Projekt als JSON — reimportierbar, 1:1-Round-Trip.',
   'ex.dialog': 'Dialog',
+  'ex.goToView': 'Ansicht öffnen',
+  'ex.goToViewTip': 'Das Bild entsteht aus der Ansicht selbst — das öffnet sie, dort ist die Karte aktiv.',
+  'ex.cat.pdf': 'PDF', 'ex.cat.word': 'Word', 'ex.cat.tool': 'Tool', 'ex.cat.img': 'Bild', 'ex.cat.raw': 'Daten',
 
   // ── Command Palette ──
   'palette.placeholder': 'Befehl eingeben…',
@@ -1177,17 +1205,28 @@ const de = {
   'q.includeOffboardedTip': 'Queues für bereits offboarded Personen anzeigen (Arbeit muss trotzdem irgendwo landen).',
 
   // ── HolView ──
-  'hv.title': 'Feiertage', 'hv.importNRW': '↓ NRW importieren', 'hv.addManual': '+ Manuell hinzufügen',
+  'hv.title': 'Feiertage', 'hv.importNRW': 'NRW importieren', 'hv.addManual': '+ Manuell hinzufügen',
   'hv.clearAll': 'Alle löschen', 'hv.confirmClear': 'Alle Feiertage löschen?',
   'hv.stats': '{0} berechnet · {1} manuell',
   'hv.desc': 'Feiertage werden bei der Arbeitstageberechnung ausgeschlossen. NRW-Feiertage werden über den Osteralgorithmus dynamisch berechnet und in der Projektdatei gespeichert.',
-  'hv.empty': 'Keine Feiertage konfiguriert', 'hv.emptyBtn': '↓ NRW-Feiertage importieren',
+  'hv.empty': 'Keine Feiertage konfiguriert', 'hv.emptyBtn': 'NRW-Feiertage importieren',
   'hv.day': 'Tag', 'hv.date': 'Datum', 'hv.name': 'Name', 'hv.source': 'Quelle',
   'hv.srcNRW': 'NRW', 'hv.srcCustom': 'manuell',
 
   // ── AddModal ──
   'add.newTopItemPlaceholder': '— Neues Top-Item —',
   'add.namePlaceholderTop': 'Name für Ziel, Painpoint oder Deadline', 'add.namePlaceholderChild': 'Task-Name',
+  'add.titleTop': 'Neues Fokus-Item', 'add.titleChild': 'Neuer Unterpunkt',
+  'add.submitTop': 'Fokus-Item anlegen', 'add.submitChild': 'Unterpunkt anlegen',
+  'add.parent': 'Übergeordnet', 'add.idAuto': 'ID (automatisch)',
+  'add.levelUnder': 'Ebene {0}, unter {1}', 'add.levelTop': 'Ebene {0}, oberste Ebene',
+  'add.focusType': 'Art', 'add.severity': 'Schweregrad', 'add.date': 'Datum',
+  'add.description': 'Beschreibung', 'add.teamOptional': 'Team (optional)',
+  'add.workflowTemplate': 'Workflow-Vorlage',
+  'add.quickEstimate': 'Schnellschätzung (optional)',
+  'add.quickEstimateHint': 'Bei 0 lassen, wenn das Item nur gruppiert — seine Schätzung kommt dann aus den Unterpunkten.',
+  'sev.critical': 'Kritisch', 'sev.high': 'Hoch', 'sev.medium': 'Mittel',
+  'prio.1': '1 Kritisch', 'prio.2': '2 Hoch', 'prio.3': '3 Mittel', 'prio.4': '4 Niedrig',
 
   // ── QuickEdit ──
   'qe.cpItem': 'Kritischer-Pfad-Item',
@@ -1231,7 +1270,7 @@ const de = {
   'qe.sollIstFactorTip': 'Schätzung {0}d → Ist {1}d. Faktor-Realität: {2}',
 
   // ── Split (unterbrochene Aufgabe + Handoff-Cascade) ──
-  'split.btn': '↳ Split',
+  'split.btn': 'Split',
   'split.task.tip': 'Aufgabe an aktuellem Progress aufteilen — Original wird abgeschlossen, Restaufwand wandert in eine neue Folgeaufgabe.',
   'split.task.prompt': 'Wie viel Prozent dieser Aufgabe ist erledigt?\n(Aktuell: {0}%)',
   'split.task.invalid': 'Bitte eine Zahl zwischen 1 und 99 angeben.',
@@ -1331,6 +1370,12 @@ const de = {
   'hp.addStageTip': 'Fügt eine zusätzliche Etappe hinzu — für Offboardings die noch nicht im Ressourcen-Datum erfasst sind',
 
   // ── SnapshotModal ──
+  'snap.title': 'Snapshots',
+  'snap.desc': 'Die letzten {0} Speicherstände liegen lokal als JSON. Einen auswählen, um das ganze Projekt zurückzusetzen, oder als Sicherungsdatei herunterladen.',
+  'snap.empty': 'Noch keine Snapshots. Sie entstehen automatisch bei jedem Speichern.',
+  'snap.latest': 'Neuester',
+  'snap.restore': 'Wiederherstellen',
+  'snap.download': 'JSON',
   'snap.downloadTip': 'Diesen Snapshot als .json-Datei herunterladen',
   'snap.restoreTip': 'Aktuelles Projekt durch diesen Snapshot ersetzen',
 
@@ -1527,7 +1572,7 @@ const de = {
   'np.teams': 'Teams', 'np.addTeam': '+ Team hinzufügen',
   'np.teamId': 'ID', 'np.teamName': 'Name', 'np.teamNamePlaceholder': 'Teamname',
   'np.teamColor': 'Farbe', 'np.removeTeam': 'Entfernen',
-  'np.nextFocus': 'Weiter →', 'np.backStep': '← Zurück',
+  'np.nextFocus': 'Weiter', 'np.backStep': 'Zurück',
   'np.createProject': 'Projekt anlegen',
   'np.focusLead': 'Starte mit den großen Themen: Ziele, Painpoints und Deadlines. Planr legt sie als Oberelemente an, damit du sie danach in Ursachen, Maßnahmen und Aufgaben aufbrechen kannst.',
   'np.addGoal': '{0} hinzufügen',
@@ -1601,7 +1646,7 @@ const de = {
   'diff.holidays': '{0} Feiertage',
   'diff.utilisation': '{0}% Auslastung',
   'diff.tipUtilisation': '{0}d Aufwand gegen {1}d Netto-Kapazität',
-  'diff.labelNew': '⊕ NEU', 'diff.labelDone': '✓ erledigt',
+  'diff.labelNew': 'NEU', 'diff.labelDone': '✓ erledigt',
   'diff.legendDone': '✓ {0}',
   'diff.legendReachedTip': 'Im Fenster erledigt',
   'diff.onlyChanged': 'Nur mit Änderung',
@@ -1713,9 +1758,12 @@ const de = {
   'g.assign': 'Zuweisen…',
   'g.bulkEdit': 'Massenänderung…',
   'g.bulkEditTip': 'Team, Personen, Status, Effort, Timing für alle ausgewählten Items ändern',
-  'bulk.openModal': '⤢ Modal',
+  'bulk.openModal': 'Dialog',
   'bulk.openModalTip': 'Massenänderungs-Dialog statt Seitenpanel öffnen',
   'bulk.title': 'Massenänderung',
+  'bulk.hint': 'Strg+Klick fügt Items hinzu oder entfernt sie. Gezeigt werden gemeinsame Werte — eine Änderung gilt für alle ausgewählten Items.',
+  'bulk.clearSelection': 'Auswahl aufheben',
+  'bulk.mixed': 'gemischt',
   'bulk.chooseStatus': 'Status wählen...', 'bulk.chooseTeam': 'Team wählen...', 'bulk.choosePriority': 'Priorität wählen...',
   'bulk.notePlaceholder': '(leer)', 'bulk.removeFromSelected': 'Von allen Ausgewählten entfernen',
   'chip.clearTip': 'Filter „{0}“ entfernen',
@@ -1885,7 +1933,7 @@ const de = {
   'rv.vacDays': 'Urlaubstage/Jahr', 'rv.startDate': 'Startdatum', 'rv.endDate': 'Enddatum',
   'rv.chooseTeam': 'Team auswählen...', 'rv.choosePerson': 'Person auswählen...',
   'rv.person': 'Person', 'rv.note': 'Notiz',
-  'rv.remove': 'Entfernen', 'rv.clone': '⧉ Klonen',
+  'rv.remove': 'Entfernen', 'rv.clone': 'Klonen',
   'rv.teamColor': 'Team-Farbe', 'rv.teamName': 'Team-Name', 'rv.collapse': 'Einklappen',
   'rv.editTeam': 'Team bearbeiten', 'rv.editMember': 'Person bearbeiten', 'rv.editVacation': 'Urlaub bearbeiten', 'rv.close': 'Schließen',
   'rv.name': 'Name', 'rv.team': 'Team', 'rv.plans': 'Meeting-Pläne',
@@ -1947,7 +1995,7 @@ const de = {
   'tv.collapseSelectionTitle': '{0} ausgewählte Items + Kinder zuklappen',
   'tv.expandSelectionTitle': '{0} ausgewählte Items + Kinder aufklappen',
   'tv.selected': 'Ausgewählt',
-  'tv.deleteItem': '× Löschen',
+  'tv.deleteItem': 'Löschen',
   'tv.statusOpen': 'Offen', 'tv.statusWip': 'In Bearbeitung', 'tv.statusDone': 'Erledigt',
   'tv.prioCrit': 'krit.', 'tv.prioHigh': 'hoch', 'tv.prioMed': 'mittel', 'tv.prioLow': 'niedrig',
   'tv.priority': 'Priorität',
@@ -2084,6 +2132,8 @@ const de = {
   'tv.newRow': 'Neue Zeile',
   'tv.newRowTip': 'Neue Zeile unter {0}, direkt tippbereit (Enter am Ende eines Namens)',
   'tv.newChild': 'Unterpunkt',
+  'tv.moveFirst': 'Anfang', 'tv.moveUp': 'Hoch', 'tv.moveDown': 'Runter', 'tv.moveLast': 'Ende',
+  'tv.outdent': 'Ausrücken', 'tv.indent': 'Einrücken',
   'tv.newChildTip': 'Neuer Unterpunkt unter {0}, direkt tippbereit (⇧Enter)',
   'tv.outdentTip': '{0} eine Ebene ausrücken, zum Großelternteil',
   'tv.indentTip': '{0} dem Item darüber unterordnen (dem sichtbaren)',

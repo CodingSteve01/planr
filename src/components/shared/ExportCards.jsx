@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 // The export card grid — used by ExportModal.jsx (Export… (dialog), still
 // reachable from the `/` palette) AND by ReportView.jsx (Report mode's
@@ -7,22 +8,20 @@ import { useT } from '../../i18n.jsx';
 // neither place duplicates the handler/state logic (docs/principles.md,
 // "How we read proposals" — nothing about export capability changes here,
 // only where it is reached from).
+// The five kinds of export, each with a colour off the app's own palette.
+// Three of these were hex literals — an indigo, a teal and a slate that
+// belonged to no palette and went cold against the warm greys around them.
+// They are derived from the tokens now, so they follow the theme.
 const CAT_COLORS = {
-  pdf: 'var(--ac)',      // blue
-  word: '#6366f1',       // indigo
-  tool: 'var(--tx3)',    // gray
-  img: '#14b8a6',        // teal
-  raw: '#64748b',        // slate
-};
-const CAT_LABEL = {
-  pdf: 'PDF',
-  word: 'Word',
-  tool: 'Tool',
-  img: 'Bild',
-  raw: 'Daten',
+  pdf: 'var(--ac)',
+  word: 'var(--pu)',
+  tool: 'var(--tx3)',
+  img: 'var(--st-done)',
+  raw: 'var(--b3)',
 };
 
 function Card({ cat, title, desc, action, disabled }) {
+  const { t } = useT();
   const color = CAT_COLORS[cat];
   return (
     <div style={{
@@ -34,16 +33,18 @@ function Card({ cat, title, desc, action, disabled }) {
       display: 'flex',
       flexDirection: 'column',
       gap: 6,
-      opacity: disabled ? 0.45 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* The dimming sits on the card's text, not on the card: the action is
+          the one part of an unavailable card that still has something to
+          offer, and a greyed-out way forward reads as another dead end. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: disabled ? 0.45 : 1 }}>
         <span style={{
           fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
           color, padding: '1px 5px', border: `1px solid ${color}`, borderRadius: 3, flexShrink: 0,
-        }}>{CAT_LABEL[cat]}</span>
+        }}>{t(`ex.cat.${cat}`)}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{title}</span>
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--tx3)', lineHeight: 1.35, flex: 1, minHeight: 28 }}>{desc}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--tx3)', lineHeight: 1.35, flex: 1, minHeight: 28, opacity: disabled ? 0.6 : 1 }}>{desc}</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>{action}</div>
     </div>
   );
@@ -62,6 +63,7 @@ export function ExportCards({
   onNetworkPNG,
   onGanttPNG,
   onJSON,
+  onGoTab,
 }) {
   const { t } = useT();
   const [todoH, setTodoH] = useState(30);
@@ -90,9 +92,17 @@ export function ExportCards({
       disabled={busy === k || extra.disabled}
       onClick={() => run(k, handler)}
     >
-      {busy === k ? '…' : done[k] ? '●' : label}
+      {busy === k ? '…' : done[k] ? <Icon name="check" size={12} strokeWidth={2.4} /> : label}
     </button>
   );
+  // The stand-in for a card whose export needs another view open.
+  const G = target => onGoTab
+    ? <button className="btn btn-sec btn-sm" data-htip={t('ex.goToViewTip')}
+        onClick={() => onGoTab(target)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        {t('ex.goToView')}<Icon name="chevronRight" size={11} />
+      </button>
+    : null;
   const H = (val, setVal) => (
     <select className="btn btn-sec btn-sm" style={{ padding: '3px 6px', width: 58 }} value={val} onChange={e => setVal(parseInt(e.target.value))}>
       {[7, 14, 30, 60, 90].map(d => <option key={d} value={d}>{d}d</option>)}
@@ -156,14 +166,19 @@ export function ExportCards({
         desc={t('ex.mermaid.desc')}
         action={B('mermaid', 'MD', onMermaid)} />
 
+      {/* A picture is taken from the view that draws it, so from the Report
+          screen — which is never the Network or the Schedule — both of these
+          used to be permanently greyed out with a sentence explaining why.
+          A card that can only ever say no is not a card. It offers the way
+          there instead. */}
       <Card cat="img" title={t('ex.netPng')}
         desc={tab === 'net' ? t('ex.netPng.desc') : t('ex.netPng.off')}
-        action={B('nN', 'PNG', onNetworkPNG, { disabled: tab !== 'net' })}
+        action={tab === 'net' ? B('nN', 'PNG', onNetworkPNG) : G('net')}
         disabled={tab !== 'net'} />
 
       <Card cat="img" title={t('ex.ganttPng')}
         desc={tab === 'gantt' ? t('ex.ganttPng.desc') : t('ex.ganttPng.off')}
-        action={B('nG', 'PNG', onGanttPNG, { disabled: tab !== 'gantt' })}
+        action={tab === 'gantt' ? B('nG', 'PNG', onGanttPNG) : G('gantt')}
         disabled={tab !== 'gantt'} />
 
       <Card cat="raw" title={t('ex.backup')}

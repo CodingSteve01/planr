@@ -693,7 +693,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
           // The amber branch marks "progressed within the diff window", not
           // wip — kept as a literal, see docs/design-tokens.md "Not yet mapped".
-          const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? '#f59e0b' : null;
+          const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? 'var(--diff)' : null;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             {diffStroke && (
               <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={7}

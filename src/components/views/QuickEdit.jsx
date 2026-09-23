@@ -253,9 +253,11 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       {isLeaf && onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => onEstimate(node)}>{t('qe.estimateNow')}</button>}
     </div>
 
-    <div className="qe-tabs">
+    <div className="qe-tabs" role="tablist">
       {tabs.map(item => <button
         key={item.id}
+        role="tab"
+        aria-selected={activeTab === item.id}
         className={`qe-tab${activeTab === item.id ? ' active' : ''}`}
         onMouseDown={e => activateTab(e, () => setTab(item.id))}
         onClick={e => { if (e.detail === 0) setTab(item.id); }}
@@ -422,7 +424,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
       <div className="field"><label>{t('qe.assignee')}</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
-          {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}>×</span></span>)}
+          {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}><Icon name="x" size={9} /></span></span>)}
         </div>
         {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
           onAccept={({ assign, team }) => patchNode({ assign, team })} />
@@ -524,13 +526,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
-              {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}>×</button>}
+              {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}><Icon name="x" size={11} /></button>}
             </div>
           </div>
-          <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
+          <div className="field"><label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t('qe.pinnedStart')}{f.pinnedStart && <Icon name="pin" size={10} style={{ color: 'var(--am)' }} />}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
-              {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>×</button>}
+              {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}><Icon name="x" size={11} /></button>}
             </div>
           </div>
         </div>
@@ -649,7 +651,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                   const nextLabels = { ...(f._depLabels || {}) };
                   delete nextLabels[dep];
                   patchNode({ deps: nextDeps, _depLabels: nextLabels });
-                }}>×</span>
+                }}><Icon name="x" size={9} /></span>
               </div>
             </div>;
           })}
@@ -670,7 +672,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 }}>→H</span>
                 <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
                   patchNode({ softDeps: (f.softDeps || []).filter(id => id !== dep) });
-                }}>×</span>
+                }}><Icon name="x" size={9} /></span>
               </div>
             </div>;
           })}
@@ -718,7 +720,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 }}>{s.soft ? '→H' : '→S'}</span>}
               {onRemoveDep && <span className="tag-x" title={t('qe.dep.removeSuccessor')}
                 style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }}
-                onClick={() => onRemoveDep(s.id, node.id)}>×</span>}
+                onClick={() => onRemoveDep(s.id, node.id)}><Icon name="x" size={9} /></span>}
             </div>
           </div>)}
         </div>}
@@ -737,7 +739,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
     <hr className="divider" />
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => onDuplicate(node.id)}>⧉ {t('qe.duplicate')}</button>}
+      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => onDuplicate(node.id)} style={{ flex: 1, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Icon name="copy" size={12} />{t('qe.duplicate')}</button>}
       {/* Split — only when wip with progress > 0. The button asks for the
           consumed % (defaults to current progress) and creates a new
           sibling task with the remaining effort + dep on the original. */}
@@ -754,7 +756,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
               return;
             }
             onSplitTaskAtProgress(node.id, p);
-          }}>{t('split.btn')}</button>
+          }} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Icon name="subtask" size={12} />{t('split.btn')}</button>
       )}
       {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => onDelete(node.id)}>{t('delete')}</button>}
     </div>

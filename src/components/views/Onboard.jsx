@@ -36,7 +36,7 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, fRef }) {
             <div className="ob-cta">
               <button className="ob-btn ob-btn-pri" onClick={onCreate}>
                 <span>{t('ob.newProject')}</span>
-                <span className="ob-btn-arrow">→</span>
+                <span className="ob-btn-arrow"><Icon name="chevronRight" size={12} /></span>
               </button>
               {onLoadDemo && (
                 <button className="ob-btn ob-btn-ghost" onClick={onLoadDemo}>

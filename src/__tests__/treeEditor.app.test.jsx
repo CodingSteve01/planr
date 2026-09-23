@@ -173,8 +173,7 @@ describe('the tree editor writes through to the plan', () => {
     // Priority is not rendered as text, so watch the undo button instead: it
     // is disabled until something is written, and one keypress on two rows
     // must leave exactly one entry on the stack.
-    const undoBtn = () => [...document.querySelectorAll('.topbar button')]
-      .find(b => b.textContent.trim() === '↶');
+    const undoBtn = () => document.querySelector('[data-testid="undo-btn"]');
     expect(undoBtn().disabled).toBe(true);
 
     await press(grid(), '1');
@@ -282,7 +281,7 @@ describe('the tree editor writes through to the plan', () => {
     });
   });
 
-  it('the row ↳ button creates a child that is ready to type into', async () => {
+  it('the row "new child" button creates a child that is ready to type into', async () => {
     renderApp();
     // The app paints a "restoring project context" screen first — wait for
     // the row itself, not just for render() to return.
@@ -310,12 +309,12 @@ describe('the tree editor writes through to the plan', () => {
     // P1.1 is the first child of P1 — nothing above it to become its parent.
     const btn = glyph => [...document.querySelectorAll('button')]
       .find(b => b.textContent.trim() === glyph);
-    await waitFor(() => expect(btn('⇥'), 'indent button missing').toBeTruthy());
-    expect(btn('⇥').disabled, 'indent should be a no-op on the first child').toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('tv-indent'), 'indent button missing').toBeTruthy());
+    expect(screen.getByTestId('tv-indent').disabled, 'indent should be a no-op on the first child').toBe(true);
 
     await selectRow('P1.2');
-    await waitFor(() => expect(btn('⇥').disabled).toBe(false));
-    await act(async () => { fireEvent.click(btn('⇥')); });
+    await waitFor(() => expect(screen.getByTestId('tv-indent').disabled).toBe(false));
+    await act(async () => { fireEvent.click(screen.getByTestId('tv-indent')); });
 
     await waitFor(() => {
       const moved = planTree().find(n => n.name.includes('Masks'));
@@ -583,7 +582,7 @@ describe('the tree editor writes through to the plan', () => {
   it('a root moves past roots whose ids start with different letters', async () => {
     // Reported: "Paket 1" could not be moved up. Its id was P4, and the
     // reorder additionally required the same leading letters — so it could
-    // pass P2 and P3 but never "Pr1". The ⤒▲▼⤓ buttons were enabled (they
+    // pass P2 and P3 but never "Pr1". The four reorder buttons were enabled (they
     // read the visible order, correctly), the press did nothing, and there
     // was nothing on screen to explain it.
     localStorage.setItem('planr_v2', JSON.stringify({

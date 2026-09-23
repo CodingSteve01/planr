@@ -7,6 +7,7 @@ import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
+import { Icon } from '../shared/Icon.jsx';
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 
@@ -93,8 +94,10 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
 
       {/* ── Tab bar ── */}
-      <div className="qe-tabs" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
-        {TABS.map(x => <button key={x.id} className={`qe-tab${tab === x.id ? ' active' : ''}`} onClick={() => setTab(x.id)}>{x.label}</button>)}
+      {/* The app's own tab row says which tab it is on through ARIA; these
+          dialog tab rows said it only in colour. Same widget, same contract. */}
+      <div className="qe-tabs" role="tablist" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
+        {TABS.map(x => <button key={x.id} role="tab" aria-selected={tab === x.id} className={`qe-tab${tab === x.id ? ' active' : ''}`} onClick={() => setTab(x.id)}>{x.label}</button>)}
       </div>
 
       {/* ══════ GENERAL TAB ══════ */}
@@ -179,7 +182,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                 <span style={{ fontWeight: 600, fontSize: 12 }}>{tp.name}</span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className="btn btn-sec btn-xs" onClick={() => setEditId(tp.id)}>{t('ph.editTemplate')}</button>
-                  <button className="btn btn-danger btn-xs" onClick={() => deleteTemplate(tp.id)}>×</button>
+                  <button className="btn btn-danger btn-xs" onClick={() => deleteTemplate(tp.id)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
                 </div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.5 }}>
@@ -249,7 +252,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
               <input value={sz.desc || ''} placeholder={t('set.sizeDesc')}
                 onChange={e => updateSize(i, { desc: e.target.value })} />
             </div>
-            <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeSize(i)}>×</button>
+            <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeSize(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
           </div>
         ))}
 
@@ -276,7 +279,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                 <label style={{ fontSize: 10 }}>{t('cf.type')}</label>
                 <SearchSelect value={cf.type} options={CF_TYPES} onSelect={id => updateCf(i, { type: id })} />
               </div>
-              <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', marginBottom: 1 }} onClick={() => removeCf(i)}>×</button>
+              <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', marginBottom: 1 }} onClick={() => removeCf(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
             </div>
             {cf.type === 'uri' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
               <label style={{ fontSize: 10 }}>{t('cf.template')}</label>
@@ -312,7 +315,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                 style={{ textAlign: 'right' }} />
             </div>
             <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0, width: 32, textAlign: 'right' }}>+{Math.round(risk.weight * 100)}%</span>
-            <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeRisk(i)}>×</button>
+            <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeRisk(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
           </div>
         ))}
 

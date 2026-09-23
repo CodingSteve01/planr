@@ -281,18 +281,21 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {isLeaf && <SBadge s={node.status} />}
         {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer' }} onClick={() => s('pinnedStart', '')}>▸ {f.pinnedStart} ×</span>}
-        {/* The panel's ⇥ sends the editor here; without this the way back is
+        {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => s('pinnedStart', '')} data-htip={t('p.clear')}><Icon name="pin" size={10} />{f.pinnedStart}<Icon name="x" size={10} /></span>}
+        {/* The panel's dock button sends the editor here; without this the way back is
             a trip through Settings, which is a one-way door with extra steps. */}
         {onDockSide && <button className="btn btn-ghost btn-icon sm" style={{ marginLeft: 'auto' }}
           data-htip={t('set.dockSideTip')} data-testid="editor-dock-side"
-          onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}>⇥</button>}
+          aria-label={t('set.dockSideTip')}
+          onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}><Icon name="panelRight" size={13} /></button>}
       </div>
 
       {/* ── TAB BAR ── */}
-      <div className="qe-tabs" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
+      <div className="qe-tabs" role="tablist" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
         {nmTabs.map(x => <button
           key={x.id}
+          role="tab"
+          aria-selected={activeNmTab === x.id}
           className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
           data-testid={`nm-tab-${x.id}`}
           onMouseDown={e => activateTab(e, () => setNmTab(x.id))}
@@ -391,7 +394,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <SearchSelect value={f.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))} onSelect={v => s('team', v)} allowEmpty />
             </div>
             <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-              {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}>×</span></span>; })}
+              {(f.assign || []).map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" onClick={() => s('assign', (f.assign || []).filter(x => x !== a))}><Icon name="x" size={9} /></span></span>; })}
               <div ref={focusRefs.assign} style={{ minWidth: 160, flex: 1 }}>
                 <SearchSelect
                   options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
@@ -588,14 +591,14 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
-                {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')}>×</button>}
+                {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')} aria-label={t('p.clear')}><Icon name="x" size={11} /></button>}
               </div>
             </div>
-            <div className="field"><label>{t('qe.pinnedStart')} {f.pinnedStart && <span style={{ fontSize: 10, color: 'var(--am)' }}>▸</span>}</label>
+            <div className="field"><label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t('qe.pinnedStart')}{f.pinnedStart && <Icon name="pin" size={10} style={{ color: 'var(--am)' }} />}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => s('pinnedStart', e.target.value)} style={{ flex: 1 }} />
                 <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>{t('nm.pinToday')}</button>
-                {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')}>×</button>}
+                {f.pinnedStart && <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')} aria-label={t('p.clear')}><Icon name="x" size={11} /></button>}
               </div>
             </div>
           </div>
@@ -647,7 +650,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
                 {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
               </div>
-              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const ns = (x.softDeps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, softDeps: ns, _depLabels: nl }; })}>×</span>
+              <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const ns = (x.softDeps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, softDeps: ns, _depLabels: nl }; })}><Icon name="x" size={9} /></span>
             </div>; })}
             {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
@@ -679,7 +682,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                     {r.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.name}</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                    {onNavigate && <span title="Open" style={{ cursor: 'pointer', fontSize: 11, color: 'var(--ac)' }} onClick={() => onNavigate(r.id)}>↗</span>}
+                    {onNavigate && <button type="button" className="btn btn-ghost btn-xs" aria-label={t('nm.fullEditTip')} data-htip={t('nm.fullEditTip')} style={{ padding: '0 3px', color: 'var(--ac)' }} onClick={() => onNavigate(r.id)}><Icon name="link" size={11} /></button>}
                   </div>
                 </div>;
               })}
@@ -714,7 +717,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         {onDuplicate && <button className="btn btn-sec" onClick={() => {
           if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
           onDuplicate(node.id);
-        }}>⧉ {t('qe.duplicate')}</button>}
+        }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="copy" size={12} />{t('qe.duplicate')}</button>}
         {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
           && !hasChildren(tree, node.id) && (
           <button className="btn btn-sec"
@@ -729,7 +732,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               }
               onSplitTaskAtProgress(node.id, p);
               onClose();
-            }}>{t('split.btn')}</button>
+            }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="subtask" size={12} />{t('split.btn')}</button>
         )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>

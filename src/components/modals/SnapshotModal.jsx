@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../../i18n.jsx';
+import { Icon } from '../shared/Icon.jsx';
 
 // Lists rolling JSON snapshots from localStorage so the user can recover from
 // a corrupted on-disk markdown file. Snapshots are written by App.jsx on
@@ -48,14 +49,14 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" style={{ width: 'min(640px, 100%)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ marginTop: 0 }}>↶ Snapshots</h2>
+        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="undo" size={15} />{t('snap.title')}</h2>
         <p style={{ fontSize: 11, color: 'var(--tx3)', marginTop: -4, marginBottom: 12 }}>
-          Last {snaps.length} saves are kept locally as JSON. Pick one to restore the whole project, or download as a JSON backup file.
+          {t('snap.desc', snaps.length)}
         </p>
 
         {snaps.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--tx3)', fontSize: 12 }}>
-            No snapshots yet. They are written automatically on every save.
+            {t('snap.empty')}
           </div>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, overflow: 'auto', flex: 1 }}>
@@ -68,7 +69,7 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: 'var(--tx)' }}>
                     {fmtTs(snap.ts)}
-                    {i === 0 && <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--gr)', color: '#fff' }}>LATEST</span>}
+                    {i === 0 && <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--gr)', color: '#fff' }}>{t('snap.latest')}</span>}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
                     {summarize(snap.data)}
@@ -76,10 +77,10 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
                 </div>
                 <button className="btn btn-sec btn-xs"
                   data-htip={t('snap.downloadTip')}
-                  onClick={() => onExportJson?.(snap)}>↓ JSON</button>
+                  onClick={() => onExportJson?.(snap)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="download" size={11} />{t('snap.download')}</button>
                 <button className="btn btn-pri btn-xs"
                   data-htip={t('snap.restoreTip')}
-                  onClick={() => onRestore?.(snap)}>↶ Restore</button>
+                  onClick={() => onRestore?.(snap)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="undo" size={11} />{t('snap.restore')}</button>
               </li>
             ))}
           </ul>

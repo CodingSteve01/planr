@@ -2251,8 +2251,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 type="button"
                 aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
                 onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey || row.key); }}
-                style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', cursor: 'pointer' }}
-              >{isCol ? '▶' : '▼'}</button>
+                style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, color: 'var(--tx3)', width: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' }}
+              ><Icon name={isCol ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} /></button>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
               {/* Read-only, and worth the two words: this person's bars sit in
                   an order they were given rather than the plan's, and without
@@ -2316,8 +2316,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               type="button"
               aria-label={isCollapsed ? t('tv.expandAll') : t('tv.collapseAll')}
               onClick={e => { e.stopPropagation(); toggleCollapse(row.collapseKey); }}
-              style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: 9, color: 'var(--tx3)', width: 12, textAlign: 'center', flexShrink: 0, cursor: 'pointer' }}
-            >{isCollapsed ? '▶' : '▼'}</button>}
+              style={{ appearance: 'none', background: 'transparent', border: 'none', padding: 0, color: 'var(--tx3)', width: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0, cursor: 'pointer' }}
+            ><Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} /></button>}
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
             <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
@@ -2709,7 +2709,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     width: Math.max(bW, 6) + 4, height: (isSummary ? 16 : 20) + 4,
                     borderRadius: isSummary ? 6 : 5, pointerEvents: 'none', zIndex: 1,
                     // Amber branch = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md.
-                    border: `2px solid ${_diffDoneSet.has(s.id) ? 'var(--st-done)' : '#f59e0b'}`,
+                    border: `2px solid ${_diffDoneSet.has(s.id) ? 'var(--st-done)' : 'var(--diff)'}`,
                     boxShadow: `0 0 0 1px var(--bg,#111318), 0 0 10px ${_diffDoneSet.has(s.id) ? 'rgba(16,185,129,.6)' : 'rgba(245,158,11,.6)'}` }} />
               )}
               {bW > 0 && <div className={`gbar${isDrag ? ' dragging' : ''}${isCp ? ' cp-bar' : ''}${isDueOverdue ? ' overdue-bar' : ''}`} data-link-from={linkTaskId} data-link-target={linkTaskId} data-task-bar={!isSummary ? linkTaskId : undefined}
@@ -2800,7 +2800,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                         {/* Sharp tick at the past-progress position so the eye locks onto
                             "we started the window here". */}
                         <div style={{ position: 'absolute', left: `${pastProg}%`, top: 0, bottom: 0,
-                          width: 2, background: '#f59e0b', pointerEvents: 'none' }} />
+                          width: 2, background: 'var(--diff)', pointerEvents: 'none' }} />
                       </>
                     )}
                   </>;
@@ -3170,13 +3170,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {/* Z-order style reorder: shifts the whole selection in the scheduler
           processing order (writes seq). Mirrors media-player jump controls. */}
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} style={{ transform: 'rotate(180deg)' }} /></button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip')} aria-label={t('g.reorderUpTip')} style={{ fontSize: 14, lineHeight: 1 }}>◀</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ fontSize: 14, lineHeight: 1 }}>▶</button>
-        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} /></button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('first')} data-htip={t('g.reorderFirstTip')} aria-label={t('g.reorderFirstTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="skipBack" size={13} /></button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('up')} data-htip={t('g.reorderUpTip')} aria-label={t('g.reorderUpTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronLeft" size={13} /></button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('down')} data-htip={t('g.reorderDownTip')} aria-label={t('g.reorderDownTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="chevronRight" size={13} /></button>
+        <button type="button" className="btn btn-sec" onClick={() => reorderSelectionInTime('last')} data-htip={t('g.reorderLastTip')} aria-label={t('g.reorderLastTip')} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}><Icon name="skipForward" size={13} /></button>
       </span>
       <span style={{ display: 'inline-flex', gap: 2 }}>
-        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ fontSize: 12, lineHeight: 1 }}>Prio ▲▲</button>
+        <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(-1)} data-htip={t('g.prioUpTip')} aria-label={t('g.prioUpTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Prio<Icon name="chevronUp" size={12} /></button>
         <button type="button" className="btn btn-sec" onClick={() => adjustSelectionPrio(1)} data-htip={t('g.prioDownTip')} aria-label={t('g.prioDownTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Prio<Icon name="chevronDown" size={12} /></button>
       </span>
       <button
@@ -3185,7 +3185,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         onClick={() => onOpenBulkEdit?.(selectedTaskIds)}
         data-htip={t('g.bulkEditTip')}
         data-testid="gantt-bulk-edit-trigger">
-        <span className="sab-icon">⎘</span>
+        <span className="sab-icon"><Icon name="checkSquare" size={13} /></span>
         <span>{t('g.bulkEdit')}</span>
       </button>
       <span className="sab-divider" />

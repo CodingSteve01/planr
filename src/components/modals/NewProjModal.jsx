@@ -117,7 +117,7 @@ export function NewProjModal({ onCreate, onClose }) {
         </div>)}
         <div className="modal-footer">
           <button className="btn btn-sec" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn btn-pri" disabled={!f.name} onClick={() => setStep(2)}>{t('np.nextFocus')}</button>
+          <button className="btn btn-pri" disabled={!f.name} onClick={() => setStep(2)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{t('np.nextFocus')}<Icon name="chevronRight" size={12} /></button>
         </div>
       </>}
 
@@ -137,7 +137,7 @@ export function NewProjModal({ onCreate, onClose }) {
         </div>)}
         {!goals.length && <div style={{ textAlign: 'center', padding: 24, color: 'var(--tx3)', fontSize: 11 }}>{t('np.noFocus')}</div>}
         <div className="modal-footer">
-          <button className="btn btn-sec" onClick={() => setStep(1)}>{t('np.backStep')}</button>
+          <button className="btn btn-sec" onClick={() => setStep(1)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="chevronLeft" size={12} />{t('np.backStep')}</button>
           <button className="btn btn-pri" onClick={doCreate}>{t('np.createProject')}</button>
         </div>
       </>}

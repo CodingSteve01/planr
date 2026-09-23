@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, memo } from 'react';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { leafNodes } from '../../utils/scheduler.js';
 import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
@@ -299,7 +300,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 style={{ outline: 'none' }}>
                 <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
                   data-htip={t('wo.dragTip')}>
-                  <span className="tv-drag-handle">⋮⋮</span>{i + 1}
+                  <span className="tv-drag-handle"><Icon name="grip" size={11} /></span>{i + 1}
                 </td>
                 <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
                 <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
@@ -329,13 +330,14 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 </td>
                 <td style={{ width: 28, verticalAlign: 'middle' }}>
                   {/* `E` did this from the first version, which is fine once
-                      you know and invisible until then — the tree carries a ⊞
-                      for the same reason. */}
+                      you know and invisible until then — the tree carries the
+                      same icon for the same reason. */}
                   <button type="button" className="tv-act-btn" data-testid={`wo-edit-${id}`}
                     data-htip={withKey(t('nm.fullEditTip'), 'fullEdit')}
                     onClick={e => { e.stopPropagation(); setCursor(id); onFullEdit?.(node); }}
                     onDragStart={e => e.preventDefault()}
-                  >⊞</button>
+                    aria-label={t('nm.fullEditTip')}
+                  ><Icon name="maximize" size={12} /></button>
                 </td>
               </tr>
               </Fragment>;

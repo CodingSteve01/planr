@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 import { useT } from '../../i18n.jsx';
+import { Icon } from '../shared/Icon.jsx';
 
 // Bulk assignment dialog: pick team and one or more persons, optionally
 // clear either. Applied to whatever the caller decides — Gantt and Tree
@@ -86,8 +87,8 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
                   return (
                     <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 4px 3px 8px', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 14, fontSize: 11 }}>
                       <span>{m?.name || id}</span>
-                      <button type="button" onClick={() => removePerson(id)} aria-label="Remove"
-                        style={{ width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'transparent', color: 'var(--tx3)', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      <button type="button" onClick={() => removePerson(id)} aria-label={t('delete')}
+                        style={{ width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'transparent', color: 'var(--tx3)', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="x" size={11} /></button>
                     </span>
                   );
                 })}

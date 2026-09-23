@@ -97,7 +97,7 @@ describe('scopeCss', () => {
 // the container restyles the user's whole vault, so this is checked rather
 // than assumed.
 describe('container queries', () => {
-  test('keeps the query and scopes the rules inside it', () => {
+  it('keeps the query and scopes the rules inside it', () => {
     const scoped = scopeCss(`
       .tv-surface{container-type:inline-size;container-name:tv;}
       @container tv (max-width: 900px){
@@ -109,7 +109,7 @@ describe('container queries', () => {
     expect(scoped).toMatch(/\.planr-view \.tv-surface/);
   });
 
-  test('the real stylesheet still declares its container inside the scope', () => {
+  it('the real stylesheet still declares its container inside the scope', () => {
     const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
     // A container-type on an unscoped selector would make the VAULT a query
     // container, which is exactly the leak this file exists to prevent.

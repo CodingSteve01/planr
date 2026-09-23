@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { leafNodes, parentId } from '../../utils/scheduler.js';
+import { Icon } from '../shared/Icon.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { instantiateTemplatePhases, normalizePhases, phaseTeamLabel } from '../../utils/phases.js';
 import { DEFAULT_RISKS, resolveRiskName } from '../../utils/risks.js';
@@ -218,7 +219,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
       {step === 4 && <div className="fade">
         <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 14 }}>{t('ew.depsQ')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-          {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}>×</span></span>; })}
+          {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}><Icon name="x" size={9} /></span></span>; })}
         </div>
         <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
         {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>

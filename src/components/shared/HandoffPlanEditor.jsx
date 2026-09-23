@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SearchSelect } from './SearchSelect.jsx';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 // Per-cutoff override editor. Cutoffs are not created here — the scheduler
 // derives them from member offboarding dates. This UI surfaces each derived
@@ -149,7 +150,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
               {afterPerson && <span style={{ color: 'var(--tx3)' }}>nach {afterPerson}</span>}
               <span style={{ flex: 1, textAlign: 'right', color: 'var(--tx3)' }}>{predictedShort}</span>
               <button className="btn btn-ghost btn-xs" style={{ color: 'var(--tx3)', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
-                onClick={() => clearStage(idx)} title={t('hp.clearOverrideTip')}>×</button>
+                onClick={() => clearStage(idx)} title={t('hp.clearOverrideTip')}><Icon name="x" size={11} /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <SearchSelect value={stage.team || ''}
@@ -170,7 +171,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
                 {stage.assign.slice(1).map(id => (
                   <span key={id} className="tag" style={{ fontSize: 9 }}>
                     + {memberName(id)}
-                    <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}>×</span>
+                    <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}><Icon name="x" size={9} /></span>
                   </span>
                 ))}
               </div>

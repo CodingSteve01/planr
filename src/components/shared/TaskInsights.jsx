@@ -7,6 +7,7 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { AutoAssignBadge } from './AutoAssignBadge.jsx';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 const S_DOT = { open: '○', wip: '◐', done: '●' };
 const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
@@ -299,7 +300,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           )}
           {node.pinnedStart && (
             <KVRow label={t('ins.pinned')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>▸ {node.pinnedStart}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{node.pinnedStart}</span>
             </KVRow>
           )}
           {node.decideBy && (
@@ -468,7 +469,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               return <button className="btn btn-sec btn-xs"
                 data-htip={t('split.handoff.tip')}
                 onClick={() => onSplitHandoff(node.id)}
-                style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>;
+                style={{ padding: '2px 7px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
             }
             if (sc.truncatedByOffboard && onSplitTaskAtProgress) {
               const consumed = sc.segments[0]?.effort || 0;
@@ -477,7 +478,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               return <button className="btn btn-sec btn-xs"
                 data-htip={t('split.task.tip')}
                 onClick={() => onSplitTaskAtProgress(node.id, pct)}
-                style={{ padding: '2px 7px', fontSize: 10 }}>{t('split.btn')}</button>;
+                style={{ padding: '2px 7px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
             }
             return null;
           })()
@@ -547,7 +548,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                     >{dot}</span>
                     <span>{ph.name || ph.id}</span>
                     {pct != null && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
-                    {isCurrent && <span style={{ fontSize: 9, color: 'var(--ac)', marginLeft: 2 }}>←</span>}
+                    {isCurrent && <Icon name="chevronLeft" size={10} style={{ color: 'var(--ac)', marginLeft: 2, display: 'inline-block' }} />}
                   </span>
                 </KVRow>
               );

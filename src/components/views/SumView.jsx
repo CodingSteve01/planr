@@ -215,7 +215,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             top: 0,
             bottom: 0,
             zIndex: 2,
-            background: 'repeating-linear-gradient(115deg, #f59e0b 0 7px, #fde68a 7px 13px)',
+            background: 'repeating-linear-gradient(115deg, var(--diff) 0 7px, color-mix(in srgb, var(--diff) 45%, var(--bg2)) 7px 13px)',
             opacity: 0.95,
             cursor: 'help',
           }} />
@@ -229,7 +229,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             top: 0,
             bottom: 0,
             zIndex: 2,
-            background: 'repeating-linear-gradient(115deg, #3b82f6 0 7px, #bfdbfe 7px 13px)',
+            background: 'repeating-linear-gradient(115deg, var(--ac) 0 7px, color-mix(in srgb, var(--ac) 45%, var(--bg2)) 7px 13px)',
             opacity: 0.95,
             cursor: 'help',
           }} />
@@ -239,7 +239,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       {showPastStripe && (
         <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
           style={{ position: 'absolute', left: `${pastPct}%`, top: -2, bottom: -2,
-            width: 2, background: '#f59e0b', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
+            width: 2, background: 'var(--diff)', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
       )}
     </div>
 
@@ -560,7 +560,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
             border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>{t('diff.stand', iso(sinceDate))}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--diff)' }}>{t('diff.stand', iso(sinceDate))}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
           <span data-htip={t('diff.tipDone')}>{t('diff.tasksDone', diff.doneCount)}</span>
           {diff.startedInWindowIds.length > 0 && <>
@@ -618,7 +618,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(59,130,246,.06)',
               border: '1px solid rgba(59,130,246,.30)', borderRadius: 4, fontSize: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: topOverruns.length || topUnderruns.length ? 6 : 0, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, color: '#3b82f6', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
+              <span style={{ fontWeight: 700, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
               <span style={{ color: 'var(--tx2)' }}>·</span>
               <span data-htip={t('retro.sumTip', agg.count)}>{t('retro.sum', agg.sollSum.toFixed(0), agg.istSum.toFixed(0))}</span>
               <span style={{ color: 'var(--tx2)' }}>·</span>
