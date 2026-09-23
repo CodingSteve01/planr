@@ -7,6 +7,7 @@ import { renderRoadmapSvg, computeRoadmapModel } from './roadmap.js';
 import { deadlineStatus } from './timeline.js';
 import { deriveCap } from './capacity.js';
 import { projectScopedCtx } from './exportCtx.js';
+import { PRINT } from './printPalette.js';
 
 function parseHexColor(color) {
   const hex = String(color || '').trim();
@@ -265,40 +266,40 @@ export function generateReport(ctx) {
   // ── BUILD HTML ─────────────────────────────────────────────────────────────
   const css = `@page{margin:18mm 14mm;size:A4 landscape}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:10.5px;color:#1a1e2a;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:10.5px;color:${PRINT.ink};line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
 h1{font-size:20px;margin-bottom:2px}
-h2{font-size:13px;margin:20px 0 6px;padding-bottom:3px;border-bottom:2px solid #2563eb;color:#1d4ed8;page-break-after:avoid}
-h3{font-size:11px;margin:10px 0 4px;color:#4a5268}
+h2{font-size:13px;margin:20px 0 6px;padding-bottom:3px;border-bottom:2px solid ${PRINT.accent};color:${PRINT.accent};page-break-after:avoid}
+h3{font-size:11px;margin:10px 0 4px;color:${PRINT.ink2}}
 table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9.5px}
-th{background:#f0f2f5;padding:4px 6px;text-align:left;font-weight:600;border-bottom:2px solid #ccd2dc;white-space:nowrap}
-td{padding:3px 6px;border-bottom:1px solid #e0e4ea;vertical-align:top}
-tr:nth-child(even) td{background:#fafbfd}
+th{background:${PRINT.band};padding:4px 6px;text-align:left;font-weight:600;border-bottom:2px solid ${PRINT.rule2};white-space:nowrap}
+td{padding:3px 6px;border-bottom:1px solid ${PRINT.rule};vertical-align:top}
+tr:nth-child(even) td{background:${PRINT.ground}}
 .mono{font-family:'JetBrains Mono','Cascadia Code',monospace;font-size:9px}
 .kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.kpi{background:#f0f2f5;border-radius:6px;padding:8px 12px;min-width:80px}
-.kpi-v{font-size:18px;font-weight:700}.kpi-l{font-size:8px;color:#7a839a;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
-.bar{height:7px;background:#e5e8ee;border-radius:4px;overflow:hidden;margin:3px 0}
+.kpi{background:${PRINT.band};border-radius:6px;padding:8px 12px;min-width:80px}
+.kpi-v{font-size:18px;font-weight:700}.kpi-l{font-size:8px;color:${PRINT.muted};text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+.bar{height:7px;background:${PRINT.rule};border-radius:4px;overflow:hidden;margin:3px 0}
 .bar>div{height:100%;border-radius:4px}
 .conf-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin:3px 0}
 .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:8.5px;font-weight:600;margin-right:2px}
-.t-crit{background:#fee2e2;color:#b91c1c}.t-high{background:#fef3c7;color:#a16207}.t-med{background:#f0f2f5;color:#7a839a}
-.t-com{background:#dcfce7;color:#15803d}.t-est{background:#fef3c7;color:#a16207}.t-exp{background:#f0f2f5;color:#7a839a}
+.t-crit{background:${PRINT.riskSoft};color:${PRINT.risk}}.t-high{background:${PRINT.wipSoft};color:${PRINT.wip}}.t-med{background:${PRINT.band};color:${PRINT.muted}}
+.t-com{background:${PRINT.doneSoft};color:${PRINT.done}}.t-est{background:${PRINT.wipSoft};color:${PRINT.wip}}.t-exp{background:${PRINT.band};color:${PRINT.muted}}
 .risk{padding:6px 10px;border-radius:5px;margin-bottom:4px;font-size:10px}
-.risk-crit{background:#fee2e2;border-left:3px solid #dc2626}
-.risk-high{background:#fef3c7;border-left:3px solid #d97706}
-.risk-med{background:#f0f2f5;border-left:3px solid #7a839a}
+.risk-crit{background:${PRINT.riskSoft};border-left:3px solid ${PRINT.risk}}
+.risk-high{background:${PRINT.wipSoft};border-left:3px solid ${PRINT.wip}}
+.risk-med{background:${PRINT.band};border-left:3px solid ${PRINT.muted}}
 .roadmap{margin-bottom:14px;display:grid;grid-template-columns:240px 1fr;column-gap:12px;row-gap:8px;align-items:center}
 .rm-axis{position:relative}
-.rm-axis-scale{display:flex;justify-content:space-between;font-size:7.5px;color:#7a839a;font-family:monospace}
+.rm-axis-scale{display:flex;justify-content:space-between;font-size:7.5px;color:${PRINT.muted};font-family:monospace}
 .rm-track{position:relative;height:18px}
-.rm-today{position:absolute;top:-4px;bottom:-4px;width:1px;background:#16a34a;z-index:1;opacity:.7}
+.rm-today{position:absolute;top:-4px;bottom:-4px;width:1px;background:${PRINT.done};z-index:1;opacity:.7}
 .rm-bar{height:18px;border-radius:3px;display:flex;align-items:center;padding:0 5px;font-size:8.5px;font-weight:600;color:#fff;overflow:hidden;position:absolute;top:0;z-index:2}
-.rm-label{font-size:9px;color:#4a5268;line-height:1.25;padding-right:6px;white-space:normal;overflow-wrap:anywhere}
+.rm-label{font-size:9px;color:${PRINT.ink2};line-height:1.25;padding-right:6px;white-space:normal;overflow-wrap:anywhere}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pb{page-break-before:always}
-.sub{color:#7a839a;font-size:11px;margin-bottom:16px}
+.sub{color:${PRINT.muted};font-size:11px;margin-bottom:16px}
 .kpi,.bar,.bar>div,.conf-bar,.conf-bar>div,.tag,.risk,th,tr:nth-child(even) td,.rm-today,.rm-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
-.ft{margin-top:20px;padding-top:6px;border-top:1px solid #e0e4ea;font-size:8px;color:#7a839a;text-align:center}`;
+.ft{margin-top:20px;padding-top:6px;border-top:1px solid ${PRINT.rule};font-size:8px;color:${PRINT.muted};text-align:center}`;
 
   let h = `<!DOCTYPE html><html lang="${de?'de':'en'}"><head><meta charset="utf-8"><title>${meta.name||'Project'} — ${t('Report','Bericht')}</title><style>${css}</style></head><body>`;
 
@@ -308,16 +309,16 @@ tr:nth-child(even) td{background:#fafbfd}
 
   // ── 2. KPIs ──
   h += `<h2>${t('Key Figures','Kennzahlen')}</h2><div class="kpi-row">`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${progLabel}%</div><div class="kpi-l">${t('Progress','Fortschritt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${progLabel}%</div><div class="kpi-l">${t('Progress','Fortschritt')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${lvs.length}</div><div class="kpi-l">${t('Items','Items')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${done}</div><div class="kpi-l">${t('Done','Erledigt')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:#d97706">${wip+open}</div><div class="kpi-l">${t('Open','Offen')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:#16a34a">${Math.round(donePt)}</div><div class="kpi-l">${t('PT done','PT erledigt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${done}</div><div class="kpi-l">${t('Done','Erledigt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.wip}">${wip+open}</div><div class="kpi-l">${t('Open','Offen')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${Math.round(donePt)}</div><div class="kpi-l">${t('PT done','PT erledigt')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${totalPt.toFixed(0)}</div><div class="kpi-l">${t('Total PT','Gesamt PT')}</div></div>`;
   h += `<div class="kpi"><div class="kpi-v">${members.length}</div><div class="kpi-l">${t('People','Personen')}</div></div>`;
   if (projectEnd) h += `<div class="kpi"><div class="kpi-v mono">${iso(projectEnd)}</div><div class="kpi-l">${t('Projected End','Voraussichtl. Ende')}</div></div>`;
-  if (cpItems.length) h += `<div class="kpi"><div class="kpi-v" style="color:#dc2626">${cpItems.length}</div><div class="kpi-l">${t('Critical Path','Krit. Pfad')}</div></div>`;
-  h += `</div><div class="bar"><div style="width:${prog}%;background:#16a34a"></div></div>`;
+  if (cpItems.length) h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.risk}">${cpItems.length}</div><div class="kpi-l">${t('Critical Path','Krit. Pfad')}</div></div>`;
+  h += `</div><div class="bar"><div style="width:${prog}%;background:${PRINT.done}"></div></div>`;
 
   // ── 3. RISKS ──
   if (risks.length) {
@@ -328,7 +329,7 @@ tr:nth-child(even) td{background:#fafbfd}
   // ── 4. PLANNING CONFIDENCE ──
   h += `<h2>${t('Planning Confidence','Planungssicherheit')}</h2>`;
   if (ccTotal > 0) {
-    h += `<div class="conf-bar"><div style="width:${cc.committed/ccTotal*100}%;background:#16a34a"></div><div style="width:${cc.estimated/ccTotal*100}%;background:#d97706"></div><div style="width:${cc.exploratory/ccTotal*100}%;background:#7a839a"></div></div>`;
+    h += `<div class="conf-bar"><div style="width:${cc.committed/ccTotal*100}%;background:${PRINT.done}"></div><div style="width:${cc.estimated/ccTotal*100}%;background:${PRINT.wip}"></div><div style="width:${cc.exploratory/ccTotal*100}%;background:${PRINT.muted}"></div></div>`;
     h += `<table><tr><th></th><th>Items</th><th>PT</th><th>${t('Description','Beschreibung')}</th></tr>`;
     h += `<tr><td><span class="tag t-com">● Committed</span></td><td>${cc.committed}</td><td>${ccPt.committed.toFixed(0)}</td><td>${t('Person assigned, solid estimate','Person zugewiesen, belastbare Schätzung')}</td></tr>`;
     h += `<tr><td><span class="tag t-est">◐ Estimated</span></td><td>${cc.estimated}</td><td>${ccPt.estimated.toFixed(0)}</td><td>${t('Estimate exists, no person yet','Aufwand geschätzt, noch keine Person')}</td></tr>`;
@@ -350,7 +351,7 @@ tr:nth-child(even) td{background:#fafbfd}
       scheduled.forEach(s => { const k = s.treeId || s.id; (segsByTree[k] ||= []).push(s); });
       const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
       h += `<h2>${t('Timetable','Fahrplan')}</h2>`;
-      h += `<p style="font-size:9px;color:#7a839a;margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.','Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
+      h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.','Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
       rmModel.lines.forEach(line => {
         const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
         if (!allStations.length) return;
@@ -398,12 +399,12 @@ tr:nth-child(even) td{background:#fafbfd}
       // Same state machine as the Overview cards: finished work reports done,
       // never "at risk".
       const ds = deadlineStates[g.id];
-      const risk = ds?.state === 'atRisk' ? `<span style="color:#dc2626;font-weight:700">⚠ ${t('AT RISK','GEFÄHRDET')}</span>`
-        : ds?.state === 'doneLate' ? `<span style="color:#a16207;font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
-          : ds?.state === 'done' ? `<span style="color:#16a34a;font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
-            : rd?.endD ? `<span style="color:#16a34a">✓ ${t('on track','im Plan')}</span>` : '—';
-      h += `<tr><td>${g.type ? (GT[g.type] || '') : ''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:#7a839a;font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
-      h += `<td class="mono">${g.date||'—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:#7a839a">· ${rd?.doneCount||0}/${rd?.leafCount||0} ${t('tasks','Aufgaben')}</span></td>`;
+      const risk = ds?.state === 'atRisk' ? `<span style="color:${PRINT.risk};font-weight:700">⚠ ${t('AT RISK','GEFÄHRDET')}</span>`
+        : ds?.state === 'doneLate' ? `<span style="color:${PRINT.wip};font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
+          : ds?.state === 'done' ? `<span style="color:${PRINT.done};font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
+            : rd?.endD ? `<span style="color:${PRINT.done}">✓ ${t('on track','im Plan')}</span>` : '—';
+      h += `<tr><td>${g.type ? (GT[g.type] || '') : ''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:${PRINT.muted};font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
+      h += `<td class="mono">${g.date||'—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:${PRINT.muted}">· ${rd?.doneCount||0}/${rd?.leafCount||0} ${t('tasks','Aufgaben')}</span></td>`;
       h += `<td class="mono">${rd?.endD ? iso(rd.endD) : '—'}</td>`;
       h += `<td>${risk}</td></tr>`;
     });
@@ -414,15 +415,15 @@ tr:nth-child(even) td{background:#fafbfd}
   h += `<h2 class="pb">${t('Team Capacity','Teamauslastung')}</h2><div class="grid2">`;
   Object.values(teamCap).filter(tc => tc.members.length || tc.committed > 0 || tc.unassigned > 0).forEach(tc => {
     const total = tc.committed + tc.unassigned;
-    h += `<div style="border:1px solid #e0e4ea;border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
+    h += `<div style="border:1px solid ${PRINT.rule};border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
     h += `<h3 style="color:${tc.color};margin:0 0 4px">${tc.name}</h3>`;
     tc.members.forEach(m => {
       const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
       h += `<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:1px"><span>${m.name}${m.cap < 1 ? ` (${Math.round(m.cap*100)}%)` : ''}</span><span class="mono">${pp.toFixed(0)} PT</span></div>`;
     });
     if (total > 0) {
-      h += `<div class="conf-bar" style="margin-top:4px"><div style="width:${tc.committed/total*100}%;background:#16a34a"></div><div style="width:${tc.unassigned/total*100}%;background:#d97706"></div></div>`;
-      h += `<div style="display:flex;justify-content:space-between;font-size:8px;color:#7a839a"><span style="color:#16a34a">${tc.committed.toFixed(0)} PT ${t('assigned','zugewiesen')}</span>${tc.unassigned > 0 ? `<span style="color:#d97706">${tc.unassigned.toFixed(0)} PT ${t('open','offen')} (${tc.count})</span>` : ''}</div>`;
+      h += `<div class="conf-bar" style="margin-top:4px"><div style="width:${tc.committed/total*100}%;background:${PRINT.done}"></div><div style="width:${tc.unassigned/total*100}%;background:${PRINT.wip}"></div></div>`;
+      h += `<div style="display:flex;justify-content:space-between;font-size:8px;color:${PRINT.muted}"><span style="color:${PRINT.done}">${tc.committed.toFixed(0)} PT ${t('assigned','zugewiesen')}</span>${tc.unassigned > 0 ? `<span style="color:${PRINT.wip}">${tc.unassigned.toFixed(0)} PT ${t('open','offen')} (${tc.count})</span>` : ''}</div>`;
     }
     h += `</div>`;
   });
@@ -431,7 +432,7 @@ tr:nth-child(even) td{background:#fafbfd}
   // ── 8. CRITICAL PATH ──
   if (cpItems.length) {
     h += `<h2>${t('Critical Path','Kritischer Pfad')}</h2>`;
-    h += `<p style="font-size:9px;color:#7a839a;margin-bottom:6px">${t('Any delay to these items delays the project end.','Jede Verzögerung dieser Items verzögert das Projektende.')}</p>`;
+    h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Any delay to these items delays the project end.','Jede Verzögerung dieser Items verzögert das Projektende.')}</p>`;
     h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Team','Team')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th></tr>`;
     cpItems.forEach(s => h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${tn(s.team)}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td></tr>`);
     h += `</table>`;
@@ -443,7 +444,7 @@ tr:nth-child(even) td{background:#fafbfd}
   scheduled.forEach(s => { const tk = s.team || '__none'; if (!byTeam[tk]) byTeam[tk] = []; byTeam[tk].push(s); });
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
-    h += `<h3 style="color:${tm?.color||'#4a5268'}">${tm?.name||t('No team','Kein Team')} (${items.length})</h3>`;
+    h += `<h3 style="color:${tm?.color||PRINT.ink2}">${tm?.name||t('No team','Kein Team')} (${items.length})</h3>`;
     h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th><th>Conf.</th><th>${t('Phases','Phasen')}</th></tr>`;
     items.sort((a, b) => (a.startD||0) - (b.startD||0)).forEach(s => {
       const node = tree.find(r => r.id === (s.treeId || s.id));

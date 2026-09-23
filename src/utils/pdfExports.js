@@ -37,49 +37,50 @@ async function loadPdfMake() {
 // can share them. Re-export keeps existing callers working.
 export { horizonLabel, horizonBucket } from './horizon.js';
 import { horizonLabel, horizonBucket } from './horizon.js';
+import { PRINT } from './printPalette.js';
 
 // ── Shared footer / header builders ─────────────────────────────────────────
 function footerBuilder({ meta, kind, dateStr }) {
   return (currentPage, pageCount) => ({
     margin: [40, 10, 40, 0],
     columns: [
-      { text: (meta?.name || 'Project') + ' · ' + kind, fontSize: 8, color: '#7a839a' },
-      { text: dateStr, fontSize: 8, color: '#7a839a', alignment: 'center' },
-      { text: currentPage + ' / ' + pageCount, fontSize: 8, color: '#7a839a', alignment: 'right' },
+      { text: (meta?.name || 'Project') + ' · ' + kind, fontSize: 8, color: PRINT.muted },
+      { text: dateStr, fontSize: 8, color: PRINT.muted, alignment: 'center' },
+      { text: currentPage + ' / ' + pageCount, fontSize: 8, color: PRINT.muted, alignment: 'right' },
     ],
   });
 }
 
 const STYLES = {
-  h1: { fontSize: 20, bold: true, color: '#1a1e2a', margin: [0, 0, 0, 2] },
+  h1: { fontSize: 20, bold: true, color: PRINT.ink, margin: [0, 0, 0, 2] },
   // headlineLevel: pdfmake honors this when deciding page breaks — a heading
   // that would land alone at the bottom of a page is pushed to the next page
   // so it stays with the table/content that follows it.
-  h2: { fontSize: 14, bold: true, color: '#1d4ed8', margin: [0, 14, 0, 6], headlineLevel: 1 },
-  h3: { fontSize: 11, bold: true, color: '#4a5268', margin: [0, 8, 0, 4], headlineLevel: 2 },
-  sub: { fontSize: 10, color: '#7a839a', margin: [0, 0, 0, 10] },
-  cap: { fontSize: 8.5, color: '#7a839a' },
-  th: { bold: true, fontSize: 9, color: '#1a1e2a', fillColor: '#edf2fa' },
-  td: { fontSize: 9, color: '#1a1e2a' },
-  mono: { fontSize: 8.5, color: '#1a1e2a' },
-  small: { fontSize: 8, color: '#1a1e2a' },
-  kpiV: { fontSize: 18, bold: true, color: '#1a1e2a' },
-  kpiL: { fontSize: 7.5, color: '#7a839a', characterSpacing: 0.4 },
-  riskCrit: { fontSize: 10, color: '#b91c1c', bold: true },
-  riskHigh: { fontSize: 10, color: '#a16207', bold: true },
-  riskMed: { fontSize: 10, color: '#475467' },
+  h2: { fontSize: 14, bold: true, color: PRINT.accent, margin: [0, 14, 0, 6], headlineLevel: 1 },
+  h3: { fontSize: 11, bold: true, color: PRINT.ink2, margin: [0, 8, 0, 4], headlineLevel: 2 },
+  sub: { fontSize: 10, color: PRINT.muted, margin: [0, 0, 0, 10] },
+  cap: { fontSize: 8.5, color: PRINT.muted },
+  th: { bold: true, fontSize: 9, color: PRINT.ink, fillColor: PRINT.band },
+  td: { fontSize: 9, color: PRINT.ink },
+  mono: { fontSize: 8.5, color: PRINT.ink },
+  small: { fontSize: 8, color: PRINT.ink },
+  kpiV: { fontSize: 18, bold: true, color: PRINT.ink },
+  kpiL: { fontSize: 7.5, color: PRINT.muted, characterSpacing: 0.4 },
+  riskCrit: { fontSize: 10, color: PRINT.risk, bold: true },
+  riskHigh: { fontSize: 10, color: PRINT.wip, bold: true },
+  riskMed: { fontSize: 10, color: PRINT.ink2 },
 };
 
 const TABLE_LAYOUT = {
   hLineWidth: (i, node) => i === 0 || i === 1 || i === node.table.body.length ? 0.8 : 0.4,
   vLineWidth: () => 0.4,
-  hLineColor: (i) => i === 1 ? '#ccd2dc' : '#e0e4ea',
-  vLineColor: () => '#e0e4ea',
+  hLineColor: (i) => i === 1 ? PRINT.rule2 : PRINT.rule,
+  vLineColor: () => PRINT.rule,
   paddingTop: () => 4,
   paddingBottom: () => 4,
   paddingLeft: () => 6,
   paddingRight: () => 6,
-  fillColor: (rowIndex) => rowIndex === 0 ? '#edf2fa' : rowIndex % 2 === 0 ? '#fafbfd' : null,
+  fillColor: (rowIndex) => rowIndex === 0 ? PRINT.band : rowIndex % 2 === 0 ? PRINT.ground : null,
 };
 
 function td(value, opts = {}) {
@@ -134,7 +135,7 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
   // VFS font) so the labels actually render and stay readable.
   patched = patched.replace(
     /\.rm-abbrev\{[^}]*\}/,
-    `.rm-abbrev{font:700 10.5px/1 Roboto,sans-serif;fill:#1a1e2a;stroke:none}`,
+    `.rm-abbrev{font:700 10.5px/1 Roboto,sans-serif;fill:${PRINT.ink};stroke:none}`,
   );
   // The end-of-line route badges also pull JetBrains Mono — keep the white
   // fill but pin them to Roboto so the text doesn't disappear.
@@ -149,23 +150,23 @@ function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
     patched = patched.split(from).join(to);
   });
   return patched
-    .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
-    .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
+    .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
+    .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
     // Dark enough to read on white — original #7a839a + thin halo was too faint.
-    .replace(/var\(--tx3,([^)]*)\)/g, '#475467')
-    .replace(/var\(--bg,([^)]*)\)/g, '#ffffff')
-    .replace(/var\(--bg2,([^)]*)\)/g, '#f8f9fc')
-    .replace(/var\(--b,([^)]*)\)/g, '#e0e4ea')
-    .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
-    .replace(/var\(--re,([^)]*)\)/g, '#ef4444')
-    .replace(/var\(--ac,([^)]*)\)/g, '#2563eb')
-    .replace(/var\(--tx[^)]*\)/g, '#1a1e2a')
-    .replace(/var\(--tx2[^)]*\)/g, '#4a5268')
-    .replace(/var\(--tx3[^)]*\)/g, '#475467')
-    .replace(/var\(--bg[^)]*\)/g, '#ffffff')
-    .replace(/var\(--b[^)]*\)/g, '#e0e4ea')
-    .replace(/var\(--re[^)]*\)/g, '#ef4444')
-    .replace(/var\(--ac[^)]*\)/g, '#2563eb');
+    .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
+    .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
+    .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
+    .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
+    .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
+    .replace(/var\(--re,([^)]*)\)/g, PRINT.risk)
+    .replace(/var\(--ac,([^)]*)\)/g, PRINT.accent)
+    .replace(/var\(--tx[^)]*\)/g, PRINT.ink)
+    .replace(/var\(--tx2[^)]*\)/g, PRINT.ink2)
+    .replace(/var\(--tx3[^)]*\)/g, PRINT.ink2)
+    .replace(/var\(--bg[^)]*\)/g, PRINT.paper)
+    .replace(/var\(--b[^)]*\)/g, PRINT.rule)
+    .replace(/var\(--re[^)]*\)/g, PRINT.risk)
+    .replace(/var\(--ac[^)]*\)/g, PRINT.accent);
 }
 
 // Same job as prepareRoadmapSvg, for the project-roadmap renderer: pin the
@@ -181,14 +182,14 @@ function prepareProjectRoadmapSvg(svgStr, height) {
     // drops the text (see prepareRoadmapSvg).
     .replace(/'JetBrains Mono',ui-monospace,monospace/g, 'Roboto,sans-serif')
     .replace(/'Inter',system-ui,sans-serif/g, 'Roboto,sans-serif')
-    .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')
-    .replace(/var\(--tx2,([^)]*)\)/g, '#4a5268')
-    .replace(/var\(--tx3,([^)]*)\)/g, '#475467')
-    .replace(/var\(--bg2,([^)]*)\)/g, '#f8f9fc')
-    .replace(/var\(--bg,([^)]*)\)/g, '#ffffff')
-    .replace(/var\(--b2,([^)]*)\)/g, '#ccd2dc')
-    .replace(/var\(--b,([^)]*)\)/g, '#e0e4ea')
-    .replace(/var\(--[a-z0-9]+[^)]*\)/g, '#1a1e2a');
+    .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
+    .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
+    .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
+    .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
+    .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
+    .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
+    .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
+    .replace(/var\(--[a-z0-9]+[^)]*\)/g, PRINT.ink);
 }
 
 // Same substitution pass the docDefinition gets, for the glyphs that can end
@@ -231,7 +232,7 @@ function buildRoadmapLegendPdf(model) {
         columns: [
           { canvas: [{ type: 'rect', x: 0, y: 3, w: 20, h: 10, r: 2, color: line.color }], width: 24 },
           { text: line.root.id, color: line.color, bold: true, fontSize: 9, width: 'auto', margin: [2, 2, 4, 0] },
-          { text: truncateStr(line.root.name, 22), color: '#4a5268', fontSize: 8, margin: [0, 2, 0, 0] },
+          { text: truncateStr(line.root.name, 22), color: PRINT.ink2, fontSize: 8, margin: [0, 2, 0, 0] },
         ],
         columnGap: 3,
         margin: [0, 0, 0, 3],
@@ -240,7 +241,7 @@ function buildRoadmapLegendPdf(model) {
     allStations.forEach(st => {
       const stStatus = st.allDone ? 'done' : st.done > 0 ? 'wip' : 'open';
       const badge = st.allDone ? '' : ` ${st.done}/${st.total}`;
-      const decor = st.allDone ? '#7a839a' : '#1a1e2a';
+      const decor = st.allDone ? PRINT.muted : PRINT.ink;
       stack.push({
         columns: [
           { text: statusGlyph(stStatus), color: line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
@@ -255,7 +256,7 @@ function buildRoadmapLegendPdf(model) {
         extras.forEach(c => {
           stack.push({
             text: '    · ' + truncateStr(c.name || c.id, 26),
-            fontSize: 7, color: '#7a839a', margin: [0, 0, 0, 0.5],
+            fontSize: 7, color: PRINT.muted, margin: [0, 0, 0, 0.5],
           });
         });
       }
@@ -275,7 +276,7 @@ async function rasterizeGantt(ctx, scale = 3) {
   const r = buildGanttSvg(ctx);
   if (!r) return null;
   try {
-    const url = await svgToDataUrl(r.svg, r.width, r.height, scale, '#ffffff');
+    const url = await svgToDataUrl(r.svg, r.width, r.height, scale, PRINT.paper);
     return { url, width: r.width, height: r.height };
   } catch { return null; }
 }
@@ -292,7 +293,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const progPct = Math.max(0, Math.min(100, prog));
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
-  const kpiBlock = (label, value, color = '#1a1e2a') => ({
+  const kpiBlock = (label, value, color = PRINT.ink) => ({
     stack: [
       { text: String(value), fontSize: 16, bold: true, color, margin: [0, 0, 0, 2] },
       { text: label, style: 'kpiL' },
@@ -300,16 +301,16 @@ export async function exportSummaryPDF(ctx, options = {}) {
     margin: [0, 0, 0, 0],
   });
   const kpis = [
-    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', '#16a34a'),
+    kpiBlock(t('Progress', 'Fortschritt'), progLabel + '%', PRINT.done),
     kpiBlock(t('Items', 'Items'), lvs.length),
-    kpiBlock(t('Done', 'Erledigt'), done, '#16a34a'),
-    kpiBlock(t('Open', 'Offen'), wip + open, '#d97706'),
-    kpiBlock(t('PT done', 'PT erledigt'), Math.round(donePt), '#16a34a'),
+    kpiBlock(t('Done', 'Erledigt'), done, PRINT.done),
+    kpiBlock(t('Open', 'Offen'), wip + open, PRINT.wip),
+    kpiBlock(t('PT done', 'PT erledigt'), Math.round(donePt), PRINT.done),
     kpiBlock(t('Total PT', 'Gesamt PT'), totalPt.toFixed(0)),
     kpiBlock(t('People', 'Personen'), members.length),
     kpiBlock(t('Projected End', 'Voraussichtl. Ende'), projectEnd ? iso(projectEnd) : '—'),
   ];
-  if (cpItems.length) kpis.push(kpiBlock(t('Critical Path', 'Krit. Pfad'), cpItems.length, '#dc2626'));
+  if (cpItems.length) kpis.push(kpiBlock(t('Critical Path', 'Krit. Pfad'), cpItems.length, PRINT.risk));
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
@@ -318,8 +319,8 @@ export async function exportSummaryPDF(ctx, options = {}) {
     { columns: kpis, columnGap: 8, margin: [0, 0, 0, 8] },
     {
       canvas: [
-        { type: 'rect', x: 0, y: 0, w: 760, h: 8, r: 2, color: '#e5e8ee' },
-        { type: 'rect', x: 0, y: 0, w: 760 * progPct / 100, h: 8, r: 2, color: '#16a34a' },
+        { type: 'rect', x: 0, y: 0, w: 760, h: 8, r: 2, color: PRINT.rule },
+        { type: 'rect', x: 0, y: 0, w: 760 * progPct / 100, h: 8, r: 2, color: PRINT.done },
       ],
       margin: [0, 0, 0, 10],
     },
@@ -336,8 +337,8 @@ export async function exportSummaryPDF(ctx, options = {}) {
           // severities; color carries the urgency.
           text: (r.severity === 'critical' ? '■ ' : r.severity === 'high' ? '■ ' : '■ ') + r.text,
           fontSize: 10,
-          color: r.severity === 'critical' ? '#b91c1c' : r.severity === 'high' ? '#a16207' : '#475467',
-          fillColor: r.severity === 'critical' ? '#fee2e2' : r.severity === 'high' ? '#fef3c7' : '#f0f2f5',
+          color: r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.ink2,
+          fillColor: r.severity === 'critical' ? PRINT.riskSoft : r.severity === 'high' ? PRINT.wipSoft : PRINT.band,
           margin: [6, 5, 6, 5],
           border: [false, false, false, false],
         }])),
@@ -352,9 +353,9 @@ export async function exportSummaryPDF(ctx, options = {}) {
     const barW = 760;
     content.push({
       canvas: [
-        { type: 'rect', x: 0, y: 0, w: barW * cc.committed / ccTotal, h: 8, color: '#16a34a' },
-        { type: 'rect', x: barW * cc.committed / ccTotal, y: 0, w: barW * cc.estimated / ccTotal, h: 8, color: '#d97706' },
-        { type: 'rect', x: barW * (cc.committed + cc.estimated) / ccTotal, y: 0, w: barW * cc.exploratory / ccTotal, h: 8, color: '#7a839a' },
+        { type: 'rect', x: 0, y: 0, w: barW * cc.committed / ccTotal, h: 8, color: PRINT.done },
+        { type: 'rect', x: barW * cc.committed / ccTotal, y: 0, w: barW * cc.estimated / ccTotal, h: 8, color: PRINT.wip },
+        { type: 'rect', x: barW * (cc.committed + cc.estimated) / ccTotal, y: 0, w: barW * cc.exploratory / ccTotal, h: 8, color: PRINT.muted },
       ],
       margin: [0, 0, 0, 6],
     });
@@ -362,11 +363,11 @@ export async function exportSummaryPDF(ctx, options = {}) {
   content.push(headerTable(
     [t('Confidence', 'Sicherheit'), 'Items', 'PT', t('Description', 'Beschreibung')],
     [
-      [{ text: '● Committed', color: '#15803d' }, cc.committed, ccPt.committed.toFixed(0), t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')],
+      [{ text: '● Committed', color: PRINT.done }, cc.committed, ccPt.committed.toFixed(0), t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')],
       // ◐ and ◆ are both missing from pdfmake's Roboto. Reuse ● with amber so
       // Estimated stays visually distinct from Committed via color alone.
-      [{ text: '● Estimated', color: '#a16207' }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
-      [{ text: '○ Exploratory', color: '#7a839a' }, cc.exploratory, ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?', t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')],
+      [{ text: '● Estimated', color: PRINT.wip }, cc.estimated, ccPt.estimated.toFixed(0), t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')],
+      [{ text: '○ Exploratory', color: PRINT.muted }, cc.exploratory, ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?', t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')],
     ],
     [90, 50, 50, '*'],
   ));
@@ -414,7 +415,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
       if (!model?.rows?.length) return;
       const svgStr = renderProjectRoadmapSvg({
         tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats, rootId: root.id,
-        color: getLineColor(root.id, ctx.roadmapAssignment) || '#2563eb',
+        color: getLineColor(root.id, ctx.roadmapAssignment) || PRINT.accent,
         labels,
       });
       const prepared = prepareProjectRoadmapSvg(svgStr, model.height);
@@ -471,7 +472,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
               {
                 text: [
                   { text: line.root.id + '  ', color: line.color, bold: true },
-                  { text: line.root.name, color: '#1a1e2a', bold: true },
+                  { text: line.root.name, color: PRINT.ink, bold: true },
                 ],
                 fontSize: 10, margin: [0, 0, 0, 3],
               },
@@ -481,7 +482,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
                   { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
                   { text: r.startD ? `${kwTag(r.startD)} ${iso(r.startD).slice(5)}` : '—', fontSize: 8 },
                   { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
-                  { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? '#16a34a' : r.status === '●' ? '#d97706' : '#7a839a' },
+                  { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? PRINT.done : r.status === '●' ? PRINT.wip : PRINT.muted },
                 ]),
                 [45, 80, 60, 20],
               ),
@@ -519,12 +520,12 @@ export async function exportSummaryPDF(ctx, options = {}) {
         // completed work is reported as done, never as "at risk".
         const ds = deadlineStates?.[g.id];
         const riskCell = ds?.state === 'atRisk'
-          ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: '#dc2626', bold: true }
+          ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: PRINT.risk, bold: true }
           : ds?.state === 'doneLate'
-            ? { text: '✓ ' + t('done · late', 'abgeschl. · verspätet'), color: '#a16207', bold: true }
+            ? { text: '✓ ' + t('done · late', 'abgeschl. · verspätet'), color: PRINT.wip, bold: true }
             : ds?.state === 'done'
-              ? { text: '✓ ' + t('done', 'abgeschlossen'), color: '#16a34a', bold: true }
-              : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: '#16a34a' } : '—';
+              ? { text: '✓ ' + t('done', 'abgeschlossen'), color: PRINT.done, bold: true }
+              : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: PRINT.done } : '—';
         return [
           g.id,
           { text: g.name, bold: true },
@@ -555,15 +556,15 @@ export async function exportSummaryPDF(ctx, options = {}) {
           });
           const barCanvas = total > 0 ? {
             canvas: [
-              { type: 'rect', x: 0, y: 0, w: wBar * tc.committed / total, h: 6, color: '#16a34a' },
-              { type: 'rect', x: wBar * tc.committed / total, y: 0, w: wBar * tc.unassigned / total, h: 6, color: '#d97706' },
+              { type: 'rect', x: 0, y: 0, w: wBar * tc.committed / total, h: 6, color: PRINT.done },
+              { type: 'rect', x: wBar * tc.committed / total, y: 0, w: wBar * tc.unassigned / total, h: 6, color: PRINT.wip },
             ],
             margin: [0, 4, 0, 2],
           } : null;
           const footerCol = total > 0 ? {
             columns: [
-              { text: tc.committed.toFixed(0) + ' PT ' + t('assigned', 'zugewiesen'), fontSize: 8, color: '#16a34a' },
-              tc.unassigned > 0 ? { text: tc.unassigned.toFixed(0) + ' PT ' + t('open', 'offen') + ' (' + tc.count + ')', fontSize: 8, color: '#d97706', alignment: 'right' } : { text: '' },
+              { text: tc.committed.toFixed(0) + ' PT ' + t('assigned', 'zugewiesen'), fontSize: 8, color: PRINT.done },
+              tc.unassigned > 0 ? { text: tc.unassigned.toFixed(0) + ' PT ' + t('open', 'offen') + ' (' + tc.count + ')', fontSize: 8, color: PRINT.wip, alignment: 'right' } : { text: '' },
             ],
           } : null;
           return {
@@ -597,7 +598,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — Management Summary', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: '#1a1e2a' },
+    defaultStyle: { font: 'Roboto', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
@@ -635,7 +636,7 @@ export async function exportGanttPDF(ctx) {
   scheduled.forEach(s => { const k = s.team || '__none'; (byTeam[k] || (byTeam[k] = [])).push(s); });
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
-    content.push({ text: (tm?.name || t('No team', 'Kein Team')) + ' (' + items.length + ')', style: 'h3', color: tm?.color || '#4a5268' });
+    content.push({ text: (tm?.name || t('No team', 'Kein Team')) + ' (' + items.length + ')', style: 'h3', color: tm?.color || PRINT.ink2 });
     items.sort((a, b) => (a.startD || 0) - (b.startD || 0));
     content.push(headerTable(
       ['ID', t('Name', 'Name'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
@@ -649,7 +650,7 @@ export async function exportGanttPDF(ctx) {
     pageOrientation: 'landscape',
     pageMargins: [pageMargin, pageMargin, pageMargin, 40],
     info: { title: (meta.name || 'Project') + ' — Gantt', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 9, color: '#1a1e2a' },
+    defaultStyle: { font: 'Roboto', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
@@ -693,7 +694,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
         const conf = confidence[s.id] || 'committed';
         const label = horizonLabel(s.startD, conf, m.de, now);
         const endLabel = horizonLabel(s.endD, conf, m.de, now);
-        const decide = node?.decideBy ? { text: ' ! ' + node.decideBy, color: '#d97706', fontSize: 8, bold: true } : null;
+        const decide = node?.decideBy ? { text: ' ! ' + node.decideBy, color: PRINT.wip, fontSize: 8, bold: true } : null;
         const nameCell = decide ? { text: [{ text: s.name }, decide] } : s.name;
         return [
           { text: label, fontSize: 8.5 },
@@ -702,8 +703,8 @@ export async function exportTodoPDF(ctx, horizonDays) {
           nameCell,
           teamName(s.team),
           s.effort?.toFixed(1) || '—',
-          s.status === 'wip' ? { text: '● WIP', color: '#d97706', bold: true } : { text: t('Open', 'Offen'), color: '#475467' },
-          { text: conf === 'committed' ? '●' : conf === 'estimated' ? '●' : '○', color: conf === 'committed' ? '#15803d' : conf === 'estimated' ? '#a16207' : '#7a839a', alignment: 'center' },
+          s.status === 'wip' ? { text: '● WIP', color: PRINT.wip, bold: true } : { text: t('Open', 'Offen'), color: PRINT.ink2 },
+          { text: conf === 'committed' ? '●' : conf === 'estimated' ? '●' : '○', color: conf === 'committed' ? PRINT.done : conf === 'estimated' ? PRINT.wip : PRINT.muted, alignment: 'center' },
         ];
       }),
       [75, 75, 45, '*', 80, 40, 50, 25],
@@ -717,7 +718,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — TODO', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 9, color: '#1a1e2a' },
+    defaultStyle: { font: 'Roboto', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
@@ -802,14 +803,14 @@ export async function exportWhatWhenPDF(ctx) {
           text: [
             rd.type ? { text: GT[rd.type] + ' ', fontSize: 10 } : '',
             { text: rd.name, bold: true },
-            rd.type === 'deadline' && rd.date ? { text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')', fontSize: 8, color: deadlineLate ? '#b91c1c' : '#7a839a' } : '',
-            deadlineLate ? { text: '  ■', color: '#b91c1c', bold: true } : deadlineDone ? { text: '  ✓', color: '#16a34a', bold: true } : '',
+            rd.type === 'deadline' && rd.date ? { text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')', fontSize: 8, color: deadlineLate ? PRINT.risk : PRINT.muted } : '',
+            deadlineLate ? { text: '  ■', color: PRINT.risk, bold: true } : deadlineDone ? { text: '  ✓', color: PRINT.done, bold: true } : '',
           ],
         },
         { text: teamNames, fontSize: 9 },
         { text: progressPctLabel(rd.prog) + '%  ·  ' + rd.doneCount + '/' + rd.leafCount, fontSize: 9 },
         { text: rd.pt.toFixed(0), fontSize: 9 },
-        { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '● ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? '#15803d' : worst === 'estimated' ? '#a16207' : '#7a839a' },
+        { text: worst === 'committed' ? '● ' + t('committed', 'verbindlich') : worst === 'estimated' ? '● ' + t('estimated', 'geschätzt') : '○ ' + t('exploratory', 'explorativ'), fontSize: 8.5, color: worst === 'committed' ? PRINT.done : worst === 'estimated' ? PRINT.wip : PRINT.muted },
       ]),
       [90, 45, '*', 100, 80, 35, 85],
     ));
@@ -822,7 +823,7 @@ export async function exportWhatWhenPDF(ctx) {
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 40],
     info: { title: (meta.name || 'Project') + ' — What comes when', creator: 'Planr' },
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: '#1a1e2a' },
+    defaultStyle: { font: 'Roboto', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,

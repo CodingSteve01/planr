@@ -266,6 +266,30 @@ because pdfmake's SVG renderer resolves neither and silently blanks the text
 otherwise; a test asserts no `var(--…)` or unregistered font survives into the
 document.
 
+### The printed palette
+
+The PDFs and the HTML report draw from
+[`printPalette.js`](../src/utils/printPalette.js), which mirrors the **light**
+block of `App.css` — print is always on white. They used to carry a palette of
+their own, left over from before the rebuild: ink at `#1a1e2a`, headings in
+`#1d4ed8`, tables banded `#edf2fa`, greens at `#16a34a`, ambers at `#d97706` —
+the Tailwind-ish blues the screen no longer uses. A management summary that
+does not look like the tool it came out of reads as a different document, and
+the figures on it read as different figures.
+
+The screen resolves its colours through CSS variables and a PDF cannot, so the
+values are written out once, in one module.
+[`printPalette.test.js`](../src/utils/__tests__/printPalette.test.js) holds
+each of them to its token in the stylesheet, and fails on any colour written
+into `pdfExports.js` or `report.js` that is not in the palette — comments may
+still name the old values, which is the record of what changed.
+
+**What is NOT aligned**: the typeface. The screen is IBM Plex Sans / Mono with
+Instrument Serif for the headline figure; the PDF is Roboto, because that is
+the only family in pdfmake's bundled font store (see below). Matching it means
+embedding Plex as base64 in the bundle, which is a separate decision about
+download size.
+
 ### Fonts: only Roboto exists
 
 pdfmake bundles one font family and draws a missing-glyph box — silently — for
