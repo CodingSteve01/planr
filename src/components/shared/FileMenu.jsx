@@ -17,7 +17,7 @@ import { keyHint } from '../../utils/shortcuts.js';
 //
 // Same popup mechanics as ViewFilters (the established pattern here):
 // anchored panel, closes on outside click and on Escape.
-export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileName, dirty }) {
+export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJiraImport, fileName, dirty }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -43,6 +43,7 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, fileN
     { id: 'saveAs', icon: 'save', label: t('palette.saveAs'), run: onSaveAs, key: 'saveAs' },
     { id: 'snapshots', icon: 'undo', label: t('palette.snapshots'), run: onSnapshots },
     { id: 'export', icon: 'upload', label: t('palette.export'), run: onExport, key: 'export' },
+    ...(onJiraImport ? [{ id: 'jiraImport', icon: 'download', label: t('ji.title'), run: onJiraImport }] : []),
     { id: 'new', icon: 'sparkle', label: t('palette.newProject'), run: onNew, separated: true },
   ];
 

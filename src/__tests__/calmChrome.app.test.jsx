@@ -145,7 +145,7 @@ describe('the editor and the id column', () => {
     await selectRow('P1.1');
     expect(container.querySelector('.side')).toBeNull();
     // …and the way into the editor moves to where the selection already is.
-    expect(screen.getByText(/⊞ Edit/)).toBeTruthy();
+    expect(screen.getByTestId('tv-edit-selected')).toBeTruthy();
   });
 
   it('hands the item over when the editor is sent to a dialog, instead of dropping it', async () => {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
+import { useT } from '../../i18n.jsx';
 
 // Drop-in replacement for <select> with built-in search.
 // - "Add mode" (no `value` prop): used to add items to a list, clears after select
@@ -10,7 +11,14 @@ import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.j
 // clipping and z-index sandwiching (e.g. sticky modal footers covering the popup).
 // Position is computed from the wrapper's bounding rect; the popup auto-flips
 // upward when there isn't enough room below.
-export function SearchSelect({ value, options, onSelect, placeholder = '+ Add...', renderOption, allowEmpty = false, emptyLabel = '— None —', showIds = false, compact = false, testId, inputRef }) {
+// The two defaults used to be English string literals — `'+ Add...'` and
+// `'— None —'`. Every call that did not pass its own therefore printed English
+// into a German dialog, which is most of them: the empty option in Settings,
+// in the add dialog's team picker, everywhere `allowEmpty` appears alone.
+export function SearchSelect({ value, options, onSelect, placeholder, renderOption, allowEmpty = false, emptyLabel, showIds = false, compact = false, testId, inputRef }) {
+  const { t } = useT();
+  placeholder = placeholder ?? t('ss.add');
+  emptyLabel = emptyLabel ?? t('none');
   const portalRoot = usePortalRoot();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');

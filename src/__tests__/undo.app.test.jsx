@@ -79,7 +79,7 @@ describe('Undo/redo integration', () => {
     // The selection action bar's delete button no longer confirms (Phase 1
     // subtracted that prompt — undo makes it redundant). Clicking it deletes
     // immediately.
-    const deleteBtn = screen.getByText('× Delete');
+    const deleteBtn = screen.getByTestId('tv-delete-selected');
     fireEvent.click(deleteBtn);
     expect(screen.queryByText('Beta Task')).toBeNull();
 
@@ -102,7 +102,7 @@ describe('Undo/redo integration', () => {
 
     const betaLabel = await screen.findByText('Beta Task');
     fireEvent.click(betaLabel.closest('tr'));
-    fireEvent.click(screen.getByText('× Delete'));
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
     expect(screen.queryByText('Beta Task')).toBeNull();
 
     // Focus a real text input (the tree/gantt/network search box) and fire

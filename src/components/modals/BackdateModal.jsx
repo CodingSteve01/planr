@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../../i18n.jsx';
 import { iso } from '../../utils/date.js';
+import { Icon } from '../shared/Icon.jsx';
 
 // "Changes count as of …".
 //
@@ -27,7 +28,7 @@ export function BackdateModal({ value, onApply, onClose }) {
     <div className="modal fade" data-testid="backdate-dialog" style={{ width: 'min(460px, 100%)' }} onClick={e => e.stopPropagation()}>
       <div className="modal-head">
         <span>{t('bd.title')}</span>
-        <button className="btn btn-ghost btn-icon sm" onClick={onClose} aria-label={t('cancel')}>×</button>
+        <button className="btn btn-ghost btn-icon sm" onClick={onClose} aria-label={t('cancel')}><Icon name="x" size={11} /></button>
       </div>
       <div style={{ padding: 16 }}>
         <p className="helper" style={{ marginTop: 0, marginBottom: 14, fontSize: 12 }}>{t('bd.help')}</p>

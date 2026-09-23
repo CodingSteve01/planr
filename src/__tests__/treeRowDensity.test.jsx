@@ -10,8 +10,18 @@
 // The name is the column that identifies the row, so it takes the space and
 // everything else stays at its own width. When the pane is genuinely too
 // narrow for all of them, columns drop in a fixed order instead of starving
-// the name: schedule first, then team, then the signal glyphs. Never the
-// name, never who, never the effort.
+// the name: schedule, then team, then the signal glyphs, then the percentage,
+// then the effort together with the row's own action buttons.
+//
+// The order is longer than it was, because "the name is never starved" was
+// asserted here and not actually true. Measured in Chromium on a real plan,
+// in a 335px pane with the editor open: every column below still fit its own
+// content, the leftover went NEGATIVE, and `width:100%` resolved the name to
+// 51px — the identifying column was the narrowest thing on the row, and the
+// rows read as a column of ellipses. So the name has a floor now, and the
+// columns that are readouts step aside ahead of it. The effort goes with
+// them; it used to be listed here as untouchable, which cost the name the
+// very space that claim was meant to protect. Name and who stay.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -51,7 +61,7 @@ describe('a narrow pane', () => {
     expect(css).toMatch(/@container\b/);
   });
 
-  it('drops columns in order — schedule, then team, then signal', () => {
+  it('drops columns in order — schedule, team, signal, percentage, effort', () => {
     const queries = [...css.matchAll(/@container[^{]*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n\}/g)]
       .map(m => ({ at: Number(m[1]), body: m[2] }))
       .sort((a, b) => b.at - a.at);
@@ -61,21 +71,29 @@ describe('a narrow pane', () => {
       const hit = queries.find(q => new RegExp(`data-col="${col}"[^{]*\\{[^}]*display:\\s*none`).test(q.body));
       return hit ? hit.at : null;
     };
-    const schedule = dropsAt('schedule');
-    const team = dropsAt('team');
-    const signal = dropsAt('signal');
-    expect(schedule, 'schedule never drops').toBeTruthy();
-    expect(team, 'team never drops').toBeTruthy();
-    expect(signal, 'signal never drops').toBeTruthy();
-    // Widest threshold goes first.
-    expect(schedule).toBeGreaterThan(team);
-    expect(team).toBeGreaterThan(signal);
+    const order = ['schedule', 'team', 'signal', 'progress', 'effort'].map(col => {
+      const at = dropsAt(col);
+      expect(at, `${col} never drops`).toBeTruthy();
+      return at;
+    });
+    // Widest threshold goes first, and no two share one.
+    expect(order).toEqual([...order].sort((a, b) => b - a));
+    expect(new Set(order).size).toBe(order.length);
   });
 
-  it('never drops the name, who or effort', () => {
-    for (const col of ['name', 'who', 'effort']) {
+  it('never drops the name or who — those two say which row this is', () => {
+    for (const col of ['name', 'who']) {
       expect(css, `${col} is dropped somewhere`)
         .not.toMatch(new RegExp(`data-col="${col}"[^{]*\\{[^}]*display:\\s*none`));
     }
+  });
+
+  it('gives the name a floor, so "the leftover" can never be nothing', () => {
+    // Without this, `width:100%` with `max-width:0` resolves to whatever is
+    // left after the other columns — and once that is negative, to zero.
+    const rule = ruleFor('.tree-tbl td[data-col="name"]');
+    const floor = /min-width:\s*(\d+)px/.exec(rule);
+    expect(floor, 'the name column has no minimum width').toBeTruthy();
+    expect(Number(floor[1])).toBeGreaterThanOrEqual(150);
   });
 });

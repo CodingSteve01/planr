@@ -172,7 +172,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                         padding: '3px 6px',
                         background: rowBg,
                         opacity: rowOpacity,
-                        borderLeft: movedInWindow ? '3px solid #f59e0b' : (r.current ? `3px solid ${color}` : '3px solid transparent'),
+                        borderLeft: movedInWindow ? '3px solid var(--diff)' : (r.current ? `3px solid ${color}` : '3px solid transparent'),
                         borderRadius: 3,
                         fontSize: 11,
                         minHeight: 22,
@@ -187,7 +187,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                         )}
                         {/* Amber = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md. */}
                         {r.progressedInWindow > 0 && (
-                          <span style={{ fontSize: 8, fontWeight: 700, background: '#f59e0b', color: '#1a1a1a', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
+                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--diff)', color: 'var(--bg)', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
                         )}
                       </span>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

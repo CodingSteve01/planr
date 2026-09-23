@@ -7,9 +7,37 @@ import { pt } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { chainShorts } from '../../utils/handoff.js';
 import { useT } from '../../i18n.jsx';
+import { progressPctLabel } from '../../utils/progress.js';
 
 const NODE_W = 130;
 const NODE_H = 44;
+// How much of a name fits on one line of a node at fontSize 7.5.
+const NAME_CHARS = 26;
+
+// Break a name over at most two lines, at a space rather than mid-word, and
+// mark it with an ellipsis when even two lines are not enough. Returns
+// [firstLine, secondLine] with an empty second line when one line was plenty.
+//
+// SVG <text> does no wrapping, so a node's label is broken here or not at all.
+// It used to be `slice(0, 26)` and `slice(26, 52)`, which cut wherever the
+// count landed: "Zulieferung aus dem Betrieb steht" arrived as "Zulieferung
+// aus dem Betrie" over "b steht".
+export function wrapTwoLines(name, limit = NAME_CHARS) {
+  const text = String(name ?? '').trim();
+  if (text.length <= limit) return [text, ''];
+  const breakAt = str => {
+    const space = str.lastIndexOf(' ', limit);
+    // A single word longer than the line has nowhere to break; cut it rather
+    // than let it run past the node.
+    return space > limit * 0.5 ? space : limit;
+  };
+  const cut = breakAt(text);
+  const first = text.slice(0, cut).trimEnd();
+  const restRaw = text.slice(cut).trimStart();
+  if (restRaw.length <= limit) return [first, restRaw];
+  const cut2 = breakAt(restRaw);
+  return [first, `${restRaw.slice(0, cut2).trimEnd()}…`];
+}
 const GAP_X = 10;
 const GAP_Y = 10;
 const TREE_GAP = 24;
@@ -693,7 +721,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
           const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
           // The amber branch marks "progressed within the diff window", not
           // wip — kept as a literal, see docs/design-tokens.md "Not yet mapped".
-          const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? '#f59e0b' : null;
+          const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? 'var(--diff)' : null;
           return <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
             {diffStroke && (
               <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={7}
@@ -717,12 +745,25 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
               strokeDasharray={pCirc} strokeDashoffset={pOff} strokeLinecap="round"
               transform={`rotate(-90 ${pCx} ${pCy})`} style={{ pointerEvents: 'none' }} />}
             {prog >= 100 && <text x={pCx} y={pCy + 1.5} fontSize={5} textAnchor="middle" fill="var(--gr)" fontWeight={700} style={{ pointerEvents: 'none' }}>●</text>}
-            {prog > 0 && prog < 100 && <text x={pCx} y={pCy + 2} fontSize={4} textAnchor="middle" fill={isRoot ? '#ffffffcc' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{prog}</text>}
+            {/* The raw number, not the formatted one, used to go in here: a
+                leaf 2.562761506276151 % of the way through printed all
+                sixteen digits across the node. progress.js is the single
+                source for this figure AND its rounding, precisely so the
+                graph cannot disagree with the tree. */}
+            {prog > 0 && prog < 100 && <text x={pCx} y={pCy + 2} fontSize={4} textAnchor="middle" fill={isRoot ? '#ffffffcc' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{progressPctLabel(prog)}</text>}
             {/* ID */}
             <text x={5} y={10} fontSize={6} fill={isRoot ? '#ffffffaa' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{r.id}</text>
             {/* Name (2 lines) */}
             <text x={5} y={21} fontSize={7.5} fill={isRoot ? '#ffffff' : tc} fontWeight={depth <= 1 ? 700 : depth <= 2 ? 600 : 500} style={{ pointerEvents: 'none' }}>
-              {r.name.length <= 26 ? r.name : <>{r.name.slice(0, 26)}<tspan x={5} dy={10}>{r.name.slice(26, 52)}{r.name.length > 52 ? '..' : ''}</tspan></>}
+              {(() => {
+                // Two lines, broken where a reader would break them. Slicing
+                // at character 26 split "Zulieferung aus dem Betrieb steht"
+                // into "…Betrie" / "b steht"; SVG <text> does no wrapping of
+                // its own, so the break has to be chosen here.
+                const [first, rest] = wrapTwoLines(r.name, NAME_CHARS);
+                if (!rest) return first;
+                return <>{first}<tspan x={5} dy={10}>{rest}</tspan></>;
+              })()}
             </text>
             {/* Info line with priority chevron (for leaves) */}
             {(() => {
@@ -732,7 +773,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
               const PRIO_GLYPH = { 1: '^^', 2: '^', 3: '=', 4: 'v' };
               const PRIO_COL = { 1: '#f87171', 2: '#fbbf24', 3: '#6ca0ff', 4: '#8090a8' };
               const showPrio = isLeafNode && r.prio;
-              const y = r.name.length > 26 ? 40 : 33;
+              const y = wrapTwoLines(r.name, NAME_CHARS)[1] ? 40 : 33;
               return <>
                 {showPrio && <text x={5} y={y} fontSize={7} fill={PRIO_COL[r.prio]} fontWeight={700} style={{ pointerEvents: 'none' }}>{PRIO_GLYPH[r.prio]}</text>}
                 {sc && <text x={showPrio ? 14 : 5} y={y} fontSize={5.5} fill={isRoot ? '#ffffffaa' : sc.autoAssigned ? 'var(--am)' : 'var(--tx3)'} fontFamily="var(--mono)" style={{ pointerEvents: 'none' }}>{sc.effort?.toFixed(0)}d · {assignLabel(r, sc)}</text>}

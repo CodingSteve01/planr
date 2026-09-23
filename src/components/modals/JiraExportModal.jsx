@@ -3,6 +3,8 @@ import { leafNodes, isLeafNode, treeIndex } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { exportJiraCSV } from '../../utils/exports.js';
 import { useT } from '../../i18n.jsx';
+import { PersonChip } from '../shared/PersonChip.jsx';
+import { buildMemberShortMap } from '../../App.jsx';
 import { useDialogShortcuts } from '../../utils/useDialogShortcuts.js';
 
 export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose }) {
@@ -15,6 +17,10 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
 
   const roots = useMemo(() => tree.filter(r => !r.id.includes('.')), [tree]);
   const sMap = useMemo(() => Object.fromEntries((scheduled || []).map(s => [s.id, s])), [scheduled]);
+  const shortMap = useMemo(() => buildMemberShortMap(members), [members]);
+  // One walk for the whole root list — this used to run once per root, so a
+  // plan with eight projects walked the tree eight times on every render.
+  const allLeaves = useMemo(() => leafNodes(tree), [tree]);
 
   const preview = useMemo(() => {
     // Dropped work is not offered: exportJiraCSV drops it anyway, so listing
@@ -32,11 +38,21 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       const isLeaf = isLeafNode(tree, r.id);
       const type = isLeaf ? mapping.leaf : (mapping[depth] || 'Story');
       const sc = sMap[r.id];
-      const assignee = (r.assign || [])[0] || (includeAutoAssign && sc?.autoAssigned ? sc.personId : null);
+      const explicit = (r.assign || [])[0] || null;
+      const assignee = explicit || (includeAutoAssign && sc?.autoAssigned ? sc.personId : null);
       const member = assignee ? members.find(m => m.id === assignee) : null;
-      return { ...r, jiraType: type, depth, isLeaf, assigneeName: member?.name || '', sc };
+      return {
+        ...r, jiraType: type, depth, isLeaf, sc,
+        assigneeName: member?.name || '',
+        // The preview says the same thing the tree and the Gantt say: the
+        // person's initials, in italics when the answer came from the
+        // scheduler rather than from you. It used to print a bare first name,
+        // which is the one place in the app that did.
+        assigneeShort: assignee ? (shortMap[assignee] || member?.name || assignee) : '',
+        assigneeAuto: !!assignee && !explicit,
+      };
     });
-  }, [tree, selectedRoots, mapping, skipDone, includeAutoAssign, sMap]);
+  }, [tree, selectedRoots, mapping, skipDone, includeAutoAssign, sMap, members, shortMap]);
 
   const toggleRoot = id => setSelectedRoots(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -84,7 +100,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {roots.map(r => {
             const on = selectedRoots.has(r.id);
-            const leaves = leafNodes(tree).filter(l => l.id.startsWith(r.id + '.'));
+            const leaves = allLeaves.filter(l => l.id.startsWith(r.id + '.'));
             const done = leaves.filter(l => l.status === 'done').length;
             return <button key={r.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
               style={{ padding: '4px 8px' }} onClick={() => toggleRoot(r.id)}>
@@ -136,7 +152,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
             <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: r.jiraType === 'Epic' ? 'var(--ac)' : r.jiraType === 'Story' ? 'var(--gr)' : 'var(--tx3)', fontWeight: 600, flexShrink: 0, width: 45 }}>{r.jiraType}</span>
             <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0, width: 70 }}>{r.id}</span>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-            {r.assigneeName && <span style={{ color: 'var(--ac)', flexShrink: 0 }}>{r.assigneeName.split(' ')[0]}</span>}
+            {r.assigneeShort && <PersonChip short={r.assigneeShort} auto={r.assigneeAuto} title={r.assigneeName} style={{ flexShrink: 0 }} />}
           </div>
         ))}
         {preview.length > 30 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>{t('je.moreItems', preview.length - 30)}</div>}

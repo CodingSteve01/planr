@@ -4,6 +4,7 @@ import { computeNRW } from '../../utils/holidays.js';
 import { DOW_DE } from '../../constants.js';
 import { LazyInput } from '../shared/LazyInput.jsx';
 import { useT } from '../../i18n.jsx';
+import { Icon } from '../shared/Icon.jsx';
 
 export function HolView({ holidays, planStart, planEnd, onUpdate }) {
   const { t } = useT();
@@ -54,8 +55,14 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       {/* Header actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        <button className="btn btn-pri btn-sm" onClick={importNRW}>{t('hv.importNRW')} ({planYears.join(', ')})</button>
-        <button className="btn btn-sec btn-sm" onClick={() => onUpdate([...list, { date: iso(new Date()), name: '', auto: false }])}>{t('hv.addManual')}</button>
+        {/* The button used to spell out every year it covers — twelve of
+            them, in a label wider than the rest of the row put together.
+            A range says the same thing. */}
+        <button className="btn btn-pri btn-sm" onClick={importNRW} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="download" size={12} />{t('hv.importNRW')}
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: .7 }}>{planYears[0]}–{planYears[planYears.length - 1]}</span>
+        </button>
+        <button className="btn btn-sec btn-sm" onClick={() => onUpdate([...list, { date: iso(new Date()), name: '', auto: false }])} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="plus" size={12} />{t('hv.addManual')}</button>
         {list.length > 0 && (
           <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(t('hv.confirmClear'))) onUpdate([]); }}>{t('hv.clearAll')}</button>
         )}
@@ -74,8 +81,8 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
           </select>
           {yearFilter && (
             <button className="btn btn-ghost btn-xs" onClick={() => setYearFilter('')}
-              data-htip={t('rv.clearFilters')}
-              style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+              data-htip={t('rv.clearFilters')} aria-label={t('rv.clearFilters')}
+              style={{ padding: '2px 7px', fontSize: 11 }}><Icon name="x" size={11} /></button>
           )}
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{filtered.length} / {list.length}</span>
         </div>
@@ -83,9 +90,9 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
 
       {!list.length && (
         <div className="empty">
-          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="calendar" size={28} strokeWidth={1.4} /></div>
           <div style={{ fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('hv.empty')}</div>
-          <button className="btn btn-pri" onClick={importNRW}>{t('hv.emptyBtn')}</button>
+          <button className="btn btn-pri" onClick={importNRW} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="download" size={13} />{t('hv.emptyBtn')}</button>
         </div>
       )}
 
@@ -96,10 +103,10 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
             <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{byYear[y].length}</span>
           </div>
           <div className="res-row res-row-hol res-row-header">
-            <span>Tag</span>
-            <span>Datum</span>
-            <span>Name</span>
-            <span>Quelle</span>
+            <span>{t('hv.day')}</span>
+            <span>{t('hv.date')}</span>
+            <span>{t('hv.name')}</span>
+            <span>{t('hv.source')}</span>
             <span />
           </div>
           <ul className="res-list">
@@ -124,7 +131,7 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
                   <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 9, justifySelf: 'start' }}>
                     {h.auto ? t('hv.srcNRW') : t('hv.srcCustom')}
                   </span>
-                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)}>×</button>
+                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
                 </li>
               );
             })}

@@ -85,11 +85,13 @@ const offenders = strings => {
 };
 
 describe('the supported set matches the bundled font', () => {
-  it('knows what Roboto has, and what it does not', () => {
-    // Spot checks against the cmap of pdfmake/build/vfs_fonts Roboto-Regular.
-    '·—…×Üäöü●○■•–Δ√±≤≥≈°§'.split('').forEach(ch =>
+  it('knows what Plex Sans has, and what it does not', () => {
+    // Spot checks against the cmap of the embedded, subsetted faces
+    // (utils/pdfFonts.js). The trade against Roboto is visible here: real
+    // arrows and a real tick arrived, the geometric shapes went.
+    '·—…×Üäöü•–Δ√±≤≥≈°§✓→←↑↓◊'.split('').forEach(ch =>
       expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(true));
-    '✓✔◐▪→←↑↓⚠⊕★▲🚆'.split('').forEach(ch =>
+    '●○■◐▪✔⚠⊕★▲🚆'.split('').forEach(ch =>
       expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(false));
   });
 
@@ -107,10 +109,16 @@ describe('sanitizePdfText', () => {
     expect(sanitizePdfText(text)).toBe(text);
   });
 
-  it('maps the app symbols to something Roboto can draw', () => {
-    expect(sanitizePdfText('✓ erledigt')).toBe('√ erledigt');
-    expect(sanitizePdfText('2026-01-01 → 2026-02-01')).toBe('2026-01-01 » 2026-02-01');
-    expect(sanitizePdfText('◐ in Arbeit')).toBe('● in Arbeit');
+  it('maps the app symbols to something Plex Sans can draw', () => {
+    // Two of these no longer need a stand-in at all: Plex has the tick and the
+    // arrow, which Roboto did not, so they print as themselves instead of as
+    // `√` and `»` — which read as typos in a document you hand to somebody.
+    expect(sanitizePdfText('✓ erledigt')).toBe('✓ erledigt');
+    expect(sanitizePdfText('2026-01-01 → 2026-02-01')).toBe('2026-01-01 → 2026-02-01');
+    // The geometric shapes are what Plex lacks, so the status triple keeps its
+    // meaning through fill: a bullet for under way, a lozenge for not started.
+    expect(sanitizePdfText('◐ in Arbeit')).toBe('• in Arbeit');
+    expect(sanitizePdfText('○ offen')).toBe('◊ offen');
     expect(sanitizePdfText('⚠ Deadline')).toBe('! Deadline');
   });
 
@@ -126,9 +134,9 @@ describe('sanitizePdfText', () => {
       styles: { h2: { fontSize: 13 } },
     });
 
-    expect(out.content[0].text).toBe('√ done');
+    expect(out.content[0].text).toBe('✓ done');
     expect(out.content[1].svg).toBe(svg);
-    expect(out.content[2].table.body[0][0].text).toBe('a » b');
+    expect(out.content[2].table.body[0][0].text).toBe('a → b');
     expect(out.styles.h2.fontSize).toBe(13);
   });
 });
@@ -158,7 +166,7 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
     await exportSummaryPDF(ctx(), { includeTimetable: true, includeProjectRoadmaps: false });
     const rendered = pdfStrings(captured[0].content).join(' ');
 
-    expect(rendered).toContain('√');       // was ✓
-    expect(rendered).not.toContain('✓');
+    expect(rendered).toContain('•');       // was ●
+    expect(rendered).not.toContain('●');
   });
 });

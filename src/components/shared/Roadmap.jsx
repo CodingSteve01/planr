@@ -103,6 +103,7 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
     train: t('rm.train'),
     currentPos: t('rm.currentPos'),  // keeps "{0}" placeholder — roadmap.js fills it
     atRisk: t('rm.atRisk'),
+    arrived: t('rm.arrived'),
     tipDone: t('diff.tipDone'),
     tipProgress: t('diff.legendReachedTip'),
     prevPos: t('diff.prevPos'),
@@ -344,12 +345,16 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
     <div ref={ref} style={{ marginBottom: 20, position: 'relative' }}
       onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>
       <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
-      {/* Zoom controls sit over the map's top-right corner so they cost no
-          vertical space in the already-busy Overview toolbar. */}
-      {/* Sits over the map's top-right corner so it costs no vertical space in
-          the already-busy Overview toolbar — hence its own background, or it
-          would be unreadable over a panned map. */}
-      <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 4, alignItems: 'center',
+      {/* Above the map, not on it.
+          It floated over the top-right corner to cost no vertical space, and
+          sat on the first line's terminus badge. Padding the canvas out from
+          under it looked like a fix and was not: the SVG scales with the
+          pane's width and the control does not, so the clearance that holds
+          at one width closes at another, and the collision came back on a
+          narrower window. In flow it cannot collide at any width, and the row
+          it costs is one row. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+      <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center',
         background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '3px 5px' }}
         data-htip={t('rm.zoomInTip')}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
@@ -368,6 +373,7 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
           <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}
             data-htip={t('rm.zoomFitTip')} onClick={() => applyZoom(1)}>{t('rm.zoomFit')}</button>
         </>}
+      </div>
       </div>
       <div ref={scrollRef}
         onPointerDown={onPointerDown}

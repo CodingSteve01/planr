@@ -132,6 +132,52 @@ Why not just re-request permission silently? The browser's `requestPermission()`
 
 Appears next to the filename whenever there's anything to save — **dirty** (localStorage ahead of disk) **or** pending (debounce window not yet elapsed). One click skips the countdown and writes immediately. `Ctrl/Cmd+S` does the same.
 
+## Importing a Jira board
+
+Both existing Jira paths went outwards: the CSV export creates the tickets, and
+the reconcile half (Run mode's drift section, `jiraSync.js`) keeps the plan
+honest against them afterwards. The direction everybody actually starts in was
+missing — the tickets are already in Jira, and nobody retypes two hundred of
+them to try a planner.
+
+**Where**: the onboarding screen ("Stattdessen aus Jira importieren"), the File
+menu, and the `/` palette. The first two are the same dialog; the difference is
+that without a plan it creates one, and with a plan it appends to it.
+
+**What goes in**: Jira's own *Export → CSV (all fields)*, or a copied search
+result. Parsing is `parseJiraTable()` from [`jiraSync.js`](../src/utils/jiraSync.js)
+— the same forgiving one reconciliation uses, so a paste that works for one
+works for the other. It finds its columns by alias in both languages and gives
+up on a row rather than on the file.
+
+**What comes across** ([`jiraImport.js`](../src/utils/jiraImport.js)):
+
+| Jira | plan | notes |
+|---|---|---|
+| `Parent` / `Epic Link` | tree position | `Parent` wins when both are filled. A parent outside the paste makes the row a root rather than losing it; a cycle is refused rather than followed. |
+| `Summary` | name | |
+| `Status` | status + progress | via `mapJiraStatus` — the same word list reconciliation uses, German included. Anything unrecognised is open, never done. |
+| `Priority` | `prio` 1–4 | an unknown word lands at 3. Guessing "critical" out of a word we do not know would put work at the front of the schedule on no evidence. |
+| `Original Estimate` | `best` (days) | seconds (28800 = 1d), `3d 4h`, `2w`, or a bare story-point number. A parent's estimate is dropped: the plan derives it from its children, so keeping Jira's would double-count. |
+| `Assignee` | `assign` | matched against the plan's people by name, by the local part of an email, or by id. **No fuzzy match** — a wrong assignee is worse than none, because the scheduler acts on it. |
+| `Issue key` | `customValues.jira` | which is exactly where `linkHealth()` looks. Import on Monday, reconcile on Friday. |
+
+**What does not**: everything the plan is for — dependencies, capacity, dates,
+teams. Those are the work the import saves you time for.
+
+Two choices, both in the dialog and both visible in the preview before anything
+is written: whether to wrap the import in one project (on by default, so an
+import never scatters loose projects into a plan that has its own), and whether
+to create the people the paste names that nobody on the plan matches (off by
+default — importing a board can name a dozen people who are not on this team,
+and a resource list quietly filled with them makes the capacity numbers wrong
+in a way nobody would think to look for).
+
+Numbering starts past whatever the plan already has, so an import cannot land
+on top of an existing project, and the whole thing goes through `mutate()` —
+one ⌘Z takes it back, which is the only thing that makes trying it safe.
+
+
 ## Export-only formats
 
 ### CSV
@@ -220,25 +266,81 @@ because pdfmake's SVG renderer resolves neither and silently blanks the text
 otherwise; a test asserts no `var(--…)` or unregistered font survives into the
 document.
 
-### Fonts: only Roboto exists
+### The printed palette
 
-pdfmake bundles one font family and draws a missing-glyph box — silently — for
-anything it does not cover. Several characters this app uses every day are
-outside it: `✓ → ◐ ⚠ ⊕ ▪` and every emoji.
+The PDFs and the HTML report draw from
+[`printPalette.js`](../src/utils/printPalette.js), which mirrors the **light**
+block of `App.css` — print is always on white. They used to carry a palette of
+their own, left over from before the rebuild: ink at `#1a1e2a`, headings in
+`#1d4ed8`, tables banded `#edf2fa`, greens at `#16a34a`, ambers at `#d97706` —
+the Tailwind-ish blues the screen no longer uses. A management summary that
+does not look like the tool it came out of reads as a different document, and
+the figures on it read as different figures.
 
-[`src/utils/pdfGlyphs.js`](../src/utils/pdfGlyphs.js) holds the **real cmap of
-the bundled `Roboto-Regular`** (927 code points, 82 ranges) plus a substitution
-table checked against it. `sanitizePdfDoc` runs over every docDefinition right
-before `createPdf`; the roadmap SVG preparers apply the same table by hand,
-because embedded SVG deliberately bypasses the doc pass (svg-to-pdfkit does its
-own text handling).
+The screen resolves its colours through CSS variables and a PDF cannot, so the
+values are written out once, in one module.
+[`printPalette.test.js`](../src/utils/__tests__/printPalette.test.js) holds
+each of them to its token in the stylesheet, and fails on any colour written
+into `pdfExports.js` or `report.js` that is not in the palette — comments may
+still name the old values, which is the record of what changed.
+
+**What is NOT aligned**: the typeface. The screen is IBM Plex Sans / Mono with
+Instrument Serif for the headline figure; the PDF is Roboto, because that is
+the only family in pdfmake's bundled font store (see below). Matching it means
+embedding Plex as base64 in the bundle, which is a separate decision about
+download size.
+
+### The typeface: IBM Plex Sans, embedded
+
+pdfmake bundles exactly one family — Roboto — and a PDF cannot resolve a
+webfont, so a document that should look like the app has to carry the app's
+face with it. The PDFs are set in **IBM Plex Sans**, the screen's own, embedded
+and subsetted in [`pdfFonts.js`](../src/utils/pdfFonts.js).
+
+**Subsetted, because the full faces are ~218 KB each.** Cut to exactly the code
+points the PDF layer promises to render, Regular and Bold together are 143 KB
+of base64, landing in their own lazily-loaded chunk (75 KB gzipped) that is
+fetched only when somebody exports. Regenerate with
+[`tools/build-pdf-fonts.mjs`](../tools/build-pdf-fonts.mjs), which reads the
+promise out of `pdfGlyphs.js` and subsets to it — so the font and the promise
+define each other rather than drifting.
+
+**Sans only.** Plex Mono is not embedded: pdfmake's `mono` style is defined and
+applied by no export, and Mono's coverage is narrower than Sans's — carrying it
+would have cost 94 KB and forced the supported set down to the intersection,
+which loses modern Greek. The script will generate it the day something needs
+it.
+
+### What the font can draw
+
+pdfmake draws a missing-glyph box — silently — for anything the face does not
+cover, so [`pdfGlyphs.js`](../src/utils/pdfGlyphs.js) holds the **real cmap of
+the embedded faces** (the intersection of Plex Sans Regular and Bold: 804 code
+points, 74 ranges) plus a substitution table checked against it.
+`sanitizePdfDoc` runs over every docDefinition right before `createPdf`; the
+roadmap SVG preparers apply the same table by hand, because embedded SVG
+deliberately bypasses the doc pass (svg-to-pdfkit does its own text handling).
+
+The swap from Roboto's 927 code points is **not one-sided**. Plex has real
+arrows and a real tick, which Roboto did not — `→` and `✓` now print as
+themselves instead of as `»` and `√`, which read as typos in a document you
+hand to somebody. What it lacks is the geometric shapes `● ○ ■`, so the status
+triple keeps its meaning through fill instead: `•` for work under way or done,
+`◊` for work not started. Also gone: archaic Cyrillic and a handful of rare
+typographic symbols. Every modern Greek and Cyrillic letter is still there.
 
 `src/__tests__/pdfGlyphs.test.jsx` walks all four PDFs and fails on any
-character outside that set.
+character outside the set.
 
-To regenerate the ranges after a pdfmake upgrade, read the cmap of
-`node_modules/pdfmake/build/vfs_fonts.js` → `Roboto-Regular.ttf` (base64 TTF,
-format-4 cmap) and re-emit the sorted code points as ranges.
+To regenerate the ranges after changing the embedded font, read the cmap of
+both subsetted faces in `pdfFonts.js` (base64 TTF), intersect them, and re-emit
+the sorted code points as ranges.
+
+**Still Roboto**: the text *inside* embedded SVG images — the subway map's
+station labels. svg-to-pdfkit resolves font names through pdfkit's own registry
+rather than pdfmake's, and pinning those to a family it may not find is how you
+get an invisible label in a picture nobody checks. One picture's labels, noted
+rather than quietly left.
 
 ### Scope: exports describe the plan, not the screen
 

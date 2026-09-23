@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useT } from '../../i18n.jsx';
 import { withKey } from '../../utils/shortcuts.js';
+import { Icon } from './Icon.jsx';
 
 // Search input with local state + debounced commit. Critical for perf: the
 // App component renders dozens of children via `display:none` tab panes;
@@ -63,14 +64,16 @@ export function SearchBox({ searchRef, onCommit, onResetIdx, onPrev, onNext, onG
       {v && <>
         <button className="btn btn-ghost btn-xs" onClick={onPrev}
           data-htip={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
-          style={{ padding: '2px 5px', fontSize: 13 }}>▲</button>
+          aria-label={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
+          style={{ padding: '2px 5px' }}><Icon name="chevronUp" size={12} strokeWidth={2.2} /></button>
         <button className="btn btn-ghost btn-xs" onClick={onNext}
           data-htip={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
-          style={{ padding: '2px 5px', fontSize: 13 }}>▼</button>
+          aria-label={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
+          style={{ padding: '2px 5px' }}><Icon name="chevronDown" size={12} strokeWidth={2.2} /></button>
         <button className="btn btn-ghost btn-xs"
           onClick={() => { setV(''); lastSentRef.current = ''; onCommit(''); }}
           data-htip={withKey(t('sb.clearSearchLabel'), 'closeDialog')}
-          style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+          style={{ padding: '2px 7px', fontSize: 11 }}><Icon name="x" size={11} /></button>
       </>}
     </>
   );

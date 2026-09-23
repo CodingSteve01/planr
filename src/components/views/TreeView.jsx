@@ -373,8 +373,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
     setOrderDrop(null);
   };
-  const toolBtn = (label, title, onClick, disabled, icon) => <button
+  const toolBtn = (label, title, onClick, disabled, icon, testId) => <button
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
+    data-testid={testId} aria-label={label ? undefined : title}
     style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
       display: 'inline-flex', alignItems: 'center', gap: 5 }}>
     {icon && <Icon name={icon} size={11} />}{label}</button>;
@@ -961,7 +962,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   e.dataTransfer.setData('text/plain', r.id);
                   setOrderDrop({ dragId: r.id, targetId: null, position: 'before' });
                 }}
-                onDragEnd={() => setOrderDrop(null)}>⋮⋮</span>}
+                onDragEnd={() => setOrderDrop(null)}><Icon name="grip" size={11} /></span>}
               {/* The id is the tool's spine — dependencies, the tooltip and
                   every export speak it — and on a narrow screen it is also
                   five dotted segments in front of every name you are trying
@@ -988,7 +989,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, minWidth: 0 }}>
               <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
               {childNodes
-                ? <span style={{ display: 'inline-block', width: 14, cursor: 'pointer', fontSize: 9, color: 'var(--tx3)', userSelect: 'none', textAlign: 'center', flexShrink: 0 }}
+                ? <span data-testid={`tree-caret-${r.id}`} data-open={isCollapsed ? 'false' : 'true'} style={{ display: 'inline-flex', width: 14, cursor: 'pointer', color: 'var(--tx3)', userSelect: 'none', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
                     // Folding a branch selects it as well. The triangle is only
                     // drawn on a row that has children, and it used to stop the
                     // click before the row's own handler ran — so the most
@@ -997,7 +998,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                     // next keystroke went somewhere else entirely. It stops
                     // propagation (a second click on the name would open the
                     // rename editor) and does the selecting itself.
-                    onClick={e => { e.stopPropagation(); onSelect(r, {}, filt.map(x => x.id)); containerRef.current?.focus(); toggle(r.id); }}>{isCollapsed ? '▶' : '▼'}</span>
+                    onClick={e => { e.stopPropagation(); onSelect(r, {}, filt.map(x => x.id)); containerRef.current?.focus(); toggle(r.id); }}><Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} /></span>
                 : <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />}
 
               {/* Status icon — SVG matching the network graph's symbology */}
@@ -1162,7 +1163,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 {/* Diff-since badge (newly done / new leaf / progress jump) */}
               {diffBadge && <span data-htip={diffBadge.tip}
                 style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
-                  background: diffBadge.kind === 'new' ? '#f59e0b'
+                  background: diffBadge.kind === 'new' ? 'var(--diff)'
                     : diffBadge.kind === 'done' ? 'rgba(16,185,129,.85)'
                     : 'rgba(245,158,11,.85)',
                   color: '#1a1a1a',
@@ -1185,10 +1186,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             </td>
               {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             {/* Effort: single number (realistic days) */}
-            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{effortDays}</td>
+            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{effortDays}</td>
 
             {/* Progress */}
-            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
+            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
 
             {/* Schedule range — start to end */}
             <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
@@ -1209,7 +1210,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 stays quiet, and each one is the same callback the keyboard
                 uses. Reorder, indent and delete live in the contextual
                 toolbar above and act on the selected item. */}
-            <td style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
+            <td data-col="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
               <span className="tv-row-act">
                 {/* Open this row in the editor. The standard move for a table
                     row, and the one path that does not depend on there being
@@ -1217,16 +1218,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                     it is how you get to it at all. */}
                 {onFullEdit && <button className="tv-act-btn" data-testid={`tree-row-edit-${r.id}`}
                   data-htip={withKey(t('tv.editRowTip', r.id), 'fullEdit')}
-                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}>⊞</button>}
+                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}><Icon name="maximize" size={12} /></button>}
                 <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}><Icon name="pencil" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-sibling-${r.id}`}
                   data-htip={withKey(t('tv.newRowTip', r.id), 'editNext')}
-                  onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}>+</button>
+                  onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}><Icon name="plus" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-child-${r.id}`}
                   data-htip={withKey(t('tv.newChildTip', r.id), 'newChild')}
-                  onClick={e => { e.stopPropagation(); startNewChild(r.id); }}>↳</button>
+                  onClick={e => { e.stopPropagation(); startNewChild(r.id); }}><Icon name="subtask" size={12} /></button>
               </span>
             </td>
           </tr>;
@@ -1268,9 +1269,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
         {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
-        {onFullEdit && editorInDialog && toolBtn(`⊞ ${t('tv.editItem')}`, t('nm.fullEditTip'), () => onFullEdit(selected))}
-        {onInsertAfter && toolBtn(`+ ${t('tv.newRow')}`, withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id))}
-        {onInsertChild && toolBtn(`↳ ${t('tv.newChild')}`, withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id))}
+        {onFullEdit && editorInDialog && toolBtn(t('tv.editItem'), t('nm.fullEditTip'), () => onFullEdit(selected), false, 'maximize', 'tv-edit-selected')}
+        {onInsertAfter && toolBtn(t('tv.newRow'), withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id), false, 'plus')}
+        {onInsertChild && toolBtn(t('tv.newChild'), withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id), false, 'subtask')}
         {/* Re-parent — the mouse twin of Tab / ⇧Tab. `null` from the helper
             means the move is a no-op here (already at the top level, or no
             previous sibling to become the new parent), so the button is
@@ -1278,33 +1279,33 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             target (the root), which is why this tests against null. */}
         {onMove && <>
           <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('⇤', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null)}
-          {toolBtn('⇥', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null)}
+          {toolBtn('', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null, 'outdent', 'tv-outdent')}
+          {toolBtn('', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null, 'indent', 'tv-indent')}
         </>}
         {onReorder && selPos.count > 1 && <>
           <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('⤒ First', withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'))}
-          {toolBtn('▲ Up', withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !visibleSiblingTarget(visibleIds, selected.id, 'up'))}
-          {toolBtn('▼ Down', withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !visibleSiblingTarget(visibleIds, selected.id, 'down'))}
-          {toolBtn('⤓ Last', withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'))}
+          {toolBtn(t('tv.moveFirst'), withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'), 'moveTop', 'tv-move-first')}
+          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !visibleSiblingTarget(visibleIds, selected.id, 'up'), 'moveUp', 'tv-move-up')}
+          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !visibleSiblingTarget(visibleIds, selected.id, 'down'), 'moveDown', 'tv-move-down')}
+          {toolBtn(t('tv.moveLast'), withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'), 'moveBottom', 'tv-move-last')}
         </>}
         <span style={{ flex: 1 }} />
-        <button className="btn btn-sec btn-xs" onClick={() => onDelete(selected.id)}
+        <button className="btn btn-sec btn-xs" data-testid="tv-delete-selected" onClick={() => onDelete(selected.id)}
           data-htip={withKey((hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id)), 'delete')}
-          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)' }}>{t('tv.deleteItem')}</button>
+          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="trash" size={11} />{t('tv.deleteItem')}</button>
       </div>
     )}
     <table className="tree-tbl">
       <thead><tr>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{showIds ? 'ID' : ''}</th>
-        <th style={{ background: 'var(--bg)', width: '100%', top: 32 }}>{t('col.name')}</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.team')}</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.who')}</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.signal')}</th>
-        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.effort')}</th>
-        <th className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.schedule')}</th>
-        <th style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
+        <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{showIds ? 'ID' : ''}</th>
+        <th data-col="name" style={{ background: 'var(--bg)', width: '100%', top: 32 }}>{t('col.name')}</th>
+        <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.team')}</th>
+        <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.who')}</th>
+        <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.signal')}</th>
+        <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.effort')}</th>
+        <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>%</th>
+        <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', top: 32 }}>{t('col.schedule')}</th>
+        <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center', top: 32 }}></th>
       </tr></thead>
       <tbody>
         {filt.map((r, idx) => {
@@ -1357,7 +1358,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         onClick={() => onOpenBulkEdit?.()}
         data-htip={t('g.bulkEditTip')}
         data-testid="tree-bulk-edit-trigger">
-        <span className="sab-icon">⎘</span>
+        <span className="sab-icon"><Icon name="checkSquare" size={13} /></span>
         <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
       </button>
       <span className="sab-divider" />

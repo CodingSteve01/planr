@@ -19,7 +19,14 @@ import { aggregateSollIst } from '../../utils/sollIst.js';
 // so screen and export can never print different percentages.
 import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
 
-const ORDER = ['goal', 'painpoint', 'deadline'];
+// The three focus types, and then everything else.
+//
+// `goals` is roots WITH a `type`, and this section listed only those — so a
+// project nobody had labelled a goal, a pain point or a deadline was not in
+// the overview and not in the PDF either. On a real plan that was five of
+// eight, the largest running project among them. A focus type is an
+// annotation on a project, not the thing that makes it exist.
+const ORDER = ['goal', 'painpoint', 'deadline', ''];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
 function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo }) {
@@ -86,7 +93,17 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     [tree, scheduled],
   );
 
-  const grouped = ORDER.map(tp => ({ type: tp, items: activeGoals.filter(g => g.type === tp) })).filter(g => g.items.length);
+  // Every root, not only the annotated ones. Dropped projects stay out: the
+  // decision not to do something is not a focus.
+  const untypedRoots = useMemo(() => tree.filter(node => (
+    !String(node.id).includes('.')
+    && !node.type
+    && !node.dropped
+    && !(archivedRootIds && archivedRootIds.has(node.id))
+  )), [tree, archivedRootIds]);
+  const grouped = ORDER
+    .map(tp => ({ type: tp, items: tp ? activeGoals.filter(g => g.type === tp) : untypedRoots }))
+    .filter(g => g.items.length);
 
   // `sinceDays`, `persistSince`, `sinceDate` now flow in from App.jsx so the
   // diff state is shared across all views (Roadmap, Tree, Timetable, Gantt,
@@ -215,7 +232,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             top: 0,
             bottom: 0,
             zIndex: 2,
-            background: 'repeating-linear-gradient(115deg, #f59e0b 0 7px, #fde68a 7px 13px)',
+            background: 'repeating-linear-gradient(115deg, var(--diff) 0 7px, color-mix(in srgb, var(--diff) 45%, var(--bg2)) 7px 13px)',
             opacity: 0.95,
             cursor: 'help',
           }} />
@@ -229,7 +246,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
             top: 0,
             bottom: 0,
             zIndex: 2,
-            background: 'repeating-linear-gradient(115deg, #3b82f6 0 7px, #bfdbfe 7px 13px)',
+            background: 'repeating-linear-gradient(115deg, var(--ac) 0 7px, color-mix(in srgb, var(--ac) 45%, var(--bg2)) 7px 13px)',
             opacity: 0.95,
             cursor: 'help',
           }} />
@@ -239,7 +256,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       {showPastStripe && (
         <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
           style={{ position: 'absolute', left: `${pastPct}%`, top: -2, bottom: -2,
-            width: 2, background: '#f59e0b', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
+            width: 2, background: 'var(--diff)', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
       )}
     </div>
 
@@ -379,7 +396,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type]} size={11} />{t(g.type + 's')}</div>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
@@ -560,7 +577,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
             border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: '#f59e0b' }}>{t('diff.stand', iso(sinceDate))}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--diff)' }}>{t('diff.stand', iso(sinceDate))}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
           <span data-htip={t('diff.tipDone')}>{t('diff.tasksDone', diff.doneCount)}</span>
           {diff.startedInWindowIds.length > 0 && <>
@@ -618,7 +635,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
           <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(59,130,246,.06)',
               border: '1px solid rgba(59,130,246,.30)', borderRadius: 4, fontSize: 11 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: topOverruns.length || topUnderruns.length ? 6 : 0, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, color: '#3b82f6', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
+              <span style={{ fontWeight: 700, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
               <span style={{ color: 'var(--tx2)' }}>·</span>
               <span data-htip={t('retro.sumTip', agg.count)}>{t('retro.sum', agg.sollSum.toFixed(0), agg.istSum.toFixed(0))}</span>
               <span style={{ color: 'var(--tx2)' }}>·</span>

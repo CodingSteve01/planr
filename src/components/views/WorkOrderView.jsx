@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, memo } from 'react';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
+import { Icon } from '../shared/Icon.jsx';
 import { leafNodes } from '../../utils/scheduler.js';
 import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
@@ -184,38 +185,22 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       const label = ownerLabel(owner);
       const ordered = reconcileQueue(personQueues?.[owner], rows.map(n => n.id));
       const byId = new Map(rows.map(n => [n.id, n]));
-      // Settle the big blocks, then the details — which is how anybody plans,
-      // and what a flat list of forty tasks turns into a sorting exercise.
-      // Each package the person has work in gets a header where its first item
-      // sits; moving the header moves the package's items as one block, the
-      // same move a multi-selection makes. Inside it the items order as
-      // before.
-      const pkgOf = id => id.split('.').slice(0, -1).join('.');
-      const groups = [];
-      for (const id of ordered) {
-        const pkg = pkgOf(id);
-        if (pkg && !groups.some(g => g.pkg === pkg)) groups.push({ pkg, first: id });
-      }
-      // A package whose items are scattered still owns all of them: the block
-      // move closes the gaps, so the header acts on every one.
-      const idsOfPkg = pkg => ordered.filter(id => pkgOf(id) === pkg);
-      // "One place earlier" for a package means past the package above it, not
-      // past one of its items — otherwise moving a five-item package up ten
-      // times is how you get it past two neighbours.
-      const moveGroup = (pkg, dir) => {
-        const at = groups.findIndex(g => g.pkg === pkg);
-        if (at < 0) return;
-        const ids = idsOfPkg(pkg);
-        if (dir === 'first' || dir === 'last') { onQueueReorder?.(ids, dir); return; }
-        if (dir === 'up') {
-          if (at === 0) return;
-          onQueueReorder?.(ids, { before: groups[at - 1].first });
-          return;
-        }
-        if (at >= groups.length - 1) { onQueueReorder?.(ids, 'last'); return; }
-        const after = groups[at + 2];
-        onQueueReorder?.(ids, after ? { before: after.first } : 'last');
-      };
+      // One list per person, and nothing between the rows.
+      //
+      // It used to break each queue into package headers — "settle the big
+      // blocks, then the details" — and that was a good instinct applied in
+      // the wrong place. The tree is where the big blocks are settled, and it
+      // is settled there ALREADY: this list arrives in the order the tree
+      // gives it. What this view is for is the one thing the tree cannot say,
+      // which is "this task from B, before those three from A" — and a
+      // hierarchy header is precisely the thing that puts that move behind a
+      // wall. A queue crossing packages had its rows split into blocks that
+      // could not interleave, which is the shape it exists to express.
+      //
+      // So: no headers. Dragging a row past anything is one move, whatever
+      // package or project either of them belongs to. The multi-select still
+      // moves a block, which covers "take these five with me" without
+      // deciding in advance which five that is.
       const sorted = !!personQueues?.[owner];
       return <div key={owner} style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
@@ -247,33 +232,9 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
             {ordered.map((id, i) => {
               const node = byId.get(id);
               if (!node) return null;
-              const pkg = id.split('.').slice(0, -1).join('.');
-              const header = groups.find(g => g.pkg === pkg && g.first === id);
+              const prevId = i > 0 ? ordered[i - 1] : null;
               const prog = node.progress ?? (node.status === 'done' ? 100 : node.status === 'wip' ? 50 : 0);
               return <Fragment key={id}>
-                {header && <tr
-                  data-queue-group={pkg}
-                  tabIndex={0}
-                  onKeyDown={e => {
-                    if (!e.altKey || e.ctrlKey || e.metaKey) return;
-                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-                    e.preventDefault();
-                    const dir = e.shiftKey
-                      ? (e.key === 'ArrowDown' ? 'last' : 'first')
-                      : (e.key === 'ArrowDown' ? 'down' : 'up');
-                    moveGroup(pkg, dir);
-                  }}
-                  onClick={() => { setPicked(new Set(idsOfPkg(pkg))); setCursor(id); }}
-                  style={{ outline: 'none', cursor: 'pointer' }}>
-                  <td colSpan={7} style={{ padding: '6px 6px 2px', fontSize: 10, color: 'var(--tx3)', borderTop: '1px solid var(--b)' }}
-                    data-htip={withKey(t('wo.groupTip'), 'reorder')}>
-                    <span style={{ fontFamily: 'var(--mono)' }}>{pkg}</span>
-                    {pathOf(id).map((name, pi) => <span key={pi}>
-                      <span style={{ color: 'var(--b3)' }}> › </span>{name}
-                    </span>)}
-                    <span style={{ marginLeft: 6, fontFamily: 'var(--mono)' }}>({idsOfPkg(pkg).length})</span>
-                  </td>
-                </tr>}
                 <tr
                 data-queue-row={id}
                 data-status={node.status || 'open'}
@@ -299,7 +260,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 style={{ outline: 'none' }}>
                 <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
                   data-htip={t('wo.dragTip')}>
-                  <span className="tv-drag-handle">⋮⋮</span>{i + 1}
+                  <span className="tv-drag-handle"><Icon name="grip" size={11} /></span>{i + 1}
                 </td>
                 <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
                 <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
@@ -316,12 +277,36 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                   })()}
                 </td>
                 <td style={{ padding: '3px 6px' }}>
-                  <div data-queue-path style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
-                    {pathOf(id).map((name, pi) => <span key={pi}>
-                      <span style={{ color: 'var(--b3)' }}> › </span>{name}
-                    </span>)}
-                  </div>
+                  {/* Where it lives, in the two parts that answer it: which
+                      PROJECT — which is the question this list is for, since
+                      it is the one place two of them interleave — and which
+                      package. The middle of the chain went to the tooltip.
+                      Printing the whole path on every row was tolerable while
+                      a package header carried it once and the row echoed it;
+                      with the header gone it is simply the same four names on
+                      forty rows, and the names of the tasks disappeared into
+                      it. */}
+                  {(() => {
+                    const chain = pathOf(id);
+                    const project = chain[0] || '';
+                    const parent = chain.length > 1 ? chain[chain.length - 1] : '';
+                    // …and only where it CHANGES. Forty rows from one package
+                    // printed the same two names forty times and the task
+                    // names drowned in them. Saying it once and then only when
+                    // it moves makes the crossings visible, which is the thing
+                    // this list is for: you can see where one project's work
+                    // gives way to another's.
+                    const prevChain = prevId ? pathOf(prevId) : [];
+                    const sameProject = project && prevChain[0] === project;
+                    const sameParent = sameProject && parent
+                      && (prevChain.length > 1 ? prevChain[prevChain.length - 1] : '') === parent;
+                    return <div data-queue-path data-htip={[id, ...chain].join(' › ')}
+                      style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
+                      {project && !sameProject && <><span style={{ color: 'var(--b3)' }}> · </span><span data-queue-project>{project}</span></>}
+                      {parent && !sameParent && <><span style={{ color: 'var(--b3)' }}> › </span>{parent}</>}
+                    </div>;
+                  })()}
                   <div data-queue-title className="tn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name || id}</div>
                 </td>
                 <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
@@ -329,13 +314,14 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 </td>
                 <td style={{ width: 28, verticalAlign: 'middle' }}>
                   {/* `E` did this from the first version, which is fine once
-                      you know and invisible until then — the tree carries a ⊞
-                      for the same reason. */}
+                      you know and invisible until then — the tree carries the
+                      same icon for the same reason. */}
                   <button type="button" className="tv-act-btn" data-testid={`wo-edit-${id}`}
                     data-htip={withKey(t('nm.fullEditTip'), 'fullEdit')}
                     onClick={e => { e.stopPropagation(); setCursor(id); onFullEdit?.(node); }}
                     onDragStart={e => e.preventDefault()}
-                  >⊞</button>
+                    aria-label={t('nm.fullEditTip')}
+                  ><Icon name="maximize" size={12} /></button>
                 </td>
               </tr>
               </Fragment>;

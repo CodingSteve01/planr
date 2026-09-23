@@ -105,7 +105,10 @@ describe('export parity: screen figures === exported figures', () => {
   it('HTML report prints the same progress percentage', () => {
     const onScreen = screenPct();
     const html = generateReport(ctx());
-    const kpi = html.match(/<div class="kpi-v" style="color:#16a34a">([\d.]+)%<\/div>/);
+    // Colour-agnostic on purpose: the printed palette follows the stylesheet
+    // now (utils/printPalette.js), and pinning a hex here would pin the design
+    // to whatever it happened to be the day this was written.
+    const kpi = html.match(/<div class="kpi-v"[^>]*>([\d.]+)%<\/div>/);
     expect(kpi, 'no progress KPI in HTML report').toBeTruthy();
     expect(kpi[1]).toBe(onScreen);
   });

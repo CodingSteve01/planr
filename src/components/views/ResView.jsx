@@ -5,6 +5,7 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 import { deriveCap, capBreakdown, FTE_HOURS, sumMeetingHours, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
+import { Icon } from '../shared/Icon.jsx';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function initials(name) {
@@ -29,7 +30,7 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t('rv.editTeam')}</span>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>×</button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
         </div>
 
         {/* Body */}
@@ -99,7 +100,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
               )}
             </span>
           </div>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>×</button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
         </div>
 
         {/* Body — 2-column grid */}
@@ -190,7 +191,7 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
       <div className="modal cap-card" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Meeting-Plan</span>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>×</button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
         </div>
         <div className="field">
           <label>Name</label>
@@ -215,7 +216,7 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
                 <option value="biweekly">14-tägl.</option>
                 <option value="monthly">monatl.</option>
               </select>
-              <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)} style={{ color: 'var(--re)', padding: '2px 6px' }}>×</button>
+              <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)} aria-label={t('delete')} style={{ color: 'var(--re)', padding: '2px 6px' }}><Icon name="x" size={11} /></button>
             </div>
           ))}
           <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
@@ -397,7 +398,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
               <option value="monthly">monatl.</option>
             </select>
             <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)}
-              style={{ padding: '2px 6px', color: 'var(--re)' }} title={t('rv.deleteMeeting')}>×</button>
+              style={{ padding: '2px 6px', color: 'var(--re)' }} title={t('rv.deleteMeeting')}><Icon name="x" size={11} /></button>
           </div>
         ))}
         <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
@@ -836,8 +837,8 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           </select>
           {(vacMember || vacYear) && (
             <button className="btn btn-ghost btn-xs" onClick={() => { setVacMember(''); setVacYear(''); }}
-              data-htip={t('rv.clearFilters')}
-              style={{ padding: '2px 7px', fontSize: 11 }}>×</button>
+              data-htip={t('rv.clearFilters')} aria-label={t('rv.clearFilters')}
+              style={{ padding: '2px 7px', fontSize: 11 }}><Icon name="x" size={11} /></button>
           )}
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
             {sortedVacs.length} / {fVacations.length}
@@ -972,7 +973,7 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t('rv.editVacation')}</span>
-          <button className="btn btn-ghost btn-xs" onClick={flushAndClose} title={t('rv.close')}>×</button>
+          <button className="btn btn-ghost btn-xs" onClick={flushAndClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
         </div>
         <div className="field">
           <label>{t('rv.person')}</label>
@@ -1063,8 +1064,8 @@ function CapChangesField({ member, onUpd, t }) {
                 value={typeof c.weeklyHours === 'number' ? c.weeklyHours : ''}
                 onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); const next = [...entries]; next[i] = { ...c, weeklyHours: v }; update(next); }}
                 style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
-              <button className="btn btn-ghost btn-xs" onClick={() => { update(entries.filter((_, j) => j !== i)); }}
-                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}>×</button>
+              <button className="btn btn-ghost btn-xs" onClick={() => { update(entries.filter((_, j) => j !== i)); }} aria-label={t('delete')}
+                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}><Icon name="x" size={11} /></button>
             </div>
           ))}
         </div>
@@ -1143,8 +1144,8 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
                   <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('rv.plansEmpty')}</span>
                 )}
               </div>
-              <button className="btn btn-ghost btn-xs" onClick={() => update(entries.filter((_, j) => j !== i))}
-                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}>×</button>
+              <button className="btn btn-ghost btn-xs" onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('delete')}
+                style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}><Icon name="x" size={11} /></button>
             </div>
           ))}
         </div>

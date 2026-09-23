@@ -29,6 +29,11 @@
   /* Back-compat aliases: old short names keep working, now sourced from the
      state tokens above so there is exactly one place that defines "green". */
   --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#b394c7;
+  /* "Changed since the date you are comparing against" — the diff marker in
+     the tree, the Gantt, the network and the timetable. It was a raw Tailwind
+     amber (#f59e0b) written out at eight separate places, so it sat a shade
+     off every other warm thing in the app and did not follow the theme. */
+  --diff:var(--st-wip);
   /* Three surfaces — ground / card / raised. Mapped onto the pre-existing bg
      ladder 1:1 so nothing shifts; only the concept ("what layer is this on")
      is new. Defined once here — the light block below overrides --bg/--bg2/
@@ -197,22 +202,51 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
    title on three lines. `max-width:0` is what lets an auto-layout table
    shrink the cell at all — without it the nowrap below just pushes the table
    wider than the pane. */
-.tree-tbl td[data-col="name"]{width:100%;max-width:0;}
+/* `max-width:0` keeps the name out of the table's intrinsic width so the
+   other columns size to their content and the name takes the rest. The floor
+   is what stops "the rest" from being nothing: below it the table scrolls
+   sideways, which is recoverable, instead of the names disappearing, which
+   is not. */
+.tree-tbl td[data-col="name"]{width:100%;max-width:0;min-width:180px;}
 .tree-tbl td[data-col="name"] .tn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
 
 /* Narrow panes drop columns in a fixed order rather than starving the name.
    Container queries, not media queries: inside the Obsidian plugin the
    window's width says nothing about how wide this view actually is — it can
-   be a third of a split. */
+   be a third of a split.
+
+   Two things were wrong and both were measured on a real plan.
+
+   The first step sat at 900px, which reads as generous and is not: in a
+   915px pane the name column got 283px — 31%, names cut after four words —
+   while seven narrow columns took the other 632. The date range alone claims
+   ~146px because it cannot wrap. It steps aside below 1080px now, and the
+   name goes to 429px, which is the widest thing on the row as it should be.
+
+   Worse, below about 560px the name column did not merely shrink, it
+   VANISHED: `width:100%` with `max-width:0` contributes nothing to the
+   table's intrinsic width, so once the other columns added up to more than
+   the pane, the remainder went negative and the name resolved to 51px of
+   ellipsis. The primary column was the narrowest one on screen. It has a
+   floor now, and the columns that are readouts rather than identity step
+   aside ahead of it. The row's own action buttons go too — every one of them
+   is on the toolbar above and on a key. */
 .tv-surface{container-type:inline-size;container-name:tv;}
-@container tv (max-width: 900px){
-  .tree-tbl td[data-col="schedule"],.tree-tbl th:nth-child(8){display:none;}
+@container tv (max-width: 1080px){
+  .tree-tbl td[data-col="schedule"],.tree-tbl th[data-col="schedule"]{display:none;}
 }
 @container tv (max-width: 740px){
-  .tree-tbl td[data-col="team"],.tree-tbl th:nth-child(3){display:none;}
+  .tree-tbl td[data-col="team"],.tree-tbl th[data-col="team"]{display:none;}
 }
 @container tv (max-width: 620px){
-  .tree-tbl td[data-col="signal"],.tree-tbl th:nth-child(5){display:none;}
+  .tree-tbl td[data-col="signal"],.tree-tbl th[data-col="signal"]{display:none;}
+}
+@container tv (max-width: 560px){
+  .tree-tbl td[data-col="progress"],.tree-tbl th[data-col="progress"]{display:none;}
+}
+@container tv (max-width: 470px){
+  .tree-tbl td[data-col="effort"],.tree-tbl th[data-col="effort"],
+  .tree-tbl td[data-col="acts"],.tree-tbl th[data-col="acts"]{display:none;}
 }
 .tn.l1{font-size:13px;font-weight:600;color:var(--tx);}
 .tn.l2{font-weight:500;color:var(--tx2);}
@@ -588,6 +622,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
   --st-open-ring:var(--b2);
   --st-done-soft:#e8f1ea;--st-wip-soft:#f7efe2;--st-risk-soft:#f7eae8;
   --gr:var(--st-done);--am:var(--st-wip);--re:var(--st-risk);--pu:#7a5c8c;
+  --diff:var(--st-wip);
   /* Spacing/type scale and --surf0/1/2 are not redeclared here: they resolve
      against this same element's --bg/--bg2/--bg3 (overridden above), so they
      already carry the correct light values without repeating them. */

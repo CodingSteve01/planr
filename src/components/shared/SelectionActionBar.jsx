@@ -1,4 +1,5 @@
 import { useT } from '../../i18n.jsx';
+import { Icon } from './Icon.jsx';
 
 // Floating action bar used by Gantt + Tree multi-select. Same styling +
 // position across views so the UX feels consistent. Caller passes children
@@ -20,7 +21,7 @@ export function SelectionActionBar({ count, onClear, children, testId = 'selecti
         onClick={onClear}
         data-testid={`${testId}-clear`}
         aria-label={t('g.clearSelectionTip')}
-        title={t('g.clearSelectionTip')}>×</button>
+        title={t('g.clearSelectionTip')}><Icon name="x" size={11} /></button>
     </div>
   );
 }
