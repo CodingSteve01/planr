@@ -1826,7 +1826,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       canMoveDone: isDoneTask,
       origCompletedStart: isDoneTask ? (node?.completedStart || node?.completedAt || node?.completedEnd || iso(s.startD)) : null,
       origCompletedEnd: isDoneTask ? (node?.completedEnd || node?.completedAt || node?.completedStart || iso(s.endD)) : null,
-      reorderMode: onReorderSibling ? 'tree' : null,
+      // Not in compact: there, vertical position says which LANE a bar is in
+      // — what else runs at the same time — and not where it sits in the
+      // order. Dragging up or down would look like a reorder and mean
+      // something the lanes cannot show. The gesture stays in the tree and
+      // the work order, where the order lives.
+      reorderMode: onReorderSibling && !compact ? 'tree' : null,
       lockVertical: row.type === 'summary',
       rowIdx: (rowIdx[s.id] ?? [])[0] ?? 0,
       lastDy: 0,

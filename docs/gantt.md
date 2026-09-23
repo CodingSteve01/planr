@@ -50,6 +50,14 @@ All vertical positions — the dependency arrows, the bar rectangles, both
 columns — go through one `rowLayout`, so the two modes cannot drift apart.
 Persisted in `localStorage['planr_gantt_compact']`.
 
+Dragging a bar sideways still pins it and the edge handles still resize it —
+those are pointer deltas and care nothing about rows. **Dragging a bar up or
+down to reorder is off in compact**: there the vertical axis says which *lane*
+a bar is in, which is what else runs at the same time, not where it sits in the
+order. The gesture would look like a reorder and mean something the lanes
+cannot show, so it stays in the tree and the work order, where the order
+lives.
+
 ## Zoom
 
 Pixels-per-week (`WPX`) drives the horizontal density. Controls live in the **footer**, left side:
