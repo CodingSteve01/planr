@@ -67,7 +67,13 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--b3);border-radius:3px;}
-.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+/* 100% of whatever contains it, not of the viewport. html/body/#root are all
+   height:100% above, so this is identical on the web — and correct inside a
+   host that is not the window. In an Obsidian leaf, 100vh made the app taller
+   than the pane holding it, so the pane scrolled AND the view inside it
+   scrolled: two scrollbars for one list. min-height:0 lets the flex children
+   shrink instead of pushing the column past its box. */
+.app{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;}
 /* One row, always. It used to `flex-wrap: wrap`, and the save status
    rewrites its own text every few seconds ("saving…" → "all saved · 14:32"
    → "unsaved · saving in 3s"), so on a narrow window the whole header kept

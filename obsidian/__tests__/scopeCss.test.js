@@ -121,3 +121,27 @@ describe('container queries', () => {
     });
   });
 });
+
+// ── The app fills its host, not the window ─────────────────────────────────
+// Reported: "somehow I could scroll the whole page and then the tree inside it
+// again". Two scrollbars for one list. `.app` asked for `height: 100vh`, and a
+// workspace leaf is not the viewport — so inside a pane shorter than the
+// window the app stood taller than the box holding it, and both scrolled.
+//
+// html, body and #root are all height:100% in the same stylesheet, so asking
+// for 100% of the container is identical on the web and correct everywhere
+// else.
+describe('the app sizes itself to whatever contains it', () => {
+  const css = readFileSync(path.join(repo, 'src/App.css'), 'utf8');
+
+  it('does not pin the shell to the viewport height', () => {
+    const rule = /\.app\{[^}]*\}/.exec(css);
+    expect(rule, 'no .app rule in App.css').toBeTruthy();
+    expect(rule[0]).not.toMatch(/height:\s*100vh/);
+    expect(rule[0]).toMatch(/height:\s*100%/);
+  });
+
+  it('still has a height to fill — the chain above it is unbroken', () => {
+    expect(css).toMatch(/html,\s*body,\s*#root\{[^}]*height:\s*100%/);
+  });
+});

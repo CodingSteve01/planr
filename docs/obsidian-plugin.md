@@ -99,6 +99,13 @@ Four files carry all of it:
   file-menu entry, redirects a plan note away from the Markdown editor, and
   hands each view the container its own modals and dropdowns portal into.
 
+  The app sizes itself to its container, not to the window. `.app` asked for
+  `height: 100vh`, and a workspace leaf is not the viewport — inside a pane
+  shorter than the window the app stood taller than the box holding it, so the
+  pane scrolled and the view inside it scrolled too: two scrollbars for one
+  list. `html`, `body` and `#root` are all `height: 100%` in the same
+  stylesheet, so `100%` is identical on the web and correct in a host.
+
   `canAcceptExtension` answers for `.planr` and nothing else. Obsidian keeps
   the current view whenever it can accept the new file's extension, so while
   this also answered yes to `md` and `json`, opening an ordinary note with a
