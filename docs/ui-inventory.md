@@ -119,7 +119,8 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Grouping: Project/Team/Resource/Thread | Sets groupBy, changes row structure (persisted in localStorage) | src/components/views/GanttView.jsx:2180 | Plan | 1 | |
-| Load-heatmap toggle | Toggles showLoadHeatmap (localStorage) | src/components/views/GanttView.jsx:2189 | Plan | 1 | |
+| Compact/classic rows toggle | Packs each group's bars into lanes instead of one row per task (localStorage `planr_gantt_compact`) | src/components/views/GanttView.jsx | Plan | 1 | see gantt.md "Rows: classic and compact" |
+| Load-heatmap toggle | Toggles showLoadHeatmap (localStorage) | src/components/views/GanttView.jsx | Plan | 1 | its tooltip carries the overload summary; that used to be a badge of its own in the pill row |
 | "Expand all" | Clears collapsedByMode | src/components/views/GanttView.jsx:2205 | Plan | 1 | |
 | "Collapse all" | Sets collapsedByMode to every key | src/components/views/GanttView.jsx:2206 | Plan | 1 | |
 | Group row expand/collapse (▶/▼) | Toggles collapse of a group | src/components/views/GanttView.jsx:2262 | Plan | 1 | |

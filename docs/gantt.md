@@ -11,7 +11,44 @@ Top-left toolbar offers four modes:
 - **Team** — grouped by team only
 - **Person** — grouped by assignee (unassigned goes last)
 
-The selection is persisted in `localStorage` (`planr_gantt_group`). Collapse individual groups via the `▼` caret or use the `▶`/`▼` buttons to collapse/expand all.
+The selection is persisted in `localStorage` (`planr_gantt_group`). Collapse individual groups via the caret or use the collapse/expand-all buttons.
+
+## Rows: classic and compact
+
+Beside the grouping pills sits a second choice, because it answers a related
+question — the pills say what a row *is*, this says how many rows there are.
+
+**Classic** (default, nothing changes for anyone who has not asked) gives every
+task its own row, named in the left column. It is the honest shape and it is
+what makes a real plan unreadable: on a 200-task plan it is two hundred rows,
+each carrying one short bar a little further right than the one above — a
+staircase down an otherwise empty canvas. The question a schedule exists to
+answer, *what runs when and what runs at the same time*, is the one thing that
+shape cannot show.
+
+**Compact** lays each group's bars out the way a line of text lays out words:
+left to right in plan order, into the first lane where the bar fits, opening a
+new lane underneath only where two of them genuinely overlap. A group is then
+exactly as tall as its busiest moment. Measured on a real 204-task plan: 52
+lanes instead of 204 rows, and the chart 2286px tall instead of 7102.
+
+- A lane fits a bar when the bar does not **overlap** the last one in it — no
+  clearance on top of that. Two tasks the scheduler ran back to back end and
+  start at the same x, so any positive gutter pushed the second onto a lane of
+  its own and re-drew the staircase inside the compact mode. The bars are
+  already inset 2px each side, which is the gap the eye needs.
+- Group and summary rows keep a row of their own and reset the lanes, so each
+  package packs within its own container — the structure survives.
+- A task with no bar (unestimated, or finished without dates) takes no lane:
+  there is nothing to pack and nothing to read.
+- The **left column drops its per-task rows**, because a lane holds several
+  tasks and one label per task would name rows that no longer correspond to
+  them. The names live on the bars and in the tooltip; the group and summary
+  rows stay, each as tall as the lanes beneath it so the two columns line up.
+
+All vertical positions — the dependency arrows, the bar rectangles, both
+columns — go through one `rowLayout`, so the two modes cannot drift apart.
+Persisted in `localStorage['planr_gantt_compact']`.
 
 ## Zoom
 
@@ -130,11 +167,12 @@ The search field in the sub-toolbar (top right, shared across Tree / Gantt / Net
 
 ## Vacation overlays
 
-Every task row shows hatched stripe overlays for any vacation periods of its assignees — regardless of the active grouping mode (Project, Team, Person, or Project › Team).
+Every task row marks any vacation period of its assignees — regardless of the active grouping mode (Project, Team, Person, or Project › Team).
 
-- Stripe pattern: `repeating-linear-gradient(45deg, …)` at `rgba(127,127,127,.28)` with thin left/right edge borders (`rgba(255,255,255,.12)`) so vacation block edges are visible against any bar color.
-- When a task has **one assignee**, the full row height is used and a "Vacation"/"Urlaub" label appears on blocks wide enough to hold it.
-- When a task has **multiple assignees**, the row is split into equal horizontal bands (one per person with at least one vacation block). Each band shows the person's first name as a label. Hover each band's tooltip to see the full person name and date range.
+**As a strip along the row's baseline, never a wash across it.** It used to be an amber block at the full row height, drawn on every task row of the person away: one week off across a hundred rows painted a hundred blocks, and the chart read as if somebody had gone over it with a highlighter. The week is the same week whichever row you read it on, so it says so once per row, 3px tall, in `--st-wip`. Load follows the same rule and sits at the very bottom; absence stacks directly above it, so the two read together instead of overwriting each other.
+
+- Two people away on the same task get two strips, one above the other (`lane` counted from the baseline up) rather than the row split into bands.
+- Hover for the person and the dates; the strip is too small to label.
 - Tooltip (`data-htip`): `PersonName · Vacation: YYYY-MM-DD → YYYY-MM-DD [· note]`
 - `vacByPerson` is built once per render via `useMemo` — each row only looks up the IDs of its own assignees, so performance does not degrade with many rows.
 
