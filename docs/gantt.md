@@ -46,9 +46,17 @@ back as a terrace.
   start at the same x, so any positive gutter pushed the second onto a lane of
   its own and re-drew the staircase inside the compact mode. The bars are
   already inset 2px each side, which is the gap the eye needs.
-- A work package is not a row here. Its bar is the union of its children's and
-  would overlap every one of them, so it would take a lane of its own in every
-  group and say nothing the children do not.
+- An **open** work package is not a row here. Its bar is the union of its
+  children's and would overlap every one of them, so it would take a lane of
+  its own in every group and say nothing the children do not.
+- A **folded** one is the opposite case and gets a row: its children are not
+  drawn at all, so its bar is the only thing left standing for them, and it
+  needs a name and the chevron that opens it again. Hiding it whether open or
+  shut made a folded package with two hundred items under it vanish from the
+  chart, with no way to get it back but "expand all".
+- Folding an *individual* package is therefore a gesture of the classic view
+  (the collapsed set is shared between the two, so it carries over); compact
+  offers the container carets and the two expand/collapse-all buttons.
 - A task with no bar (unestimated, or finished without dates) takes no lane:
   there is nothing to pack and nothing to read.
 - The **left column keeps only the container rows**, because a lane holds

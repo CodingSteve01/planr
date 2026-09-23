@@ -998,7 +998,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     const lanes = new Array(visibleRows.length).fill(0);
     const groupBottom = () => laneTop + laneEnds.length * RH;
     visibleRows.forEach((row, i) => {
-      const isContainer = row.type !== 'task' && (rowDepth.get(row) ?? 0) === 0;
+      // What gets a row of its own: the grouping's containers, and anything
+      // FOLDED. A folded package is one thing now — so it is one row, with a
+      // name in the left column and the chevron that opens it again. Without
+      // that it was a bar on a lane with no label and no way back.
+      const folded = row.type !== 'task'
+        && !!row.children?.length
+        && collapsed.has(row.collapseKey || row.key);
+      const isContainer = row.type !== 'task' && ((rowDepth.get(row) ?? 0) === 0 || folded);
       if (isContainer) {
         const y = groupBottom();
         tops[i] = y;
@@ -1006,9 +1013,14 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         laneEnds = [];
         return;
       }
-      // A work package inside a group is not a row here — its bar is the union
-      // of its children's and would overlap every one of them, taking a lane
-      // of its own on every group.
+      // A work package inside a group is not a row here — its bar is the
+      // union of its children's and would overlap every one of them, taking a
+      // lane of its own on every group.
+      //
+      // Unless it is folded, which is handled above: its children are not
+      // drawn at all, so its own bar is the only thing standing for them, and
+      // hiding it made a folded package with two hundred items under it
+      // vanish from the chart.
       if (row.type !== 'task') { tops[i] = laneTop; lanes[i] = -1; return; }
       const span = spanOf(row);
       if (!span) { tops[i] = laneTop; lanes[i] = -1; return; }
@@ -1019,7 +1031,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       tops[i] = laneTop + lane * RH;
     });
     return { tops, height: Math.max(groupBottom(), RH), lanes };
-  }, [visibleRows, rowDepth, compact, WPX, DPX, zoom, weeks]);
+  }, [visibleRows, rowDepth, collapsed, compact, WPX, DPX, zoom, weeks]);
   const rowTop = rowIndex => rowLayout.tops[rowIndex] ?? rowIndex * RH;
   // A task row that took no lane draws nothing in compact mode — it has no
   // bar, so a bordered empty strip would only sit on top of lane 0.
@@ -2374,7 +2386,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           // work packages between them do not: several of them share a lane,
           // and a label per task would name rows that no longer correspond to
           // them. The names live on the bars there.
-          if (compact && (row.type === 'task' || (rowDepth.get(row) ?? 0) > 0)) return null;
+          const _folded = row.type !== 'task' && !!row.children?.length
+            && collapsed.has(row.collapseKey || row.key);
+          if (compact && (row.type === 'task' || ((rowDepth.get(row) ?? 0) > 0 && !_folded))) return null;
           const _el = (() => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
@@ -2484,7 +2498,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           // whose top is the top of the group's lane area — so the block was
           // one row tall, every label after it slid up, and the two columns
           // came apart by a little more with each group.
-          const _hidden = r => r.type === 'task' || (rowDepth.get(r) ?? 0) > 0;
+          const _hidden = r => r.type === 'task'
+            || ((rowDepth.get(r) ?? 0) > 0
+              && !(r.type !== 'task' && !!r.children?.length && collapsed.has(r.collapseKey || r.key)));
           let _next = _ri + 1;
           while (_next < visibleRows.length && _hidden(visibleRows[_next])) _next++;
           const _h = (_next < visibleRows.length ? rowLayout.tops[_next] : rowLayout.height) - rowLayout.tops[_ri];

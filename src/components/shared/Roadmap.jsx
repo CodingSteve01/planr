@@ -12,9 +12,6 @@ const ZOOM_KEY = 'planr_roadmap_zoom';
 const ZOOM_MAX = 4;
 const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
 const ZOOM_BTN = { padding: '2px 7px', fontSize: 10 };   // same shape as the Gantt footer's zoom group
-// How far the map starts below the top of its box, so the floating zoom group
-// has somewhere to sit that is not on top of the first line.
-const ZOOM_CLEARANCE = 34;
 const nextStep = current => ZOOM_STEPS.find(step => step > current + 1e-6) ?? ZOOM_MAX;
 const prevStep = current => [...ZOOM_STEPS].reverse().find(step => step < current - 1e-6) ?? 1;
 
@@ -348,13 +345,16 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
     <div ref={ref} style={{ marginBottom: 20, position: 'relative' }}
       onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>
       <style>{`.rm-legend-item:hover{background:var(--bg3,#232830)}`}</style>
-      {/* Over the map's top-right corner rather than in the already-busy
-          Overview toolbar — hence its own background, or it would be
-          unreadable over a panned map. It sat ON the first line's terminus
-          badge, though, which is the one bit of the map you cannot move: the
-          map now starts below the controls (see ZOOM_CLEARANCE), so nothing
-          is hidden and the row still costs nothing of its own. */}
-      <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 4, alignItems: 'center',
+      {/* Above the map, not on it.
+          It floated over the top-right corner to cost no vertical space, and
+          sat on the first line's terminus badge. Padding the canvas out from
+          under it looked like a fix and was not: the SVG scales with the
+          pane's width and the control does not, so the clearance that holds
+          at one width closes at another, and the collision came back on a
+          narrower window. In flow it cannot collide at any width, and the row
+          it costs is one row. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+      <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center',
         background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '3px 5px' }}
         data-htip={t('rm.zoomInTip')}>
         <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
@@ -374,14 +374,15 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
             data-htip={t('rm.zoomFitTip')} onClick={() => applyZoom(1)}>{t('rm.zoomFit')}</button>
         </>}
       </div>
+      </div>
       <div ref={scrollRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         style={zoomed
-          ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain', touchAction: 'none', paddingTop: ZOOM_CLEARANCE }
-          : { overflow: 'visible', paddingTop: ZOOM_CLEARANCE }}>
+          ? { overflow: 'auto', maxHeight: 'min(78vh, 860px)', cursor: 'grab', overscrollBehaviorX: 'contain', touchAction: 'none' }
+          : { overflow: 'visible' }}>
         <SvgMarkup markup={svg} style={zoomed ? { width: `${zoom * 100}%`, minWidth: '100%' } : undefined} />
       </div>
       {itemTip && <Tip item={itemTip.item} x={itemTip.x} y={itemTip.y}

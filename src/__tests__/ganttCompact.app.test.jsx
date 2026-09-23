@@ -214,3 +214,69 @@ describe('a dependency line ends on a bar', () => {
     expect(depLines()).toHaveLength(0);
   });
 });
+
+
+// Folding, in a view where a row is a lane.
+//
+// Reported from the project grouping: collapsing does not seem to work, and
+// the work packages have no bars. Both were the same rule read too widely — a
+// container below the grouping was hidden whether it was open or shut. Open,
+// that is right: its children are on the lanes and its own bar would overlap
+// every one of them. Shut, its children are not drawn AT ALL, so its bar is
+// the only thing left standing for them, and hiding it made a folded package
+// with two hundred items under it vanish from the chart.
+describe('a folded package in compact', () => {
+  afterEach(() => { cleanup(); localStorage.clear(); });
+
+  const seedNested = () => {
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'Paket eins', status: 'wip', team: 'T1' },
+        { id: 'A.1.1', name: 'a', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.1.2', name: 'b', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'Paket zwei', status: 'wip', team: 'T1' },
+        { id: 'A.2.1', name: 'c', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Folding', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }));
+  };
+
+  const labelRows = () => [...document.querySelectorAll('.gantt-left .grow-l, .gantt-left .gteam')]
+    .map(el => el.textContent.trim());
+
+  it('hides a package that is open, because its children are the content', async () => {
+    setup(seedNested);
+    await openGantt();
+    await act(async () => { fireEvent.click(compactToggle()); });
+    await waitFor(() => { if (!taskRowTops().some(Boolean)) throw new Error('not packed'); });
+    // The project keeps its row; the two packages do not.
+    expect(labelRows().some(text => /Projekt A/.test(text))).toBe(true);
+    expect(labelRows().some(text => /Paket eins/.test(text))).toBe(false);
+  });
+
+  it('keeps a package that is shut — with its bar, its name and its chevron', async () => {
+    setup(seedNested);
+    await openGantt();
+    // Fold one package while still in classic, where it has a row to click.
+    const pkgRow = [...document.querySelectorAll('.gantt-left .grow-l')]
+      .find(row => /Paket eins/.test(row.textContent) && row.querySelector('button[aria-label]'));
+    expect(pkgRow, 'no package row to fold').toBeTruthy();
+    await act(async () => { fireEvent.click(pkgRow.querySelector('button[aria-label]')); });
+    await act(async () => { fireEvent.click(compactToggle()); });
+    await waitFor(() => { if (!taskRowTops().some(Boolean)) throw new Error('not packed'); });
+
+    // It is one thing now, so it is one row — named, and with the caret that
+    // opens it again. Without that it was a bar with no label and no way back.
+    const folded = [...document.querySelectorAll('.gantt-left .grow-l')]
+      .find(row => /Paket eins/.test(row.textContent));
+    expect(folded, 'the folded package lost its row').toBeTruthy();
+    expect(folded.querySelector('button[aria-label]'), 'no way to unfold it').toBeTruthy();
+    // …and it still draws something in the chart.
+    const bars = [...document.querySelectorAll('[data-row-type="summary"] .gbar')];
+    expect(bars.length).toBeGreaterThan(0);
+  });
+});
