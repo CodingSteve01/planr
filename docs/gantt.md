@@ -32,19 +32,29 @@ new lane underneath only where two of them genuinely overlap. A group is then
 exactly as tall as its busiest moment. Measured on a real 204-task plan: 52
 lanes instead of 204 rows, and the chart 2286px tall instead of 7102.
 
+**A row there is the grouping's own container** — the project, the team, the
+person, the thread, whichever the pills chose — and nothing below it. The pills
+already answer "per what"; compact takes them at their word. The first version
+kept the work-package rows as well, each resetting the lanes, which is the
+hierarchy back under another name: a package with two tasks still cost a header
+row plus a lane, packages packed separately instead of together, and a group
+whose work was filtered out kept a stack of empty headers. The staircase came
+back as a terrace.
+
 - A lane fits a bar when the bar does not **overlap** the last one in it — no
   clearance on top of that. Two tasks the scheduler ran back to back end and
   start at the same x, so any positive gutter pushed the second onto a lane of
   its own and re-drew the staircase inside the compact mode. The bars are
   already inset 2px each side, which is the gap the eye needs.
-- Group and summary rows keep a row of their own and reset the lanes, so each
-  package packs within its own container — the structure survives.
+- A work package is not a row here. Its bar is the union of its children's and
+  would overlap every one of them, so it would take a lane of its own in every
+  group and say nothing the children do not.
 - A task with no bar (unestimated, or finished without dates) takes no lane:
   there is nothing to pack and nothing to read.
-- The **left column drops its per-task rows**, because a lane holds several
-  tasks and one label per task would name rows that no longer correspond to
-  them. The names live on the bars and in the tooltip; the group and summary
-  rows stay, each as tall as the lanes beneath it so the two columns line up.
+- The **left column keeps only the container rows**, because a lane holds
+  several tasks and one label per task would name rows that no longer
+  correspond to them. The names live on the bars and in the tooltip; each
+  container is as tall as the lanes beneath it, so the two columns line up.
 
 All vertical positions — the dependency arrows, the bar rectangles, both
 columns — go through one `rowLayout`, so the two modes cannot drift apart.
@@ -177,10 +187,13 @@ The search field in the sub-toolbar (top right, shared across Tree / Gantt / Net
 
 Every task row marks any vacation period of its assignees — regardless of the active grouping mode (Project, Team, Person, or Project › Team).
 
-**As a strip along the row's baseline, never a wash across it.** It used to be an amber block at the full row height, drawn on every task row of the person away: one week off across a hundred rows painted a hundred blocks, and the chart read as if somebody had gone over it with a highlighter. The week is the same week whichever row you read it on, so it says so once per row, 3px tall, in `--st-wip`. Load follows the same rule and sits at the very bottom; absence stacks directly above it, so the two read together instead of overwriting each other.
+**One line under the work package, and nowhere else.** Two earlier shapes were wrong in the same direction. It began as an amber block at the full row height drawn on every task row of the person away — one week off across a hundred rows painted a hundred blocks, and the chart read as if somebody had gone over it with a highlighter. Making it a strip along the whole ROW fixed the wash and left the other half: a week the task has nothing to do with became a loose line floating in the row's empty half, and in compact, where several tasks share a lane, those lines piled onto each other.
 
-- Two people away on the same task get two strips, one above the other (`lane` counted from the baseline up) rather than the row split into bands.
-- Hover for the person and the dates; the strip is too small to label.
+So both absence and load are drawn **inside the bar**, clipped to it, 3px on its foot: load at the very bottom, absence stacked directly above when both are on. That answers the question they are there for — what the load was while the work was happening, and why five days of work span three weeks — and nothing else competes for the row.
+
+- Two people away on the same task get two lines, one above the other.
+- Hover for the person and the dates; the line is too small to label.
+- The row-wide reading still exists where a row genuinely **is** a person: the resource group header keeps its own week-by-week strip.
 - Tooltip (`data-htip`): `PersonName · Vacation: YYYY-MM-DD → YYYY-MM-DD [· note]`
 - `vacByPerson` is built once per render via `useMemo` — each row only looks up the IDs of its own assignees, so performance does not degrade with many rows.
 

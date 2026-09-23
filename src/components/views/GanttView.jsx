@@ -865,17 +865,23 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     setTip(null);
     setCollapsedByMode(prev => ({ ...prev, [groupBy]: [] }));
   };
-  const rows = useMemo(() => {
+  // Each row also carries how deep it sits in the grouping, because compact
+  // needs to know which rows ARE the grouping: there a row is a lane, and the
+  // only things that still own one are the outermost containers — the project,
+  // the team, the person, the thread, whichever the pills chose.
+  const { rows, rowDepth } = useMemo(() => {
     const out = [];
-    const visit = row => {
+    const depth = new Map();
+    const visit = (row, d) => {
       out.push(row);
+      depth.set(row, d);
       if (!row.children?.length) return;
       const collapseKey = row.collapseKey || row.key;
       if (collapsed.has(collapseKey)) return;
-      row.children.forEach(visit);
+      row.children.forEach(child => visit(child, d + 1));
     };
-    structure.nodes.forEach(visit);
-    return out;
+    structure.nodes.forEach(node => visit(node, 0));
+    return { rows: out, rowDepth: depth };
   }, [structure, collapsed]);
   const cpNodeSet = useMemo(() => new Set(cpSet || []), [cpSet]);
   const cpRowMeta = useMemo(() => {
@@ -977,18 +983,33 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
       return { left, right: Math.max(right, left + 6) };
     };
+    // What a row IS in compact: the grouping's own containers, and nothing
+    // else. The pills already answer "per project / per team / per person /
+    // per thread"; compact takes them at their word and gives a row to those
+    // and to nobody below them.
+    //
+    // My first attempt kept the work-package rows too, each resetting the
+    // lanes. That is the hierarchy again by another name: a package with two
+    // tasks still cost a header row plus a lane, packages packed separately
+    // instead of together, and a group whose work was all filtered out kept a
+    // stack of empty headers. The staircase came back as a terrace.
     let laneTop = 0;
     let laneEnds = [];
     const lanes = new Array(visibleRows.length).fill(0);
     const groupBottom = () => laneTop + laneEnds.length * RH;
     visibleRows.forEach((row, i) => {
-      if (row.type !== 'task') {
+      const isContainer = row.type !== 'task' && (rowDepth.get(row) ?? 0) === 0;
+      if (isContainer) {
         const y = groupBottom();
         tops[i] = y;
         laneTop = y + RH;
         laneEnds = [];
         return;
       }
+      // A work package inside a group is not a row here — its bar is the union
+      // of its children's and would overlap every one of them, taking a lane
+      // of its own on every group.
+      if (row.type !== 'task') { tops[i] = laneTop; lanes[i] = -1; return; }
       const span = spanOf(row);
       if (!span) { tops[i] = laneTop; lanes[i] = -1; return; }
       let lane = laneEnds.findIndex(end => end <= span.left + LANE_EPS);
@@ -998,7 +1019,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       tops[i] = laneTop + lane * RH;
     });
     return { tops, height: Math.max(groupBottom(), RH), lanes };
-  }, [visibleRows, compact, WPX, DPX, zoom, weeks]);
+  }, [visibleRows, rowDepth, compact, WPX, DPX, zoom, weeks]);
   const rowTop = rowIndex => rowLayout.tops[rowIndex] ?? rowIndex * RH;
   // A task row that took no lane draws nothing in compact mode — it has no
   // bar, so a bordered empty strip would only sit on top of lane 0.
@@ -2332,11 +2353,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
         <div style={{ position: 'sticky', top: 0, zIndex: 8, height: FLAG_ROW_H, borderBottom: '1px solid var(--b)', background: 'var(--bg)' }} />
         {(() => { let _taskIdx = 0; return visibleRows.map((row, _ri) => {
-          // Compact packs several tasks onto one lane, so a per-task label row
-          // has nowhere to go — the names live on the bars there. The group
-          // and summary rows stay, and each takes the full height of the lanes
-          // packed beneath it, so the two columns still line up.
-          if (compact && row.type === 'task') return null;
+          // In compact a row is a lane, so the only things that still own one
+          // are the grouping's own containers — the project, the team, the
+          // person, the thread, whichever the pills chose. Task rows and the
+          // work packages between them do not: several of them share a lane,
+          // and a label per task would name rows that no longer correspond to
+          // them. The names live on the bars there.
+          if (compact && (row.type === 'task' || (rowDepth.get(row) ?? 0) > 0)) return null;
           const _el = (() => {
           if (row.type === 'group') {
             const isCol = collapsed.has(row.collapseKey || row.key);
@@ -2761,26 +2784,15 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   textShadow: 'none',
                 };
             return <div key={rowKey} className="grow-r" style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)', opacity: dim ? .2 : searchDimmed ? .25 : 1, background: isHov ? 'rgba(127,127,127,.10)' : isHovDep ? 'rgba(127,127,127,.05)' : '' }}>
-              {/* Load is a STRIP under the row, not a wash behind it.
-                  Shading the whole row height put a coloured block behind
-                  every bar it touched, so the two competed for the same
-                  pixels and neither read — which is the opposite of what a
-                  load overlay is for. A 3px line along the row's baseline
-                  carries the same week-by-week reading, in the same colours,
-                  and leaves the bar alone. */}
-              {loadCells.map(cell => (
-                <div key={`row-load-${cell.wi}`} style={{
-                  position: 'absolute',
-                  left: barLeft + cell.left,
-                  bottom: 0,
-                  width: cell.width,
-                  height: 3,
-                  background: loadHeatStroke(cell.percent, cell),
-                  opacity: .9,
-                  pointerEvents: 'none',
-                  zIndex: 0,
-                }} />
-              ))}
+              {/* Load sits UNDER THE BAR and nowhere else — see the bar's own
+                  strip below. It was drawn across the row as well, which is
+                  how a week the task has nothing to do with ended up as a
+                  loose line floating in the row's empty half; in compact,
+                  where several tasks share a lane, those lines piled onto each
+                  other and read as noise. One line under the work package says
+                  what the load was while the work was happening, which is the
+                  question. The row-wide reading still exists where a row IS a
+                  person: the resource group header. */}
               {/* Idle-wait gap: hatched amber band from when the assignee was
                   prev free → this task's start. Visualises why the bar sits
                   far in the future (waiting for a dep). Only when gap > ~5d
@@ -2807,28 +2819,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     pointerEvents: 'auto', zIndex: 1,
                   }} />;
               })()}
-              {/* Absence — the same rule as load, and for the same reason.
-                  It was an amber wash over the FULL row height, drawn on
-                  every task row of the person away: one holiday across a
-                  hundred rows painted a hundred blocks, and the chart read as
-                  if somebody had gone over it with a highlighter. The week is
-                  the same week whichever row you read it on, so it says so
-                  once per row, as a strip — above the load strip when that is
-                  on, so the two stack rather than overwrite. */}
-              {!isSummary && (() => {
-                const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
-                if (!bands.length) return null;
-                const base = loadCells.length ? 4 : 0;
-                return bands.map(band => {
-                  return <div key={band.key} style={{
-                    position: 'absolute', left: band.x1, width: band.width,
-                    bottom: base + band.lane * 4, height: 3,
-                    background: 'var(--st-wip)',
-                    opacity: .85,
-                    zIndex: 2, pointerEvents: 'none',
-                  }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />;
-                });
-              })()}
+              {/* Absence is drawn under the bar as well, and only where it
+                  falls INSIDE it: a holiday two months after this task says
+                  nothing about this task, and drawn across the row it was one
+                  more loose line. Inside the bar it answers the question it is
+                  there for — why five days of work span three weeks. */}
               {bW > 0 && sinceDate && (_diffDoneSet.has(s.id) || _diffProgSet.has(s.id)) && (
                 <div data-htip={_diffDoneSet.has(s.id) ? t('diff.tipDone') : t('diff.tipNew')}
                   style={{ position: 'absolute', left: barLeft - 2, top: (isSummary ? 6 : 4) - 2,
@@ -3002,6 +2997,31 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     }} />
                   ))}
                 </div>}
+                {/* Absence, clipped to the bar and stacked over the load line
+                    when both are on. Two people away get two lines. */}
+                {!isSummary && (() => {
+                  const bands = vacBandsByTaskId[s.id] || EMPTY_ARR;
+                  if (!bands.length) return null;
+                  const base = loadCells.length ? 4 : 0;
+                  const clipped = bands
+                    .map(band => {
+                      const left = Math.max(0, band.x1 - barLeft);
+                      const right = Math.min(Math.max(bW, 6), band.x1 + band.width - barLeft);
+                      return right - left > 1 ? { band, left, width: right - left } : null;
+                    })
+                    .filter(Boolean);
+                  if (!clipped.length) return null;
+                  return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: isSummary ? 5 : 4, overflow: 'hidden' }}>
+                    {clipped.map(({ band, left, width }) => (
+                      <div key={band.key} style={{
+                        position: 'absolute', left, width,
+                        bottom: base + band.lane * 4, height: 3,
+                        background: 'var(--st-wip)',
+                        pointerEvents: 'auto',
+                      }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />
+                    ))}
+                  </div>;
+                })()}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
                   {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
                   {/* Priority is not drawn on a bar. It is an INPUT to the
