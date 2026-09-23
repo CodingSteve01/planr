@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { Icon } from './components/shared/Icon.jsx';
 import { flushSync } from 'react-dom';
-import { SK } from './constants.js';
+import { SK, GT_MARKS } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
@@ -1207,11 +1207,20 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       let progress = null;
       const prgM = raw.match(/(\d+)%/);
       if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
-      // Type emoji (decideBy ! has already been removed, so no false positive)
+      // Root type marker. GT_MARKS lists every form a saved plan may carry,
+      // newest first. Whichever one is found is removed from the name —
+      // leaving one behind is how a project ended up actually named after the
+      // marker for its own type.
+      // (decideBy's marker has already been removed, so no false positive.)
       let type = '';
-      if (raw.includes('!')) { type = 'deadline'; raw = raw.replace('!', '').trim(); }
-      else if (raw.includes('⚡')) { type = 'painpoint'; raw = raw.replace('⚡', '').trim(); }
-      else if (raw.includes('🎯')) { type = 'goal'; raw = raw.replace('🎯', '').trim(); }
+      for (const [tp, marks] of [['deadline', GT_MARKS.deadline], ['painpoint', GT_MARKS.painpoint], ['goal', GT_MARKS.goal]]) {
+        const hit = marks.find(mk => raw.includes(mk));
+        if (!hit) continue;
+        type = tp;
+        marks.forEach(mk => { raw = raw.split(mk).join(' '); });
+        raw = raw.replace(/\s{2,}/g, ' ').trim();
+        break;
+      }
       // Date
       let date = '';
       const dateM = raw.match(/\((\d{4}-\d{2}-\d{2})\)/);
@@ -1593,6 +1602,22 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   useEffect(() => {
     if (personFilter && !members.some(m => m.id === personFilter)) setPersonFilter('');
   }, [members, personFilter]);
+  // Repair names the markdown round trip damaged. buildMarkdownText wrote the
+  // root's type as an emoji while parseMdToProject looked for a different
+  // marker, so every save-then-load moved the emoji from the type field into
+  // the NAME and left it there. Both sides agree now; this clears what the
+  // disagreement already wrote into saved plans. Runs once, and only when
+  // there is something to clear.
+  useEffect(() => {
+    const MARKS = Object.values(GT_MARKS).flat().filter(mk => mk !== '!');
+    const clean = n => MARKS.reduce((acc, mk) => acc.split(mk).join(' '), String(n || ''))
+      .replace(/\s{2,}/g, ' ').trim();
+    const dirty = tree.filter(r => !String(r.id).includes('.') && clean(r.name) !== r.name);
+    if (!dirty.length) return;
+    const ids = new Set(dirty.map(r => r.id));
+    setData(d => ({ ...d, tree: d.tree.map(r => ids.has(r.id) ? { ...r, name: clean(r.name) } : r) }));
+  }, []);
+
   // Backward compat: migrate old deadlines[] into tree roots
   useEffect(() => {
     if (!data?.deadlines?.length) return;
@@ -3432,7 +3457,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           type="button"
           data-testid="backdate-clear"
           aria-label={_t('bd.clear')}
-          onClick={() => setBackdate('')} aria-label={_t('p.clear')}
+          onClick={() => setBackdate('')}
           style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}
         ><Icon name="x" size={11} /></button>
       </span>}

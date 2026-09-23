@@ -56,7 +56,9 @@ export function buildReportModel(rawCtx) {
     if (!de || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return v || '—';
     return v.slice(8, 10) + '.' + v.slice(5, 7) + '.' + v.slice(0, 4);
   };
-  const GT = { goal: '🎯', painpoint: '⚡', deadline: '⏰' };
+  // Printed on white, so a word beats a symbol: the emoji came out of whatever
+  // font the printer had and at whatever size that font chose.
+  const GT = { goal: t('Goal', 'Ziel'), painpoint: t('Painpoint', 'Painpoint'), deadline: t('Deadline', 'Termin') };
 
   // ── Compute all metrics from SCHEDULED data (real scheduler output) ─────
   const done = lvs.filter(r => r.status === 'done').length;

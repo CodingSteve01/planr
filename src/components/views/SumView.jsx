@@ -454,7 +454,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
         return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type]} size={13} /></span>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type] || 'folder'} size={13} /></span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
             {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
             {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
@@ -475,13 +475,23 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               {timeline.deadline && <span data-htip={iso(timeline.deadline.start) + ' → ' + iso(timeline.deadline.end)}>{t('qe.affectsDeadline')}: {horizonLabel(timeline.deadline.start, null, isDe, now)} → {horizonLabel(timeline.deadline.end, null, isDe, now)}</span>}
             </div>
           )}
-          {gp && <>
+          {/* The progress block hung off goalPaths, which is only built for
+              TYPED roots — so an ordinary project showed its name and a date
+              and nothing else, while a goal beside it showed a bar, a count
+              and its critical items. The figures never needed goalPaths:
+              goalLeaves is derived from the live tree either way. Only the
+              critical-item chips do. */}
+          {gpTotal > 0 && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
-              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp.critical.size)}</span>
+              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp?.critical.size || 0)}</span>
               <span data-htip={t('s.progressTip', progressPctLabel(gpProg))}>{progressPctLabel(gpProg)}%</span>
             </div>
-            <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: dl.severity === 'critical' ? 'var(--re)' : 'var(--am)' }} /></div>
-            {gp.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {/* Delivered work is green. This bar was amber for every project
+                that was not flagged critical, which reads as a warning about
+                having made progress; the severity already has the left edge
+                of the card. */}
+            <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: 'var(--st-done)' }} /></div>
+            {gp?.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
               {gp.critical.size > 6 && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
             </div>}

@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'vitest';
+import { GT, GT_MARKS } from '../../constants.js';
 import { buildMarkdownText } from '../markdown.js';
 
 // Heavy round-trip: we import App.jsx only to reuse its parseMdToProject.
@@ -289,5 +290,46 @@ describe('sub-bullet tag rename is backward compatible', () => {
     expect(md).toContain('*Capacity plan: ');
     expect(md).toContain('*Meeting plan: ');
     expect(md).not.toMatch(/\*Benötigt:|\*Cap-Plan:|\*Meeting-Plan:|\*Phasen:/);
+  });
+});
+
+// ── The root type marker survives a round trip ─────────────────────────────
+// buildMarkdownText wrote a deadline root as `⏰` while parseMdToProject only
+// ever looked for a different marker, so every save-then-load moved the emoji
+// out of the type field and into the project's NAME, where it stayed. A plan
+// that had been through it twice was genuinely called "Abrechnung in VOffice
+// ⏰" and had no type at all.
+//
+// parseMdToProject is a closure inside App.jsx, so this checks the marker
+// vocabulary both sides share rather than driving a file load.
+describe('root type markers', () => {
+  test('the writer emits the marker the reader looks for', () => {
+    const md = buildMarkdownText({
+      meta: { name: 'X', planStart: '2026-01-05', planEnd: '2026-12-31', version: '2' },
+      teams: [], members: [], vacations: [],
+      tree: [
+        { id: 'D1', name: 'Umfirmierung', type: 'deadline', date: '2027-06-30', best: 0 },
+        { id: 'G1', name: 'Fahrer-App', type: 'goal', best: 0 },
+        { id: 'P1', name: 'Pain', type: 'painpoint', best: 0 },
+      ],
+    });
+    expect(md).toContain(`Umfirmierung ${GT.deadline}`);
+    expect(md).toContain(`Fahrer-App ${GT.goal}`);
+    expect(md).toContain(`Pain ${GT.painpoint}`);
+    // Whatever it writes has to be the FIRST entry the reader tries.
+    expect(GT_MARKS.deadline[0]).toBe(GT.deadline);
+    expect(GT_MARKS.goal[0]).toBe(GT.goal);
+    expect(GT_MARKS.painpoint[0]).toBe(GT.painpoint);
+  });
+
+  test('no marker is a pictograph, and the old ones still parse', () => {
+    Object.values(GT).forEach(mk => {
+      expect(mk, `${mk} is not plain text`).toMatch(/^[\x20-\x7e]+$/);
+    });
+    // The emoji older files carry stay in the accept list, or those files
+    // silently lose their type on load.
+    expect(GT_MARKS.deadline).toContain('⏰');
+    expect(GT_MARKS.painpoint).toContain('⚡');
+    expect(GT_MARKS.goal).toContain('\u{1f3af}');
   });
 });
