@@ -509,6 +509,7 @@ const en = {
 
   // ── Roadmap ──
   'rm.train': 'Train', 'rm.currentPos': 'Effort-weighted progress: {0}%', 'rm.atRisk': 'AT RISK',
+  'rm.arrived': 'Arrived — every work package on this line is done',
   'rm.showMore': '+{0} more', 'rm.showLess': 'Show fewer',
 
   // ── Diff / "since" window (shared across SumView, Roadmap, TreeView) ──
@@ -977,7 +978,6 @@ const en = {
   'wo.dragTip': 'Drag the row onto the place it should take.',
   'wo.picked': '{0} selected',
   'wo.pickedTip': 'Shift for a range, Cmd for single picks. A move takes all of them at once.',
-  'wo.groupTip': 'Move the whole package — its items travel together and keep their order.',
   'wo.autoWho': 'Picked by the schedule, not assigned by you — whoever comes free first. Reorder the team\u2019s queue and this can change.',
   'wo.fixedWho': 'Assigned to this person.',
   'rv.workOrder': 'Work order',
@@ -1641,6 +1641,7 @@ const de = {
 
   // ── Roadmap ──
   'rm.train': 'Zug', 'rm.currentPos': 'Aufwandsgewichteter Fortschritt: {0}%', 'rm.atRisk': 'GEFÄHRDET',
+  'rm.arrived': 'Angekommen — jedes Arbeitspaket dieser Linie ist erledigt',
   'rm.showMore': '+{0} weitere anzeigen', 'rm.showLess': 'Weniger anzeigen',
 
   // ── Diff / "Fortschritt seit"-Fenster (geteilt mit SumView, Roadmap, TreeView) ──
@@ -2113,7 +2114,6 @@ const de = {
   'wo.dragTip': 'Zeile auf den Platz ziehen, den sie einnehmen soll.',
   'wo.picked': '{0} ausgewählt',
   'wo.pickedTip': 'Shift für einen Bereich, Cmd für einzelne. Ein Verschieben nimmt alle auf einmal mit.',
-  'wo.groupTip': 'Das ganze Paket verschieben — seine Einträge wandern zusammen und behalten ihre Reihenfolge.',
   'wo.autoWho': 'Vom Zeitplan gewählt, nicht von dir zugewiesen — wer zuerst frei wird. Änderst du die Reihenfolge des Teams, kann sich das ändern.',
   'wo.fixedWho': 'Dieser Person fest zugewiesen.',
   'rv.workOrder': 'Reihenfolge',

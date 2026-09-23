@@ -5,6 +5,7 @@ import { deadlineStatus } from './timeline.js';
 import { leafProgress, resolveToLeafIds, scheduleEffort } from './scheduler.js';
 import { aggregateProgressPct } from './progress.js';
 import { normalizeCompletedWindows } from './completion.js';
+import { treeOrderRank } from './displayOrder.js';
 
 // Line colours. One family rather than eight unrelated brights: they share a
 // chroma and a lightness, so no line shouts over its neighbours and the map
@@ -325,6 +326,46 @@ function pointAtFraction(waypoints, t) {
 // bend reads as one S rather than two kinks.
 const ROUTE_CORNER_R = 16;
 
+// Every stop is the same size, whatever state it is in.
+//
+// It was not: a reached stop was drawn r=9 and an unreached one r=5, so a line
+// visibly shrank towards its future and the two read as two kinds of thing
+// rather than one thing in two states. On a metro map a station is a station.
+// The state is carried by the FILL — solid and ticked for reached, a ring for
+// still to come — at one outer diameter, so the row of them is a row.
+const STATION_R = 9;
+// The train is the one mark that is not a station, so it is bigger than one
+// rather than the same size with a different outline.
+const TRAIN_W = 26;
+const TRAIN_H = 16;
+
+// A stop, at `STATION_R` whatever it is.
+//   reached  → filled, with a tick
+//   current  → ring with a dot in it, thicker, in the line's colour
+//   ahead    → ring
+function stationGlyph(cx, cy, color, { done = false, current = false } = {}) {
+  const x = Number(cx).toFixed(1), y = Number(cy).toFixed(1);
+  if (done) {
+    const ink = contrastText(color);
+    return `<circle cx="${x}" cy="${y}" r="${STATION_R}" fill="${color}"/>`
+      // The tick is what makes "reached" say so on its own — a filled circle
+      // alone is only darker than its neighbour, and on a finished line every
+      // circle is filled and nothing says why.
+      + `<path d="M${(+x - 3.9).toFixed(1)} ${(+y + 0.2).toFixed(1)}`
+      + ` l 2.8 2.9 l 5 -5.6" fill="none" stroke="${ink}" stroke-width="2"`
+      + ` stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  if (current) {
+    // r + half the stroke = STATION_R, so the outer edge lands where every
+    // other stop's does.
+    const sw = 3.4;
+    return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="${sw}"/>`
+      + `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`;
+  }
+  const sw = 2.5;
+  return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg,#111318)" stroke="${color}" stroke-width="${sw}"/>`;
+}
+
 // A polyline with rounded corners. Metro maps draw curves, not mitres, and
 // the difference is not decoration: a 45° diagonal reads as a line going
 // somewhere else, while a curve reads as the same line continuing. At each
@@ -531,6 +572,12 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 
   const roots = tree.filter(node => !node.id.includes('.'));
   if (!roots.length) return null;
+
+  // The plan's own order, once for the whole map. Everything the map puts in a
+  // sequence — the stops along a line, the rows in its legend — uses it, so
+  // the map, the tree, the work order and the schedule all say the same thing
+  // about what comes first.
+  const planRank = treeOrderRank(tree);
 
   const buildStation = (node, kind, fallbackDate) => {
     const info = meta[node.id] || {};
@@ -970,11 +1017,31 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const positionedLines = assignedLines.map(line => {
     const { route } = line;
 
+    // Two halves of one line, ordered by two different things, because they
+    // are two different kinds of statement.
+    //
+    // BEHIND the train is history: those packages were finished, in an order
+    // that actually happened, and the date is the record of it. Re-sorting
+    // completed work by the plan would show a sequence that never occurred.
+    //
+    // AHEAD of the train is intent, and the only statement anybody has made
+    // about that is the tree — the same rank the scheduler plans by
+    // (utils/displayOrder.js, `treeOrderRank`). It used to be the end date
+    // here too, which is a CONSEQUENCE of the order rather than the order
+    // itself: one long package finishing after a later short one swapped two
+    // stations, and the map disagreed with the tree, the work order and the
+    // Gantt about what comes next. The date stays as the tiebreak, for the
+    // stops the tree does not separate.
     const byEnd = (a, b) => (+(a.milestoneDate || a.endDate) || Infinity) - (+(b.milestoneDate || b.endDate) || Infinity)
       || a.id.localeCompare(b.id, undefined, { numeric: true });
+    const byPlan = (a, b) => {
+      const ar = planRank.has(a.id) ? planRank.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const br = planRank.has(b.id) ? planRank.get(b.id) : Number.MAX_SAFE_INTEGER;
+      return ar - br || byEnd(a, b);
+    };
     const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
     const doneOrdered = allStations.filter(station => station.allDone).sort(byEnd);
-    const activeOrdered = allStations.filter(station => !station.allDone).sort(byEnd);
+    const activeOrdered = allStations.filter(station => !station.allDone).sort(byPlan);
 
     // Project span is retained only for the "today on calendar" ghost marker
     // and as fallback if a line has no effort data.
@@ -1058,8 +1125,14 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 
     const trainT = clamp(effortTrainT, ROUTE_T_LO, ROUTE_T_HI);
     const activeStartT = Math.min(ROUTE_T_HI, trainT + (activeOrdered.length ? 0.018 : 0));
+    // On a finished line the train stands at the terminus and the last station
+    // is anchored to the same point, so the car covered the stop it had just
+    // reached. The done band stops short of the train by the width of one, so
+    // the two sit side by side.
+    const arrivedHere = (line.progress || 0) >= 1 && !activeOrdered.length;
+    const doneBandHi = arrivedHere ? Math.max(ROUTE_T_LO, trainT - 0.035) : trainT;
     const positioned = [
-      ...positionBand(doneOrdered, doneRawTs, ROUTE_T_LO, trainT, true),
+      ...positionBand(doneOrdered, doneRawTs, ROUTE_T_LO, doneBandHi, true),
       ...positionBand(activeOrdered, activeRawTs, activeStartT, ROUTE_T_HI, false),
     ].sort((a, b) => a.t - b.t || byEnd(a, b));
 
@@ -1425,7 +1498,7 @@ export function renderRoadmapSvg(args) {
        white-fill rule cascaded over the inline colour and made the label
        white-on-white over the bg-coloured halo. */
     .rm-abbrev-done{opacity:.65}
-    .rm-risk-tri{fill:#ef4444}
+    .rm-risk-tri{fill:var(--st-risk,#e08276)}
     g[style*=cursor]{pointer-events:all}
   </style>`);
 
@@ -1514,17 +1587,39 @@ export function renderRoadmapSvg(args) {
     // End badge (right of end point, unless near edge — then left)
     const ebx = endPt.x + 10;
     const eby = endPt.y - badgeH / 2;
-    // Clamp so badge doesn't overflow SVG
-    const ebxClamped = Math.min(ebx, SVG_W - badgeW - 4);
+    // The at-risk marker sits beside the badge, so the pair is clamped
+    // together. It used to be clamped alone and the marker drawn at a fixed
+    // offset past it, which put the triangle's left corner three pixels ON
+    // the badge — over the line's own name.
+    const riskW = line.atRisk ? badgeH + 8 : 0;
+    const ebxClamped = Math.min(ebx, SVG_W - badgeW - riskW - 4);
     out.push(`<rect x="${ebxClamped}" y="${eby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
     out.push(`<text x="${ebxClamped + badgeW / 2}" y="${eby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+    // A finished line says so at its terminus, in the same mark its reached
+    // stations and its parked train wear. Dimming the whole line was the only
+    // signal before, and dim reads as "inactive" rather than "done" — a
+    // dropped project is dim too.
+    if (line.allDoneUnderRoot) {
+      const cx = ebxClamped + badgeW + 12;
+      const cy = endPt.y;
+      out.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/>`);
+      out.push(`<path d="M${(cx - 3.6).toFixed(1)} ${(cy + 0.2).toFixed(1)} l 2.6 2.7 l 4.6 -5.2" fill="none" stroke="${contrastText(color)}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
 
-    // ── AT RISK warning triangle at end ────────────────────────────────────
+    // ── AT RISK marker at the end ──────────────────────────────────────────
+    // A rounded square the same height and radius as the ID badge it follows,
+    // so the two read as one pair rather than a badge with a sticker on it.
+    // It was a bare polygon with a 6px "!" typed into it, sized and positioned
+    // by itself — which is what made it look stuck on.
     if (line.atRisk) {
-      const tx = endPt.x + 10 + badgeW + 6;
-      const ty = endPt.y;
-      out.push(`<polygon points="${tx},${ty - 8} ${tx + 9},${ty + 4} ${tx - 9},${ty + 4}" class="rm-risk-tri"/>`);
-      out.push(`<text x="${tx}" y="${ty + 2}" text-anchor="middle" font-size="6" font-weight="800" fill="#fff">!</text>`);
+      const rx0 = ebxClamped + badgeW + 8;
+      const ry0 = endPt.y - badgeH / 2;
+      const rcx = rx0 + badgeH / 2;
+      out.push(`<rect x="${rx0.toFixed(1)}" y="${ry0.toFixed(1)}" width="${badgeH}" height="${badgeH}" rx="${badgeRx}" class="rm-risk-tri"/>`);
+      // A drawn warning mark: a stem and a dot, at the weight of the badge
+      // letters next to it.
+      out.push(`<path d="M${rcx.toFixed(1)} ${(endPt.y - 5.5).toFixed(1)} v 6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>`);
+      out.push(`<circle cx="${rcx.toFixed(1)}" cy="${(endPt.y + 4.6).toFixed(1)}" r="1.3" fill="#fff"/>`);
     }
 
     out.push(`</g>`);
@@ -1532,7 +1627,7 @@ export function renderRoadmapSvg(args) {
 
   // ── Stations ── drawn after all routes so dots sit on top ─────────────────
   lines.forEach((line, lineIdx) => {
-    const { color, majorStations, minorStations, currentId } = line;
+    const { color, majorStations, currentId } = line;
 
     out.push(`<g id="rm-stations-${lineIdx}">`);
 
@@ -1581,14 +1676,7 @@ export function renderRoadmapSvg(args) {
       if (reachedInWindow) {
         out.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="#f59e0b" stroke-width="1.8" opacity="0.78"/>`);
       }
-      if (isDone) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="${color}"/>`);
-      } else if (isCurrent) {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3.4"/>`);
-        out.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>`);
-      } else {
-        out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--bg,#111318)" stroke="${color}" stroke-width="2"/>`);
-      }
+      out.push(stationGlyph(cx, cy, color, { done: isDone, current: isCurrent }));
       out.push(`</g>`);
 
       // Abbreviation label
@@ -1600,30 +1688,12 @@ export function renderRoadmapSvg(args) {
       }
     });
 
-    // Minor stations (r=3)
-    minorStations.forEach(station => {
-      const isDone = station.allDone;
-      const isCurrent = station.id === currentId && !isDone;
-      const reachedInWindow = changedInWindow.size > 0
-        && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
-      const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
-      if (!inHorizon) out.push(`<g opacity="0.22">`);
-
-      if (reachedInWindow) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6" fill="none" stroke="#f59e0b" stroke-width="1.3" opacity="0.70"/>`);
-      }
-      if (isDone) {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="7" fill="${color}"/>`);
-      } else {
-        out.push(`<circle cx="${station.x.toFixed(1)}" cy="${station.y.toFixed(1)}" r="6.5" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="3" opacity="${isCurrent ? 1 : 0.9}"/>`);
-      }
-
-      const minorPlace = stationLabelPlacement.get(station.id);
-      if (isCurrent && minorPlace) {
-        out.push(`<text x="${minorPlace.x.toFixed(1)}" y="${minorPlace.y.toFixed(1)}" text-anchor="${minorPlace.anchor}" class="rm-abbrev rm-abbrev-active" fill="${color}">${esc(station.abbrev)}</text>`);
-      }
-      if (!inHorizon) out.push(`</g>`);
-    });
+    // There is no second kind of station any more. Stops became work packages
+    // (see "What a stop IS" above) and `minorStations` has been empty ever
+    // since; the branch that drew them at r=6.5/7 was the other half of the
+    // two-sizes problem and is gone with it. The field stays as an empty
+    // array because the label placer and the collision pass both take the two
+    // lists together.
 
     out.push(`</g>`);
   });
@@ -1693,30 +1763,51 @@ export function renderRoadmapSvg(args) {
   // ── Trains ── drawn last so they appear on top of everything ───────────────
   lines.forEach((line, lineIdx) => {
     const { color, trainT, trainPt, progress } = line;
-    if (trainT <= 0 || progress >= 1) return;
+    // A finished line used to lose its train, which is the one thing that made
+    // finished hard to see: an empty line reads the same whether the work is
+    // all done or has not started, and the only difference left was a slightly
+    // dimmer colour. The train stays and stands at the terminus — which is
+    // what "arrived" looks like on a map with trains on it. It does stop
+    // pulsing: a project that is finished is not asking for attention.
+    const arrived = progress >= 1;
+    if (trainT <= 0 && !arrived) return;
 
     const pct = formatPercentNumber(progress);
     const lTrain = labels.train || 'Train';
     const lCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', pct);
+    const lArrived = labels.arrived || 'Arrived — every work package done';
     const lAtRisk = labels.atRisk || 'AT RISK';
     const trainTip = tipData({
       kind: 'line', id: line.root.id, name: line.root.name, color, glyph: '🚆',
-      badge: lTrain, note: lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
+      badge: lTrain, note: arrived ? lArrived : lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
     });
     const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
+    const halfW = TRAIN_W / 2, halfH = TRAIN_H / 2;
     // The train stands for the project's position, so clicking it opens the
     // project — same reason as the stations above: it offers a pointer.
     out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-item-id="${esc(line.root.id)}" data-tip="${esc(trainTip)}">`);
-    // Halo / pulse glow
-    out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
-    out.push(`<animate attributeName="r" values="13;18;13" dur="2.4s" repeatCount="indefinite"/>`);
-    out.push(`<animate attributeName="opacity" values="0.22;0.06;0.22" dur="2.4s" repeatCount="indefinite"/>`);
-    out.push(`</circle>`);
-    // Outer ring (distinguishes train from circular stations: rounded rectangle = train car)
-    out.push(`<rect x="${(+tx - 11).toFixed(1)}" y="${(+ty - 7).toFixed(1)}" width="22" height="14" rx="4" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`);
-    // Window slits — two small white rectangles like train windows
-    out.push(`<rect x="${(+tx - 7).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
-    out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 3.5).toFixed(1)}" width="5" height="3" rx="0.6" fill="#fff" opacity="0.95"/>`);
+    if (!arrived) {
+      // Halo / pulse glow
+      out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
+      out.push(`<animate attributeName="r" values="13;18;13" dur="2.4s" repeatCount="indefinite"/>`);
+      out.push(`<animate attributeName="opacity" values="0.22;0.06;0.22" dur="2.4s" repeatCount="indefinite"/>`);
+      out.push(`</circle>`);
+    }
+    // A rounded rectangle rather than a circle, so the train is never mistaken
+    // for a station — and bigger than one, because it is the thing you look
+    // for first on a line.
+    out.push(`<rect x="${(+tx - halfW).toFixed(1)}" y="${(+ty - halfH).toFixed(1)}" width="${TRAIN_W}" height="${TRAIN_H}" rx="4.5" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`);
+    // Window slits — two small rectangles like train windows. An arrived train
+    // keeps them: replacing them with a tick made the car unrecognisable as a
+    // train, which is the one thing it has to stay. The tick is a badge ON it
+    // instead, the way a station wears one.
+    out.push(`<rect x="${(+tx - 8).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
+    out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
+    if (arrived) {
+      const bx = +tx + halfW - 2, by = +ty - halfH + 1;
+      out.push(`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="6.4" fill="var(--st-done,#6fbf8a)" stroke="var(--bg,#111318)" stroke-width="1.6"/>`);
+      out.push(`<path d="M${(bx - 2.9).toFixed(1)} ${(by + 0.1).toFixed(1)} l 2 2.1 l 3.7 -4.2" fill="none" stroke="var(--bg,#111318)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
     out.push(`</g>`);
     // Ghost train marker at the past position — only when there's a real gap
     if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {

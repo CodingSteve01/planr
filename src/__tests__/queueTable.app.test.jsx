@@ -532,20 +532,21 @@ describe('work nobody is on yet', () => {
   });
 });
 
-// Reported: it does not work in the work order tab — only item-level sorting
-// there — and there is no way to filter to the auto-assigned resource and
-// reorder within it.
+// A queue is one list, and nothing sits between its rows.
 //
-// Two gaps, and I answered the first one by explaining why the list is flat,
-// which was an explanation and not an answer. Wanting to settle the big blocks
-// before the details is how anybody plans; a flat list of forty tasks makes
-// that a sorting exercise.
+// This block used to assert the opposite: an owner's rows were grouped under
+// package headers, and a header moved its whole package at once. The instinct
+// was "settle the big blocks before the details", which is how anybody plans
+// — and it was applied in the wrong place. The big blocks are settled in the
+// TREE, and this list already arrives in the tree's order.
 //
-// So the rows inside one owner's list are grouped by the package they come
-// from. The group header moves the whole package at once — which is the same
-// block move a multi-selection uses — and inside it the items order as before.
-// Top-down, in the view where the order lives.
-describe('ordering the big things first', () => {
+// What this view exists for is the one statement the tree cannot make: "this
+// task from B, ahead of those three from A". A hierarchy header is exactly
+// the thing that puts that move behind a wall — a queue crossing two projects
+// had its rows split into blocks that could not interleave, which is the
+// shape it was there to express. Reported plainly: no clustering here, the
+// reordering may need to cross the hierarchy.
+describe('one flat queue per owner', () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -570,28 +571,41 @@ describe('ordering the big things first', () => {
   });
   afterEach(() => { cleanup(); localStorage.clear(); });
 
-  const groupOf = id => document.querySelector(`[data-queue-group="${id}"]`);
-
-  it('groups a person\'s work by the package it comes from', async () => {
+  it('puts nothing between the rows', async () => {
     await openWorkOrder();
-    expect(groupOf('A.1')).toBeTruthy();
-    expect(groupOf('A.2')).toBeTruthy();
+    expect(document.querySelectorAll('[data-queue-group]')).toHaveLength(0);
     expect(rowIds()).toEqual(['A.1.1', 'A.1.2', 'A.2.1', 'A.2.2']);
   });
 
-  it('moves a whole package, and its items keep their order', async () => {
+  it('starts in the order the tree gives, so the plan is the default', async () => {
+    // Nothing here invents an order. The tree said A.1 before A.2, and it is
+    // A.1 before A.2 until somebody says otherwise in this list.
     await openWorkOrder();
-    await act(async () => { fireEvent.keyDown(groupOf('A.2'), { key: 'ArrowUp', altKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
-    expect(rowIds()).toEqual(['A.2.1', 'A.2.2', 'A.1.1', 'A.1.2']);
+    expect(rowIds()).toEqual(['A.1.1', 'A.1.2', 'A.2.1', 'A.2.2']);
   });
 
-  it('and inside a package the items still order one by one', async () => {
+  it('moves one task past another package in a single step', async () => {
+    // The move that has no equivalent in the tree, and the reason this view
+    // exists. Under package headers it took three: out of one block, past a
+    // header, into the next.
     await openWorkOrder();
-    const row = document.querySelector('[data-queue-row="A.1.2"]');
-    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.1.2') throw new Error(rowIds().join()); });
-    expect(rowIds()).toEqual(['A.1.2', 'A.1.1', 'A.2.1', 'A.2.2']);
+    const row = document.querySelector('[data-queue-row="A.2.1"]');
+    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.2.1', 'A.1.1', 'A.1.2', 'A.2.2']);
+  });
+
+  it('still takes a whole selection along when you pick one', async () => {
+    // "These five, together" is a thing you say by selecting five, not a
+    // shape the hierarchy decides for you in advance.
+    await openWorkOrder();
+    const first = document.querySelector('[data-queue-row="A.2.1"]');
+    const last = document.querySelector('[data-queue-row="A.2.2"]');
+    await act(async () => { fireEvent.click(first); });
+    await act(async () => { fireEvent.click(last, { shiftKey: true }); });
+    await act(async () => { fireEvent.keyDown(last, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
+    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
+    expect(rowIds()).toEqual(['A.2.1', 'A.2.2', 'A.1.1', 'A.1.2']);
   });
 });
 
