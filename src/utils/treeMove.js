@@ -205,3 +205,96 @@ export function remapIds(ids, idMap) {
   if (!idMap || !Object.keys(idMap).length) return ids;
   return new Set([...ids].map(x => idMap[x] || x));
 }
+
+// ── The same commands on a selection ─────────────────────────────────────
+// Reported: with several rows selected, a move only took the row clicked
+// last. A selection moves as a block now.
+//
+// Only the selection's ROOTS move — a selected row whose ancestor is selected
+// too travels inside that ancestor's subtree anyway, and moving it on its own
+// as well would tear it out. The roots are processed in the order that keeps
+// a block together: a step towards the top runs top-down, a step towards the
+// bottom (and outdent, which lands each row right after its parent) runs
+// bottom-up, so every row steps over the neighbour the previous one just
+// vacated rather than over its own block mate.
+//
+// A block that hits an end stays whole: once a row cannot move, a selected row
+// whose step would take it past (or under) that row stays put as well, instead
+// of the block reordering itself against the wall.
+const TOP_DOWN = new Set(['moveUp', 'moveLast', 'indent']);
+
+export function selectionRoots(ids, visibleIds) {
+  const set = new Set(ids);
+  return visibleIds.filter(id => set.has(id) && !ancestorsOf(id).some(a => set.has(a)));
+}
+const ancestorsOf = id => {
+  const out = [];
+  let p = parentOf(id);
+  while (p) { out.push(p); p = parentOf(p); }
+  return out;
+};
+
+// Decided by running it: a row that could step on its own may be held by its
+// block (see above), and a button must never be enabled for a press that does
+// nothing.
+export function canTreeCommandMany(tree, visibleIds, ids, command) {
+  return applyTreeCommandMany(tree, ids, command, visibleIds) !== null;
+}
+
+// Returns { tree, ids, idMap } — `ids` the whole selection where it lives
+// afterwards, `idMap` every renumbering along the way — or null when no row
+// could move.
+export function applyTreeCommandMany(tree, ids, command, visibleIds = sortTree(tree).map(r => r.id)) {
+  const roots = selectionRoots(ids, visibleIds);
+  if (!roots.length) return null;
+  const order = TOP_DOWN.has(command) ? roots : roots.slice().reverse();
+  let next = tree;
+  let visible = new Set(visibleIds);
+  let idMap = {};
+  const stuck = new Set();
+  let moved = false;
+  const follow = id => idMap[id] || id;
+  for (const original of order) {
+    const id = follow(original);
+    const onScreen = sortTree(next).map(r => r.id).filter(v => visible.has(v));
+    const plan = planTreeCommand(onScreen, id, command);
+    const blocker = plan && (plan.parentId || (typeof plan.place === 'object' ? plan.place.targetId : null));
+    const blockerIsStuckMate = blocker && [...stuck].some(s => follow(s) === blocker);
+    const res = plan && !blockerIsStuckMate ? applyTreeCommand(next, id, command, onScreen) : null;
+    if (!res) { stuck.add(original); continue; }
+    moved = true;
+    next = res.tree;
+    if (Object.keys(res.idMap).length) {
+      // Compose: earlier renumberings point at their newest id.
+      Object.keys(idMap).forEach(k => { if (res.idMap[idMap[k]]) idMap[k] = res.idMap[idMap[k]]; });
+      Object.entries(res.idMap).forEach(([from, to]) => { if (!(from in idMap) && !Object.values(idMap).includes(from)) idMap[from] = to; });
+      visible = new Set([...visible].map(v => res.idMap[v] || v));
+    }
+  }
+  if (!moved) return null;
+  return { tree: next, ids: [...ids].map(follow), idMap };
+}
+
+// Drops a block of siblings next to `targetId`, keeping their own order.
+// Rows of the selection that are not siblings of the target stay where they
+// are: a drop reorders, it never re-parents (the tree's drag rule).
+export function placeManyAmongSiblings(tree, ids, { targetId, position }) {
+  const parent = parentOf(targetId);
+  const siblings = tree
+    .filter(r => (parent ? parentOf(r.id) === parent : !r.id.includes('.')))
+    .sort(compareSiblings);
+  const moving = siblings.filter(s => ids.includes(s.id) && s.id !== targetId);
+  if (!moving.length) return null;
+  const rest = siblings.filter(s => !moving.includes(s));
+  const at = rest.findIndex(s => s.id === targetId);
+  if (at < 0) return null;
+  const reordered = [...rest.slice(0, at + (position === 'after' ? 1 : 0)), ...moving, ...rest.slice(at + (position === 'after' ? 1 : 0))];
+  const orderMap = new Map(reordered.map((s, i) => [s.id, i + 1]));
+  let changed = false;
+  const next = tree.map(r => {
+    if (!orderMap.has(r.id) || r.displayOrder === orderMap.get(r.id)) return r;
+    changed = true;
+    return { ...r, displayOrder: orderMap.get(r.id) };
+  });
+  return changed ? next : null;
+}

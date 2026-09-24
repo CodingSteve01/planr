@@ -18,7 +18,7 @@ import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
-import { canTreeCommand, remapIds } from '../../utils/treeMove.js';
+import { canTreeCommand, canTreeCommandMany, remapIds } from '../../utils/treeMove.js';
 import { withKey, keyHint, ALT, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
@@ -83,7 +83,7 @@ export function isTypingTarget(el) {
   return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
 }
 
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onCommandMany, onReorderMany, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -474,7 +474,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (parent) return parent;
     return `root:${id.match(/^[A-Za-z]+/)?.[0] || ''}`;
   };
-  const canDropOrder = (dragId, targetId) => !!dragId && !!targetId && dragId !== targetId && siblingKeyOf(dragId) === siblingKeyOf(targetId);
+  // Dragging a row of a multi-selection drags the selection: every selected
+  // sibling of the target lands with it, in their own order.
+  const dragsSelection = dragId => !!onReorderMany && multiSel?.size > 1 && multiSel.has(dragId);
+  const canDropOrder = (dragId, targetId) => !!dragId && !!targetId && dragId !== targetId && siblingKeyOf(dragId) === siblingKeyOf(targetId)
+    && !(dragsSelection(dragId) && multiSel.has(targetId));
   const onOrderDragOver = (e, targetId) => {
     if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
     e.preventDefault();
@@ -485,7 +489,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   const onOrderDrop = (e, targetId) => {
     if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
     e.preventDefault();
-    onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
+    const target = { targetId, position: orderDrop.position || 'before' };
+    if (dragsSelection(orderDrop.dragId)) onReorderMany([...multiSel], target);
+    else onReorder(orderDrop.dragId, target);
     setOrderDrop(null);
   };
   // `shortcutId` names the ⌘⇧ chord for aria-keyshortcuts, so a screen
@@ -577,16 +583,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // Up/down used to carry on past the end of a sibling run by stepping out
   // a level. That made the arrow a re-parent in disguise; it is a reorder
   // and nothing else now, and changing the level is indent / outdent.
-  const canRun = (id, command) => !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
+  // With several rows selected the commands take all of them, as a block
+  // (utils/treeMove.js, applyTreeCommandMany) — they used to take only the
+  // row clicked last.
+  const multiMove = !!onCommandMany && multiSel && multiSel.size > 1;
+  const canRun = (id, command) => multiMove
+    ? canTreeCommandMany(tree, visibleIds, [...multiSel], command)
+    : !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
 
   function runCommand(command, id = selected?.id) {
     if (!canRun(id, command)) return;
-    const res = onCommand(id, command, visibleIds);
+    const res = multiMove ? onCommandMany([...multiSel], command, visibleIds) : onCommand(id, command, visibleIds);
     if (!res) return;
     // A re-parent renumbers the row and its subtree. The cursor follows in
     // App; the fold state of the moved branch has to follow here.
     if (res.idMap && Object.keys(res.idMap).length) setCollapsed(c => remapIds(c, res.idMap));
-    revealRef.current = res.id;
+    revealRef.current = res.id || res.ids?.[0];
     // Keep the keyboard on the tree. After a toolbar click focus sits on the
     // button, which may just have become disabled — and a disabled button
     // drops focus to the page, where the next ⌘⇧↑ goes nowhere.
@@ -1420,8 +1432,13 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     {selected?.id && selPos && (
       <div ref={selBarRef} style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar1-top)', zIndex: 11 }}>
         <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
-        <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
-        <span style={{ fontSize: 12, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+        {multiMove
+          ? <span data-testid="tv-moves-selection" style={{ fontSize: 12, color: 'var(--ac)', marginRight: 8 }}
+              data-htip={t('tv.movesSelectionTip')}>{t('tv.movesSelection', multiSel.size)}</span>
+          : <>
+            <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
+            <span style={{ fontSize: 12, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+          </>}
         {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
         {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
         {/* With the editor docked as a dialog there is no panel on the right
