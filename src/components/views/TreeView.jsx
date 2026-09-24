@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, memo } from 'react';
-import { markStructuralEdit, clearStructuralEdit } from '../../utils/structuralEdit.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { hasChildren, isLeafNode, leafNodes, pt } from '../../utils/scheduler.js';
@@ -18,8 +17,9 @@ import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
-import { sortTree, filterCollapsedRows, indentTarget, outdentTarget, moveStep, visibleSiblingTarget, outOfGroupTarget, visibleIndentTarget, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
-import { withKey, keyHint, ALT } from '../../utils/shortcuts.js';
+import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
+import { canTreeCommand, remapIds } from '../../utils/treeMove.js';
+import { withKey, keyHint, ALT, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
 function depth(id) { return id.split('.').length; }
@@ -38,29 +38,6 @@ const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3
 // like are excluded deliberately: arrows there are navigation, not editing.
 const NON_TEXT_INPUT = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
 
-// ── Where the caret is, and whether the key belongs to the text ────────────
-// A structure gesture that also means something inside a text field must lose
-// to the text. On macOS ⌥←/⌥→ walks by word and ⇧⌥←/⇧⌥→ selects by word — the
-// exact keys this used to spend on outdent/indent, unguarded by shift.
-// Reaching for the start of a word in a name and re-parenting the item instead
-// is a structural edit you did not ask for, from a keystroke that has meant
-// something else in every text field you have ever used.
-function caretAtStart(el) {
-  if (!el || typeof el.selectionStart !== 'number') return false;
-  return el.selectionStart === 0 && el.selectionEnd === 0;
-}
-function caretAtEnd(el) {
-  if (!el || typeof el.selectionStart !== 'number') return false;
-  const len = (el.value ?? '').length;
-  return el.selectionStart === len && el.selectionEnd === len;
-}
-
-/**
- * Does this ⌥+arrow belong to the tree rather than to the text under the
- * caret? Only when the caret has nowhere left to go — so the gesture still
- * works from the end of a name, which is where you are when you have just
- * typed it, and never eats a word jump in the middle.
- */
 /**
  * Where each element of a sticky stack starts, and where the next thing after
  * it starts. Given the heights of the bars that stick above a table head, top
@@ -77,22 +54,20 @@ export function stickyTops(heights) {
   return tops;
 }
 
-export function altArrowIsStructural(e) {
-  if (e.shiftKey) return false;        // a selection gesture, always the text's
-  const el = e.target;
-  return e.key === 'ArrowLeft' ? caretAtStart(el) : caretAtEnd(el);
-}
-
+// Anything that is editing rather than navigating. A structural shortcut
+// pressed here belongs to the control: ⌘⇧←/→ selects to the line's edge in a
+// text field, ⌥←/→ walks by word, ↑/↓ picks a value in a combobox.
 export function isTypingTarget(el) {
   if (!el || typeof el !== 'object') return false;
   if (el.isContentEditable) return true;
+  if (el.getAttribute?.('role') === 'combobox') return true;
   const tag = el.tagName;
   if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if (tag !== 'INPUT') return false;
   return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
 }
 
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -109,9 +84,6 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // whether that row was just created by this session's own Enter/⇧Enter
   // (so an empty commit deletes it again instead of leaving a nameless row).
   const [editing, setEditing] = useState(null); // { id, draft, isNew, fromId } | null
-  // The whole editor cell, so focus moving BETWEEN its fields is not read
-  // as leaving the editor — see handleEditorFocusOut.
-  const editCellRef = useRef(null);
   const teamSelRef = useRef(null);
   const wasEditingRef = useRef(false);
   // id → { sig, el } for the row cache; see the comment at the row map.
@@ -493,9 +465,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onReorder(orderDrop.dragId, { targetId, position: orderDrop.position || 'before' });
     setOrderDrop(null);
   };
-  const toolBtn = (label, title, onClick, disabled, icon, testId) => <button
+  // `shortcutId` names the ⌘⇧ chord for aria-keyshortcuts, so a screen
+  // reader announces the key as well as the tooltip shows it.
+  const toolBtn = (label, title, onClick, disabled, icon, testId, shortcutId) => <button
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
     data-testid={testId} aria-label={label ? undefined : title}
+    aria-keyshortcuts={shortcutId ? ariaChord(shortcutId) : undefined}
     style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
       display: 'inline-flex', alignItems: 'center', gap: 5 }}>
     {icon && <Icon name={icon} size={11} />}{label}</button>;
@@ -570,46 +545,30 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // straight to the inline editor, so creating an item is one click and then
   // typing — never a placeholder name to go back and fix. Same callbacks the
   // keyboard uses; no second write path (principle 2).
-  // ⌥↑/⌥↓ (and ⌥⇧↑/⌥⇧↓ for the ends) move a row among the siblings you can
-  // SEE. Computing the step from the whole tree meant a press could swap the
-  // row with a hidden one — a finished task, an archived project, a
-  // collapsed branch — and look like nothing happened.
-  // Indent / outdent, from what is on screen. `null` means the move is a
-  // no-op here — already first in its visible run, or already a root.
-  function reparentTarget(id, outward) {
-    return outward ? outdentTarget(id) : visibleIndentTarget(visibleIds, id);
-  }
+  // ── Structure: move up / down, indent, outdent ─────────────────────────
+  // Four explicit commands (utils/treeMove.js), decided against the rows on
+  // screen. Toolbar and keyboard both call `runCommand`, and the toolbar's
+  // disabled state is `canRun` — the same check the command itself makes,
+  // so a button is never enabled for a press that does nothing.
+  //
+  // Up/down used to carry on past the end of a sibling run by stepping out
+  // a level. That made the arrow a re-parent in disguise; it is a reorder
+  // and nothing else now, and changing the level is indent / outdent.
+  const canRun = (id, command) => !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
 
-  function reparentVisible(id, outward) {
-    if (!onMove || !id) return;
-    const target = reparentTarget(id, outward);
-    if (target === null) return;
-    revealRef.current = onMove(id, target) || id;
+  function runCommand(command, id = selected?.id) {
+    if (!canRun(id, command)) return;
+    const res = onCommand(id, command, visibleIds);
+    if (!res) return;
+    // A re-parent renumbers the row and its subtree. The cursor follows in
+    // App; the fold state of the moved branch has to follow here.
+    if (res.idMap && Object.keys(res.idMap).length) setCollapsed(c => remapIds(c, res.idMap));
+    revealRef.current = res.id;
+    // Keep the keyboard on the tree. After a toolbar click focus sits on the
+    // button, which may just have become disabled — and a disabled button
+    // drops focus to the page, where the next ⌘⇧↑ goes nowhere.
+    if (containerRef.current && document.activeElement !== containerRef.current) containerRef.current.focus();
   }
-
-  // The end of the run is not the end of the press: the row steps out a level
-  // and lands where it was pressing. See outOfGroupTarget. Returns the row's
-  // new id — it changes, because re-parenting renumbers the whole subtree.
-  function stepOutOfGroup(id, direction) {
-    const out = outOfGroupTarget(visibleIds, id, direction);
-    if (!out || !onMove || !onReorder) return null;
-    const newId = onMove(id, out.parentId);
-    if (!newId) return null;
-    revealRef.current = newId;
-    onReorder(newId, { targetId: out.targetId, position: out.position });
-    return newId;
-  }
-
-  function reorderVisible(id, direction) {
-    if (!onReorder || !id) return;
-    const target = visibleSiblingTarget(visibleIds, id, direction);
-    if (target) { onReorder(id, target); return; }
-    stepOutOfGroup(id, direction);
-  }
-  // Can ⌥↑/⌥↓ do anything from here — within the run, or out of it.
-  const canReorder = (id, direction) =>
-    !!visibleSiblingTarget(visibleIds, id, direction)
-    || (!!onMove && !!outOfGroupTarget(visibleIds, id, direction));
 
   function startNewSibling(afterIdVal) {
     if (!onInsertAfter) return;
@@ -627,8 +586,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onSelect({ id: newId }, {}, visibleIds);
   }
 
-  // Enter (from inside the inline editor) — commit the current draft, then
-  // start the NEXT row: a sibling below, or (⇧Enter) a child. An empty
+  // Enter (from inside the inline editor) — save the row. On a row this
+  // session just added, Enter carries on and starts the NEXT row — the
+  // outliner rhythm of typing a list — and ⇧Enter starts a child from any
+  // row. Renaming an existing row with Enter or F2 is one edit, though: it
+  // saves and hands the keyboard back to the tree, instead of conjuring an
+  // empty row under something you only meant to correct. An empty
   // commit on a row this session itself just created removes it again
   // instead of leaving a nameless row (so Enter-Enter never litters the
   // tree); an empty commit on a pre-existing row is left alone — clearing
@@ -645,7 +608,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     }
     const node = tree.find(r => r.id === id);
     if (node && node.name !== name) onTaskUpdate?.({ ...node, name });
-    const inserter = advance === 'child' ? onInsertChild : onInsertAfter;
+    // 'next' (⌘↵, or Tab off the last field) always goes on to a new row.
+    if (advance === 'sibling' && !isNew) { setEditing(null); return; }
+    const inserter = advance === 'child' ? onInsertChild : onInsertAfter;   // 'sibling' | 'next'
     const newId = inserter?.(id);
     if (newId) {
       setEditing({ id: newId, draft: '', isNew: true, fromId: id });
@@ -727,44 +692,6 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onSelect(nextRow, {}, visibleIds);
   }
 
-  // Tab / ⇧Tab inside the editor. moveNode renumbers the subtree, so the
-  // field has to follow the row to its new id — App's onMove hands it back.
-  // The name is committed first and moveNode applies its change
-  // functionally, so the two writes in this one keypress don't race.
-  // ⌥↑/⌥↓ with the name still open. Inside its own run this is a plain
-  // reorder and the id holds; across the boundary it is a re-parent, the id
-  // is renumbered underneath the open editor, and the typed name has to be
-  // carried across with it — the same care reparentWhileEditing takes, for
-  // the same reason.
-  function reorderWhileEditing(direction) {
-    if (!editing) return;
-    const target = visibleSiblingTarget(visibleIds, editing.id, direction);
-    if (target) { onReorder?.(editing.id, target); return; }
-    if (!outOfGroupTarget(visibleIds, editing.id, direction) || !onMove) return;
-    markStructuralEdit();
-    const name = editing.draft;
-    commitDraftInPlace();
-    suppressBlurRef.current = true;
-    const newId = stepOutOfGroup(editing.id, direction);
-    if (!newId) return;
-    setEditing(cur => (cur ? { ...cur, id: newId, draft: name, isNew: false } : cur));
-  }
-
-  function reparentWhileEditing(outward) {
-    if (!editing || !onMove) return;
-    const target = reparentTarget(editing.id, outward);
-    if (target === null) return;
-    // ⌘Z is left to the browser while a field has focus, which would make this
-    // the one edit you cannot take back without clicking away first.
-    markStructuralEdit();
-    const name = editing.draft;
-    commitDraftInPlace();
-    suppressBlurRef.current = true;
-    const newId = onMove(editing.id, target);
-    revealRef.current = newId || editing.id;
-    setEditing(cur => (cur ? { ...cur, id: newId || cur.id, draft: name, isNew: false } : cur));
-  }
-
   // ⌥1–4, ⌥S/M/L/X, ⌥Space: set a field on the row being named, without
   // leaving the field. `fieldPatchForKey` is the same helper the row-level
   // shortcuts use, so "priority 2" means one thing in this app.
@@ -786,12 +713,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onTaskUpdate?.({ ...node, ...(name && name !== node.name ? { name } : {}), ...patch });
   }
 
+  // ⇧↵ a child, ⌘↵ the next row, plain ↵ saves (and carries on only on a
+  // row that was just added — see commitEdit).
+  const enterAdvance = e => (e.shiftKey ? 'child' : (e.metaKey || e.ctrlKey) ? 'next' : 'sibling');
+
   function handleEditKeyDown(e) {
     const alt = e.altKey && !e.ctrlKey && !e.metaKey;
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
 
     if (e.key === 'Escape') { stop(); cancelEdit(); return; }
-    if (e.key === 'Enter' && !alt) { stop(); commitEdit(e.shiftKey ? 'child' : 'sibling'); return; }
+    if (e.key === 'Enter' && !alt) { stop(); commitEdit(enterAdvance(e)); return; }
 
     // Tab walks the row's fields — name → priority → size → status → team —
     // which is what Tab means inside a field everywhere else. Native focus
@@ -801,29 +732,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1); return; }
     if (e.key === 'Tab') return;   // let the browser move to the next field
 
-    // ⌥←/⌥→ re-parent — but only when the caret cannot move (see
-    // altArrowIsStructural). Tab used to do this, but Tab belongs to the form
-    // now, and ⌥+arrow already means "move this row in the structure" (⌥↑/⌥↓).
-    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && alt) {
-      if (!altArrowIsStructural(e)) return;   // the text keeps its word jump
-      stop(); reparentWhileEditing(e.key === 'ArrowLeft'); return;
-    }
-
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      const dir = e.key === 'ArrowDown' ? 'down' : 'up';
-      // ⇧⌥↑/⇧⌥↓ selects to the start or end of the text on macOS, so it is
-      // not ours to take either.
-      if (alt && e.shiftKey && e.target?.selectionStart != null) return;
-      if (alt) {
-        // Reorder among siblings. reorderSibling writes displayOrder, so the
-        // id is stable and the editor simply rides along.
-        stop();
-        markStructuralEdit();
-        reorderWhileEditing(e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
-        return;
-      }
+    // No structural gestures in here. Moving or re-parenting a row happens
+    // from the tree with the row selected — ⌥←/⌥→ and ⌘⇧+arrows mean
+    // word jumps and selections inside a text field, and a keystroke that
+    // quietly moved the item instead is not something to learn around.
+    // Plain ↑/↓ is navigation: commit, and edit the row above or below.
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       stop();
-      commitAndEditNeighbour(dir === 'down' ? 1 : -1);
+      commitAndEditNeighbour(e.key === 'ArrowDown' ? 1 : -1);
       return;
     }
 
@@ -842,28 +758,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // business (that is how you pick a value), so only the row-level gestures
   // are intercepted here.
   function handleFieldKeyDown(e, isLast) {
-    const alt = e.altKey && !e.ctrlKey && !e.metaKey;
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
     if (e.key === 'Escape') { stop(); cancelEdit(); return; }
-    if (e.key === 'Enter') { stop(); commitEdit(e.shiftKey ? 'child' : 'sibling'); return; }
+    if (e.key === 'Enter') { stop(); commitEdit(enterAdvance(e)); return; }
     // Tab off the last field finishes this row and opens the next, so a whole
     // item is one uninterrupted run of Tabs.
-    if (e.key === 'Tab' && !e.shiftKey && isLast) { stop(); commitEdit('sibling'); return; }
-    if (e.key === 'Tab') return;
-    if (!alt) return;
-    // Same rule as the name editor: a text-entry field keeps its word jumps
-    // and its selection gestures. These fields are dropdowns and short inputs,
-    // so where there is no caret there is nothing to lose.
-    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-      if (e.target?.selectionStart != null && !altArrowIsStructural(e)) return;
-      stop(); reparentWhileEditing(e.key === 'ArrowLeft'); return;
-    }
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (e.shiftKey && e.target?.selectionStart != null) return;
-      stop();
-      const dir = e.key === 'ArrowDown' ? 'down' : 'up';
-      reorderWhileEditing(e.shiftKey ? (dir === 'down' ? 'last' : 'first') : dir);
-    }
+    if (e.key === 'Tab' && !e.shiftKey && isLast) { stop(); commitEdit('next'); return; }
+    // Everything else is the field's own: ↑/↓ picks a value, and there are
+    // no structural gestures while a control owns the keyboard.
   }
 
   // Focus moving between the editor's own fields is not leaving the editor.
@@ -919,9 +821,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTo, search, filt]);
 
+  // Bound to the editing <tr>: focus moving between the row's own cells is
+  // not leaving the editor.
   function handleEditorFocusOut(e) {
     const next = e.relatedTarget;
-    if (next && editCellRef.current?.contains(next)) return;
+    if (next && e.currentTarget.contains(next)) return;
     // A field's dropdown renders into a portal on document.body, to escape
     // the table's overflow clipping — so reaching for an option looks like
     // leaving the editor. It is not.
@@ -963,17 +867,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (isTypingTarget(e.target)) return;
     const key = e.key;
     const bare = !e.ctrlKey && !e.metaKey; // leave Cmd/Ctrl combos (save, undo, find…) alone
+    const ARROW_COMMAND = { ArrowUp: 'moveUp', ArrowDown: 'moveDown', ArrowRight: 'indent', ArrowLeft: 'outdent' };
 
+    // ⌘⇧+arrow (Ctrl⇧ elsewhere) — the four structural commands, one per
+    // arrow: ↑/↓ reorder, →/← indent/outdent. ⌥+arrow is the same set, kept
+    // because it is what this tree has always answered to.
+    if (ARROW_COMMAND[key] && (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      runCommand(ARROW_COMMAND[key]);
+      return;
+    }
     if ((key === 'ArrowUp' || key === 'ArrowDown') && e.altKey && bare) {
       e.preventDefault();
-      if (!selected?.id) return;
       // ⇧ makes it the whole way: to the top or the bottom of the sibling
       // run, in one press, instead of holding the key down past everything
       // in between.
-      const dir = e.shiftKey
-        ? (key === 'ArrowDown' ? 'last' : 'first')
-        : (key === 'ArrowDown' ? 'down' : 'up');
-      reorderVisible(selected.id, dir);
+      runCommand(e.shiftKey ? (key === 'ArrowDown' ? 'moveLast' : 'moveFirst') : ARROW_COMMAND[key]);
       return;
     }
     if ((key === 'ArrowUp' || key === 'ArrowDown') && !e.altKey && bare) {
@@ -987,7 +896,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // to remember which mode you are in.
     if ((key === 'ArrowLeft' || key === 'ArrowRight') && e.altKey && bare) {
       e.preventDefault();
-      if (selected?.id) reparentVisible(selected.id, key === 'ArrowLeft');
+      runCommand(ARROW_COMMAND[key]);
+      return;
+    }
+    // ⌘↵ — a new row under this one, open for typing. With plain ↵ now
+    // meaning "edit this row", this is how a list gets started.
+    if (key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      if (selected?.id) startNewSibling(selected.id);
+      return;
+    }
+    // Home / End — the first and the last row on screen.
+    if ((key === 'Home' || key === 'End') && bare && !e.altKey && !e.shiftKey) {
+      const row = key === 'Home' ? filt[0] : filt[filt.length - 1];
+      if (!row) return;
+      e.preventDefault();
+      onSelect(row, {}, visibleIds);
       return;
     }
     if (!bare || e.altKey || !selected?.id) return;
@@ -1021,7 +945,13 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     }
     if (key === 'Tab') {
       e.preventDefault();
-      reparentVisible(selected.id, e.shiftKey);
+      runCommand(e.shiftKey ? 'outdent' : 'indent');
+      return;
+    }
+    // F2 — rename, the key every spreadsheet and file manager uses for it.
+    if (key === 'F2') {
+      e.preventDefault();
+      startEdit(selected.id);
       return;
     }
     if (key === 'Enter') {
@@ -1087,6 +1017,80 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     onPasteRows(selected.id, rows);
   }
 
+  // The editable cells of a row, keyed by the column they live in. Each is
+  // a SearchSelect rather than a <select> so typing filters: with a dozen
+  // teams, hunting a native dropdown by eye is the slow path. No labels —
+  // the column head above says what the cell is; the name doubles as the
+  // accessible label.
+  function editFieldsFor(r) {
+    // A task with phases derives its status FROM them, so a Status dropdown
+    // would write a value the next read overwrites. The cell becomes the
+    // phase list instead: it shows where the task stands, and Space walks
+    // the same sequence one step at a time.
+    const statusField = r.phases?.length
+      ? { key: 'phase', column: 'progress', label: t('tv.fldPhase'),
+          value: currentPhase(r.phases)?.id || '',
+          options: r.phases.map(ph => ({
+            id: ph.id,
+            label: `${ph.status === 'done' ? '●' : ph.status === 'wip' ? '◐' : '○'} ${ph.name || ph.id}`,
+          })),
+          emptyLabel: t('tv.phaseAllDone'),
+          onSelect: v => {
+            const phases = v ? setPhaseCursor(r.phases, v) : r.phases.map(ph => ({ ...ph, status: 'done' }));
+            if (!phases) return;
+            const st = statusFromPhases(phases);
+            writeFieldWhileEditing({ ...statusChangePatch(r, st), phases, progress: phaseProgress(phases) });
+          } }
+      : { key: 'status', column: 'progress', label: t('tv.fldStatus'), value: r.status || 'open',
+          options: ['open', 'wip', 'done'].map(st => ({ id: st, label: statusLbl[st] })),
+          onSelect: v => writeFieldWhileEditing(statusChangePatch(r, v)) };
+    const fields = [
+      { key: 'team', column: 'team', label: t('tv.fldTeam'), value: r.team || '',
+        options: (teams || []).map(tm => ({ id: tm.id, label: tm.name })),
+        emptyLabel: t('tv.teamNone'),
+        onSelect: v => writeFieldWhileEditing({ team: v || '' }) },
+      // The priority is drawn in the signal column, so that is where it is set.
+      { key: 'prio', column: 'signal', label: t('tv.fldPrio'), value: r.prio ? String(r.prio) : '',
+        options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: prioLbl[pv] })),
+        // A row you just typed has no priority yet — say so, rather than
+        // pre-filling one and calling it a decision.
+        emptyLabel: t('tv.prioNone'),
+        onSelect: v => writeFieldWhileEditing({ prio: v ? Number(v) : undefined }) },
+      { key: 'size', column: 'effort', label: t('tv.fldSize'),
+        value: sizeCatalogue.find(sz => sz.days === r.best && sz.factor === r.factor)?.label || '',
+        options: sizeCatalogue.map(sz => ({ id: sz.label, label: `${sz.label} · ${sz.days}d` })),
+        // An estimate from the wizard matches no catalogue entry — say so
+        // rather than showing the nearest size.
+        emptyLabel: t('tv.sizeCustom'),
+        onSelect: v => { const sz = sizeCatalogue.find(x => x.label === v); if (sz) writeFieldWhileEditing({ best: sz.days, factor: sz.factor }); } },
+      statusField,
+    ];
+    return Object.fromEntries(fields.map(f => [f.column, f]));
+  }
+
+  // One editable cell. Tab order is the column order — name, team,
+  // priority, size, status — which is the order they sit in on screen.
+  function editCell(f, isLast) {
+    if (!f) return null;
+    return <span className="tv-cell-edit" onClick={e => e.stopPropagation()}
+      // SearchSelect owns ↑/↓/Enter/Esc while its popup is open and calls
+      // preventDefault when it acts, so the row-level keys run only on what
+      // it left alone.
+      onKeyDown={e => { if (!e.defaultPrevented) handleFieldKeyDown(e, isLast); }}>
+      <SearchSelect
+        compact
+        testId={`tree-edit-${f.key}`}
+        ariaLabel={f.label}
+        inputRef={f.key === 'team' ? teamSelRef : undefined}
+        value={f.value}
+        options={f.options}
+        allowEmpty={!!f.emptyLabel}
+        emptyLabel={f.emptyLabel}
+        onSelect={f.onSelect}
+      />
+    </span>;
+  }
+
   // The row itself. Called only for rows whose signature changed — see
   // the cache at the call site.
   function renderRow(r, idx) {
@@ -1120,13 +1124,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           // visible without spamming color on every cell.
           const rootIdSeg = r.id.split('.')[0];
           const lineColor = getLineColor(rootIdSeg, roadmapAssignment);
+          // In edit mode the row stays the row: same indentation, same
+          // columns, each value swapped for its control in place.
+          const isEditingRow = editing?.id === r.id;
+          const edit = isEditingRow ? editFieldsFor(r) : null;
+          const lastEditCol = edit ? ['progress', 'effort', 'signal', 'team'].find(c => edit[c]) : null;
           return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
             className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}`}
             data-prio={r.prio || ''}
             data-dropped={r.dropped ? 'true' : undefined}
             data-status={effStatus}
             data-team={r.team || ''}
-            onClick={e => { onSelect(r, e, filt.map(x => x.id)); containerRef.current?.focus(); }}
+            data-editing={isEditingRow ? 'true' : undefined}
+            onBlur={isEditingRow ? handleEditorFocusOut : undefined}
+            onClick={e => { if (isEditingRow) return; onSelect(r, e, filt.map(x => x.id)); containerRef.current?.focus(); }}
             onDragOver={e => onOrderDragOver(e, r.id)}
             onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
             onDrop={e => onOrderDrop(e, r.id)}
@@ -1136,7 +1147,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {onReorder && <span
                 className="tv-drag-handle"
                 draggable
-                data-htip={withKey(t('tv.dragTip', r.id), 'reorder')}
+                data-htip={t('tv.dragTip', r.id)}
                 onDragStart={e => {
                   e.stopPropagation();
                   e.dataTransfer.effectAllowed = 'move';
@@ -1193,87 +1204,17 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Name — a real <input> while this row is the keyboard editor's
                   active edit (see handleContainerKeyDown's Enter/⇧Enter and
                   the commit/cancel helpers above). */}
-              {editing?.id === r.id
-                ? <span className="tv-edit-row" ref={editCellRef}
-                    onBlur={handleEditorFocusOut}
-                    onClick={e => e.stopPropagation()}>
-                  <input
+              {isEditingRow
+                ? <input
                     ref={editInputRef}
                     className="tn-edit-input"
                     value={editing.draft}
                     data-testid={`tree-name-input-${r.id}`}
-                    onChange={e => { const v = e.target.value; clearStructuralEdit(); setEditing(cur => cur ? { ...cur, draft: v } : cur); }}
+                    onChange={e => { const v = e.target.value; setEditing(cur => cur ? { ...cur, draft: v } : cur); }}
+                    aria-label={t('col.name')}
                     onKeyDown={handleEditKeyDown}
-                    style={{ font: 'inherit', fontSize: 12, padding: '1px 5px', border: '1px solid var(--ac)', borderRadius: 3, background: 'var(--bg)', color: 'var(--tx)', minWidth: 150 }}
+                    onClick={e => e.stopPropagation()}
                   />
-                  {/* The rest of the row, as a form. Tab walks it in order —
-                      name → priority → size → status → team — with a label
-                      on each, because a glyph you have to decode is not a
-                      label. Each is a SearchSelect rather than a <select> so
-                      typing filters: with a dozen teams, hunting a native
-                      dropdown by eye is the slow path. */}
-                  {[
-                    { key: 'prio', label: t('tv.fldPrio'), value: r.prio ? String(r.prio) : '',
-                      options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: prioLbl[pv] })),
-                      // A row you just typed has no priority yet — say so,
-                      // rather than pre-filling one and calling it a decision.
-                      emptyLabel: t('tv.prioNone'),
-                      onSelect: v => writeFieldWhileEditing({ prio: v ? Number(v) : undefined }) },
-                    { key: 'size', label: t('tv.fldSize'),
-                      value: sizeCatalogue.find(sz => sz.days === r.best && sz.factor === r.factor)?.label || '',
-                      options: sizeCatalogue.map(sz => ({ id: sz.label, label: `${sz.label} · ${sz.days}d` })),
-                      // An estimate from the wizard matches no catalogue
-                      // entry — say so rather than showing the nearest size.
-                      emptyLabel: t('tv.sizeCustom'),
-                      onSelect: v => { const sz = sizeCatalogue.find(x => x.label === v); if (sz) writeFieldWhileEditing({ best: sz.days, factor: sz.factor }); } },
-                    // A task with phases derives its status FROM them, so a
-                    // Status dropdown here would write a value the next read
-                    // overwrites. The field becomes the phase list instead:
-                    // it shows where the task stands, and Space walks the
-                    // same sequence one step at a time.
-                    r.phases?.length
-                      ? { key: 'phase', label: t('tv.fldPhase'),
-                          value: currentPhase(r.phases)?.id || '',
-                          options: r.phases.map(ph => ({
-                            id: ph.id,
-                            label: `${ph.status === 'done' ? '●' : ph.status === 'wip' ? '◐' : '○'} ${ph.name || ph.id}`,
-                          })),
-                          emptyLabel: t('tv.phaseAllDone'),
-                          onSelect: v => {
-                            const phases = v ? setPhaseCursor(r.phases, v) : r.phases.map(ph => ({ ...ph, status: 'done' }));
-                            if (!phases) return;
-                            const st = statusFromPhases(phases);
-                            writeFieldWhileEditing({ ...statusChangePatch(r, st), phases, progress: phaseProgress(phases) });
-                          } }
-                      : { key: 'status', label: t('tv.fldStatus'), value: r.status || 'open',
-                          options: ['open', 'wip', 'done'].map(st => ({ id: st, label: statusLbl[st] })),
-                          onSelect: v => writeFieldWhileEditing(statusChangePatch(r, v)) },
-                    { key: 'team', label: t('tv.fldTeam'), value: r.team || '',
-                      options: (teams || []).map(tm => ({ id: tm.id, label: tm.name })),
-                      emptyLabel: t('tv.teamNone'),
-                      onSelect: v => writeFieldWhileEditing({ team: v || '' }) },
-                  ].map((f, i, all) => (
-                    <label className="tv-field" key={f.key}>
-                      <span className="tv-field-lbl">{f.label}</span>
-                      {/* SearchSelect owns ↑/↓/Enter/Esc while its popup is
-                          open and calls preventDefault when it acts, so the
-                          row-level gestures run only on what it left alone. */}
-                      <span className="tv-field-sel-wrap"
-                        onKeyDown={e => { if (!e.defaultPrevented) handleFieldKeyDown(e, i === all.length - 1); }}>
-                        <SearchSelect
-                          compact
-                          testId={`tree-edit-${f.key}`}
-                          inputRef={f.key === 'team' ? teamSelRef : undefined}
-                          value={f.value}
-                          options={f.options}
-                          allowEmpty={!!f.emptyLabel}
-                          emptyLabel={f.emptyLabel}
-                          onSelect={f.onSelect}
-                        />
-                      </span>
-                    </label>
-                  ))}
-                </span>
                 : <span
                     className={`tn tn-editable${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}
                     data-testid="tree-row-name"
@@ -1313,7 +1254,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 used to trail behind the name with `marginLeft: 8`, eleven
                 optional things deep, and no two rows ended in the same place. */}
             <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
-{tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
+{edit ? editCell(edit.team, lastEditCol === 'team') : tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
             </td>
             <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'var(--mono)' }}>
 {/* Assignees — initials, with handoff chain appended when the
@@ -1338,7 +1279,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {/* Priority — chevron icon for all leaves */}
             </td>
             <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
-{isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
+{edit && editCell(edit.signal, lastEditCol === 'signal')}
+{!edit && isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
 
               {/* Severity for roots */}
 {/* Diff-since badge (newly done / new leaf / progress jump) */}
@@ -1367,10 +1309,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             </td>
               {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             {/* Effort: single number (realistic days) */}
-            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{effortDays}</td>
+            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{edit ? editCell(edit.effort, lastEditCol === 'effort') : effortDays}</td>
 
             {/* Progress */}
-            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
+            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{edit ? editCell(edit.progress, lastEditCol === 'progress') : prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
 
             {/* Schedule range — start to end */}
             <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
@@ -1392,7 +1334,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 uses. Reorder, indent and delete live in the contextual
                 toolbar above and act on the selected item. */}
             <td data-col="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
-              <span className="tv-row-act">
+              {/* Save / cancel for the mouse. Out of the Tab order: Tab walks
+                  the fields, Enter and Esc are these two buttons. */}
+              {isEditingRow ? <span className="tv-row-act tv-row-act-edit">
+                <button className="tv-act-btn" tabIndex={-1} data-testid={`tree-edit-save-${r.id}`}
+                  aria-label={t('tv.editSave')} data-htip={`${t('tv.editSave')} · ↵`}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={e => { e.stopPropagation(); finishEditing(); }}><Icon name="check" size={12} /></button>
+                <button className="tv-act-btn" tabIndex={-1} data-testid={`tree-edit-cancel-${r.id}`}
+                  aria-label={t('tv.editCancel')} data-htip={`${t('tv.editCancel')} · Esc`}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={e => { e.stopPropagation(); cancelEdit(); }}><Icon name="x" size={12} /></button>
+              </span> : <span className="tv-row-act">
                 {/* Open this row in the editor. The standard move for a table
                     row, and the one path that does not depend on there being
                     a panel on the right: with the editor docked as a dialog
@@ -1404,12 +1357,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
                   onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}><Icon name="pencil" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-sibling-${r.id}`}
-                  data-htip={withKey(t('tv.newRowTip', r.id), 'editNext')}
+                  data-htip={withKey(t('tv.newRowTip', r.id), 'newRow')}
                   onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}><Icon name="plus" size={12} /></button>
                 <button className="tv-act-btn" data-testid={`tree-row-add-child-${r.id}`}
                   data-htip={withKey(t('tv.newChildTip', r.id), 'newChild')}
                   onClick={e => { e.stopPropagation(); startNewChild(r.id); }}><Icon name="subtask" size={12} /></button>
-              </span>
+              </span>}
             </td>
           </tr>;
   }
@@ -1451,24 +1404,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
         {onFullEdit && editorInDialog && toolBtn(t('tv.editItem'), t('nm.fullEditTip'), () => onFullEdit(selected), false, 'maximize', 'tv-edit-selected')}
-        {onInsertAfter && toolBtn(t('tv.newRow'), withKey(t('tv.newRowTip', selected.id), 'editNext'), () => startNewSibling(selected.id), false, 'plus')}
+        {onInsertAfter && toolBtn(t('tv.newRow'), withKey(t('tv.newRowTip', selected.id), 'newRow'), () => startNewSibling(selected.id), false, 'plus')}
         {onInsertChild && toolBtn(t('tv.newChild'), withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id), false, 'subtask')}
-        {/* Re-parent — the mouse twin of Tab / ⇧Tab. `null` from the helper
-            means the move is a no-op here (already at the top level, or no
-            previous sibling to become the new parent), so the button is
-            disabled rather than silently doing nothing. Note '' is a valid
-            target (the root), which is why this tests against null. */}
-        {onMove && <>
+        {/* Structure — move up / down among the siblings, then indent /
+            outdent. Four commands, four buttons, each disabled exactly when
+            its command cannot run (canRun is the command's own check). */}
+        {onCommand && <>
           <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => reparentVisible(selected.id, true), reparentTarget(selected.id, true) === null, 'outdent', 'tv-outdent')}
-          {toolBtn('', withKey(t('tv.indentTip', selected.id), 'indent'), () => reparentVisible(selected.id, false), reparentTarget(selected.id, false) === null, 'indent', 'tv-indent')}
-        </>}
-        {onReorder && (selPos.count > 1 || canReorder(selected.id, 'up') || canReorder(selected.id, 'down')) && <>
+          {toolBtn(t('tv.moveFirst'), withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => runCommand('moveFirst'), !canRun(selected.id, 'moveFirst'), 'moveTop', 'tv-move-first')}
+          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'moveUp'), () => runCommand('moveUp'), !canRun(selected.id, 'moveUp'), 'moveUp', 'tv-move-up', 'moveUp')}
+          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'moveDown'), () => runCommand('moveDown'), !canRun(selected.id, 'moveDown'), 'moveDown', 'tv-move-down', 'moveDown')}
+          {toolBtn(t('tv.moveLast'), withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => runCommand('moveLast'), !canRun(selected.id, 'moveLast'), 'moveBottom', 'tv-move-last')}
           <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn(t('tv.moveFirst'), withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'first'), !visibleSiblingTarget(visibleIds, selected.id, 'first'), 'moveTop', 'tv-move-first')}
-          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'up'), !canReorder(selected.id, 'up'), 'moveUp', 'tv-move-up')}
-          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'reorder'), () => reorderVisible(selected.id, 'down'), !canReorder(selected.id, 'down'), 'moveDown', 'tv-move-down')}
-          {toolBtn(t('tv.moveLast'), withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => reorderVisible(selected.id, 'last'), !visibleSiblingTarget(visibleIds, selected.id, 'last'), 'moveBottom', 'tv-move-last')}
+          {toolBtn('', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => runCommand('outdent'), !canRun(selected.id, 'outdent'), 'outdent', 'tv-outdent', 'outdent')}
+          {toolBtn('', withKey(t('tv.indentTip', selected.id), 'indent'), () => runCommand('indent'), !canRun(selected.id, 'indent'), 'indent', 'tv-indent', 'indent')}
         </>}
         <span style={{ flex: 1 }} />
         <button className="btn btn-sec btn-xs" data-testid="tv-delete-selected" onClick={() => onDelete(selected.id)}

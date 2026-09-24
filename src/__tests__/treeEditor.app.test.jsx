@@ -77,9 +77,9 @@ async function press(target, key, opts = {}) {
   });
 }
 
-// Enter commits and opens the NEXT row; Escape backs out of that empty one.
-// Both are needed before reading names off the grid, because a row being
-// edited renders an <input>, not its name.
+// Enter saves; on a row just added it also opens the NEXT row, and Escape
+// backs out of that empty one. Both are needed before reading names off the
+// grid, because a row being edited renders an <input>, not its name.
 async function commitAndClose(input) {
   await press(input, 'Enter');
   const trailing = document.querySelector('tr input[data-testid^="tree-name-input-"]');
@@ -139,14 +139,15 @@ describe('the tree editor writes through to the plan', () => {
     await waitFor(() => expect(nameOf('P1.1')).toContain('Prices and conditions'));
   });
 
-  it('types a list: each Enter commits the name and opens the next row', async () => {
+  it('types a list: ⌘↵ starts it, then each Enter commits the name and opens the next row', async () => {
     renderApp();
     await selectRow('P1.2');
 
     await press(grid(), 'Enter');
     let input = screen.getByTestId('tree-name-input-P1.2');
     await act(async () => { fireEvent.change(input, { target: { value: 'Masks UI' } }); });
-    await press(input, 'Enter');
+    // Plain Enter on an existing row only saves it; ⌘↵ goes on to a new one.
+    await press(input, 'Enter', { metaKey: true });
 
     // Three more rows, typed without touching the mouse — the workflow this
     // phase exists for.
@@ -456,24 +457,23 @@ describe('the tree editor writes through to the plan', () => {
     expect(nodeById('P1.2').team).toBe('T1');
   });
 
-  it('Tab walks the row as a form, and Tab off the last field opens the next row', async () => {
-    // This is what Tab means inside a field everywhere else. Re-parenting
-    // moved to ⌥←/⌥→, which already reads as "move this row".
+  it('Tab walks the row cell by cell, and Tab off the last field opens the next row', async () => {
     renderApp();
     await selectRow('P1.2');
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
     await act(async () => { fireEvent.change(input, { target: { value: 'Masks tabbed' } }); });
-    // The fields are in one container, in Tab order — that IS the contract.
-    const fields = [...document.querySelector('.tv-edit-row').querySelectorAll('input, select')]
-      .map(el => el.getAttribute('data-testid'));
+    // The controls sit in the row's own columns, in column order — which is
+    // the Tab order.
+    const row = input.closest('tr');
+    const fields = [...row.querySelectorAll('input, select')].map(el => el.getAttribute('data-testid'));
     expect(fields).toEqual([
-      'tree-name-input-P1.2', 'tree-edit-prio', 'tree-edit-size', 'tree-edit-status', 'tree-edit-team',
+      'tree-name-input-P1.2', 'tree-edit-team', 'tree-edit-prio', 'tree-edit-size', 'tree-edit-status',
     ]);
 
-    // Tab off the team dropdown finishes the row and opens the next one.
-    await press(screen.getByTestId('tree-edit-team'), 'Tab');
+    // Tab off the status field finishes the row and opens the next one.
+    await press(screen.getByTestId('tree-edit-status'), 'Tab');
     await waitFor(() => expect(hasName('Masks tabbed')).toBe(true));
     const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(open, 'Tab off the last field should open the next row').toBeTruthy();
@@ -481,28 +481,88 @@ describe('the tree editor writes through to the plan', () => {
     await press(open, 'Escape');
   });
 
-  it('⌥→ re-parents while the editor is open, keeping the name and following the new id', async () => {
-    // Two writes in one keypress — the name, then moveNode's renumbering.
-    // moveNode used to write a snapshot of the render closure's tree, which
-    // is how the rename got eaten the first time round.
+  it('edits in place: every control sits in its own column, the indentation stays, and no labels repeat the heads', async () => {
+    renderApp();
+    const before = await selectRowNamed('Prices');
+    const indentBefore = before.querySelector('td[data-col="name"] span').style.width;
+    await press(grid(), 'Enter');
+
+    const input = screen.getByTestId('tree-name-input-P1.1');
+    const row = input.closest('tr');
+    expect(input.closest('td').getAttribute('data-col')).toBe('name');
+    expect(screen.getByTestId('tree-edit-team').closest('td').getAttribute('data-col')).toBe('team');
+    expect(screen.getByTestId('tree-edit-prio').closest('td').getAttribute('data-col')).toBe('signal');
+    expect(screen.getByTestId('tree-edit-size').closest('td').getAttribute('data-col')).toBe('effort');
+    expect(screen.getByTestId('tree-edit-status').closest('td').getAttribute('data-col')).toBe('progress');
+    // Same indentation spacer, same width, as the row had at rest.
+    expect(row.querySelector('td[data-col="name"] span').style.width).toBe(indentBefore);
+    // No form labels inside the row.
+    expect(row.querySelector('.tv-field-lbl, label')).toBeNull();
+    // The controls still say what they are, to a screen reader.
+    expect(screen.getByTestId('tree-edit-team').getAttribute('aria-label')).toBeTruthy();
+    await press(input, 'Escape');
+  });
+
+  it('Save and Cancel hand the keyboard back to the tree, on the same row', async () => {
+    renderApp();
+    await selectRow('P1.2');
+
+    // Save with Enter.
+    await press(grid(), 'Enter');
+    let input = screen.getByTestId('tree-name-input-P1.2');
+    await act(async () => { fireEvent.change(input, { target: { value: 'Masks saved' } }); });
+    await press(input, 'Enter');
+    await waitFor(() => expect(hasName('Masks saved')).toBe(true));
+    expect(document.activeElement).toBe(grid());
+    expect(document.querySelector('tr.sel [data-testid="tree-row-name"]').textContent).toContain('Masks saved');
+
+    // Cancel with Escape: the name reverts, the row stays the cursor.
+    await press(grid(), 'F2');
+    input = screen.getByTestId('tree-name-input-P1.2');
+    await act(async () => { fireEvent.change(input, { target: { value: 'thrown away' } }); });
+    await press(input, 'Escape');
+    expect(document.activeElement).toBe(grid());
+    expect(document.querySelector('tr.sel [data-testid="tree-row-name"]').textContent).toContain('Masks saved');
+
+    // And the arrows still move from there.
+    await press(grid(), 'ArrowUp');
+    await waitFor(() => expect(document.querySelector('tr.sel [data-testid="tree-row-name"]').textContent).not.toContain('Masks saved'));
+  });
+
+  it('the ✓ and × in the row save and discard', async () => {
+    renderApp();
+    await selectRow('P1.2');
+    await press(grid(), 'Enter');
+    let input = screen.getByTestId('tree-name-input-P1.2');
+    await act(async () => { fireEvent.change(input, { target: { value: 'Masks by click' } }); });
+    await act(async () => { fireEvent.click(screen.getByTestId('tree-edit-save-P1.2')); });
+    await waitFor(() => expect(hasName('Masks by click')).toBe(true));
+
+    await press(grid(), 'Enter');
+    input = screen.getByTestId('tree-name-input-P1.2');
+    await act(async () => { fireEvent.change(input, { target: { value: 'never' } }); });
+    await act(async () => { fireEvent.click(screen.getByTestId('tree-edit-cancel-P1.2')); });
+    expect(hasName('never')).toBe(false);
+    expect(nameOf('P1.2')).toContain('Masks by click');
+  });
+
+  it('structural shortcuts do nothing while a field has the keyboard', async () => {
     renderApp();
     await selectRow('P1.2');
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks indented' } }); });
+    await act(async () => { fireEvent.change(input, { target: { value: 'Masks typing' } }); });
     await press(input, 'ArrowRight', { altKey: true });
+    await press(input, 'ArrowRight', { metaKey: true, shiftKey: true });
+    await press(input, 'ArrowUp', { metaKey: true, shiftKey: true });
+    await press(screen.getByTestId('tree-edit-team'), 'ArrowLeft', { altKey: true });
 
-    const followed = document.querySelector('tr input[data-testid^="tree-name-input-"]');
-    expect(followed, 'the editor was orphaned by the move').toBeTruthy();
-    expect(followed.value).toBe('Masks indented');
-
-    await commitAndClose(followed);
-    await waitFor(() => {
-      const moved = planTree().find(n => n.name.includes('Masks indented'));
-      expect(moved, 'the name was lost in the move').toBeTruthy();
-      expect(moved.id.startsWith('P1.1.'), `id is ${moved.id}`).toBe(true);
-    });
+    // Still the same row, still open, the name still being typed.
+    expect(screen.getByTestId('tree-name-input-P1.2').value).toBe('Masks typing');
+    await press(screen.getByTestId('tree-name-input-P1.2'), 'Escape');
+    expect(nodeById('P1.2')).toBeTruthy();
+    expect(planTree().map(n => n.id)).toEqual(['P1', 'P1.1', 'P1.2']);
   });
 
   // ── Navigation ──────────────────────────────────────────────────────────
@@ -791,7 +851,7 @@ describe('the tree editor writes through to the plan', () => {
 // Reported: "with Enter I land in a sub-item and not in an item below the
 // current one". The list test above proves rows appear; it never asked at what
 // depth, which is the only part that was wrong.
-describe('Enter makes a sibling, ⇧Enter makes a child', () => {
+describe('⌘↵ makes a sibling, ⇧↵ makes a child', () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -808,10 +868,7 @@ describe('Enter makes a sibling, ⇧Enter makes a child', () => {
     renderApp();
     await selectRowNamed('Prices');
 
-    await press(grid(), 'Enter');
-    const input = screen.getByTestId('tree-name-input-P1.1');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices' } }); });
-    await press(input, 'Enter');
+    await press(grid(), 'Enter', { metaKey: true });
 
     const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(open, 'no editor opened for the next row').toBeTruthy();

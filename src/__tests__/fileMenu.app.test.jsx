@@ -78,7 +78,7 @@ describe('the file operations have a visible home', () => {
 
     // Save is the one with a key; it comes from shortcuts.js rather than a
     // second hardcoded copy, so it cannot drift from the keymap.
-    expect(screen.getByTestId('file-menu-saveAs').textContent).toMatch(/⌘S|CtrlS/);
+    expect(screen.getByTestId('file-menu-saveAs').textContent).toMatch(/⌘S|Ctrl\+Shift\+S/);
   });
 
   it('closes on Escape and on an outside click', async () => {

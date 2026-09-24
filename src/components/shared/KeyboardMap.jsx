@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
-import { shortcutsByScope } from '../../utils/shortcuts.js';
+import { shortcutsByScope, formatKey } from '../../utils/shortcuts.js';
 
 // The app-wide keyboard reference, one keypress away (`?`).
 //
@@ -98,7 +98,7 @@ export function KeyboardMap() {
                           fontFamily: 'var(--mono)', fontSize: 11, lineHeight: '16px',
                           background: 'var(--bg3)', border: '1px solid var(--b2)',
                           borderBottomWidth: 2, borderRadius: 4, color: 'var(--tx)',
-                        }}>{k}</kbd>
+                        }}>{formatKey(k)}</kbd>
                       ))}
                     </td>
                   </tr>
