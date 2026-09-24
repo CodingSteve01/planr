@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
+import { openPalette } from './openPalette.js';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 const CSV = [
@@ -33,8 +34,7 @@ const renderApp = () => render(
 );
 
 async function openImport() {
-  await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
-  const input = await screen.findByTestId('palette-input');
+  const input = await openPalette();
   await act(async () => { fireEvent.change(input, { target: { value: 'import from jira' } }); });
   await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
   return screen.findByTestId('jira-import-paste');

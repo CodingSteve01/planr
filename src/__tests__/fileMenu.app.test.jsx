@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
+import { openPalette } from './openPalette.js';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
@@ -110,8 +111,7 @@ describe('the file operations have a visible home', () => {
     // The palette ignores `/` while focus is in a field (there it is just a
     // character). Anything focused from an earlier interaction would make
     // this silently not open — which it did, once, in a full run.
-    document.activeElement?.blur?.();
-    fireEvent.keyDown(window, { key: '/' });
+    await openPalette();
     const palette = await screen.findByTestId('command-palette');
     const text = palette.textContent;
     for (const label of ['Load', 'Snapshots', 'Save as', 'Export', 'New project']) {
@@ -134,8 +134,7 @@ describe('the palette is scannable, not a wall of text', () => {
   it('gives every command an icon', async () => {
     renderApp();
     await screen.findByTestId('file-menu-trigger');
-    document.activeElement?.blur?.();
-    fireEvent.keyDown(window, { key: '/' });
+    await openPalette();
 
     const rows = [...(await screen.findByTestId('command-palette')).querySelectorAll('[role="option"]')];
     expect(rows.length, 'no commands rendered').toBeGreaterThan(10);

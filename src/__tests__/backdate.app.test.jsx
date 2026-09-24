@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
+import { openPalette } from './openPalette.js';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
@@ -41,13 +42,7 @@ async function openDialog() {
   await waitFor(() => {
     if (!document.querySelector('.tab-bar')) throw new Error('shell not mounted');
   });
-  document.activeElement?.blur?.();
-  await waitFor(async () => {
-    if (screen.queryByTestId('palette-input')) return;
-    await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
-    if (!screen.queryByTestId('palette-input')) throw new Error('palette did not open');
-  });
-  const input = await screen.findByTestId('palette-input');
+  const input = await openPalette();
   await act(async () => { fireEvent.change(input, { target: { value: 'backdate' } }); });
   await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
   return screen.findByTestId('backdate-dialog');

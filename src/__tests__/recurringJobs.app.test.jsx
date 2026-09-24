@@ -30,16 +30,13 @@ function seedProject() {
   }));
 }
 
+import { openPalette, runCommand } from './openPalette.js';
+
 const renderApp = () => render(
   <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
 );
 
-async function runCommand(query) {
-  await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
-  const input = await screen.findByTestId('palette-input');
-  await act(async () => { fireEvent.change(input, { target: { value: query } }); });
-  await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
-}
+
 
 const activeTabName = () => document.querySelector('.tab.on')?.firstChild?.textContent?.trim();
 
@@ -74,8 +71,7 @@ describe('the jobs that come back every week have a way in', () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
 
-    await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
-    const input = await screen.findByTestId('palette-input');
+    const input = await openPalette();
     await act(async () => { fireEvent.change(input, { target: { value: 'jira' } }); });
 
     const labels = [document.querySelector('[data-testid="command-palette"]')?.textContent || ''];
