@@ -3124,8 +3124,12 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                         background: 'repeating-linear-gradient(45deg, var(--st-wip) 0 2px, transparent 2px 6px)',
                         opacity: .3,
                         boxShadow: 'inset 1.5px 0 0 var(--st-wip), inset -1.5px 0 0 var(--st-wip)',
-                        pointerEvents: 'auto',
-                      }} data-htip={`${band.personName} · ${t('g.vacation')}: ${band.from} → ${band.to}${band.note ? ' · ' + band.note : ''}`} />
+                        // No tooltip of its own: the bar's tooltip is already
+                        // up while the pointer is on the bar, and a second
+                        // one over it made two stacked boxes. The bar's tip
+                        // lists the vacation instead (Tooltip.jsx).
+                        pointerEvents: 'none',
+                      }} data-vac-band={`${band.from}_${band.to}`} />
                     ))}
                   </div>;
                 })()}
@@ -3506,7 +3510,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       })()}
     </svg>}
     {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
-    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
+    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} vacations={vacBandsByTaskId[tip.item?.id] || EMPTY_ARR} />}
   </div>;
 }
 

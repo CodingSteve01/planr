@@ -48,7 +48,7 @@ function SectionTitle({ label }) {
 // double-click every graph and Gantt row is opened with; a surface where a
 // SINGLE click opens the editor (the Roadmap tab) passes its own, because a
 // tooltip that teaches the wrong gesture is worse than no tooltip.
-export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {}, hint }) {
+export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels = {}, hint, vacations = [] }) {
   const { t } = useT();
   const portalRoot = usePortalRoot();
   if (!item) return null;
@@ -163,6 +163,15 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
               <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 11 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
             </div>
           )}
+          {/* When the absence hatching on the bar is: its own tooltip used
+              to sit on top of this one. */}
+          {vacations.length > 0 && <div data-testid="tip-vacations" style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6 }}>
+            {vacations.map(v => <div key={v.key || `${v.personName}-${v.from}`}>
+              <span style={{ color: 'var(--st-wip)', marginRight: 6 }}>{t('g.vacation')}</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>{v.from} → {v.to}</span>
+              <span style={{ color: 'var(--tx3)', marginLeft: 6, fontSize: 11 }}>{[v.personName, v.note].filter(Boolean).join(' · ')}</span>
+            </div>)}
+          </div>}
           {item.pinnedStart && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{item.pinnedStart}</div>}
           {node?.decideBy && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 4 }}>! {node.decideBy}</div>}
           {item.blockedBy && (() => {
