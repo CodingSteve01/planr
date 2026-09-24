@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, memo } from 'react';
+import { Fragment, useMemo, useRef, useState, memo } from 'react';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
@@ -36,6 +36,10 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
   // five items moved one at a time is five keystrokes and a different result,
   // because each would step over the next.
   const [picked, setPicked] = useState(() => new Set());
+  // Where a ⇧↑/⇧↓ run started and where it has got to — the tree's model:
+  // the anchor stays, the far end moves.
+  const extendRef = useRef(null);
+  const viewRef = useRef(null);
   const selectRow = (id, e, visible) => {
     const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
     if (e?.shiftKey && cursor) {
@@ -152,9 +156,68 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     return { name: member?.name || owner, color: team?.color, team: false };
   };
 
+  // The keyboard is the tree's (docs/principles.md, principle 5): ↑/↓ walk
+  // the rows — across owners too, the list reads top to bottom — ⇧↑/⇧↓
+  // extend the pick within the owner's list, Home/End jump to its ends, Esc
+  // drops the pick, Enter opens the item. Reordering keeps ⌥↑/⌥↓ and gains
+  // the tree's ⌘⇧↑/⌘⇧↓, so the same hand does the same thing in both views.
+  const rowEls = () => [...(viewRef.current?.querySelectorAll('[data-queue-row]') || [])];
+  const focusRow = id => {
+    const el = rowEls().find(r => r.getAttribute('data-queue-row') === id);
+    if (!el) return;
+    el.focus();
+    el.scrollIntoView?.({ block: 'nearest' });
+  };
+  const ownerRows = id => {
+    const el = rowEls().find(r => r.getAttribute('data-queue-row') === id);
+    const table = el?.closest('table');
+    return table ? [...table.querySelectorAll('[data-queue-row]')].map(r => r.getAttribute('data-queue-row')) : [];
+  };
+  const navigate = (e, id) => {
+    if (e.key === 'Escape') {
+      if (!picked.size) return false;
+      setPicked(new Set()); extendRef.current = null; return true;
+    }
+    if (e.key === 'Home' || e.key === 'End') {
+      const list = ownerRows(id);
+      const target = e.key === 'Home' ? list[0] : list[list.length - 1];
+      if (!target) return false;
+      setPicked(new Set()); extendRef.current = null; setCursor(target); focusRow(target); return true;
+    }
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return false;
+    const dir = e.key === 'ArrowDown' ? 1 : -1;
+    if (e.shiftKey) {
+      const list = ownerRows(id);
+      const anchor = extendRef.current?.anchor && list.includes(extendRef.current.anchor) ? extendRef.current.anchor : id;
+      const from = extendRef.current?.end && list.includes(extendRef.current.end) ? extendRef.current.end : id;
+      const end = list[Math.max(0, Math.min(list.length - 1, list.indexOf(from) + dir))];
+      const a = list.indexOf(anchor), b = list.indexOf(end);
+      setPicked(new Set(list.slice(Math.min(a, b), Math.max(a, b) + 1)));
+      extendRef.current = { anchor, end };
+      setCursor(end);
+      focusRow(end);
+      return true;
+    }
+    const all = rowEls().map(r => r.getAttribute('data-queue-row'));
+    const next = all[all.indexOf(id) + dir];
+    if (!next) return true;   // at an end: swallow it, the page must not scroll instead
+    setPicked(new Set()); extendRef.current = null;
+    setCursor(next);
+    focusRow(next);
+    return true;
+  };
+
   const onKeyDown = (e, node) => {
+    // ⌘⇧↑/⌘⇧↓ — the tree's reorder chord, same as ⌥↑/⌥↓ here.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      onQueueReorder?.(movingFrom(node.id), e.key === 'ArrowDown' ? 'down' : 'up');
+      return;
+    }
     const bare = !e.ctrlKey && !e.metaKey;
     if (!bare) return;
+    if (!e.altKey && navigate(e, node.id)) { e.preventDefault(); return; }
+    if (!e.altKey && e.key === 'Enter') { e.preventDefault(); onFullEdit?.(node); return; }
     if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       const dir = e.shiftKey
@@ -182,7 +245,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     </div>;
   }
 
-  return <div style={{ maxWidth: 960, margin: '0 auto' }}>
+  return <div ref={viewRef} style={{ maxWidth: 960, margin: '0 auto' }}>
     <p className="helper" style={{ fontSize: 12, marginTop: 0, marginBottom: 14 }}>
       {withKey(t('wo.help'), 'ganttReorder')}
     </p>
@@ -316,11 +379,19 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                     const sameProject = project && prevChain[0] === project;
                     const sameParent = sameProject && parent
                       && (prevChain.length > 1 ? prevChain[prevChain.length - 1] : '') === parent;
+                    // Always both, and the CHANGE is what stands out. Printing
+                    // them only where they changed made the list quiet but
+                    // left most rows without a parent at all — reported as
+                    // "I don't always see the parents". A row read on its
+                    // own has to say where it lives; the crossings from one
+                    // project or package to the next are carried by weight
+                    // and colour instead of by absence.
+                    const mark = changed => changed ? { color: 'var(--tx2)', fontWeight: 600 } : undefined;
                     return <div data-queue-path data-htip={[id, ...chain].join(' › ')}
                       style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
-                      {project && !sameProject && <><span style={{ color: 'var(--b3)' }}> · </span><span data-queue-project>{project}</span></>}
-                      {parent && !sameParent && <><span style={{ color: 'var(--b3)' }}> › </span>{parent}</>}
+                      {project && <><span style={{ color: 'var(--b3)' }}> · </span><span data-queue-project data-changed={sameProject ? undefined : 'true'} style={mark(!sameProject)}>{project}</span></>}
+                      {parent && <><span style={{ color: 'var(--b3)' }}> › </span><span data-queue-parent data-changed={sameParent ? undefined : 'true'} style={mark(!sameParent)}>{parent}</span></>}
                     </div>;
                   })()}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
