@@ -222,6 +222,9 @@ Three shapes were tried and the first two are worth recording. An amber block at
 - Tooltip (`data-htip`): `PersonName · Vacation: YYYY-MM-DD → YYYY-MM-DD [· note]`
 - `vacByPerson` is built once per render via `useMemo` — each row only looks up the IDs of its own assignees, so performance does not degrade with many rows.
 
+
+**A person's own row carries their absence across the whole timeline.** Grouped by resource, each person has a header row that belongs to exactly one of them — the one row where "this person is away" can be drawn once instead of on every task. It shows their vacations in the bars' own absence language at row scale (hatched wash, solid seams at start and end, tooltip with dates and note) and the public holidays as red-tinted day columns, at every zoom level — the grid itself only tints holidays at day zoom. No other grouping draws this: a project or team row is several people, and the per-row wash is exactly what was taken out above. Covered by [`ganttPersonAbsence.app.test.jsx`](../src/__tests__/ganttPersonAbsence.app.test.jsx).
+
 ## Hover tooltips (left panel)
 
 Hovering a row label in the left panel shows a tooltip with task details (same style as the Network Graph tooltips). Includes name, team, assignee, estimate, confidence, dates, and status.
