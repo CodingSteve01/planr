@@ -15,8 +15,10 @@ changing a subsystem, instead of reconstructing it from the code.
 - Plugin into the vault: `node obsidian/install.mjs "<vault path>"`.
 - Version: `node scripts/version.mjs <x.y.z>` — keeps package.json,
   manifest.json and versions.json in step. PRs touching `src/`/`obsidian/`
-  get a patch bump from CI; when merging several PRs, merge `main` into each
-  next one and set the version one higher by hand.
+  get a patch bump from CI — wait for that commit (`gh run list --workflow
+  version-bump.yml`) before merging, or the release is skipped. When merging
+  several PRs, merge `main` into each next one and set the version one
+  higher by hand.
 
 ## Rules
 
