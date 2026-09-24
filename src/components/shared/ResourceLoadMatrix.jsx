@@ -4,6 +4,7 @@ import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 import { tipLines } from '../../utils/tipText.js';
+import { memberTeamNames } from '../../utils/memberTeams.js';
 
 function initials(name) {
   if (!name) return '?';
@@ -303,7 +304,7 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                           {member.name || member.id}
                         </div>
                         <div style={{ fontSize: 10, color: team?.color || 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {team?.name || t('noTeam')}
+                          {team ? memberTeamNames(member, teams).join(' + ') : t('noTeam')}
                         </div>
                       </div>
                     </div>

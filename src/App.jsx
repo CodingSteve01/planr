@@ -6,7 +6,7 @@ import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
-import { buildMarkdownText as _buildMd } from './utils/markdown.js';
+import { buildMarkdownText as _buildMd, parseResourceLine } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
@@ -70,6 +70,7 @@ import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.
 import { FileMenu } from './components/shared/FileMenu.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
+import { withoutTeam } from './utils/memberTeams.js';
 
 // useEvent shim — stable callback ref that always invokes the latest closure.
 // Lets us pass App-defined functions to React.memo'd children without busting
@@ -945,24 +946,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Resources section: bulleted list
       if (section === 'resources') {
         // Format: - **Full Name** `SHORT` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD
-        const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*(?:\s+`([^`]+)`)?\s*—?\s*(.*)/);
-        if (rm) {
-          const shortName = rm[2] || '';
-          const meta = rm[3] || '';
-          const parts = meta.split(',').map(s => s.trim());
-          const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
-          const roleParts = parts.slice(1)
-            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+(?:\.\d+)?d\/y$/.test(p) && !/^\d+(?:\.\d+)?h\/w$/.test(p))
-            .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
-            .filter(Boolean);
-          const capM = meta.match(/\((\d+)%\)/);
-          const hoursM = meta.match(/(\d+(?:\.\d+)?)h\/w/);
-          const vacM = meta.match(/(\d+(?:\.\d+)?)d\/y/);
-          const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
-          const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
-          if (teamPart) teamSet.add(teamPart);
-          const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '', end: endM?.[1] || '' };
-          if (hoursM) { m.weeklyHours = parseFloat(hoursM[1]); m.capMode = 'derived'; m.meetings = []; }
+        const parsedMember = parseResourceLine(line);
+        if (parsedMember) {
+          const { teams: teamNames, short: shortName, ...fields } = parsedMember;
+          teamNames.forEach(n => teamSet.add(n));
+          const m = { id: 'm' + Date.now() + mems.length, ...fields };
+          if (teamNames.length > 1) m.teams = teamNames;
           if (shortName) m._parsedShort = shortName;
           mems.push(m);
           lastItem = m;
@@ -1297,7 +1286,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (r.team) teamSet.add(r.team);
       if (r.phases) r.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId)));
     });
-    mems.forEach(m => { if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); } });
+    mems.forEach(m => {
+      if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); }
+      if (m.teams) { m.teams = m.teams.map(sanitizeTeam).filter(Boolean); m.teams.forEach(t => teamSet.add(t)); }
+    });
     taskTemplates.forEach(tpl => tpl.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId))));
 
     // Build teams: prefer explicit team table, fall back to inferred
@@ -1318,7 +1310,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         });
       }
     });
-    mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
+    mems.forEach(m => {
+      if (m.team) m.team = teamLookup[m.team] || m.team;
+      if (m.teams) m.teams = m.teams.map(t => teamLookup[t] || t);
+    });
     taskTemplates.forEach(tpl => tpl.phases.forEach(p => {
       const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
       p.teams = teamsForPhase;
@@ -2590,7 +2585,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
-  function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
+  function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
   function onSeqUpdate(taskId, patch) {
@@ -3008,7 +3003,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!deleted) return;
     mutate(d => {
       const nextTeams = d.teams.filter((_, j) => j !== i);
-      const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
+      const nextMembers = d.members.map(m => withoutTeam(m, deleted.id));
       const nextTree = d.tree.map(r => {
         let out = r;
         if (r.team === deleted.id) out = { ...out, team: '' };

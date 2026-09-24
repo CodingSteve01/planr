@@ -18,6 +18,7 @@ import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
+import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 
 // REASON_TIP and the confidence label are built inside the component using
 // t() — see reasonTip below (the label reuses the global conf.* keys).
@@ -174,7 +175,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   });
   const allIds = tree.map(r => r.id).filter(i => i !== node.id);
   const findById = id => tree.find(r => r.id === id);
-  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
+  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + memberTeamNames(m, teams).join(' + ') : ''}`;
   const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor, s.desc || '']);
   const nearestSize = f.best > 0 ? SIZES.reduce((best, sz) => Math.abs(sz[1] - f.best) < Math.abs(best[1] - f.best) ? sz : best, SIZES[0]) : null;
   const CONF_OPTS = useMemo(() => [
@@ -397,7 +398,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <div ref={focusRefs.assign} style={{ minWidth: 160, flex: 1 }}>
                 <SearchSelect
                   options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
-                  onSelect={id => { const m = members.find(x => x.id === id); setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: m?.team || x.team })); }}
+                  onSelect={id => { const m = members.find(x => x.id === id); setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: teamForAssignment(m, x.team) })); }}
                   placeholder={t('qe.assignPerson')}
                 />
               </div>

@@ -54,6 +54,22 @@ export function stickyTops(heights) {
   return tops;
 }
 
+/**
+ * How many screen pixels one of the element's own CSS pixels comes to.
+ *
+ * The UI scale setting puts `zoom` on the app root, and under `zoom`
+ * getBoundingClientRect() answers in zoomed pixels while `top`, `scrollTop`
+ * and friends are read in the element's own. offsetWidth is the one length
+ * that stays unzoomed, so the ratio of the two is the factor. Widths, not
+ * heights: offsetWidth is rounded to a whole pixel, and over the width of the
+ * tree that rounding stays far below a pixel of error.
+ */
+export function layoutScale(el) {
+  const w = el?.offsetWidth;
+  const r = w ? el.getBoundingClientRect().width / w : 1;
+  return r > 0 && Number.isFinite(r) ? r : 1;
+}
+
 // Anything that is editing rather than navigating. A structural shortcut
 // pressed here belongs to the control: ⌘⇧←/→ selects to the line's edge in a
 // text field, ⌥←/→ walks by word, ↑/↓ picks a value in a combobox.
@@ -207,7 +223,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       headBottom: headRect?.bottom ?? null,
       margin: ROW_MARGIN,
     });
-    if (delta) box.scrollTop += delta;
+    // The rects are in zoomed pixels, scrollTop is in the box's own.
+    if (delta) box.scrollTop += delta / layoutScale(box);
   }
 
   useEffect(() => {
@@ -430,12 +447,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // Both bars wrap on a narrow pane, so their heights are not constants to
   // find once either. A ResizeObserver writes the running total onto the
   // container and the stylesheet reads it back.
+  //
+  // Measured rects are divided by the UI scale before they are written: at
+  // 110% (the default inside Obsidian) a 43px toolbar measures 47px, and a
+  // head placed from the zoomed sum sat 15px below where the table puts it —
+  // over the top of the first row, at a scroll position that is already 0.
   useLayoutEffect(() => {
     const box = containerRef.current;
     if (!box) return;
     const bars = [toolbarRef, selBarRef];
     const measure = () => {
-      const tops = stickyTops(bars.map(ref => ref.current?.getBoundingClientRect().height || 0));
+      const scale = layoutScale(box);
+      const tops = stickyTops(bars.map(ref => (ref.current?.getBoundingClientRect().height || 0) / scale));
       bars.forEach((_, i) => box.style.setProperty(`--tv-bar${i}-top`, `${tops[i]}px`));
       box.style.setProperty('--tv-head-top', `${tops[bars.length]}px`);
     };
