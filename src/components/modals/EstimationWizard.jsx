@@ -80,9 +80,9 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
 
   return <div className="overlay">
     <div className="modal modal-lg fade" onClick={e => e.stopPropagation()}>
-      {ancestors.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+      {ancestors.length > 0 && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
         {ancestors.map(a => <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{a.id}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{a.id}</span>
           <span style={{ color: 'var(--tx2)' }}>{a.name}</span>
           <span style={{ color: 'var(--b3)' }}>›</span>
         </span>)}
@@ -98,7 +98,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
       <div style={{ display: 'flex', gap: 2, marginBottom: 20 }}>
         {steps.map((s, i) => <div key={s} style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }} onClick={() => setStep(i)}>
           <div style={{ height: 3, background: i <= step ? 'var(--ac)' : 'var(--b2)', borderRadius: 2, marginBottom: 4 }} />
-          <div style={{ fontSize: 9, color: i === step ? 'var(--ac)' : 'var(--tx3)', fontWeight: i === step ? 600 : 400 }}>{s}</div>
+          <div style={{ fontSize: 10, color: i === step ? 'var(--ac)' : 'var(--tx3)', fontWeight: i === step ? 600 : 400 }}>{s}</div>
         </div>)}
       </div>
 
@@ -117,7 +117,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
 
         {/* Template / Phases — in Scope step for non-root nodes */}
         {node?.id?.includes('.') && <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ph.phases')}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ph.phases')}</div>
           {tTemplates.length > 0 && <div className="field" style={{ marginBottom: 10 }}>
             <label>{t('ew.templateLabel')}</label>
             <SearchSelect value={selTemplate || ''} options={tTemplates.map(tp => ({ id: tp.id, label: tp.name }))}
@@ -138,23 +138,23 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
               {phases.map(ph => {
                 const tn = phaseTeamLabel(ph, teams);
-                return <div key={ph.id} style={{ fontSize: 11, color: 'var(--tx2)', display: 'flex', gap: 6, padding: '2px 0' }}>
+                return <div key={ph.id} style={{ fontSize: 12, color: 'var(--tx2)', display: 'flex', gap: 6, padding: '2px 0' }}>
                   <span>○ {ph.name}</span>
                   {ph.effortPct && <span style={{ color: 'var(--tx3)' }}>{ph.effortPct}%</span>}
                   {tn && <span style={{ color: 'var(--tx3)' }}>— {tn}</span>}
                 </div>;
               })}
             </div>
-            <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }}
+            <button className="btn btn-ghost btn-xs" style={{ fontSize: 11, color: 'var(--tx3)' }}
               onClick={() => { setPhases([]); setSelTemplate(''); }}>{t('ph.clearPhases')}</button>
           </>}
-          {!phases?.length && !tTemplates.length && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('ph.noPhases')}</div>}
+          {!phases?.length && !tTemplates.length && <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('ph.noPhases')}</div>}
         </div>}
 
         {relatedItems.length > 0 && <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ew.scopeRelated')}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', marginBottom: 6 }}>{t('ew.scopeRelated')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {relatedItems.map(r => <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--tx2)', padding: '3px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
+            {relatedItems.map(r => <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--tx2)', padding: '3px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
               <span>{r.id} — {r.name}</span>
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{r.best}d (x{r.factor || 1.5})</span>
             </div>)}
@@ -170,7 +170,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: size === i ? 'var(--ac2)' + '22' : 'var(--bg3)', border: `1px solid ${size === i ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
             onClick={() => onSizeSelect(i)}>
             <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 16, width: 40, color: size === i ? 'var(--ac)' : 'var(--tx2)' }}>{s.label}</span>
-            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} {t('days')}</div>{s.desc && <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{s.desc}</div>}</div>
+            <div><div style={{ fontWeight: 500, fontSize: 12 }}>{s.days} {t('days')}</div>{s.desc && <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{s.desc}</div>}</div>
           </div>)}
         </div>
       </div>}
@@ -182,7 +182,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
           {RISKS.map(r => <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: risks.has(r.id) ? 'var(--am)' + '15' : 'var(--bg3)', border: `1px solid ${risks.has(r.id) ? 'var(--am)' + '44' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}>
             <input type="checkbox" checked={risks.has(r.id)} onChange={() => setRisks(s => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })} />
             <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 500 }}>{r.label}</span></div>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)' }}>+{Math.round(r.weight * 100)}%</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>+{Math.round(r.weight * 100)}%</span>
           </label>)}
         </div>
         <div className="calc" style={{ marginTop: 12 }}>
@@ -222,7 +222,7 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
           {selDeps.map(d => { const n = tree.find(r => r.id === d); return <span key={d} className="tag">{d} — {n?.name || ''}<span className="tag-x" onClick={() => setSelDeps(ds => ds.filter(x => x !== d))}><Icon name="x" size={9} /></span></span>; })}
         </div>
         <SearchSelect options={tree.filter(r => r.id !== node?.id).map(r => ({ id: r.id, label: r.name }))} onSelect={v => setSelDeps(ds => [...new Set([...ds, v])])} placeholder={`+ ${t('qe.predecessors')}`} showIds />
-        {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 11, color: 'var(--tx3)' }}>
+        {selDeps.length > 0 && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--tx3)' }}>
           {t('ew.depsBlocked', selDeps.length)}
         </div>}
       </div>}
@@ -240,10 +240,10 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
             style={{ padding: '10px 14px', background: confidence === v ? (v === 'exploratory' ? 'rgba(127,127,127,.12)' : v === 'estimated' ? 'rgba(245,158,11,.10)' : v === 'committed' ? 'rgba(22,163,74,.10)' : 'var(--bg3)') : 'var(--bg3)', border: `1px solid ${confidence === v ? 'var(--ac)' : 'var(--b2)'}`, borderRadius: 'var(--r)', cursor: 'pointer' }}
             onClick={() => setConfidence(v)}>
             <div style={{ fontWeight: 500, fontSize: 12, marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{desc}</div>
+            <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{desc}</div>
           </div>)}
         </div>
-        {riskFactor > 1.3 && !confidence && <div style={{ marginTop: 10, fontSize: 11, color: 'var(--am)', background: 'rgba(245,158,11,.08)', padding: '8px 12px', borderRadius: 'var(--r)' }}>
+        {riskFactor > 1.3 && !confidence && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--am)', background: 'rgba(245,158,11,.08)', padding: '8px 12px', borderRadius: 'var(--r)' }}>
           {t('ew.confRiskHint', risks.size, riskFactor.toFixed(1))}
         </div>}
       </div>}
@@ -257,15 +257,15 @@ export function EstimationWizard({ node, tree, teams, taskTemplates, risks: proj
           <div className="sum-card"><div className="sum-v" style={{ color: 'var(--gr)' }}>{finalRealistic.toFixed(0)}</div><div className="sum-l">{t('ew.realisticDays')}</div></div>
           <div className="sum-card"><div className="sum-v">{Math.round(finalBest * finalFactor)}</div><div className="sum-l">{t('ew.worstCase')}</div></div>
         </div>
-        {risks.size > 0 && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
+        {risks.size > 0 && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 8 }}>
           <strong>{t('ew.risksIdentified')}:</strong> {[...risks].map(id => RISKS.find(r => r.id === id)?.label).join(', ')}
         </div>}
-        {scope && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>{scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
-        {confidence && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
+        {scope && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8, fontStyle: 'italic' }}>{scope.slice(0, 150)}{scope.length > 150 ? '...' : ''}</div>}
+        {confidence && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 8 }}>
           <strong>{t('qe.confidence')}:</strong> {confidence === 'committed' ? t('conf.committed.dot') + ' ' + t('conf.committed') : confidence === 'estimated' ? t('conf.estimated.dot') + ' ' + t('conf.estimated') : t('conf.exploratory.dot') + ' ' + t('conf.exploratory')}
         </div>}
-        {selDeps.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{t('qe.predecessors')}: {selDeps.join(', ')}</div>}
-        {phases?.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 8 }}>
+        {selDeps.length > 0 && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8 }}>{t('qe.predecessors')}: {selDeps.join(', ')}</div>}
+        {phases?.length > 0 && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 8 }}>
           <strong>{t('ph.phases')}:</strong> {phases.map(ph => ph.name).join(' → ')}
         </div>}
       </div>}

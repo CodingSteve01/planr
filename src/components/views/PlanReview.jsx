@@ -164,9 +164,9 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 12, color: col }}>{CL[c]}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700, color: col }}>{confCounts[c]}</span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{c === 'committed' ? t('p.clear') : c === 'estimated' ? t('p.needsPerson') : t('p.unclear')}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{c === 'committed' ? t('p.clear') : c === 'estimated' ? t('p.needsPerson') : t('p.unclear')}</span>
         </span>)}
-      <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{confCounts.done} {t('p.finished')}</span>
+      <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{confCounts.done} {t('p.finished')}</span>
     </div>
     {total > 0 && <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 20, background: 'var(--bg4)' }}>
       <div style={{ width: `${confCounts.committed / total * 100}%`, background: CONF_COLOR.committed }} />
@@ -196,7 +196,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         ];
       })().map(([k, l]) =>
         <button key={k} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
-          style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => setSection(k)}>{l}</button>)}
+          style={{ padding: '4px 10px', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => setSection(k)}>{l}</button>)}
     </div>
 
     {/* ══════ DECIDE — compact rows ══════ */}
@@ -210,17 +210,17 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
           return <div key={tk} style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${team?.color || 'var(--b)'}` }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: team?.color || 'var(--tx2)' }}>{team?.name || t('noTeam')}</span>
-              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{items.length} · {items.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0).toFixed(0)} PT</span>
+              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{items.length} · {items.reduce((s, r) => s + re(r.best || 0, r.factor || 1.5), 0).toFixed(0)} PT</span>
             </div>
             {items.map(r => {
               const node = iMap[r.id];
               const sc = sMap[r.id];
               const hasAuto = sc?.autoAssigned && sc.personId && !(node?.assign || []).length;
               const autoM = hasAuto ? members.find(x => x.id === sc.personId) : null;
-              return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+              return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 12 }}
                 onClick={() => onOpenItem?.(r.id)}>
-                <span style={{ fontSize: 10, color: CC[r.conf], flexShrink: 0 }}>{CL[r.conf]}</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
+                <span style={{ fontSize: 11, color: CC[r.conf], flexShrink: 0 }}>{CL[r.conf]}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                 {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
                 {/* Only the reasons that EXPLAIN something. "Manually set" is
@@ -230,9 +230,9 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                     "no estimate". A badge on every row is not a badge. The
                     full reason stays in the row's tooltip either way. */}
                 {!['manual', 'done', 'inherited'].includes(confReasons[r.id]) && (
-                  <span style={{ fontSize: 8, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
+                  <span style={{ fontSize: 10, color: CC[r.conf], flexShrink: 0, border: `1px dashed ${CC[r.conf]}`, borderRadius: 3, padding: '1px 4px' }}>{reasonText(confReasons[r.id]) || CN[r.conf]}</span>
                 )}
-                {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
+                {r.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{r.best}T</span>}
                 {hasChain(sc) && (() => {
                   const primary = (node?.assign || []).map(memberShort).join('/') || memberShort(sc.personId);
                   return <PersonChip chain short={chainShorts(sc, shortMap, primary)}
@@ -281,22 +281,22 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
             {/* Task header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', cursor: 'pointer', background: 'var(--bg3)', borderRadius: '4px 4px 0 0', borderLeft: `3px solid ${team?.color || 'var(--b)'}` }}
               onClick={() => onOpenItem?.(task.id)}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0 }}>{task.id}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
-              {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
-              {task.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{task.best}T</span>}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0 }}>{task.id}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+              {team && <span style={{ fontSize: 10, color: team.color, flexShrink: 0 }}>{team.name}</span>}
+              {task.best > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{task.best}T</span>}
             </div>
             {/* Phase rows */}
             {phases.map(({ phase, current }) => <div key={phase.id}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 20px', borderBottom: '1px solid var(--b)', borderLeft: current ? '3px solid var(--ac)' : '3px solid transparent', fontSize: 11 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 20px', borderBottom: '1px solid var(--b)', borderLeft: current ? '3px solid var(--ac)' : '3px solid transparent', fontSize: 12 }}>
               <span style={{ cursor: 'pointer', fontSize: 12, color: phase.status === 'wip' ? 'var(--ac)' : 'var(--tx3)', flexShrink: 0 }}
                 onClick={() => advancePhase(task, phase.id)}>{phase.status === 'wip' ? '◐' : '○'}</span>
               <span style={{ fontWeight: 500, minWidth: 80 }}>{phase.name}</span>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', flex: 1 }}>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', flex: 1 }}>
                 {phaseTeamLabel(phase, teams)}{phaseAssigneeLabel(phase, members) ? ` · ${phaseAssigneeLabel(phase, members)}` : ''}
               </span>
-              {phase.effortPct > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{phase.effortPct}%</span>}
-              {current && <span style={{ fontSize: 8, color: 'var(--ac)', flexShrink: 0 }}>{t('pr.current')}</span>}
+              {phase.effortPct > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{phase.effortPct}%</span>}
+              {current && <span style={{ fontSize: 10, color: 'var(--ac)', flexShrink: 0 }}>{t('pr.current')}</span>}
             </div>)}
           </div>;
         });
@@ -327,7 +327,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{tc.name}</span>
           </div>
           {memberShares.map(({ m, pt, color }) => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, marginBottom: 2 }}>
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 2 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
               <span style={{ flex: 1 }}>{m.name}</span>
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>{m.cap < 1 ? `${Math.round(m.cap * 100)}%` : ''}</span>
@@ -341,7 +341,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
               ))}
               {tc.unassignedPt > 0 && <div style={{ width: `${tc.unassignedPt / teamTotal * 100}%`, background: 'var(--b2)' }} />}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}>
               <span style={{ color: 'var(--tx2)' }}>{teamTotal.toFixed(0)} PT {t('pr.open')}</span>
               {tc.unassignedPt > 0 && <span>{t('pr.ptOpen', tc.unassignedPt.toFixed(0), tc.unassignedCount)}</span>}
             </div>
@@ -374,15 +374,15 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         for (let i = 1; i < parts.length; i++) ancestors.push(parts.slice(0, i).join('.'));
         const allDeps = [...new Set([...(node.deps || []), ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
         const blockers = allDeps.filter(d => !resolveToLeafIds(tree, d).every(dl => doneSet.has(dl))).map(d => iMap[d]?.name || d);
-        return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+        return <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 12 }}
           onClick={() => onOpenItem?.(r.id)}
           data-htip={blockers.length ? `${t('p.waitingFor')}: ${blockers.join(', ')}` : undefined}>
-          <span style={{ fontSize: 10, color: CC[r.conf] }}>{CL[r.conf]}</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
+          <span style={{ fontSize: 11, color: CC[r.conf] }}>{CL[r.conf]}</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{r.id}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
           {r.isCp && <CriticalPathBadge id={r.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-          <span style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('pr.waitingOn', blockers.length)}</span>
-          {team && <span style={{ fontSize: 9, color: team.color, flexShrink: 0 }}>{team.name}</span>}
+          <span style={{ fontSize: 10, color: 'var(--am)', flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('pr.waitingOn', blockers.length)}</span>
+          {team && <span style={{ fontSize: 10, color: team.color, flexShrink: 0 }}>{team.name}</span>}
         </div>;
       })}
     </>}
@@ -401,19 +401,19 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         {dueViolations.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--re)' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>~ {t('pr.warnDueOverdue')}</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{dueViolations.length}</span>
+            <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{dueViolations.length}</span>
           </div>
           {dueViolations.map(s => {
             const node = iMap[s.treeId || s.id];
             const projEnd = s.endD ? iso(s.endD) : '—';
             const latest = s.latestStart ? (s.latestStart instanceof Date ? iso(s.latestStart) : s.latestStart) : null;
-            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 12 }}
               onClick={() => onOpenItem?.(s.treeId || s.id)}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>~ {s.due}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
-              {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--re)', flexShrink: 0 }}>~ {s.due}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>→ {projEnd}</span>
+              {latest && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: s.dueInfeasible ? 'var(--re)' : 'var(--am)', flexShrink: 0, fontWeight: s.dueInfeasible ? 600 : 400 }}
                 data-htip={t(s.dueInfeasible ? 'ins.latestStartPast' : 'ins.latestStart')}>
                 ↶ {latest}{s.dueInfeasible ? ' !' : ''}
               </span>}
@@ -423,18 +423,18 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         {truncated.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--am)' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>! {t('pr.warnTruncated')}</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{truncated.length}</span>
+            <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{truncated.length}</span>
           </div>
           {truncated.map(s => {
             const node = iMap[s.treeId || s.id];
             const tr = s.truncatedByOffboard;
-            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 11 }}
+            return <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 12 }}
               onClick={() => onOpenItem?.(s.treeId || s.id)}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node?.name || s.name}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--am)', flexShrink: 0 }}>{tr.remainingEffort.toFixed(1)} PT</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>nach {tr.offboardDate}</span>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>↳ {t('pr.warnSplitHint')}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)', flexShrink: 0 }}>{tr.remainingEffort.toFixed(1)} PT</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>nach {tr.offboardDate}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>↳ {t('pr.warnSplitHint')}</span>
             </div>;
           })}
         </div>}
@@ -443,7 +443,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
 
     {section === 'critical' && <>
       {criticalScopes.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.noCriticalPaths')}</div>}
-      {criticalScopes.length > 0 && <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 14px', marginBottom: 14, fontSize: 11, color: 'var(--tx2)' }}>
+      {criticalScopes.length > 0 && <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 14px', marginBottom: 14, fontSize: 12, color: 'var(--tx2)' }}>
         {t('pr.criticalHint')}
         {(teamFilter || personFilter) && <div style={{ marginTop: 6, color: 'var(--tx3)' }}>{t('pr.filterHint')}</div>}
       </div>}
@@ -453,8 +453,8 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--b)' }}>
             <span className="badge b-cp">{scopeIndex + 1}</span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{scopeNode?.name || entry.scopeId}</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{entry.scopeId}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.scopePaths', entry.chains.length, entry.nodes.length)}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{entry.scopeId}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.scopePaths', entry.chains.length, entry.nodes.length)}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {entry.chains.map((chain, chainIndex) => {
@@ -483,18 +483,18 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
                         }}
                         data-htip={node?.name || id}
                       >
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--re)', flexShrink: 0 }}>{id}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>{node?.name || id}</span>
-                        {sc?.effort > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{sc.effort.toFixed(0)}d</span>}
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--re)', flexShrink: 0 }}>{id}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{node?.name || id}</span>
+                        {sc?.effort > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{sc.effort.toFixed(0)}d</span>}
                       </button>
                     </span>;
                   })}
-                  {chain.length === 1 && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('pr.standalone')}</span>}
+                  {chain.length === 1 && <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('pr.standalone')}</span>}
                 </div>
               </div>;
             })}
           </div>
-          <div style={{ marginTop: 10, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.chainLength', entry.scope.chainLength.toFixed(1))}</div>
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pr.chainLength', entry.scope.chainLength.toFixed(1))}</div>
         </div>;
       })}
     </>}

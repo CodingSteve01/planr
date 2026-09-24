@@ -243,11 +243,11 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
             className="badge bc"
             onClick={() => persistOverloadOnly(!overloadOnly)}
             data-htip={t('rv.loadOnlyOverloadedTip')}
-            style={{ fontSize: 10, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
+            style={{ fontSize: 11, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
             ! {overloadedMemberCount} {t('rv.loadOverPeople')}{overloadOnly ? ' · only' : ''}
           </button>
         )}
-        <span style={{ display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 10, color: 'var(--tx3)' }}>
+        <span style={{ display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 11, color: 'var(--tx3)' }}>
           <span>{t('rv.loadSortBy') || 'sort'}:</span>
           {[
             ['overload', t('rv.loadSortOverload') || 'overload'],
@@ -256,11 +256,11 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
           ].map(([k, label]) => (
             <button key={k} type="button"
               className={`btn btn-xs ${sortMode === k ? 'btn-pri' : 'btn-sec'}`}
-              style={{ padding: '1px 6px', fontSize: 10 }}
+              style={{ padding: '1px 6px', fontSize: 11 }}
               onClick={() => persistSortMode(k)}>{label}</button>
           ))}
         </span>
-        <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: overloads > 0 ? 'var(--re)' : 'var(--tx3)' }}>
+        <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: overloads > 0 ? 'var(--re)' : 'var(--tx3)' }}>
           {t('rv.loadOverCount', overloads)}
         </span>
       </div>
@@ -268,7 +268,7 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
         {legend.map(([pct, label]) => {
           const tone = loadTone(pct);
           return (
-            <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--tx3)' }}>
+            <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--tx3)' }}>
               <span style={{ width: 18, height: 9, borderRadius: 2, background: tone.bg, border: `1px solid ${tone.bd}` }} />
               {label}
             </span>
@@ -284,8 +284,8 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
               </th>
               {weekCols.map((week, wi) => (
                 <th key={`${week.mon || ''}-${wi}`} style={{ width: 86, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{t('rv.loadWeek')} {week.kw || weekNum(week.mon)}</div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', marginTop: 2 }}>{week.mon ? iso(week.mon).slice(5) : ''}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{t('rv.loadWeek')} {week.kw || weekNum(week.mon)}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{week.mon ? iso(week.mon).slice(5) : ''}</div>
                 </th>
               ))}
             </tr>
@@ -303,7 +303,7 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                         <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {member.name || member.id}
                         </div>
-                        <div style={{ fontSize: 10, color: team?.color || 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 11, color: team?.color || 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {team ? memberTeamNames(member, teams).join(' + ') : t('noTeam')}
                         </div>
                       </div>
@@ -333,14 +333,14 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}>
-                            <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 11 }}>
+                            <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 12 }}>
                               {cell.percent}%
                             </span>
-                            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: empty ? 'var(--tx3)' : 'inherit', opacity: empty ? .75 : .9 }}>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: empty ? 'var(--tx3)' : 'inherit', opacity: empty ? .75 : .9 }}>
                               {cell.tasks.length || ''}
                             </span>
                           </div>
-                          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, marginTop: 3, color: 'var(--tx2)', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, marginTop: 3, color: 'var(--tx2)', whiteSpace: 'nowrap' }}>
                             {fmtDays(cell.load)} / {cell.availability > 0 ? fmtDays(cell.availability) : '0d'}
                           </div>
                         </div>

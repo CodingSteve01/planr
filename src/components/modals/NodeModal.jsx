@@ -255,7 +255,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     <div className="modal modal-lg fade" data-testid="node-modal" data-node-id={node.id} onClick={e => e.stopPropagation()}>
 
       {/* ── HEADER ── */}
-      {ancestors.length > 0 && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {ancestors.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {ancestors.map((a, i) => <span key={a.id}>
           {i > 0 && <span style={{ color: 'var(--b3)' }}> › </span>}
           <button
@@ -272,14 +272,14 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               font: 'inherit',
             }}
           >
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 9 }}>{a.id}</span> {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{a.id}</span> {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}
           </button>
         </span>)}
       </div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)', fontSize: 13, fontWeight: 600 }}>{node.id}</span>
         {isLeaf && <SBadge s={node.status} />}
-        {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status}</span>}
+        {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status}</span>}
         {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
         {f.pinnedStart && <span className="badge bo" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => s('pinnedStart', '')} data-htip={t('p.clear')}><Icon name="pin" size={10} />{f.pinnedStart}<Icon name="x" size={10} /></span>}
         {/* The panel's dock button sends the editor here; without this the way back is
@@ -350,7 +350,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => s('description', e.target.value)} placeholder={t('qe.descPlaceholder')} /></div>}
         </>}
 
-        {(timeline?.period || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
+        {(timeline?.period || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12, fontFamily: 'var(--mono)' }}>
           <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{t('ins.timing')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
             {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} → {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
@@ -361,7 +361,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         {/* Parent stats (non-leaf, no phases) */}
-        {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 11, fontFamily: 'var(--mono)' }}>
+        {!isLeaf && phases.length === 0 && stat && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12, fontFamily: 'var(--mono)' }}>
           <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>{doneUnder}/{leafCountUnder} {t('qe.leafItems')} {t('done')} · {progPct}%</div>
           <div className="prog-wrap" style={{ marginBottom: 6 }}><div className="prog-fill" style={{ width: `${progPct}%`, background: progPct >= 100 ? 'var(--gr)' : 'var(--am)' }} /></div>
           <div style={{ color: 'var(--tx3)' }}>
@@ -374,7 +374,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
 
         {/* ── Custom fields ── */}
         {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
           <div className="frow" style={{ flexWrap: 'wrap' }}>
             {customFields.map(cf => <div key={cf.id} className="field" style={{ flex: '1 1 200px' }}>
               <label>{cf.name}</label>
@@ -407,13 +407,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 row so it lives in the same baseline as the picker — keeps
                 the layout aligned instead of stacking a stray slider below. */}
             {isLeaf && f.team && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.teamLockTip')}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.teamLockTip')}>
                 <span>{t('qe.teamLock')}</span>
                 <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} /><span className="slider" /></label>
               </div>
             )}
             {isLeaf && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.parallelTip')}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)', whiteSpace: 'nowrap' }} data-htip={t('qe.parallelTip')}>
                 <span>{t('qe.parallel') || 'Parallel'}</span>
                 <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked || undefined)} /><span className="slider" /></label>
               </div>
@@ -432,7 +432,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             explanation for the space. */}
         {!isLeaf && <div className="field" style={{ maxWidth: 520 }}>
           <label>{t('qe.status')}</label>
-          <span style={{ fontSize: 11.5, color: 'var(--tx2)', lineHeight: 1.5 }}>
+          <span style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5 }}>
             {t('nm.derivedStatus', doneUnder, leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length)}
           </span>
         </div>}
@@ -488,10 +488,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
               {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
             </button>
-            <kbd style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+            <kbd style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)',
               border: '1px solid var(--b2)', borderRadius: 3, padding: '1px 5px', marginTop: 4, flexShrink: 0 }}>0</kbd>
           </div>
-          <span style={{ fontSize: 10.5, color: 'var(--tx3)', marginTop: 6, lineHeight: 1.45 }}>{t('nm.dropHint')}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 6, lineHeight: 1.45 }}>{t('nm.dropHint')}</span>
         </div>
 
         {isLeaf && <div ref={focusRefs.phases}><PhaseList
@@ -508,7 +508,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             margin: '8px 0 0', padding: '4px 8px',
             background: 'rgba(168,85,247,.10)',
             borderLeft: '2px solid rgba(168,85,247,.6)',
-            fontSize: 10.5, color: 'var(--tx2)', lineHeight: 1.4,
+            fontSize: 11, color: 'var(--tx2)', lineHeight: 1.4,
           }}>
             ⇄ Etappe {(focusRequest.handoffStage ?? 0) + 1} · Team/Person unten im Handoff-Abschnitt editieren.
           </div>
@@ -527,7 +527,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               return <button key={sz} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
                 style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
                 data-htip={desc || undefined}
-                onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
+                onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 10, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
             })}
           </div>
           {onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginTop: 4 }} onClick={() => { onClose(); onEstimate(node); }}>{t('qe.estimateNow')}</button>}
@@ -551,7 +551,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               value={f.fixedDurationDays || ''}
               onChange={e => s('fixedDurationDays', Math.max(1, Math.ceil(+e.target.value || 1)))}
               style={{ maxWidth: 110, fontFamily: 'var(--mono)' }} />
-            <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
+            <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
           </div>
           <div className="helper">{t('qe.fixedDurationHint')}</div>
         </div>
@@ -562,21 +562,21 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               const eff = confidence[node.id] || 'committed';
               const reason = confReasons[node.id];
               const isAuto = !f.confidence;
-              return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--r)', border: `1px solid ${CONF_COLOR[eff]}`, fontSize: 10, color: CONF_COLOR[eff], cursor: 'help', whiteSpace: 'nowrap' }}
+              return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--r)', border: `1px solid ${CONF_COLOR[eff]}`, fontSize: 11, color: CONF_COLOR[eff], cursor: 'help', whiteSpace: 'nowrap' }}
                 data-htip={`${t(`conf.${eff}`)} — ${REASON_TIP[reason] || '?'}`}>
                 {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {t(`conf.${eff}`)}
               </span>;
             })()}
           </div>
         </div>
-        {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
+        {sc && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
           {f.fixedDurationDays > 0
             ? <><span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span><b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b></>
             : <><span style={{ color: 'var(--tx3)' }}>{f.best}d best × {f.factor || 1.5} = </span><b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b><span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span></>}
           <br />
           <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)} ({sc.capPct}% cap)</span>
         </div>}
-        {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
+        {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
           {f.fixedDurationDays > 0 ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d` : `${f.best}d best × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`} · {t('qe.notScheduled')}
         </div>}
       </>}
@@ -588,7 +588,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
             <div className="field"><label>{t('qe.decideBy')}</label>
               <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
             </div>
-            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
+            <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 11, color: 'var(--re)' }}>~</span>}</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
                 {f.due && <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')} aria-label={t('p.clear')}><Icon name="x" size={11} /></button>}
@@ -628,7 +628,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               />
               <span className="slider" />
             </label>
-            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+            <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
               {f.deadlineRelevant === false ? t('no') : t('yes')}
             </span>
           </div>
@@ -638,7 +638,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
 
         <div className="field">
-          <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
+          <label>{t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
             {[...new Set([...(f.deps || []), ...(f.softDeps || [])])].map(d => { const dn = findById(d); const isHighlighted = highlightedDepId === d; return <div key={'d_' + d} className="dep-row"
               ref={el => {
@@ -647,17 +647,17 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               }}
               style={isHighlighted ? { background: 'rgba(59,130,246,.10)', borderColor: 'rgba(59,130,246,.35)', boxShadow: '0 0 0 1px rgba(59,130,246,.25)' } : undefined}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
-                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{d}</span>
+                {dn?.name && <span style={{ fontSize: 12, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
               </div>
               <span className="tag-x" style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }} onClick={() => setF(x => { const nd = (x.deps || []).filter(y => y !== d); const ns = (x.softDeps || []).filter(y => y !== d); const nl = { ...(x._depLabels || {}) }; delete nl[d]; return { ...x, deps: nd, softDeps: ns, _depLabels: nl }; })}><Icon name="x" size={9} /></span>
             </div>; })}
             {inheritedDeps.map(({ dep, from }) => { const dn = findById(dep); return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
-                {dn?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
+                {dn?.name && <span style={{ fontSize: 12, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{dn.name}</span>}
               </div>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
             </div>; })}
           </div>
           <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -678,8 +678,8 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
               {succs.map(r => {
                 return <div key={'succ_' + r.id} className="dep-row">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{r.id}</span>
-                    {r.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.name}</span>}
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{r.id}</span>
+                    {r.name && <span style={{ fontSize: 12, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.name}</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                     {onNavigate && <button type="button" className="btn btn-ghost btn-xs" aria-label={t('nm.fullEditTip')} data-htip={t('nm.fullEditTip')} style={{ padding: '0 3px', color: 'var(--ac)' }} onClick={() => onNavigate(r.id)}><Icon name="link" size={11} /></button>}

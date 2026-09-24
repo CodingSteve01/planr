@@ -588,7 +588,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Icon name="network" size={32} strokeWidth={1.4} /></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{isFiltered ? 'No items match this filter' : 'No items yet'}</div>
       {isFiltered
-        ? <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
+        ? <div style={{ fontSize: 12, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
         : (onAddNode && <button className="btn btn-pri" onClick={onAddNode}>+ Add first item</button>)}
     </div>
   </div>;
@@ -610,7 +610,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>
           {t('ng.tooBigTitle', items.length)}
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--tx3)', lineHeight: 1.5 }}>{t('ng.tooBigBody')}</div>
+        <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.5 }}>{t('ng.tooBigBody')}</div>
         {onPickRoot && roots.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 4 }}>
             {roots.map(root => (
@@ -647,7 +647,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
         const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
         zoomRef.current = nz; panRef.current = np; setZoom(nz); setPan(np);
       }}>−</button>
-      {searchMatches && <span style={{ fontSize: 11, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)', marginLeft: 6 }}>
+      {searchMatches && <span style={{ fontSize: 12, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)', marginLeft: 6 }}>
         {searchMatchList.length
           ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
           : '0 matches'}
@@ -785,15 +785,15 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
     </svg>
 
     {ctxMenu && <div style={{ position: 'fixed', ...(({ x, y }) => ({ left: x, top: y }))(toFixedPoint(ctxMenu.x, ctxMenu.y, fixedFrame(portalRoot))), background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 140 }} onClick={e => e.stopPropagation()}>
-      <div style={{ padding: '5px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onNodeClick(iMap[ctxMenu.id]); setCtxMenu(null); }}>Edit {ctxMenu.id}</div>
-      <div style={{ padding: '5px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { onDeleteNode(ctxMenu.id); setSelId(null); setCtxMenu(null); }}>Delete</div>
+      <div style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onNodeClick(iMap[ctxMenu.id]); setCtxMenu(null); }}>Edit {ctxMenu.id}</div>
+      <div style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { onDeleteNode(ctxMenu.id); setSelId(null); setCtxMenu(null); }}>Delete</div>
     </div>}
 
     <div className="ng-legend">
       <div className="ng-li"><div style={{ width: 14, height: 1, background: 'var(--b3)', flexShrink: 0 }} />Hierarchy</div>
       <div className="ng-li"><div style={{ width: 14, height: 0, borderTop: '1.5px solid var(--ac)', flexShrink: 0 }} />Dependency</div>
       <div className="ng-li" style={{ color: 'var(--re)' }}>Crit. path</div>
-      <span style={{ color: 'var(--tx3)', fontSize: 9 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
+      <span style={{ color: 'var(--tx3)', fontSize: 10 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
     </div>
     {tip && <Tip item={tip.item} x={tip.x + 12} y={tip.y + 20} teams={teams} members={members} tree={tree} scheduled={scheduled} cpLabels={cpLabels} />}
   </div>;

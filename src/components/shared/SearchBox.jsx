@@ -73,7 +73,7 @@ export function SearchBox({ searchRef, onCommit, onResetIdx, onPrev, onNext, onG
         <button className="btn btn-ghost btn-xs"
           onClick={() => { setV(''); lastSentRef.current = ''; onCommit(''); }}
           data-htip={withKey(t('sb.clearSearchLabel'), 'closeDialog')}
-          style={{ padding: '2px 7px', fontSize: 11 }}><Icon name="x" size={11} /></button>
+          style={{ padding: '2px 7px', fontSize: 12 }}><Icon name="x" size={11} /></button>
       </>}
     </>
   );

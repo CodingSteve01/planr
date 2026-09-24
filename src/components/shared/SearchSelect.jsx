@@ -194,7 +194,7 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
         fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer',
         // `compact` is the in-table size — the panel padding is twice a
         // table row's height and would push every row apart.
-        ...(compact ? { fontSize: 11, padding: '2px 5px', height: 21 } : { fontSize: 12, padding: '7px 10px' }),
+        ...(compact ? { fontSize: 12, padding: '2px 5px', height: 21 } : { fontSize: 12, padding: '7px 10px' }),
       }}
     />
     {open && createPortal(
@@ -217,7 +217,7 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
             padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--b)', color: 'var(--tx3)', fontStyle: 'italic',
             background: activeIdx === 0 ? 'var(--bg4)' : '',
           }} onClick={() => select('')}>{emptyLabel}</div>}
-        {filtered.length === 0 && <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--tx3)' }}>No results</div>}
+        {filtered.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--tx3)' }}>No results</div>}
         {filtered.map((o, i) => {
           const idx = hasEmptyRow ? i + 1 : i;
           const isActive = activeIdx === idx;
@@ -232,7 +232,7 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
             }}
             onClick={() => select(o.id)}
           >
-            {renderOption ? renderOption(o) : (showIds ? <><span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>{o.label}</> : o.label)}
+            {renderOption ? renderOption(o) : (showIds ? <><span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>{o.label}</> : o.label)}
           </div>;
         })}
       </div>,

@@ -26,7 +26,7 @@ export function PersonChip({ short, auto = false, chain = false, title, style = 
         alignItems: 'center',
         gap: 3,
         fontFamily: 'var(--mono)',
-        fontSize: 10,
+        fontSize: 11,
         whiteSpace: 'nowrap',
         color: chain ? 'var(--st-wip)' : auto ? 'var(--tx3)' : 'var(--tx2)',
         fontWeight: chain ? 600 : 400,

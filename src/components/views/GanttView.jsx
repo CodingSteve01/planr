@@ -2301,7 +2301,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
               onMouseDown={e => activateMode(e, () => setGB(k))}
               onClick={e => { if (e.detail === 0) setGB(k); }}
-              style={{ padding: '2px 7px', fontSize: 10 }}
+              style={{ padding: '2px 7px', fontSize: 11 }}
             >{l}</button>)}
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           {/* Beside the grouping pills, because it answers the same kind of
@@ -2310,7 +2310,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           <button className={`btn btn-xs ${compact ? 'btn-pri' : 'btn-sec'}`} onClick={toggleCompact}
             aria-pressed={compact} data-testid="gantt-compact-toggle"
             data-htip={compact ? t('g.classicTip') : t('g.compactTip')}
-            style={{ padding: '2px 7px', fontSize: 10 }}>{compact ? '●' : '○'} {t('g.compact')}</button>
+            style={{ padding: '2px 7px', fontSize: 11 }}>{compact ? '●' : '○'} {t('g.compact')}</button>
           <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
           {/* The overload figure used to be a badge of its own, standing in
               the row of grouping pills — a number in a place that is
@@ -2323,13 +2323,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             aria-pressed={showLoadHeatmap}
             data-htip={showLoadHeatmap ? loadRiskSummary.tip : t('g.loadHeatmapTip')}
             data-testid="gantt-load-toggle"
-            style={{ padding: '2px 7px', fontSize: 10 }}>{showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}</button>
+            style={{ padding: '2px 7px', fontSize: 11 }}>{showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}</button>
           {/* Overbooking now surfaces as a global quick-filter chip in the
               app's subtoolbar so the same indicator works for every view. */}
           {allCollapseKeys.length > 0 && <>
             <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-            <button className="btn btn-sec btn-xs" data-testid="gantt-expand-all" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.expandAll')}</button>
-            <button className="btn btn-sec btn-xs" onClick={collapseAll} style={{ padding: '2px 7px', fontSize: 10 }}>{t('tv.collapseAll')}</button>
+            <button className="btn btn-sec btn-xs" data-testid="gantt-expand-all" onClick={expandAll} style={{ padding: '2px 7px', fontSize: 11 }}>{t('tv.expandAll')}</button>
+            <button className="btn btn-sec btn-xs" onClick={collapseAll} style={{ padding: '2px 7px', fontSize: 11 }}>{t('tv.collapseAll')}</button>
           </>}
         </div>
       </div>
@@ -2346,7 +2346,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           {weeks.map((w, i) => { const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
             const isNow = todayWi >= 0 && i === todayWi;
             const label = weekHeaderLabel(w, i, isYB, isNow);
-            return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 10, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: `${HH / 2}px` }}>
+            return <div key={i} className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''} style={{ width: WPX, flexShrink: 0, borderRight: '1px solid var(--b)', borderLeft: isYB ? '2px solid var(--ac2)' : '', textAlign: 'center', fontSize: 11, color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)', fontFamily: 'var(--mono)', fontWeight: isNow ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: `${HH / 2}px` }}>
               {label}
             </div>; })}
         </div>}
@@ -2358,7 +2358,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const dow = date.getDay();
               const isWeekend = !wdSet.has(dow);
               const isToday = date.toDateString() === now.toDateString();
-              return <div key={d} style={{ flex: 1, fontSize: 7, textAlign: 'center', color: isToday ? 'var(--gr)' : isWeekend ? 'var(--tx3)' : 'var(--tx2)', fontWeight: isToday ? 700 : 400, fontFamily: 'var(--mono)', borderRight: d < 6 ? '1px solid var(--b2)' : 'none', lineHeight: '14px', opacity: isWeekend ? .4 : 1, background: isWeekend ? 'rgba(127,127,127,.06)' : '' }}>{date.getDate()}</div>;
+              return <div key={d} style={{ flex: 1, fontSize: 10, textAlign: 'center', color: isToday ? 'var(--gr)' : isWeekend ? 'var(--tx3)' : 'var(--tx2)', fontWeight: isToday ? 700 : 400, fontFamily: 'var(--mono)', borderRight: d < 6 ? '1px solid var(--b2)' : 'none', lineHeight: '14px', opacity: isWeekend ? .4 : 1, background: isWeekend ? 'rgba(127,127,127,.06)' : '' }}>{date.getDate()}</div>;
             })}
           </div>)}
         </div>}
@@ -2416,7 +2416,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 data-testid={`queue-sorted-${row.personId}`}
                 data-htip={t('g.queueSortedTip')}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6, padding: '0 5px',
-                  fontSize: 9, fontWeight: 600, letterSpacing: 0, textTransform: 'none',
+                  fontSize: 10, fontWeight: 600, letterSpacing: 0, textTransform: 'none',
                   color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3 }}>
                 {t('g.queueSorted')}
               </span>}
@@ -2427,7 +2427,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   adding up. All three in mono, right-aligned, quiet — the
                   name is what should still be the loudest thing in the row. */}
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8,
-                fontSize: 10, fontWeight: 400, fontFamily: 'var(--mono)', color: 'var(--tx3)', letterSpacing: 0 }}>
+                fontSize: 11, fontWeight: 400, fontFamily: 'var(--mono)', color: 'var(--tx3)', letterSpacing: 0 }}>
                 {row.s?._doneCount != null && row.count > 0 && (
                   <span data-htip={t('g.groupDoneTip')}>{row.s._doneCount}/{row.count}</span>
                 )}
@@ -2473,7 +2473,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
             ><Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} /></button>}
             <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
             {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-            <span style={{ fontSize: 11, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
+            <span style={{ fontSize: 12, fontWeight: isSummary ? 600 : 400, color: isSummary ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: s.status === 'done' ? 'line-through' : 'none', flex: 1, minWidth: 0 }}>{s.name}</span>
             {/* "kein Aufwand" used to be a full amber badge on every such row.
                 On the real plan that is nine identical pills down one group,
                 shouting the same thing nine times and drowning out the names
@@ -2481,7 +2481,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 quick filters; here it only has to mark the row, so it is a
                 mark. */}
             {!isSummary && (s._unestimated
-              ? <span data-htip={t('g.noEstimate')} style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--st-wip)', letterSpacing: '.08em' }}>—</span>
+              ? <span data-htip={t('g.noEstimate')} style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--st-wip)', letterSpacing: '.08em' }}>—</span>
               : s.autoAssigned
                 ? <PersonChip auto short={snAll(s)} title={`${t('aa.suggestion')} ${s.person || ''}`} style={{ flexShrink: 0, marginLeft: 'auto' }} />
                 : <PersonChip short={snAll(s)} style={{ flexShrink: 0, marginLeft: 'auto' }}
@@ -2545,9 +2545,9 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const h2X = dateToX(h2Date);
               return <>
                 {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--ac)', opacity: .35, zIndex: 3 }} data-htip={t('g.h1LineTip', h1Weeks)} />}
-                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X + 4, top: 2, fontSize: 8, color: 'var(--ac)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H1 · {h1Weeks}w</div>}
+                {h1X > 0 && h1X < tw && <div style={{ position: 'absolute', left: h1X + 4, top: 2, fontSize: 10, color: 'var(--ac)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H1 · {h1Weeks}w</div>}
                 {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X, top: 0, width: 0, height: '100%', borderLeft: '2px dashed var(--am)', opacity: .3, zIndex: 3 }} data-htip={t('g.h2LineTip', h2Weeks)} />}
-                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X + 4, top: 2, fontSize: 8, color: 'var(--am)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H2 · {h2Weeks}w</div>}
+                {h2X > 0 && h2X < tw && <div style={{ position: 'absolute', left: h2X + 4, top: 2, fontSize: 10, color: 'var(--am)', opacity: .5, fontFamily: 'var(--mono)', zIndex: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>H2 · {h2Weeks}w</div>}
               </>;
             })()}
             {dlL.map(dl => {
@@ -2617,7 +2617,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 <div style={{ position: 'absolute', left: x, top: 0, width: 2, height: FLAG_ROW_H, background: col, opacity: .8, zIndex: 2 }} />
                 <div style={{ position: 'absolute', left: x, top: 1, display: 'flex', alignItems: 'center', maxWidth: 120, pointerEvents: 'auto', zIndex: 3 }} data-htip={titleStr}>
                   <div style={{
-                    background: col, color: '#fff', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)',
+                    background: col, color: '#fff', fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)',
                     padding: '2px 6px 2px 8px', letterSpacing: '.02em',
                     clipPath: 'polygon(6px 0, 100% 0, calc(100% - 4px) 50%, 100% 100%, 6px 100%, 0 50%)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 118,
@@ -3007,7 +3007,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                 {!isSummary && s.isHandoff && (
                   <div style={{
                     position: 'absolute', top: -1, right: -1,
-                    fontSize: 9, fontWeight: 700, color: '#fff',
+                    fontSize: 10, fontWeight: 700, color: '#fff',
                     background: s.unscheduled ? 'rgba(220,38,38,.95)'
                       : s.plannedHandoff ? 'rgba(34,197,94,.95)'
                       : s.crossTeam ? 'rgba(245,158,11,.95)'
@@ -3091,7 +3091,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   </div>;
                 })()}
                 {!compactBar && <span style={{ position: 'sticky', left: 6, display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
-                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
+                  {s.status === 'done' && <span style={{ marginRight: 4, fontSize: 11, flexShrink: 0, color: isSummary ? 'var(--tx3)' : 'rgba(255,255,255,.92)' }}>●</span>}
                   {/* Priority is not drawn on a bar. It is an INPUT to the
                       schedule — it helps decide what runs before what — and
                       this view is the schedule's ANSWER. Printing the input
@@ -3100,8 +3100,8 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                       of identical marks that distinguishes nothing. It stays
                       where it is set and where ordering is done: the tree and
                       the work order. */}
-                  {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
-                  {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
+                  {!isSummary && node?.parallel && <span style={{ marginRight: 4, fontSize: 11, flexShrink: 0 }} data-htip={t('g.parallelTip')}>≡</span>}
+                  {!isSummary && node?.pinnedStart && <span style={{ marginRight: 4, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
                     data-htip={`${s.pinOverridden ? t('g.pinOverriddenTip', node.pinnedStart) : t('g.pinnedTip', node.pinnedStart)} ${t('g.clickToUnpin')}`}
                     onClick={e => { e.stopPropagation(); onTaskUpdate?.({ ...node, pinnedStart: '' }); }}>{s.pinOverridden ? '!▸' : '▸'}</span>}
                   {!isSummary && s.blockedBy && (() => {
@@ -3111,10 +3111,10 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                     const endIso = s.blockedBy.endD instanceof Date ? s.blockedBy.endD.toISOString().slice(0,10) : String(s.blockedBy.endD);
                     const blockerLabel = blockerName ? `${s.blockedBy.id} – ${blockerName}` : s.blockedBy.id;
                     const meta = [blockerPerson, t('g.blockerEnds', endIso)].filter(Boolean).join(', ');
-                    return <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, cursor: 'help' }}
+                    return <span style={{ marginRight: 4, fontSize: 11, flexShrink: 0, cursor: 'help' }}
                       data-htip={`${t('p.waitingFor')} ${blockerLabel}${meta ? ` (${meta})` : ''}`}>~</span>;
                   })()}
-                  {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 10, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
+                  {!isSummary && fixedDays > 0 && <span style={{ marginRight: 4, fontSize: 11, flexShrink: 0, color: 'rgba(255,255,255,.94)', fontFamily: 'var(--mono)' }}
                     data-htip={`${t('qe.fixedDuration')}: ${fixedDays}d`}>{fixedDays}d</span>}
                   {/* A summary bar does not repeat its own name. The label
                       column beside it is sticky and already carries it, so
@@ -3161,7 +3161,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
                   background: 'var(--ac)',
                   border: '1px solid rgba(255,255,255,.75)',
                   color: '#fff',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 800,
                   fontFamily: 'var(--mono)',
                   lineHeight: '20px',
@@ -3340,23 +3340,23 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     </div>
     <div className="gantt-footer">
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={t('g.zoomFooterTip', Math.round(WPX))}>
-        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
-        <button className={`btn btn-xs ${zoomMode === 'month' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(MONTH_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.month')}</button>
-        <button className={`btn btn-xs ${zoomMode === 'week' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.week')}</button>
-        <button className={`btn btn-xs ${zoomMode === 'day' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.day')}</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip={t('g.zoomOutTip')} style={{ padding: '2px 7px', fontSize: 10 }}>−</button>
-        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip={t('g.zoomInTip')} style={{ padding: '2px 7px', fontSize: 10 }}>+</button>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>{t('g.zoom')}</span>
+        <button className={`btn btn-xs ${zoomMode === 'month' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(MONTH_ZOOM)} style={{ padding: '2px 7px', fontSize: 11 }}>{t('g.month')}</button>
+        <button className={`btn btn-xs ${zoomMode === 'week' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DEFAULT_WPX)} style={{ padding: '2px 7px', fontSize: 11 }}>{t('g.week')}</button>
+        <button className={`btn btn-xs ${zoomMode === 'day' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setZ(DAY_ZOOM)} style={{ padding: '2px 7px', fontSize: 11 }}>{t('g.day')}</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 0.8)} data-htip={t('g.zoomOutTip')} style={{ padding: '2px 7px', fontSize: 11 }}>−</button>
+        <button className="btn btn-sec btn-xs" onClick={() => setZ(WPX * 1.25)} data-htip={t('g.zoomInTip')} style={{ padding: '2px 7px', fontSize: 11 }}>+</button>
         <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-        <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.today')}</button>
+        <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 11 }}>{t('g.today')}</button>
       </div>
-      {searchMatches && <span style={{ fontSize: 10, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
+      {searchMatches && <span style={{ fontSize: 11, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
         {searchMatchList.length
           ? `${((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length + 1} / ${searchMatchList.length}`
           : `0 ${t('g.matches')}`}
       </span>}
-      {selectedTaskIds.length > 0 && <span data-testid="gantt-selection-count" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>
+      {selectedTaskIds.length > 0 && <span data-testid="gantt-selection-count" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>
         <span>{t('g.selectedTasks', selectedTaskIds.length)}</span>
-        <button data-testid="gantt-clear-selection" className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '2px 7px', fontSize: 10 }}>{t('g.clearSelection')}</button>
+        <button data-testid="gantt-clear-selection" className="btn btn-xs btn-sec" onClick={() => setSelectedIds(new Set())} style={{ padding: '2px 7px', fontSize: 11 }}>{t('g.clearSelection')}</button>
       </span>}
       <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
       {dlL.map(dl => {
@@ -3377,13 +3377,13 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       {(() => {
         const counts = { committed: 0, estimated: 0, exploratory: 0 };
         allItems.forEach(s => { if (s.status !== 'done') counts[confidence[s.id] || 'committed']++; });
-        return (counts.estimated > 0 || counts.exploratory > 0) ? <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+        return (counts.estimated > 0 || counts.exploratory > 0) ? <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
           <span data-htip={t('g.confCommittedTip')}>● {counts.committed}</span>
           <span style={{ color: 'var(--am)' }} data-htip={t('g.confEstimatedTip')}>◐ {counts.estimated}</span>
           <span data-htip={t('g.confExploratoryTip')}>○ {counts.exploratory}</span>
         </span> : null;
       })()}
-      {linkDrag && <span style={{ fontSize: 11, color: 'var(--ac)', marginLeft: 'auto' }}>↗ {t('g.linkDrop')}</span>}
+      {linkDrag && <span style={{ fontSize: 12, color: 'var(--ac)', marginLeft: 'auto' }}>↗ {t('g.linkDrop')}</span>}
     </div>
     <SelectionActionBar
       count={selectedTaskIds.length}

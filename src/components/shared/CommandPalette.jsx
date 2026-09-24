@@ -115,7 +115,7 @@ export function CommandPalette({ commands }) {
         />
         <div style={{ maxHeight: 360, overflowY: 'auto', padding: '6px 0' }}>
           {filtered.length === 0 && (
-            <div style={{ padding: '10px 14px', fontSize: 11.5, color: 'var(--tx3)' }}>{t('palette.noResults')}</div>
+            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx3)' }}>{t('palette.noResults')}</div>
           )}
           {filtered.map((cmd, i) => {
             const showGroup = cmd.group !== lastGroup;
@@ -123,7 +123,7 @@ export function CommandPalette({ commands }) {
             return (
               <div key={cmd.id}>
                 {showGroup && cmd.groupLabel && (
-                  <div style={{ padding: '8px 14px 3px', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>
+                  <div style={{ padding: '8px 14px 3px', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>
                     {cmd.groupLabel}
                   </div>
                 )}
@@ -148,7 +148,7 @@ export function CommandPalette({ commands }) {
                   </span>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.label}</span>
                   {cmd.key && keyHint(cmd.key) && <kbd style={{
-                    fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+                    fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)',
                     border: '1px solid var(--b2)', borderRadius: 3, padding: '0 4px', flexShrink: 0,
                   }}>{keyHint(cmd.key)}</kbd>}
                 </div>

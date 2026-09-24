@@ -76,7 +76,7 @@ export function JiraImportModal({ tree = [], members = [], jiraFieldId = 'jira',
           rows={7}
           spellCheck={false}
           placeholder={t('js.pastePlaceholder')}
-          style={{ fontFamily: 'var(--mono)', fontSize: 11, width: '100%' }} />
+          style={{ fontFamily: 'var(--mono)', fontSize: 12, width: '100%' }} />
         <p className="helper" style={{ marginTop: 4 }}>
           {text.trim() && !ready
             ? t('ji.nothing')
@@ -121,15 +121,15 @@ export function JiraImportModal({ tree = [], members = [], jiraFieldId = 'jira',
           <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '8px 10px', maxHeight: 240, overflow: 'auto' }}>
             {built.tree.slice(0, 40).map(node => (
               <div key={node.id} data-testid={`jira-import-row-${node.id}`}
-                style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 10, padding: '1px 0',
+                style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, padding: '1px 0',
                   paddingLeft: (node.id.split('.').length - 1) * 14 }}>
                 <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', width: 58, flexShrink: 0 }}>{node.id}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
-                {node.customValues?.[jiraFieldId] && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{node.customValues[jiraFieldId]}</span>}
-                {node.status !== 'open' && <span style={{ fontSize: 9, color: node.status === 'done' ? 'var(--st-done)' : 'var(--st-wip)', flexShrink: 0 }}>{t(node.status)}</span>}
+                {node.customValues?.[jiraFieldId] && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{node.customValues[jiraFieldId]}</span>}
+                {node.status !== 'open' && <span style={{ fontSize: 10, color: node.status === 'done' ? 'var(--st-done)' : 'var(--st-wip)', flexShrink: 0 }}>{t(node.status)}</span>}
               </div>
             ))}
-            {built.tree.length > 40 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>
+            {built.tree.length > 40 && <div style={{ fontSize: 11, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>
               {t('ji.previewMore', built.tree.length - 40)}
             </div>}
           </div>

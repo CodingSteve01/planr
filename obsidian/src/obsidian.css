@@ -17,12 +17,12 @@
   min-height: 0;
   overflow: hidden;
   /* Follow the vault's typography instead of asking for web fonts the plugin
-     cannot ship. IBM Plex still wins when it happens to be installed.
+     cannot ship; the platform's UI face when the vault names none.
      --font-display keeps a real serif at the end: Georgia is on every desktop,
      and a headline that degrades to the body sans is a headline that has
      stopped doing its job. */
-  --font: 'IBM Plex Sans', var(--font-interface), system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', var(--font-monospace), monospace;
+  --font: var(--font-interface), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: var(--font-monospace), ui-monospace, 'SF Mono', Menlo, monospace;
   --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
 }
 
@@ -115,7 +115,13 @@
    as text on Atom dark with a rust accent), so the filled variant --ac2 takes
    it as-is and the text variant --ac is lifted towards --text-normal.
 
-   The steps above the ground (--bg3..--bg5) are opaque mixes rather than
+   --bg2 is not --background-secondary, although the name suggests it: Atom
+   paints that 6% below the ground, and Planr lays header rows, cards and
+   every zebra stripe on --bg2 on the assumption that it is a hair away from
+   the ground (#fafaf8 against #fff). Mapped straight, every table striped
+   like a spreadsheet. It is a 3% step instead, like the ones above it.
+
+   The steps above the ground (--bg2..--bg5) are opaque mixes rather than
    --background-modifier-hover: that one is translucent, and --bg3 also paints
    sticky columns that content scrolls underneath.
 
@@ -124,7 +130,7 @@
 html[data-theme="dark"] body.theme-dark .planr-view,
 html[data-theme="light"] body.theme-light .planr-view {
   --bg: var(--background-primary);
-  --bg2: var(--background-secondary);
+  --bg2: color-mix(in srgb, var(--text-normal) 3%, var(--background-primary));
   --bg3: color-mix(in srgb, var(--text-normal) 5%, var(--background-primary));
   --bg4: color-mix(in srgb, var(--text-normal) 10%, var(--background-primary));
   --bg5: color-mix(in srgb, var(--text-normal) 16%, var(--background-primary));
@@ -132,8 +138,8 @@ html[data-theme="light"] body.theme-light .planr-view {
   --b2: color-mix(in srgb, var(--text-normal) 15%, var(--background-modifier-border));
   --b3: color-mix(in srgb, var(--text-normal) 30%, var(--background-modifier-border));
   --tx: var(--text-normal);
-  --tx2: color-mix(in srgb, var(--text-muted) 35%, var(--text-normal));
-  --tx3: color-mix(in srgb, var(--text-muted) 55%, var(--text-normal));
+  --tx2: color-mix(in srgb, var(--text-muted) 25%, var(--text-normal));
+  --tx3: color-mix(in srgb, var(--text-muted) 38%, var(--text-normal));
   --ac: color-mix(in srgb, var(--interactive-accent) 55%, var(--text-normal));
   --ac2: var(--interactive-accent);
   --on-ac: var(--text-on-accent);

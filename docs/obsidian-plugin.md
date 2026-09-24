@@ -203,18 +203,18 @@ carry meaning a theme knows nothing about.
 | Planr token | From the vault |
 | --- | --- |
 | `--bg` (`--surf0`) | `--background-primary` |
-| `--bg2` (`--surf1`) | `--background-secondary` |
+| `--bg2` (`--surf1`) | `--text-normal` mixed 3 % into `--background-primary` — not `--background-secondary`, see below |
 | `--bg3` / `--bg4` / `--bg5` | `--text-normal` mixed 5 / 10 / 16 % into `--background-primary` |
 | `--b` | `--background-modifier-border` |
 | `--b2` / `--b3` | `--text-normal` mixed 15 / 30 % into the border |
 | `--tx` | `--text-normal` |
-| `--tx2` / `--tx3` | `--text-muted` 35 / 55 %, rest `--text-normal` |
+| `--tx2` / `--tx3` | `--text-muted` 25 / 38 %, rest `--text-normal` |
 | `--ac2` (fills) | `--interactive-accent` |
 | `--ac` (links, focus, text) | `--interactive-accent` 55 %, rest `--text-normal` |
 | `--on-ac` | `--text-on-accent` |
 | `--ac-soft`, `--st-*-soft`, `--bg-done` | Planr's tint over `--background-primary` |
 
-Three decisions in that table came out of measuring against Atom rather than
+Four decisions in that table came out of measuring against Atom rather than
 from the variable names:
 
 - **Theme text colours are not good enough for 10–11px labels.** Atom's
@@ -223,6 +223,10 @@ from the variable names:
   pulled towards `--text-normal`, and `--text-faint` is not used at all.
 - **`--interactive-accent` is a fill colour.** As text it is 2.6:1 on Atom dark
   with this vault's rust accent, so only `--ac2` takes it as-is.
+- **`--background-secondary` is too far from the ground.** Atom paints it 6 %
+  below `--background-primary`, and Planr lays header rows, cards and every
+  zebra stripe on `--bg2` on the assumption that it is a hair away from the
+  ground. Mapped straight, every table striped like a spreadsheet.
 - **`--background-modifier-hover` is translucent**, and `--bg3` also paints
   sticky columns that content scrolls under — so the steps above the ground
   are opaque mixes instead.
@@ -239,7 +243,7 @@ light block (`html[data-theme="light"] .planr-view`).
 
 [`obsidian/__tests__/vaultPalette.test.js`](../obsidian/__tests__/vaultPalette.test.js)
 evaluates every mix against Atom (with its own accent and with this vault's)
-and Obsidian's default theme, in both modes, to the same AA bars as
+and Obsidian's default theme, in both modes, to the same bars as
 [`paletteContrast.test.js`](../src/utils/__tests__/paletteContrast.test.js).
 [`bundle.test.js`](../obsidian/__tests__/bundle.test.js) checks the rule is
 present in the built `styles.css`. A theme with other values can still fall

@@ -14,8 +14,8 @@
 export const PRINT = {
   // Ink
   ink: '#1a1a18',        // --tx
-  ink2: '#55544e',       // --tx2
-  muted: '#6a6861',      // --tx3
+  ink2: '#4a4944',       // --tx2
+  muted: '#5c5a54',      // --tx3
 
   // Ground
   paper: '#ffffff',      // --bg2

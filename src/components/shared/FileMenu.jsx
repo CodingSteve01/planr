@@ -113,7 +113,7 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
           </span>
           <span style={{ flex: 1 }}>{item.label}</span>
           {item.key && <kbd style={{
-            fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)',
+            fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)',
             border: '1px solid var(--b2)', borderRadius: 3, padding: '0 4px',
           }}>{keyHint(item.key)}</kbd>}
         </button>

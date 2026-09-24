@@ -3187,8 +3187,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
                         return { ...r, phases: newPhases, status: st, progress: prog };
                       }));
                     }}>{dot}</span>
-                  <span style={{ fontSize: 11, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
-                  {common == null && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
+                  <span style={{ fontSize: 12, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
+                  {common == null && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
                 </div>;
               })}
             </div>;
@@ -3217,7 +3217,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
                 <input type="checkbox" checked={commonParallel === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r))} />
                 <span className="slider" />
               </label>
-              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
             </div>
           </div>
         )}
@@ -3228,7 +3228,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
                 <input type="checkbox" checked={commonTeamLock === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r))} />
                 <span className="slider" />
               </label>
-              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
             </div>
           </div>
         )}
@@ -3248,7 +3248,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <div className="field"><label>{_t('qe.confidence')}</label>
           <div style={{ display: 'flex', gap: 3 }}>
             {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
-              <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 10 }}
+              <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 11 }}
                 onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
           </div>
         </div>
@@ -3280,7 +3280,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               />
               <span className="slider" />
             </label>
-            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+            <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
               {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
             </span>
           </div>
@@ -3384,7 +3384,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
         <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
       </span>
-      {fileName && <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      {fileName && <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
         {/* A host names the tab after the file already. Repeating it here
             spends the narrowest part of the bar saying the same thing twice. */}
         {!hosted && fileName}
@@ -3419,14 +3419,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           color = 'var(--am)';
           tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
         }
-        return <span className="topbar-status" style={{ fontSize: 10, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
+        return <span className="topbar-status" style={{ fontSize: 11, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
           data-htip={tip}
           onClick={() => { if (clickable) saveToFile(true); }}>
           {text}
           {externalChangeAvailable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
             <span style={{ color: 'var(--am)' }}>· file changed</span>
-            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 9, color: 'var(--am)' }} data-htip={_t('app.save.reloadTip')}>reload</button>
-            <span style={{ cursor: 'pointer', fontSize: 9, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} data-htip={_t('app.save.dismissExternalTip')}><Icon name="x" size={9} /></span>
+            <button className="btn btn-ghost btn-xs" onClick={e => { e.stopPropagation(); reloadFromFile(); }} style={{ padding: '1px 5px', fontSize: 10, color: 'var(--am)' }} data-htip={_t('app.save.reloadTip')}>reload</button>
+            <span style={{ cursor: 'pointer', fontSize: 10, color: 'var(--tx3)' }} onClick={e => { e.stopPropagation(); setExternalChangeAvailable(false); }} data-htip={_t('app.save.dismissExternalTip')}><Icon name="x" size={9} /></span>
           </span>}
         </span>;
       })()}
@@ -3438,7 +3438,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           asked for, in the one row every view has to look at. */}
       {(tab === 'summary' || tab === 'report') && <>
         <div className="vsep" />
-        <span className="topbar-count" style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
+        <span className="topbar-count" style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
           data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done{droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}</span>
       </>}
       {backdate && <span
@@ -3807,7 +3807,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
             {NEW_FEATURES.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
           <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, color: 'var(--tx3)' }}
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--tx3)' }}
               onClick={() => { dismissNewFeat(); startTour(); }}>
               {_t('tour.restartTour')} →
             </button>

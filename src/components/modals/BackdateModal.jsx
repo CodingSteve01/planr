@@ -43,7 +43,7 @@ export function BackdateModal({ value, onApply, onClose }) {
             style={{ fontFamily: 'var(--mono)' }}
           />
         </div>
-        <p className="helper" style={{ marginBottom: 0, fontSize: 11 }}>{t('bd.reset')}</p>
+        <p className="helper" style={{ marginBottom: 0, fontSize: 12 }}>{t('bd.reset')}</p>
       </div>
       <div className="modal-footer">
         <button className="btn btn-sec" onClick={onClose}>{t('cancel')}</button>

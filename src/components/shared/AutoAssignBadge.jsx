@@ -18,7 +18,7 @@ export function AutoAssignBadge({ children, title, style = {} }) {
         gap: 2,
         color: 'var(--tx3)',
         fontStyle: 'italic',
-        fontSize: 10,
+        fontSize: 11,
         lineHeight: 1.2,
         ...style,
       }}

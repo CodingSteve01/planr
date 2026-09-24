@@ -64,7 +64,7 @@ export function NewProjModal({ onCreate, onClose }) {
 
   return <div className="overlay">
     <div className="modal modal-lg fade">
-      <h2>{t('np.title')} {step === 2 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontWeight: 400 }}>{t('np.titleFocus')}</span>}</h2>
+      <h2>{t('np.title')} {step === 2 && <span style={{ fontSize: 12, color: 'var(--tx3)', fontWeight: 400 }}>{t('np.titleFocus')}</span>}</h2>
 
       {step === 1 && <>
         {/* ── Template picker ── */}
@@ -83,7 +83,7 @@ export function NewProjModal({ onCreate, onClose }) {
                 }}>
                 <span style={{ display: 'inline-flex', color: templateId === tpl.id ? 'var(--ac)' : 'var(--tx3)' }}><Icon name={tpl.icon} size={18} /></span>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{t(tpl.nameKey)}</span>
-                <span style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.4 }}>{t(tpl.descKey)}</span>
+                <span style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.4 }}>{t(tpl.descKey)}</span>
               </button>
             ))}
           </div>
@@ -106,7 +106,7 @@ export function NewProjModal({ onCreate, onClose }) {
         </div>
         <hr className="divider" />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>{t('np.teams')}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>{t('np.teams')}</div>
           <button className="btn btn-sec btn-sm" onClick={() => setTs(ts => [...ts, { id: `T${ts.length + 1}`, name: '', color: '#a78bfa' }])}>{t('np.addTeam')}</button>
         </div>
         {ts.map((tm, i) => <div key={i} className="frow" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
@@ -122,7 +122,7 @@ export function NewProjModal({ onCreate, onClose }) {
       </>}
 
       {step === 2 && <>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>{t('np.focusLead')}</div>
+        <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>{t('np.focusLead')}</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
           {Object.keys(GT).map(tp => <button key={tp} className="goal-type-btn" onClick={() => addG(tp)}><Icon name={GT_ICON[tp]} size={12} />{t('np.addGoal', GL[tp])}</button>)}
         </div>
@@ -130,12 +130,12 @@ export function NewProjModal({ onCreate, onClose }) {
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
             <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[g.type]} size={13} /></span>
             <input style={{ flex: 1, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 8px', outline: 'none' }} placeholder={t('np.goalNamePlaceholder', GL[g.type])} value={g.name} onChange={e => upG(i, 'name', e.target.value)} />
-            {g.type === 'deadline' && <input type="date" style={{ width: 130, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 11, padding: '5px 6px', outline: 'none' }} value={g.date || ''} onChange={e => upG(i, 'date', e.target.value)} />}
+            {g.type === 'deadline' && <input type="date" style={{ width: 130, background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx)', fontSize: 12, padding: '5px 6px', outline: 'none' }} value={g.date || ''} onChange={e => upG(i, 'date', e.target.value)} />}
             <button className="btn btn-danger btn-xs" onClick={() => setGoals(gs => gs.filter((_, j) => j !== i))}>{t('rv.remove')}</button>
           </div>
-          <input style={{ width: '100%', background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx2)', fontSize: 11, padding: '4px 8px', outline: 'none' }} placeholder={t('np.descPlaceholder')} value={g.description || ''} onChange={e => upG(i, 'description', e.target.value)} />
+          <input style={{ width: '100%', background: 'var(--bg4)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', color: 'var(--tx2)', fontSize: 12, padding: '4px 8px', outline: 'none' }} placeholder={t('np.descPlaceholder')} value={g.description || ''} onChange={e => upG(i, 'description', e.target.value)} />
         </div>)}
-        {!goals.length && <div style={{ textAlign: 'center', padding: 24, color: 'var(--tx3)', fontSize: 11 }}>{t('np.noFocus')}</div>}
+        {!goals.length && <div style={{ textAlign: 'center', padding: 24, color: 'var(--tx3)', fontSize: 12 }}>{t('np.noFocus')}</div>}
         <div className="modal-footer">
           <button className="btn btn-sec" onClick={() => setStep(1)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="chevronLeft" size={12} />{t('np.backStep')}</button>
           <button className="btn btn-pri" onClick={doCreate}>{t('np.createProject')}</button>
