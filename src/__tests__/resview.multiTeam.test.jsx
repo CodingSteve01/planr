@@ -39,10 +39,28 @@ describe('ResView: multi-team members', () => {
     expect(screen.getAllByText('Jonas').length).toBeGreaterThan(0);
   });
 
-  it('shows the share derived from scheduled tasks', () => {
-    wrap(<ResView {...baseProps} />);
-    const lines = screen.getAllByText(/60 % Backend · 40 % Frontend/);
-    expect(lines.length).toBeGreaterThan(0);
+  // Reported: two chips overflowed the column, so the second team read
+  // "Front…" and the split line "78 % Backend ·…". Each team is its own
+  // chip now, carrying its share, and the chips wrap instead of clipping.
+  it('shows the share derived from scheduled tasks inside each team chip', () => {
+    const { container } = wrap(<ResView {...baseProps} />);
+    const chip = id => container.querySelector(`[data-team-chip="${id}"]`);
+    expect(chip('T1').textContent).toBe('Backend60 %');
+    expect(chip('T2').textContent).toBe('Frontend40 %');
+    expect(chip('T1').closest('td').classList.contains('res-td-teams')).toBe(true);
+  });
+
+  it('gives work outside the person\'s own teams a chip of its own', () => {
+    const extra = [...scheduled, { id: 'c', team: 'T3', personId: 'M1', effort: 10 }];
+    const { container } = wrap(<ResView {...baseProps} scheduled={extra}
+      teams={[...teams, { id: 'T3', name: 'RE/Proc', color: '#f0d342' }]} />);
+    const other = container.querySelector('.res-team-badge-other[data-team-chip="T3"]');
+    expect(other?.textContent).toBe('RE/Proc50 %');
+  });
+
+  it('shows no percentages while the work sits in one team', () => {
+    const { container } = wrap(<ResView {...baseProps} scheduled={[scheduled[0]]} />);
+    expect(container.querySelector('.res-team-share')).toBeNull();
   });
 
   it('adds a team through the editor without any percentage', () => {
