@@ -19,6 +19,7 @@ as before.
 | `--surf1` | Surface: card | `= var(--bg2)` (`#1c1b17`) | `= var(--bg2)` (`#ffffff`) |
 | `--surf2` | Surface: raised | `= var(--bg3)` (`#21201b`) | `= var(--bg3)` (`#f1efea`) |
 | `--ac` | **The** interaction colour — links, focus rings, selection, primary actions. Nothing else should introduce a second accent. | `#7eb3e0` | `#2b5c8a` |
+| `--on-ac` | The label on a filled accent (`.btn-pri`, `.ob-btn-pri`, count pills, `.badge-new`). Hosts with their own accent pair it with their own label colour | `#fff` | `#fff` |
 | `--ac-soft` | Tinted ground for the accent: selected rows, `.chip.on`, selection counts | `#1b2a38` | `#eaf0f6` |
 | `--st-done` | State: done (green) | `#6fbf8a` | `#357049` |
 | `--st-wip` | State: work in progress (amber) | `#d9a050` | `#8a5a1a` |
@@ -95,6 +96,18 @@ effect (dark or light) without needing a second declaration. `--st-*` and
 `--ac` genuinely differ in value between palettes (contrast-tuned per theme,
 like the rest of the colour ladder), so those *are* redeclared in the light
 block.
+
+### Inside Obsidian the neutrals belong to the vault
+
+The plugin re-points the neutral tokens — `--bg`…`--bg5`, `--b`…`--b3`,
+`--tx`…`--tx3`, `--ac`, `--ac2`, `--on-ac` and the tinted grounds — at the
+vault theme's variables, so the surfaces are Atom's (or whatever the vault
+uses) rather than the warm palette above. The state, team, critical-path,
+diff and confidence tokens are **not** remapped: they mean something, and
+their values here are what the contrast tests hold them to. `--surf0/1/2`
+follow automatically, being aliases. The mapping, the mix percentages and why
+the theme's own muted/faint text colours are not used as-is are in
+[obsidian-plugin.md](obsidian-plugin.md#colours-come-from-the-vault-theme).
 
 ## Mapping rules applied
 

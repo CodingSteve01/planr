@@ -91,3 +91,60 @@
   color: var(--tx);
   border: 1px solid var(--b2);
 }
+
+/* Neutral tokens from the vault's theme, so Planr reads as part of the vault
+   rather than a web page framed inside it. Only the neutrals move: surfaces,
+   text, borders and the primary accent. Status, team, critical-path, diff and
+   confidence colours keep Planr's own values, because they carry meaning that
+   a theme knows nothing about.
+
+   Both conditions are on purpose. `body.theme-*` is the vault's appearance;
+   `html[data-theme]` is Planr's own (i18n.jsx). They agree whenever Planr is
+   on "Auto". When someone picks "Light" in a dark vault, the vault's colours
+   are dark and Planr's semantic colours are light — mixing the two would put
+   dark-mode text on a light-mode status tint — so a mismatch falls back to
+   Planr's full palette instead. The specificity (0,3,2) also has to beat the
+   scoped light block, `html[data-theme="light"] .planr-view` (0,2,1).
+
+   Themes cannot be trusted with small text. Atom's --text-muted is 3.5:1 on
+   its own ground in dark and 2.7:1 in light, and --text-faint is below 2:1 —
+   fine for a placeholder, useless for the 10–11px column heads and counts
+   that are most of Planr. So the two secondary inks are --text-muted pulled
+   towards --text-normal, and --text-faint is not used at all. The accent does
+   the same for the same reason: --interactive-accent is a fill colour (2.6:1
+   as text on Atom dark with a rust accent), so the filled variant --ac2 takes
+   it as-is and the text variant --ac is lifted towards --text-normal.
+
+   The steps above the ground (--bg3..--bg5) are opaque mixes rather than
+   --background-modifier-hover: that one is translucent, and --bg3 also paints
+   sticky columns that content scrolls underneath.
+
+   obsidian/__tests__/vaultPalette.test.js holds every percentage here to WCAG
+   AA against Atom and against Obsidian's default theme, in both modes. */
+html[data-theme="dark"] body.theme-dark .planr-view,
+html[data-theme="light"] body.theme-light .planr-view {
+  --bg: var(--background-primary);
+  --bg2: var(--background-secondary);
+  --bg3: color-mix(in srgb, var(--text-normal) 5%, var(--background-primary));
+  --bg4: color-mix(in srgb, var(--text-normal) 10%, var(--background-primary));
+  --bg5: color-mix(in srgb, var(--text-normal) 16%, var(--background-primary));
+  --b: var(--background-modifier-border);
+  --b2: color-mix(in srgb, var(--text-normal) 15%, var(--background-modifier-border));
+  --b3: color-mix(in srgb, var(--text-normal) 30%, var(--background-modifier-border));
+  --tx: var(--text-normal);
+  --tx2: color-mix(in srgb, var(--text-muted) 35%, var(--text-normal));
+  --tx3: color-mix(in srgb, var(--text-muted) 55%, var(--text-normal));
+  --ac: color-mix(in srgb, var(--interactive-accent) 55%, var(--text-normal));
+  --ac2: var(--interactive-accent);
+  --on-ac: var(--text-on-accent);
+  /* Tinted grounds: the tint stays Planr's, the ground it tints is the
+     vault's — a done node on Atom is green over Atom's grey, not over Planr's
+     warm black. Kept faint on purpose: Planr's risk red is 4.5:1 on Atom's
+     dark ground with nothing on it, and the done node (network graph) carries
+     red priority glyphs and --tx3 IDs. 6% still passes; 8% does not. */
+  --ac-soft: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-primary));
+  --bg-done: color-mix(in srgb, var(--st-done) 6%, var(--background-primary));
+  --st-done-soft: color-mix(in srgb, var(--st-done) 8%, var(--background-primary));
+  --st-wip-soft: color-mix(in srgb, var(--st-wip) 8%, var(--background-primary));
+  --st-risk-soft: color-mix(in srgb, var(--st-risk) 8%, var(--background-primary));
+}

@@ -90,6 +90,7 @@ writer does not carry — see [import-export.md](import-export.md)).
 | Which file is open | `FileSystemFileHandle` in IndexedDB | the leaf's own file, restored with the workspace |
 | UI preferences | `localStorage` | `localStorage` (unchanged — Obsidian's renderer has one) |
 | Theme "Auto" | OS `prefers-color-scheme` | the vault's light/dark setting |
+| Neutral colours | Planr's own palette | the vault theme's (`--background-*`, `--text-*`, `--interactive-accent`), see below |
 | Exports (PDF, DOCX, CSV…) | browser download | browser download (Electron's save dialog) |
 
 Four files carry all of it:
@@ -189,6 +190,60 @@ sat on top of the day and the field read "📅.mm.yyyy". Inside `.planr-view`
 the icon goes back into the flow, after the date, with a selector as specific
 as Obsidian's plus the scope. The filter popup is portalled, but into the
 view's own `.planr-view` container, so the rule reaches it there too.
+
+### Colours come from the vault theme
+
+Following the vault's light/dark choice is not enough to look at home: Planr's
+warm near-black next to Atom's blue-grey reads as a web page framed inside the
+vault. So `obsidian/src/obsidian.css` re-points Planr's **neutral** tokens at
+the theme's variables — and only the neutrals. Status (green/amber/red), team
+colours, critical path, diff and the confidence ramp keep Planr's values; they
+carry meaning a theme knows nothing about.
+
+| Planr token | From the vault |
+| --- | --- |
+| `--bg` (`--surf0`) | `--background-primary` |
+| `--bg2` (`--surf1`) | `--background-secondary` |
+| `--bg3` / `--bg4` / `--bg5` | `--text-normal` mixed 5 / 10 / 16 % into `--background-primary` |
+| `--b` | `--background-modifier-border` |
+| `--b2` / `--b3` | `--text-normal` mixed 15 / 30 % into the border |
+| `--tx` | `--text-normal` |
+| `--tx2` / `--tx3` | `--text-muted` 35 / 55 %, rest `--text-normal` |
+| `--ac2` (fills) | `--interactive-accent` |
+| `--ac` (links, focus, text) | `--interactive-accent` 55 %, rest `--text-normal` |
+| `--on-ac` | `--text-on-accent` |
+| `--ac-soft`, `--st-*-soft`, `--bg-done` | Planr's tint over `--background-primary` |
+
+Three decisions in that table came out of measuring against Atom rather than
+from the variable names:
+
+- **Theme text colours are not good enough for 10–11px labels.** Atom's
+  `--text-muted` is 3.5:1 on its own ground in dark and 2.7:1 in light;
+  `--text-faint` is 1.7:1 / 2.4:1. So the secondary inks are the muted colour
+  pulled towards `--text-normal`, and `--text-faint` is not used at all.
+- **`--interactive-accent` is a fill colour.** As text it is 2.6:1 on Atom dark
+  with this vault's rust accent, so only `--ac2` takes it as-is.
+- **`--background-modifier-hover` is translucent**, and `--bg3` also paints
+  sticky columns that content scrolls under — so the steps above the ground
+  are opaque mixes instead.
+
+The done node's green (`--bg-done`) is kept at 6 %: Planr's risk red is only
+just 4.5:1 on Atom's dark ground, and the node carries red priority glyphs.
+
+The mapping applies only when Planr's theme and the vault's agree
+(`html[data-theme="dark"] body.theme-dark .planr-view`, and the light twin).
+With Planr on **Auto** they always do; someone who picks *Light* inside a dark
+vault gets Planr's full light palette instead of dark vault surfaces under
+light status colours. The selector's specificity also has to beat the scoped
+light block (`html[data-theme="light"] .planr-view`).
+
+[`obsidian/__tests__/vaultPalette.test.js`](../obsidian/__tests__/vaultPalette.test.js)
+evaluates every mix against Atom (with its own accent and with this vault's)
+and Obsidian's default theme, in both modes, to the same AA bars as
+[`paletteContrast.test.js`](../src/utils/__tests__/paletteContrast.test.js).
+[`bundle.test.js`](../obsidian/__tests__/bundle.test.js) checks the rule is
+present in the built `styles.css`. A theme with other values can still fall
+short; adding it is one more fixture in that test.
 
 ### Build
 
