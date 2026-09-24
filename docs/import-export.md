@@ -290,6 +290,24 @@ Never compute an aggregate percentage inline in an export. Counting done leaves 
 
 This keeps near-term plans concrete without forcing false precision on long-horizon or low-confidence items.
 
+### The Subway-Map page (Management Summary)
+
+The map is embedded as vector SVG with the **renderer's own viewBox**: it is
+cropped to the lanes in use and grows past 1400×800 once a plan has more than
+eight projects. It used to be pinned to `0 0 1400 800`, which on a ten-project
+plan pressed the top lane against the page edge. The node is `fit` into
+770×470pt, so a tall board shrinks onto the page under its heading instead of
+running off it.
+
+Lanes and colours are locked per project in the plan file (`## Roadmap`,
+`planr-roadmap` block). A lane or colour stored for **two** projects — the old
+eight-lane board wrote such duplicates once a plan outgrew it — is honoured
+only for the first (longest project first); the second gets a free slot, and
+`mergeRoadmapAssignment` writes that repair back to the file on the next
+render. A clean stored slot is never overwritten, including by a filtered
+render. Covered by
+[`roadmapDuplicateLanes.test.js`](../src/utils/__tests__/roadmapDuplicateLanes.test.js).
+
 ### Project roadmap pages (Management Summary)
 
 After the Subway-Map, the Management Summary appends one **project roadmap**

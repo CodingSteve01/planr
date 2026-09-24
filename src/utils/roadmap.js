@@ -581,6 +581,40 @@ function deduplicateAbbrevs(stations) {
 
 // ─── computeRoadmapModel ──────────────────────────────────────────────────────
 
+/**
+ * Fold the map's computed {rootId → {routeIdx, colorIdx}} into the stored one.
+ *
+ * Merge, never replace. The map only ever sees the *rendered* tree, which can
+ * be a subset (archive filter, single-line mode) — replacing would drop the
+ * colours and lanes of every project that happens to be hidden right now.
+ * Stored entries win; computed values fill gaps for roots with no mapping.
+ *
+ * The one exception: a stored lane or colour that another stored project
+ * holds too. The old eight-lane board wrote such duplicates, and the map now
+ * gives the second project a free slot (see computeRoadmapModel) — taking
+ * that over is what repairs the file, rather than resolving the same
+ * collision again on every render.
+ */
+export function mergeRoadmapAssignment(prev, computed, rootIds) {
+  const merged = {};
+  Object.keys(prev || {}).forEach(id => { if (rootIds.has(id)) merged[id] = prev[id]; });
+  const holders = key => {
+    const count = new Map();
+    Object.values(merged).forEach(v => {
+      if (Number.isFinite(v?.[key])) count.set(v[key], (count.get(v[key]) || 0) + 1);
+    });
+    return count;
+  };
+  const routeHolders = holders('routeIdx');
+  const colorHolders = holders('colorIdx');
+  Object.keys(computed || {}).forEach(id => {
+    const was = merged[id];
+    if (!rootIds.has(id) || !computed[id]) return;
+    if (!was || routeHolders.get(was.routeIdx) > 1 || colorHolders.get(was.colorIdx) > 1) merged[id] = computed[id];
+  });
+  return merged;
+}
+
 export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), assignment = null }) {
   const nodeMap = Object.fromEntries(tree.map(node => [node.id, node]));
   const today = toDate(now) || toDate(new Date());
@@ -876,10 +910,27 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const usedRoute = new Set();
   const usedColor = new Set();
   // Pre-claim every stored slot first so fallbacks can't collide with them.
+  //
+  // A stored slot is only honoured once. Plans saved by the old eight-lane
+  // board carry duplicates — past eight projects it wrapped to route 0 and
+  // wrote that down — and honouring both put two lines on one lane, which
+  // the spacing pass then shoved apart: one of them off the top of the map
+  // with its title gone, another past the left edge. The first line (longest
+  // first, the same order as everything below) keeps the slot; the second is
+  // treated as unmapped and gets a free one. Colours likewise, as long as the
+  // palette has one left — past that, sharing a colour is unavoidable.
+  const staleRoute = new Set();
+  const staleColor = new Set();
   sortedLines.forEach(line => {
     const st = stored[line.root.id];
-    if (st && Number.isFinite(st.routeIdx)) usedRoute.add(st.routeIdx);
-    if (st && Number.isFinite(st.colorIdx)) usedColor.add(st.colorIdx);
+    if (st && Number.isFinite(st.routeIdx)) {
+      if (usedRoute.has(st.routeIdx)) staleRoute.add(line.root.id);
+      else usedRoute.add(st.routeIdx);
+    }
+    if (st && Number.isFinite(st.colorIdx)) {
+      if (usedColor.has(st.colorIdx)) staleColor.add(line.root.id);
+      else usedColor.add(st.colorIdx);
+    }
   });
   const nextFreeRoute = () => {
     for (let i = 0; i < routesWithLen.length; i++) {
@@ -895,7 +946,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const baseAssigned = sortedLines.map((line, rank) => {
     const st = stored[line.root.id];
     let routeRank, colorIdx;
-    if (st && Number.isFinite(st.routeIdx) && routesWithLen.some(r => r.idx === st.routeIdx)) {
+    if (st && Number.isFinite(st.routeIdx) && !staleRoute.has(line.root.id)
+      && routesWithLen.some(r => r.idx === st.routeIdx)) {
       // routesWithLen is sorted by length, find the entry by original idx.
       routeRank = routesWithLen.findIndex(r => r.idx === st.routeIdx);
     } else {
@@ -907,7 +959,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       routeRank = pick;
       usedRoute.add(routesWithLen[pick].idx);
     }
-    if (st && Number.isFinite(st.colorIdx)) {
+    if (st && Number.isFinite(st.colorIdx)
+      && !(staleColor.has(line.root.id) && usedColor.size < PALETTE.length)) {
       colorIdx = st.colorIdx;
     } else {
       let pick = rank;

@@ -6,6 +6,7 @@ import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
+import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd, parseResourceLine } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
@@ -2971,17 +2972,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // (first render of a fresh plan, or a new root entered). Locks the
   // layout so projects keep their colour + lane across data edits.
   const onRoadmapAssignmentChange = useStableCallback(computed => {
-    // Merge, never replace. The Roadmap only ever sees the *rendered* tree,
-    // which can be a subset (archive filter, single-line mode) — replacing
-    // would drop the colours and routes of every project that happens to be
-    // hidden right now. Stored entries win; computed values only fill gaps
-    // for roots that have no mapping yet.
+    // Merge, never replace — see mergeRoadmapAssignment.
     setData(d => {
       const prev = d.roadmapAssignment || {};
       const rootIds = new Set((d.tree || []).filter(r => !r.id.includes('.')).map(r => r.id));
-      const merged = {};
-      Object.keys(prev).forEach(id => { if (rootIds.has(id)) merged[id] = prev[id]; });
-      Object.keys(computed || {}).forEach(id => { if (rootIds.has(id) && !merged[id]) merged[id] = computed[id]; });
+      const merged = mergeRoadmapAssignment(prev, computed, rootIds);
       const unchanged = Object.keys(merged).length === Object.keys(prev).length
         && Object.keys(merged).every(id => prev[id]
           && prev[id].routeIdx === merged[id].routeIdx
