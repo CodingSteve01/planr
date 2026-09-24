@@ -302,6 +302,60 @@ describe('where it sits and what a row says', () => {
     const path = document.querySelector('[data-queue-row="A.1.1"] [data-queue-path]').textContent;
     expect(path).toContain('Abrechnung');
     expect(path).toContain('Preise');
+    // Reported: "I don't always see the parents". The second row of the same
+    // package names it too — the change is marked, not the only mention.
+    const second = document.querySelector('[data-queue-row="A.1.2"]');
+    expect(second.querySelector('[data-queue-project]').textContent).toBe('Abrechnung');
+    expect(second.querySelector('[data-queue-parent]').textContent).toBe('Preise');
+    expect(second.querySelector('[data-queue-parent]').getAttribute('data-changed')).toBeNull();
+    const first = document.querySelector('[data-queue-row="A.1.1"]');
+    expect(first.querySelector('[data-queue-parent]').getAttribute('data-changed')).toBe('true');
+  });
+
+  // Reported: the queue could not be walked with the arrow keys the way the
+  // tree can. Same keys, same meaning now.
+  describe('with the tree\'s keys', () => {
+    const focused = () => document.activeElement?.getAttribute('data-queue-row');
+
+    it('walks the rows with ↑/↓, across owners too', async () => {
+      await openWorkOrder();
+      const ids = rowIds();
+      await press(ids[0], 'ArrowDown');
+      expect(focused()).toBe(ids[1]);
+      await press(ids[1], 'ArrowUp');
+      expect(focused()).toBe(ids[0]);
+    });
+
+    it('extends the pick with ⇧↓ and drops it with Esc', async () => {
+      await openWorkOrder();
+      const ids = rowIds();
+      await press(ids[0], 'ArrowDown', { shiftKey: true });
+      expect(document.querySelectorAll('[data-queue-row].sel').length).toBe(2);
+      await press(ids[1], 'Escape');
+      expect(document.querySelectorAll('[data-queue-row].sel').length).toBeLessThan(2);
+    });
+
+    it('jumps to the ends of the list with Home/End', async () => {
+      await openWorkOrder();
+      const ids = rowIds();
+      await press(ids[0], 'End');
+      expect(focused()).toBe(ids[ids.length - 1]);
+      await press(ids[ids.length - 1], 'Home');
+      expect(focused()).toBe(ids[0]);
+    });
+
+    it('opens the item with Enter', async () => {
+      await openWorkOrder();
+      await press('A.2', 'Enter');
+      expect((await screen.findByTestId('node-modal')).getAttribute('data-node-id')).toBe('A.2');
+    });
+
+    it('reorders with the tree\'s ⌘⇧↓ as well as ⌥↓', async () => {
+      await openWorkOrder();
+      const before = rowIds();
+      await press(before[0], 'ArrowDown', { metaKey: true, shiftKey: true });
+      expect(rowIds()[1]).toBe(before[0]);
+    });
   });
 });
 
