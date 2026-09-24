@@ -126,7 +126,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
               />
               <span className="slider" />
             </label>
-            <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+            <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
               {f.deadlineRelevant === false ? t('no') : t('yes')}
             </span>
           </div>
@@ -149,7 +149,7 @@ export function AddModal({ tree, teams, members = [], taskTemplates, sizes: proj
             {(projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(sz =>
               <button key={sz.label} type="button" className={`btn ${f.best === sz.days ? 'btn-pri' : 'btn-sec'} btn-sm`}
                 data-htip={sz.desc || undefined}
-                onClick={() => { s('best', sz.days); s('factor', sz.factor); }}>{sz.label}<span style={{ fontSize: 9, opacity: .6, marginLeft: 2 }}>{sz.days}d</span></button>)}
+                onClick={() => { s('best', sz.days); s('factor', sz.factor); }}>{sz.label}<span style={{ fontSize: 10, opacity: .6, marginLeft: 2 }}>{sz.days}d</span></button>)}
           </div>
           <p className="helper">{t('add.quickEstimateHint')}</p>
         </div>

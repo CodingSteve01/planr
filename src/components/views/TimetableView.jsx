@@ -54,7 +54,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
 
   return (
     <div>
-      <div style={{ fontSize: 10.5, color: 'var(--tx3)', marginBottom: 8 }}>
+      <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>
         {t('tt.hint')}
       </div>
 
@@ -132,17 +132,17 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                 <span style={{
                   display: 'inline-block', minWidth: 30, height: 16, borderRadius: 3,
                   background: color, color: '#fff', fontFamily: 'var(--mono)',
-                  fontWeight: 700, fontSize: 10, textAlign: 'center', lineHeight: '16px',
+                  fontWeight: 700, fontSize: 11, textAlign: 'center', lineHeight: '16px',
                   padding: '0 4px',
                 }}>{line.root.id}</span>
                 <span style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.root.name}</span>
                 {trainRow && (
-                  <span style={{ marginLeft: 'auto', fontSize: 10, color, fontWeight: 600 }}>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color, fontWeight: 600 }}>
                     → {trainRow.station.abbrev}
                   </span>
                 )}
                 {!trainRow && line.progress >= 1 && (
-                  <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--gr)', fontWeight: 600 }}>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--gr)', fontWeight: 600 }}>
                     {t('tt.complete')}
                   </span>
                 )}
@@ -174,23 +174,23 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                         opacity: rowOpacity,
                         borderLeft: movedInWindow ? '3px solid var(--diff)' : (r.current ? `3px solid ${color}` : '3px solid transparent'),
                         borderRadius: 3,
-                        fontSize: 11,
+                        fontSize: 12,
                         minHeight: 22,
                       }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         {r.station.abbrev}
                         {r.items.length > 1 && (
-                          <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
+                          <span style={{ fontSize: 10, color: 'var(--tx3)', fontWeight: 400 }}>×{r.items.length}</span>
                         )}
                         {r.doneInWindow > 0 && (
-                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--st-done)', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>●{r.doneInWindow}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--st-done)', color: '#0a0a0a', borderRadius: 2, padding: '0 3px' }}>●{r.doneInWindow}</span>
                         )}
                         {/* Amber = "progressed in window", not wip — literal on purpose, see docs/design-tokens.md. */}
                         {r.progressedInWindow > 0 && (
-                          <span style={{ fontSize: 8, fontWeight: 700, background: 'var(--diff)', color: 'var(--bg)', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--diff)', color: 'var(--bg)', borderRadius: 2, padding: '0 3px' }}>▲{r.progressedInWindow}</span>
                         )}
                       </span>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         data-htip={r.startD && r.endD ? `${iso(r.startD)} → ${iso(r.endD)}` : undefined}>
                         {r.startD && r.endD
                           ? (
@@ -203,7 +203,7 @@ export function TimetableView({ tree, scheduled, stats, teams, members, diffDone
                             )
                           : '—'}
                       </span>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right' }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', textAlign: 'right' }}>
                         {r.totalCalDays > 0 ? `${r.totalCalDays}d/${r.workDays.toFixed(0)}PT` : '—'}
                       </span>
                       <span style={{ color: g.color, fontWeight: 600, textAlign: 'center' }}>{g.icon}</span>

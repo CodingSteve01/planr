@@ -79,7 +79,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
         marginTop: 10, padding: '6px 10px', background: 'var(--bg3)',
         border: '1px solid var(--b)', borderRadius: 'var(--r)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 11,
+        fontSize: 12,
       }}>
         <div style={{ color: 'var(--tx3)' }}>
           <span style={{ fontWeight: 600, color: 'var(--tx2)' }}>Handoff-Plan</span>
@@ -103,9 +103,9 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
       display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>Handoff-Plan</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>Handoff-Plan</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>
+          <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
             {cutoffs.length === 0 && plan.length === 0
               ? 'Kein Cutoff erwartet'
               : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'}${plan.length > 0 ? ` · ${plan.length} Override${plan.length === 1 ? '' : 's'}` : ''}`}
@@ -116,7 +116,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
         </div>
       </div>
       {stages.length === 0 && (
-        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic' }}>
           Kein Cutoff erwartet — Auto-Cascade übernimmt falls nötig.
         </div>
       )}
@@ -146,7 +146,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
             borderRadius: 4,
             display: 'flex', flexDirection: 'column', gap: 4,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--tx2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--tx2)' }}>
               <span style={{ fontWeight: 700, color: 'var(--ac)' }}>#{idx + 1}</span>
               {afterPerson && <span style={{ color: 'var(--tx3)' }}>nach {afterPerson}</span>}
               <span style={{ flex: 1, textAlign: 'right', color: 'var(--tx3)' }}>{predictedShort}</span>
@@ -170,7 +170,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
             {(stage.assign || []).length > 1 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {stage.assign.slice(1).map(id => (
-                  <span key={id} className="tag" style={{ fontSize: 9 }}>
+                  <span key={id} className="tag" style={{ fontSize: 10 }}>
                     + {memberName(id)}
                     <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}><Icon name="x" size={9} /></span>
                   </span>

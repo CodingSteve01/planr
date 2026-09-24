@@ -185,7 +185,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           style={{ fontFamily: 'var(--font-display)', fontSize: 58, lineHeight: 1, letterSpacing: '-.015em', color: 'var(--tx)' }}>
           {progressPctLabel(prog)}<span style={{ fontSize: 28, color: 'var(--tx3)', marginLeft: 2 }}>%</span>
         </span>
-        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('s.progressCaption', Math.round(tR))}</span>
+        <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('s.progressCaption', Math.round(tR))}</span>
       </div>
 
       {futureOverallProg != null && (
@@ -196,12 +196,12 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               {progressPctLabel(futureOverallProg)}%
             </span>
             {futureOverallDeltaLabel && (
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--st-done)', background: 'var(--st-done-soft)', borderRadius: 3, padding: '1px 5px' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--st-done)', background: 'var(--st-done-soft)', borderRadius: 3, padding: '1px 5px' }}>
                 {futureOverallDeltaLabel}
               </span>
             )}
           </div>
-          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('s.planLabel')}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('s.planLabel')}</span>
         </div>
       )}
 
@@ -212,14 +212,14 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               color: overallDelta >= 0 ? 'var(--st-done)' : 'var(--st-risk)', cursor: 'help' }}>
             {progressDeltaLabel(overallDelta)}
           </span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
         </div>
       )}
       {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
           <span data-htip={t('diff.noMovement')}
             style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500, color: 'var(--tx3)', cursor: 'help' }}>±0%</span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
         </div>
       )}
     </div>
@@ -323,8 +323,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       if (!total || !totalPtOpen) return null;
       return <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('s.planConfidence')}</span>
-          <span style={{ fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)' }}>{t('s.planConfidence')}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
         {/* Split by EFFORT, not item count. A 45 PT rebuild and a 1 PT typo fix
             counted the same here, so the bar could sit green while most of the
@@ -336,12 +336,12 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           {ccPt.estimated > 0 && <div style={{ width: `${ccPt.estimated / totalPtOpen * 100}%`, background: CONF_COLOR.estimated, transition: 'width .3s' }} />}
           {ccPt.exploratory > 0 && <div style={{ width: `${ccPt.exploratory / totalPtOpen * 100}%`, background: CONF_COLOR.exploratory, transition: 'width .3s' }} />}
         </div>
-        <div style={{ display: 'flex', gap: 18, fontSize: 11, color: 'var(--tx2)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--tx2)', flexWrap: 'wrap' }}>
           {[['committed', cc.committed, ccPt.committed], ['estimated', cc.estimated, ccPt.estimated], ['exploratory', cc.exploratory, ccPt.exploratory]]
             .map(([key, count, pt]) => <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: CONF_COLOR[key], flexShrink: 0 }} />
               {t('conf.' + key)}
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>
                 {pt > 0 ? Math.round(pt) : '?'} PT · {count}
               </span>
             </span>)}
@@ -378,18 +378,18 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
 
       return <div style={{ background: 'var(--bg2)', border: `1px solid ${allClear ? 'var(--gr)' : 'var(--am)'}`, borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: checks.length ? 10 : 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>{t('pc.title')}</span>
-          <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>{t('pc.title')}</span>
+          <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
             <span style={{ color: 'var(--gr)' }}>H1 {iso(h1Date)}</span>
             <span style={{ color: 'var(--am)' }}>H2 {iso(h2Date)}</span>
           </div>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
         </div>
         {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>{t('pc.allClear')}</div>}
         {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
           <span style={{ color: 'var(--am)', flexShrink: 0 }}>!</span>
           <span style={{ color: 'var(--tx)' }}>{c.text}</span>
-          {c.items?.[0]?.id && <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
+          {c.items?.[0]?.id && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
             onClick={() => onNavigate?.(c.items[0].id, 'tree')}>→ {c.items[0].id}</span>}
         </div>)}
       </div>;
@@ -405,23 +405,23 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       <div className="sum-card" style={{ minWidth: 80 }}>
         <div className="sum-v">{onboard}</div>
         <div className="sum-l">{t('s.people')}</div>
-        {members.length > onboard && <div style={{ fontSize: 9, color: 'var(--tx3)', marginTop: 2 }}>
+        {members.length > onboard && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>
           {t('s.peopleLeft', members.length - onboard)}
         </div>}
       </div>
       <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
       {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
         return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 600, color: team?.color || 'var(--tx)' }}>{d.pt.toFixed(0)} PT</div>
-          <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
         </div>; })}
     </div>
 
     {/* Focus */}
     <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
     {grouped.map(g => <div key={g.type}>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
         const st = stats?.[dl.id];
@@ -456,8 +456,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type] || 'folder'} size={13} /></span>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
-            {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dl.date}</span>}
-            {dlDate && daysLeft >= 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
+            {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)' }}>{dl.date}</span>}
+            {dlDate && daysLeft >= 0 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
             <span style={{ marginLeft: 'auto' }}>
               {dl.type === 'deadline' && (
                 dlState?.state === 'atRisk' ? <span className="badge bc">{t('s.atRisk')}</span>
@@ -468,9 +468,9 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
             </span>
           </div>
-          {dl.description && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
+          {dl.description && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
           {timeline?.period?.end && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
               <span data-htip={iso(timeline.period.start) + ' → ' + iso(timeline.period.end)}>{t('ins.period')}: {horizonLabel(timeline.period.start, null, isDe, now)} → {horizonLabel(timeline.period.end, null, isDe, now)}</span>
               {timeline.deadline && <span data-htip={iso(timeline.deadline.start) + ' → ' + iso(timeline.deadline.end)}>{t('qe.affectsDeadline')}: {horizonLabel(timeline.deadline.start, null, isDe, now)} → {horizonLabel(timeline.deadline.end, null, isDe, now)}</span>}
             </div>
@@ -482,7 +482,7 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               goalLeaves is derived from the live tree either way. Only the
               critical-item chips do. */}
           {gpTotal > 0 && <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--tx3)', marginBottom: 3 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--tx3)', marginBottom: 3 }}>
               <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp?.critical.size || 0)}</span>
               <span data-htip={t('s.progressTip', progressPctLabel(gpProg))}>{progressPctLabel(gpProg)}%</span>
             </div>
@@ -492,8 +492,8 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
                 of the card. */}
             <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: 'var(--st-done)' }} /></div>
             {gp?.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
-              {gp.critical.size > 6 && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
+              {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
+              {gp.critical.size > 6 && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
             </div>}
           </>}
         </div>;
@@ -512,14 +512,14 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
           const prog = aggregateProgressPct(leaves);
           return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}>
             <td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
-            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{s._r > 0 ? s._r.toFixed(0) + 'd' : ''}</td>
+            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{s._r > 0 ? s._r.toFixed(0) + 'd' : ''}</td>
             <td className="nc"><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog >= 99.95 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
-              <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }} data-htip={t('s.progressTip', progressPctLabel(prog))}>{progressPctLabel(prog)}% · {done}/{leaves.length}</span>
+              <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }} data-htip={t('s.progressTip', progressPctLabel(prog))}>{progressPctLabel(prog)}% · {done}/{leaves.length}</span>
             </div></td>
-            <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: timeline?.period?.end ? 'var(--tx)' : 'var(--tx3)' }}>
+            <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: timeline?.period?.end ? 'var(--tx)' : 'var(--tx3)' }}>
               {timeline?.period?.end ? timeline.period.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-              {timeline?.deadline?.end && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{t('qe.affectsDeadline')}: {timeline.deadline.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+              {timeline?.deadline?.end && <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>{t('qe.affectsDeadline')}: {timeline.deadline.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
             </td>
           </tr>; })}</tbody>
       </table>
@@ -572,9 +572,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
         <button className={`btn btn-xs ${view === 'map' ? 'btn-pri' : 'btn-sec'}`}
-          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
+          style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
         <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
-          style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
+          style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
         {view === 'schedule' && roots.length > 1 && (
           <span style={{ width: 190, marginLeft: 8 }} data-htip={t('tt.scopeTip')} data-testid="timetable-root-picker">
             <SearchSelect
@@ -595,7 +595,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         {/* Archived count stays visible next to the filters so a shorter map
             is never a silent omission. */}
         {!!archive?.count && !showArchived && typeof setShowArchived === 'function' && (
-          <button className="btn btn-xs btn-sec" style={{ padding: '3px 8px', fontSize: 10 }}
+          <button className="btn btn-xs btn-sec" style={{ padding: '3px 8px', fontSize: 11 }}
             onClick={() => setShowArchived(true)}
             data-htip={t('arch.pillTip', [
               archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
@@ -610,7 +610,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
 
       {view === 'map' && diff && (
         <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
-            border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 11,
+            border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 12,
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
           <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--diff)' }}>{t('diff.stand', iso(sinceDate))}</span>
           <span style={{ color: 'var(--tx2)' }}>·</span>
@@ -668,7 +668,7 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
         const topUnderruns = agg.underruns.slice(0, 3);
         return (
           <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(59,130,246,.06)',
-              border: '1px solid rgba(59,130,246,.30)', borderRadius: 4, fontSize: 11 }}>
+              border: '1px solid rgba(59,130,246,.30)', borderRadius: 4, fontSize: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: topOverruns.length || topUnderruns.length ? 6 : 0, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
               <span style={{ color: 'var(--tx2)' }}>·</span>
@@ -684,9 +684,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 {topOverruns.length > 0 && (
                   <div style={{ flex: '1 1 200px', minWidth: 200 }}>
-                    <div style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topOver')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topOver')}</div>
                     {topOverruns.map(e => (
-                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0', cursor: 'pointer' }}
+                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '1px 0', cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(e.id)}>
                         <span style={{ color: 'var(--re)', fontWeight: 700, fontFamily: 'var(--mono)', minWidth: 48 }}>+{e.delta.percent}%</span>
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', minWidth: 70 }}>{e.id}</span>
@@ -697,9 +697,9 @@ function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpen
                 )}
                 {topUnderruns.length > 0 && (
                   <div style={{ flex: '1 1 200px', minWidth: 200 }}>
-                    <div style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topUnder')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topUnder')}</div>
                     {topUnderruns.map(e => (
-                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 10, padding: '1px 0', cursor: 'pointer' }}
+                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '1px 0', cursor: 'pointer' }}
                         onClick={() => onOpenItem?.(e.id)}>
                         <span style={{ color: 'var(--gr)', fontWeight: 700, fontFamily: 'var(--mono)', minWidth: 48 }}>{e.delta.percent}%</span>
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', minWidth: 70 }}>{e.id}</span>

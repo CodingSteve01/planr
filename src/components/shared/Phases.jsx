@@ -123,13 +123,13 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
   return <div>
     {/* ── Progress bar (derived from phases) ── */}
     {showStatus && phases.length > 0 && derived && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-      <span className={`badge b${derived.status[0]}`} style={{ fontSize: 10 }}>
+      <span className={`badge b${derived.status[0]}`} style={{ fontSize: 11 }}>
         {derived.status === 'done' ? t('done') : derived.status === 'wip' ? t('wip') : t('open')}
       </span>
       <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ width: derived.progress + '%', height: '100%', background: derived.progress >= 100 ? 'var(--gr)' : 'var(--am)', borderRadius: 3, transition: 'width .2s' }} />
       </div>
-      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{derived.progress}%</span>
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)' }}>{derived.progress}%</span>
     </div>}
 
     {/* ── Compact phase rows ── */}
@@ -146,10 +146,10 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
         <span style={{ fontSize: 12, color: ph.status === 'done' && showStatus ? 'var(--tx3)' : 'var(--tx)', textDecoration: ph.status === 'done' && showStatus ? 'line-through' : 'none', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 30, cursor: 'pointer', flex: '0 1 auto', maxWidth: 140 }}
           onClick={() => setEditIdx(i)}>{ph.name || t('ph.freePhase')}</span>
         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-          {tIds.map(tid => <span key={tid} className="tag" style={{ fontSize: 9, margin: 0, padding: '1px 4px' }}>{teams.find(tm => tm.id === tid)?.name || tid}</span>)}
-          {mIds.map(mid => <span key={mid} className="tag" style={{ fontSize: 9, margin: 0, padding: '1px 4px', borderColor: 'var(--ac)', color: 'var(--ac)' }}>{(members || []).find(m => m.id === mid)?.name || mid}</span>)}
+          {tIds.map(tid => <span key={tid} className="tag" style={{ fontSize: 10, margin: 0, padding: '1px 4px' }}>{teams.find(tm => tm.id === tid)?.name || tid}</span>)}
+          {mIds.map(mid => <span key={mid} className="tag" style={{ fontSize: 10, margin: 0, padding: '1px 4px', borderColor: 'var(--ac)', color: 'var(--ac)' }}>{(members || []).find(m => m.id === mid)?.name || mid}</span>)}
         </div>
-        {ph.effortPct > 0 && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{ph.effortPct}%</span>}
+        {ph.effortPct > 0 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{ph.effortPct}%</span>}
         <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('tv.moveUp')}><Icon name="moveUp" size={11} /></button>
         <button className="btn btn-sec btn-xs" style={{ padding: '2px 5px' }} disabled={i === phases.length - 1} onClick={() => move(i, 1)} aria-label={t('tv.moveDown')}><Icon name="moveDown" size={11} /></button>
         <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => remove(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
@@ -164,7 +164,7 @@ export function PhaseList({ phases: raw, templates, teams, members, templateId, 
       </div>}
       {phases.length > 0 && <>
         <div style={{ flex: 1 }} />
-        <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={clear}>{t('ph.clearPhases')}</button>
+        <button className="btn btn-ghost btn-xs" style={{ fontSize: 11, color: 'var(--tx3)' }} onClick={clear}>{t('ph.clearPhases')}</button>
       </>}
     </div>
 

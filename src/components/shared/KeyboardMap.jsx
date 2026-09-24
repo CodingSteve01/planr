@@ -65,7 +65,7 @@ export function KeyboardMap() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--b)' }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>{t('km.title')}</span>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('km.closeHint')}</span>
+        <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('km.closeHint')}</span>
         {/* Escape and a click outside both close it, and both were the only
             ways — a dialog with no visible way out is one people back away
             from rather than dismiss. */}
@@ -83,7 +83,7 @@ export function KeyboardMap() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 0 }}>
         {groups.map(({ scope, items }) => (
           <div key={scope} style={{ padding: '10px 16px 14px' }}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
               {t(`km.scope.${scope}`)}
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -95,7 +95,7 @@ export function KeyboardMap() {
                       {s.keys.map(k => (
                         <kbd key={k} style={{
                           display: 'inline-block', marginLeft: 4, padding: '1px 6px',
-                          fontFamily: 'var(--mono)', fontSize: 11, lineHeight: '16px',
+                          fontFamily: 'var(--mono)', fontSize: 12, lineHeight: '16px',
                           background: 'var(--bg3)', border: '1px solid var(--b2)',
                           borderBottomWidth: 2, borderRadius: 4, color: 'var(--tx)',
                         }}>{formatKey(k)}</kbd>
@@ -113,7 +113,7 @@ export function KeyboardMap() {
           to the shortcuts button — two help affordances an inch apart. Same
           question ("what does this mean?"), so: same dialog. */}
       <div style={{ padding: '10px 16px 4px', borderTop: '1px solid var(--b)' }}>
-        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
           {t('km.legend')}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: 'var(--tx2)' }}>
@@ -135,7 +135,7 @@ export function KeyboardMap() {
         </div>
       </div>
 
-      <div style={{ padding: '8px 16px 12px', fontSize: 11, color: 'var(--tx3)' }}>
+      <div style={{ padding: '8px 16px 12px', fontSize: 12, color: 'var(--tx3)' }}>
         {t('km.footer')}
       </div>
     </div>

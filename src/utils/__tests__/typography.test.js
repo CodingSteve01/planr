@@ -30,7 +30,12 @@ describe('the type stack', () => {
   });
 
   it('loads exactly the families the tokens ask for', () => {
-    const wanted = ['font', 'mono', 'font-display'].map(t => firstFamily(tokenOf(t)));
+    // The platform's own faces (SF Pro, SF Mono, Segoe UI) are already on the
+    // machine and have nothing to load; only a named web font does.
+    const PLATFORM = /^(-apple-system|BlinkMacSystemFont|system-ui|ui-monospace|ui-sans-serif)$/;
+    const wanted = ['font', 'mono', 'font-display'].map(t => firstFamily(tokenOf(t)))
+      .filter(family => !PLATFORM.test(family));
+    expect(wanted).toContain('Instrument Serif');
     for (const family of wanted) {
       expect(html, `index.html never loads "${family}"`).toContain(family.replace(/ /g, '+'));
     }

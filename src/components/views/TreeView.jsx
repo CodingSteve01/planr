@@ -494,7 +494,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
     data-testid={testId} aria-label={label ? undefined : title}
     aria-keyshortcuts={shortcutId ? ariaChord(shortcutId) : undefined}
-    style={{ padding: '2px 7px', fontSize: 11, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
+    style={{ padding: '2px 7px', fontSize: 12, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
       display: 'inline-flex', alignItems: 'center', gap: 5 }}>
     {icon && <Icon name={icon} size={11} />}{label}</button>;
 
@@ -1262,7 +1262,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
               {isCollapsed && (() => {
                 const visibleLeaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length;
                 const allLeaves = s._leafCount ?? visibleLeaves;
-                return <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
                   data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}>
                   {t('tv.leafCount', allLeaves)}{visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''}
                 </span>;
@@ -1276,10 +1276,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                 after it do not move. This is the whole fix — everything here
                 used to trail behind the name with `marginLeft: 8`, eleven
                 optional things deep, and no two rows ended in the same place. */}
-            <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
-{edit ? editCell(edit.team, lastEditCol === 'team') : tName && showTeam && <span style={{ marginLeft: 8, fontSize: 10, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
+            <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
+{edit ? editCell(edit.team, lastEditCol === 'team') : tName && showTeam && <span style={{ marginLeft: 8, fontSize: 11, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
             </td>
-            <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'var(--mono)' }}>
+            <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'var(--mono)' }}>
 {/* Assignees — initials, with handoff chain appended when the
                   scheduler split work across multiple people. */}
               {assignees.length > 0 && (() => {
@@ -1301,14 +1301,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
               {/* Priority — chevron icon for all leaves */}
             </td>
-            <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 10 }}>
+            <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
 {edit && editCell(edit.signal, lastEditCol === 'signal')}
 {!edit && isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
 
               {/* Severity for roots */}
 {/* Diff-since badge (newly done / new leaf / progress jump) */}
               {diffBadge && <span data-htip={diffBadge.tip}
-                style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
+                style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
                   background: diffBadge.kind === 'new' ? 'var(--diff)'
                     : diffBadge.kind === 'done' ? 'rgba(16,185,129,.85)'
                     : 'rgba(245,158,11,.85)',
@@ -1324,7 +1324,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
                   ...filledUriFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
                   ...filledOtherFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
                 ];
-                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', opacity: 0.8 }}
+                return <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', opacity: 0.8 }}
                   data-htip={tipParts.join(' · ')}>
                   {filledUriFields.length > 0 && '↗'}{filledOtherFields.length > 0 && filledUriFields.length === 0 && '·'}
                 </span>;
@@ -1332,13 +1332,13 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             </td>
               {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
             {/* Effort: single number (realistic days) */}
-            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{edit ? editCell(edit.effort, lastEditCol === 'effort') : effortDays}</td>
+            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{edit ? editCell(edit.effort, lastEditCol === 'effort') : effortDays}</td>
 
             {/* Progress */}
-            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{edit ? editCell(edit.progress, lastEditCol === 'progress') : prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
+            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{edit ? editCell(edit.progress, lastEditCol === 'progress') : prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
 
             {/* Schedule range — start to end */}
-            <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+            <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
               {/* A due date is a date, so it belongs in the column about dates,
                   and it turns red once the schedule runs past it. Behind the
                   name it was one more thing pushing the next marker sideways. */}
@@ -1408,20 +1408,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       <button className="btn btn-sec btn-xs" data-testid="tree-keymap-btn"
         onClick={() => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT))}
         data-htip={withKey(t('km.title'), 'keymap')}
-        style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>?</button>
+        style={{ padding: '2px 8px', fontSize: 12, marginLeft: 4 }}>?</button>
       {/* Diff picker lives in the App-level sub-toolbar so it stays
           available next to the root/team/person filters. Toggling the
           "Only changed" checkbox there reaches this view via the
           `onlyChanged` prop. */}
-      <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
+      <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
     </div>
 
     {/* Contextual action row — only when a single item is selected. Acts on that item. */}
     {selected?.id && selPos && (
       <div ref={selBarRef} style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar1-top)', zIndex: 11 }}>
-        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
-        <span style={{ fontSize: 11, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
-        <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
+        <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
+        <span style={{ fontSize: 12, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
         {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
         {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
         {/* With the editor docked as a dialog there is no panel on the right
@@ -1445,7 +1445,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
         <span style={{ flex: 1 }} />
         <button className="btn btn-sec btn-xs" data-testid="tv-delete-selected" onClick={() => onDelete(selected.id)}
           data-htip={withKey((hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id)), 'delete')}
-          style={{ padding: '2px 7px', fontSize: 11, color: 'var(--re)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="trash" size={11} />{t('tv.deleteItem')}</button>
+          style={{ padding: '2px 7px', fontSize: 12, color: 'var(--re)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="trash" size={11} />{t('tv.deleteItem')}</button>
       </div>
     )}
     <table className="tree-tbl">

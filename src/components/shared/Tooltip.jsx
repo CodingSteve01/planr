@@ -19,7 +19,7 @@ function MetaChip({ label, value, tone = 'default' }) {
       borderRadius: 999,
       background: 'var(--bg3)',
       border: '1px solid var(--b)',
-      fontSize: 10,
+      fontSize: 11,
       lineHeight: 1.2,
       whiteSpace: 'nowrap',
     }}>
@@ -32,7 +32,7 @@ function MetaChip({ label, value, tone = 'default' }) {
 function SectionTitle({ label }) {
   return (
     <div style={{
-      fontSize: 9,
+      fontSize: 10,
       fontWeight: 700,
       textTransform: 'uppercase',
       letterSpacing: '.08em',
@@ -128,43 +128,43 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
     <div className="tt" data-testid="item-tip" style={{ left: sx, top: sy }}>
       <div className="tt-title">{item.id} — {item.name}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-        <span style={{ color: statusColor, fontWeight: 700, fontSize: 11 }}>{statusDot} {statusLabel}</span>
+        <span style={{ color: statusColor, fontWeight: 700, fontSize: 12 }}>{statusDot} {statusLabel}</span>
         {item.isCp && <CriticalPathBadge id={item.id} labels={cpLabels} compact />}
-        {assignNames && <span style={{ color: 'var(--tx2)', fontSize: 10 }}>{assignNames}</span>}
-        {teamName && <span style={{ color: 'var(--tx3)', fontSize: 10 }}>· {teamName}</span>}
+        {assignNames && <span style={{ color: 'var(--tx2)', fontSize: 11 }}>{assignNames}</span>}
+        {teamName && <span style={{ color: 'var(--tx3)', fontSize: 11 }}>· {teamName}</span>}
       </div>
 
       {(displayStart || displayEnd || hasDistinctPlanned || timeline?.deadline || item.pinnedStart || node?.decideBy) && (
         <>
           <SectionTitle label={t('ins.timing')} />
           {actualStart && actualEnd && (
-            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6 }}>
               <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.actual')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(actualStart)} → {iso(actualEnd)}</span>
             </div>
           )}
           {!actualStart && periodStart && periodEnd && (
-            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6 }}>
               <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.period')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(periodStart)} → {iso(periodEnd)}</span>
-              {calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({calDays} {t('ins.calDays')})</span>}
+              {calDays > 0 && <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 11 }}>({calDays} {t('ins.calDays')})</span>}
             </div>
           )}
           {hasDistinctPlanned && (
-            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6 }}>
               <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('ins.planned')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(plannedStart)} → {iso(plannedEnd)}</span>
             </div>
           )}
           {timeline?.deadline && (
-            <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6 }}>
               <span style={{ color: 'var(--tx3)', marginRight: 6 }}>{t('qe.affectsDeadline')}</span>
               <span style={{ fontFamily: 'var(--mono)' }}>{iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}</span>
-              <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 10 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
+              <span style={{ marginLeft: 6, color: 'var(--tx3)', fontSize: 11 }}>({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})</span>
             </div>
           )}
-          {item.pinnedStart && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{item.pinnedStart}</div>}
-          {node?.decideBy && <div style={{ fontSize: 10, color: 'var(--tx2)', marginBottom: 4 }}>! {node.decideBy}</div>}
+          {item.pinnedStart && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{item.pinnedStart}</div>}
+          {node?.decideBy && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 4 }}>! {node.decideBy}</div>}
           {item.blockedBy && (() => {
             const blocker = scheduled.find(x => x.id === item.blockedBy.id);
             const blockerName = blocker?.name || item.blockedBy.id;
@@ -172,7 +172,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
             const endIso = item.blockedBy.endD instanceof Date
               ? iso(item.blockedBy.endD) : String(item.blockedBy.endD);
             return (
-              <div style={{ fontSize: 10, color: 'var(--am)', marginBottom: 4 }}>
+              <div style={{ fontSize: 11, color: 'var(--am)', marginBottom: 4 }}>
                 ~ {t('ins.blockedBy')}: {item.blockedBy.id} {blockerName}
                 <span style={{ color: 'var(--tx3)', marginLeft: 4 }}>· {blockerPerson} · endet {endIso}</span>
               </div>
@@ -191,9 +191,9 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
           <hr className="tt-sep" />
           <SectionTitle label={t('ins.effort')} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px 8px', flexWrap: 'wrap' }}>
-            <span style={{ color: 'var(--tx3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em' }}>{t('ins.effortBest')}</span>
+            <span style={{ color: 'var(--tx3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em' }}>{t('ins.effortBest')}</span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{item.best}d</span>
-            <span style={{ fontSize: 10, color: 'var(--tx3)' }}>× {factor} =</span>
+            <span style={{ fontSize: 11, color: 'var(--tx3)' }}>× {factor} =</span>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>{effort?.toFixed(1)}d</span>
           </div>
         </>
@@ -203,7 +203,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         <>
           <hr className="tt-sep" />
           <SectionTitle label={t('tt.deps')} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--tx2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, color: 'var(--tx2)' }}>
             {depList.map(d => <div key={d}>{d}</div>)}
           </div>
         </>
@@ -212,7 +212,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
       {item.note && (
         <>
           <hr className="tt-sep" />
-          <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic', lineHeight: 1.45 }}>{item.note}</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic', lineHeight: 1.45 }}>{item.note}</div>
         </>
       )}
 
@@ -220,7 +220,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         <>
           <hr className="tt-sep" />
           <SectionTitle label="Handoff-Kette" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--tx2)' }}>
             {item.segments.map((seg, si) => (
               <div key={si} style={{ color: seg.unscheduled ? 'var(--re)' : seg.handoff ? 'var(--tx2)' : 'var(--tx)' }}>
                 {seg.unscheduled ? '!' : seg.handoff ? '↳' : '●'}{' '}
@@ -234,7 +234,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
             ))}
           </div>
           {item.truncatedByOffboard && (
-            <div style={{ fontSize: 10, color: 'var(--re)', marginTop: 4, fontWeight: 600 }}>
+            <div style={{ fontSize: 11, color: 'var(--re)', marginTop: 4, fontWeight: 600 }}>
               ! {item.truncatedByOffboard.remainingEffort.toFixed(1)} PT offen — Nachbesetzung nötig nach {item.truncatedByOffboard.offboardDate}
             </div>
           )}
@@ -245,7 +245,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         <>
           <hr className="tt-sep" />
           <SectionTitle label={t('ph.phases')} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10, color: 'var(--tx2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--tx2)' }}>
             {item.phases.map(ph => (
               <div key={ph.id}>
                 {ph.status === 'done' ? '●' : ph.status === 'wip' ? '◐' : '○'} {ph.name}
@@ -260,7 +260,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
 
       {!item._summary && <>
         <hr className="tt-sep" />
-        <div style={{ fontSize: 10, color: 'var(--tx3)' }}>{hint || t('tt.dblClick')}</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{hint || t('tt.dblClick')}</div>
       </>}
     </div>
   );

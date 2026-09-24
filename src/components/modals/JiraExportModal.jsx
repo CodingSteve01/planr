@@ -104,7 +104,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
             const done = leaves.filter(l => l.status === 'done').length;
             return <button key={r.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
               style={{ padding: '4px 8px' }} onClick={() => toggleRoot(r.id)}>
-              {r.id} {r.name} <span style={{ fontSize: 9, opacity: .6 }}>{done}/{leaves.length}</span>
+              {r.id} {r.name} <span style={{ fontSize: 10, opacity: .6 }}>{done}/{leaves.length}</span>
             </button>;
           })}
         </div>
@@ -112,7 +112,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
 
       {/* Hierarchy mapping */}
       <div className="field"><label>{t('je.hierarchyMapping')}</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: 11, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: 12, alignItems: 'center' }}>
           <span style={{ color: 'var(--tx3)' }}>{t('je.level1')}</span>
           <div style={{ display: 'flex', gap: 3 }}>
             {['Epic', 'Story', 'Task'].map(v => <button key={v} className={`btn btn-xs ${mapping[1] === v ? 'btn-pri' : 'btn-sec'}`}
@@ -132,7 +132,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
       </div>
 
       {/* Options */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 11 }}>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <input type="checkbox" checked={skipDone} onChange={e => setSkipDone(e.target.checked)} /> {t('je.skipDone')}
         </label>
@@ -143,19 +143,19 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
 
       {/* Preview */}
       <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, maxHeight: 280, overflow: 'auto' }}>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 10, color: 'var(--tx3)' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11, color: 'var(--tx3)' }}>
           <span style={{ fontWeight: 600 }}>{preview.length} Items</span>
           {Object.entries(typeCounts).map(([type, count]) => <span key={type}>{type}: {count}</span>)}
         </div>
         {preview.slice(0, 30).map(r => (
-          <div key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0', fontSize: 10, paddingLeft: (r.depth - 1) * 12 }}>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: r.jiraType === 'Epic' ? 'var(--ac)' : r.jiraType === 'Story' ? 'var(--gr)' : 'var(--tx3)', fontWeight: 600, flexShrink: 0, width: 45 }}>{r.jiraType}</span>
+          <div key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0', fontSize: 11, paddingLeft: (r.depth - 1) * 12 }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: r.jiraType === 'Epic' ? 'var(--ac)' : r.jiraType === 'Story' ? 'var(--gr)' : 'var(--tx3)', fontWeight: 600, flexShrink: 0, width: 45 }}>{r.jiraType}</span>
             <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', flexShrink: 0, width: 70 }}>{r.id}</span>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
             {r.assigneeShort && <PersonChip short={r.assigneeShort} auto={r.assigneeAuto} title={r.assigneeName} style={{ flexShrink: 0 }} />}
           </div>
         ))}
-        {preview.length > 30 && <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>{t('je.moreItems', preview.length - 30)}</div>}
+        {preview.length > 30 && <div style={{ fontSize: 11, color: 'var(--tx3)', textAlign: 'center', padding: 4 }}>{t('je.moreItems', preview.length - 30)}</div>}
       </div>
 
       <div className="modal-footer">

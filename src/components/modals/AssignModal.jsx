@@ -55,7 +55,7 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
         <div className="field" style={{ marginBottom: 16 }}>
           <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>{t('assign.team') || 'Team'}</span>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--tx3)', cursor: 'pointer' }}>
               <input type="checkbox" checked={teamClear} onChange={e => { setTeamClear(e.target.checked); if (e.target.checked) setTeam(null); }} />
               <span>{t('assign.clearTeam') || 'Team entfernen'}</span>
             </label>
@@ -73,7 +73,7 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
         <div className="field" style={{ marginBottom: 16 }}>
           <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>{t('assign.persons') || t('assign.person') || 'Personen'}</span>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--tx3)', cursor: 'pointer' }}>
               <input type="checkbox" checked={personsClear} onChange={e => { setPersonsClear(e.target.checked); if (e.target.checked) setPersons(null); }} />
               <span>{t('assign.clearPersons') || t('assign.clearPerson') || 'Alle entfernen'}</span>
             </label>
@@ -85,7 +85,7 @@ export function AssignModal({ count, teams = [], members = [], onApply, onClose 
                 {pickedPersons.map(id => {
                   const m = memberById[id];
                   return (
-                    <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 4px 3px 8px', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 14, fontSize: 11 }}>
+                    <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 4px 3px 8px', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 14, fontSize: 12 }}>
                       <span>{m?.name || id}</span>
                       <button type="button" onClick={() => removePerson(id)} aria-label={t('delete')}
                         style={{ width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'transparent', color: 'var(--tx3)', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="x" size={11} /></button>

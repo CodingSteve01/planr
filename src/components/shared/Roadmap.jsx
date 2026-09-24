@@ -11,7 +11,7 @@ import { fixedFrame, usePortalRoot } from '../../utils/embedHost.js';
 const ZOOM_KEY = 'planr_roadmap_zoom';
 const ZOOM_MAX = 4;
 const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
-const ZOOM_BTN = { padding: '2px 7px', fontSize: 10 };   // same shape as the Gantt footer's zoom group
+const ZOOM_BTN = { padding: '2px 7px', fontSize: 11 };   // same shape as the Gantt footer's zoom group
 const nextStep = current => ZOOM_STEPS.find(step => step > current + 1e-6) ?? ZOOM_MAX;
 const prevStep = current => [...ZOOM_STEPS].reverse().find(step => step < current - 1e-6) ?? 1;
 
@@ -39,7 +39,7 @@ function TipBody({ text }) {
   if (!data) {
     // A plain label — "Previous position" and friends.
     return parseTip(text).map((line, li) => (
-      <div key={li} style={{ font: '500 10.5px/1.4 Inter,system-ui,sans-serif' }}>
+      <div key={li} style={{ font: '500 11px/1.4 Inter,system-ui,sans-serif' }}>
         {line.parts.map((part, pi) => (
           part.tone === 'bold'
             ? <b key={pi}>{part.text}</b>
@@ -56,7 +56,7 @@ function TipBody({ text }) {
       <div style={TIP_HEAD}>
         <StatusIcon status={data.status} progress={(data.prog || 0) * 100} style={{ width: 14, height: 14 }} />
         <span style={{ font: mono, color: data.color }}>{data.abbrev}</span>
-        <span style={{ font: '600 11px/1.2 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)' }}>{data.name}</span>
+        <span style={{ font: '600 12px/1.2 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)' }}>{data.name}</span>
         <span style={{ font: "500 10px/1 'JetBrains Mono',monospace", color: 'var(--tx3, #8898b0)', marginLeft: 'auto' }}>{data.count}</span>
       </div>
       {(data.items || []).map((item, i) => (
@@ -67,7 +67,7 @@ function TipBody({ text }) {
             : item.status === 'wip' ? { color: data.color } : { color: 'var(--tx2, #cbd5e1)' }),
         }}>
           <StatusIcon status={item.status} progress={(item.prog || 0) * 100} style={{ width: 11, height: 11 }} />
-          <span style={{ font: '400 10px/1.2 Inter,system-ui,sans-serif' }}>{item.name}</span>
+          <span style={{ font: '400 11px/1.2 Inter,system-ui,sans-serif' }}>{item.name}</span>
         </div>
       ))}
     </>;
@@ -85,8 +85,8 @@ function TipBody({ text }) {
         textTransform: 'uppercase', letterSpacing: '.06em', marginLeft: 'auto',
       }}>{data.badge}</span>
     </div>
-    <div style={{ font: '500 10.5px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)', marginBottom: 4 }}>{data.name}</div>
-    <div style={{ font: '500 10px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx2, #cbd5e1)' }}>{data.note}</div>
+    <div style={{ font: '500 11px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx, #e8ecf4)', marginBottom: 4 }}>{data.name}</div>
+    <div style={{ font: '500 11px/1.4 Inter,system-ui,sans-serif', color: 'var(--tx2, #cbd5e1)' }}>{data.note}</div>
     {data.atRisk && (
       <div style={{ font: "700 10px/1.4 'JetBrains Mono',monospace", color: 'var(--re, #ef4444)', marginTop: 2 }}>! {data.atRisk}</div>
     )}
@@ -357,7 +357,7 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
       <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center',
         background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '3px 5px' }}
         data-htip={t('rm.zoomInTip')}>
-        <span style={{ fontSize: 9, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+        <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
           {t('g.zoom')}
         </span>
         <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}
@@ -367,7 +367,7 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
           data-htip={t('rm.zoomInTip')} disabled={zoom >= ZOOM_MAX}
           onClick={() => applyZoom(nextStep)}>+</button>
         {zoomed && <>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>
             {Math.round(zoom * 100)}%
           </span>
           <button type="button" className="btn btn-sec btn-xs" style={ZOOM_BTN}

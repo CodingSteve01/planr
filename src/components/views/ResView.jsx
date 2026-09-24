@@ -228,7 +228,7 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
         <div style={{ marginTop: 12 }}>
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6,
-            fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
+            fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
           }}>
             <span>Meeting</span><span>Stunden</span><span>Rhythmus</span><span />
           </div>
@@ -274,13 +274,13 @@ function PlanPicker({ label, hint, plans, selected, onChange }) {
   return (
     <div className="field" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
       <label style={{ marginBottom: 4 }}>{label}</label>
-      {hint && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>{hint}</div>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {plans.map(p => {
           const on = selected.includes(p.id);
           return (
             <button key={p.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
-              onClick={() => toggle(p.id)} style={{ fontSize: 10 }}>
+              onClick={() => toggle(p.id)} style={{ fontSize: 11 }}>
               {on ? '● ' : ''}{p.name}
             </button>
           );
@@ -313,7 +313,7 @@ function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         gap: 8, marginBottom: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx)' }}>{t('rv.capacityPct')}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{t('rv.capacityPct')}</span>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: tone }}>
             {derivedPct}%
           </span>
@@ -370,10 +370,10 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         <div style={{ width: 150, display: 'flex', alignItems: 'center', gap: 6 }}>
           <LazyInput type="number" min="0" max="80" step="0.5" value={wh}
             onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
-          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>h</span>
+          <span style={{ fontSize: 12, color: 'var(--tx3)' }}>h</span>
         </div>
       </div>
-      <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: -4 }}>
+      <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: -4 }}>
         {t('rv.hoursDefault', FTE_HOURS)}
       </div>
 
@@ -388,7 +388,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         onChange={ids => onUpd({ ...member, meetingPlanIds: ids })} />
 
       {inheritedMeetings.length > 0 && (
-        <div style={{ fontSize: 10, color: 'var(--tx3)', padding: '6px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', padding: '6px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
           <div style={{ fontWeight: 600, marginBottom: 2 }}>Aus Plänen:</div>
           {inheritedMeetings.map((m, i) => (
             <div key={i} style={{ fontFamily: 'var(--mono)' }}>
@@ -401,7 +401,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
       <div>
         <div style={{
           display: 'grid', gridTemplateColumns: COLS, gap: 6,
-          fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase',
+          fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase',
           letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
         }}>
           <span>Meeting</span>
@@ -410,7 +410,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
           <span />
         </div>
         {meetings.length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 0' }}>
+          <div style={{ fontSize: 12, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 0' }}>
             Noch keine Meetings erfasst.
           </div>
         )}
@@ -433,7 +433,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
         <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
       </div>
       <div style={{
-        fontSize: 11, color: 'var(--tx2)', borderTop: '1px solid var(--b)',
+        fontSize: 12, color: 'var(--tx2)', borderTop: '1px solid var(--b)',
         paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6,
         alignItems: 'baseline',
       }}>
@@ -459,7 +459,7 @@ function TeamReadRow({ team, memberCount, meetingPlans = [], teamLockCount = 0, 
       <td className="res-row-name">
         {team.name || team.id}
         {teamLockCount > 0 && (
-          <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--am)', background: 'rgba(245,158,11,.10)', color: 'var(--am)' }}
+          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--am)', background: 'rgba(245,158,11,.10)', color: 'var(--am)' }}
             data-htip={t('rv.teamLockTip', teamLockCount)}> {teamLockCount}</span>
         )}
       </td>
@@ -512,11 +512,11 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
           </span>
         )}
         {offboarded && (
-          <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--re)', color: '#fff' }}
+          <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--re)', color: '#fff' }}
             data-htip={t('rv.offboardedOn', member.end)}>{t('rv.offboarded')}</span>
         )}
         {offboardingSoon && (
-          <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
+          <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
             data-htip={t('rv.leavingOn', member.end)}>{t('rv.leavingSoon')}</span>
         )}
       </td>
@@ -529,7 +529,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
         {/* The split is an outcome of the scheduled tasks, never an input —
             shown only when the person's work actually spans several teams. */}
         {shares.length > 1 && (
-          <div className="res-row-meta" style={{ marginTop: 3, fontSize: 10 }} data-htip={t('rv.teamShareTip')}>
+          <div className="res-row-meta" style={{ marginTop: 3, fontSize: 11 }} data-htip={t('rv.teamShareTip')}>
             {shares.map(sh => `${Math.round(sh.pct * 100)} % ${teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}`).join(' · ')}
             <span style={{ color: 'var(--tx3)' }}> {t('rv.teamShareFrom')}</span>
           </div>
@@ -698,10 +698,10 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           ['vacations', `${t('rv.vacations')} (${fVacations.length})`],
         ].map(([k, l]) =>
           <button key={k} data-testid={`rv-section-${k}`} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
-            style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setSection(k)}>{l}</button>)}
+            style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setSection(k)}>{l}</button>)}
         <div style={{ flex: 1 }} />
         {(section === 'members' || section === 'teams') && (
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--tx2)', cursor: 'pointer', marginRight: 8 }}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--tx2)', cursor: 'pointer', marginRight: 8 }}
             data-htip={t('q.includeOffboardedTip')}>
             <input type="checkbox" checked={showOffboarded} onChange={e => setShowOffboarded(e.target.checked)} style={{ margin: 0 }} />
             {t('q.includeOffboarded')}
@@ -815,7 +815,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
             <div key={tm.id || '__none__'} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${tm.color || 'var(--b)'}` }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: tm.color || 'var(--tx2)' }}>{tm.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
+                <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
                 {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
               </div>
               <table className="res-table">
@@ -870,16 +870,16 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
               allowEmpty emptyLabel={t('tv.allPeople')} />
           </div>
           <select value={vacYear} onChange={e => setVacYear(e.target.value)}
-            style={{ padding: '5px 8px', fontSize: 11, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
+            style={{ padding: '5px 8px', fontSize: 12, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
             <option value="">{t('rv.allYears')}</option>
             {allVacYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           {(vacMember || vacYear) && (
             <button className="btn btn-ghost btn-xs" onClick={() => { setVacMember(''); setVacYear(''); }}
               data-htip={t('rv.clearFilters')} aria-label={t('rv.clearFilters')}
-              style={{ padding: '2px 7px', fontSize: 11 }}><Icon name="x" size={11} /></button>
+              style={{ padding: '2px 7px', fontSize: 12 }}><Icon name="x" size={11} /></button>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
             {sortedVacs.length} / {fVacations.length}
           </span>
         </div>
@@ -889,7 +889,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
               <div key={year} style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
                   <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{year}</span>
-                  <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
+                  <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
                 </div>
                 <table className="res-table">
                   <colgroup>
@@ -1066,20 +1066,20 @@ function CapChangesField({ member, onUpd, t }) {
   return (
     <div style={{ marginTop: 14, padding: '8px 10px', border: '1px solid var(--b)', borderRadius: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.capPlanTitle')}</span>
-        <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)' }}>{t('rv.capPlanHint')}</span>
-        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 10 }}
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.capPlanTitle')}</span>
+        <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)' }}>{t('rv.capPlanHint')}</span>
+        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 11 }}
           onClick={addRow}>+ {t('rv.capPlanAdd')}</button>
       </div>
       {entries.length === 0 ? (
-        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.capPlanEmpty')}</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.capPlanEmpty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: '120px 90px 100px 28px',
             gap: 6,
-            fontSize: 9,
+            fontSize: 10,
             color: 'var(--tx3)',
             textTransform: 'uppercase',
             letterSpacing: '.06em',
@@ -1094,15 +1094,15 @@ function CapChangesField({ member, onUpd, t }) {
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 90px 100px 28px', gap: 6, alignItems: 'center' }}>
               <input type="date" value={c.from || ''}
                 onChange={e => { const next = [...entries]; next[i] = { ...c, from: e.target.value }; update(next); }}
-                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               <input type="number" min="0" max="200" step="5" placeholder="%"
                 value={typeof c.cap === 'number' ? Math.round(c.cap * 100) : ''}
                 onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value) / 100; const next = [...entries]; next[i] = { ...c, cap: v }; update(next); }}
-                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               <input type="number" min="0" max="80" step="0.5" placeholder="h/w"
                 value={typeof c.weeklyHours === 'number' ? c.weeklyHours : ''}
                 onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); const next = [...entries]; next[i] = { ...c, weeklyHours: v }; update(next); }}
-                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               <button className="btn btn-ghost btn-xs" onClick={() => { update(entries.filter((_, j) => j !== i)); }} aria-label={t('delete')}
                 style={{ color: 'var(--re)', padding: '0 4px', fontSize: 12 }}><Icon name="x" size={11} /></button>
             </div>
@@ -1137,20 +1137,20 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
   return (
     <div style={{ marginTop: 10, padding: '8px 10px', border: '1px solid var(--b)', borderRadius: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.meetingPlanTimelineTitle')}</span>
-        <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--tx3)' }}>{t('rv.meetingPlanTimelineHint')}</span>
-        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 10 }}
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)' }}>{t('rv.meetingPlanTimelineTitle')}</span>
+        <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)' }}>{t('rv.meetingPlanTimelineHint')}</span>
+        <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '2px 7px', fontSize: 11 }}
           onClick={addRow}>+ {t('rv.capPlanAdd')}</button>
       </div>
       {entries.length === 0 ? (
-        <div style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.meetingPlanTimelineEmpty')}</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.meetingPlanTimelineEmpty')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: '120px 1fr 28px',
             gap: 6,
-            fontSize: 9,
+            fontSize: 10,
             color: 'var(--tx3)',
             textTransform: 'uppercase',
             letterSpacing: '.06em',
@@ -1164,7 +1164,7 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 28px', gap: 6, alignItems: 'start' }}>
               <input type="date" value={entry.from || ''}
                 onChange={e => { const next = [...entries]; next[i] = { ...entry, from: e.target.value }; update(next); }}
-                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, minHeight: 24 }}>
                 {meetingPlans.length ? meetingPlans.map(plan => {
                   const on = (entry.meetingPlanIds || []).includes(plan.id);
@@ -1175,12 +1175,12 @@ function MeetingChangesField({ member, onUpd, t, meetingPlans = [] }) {
                         next[i] = { ...entry, meetingPlanIds: togglePlan(entry, plan.id) };
                         update(next);
                       }}
-                      style={{ fontSize: 10 }}>
+                      style={{ fontSize: 11 }}>
                       {on ? '● ' : ''}{plan.name}
                     </button>
                   );
                 }) : (
-                  <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('rv.plansEmpty')}</span>
+                  <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('rv.plansEmpty')}</span>
                 )}
               </div>
               <button className="btn btn-ghost btn-xs" onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('delete')}

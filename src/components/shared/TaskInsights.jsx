@@ -20,7 +20,7 @@ const PH_COLOR = { done: 'var(--gr)', wip: 'var(--am)', open: 'var(--tx3)' };
 function KVRow({ label, children, style }) {
   return (
     <>
-      <span style={{ fontSize: 11, color: 'var(--tx3)', paddingRight: 8, alignSelf: 'start', paddingTop: 2, ...style }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--tx3)', paddingRight: 8, alignSelf: 'start', paddingTop: 2, ...style }}>{label}</span>
       <span style={{ fontSize: 12, color: 'var(--tx)', ...style }}>{children}</span>
     </>
   );
@@ -39,7 +39,7 @@ function StatChip({ label, value, tone = 'default' }) {
       borderRadius: 999,
       background: 'var(--bg3)',
       border: '1px solid var(--b)',
-      fontSize: 10,
+      fontSize: 11,
       lineHeight: 1.2,
       whiteSpace: 'nowrap',
     }}>
@@ -66,7 +66,7 @@ function Section({ label, onClick, editLabel, children, extra }) {
       onMouseLeave={clickable ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
     >
       <div style={{
-        fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
+        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
         color: clickable ? 'var(--tx2)' : 'var(--tx3)', marginBottom: 4,
         borderBottom: '1px solid var(--b)', paddingBottom: 3, userSelect: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
@@ -219,12 +219,12 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           {node.name || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('qe.name')}</span>}
         </div>
         {(node.description || node.note) && (
-          <div style={{ fontSize: 11, color: 'var(--tx2)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
             {node.description || node.note}
           </div>
         )}
         {node.description && node.note && node.note !== node.description && (
-          <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.4, marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.4, marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
             {node.note}
           </div>
         )}
@@ -245,11 +245,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         <span style={{ fontWeight: 700, color: statusColor, fontSize: 13 }}>
           {S_DOT[status]} {t(S_LABEL[status] || status)}
         </span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{progressPctLabel(progPct)}%</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>{progressPctLabel(progPct)}%</span>
         <div style={{ flex: '1 1 80px', height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 60 }}>
           <div style={{ width: `${progPct}%`, height: '100%', background: progPct >= 99.95 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }} />
         </div>
-        <span style={{ color: confColor, fontSize: 11, fontFamily: 'var(--mono)' }}>{confDot} {confLabel}</span>
+        <span style={{ color: confColor, fontSize: 12, fontFamily: 'var(--mono)' }}>{confDot} {confLabel}</span>
       </div>
 
       {/* Sections */}
@@ -259,11 +259,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {actualStartDate && actualEndDate && (
             <KVRow label={t('ins.actual')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
                 {iso(actualStartDate)} → {iso(actualEndDate)}
               </span>
               {actualStartDate && actualEndDate && (
-                <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tx3)' }}>
                   ({diffDays(actualStartDate, actualEndDate)} {t('ins.calDays')})
                 </span>
               )}
@@ -271,11 +271,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           )}
           {!actualStartDate && periodStartDate && periodEndDate && (
             <KVRow label={t('ins.period')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
                 {iso(periodStartDate)} → {iso(periodEndDate)}
               </span>
               {calDays != null && (
-                <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tx3)' }}>
                   ({calDays} {t('ins.calDays')})
                 </span>
               )}
@@ -283,29 +283,29 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           )}
           {hasDistinctPlanned && (
             <KVRow label={t('ins.planned')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
                 {iso(plannedStartDate)} → {iso(plannedEndDate)}
               </span>
             </KVRow>
           )}
           {timeline?.deadline && (
             <KVRow label={t('qe.affectsDeadline')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
                 {iso(timeline.deadline.start)} → {iso(timeline.deadline.end)}
               </span>
-              <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+              <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--tx3)' }}>
                 ({timeline.deadline.leafCount}/{timeline.leafCount} {t('ins.leaves')})
               </span>
             </KVRow>
           )}
           {node.pinnedStart && (
             <KVRow label={t('ins.pinned')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{node.pinnedStart}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{node.pinnedStart}</span>
             </KVRow>
           )}
           {node.decideBy && (
             <KVRow label={t('ins.decideBy')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: new Date(node.decideBy) < new Date() ? 'var(--re)' : 'var(--tx)' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: new Date(node.decideBy) < new Date() ? 'var(--re)' : 'var(--tx)' }}>
                 {node.decideBy}
               </span>
             </KVRow>
@@ -322,10 +322,10 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             return (
               <>
                 <KVRow label={t('ins.due')}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
                     ~ {node.due}
                     {overdueByPlan && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
+                      <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>
                         ! {t('ins.dueOverdueByPlan')}
                       </span>
                     )}
@@ -333,10 +333,10 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                 </KVRow>
                 {latest && node.status !== 'done' && (
                   <KVRow label={t('ins.latestStart')}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: infeasible ? 'var(--re)' : 'var(--tx2)', fontWeight: infeasible ? 600 : 400 }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: infeasible ? 'var(--re)' : 'var(--tx2)', fontWeight: infeasible ? 600 : 400 }}>
                       ↶ {fmt(latest)}
                       {infeasible && (
-                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--re)' }}>
+                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>
                           ! {t('ins.latestStartPast')}
                         </span>
                       )}
@@ -361,7 +361,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             const meta = [blockerPerson, endIso].filter(Boolean).join(' · ');
             return (
               <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>
                   ~{' '}
                   <a href="#" style={{ color: 'var(--ac)', textDecoration: 'none' }} onClick={e => { e.preventDefault(); blocker && onOpenItem?.(blocker); }}>
                     {sc.blockedBy.id}
@@ -386,11 +386,11 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               flexWrap: 'wrap',
               padding: '4px 0 2px',
             }}>
-              <span style={{ color: 'var(--tx3)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              <span style={{ color: 'var(--tx3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em' }}>
                 {t('ins.effortBest')}
               </span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{effortBest}d</span>
-              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>× {node.factor || 1.5} =</span>
+              <span style={{ fontSize: 11, color: 'var(--tx3)' }}>× {node.factor || 1.5} =</span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>
                 {effort?.toFixed(1)}d
               </span>
@@ -416,13 +416,13 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <span style={{ color: 'var(--am)' }}>◐ {wipUnder}</span>
               <span style={{ color: 'var(--tx3)' }}> · </span>
               <span>○ {openUnder}</span>
-              <span style={{ color: 'var(--tx3)', fontSize: 10 }}> / {leafCount} {t('ins.leaves')}</span>
+              <span style={{ color: 'var(--tx3)', fontSize: 11 }}> / {leafCount} {t('ins.leaves')}</span>
             </span>
           </KVRow>
           {(effortBest != null && effortBest > 0) && (
             <KVRow label={t('qe.realistic')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>{effort?.toFixed(0)}d</span>
-              {effortBest > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginLeft: 4 }}>({effortBest?.toFixed(0)}d best)</span>}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--am)' }}>{effort?.toFixed(0)}d</span>
+              {effortBest > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginLeft: 4 }}>({effortBest?.toFixed(0)}d best)</span>}
             </KVRow>
           )}
         </Section>
@@ -443,8 +443,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               )}
               {team && (
                 <>
-                  <span style={{ color: 'var(--tx3)', fontSize: 10 }}>·</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                  <span style={{ color: 'var(--tx3)', fontSize: 11 }}>·</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: team.color || 'var(--b3)' }} />
                     <span style={{ color: 'var(--tx2)' }}>{team.name}</span>
                   </span>
@@ -469,7 +469,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               return <button className="btn btn-sec btn-xs"
                 data-htip={t('split.handoff.tip')}
                 onClick={() => onSplitHandoff(node.id)}
-                style={{ padding: '2px 7px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
+                style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
             }
             if (sc.truncatedByOffboard && onSplitTaskAtProgress) {
               const consumed = sc.segments[0]?.effort || 0;
@@ -478,7 +478,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               return <button className="btn btn-sec btn-xs"
                 data-htip={t('split.task.tip')}
                 onClick={() => onSplitTaskAtProgress(node.id, pct)}
-                style={{ padding: '2px 7px', fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
+                style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
             }
             return null;
           })()
@@ -488,26 +488,26 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';
             return (
               <KVRow key={i} label={isGhost ? '!' : seg.handoff ? '↳' : '●'}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 600, color: isGhost ? 'var(--re)' : 'var(--tx)' }}>{seg.personName}</span>
                   <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{seg.effort.toFixed(1)}d</span>
-                  <span style={{ color: 'var(--tx3)', fontSize: 10 }}>·</span>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{fmt(seg.startD)} → {fmt(seg.endD)}</span>
-                  {seg.offboarded && <span style={{ fontSize: 10, color: 'var(--am)' }}>offboarded</span>}
+                  <span style={{ color: 'var(--tx3)', fontSize: 11 }}>·</span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{fmt(seg.startD)} → {fmt(seg.endD)}</span>
+                  {seg.offboarded && <span style={{ fontSize: 11, color: 'var(--am)' }}>offboarded</span>}
                 </span>
               </KVRow>
             );
           })}
           {sc.truncatedByOffboard && (
             <KVRow label="">
-              <span style={{ fontSize: 11, color: 'var(--re)', fontWeight: 600 }}>
+              <span style={{ fontSize: 12, color: 'var(--re)', fontWeight: 600 }}>
                 ! {sc.truncatedByOffboard.remainingEffort.toFixed(1)} PT ohne Nachbesetzung nach {sc.truncatedByOffboard.offboardDate}
               </span>
             </KVRow>
           )}
           {onSplitHandoff && sc.segments.slice(1).some(s => !s.unscheduled) && (
             <KVRow label="">
-              <span style={{ fontSize: 10, color: 'var(--tx3)', fontStyle: 'italic' }}>
+              <span style={{ fontSize: 11, color: 'var(--tx3)', fontStyle: 'italic' }}>
                 {(() => {
                   const txt = t('split.handoff.hint', t('split.btn'));
                   // The {0} placeholder is the button label — bold-render
@@ -538,7 +538,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               const pct = ph.effortPct != null ? ph.effortPct : null;
               return (
                 <KVRow key={ph.id || idx} label="">
-                  <span style={{ fontSize: 11, color: isCurrent ? 'var(--tx)' : 'var(--tx2)', fontWeight: isCurrent ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 12, color: isCurrent ? 'var(--tx)' : 'var(--tx2)', fontWeight: isCurrent ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span
                       style={{ color, cursor: onPhaseToggle ? 'pointer' : 'default', transition: 'transform .1s', display: 'inline-block' }}
                       data-htip={onPhaseToggle ? phaseToggleTip : undefined}
@@ -547,7 +547,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                       onMouseLeave={onPhaseToggle ? e => { e.currentTarget.style.transform = 'scale(1)'; } : undefined}
                     >{dot}</span>
                     <span>{ph.name || ph.id}</span>
-                    {pct != null && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
+                    {pct != null && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
                     {isCurrent && <Icon name="chevronLeft" size={10} style={{ color: 'var(--ac)', marginLeft: 2, display: 'inline-block' }} />}
                   </span>
                 </KVRow>
@@ -566,9 +566,9 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                 {preds.map(p => (
                   <span key={p.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
                     onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)' }}>{p.id}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
-                    <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{p.name}</span>
+                    <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
                   </span>
                 ))}
               </div>
@@ -581,10 +581,10 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                   <span key={p.id + ':' + p.via} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
                     data-htip={t('ins.inheritedDepTip', p.via, p.id)}
                     onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)' }}>↰ {p.id}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>↰ {p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
-                    <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{p.name}</span>
-                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>via {p.via}</span>
+                    <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
+                    <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>via {p.via}</span>
                   </span>
                 ))}
               </div>
@@ -596,9 +596,9 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                 {succs.map(s => (
                   <span key={s.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
                     onClick={e => { e.stopPropagation(); onOpenItem?.(s.id); }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)' }}>{s.id}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{s.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[s.status] }}>{S_DOT[s.status]}</span>
-                    <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--tx2)' }}>{s.name}</span>
+                    <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{s.name}</span>
                   </span>
                 ))}
               </div>
@@ -616,8 +616,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             return (
               <KVRow key={cf.id} label={cf.name}>
                 {url
-                  ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ color: 'var(--ac)', fontSize: 11 }}>{val}</a>
-                  : <span style={{ fontSize: 11 }}>{val}</span>
+                  ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ color: 'var(--ac)', fontSize: 12 }}>{val}</a>
+                  : <span style={{ fontSize: 12 }}>{val}</span>
                 }
               </KVRow>
             );

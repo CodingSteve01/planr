@@ -55,7 +55,7 @@ function StatusCycleButton({ node, onUpdate, t }) {
   const next = nextStatus(node.status);
   return (
     <button type="button" className="btn btn-ghost btn-xs"
-      style={{ padding: '1px 4px', fontSize: 11, flexShrink: 0, color: S_COLOR[node.status], lineHeight: 1 }}
+      style={{ padding: '1px 4px', fontSize: 12, flexShrink: 0, color: S_COLOR[node.status], lineHeight: 1 }}
       data-htip={t('bv.cycleStatusTip', t(next))}
       data-testid={`bv-status-${node.id}`}
       onClick={e => { e.stopPropagation(); onUpdate({ ...node, ...statusChangePatch(node, next) }); }}>
@@ -73,7 +73,7 @@ const JIRA_MAX_ROWS = 8;
 function JiraRow({ id, name, right, onClick, testId }) {
   return (
     <div onClick={onClick} data-testid={testId}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 10, cursor: onClick ? 'pointer' : 'default' }}>
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 11, cursor: onClick ? 'pointer' : 'default' }}>
       <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', width: 70, flexShrink: 0 }}>{id}</span>
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--tx2)' }}>{name}</span>
       {right}
@@ -86,10 +86,10 @@ function JiraSection({ title, tone, count, hint, children }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: tone }}>{title}</span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{count}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: tone }}>{title}</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{count}</span>
       </div>
-      {hint && <div style={{ fontSize: 9, color: 'var(--tx3)', marginBottom: 3, fontStyle: 'italic' }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 3, fontStyle: 'italic' }}>{hint}</div>}
       <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '4px 8px' }}>{children}</div>
     </div>
   );
@@ -298,15 +298,15 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
           <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>{today}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--tx3)', marginRight: 4 }}>{t('bv.horizon')}</span>
+          <span style={{ fontSize: 12, color: 'var(--tx3)', marginRight: 4 }}>{t('bv.horizon')}</span>
           {HORIZON_OPTS.map(h => (
             <button key={h.id} className={`btn btn-xs ${horizonDays === +h.id ? 'btn-pri' : 'btn-sec'}`}
-              style={{ padding: '3px 8px', fontSize: 11 }}
+              style={{ padding: '3px 8px', fontSize: 12 }}
               onClick={() => setHd(+h.id)}>{h.label}</button>
           ))}
           {onExportTodo && (
             <button className="btn btn-sec btn-xs"
-              style={{ padding: '3px 8px', fontSize: 11, marginLeft: 6 }}
+              style={{ padding: '3px 8px', fontSize: 12, marginLeft: 6 }}
               onClick={() => onExportTodo(horizonDays)}
               data-htip={t('bv.exportTodoHint')}>
               {t('bv.exportTodo')}
@@ -337,7 +337,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
       {/* ══════ Attention — one ranked list, not five chips ══════ */}
       <div className="section-h" style={{ marginTop: 0 }}>
         {t('bv.attention')}
-        {attentionItems.length > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginLeft: 6 }}>
+        {attentionItems.length > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginLeft: 6 }}>
           {['overdue', 'drift', 'atRisk', 'blocked', 'unestimated'].filter(k => attnCounts[k]).map(k => `${attnCounts[k]} ${t(k === 'atRisk' ? 'bv.attn.atRisk' : `bv.attn.${k}`)}`).join(' · ')}
         </span>}
       </div>
@@ -361,11 +361,11 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
             return <div key={kind} style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px' }}>
                 <span style={{ color: ATTN_TONE[kind], display: 'inline-flex' }}><Icon name={ATTN_ICON[kind]} size={12} /></span>
-                <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--tx2)' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--tx2)' }}>
                   {t(kind === 'atRisk' ? 'bv.attn.atRisk' : `bv.attn.${kind}`)}
                 </span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}>{group.length}</span>
-                {(hidden > 0 || open) && <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '1px 6px', fontSize: 9 }}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{group.length}</span>
+                {(hidden > 0 || open) && <button className="btn btn-sec btn-xs" style={{ marginLeft: 'auto', padding: '1px 6px', fontSize: 10 }}
                   onClick={() => setExpandedAttn(prev => { const n = new Set(prev); n.has(kind) ? n.delete(kind) : n.add(kind); return n; })}>
                   {open ? t('rm.showLess') : t('rm.showMore', hidden)}
                 </button>}
@@ -379,19 +379,19 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                       data-testid={`bv-attn-${item.kind}-${item.id}`}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 4, cursor: 'pointer', background: 'var(--bg3)', borderLeft: `3px solid ${ATTN_TONE[item.kind]}` }}
                       onClick={() => onOpenItem?.(item.id)}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{item.id}</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{item.id}</span>
                       <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                       {item.reason && REASON_KEY[item.reason] && REASON_KEY[item.reason] !== REASON_KEY[item.kind] && (
-                        <span style={{ fontSize: 10, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{t(REASON_KEY[item.reason])}</span>
+                        <span style={{ fontSize: 11, color: ATTN_TONE[item.kind], flexShrink: 0 }}>{t(REASON_KEY[item.reason])}</span>
                       )}
                       {item.kind === 'drift' && (
-                        <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}
+                        <button className="btn btn-pri btn-xs" style={{ padding: '2px 6px', fontSize: 10, flexShrink: 0 }}
                           onClick={e => { e.stopPropagation(); applyJiraDiffs([item], new Set([item.id])); }}
                           data-htip={t('js.applyTip')}>
                           {t('bv.attn.apply')} → {t(item.target)}
                         </button>
                       )}
-                      {item.date && item.kind !== 'drift' && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{item.date}</span>}
+                      {item.date && item.kind !== 'drift' && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0 }}>{item.date}</span>}
                       {leaf && item.kind !== 'drift' && node && <StatusCycleButton node={node} onUpdate={onUpdate} t={t} />}
                     </div>
                   );
@@ -415,11 +415,11 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
               return (
                 <div key={i} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '8px 12px', borderLeft: `3px solid ${tm?.color || 'var(--ac)'}` }}>
                   <span style={{ fontWeight: 600 }}>{member.name}</span>
-                  <span style={{ color: 'var(--tx3)', marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>
+                  <span style={{ color: 'var(--tx3)', marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 12 }}>
                     {fmtDateDE(localDate(v.from))}–{fmtDateDE(localDate(v.to))}
                   </span>
-                  {wks > 0 && <span style={{ color: 'var(--tx3)', marginLeft: 6, fontSize: 10 }}>({wks}w)</span>}
-                  {v.note && <span style={{ color: 'var(--tx3)', marginLeft: 8, fontSize: 11 }}>{v.note}</span>}
+                  {wks > 0 && <span style={{ color: 'var(--tx3)', marginLeft: 6, fontSize: 11 }}>({wks}w)</span>}
+                  {v.note && <span style={{ color: 'var(--tx3)', marginLeft: 8, fontSize: 12 }}>{v.note}</span>}
                 </div>
               );
             })}
@@ -449,31 +449,31 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 4, cursor: 'pointer', background: isWip ? 'rgba(34,197,94,.08)' : 'var(--bg3)', border: `1px solid ${isWip ? 'var(--gr)' : 'var(--b2)'}` }}
                     onClick={() => onOpenItem?.(s.id)}>
                     {nodeItem && <StatusCycleButton node={nodeItem} onUpdate={onUpdate} t={t} />}
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{s.id}</span>
                     {cpSet?.has(s.id) && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
                     <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {s.name}
                     </span>
                     {hasChain(s) && (
-                      <span style={{ fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0, padding: '1px 5px', border: '1px solid var(--am)', borderRadius: 3 }}
+                      <span style={{ fontSize: 10, color: 'var(--am)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0, padding: '1px 5px', border: '1px solid var(--am)', borderRadius: 3 }}
                         data-htip={chainTooltip(s, memberFullName)}>⇄ {chainShorts(s, shortMap, primary)}</span>
                     )}
                     {others.length > 0 && (
-                      <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, color: 'var(--tx3)', flexShrink: 0, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {others.join(', ')}
                       </span>
                     )}
                     {isStartingSoon && (
-                      <span style={{ fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
                         {t('bv.startsSoon')} {fmtDateDE(s.startD)}
                       </span>
                     )}
                     {hasDeadline && (
-                      <span style={{ fontSize: 10, color: isOverdue ? 'var(--re)' : 'var(--tx3)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
+                      <span style={{ fontSize: 11, color: isOverdue ? 'var(--re)' : 'var(--tx3)', flexShrink: 0, fontFamily: 'var(--mono)' }}>
                         {isOverdue ? '! ' : ''}{nodeItem.decideBy}
                       </span>
                     )}
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0 }}>
                       {s.effort?.toFixed(0)}d
                     </span>
                   </div>
@@ -483,31 +483,31 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                 <div key={card.personId} style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 14px', borderLeft: `3px solid ${card.teamColor}` }}>
                   {/* Person header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: card.teamColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: card.teamColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                       {initials(card.name)}
                     </div>
                     <span style={{ fontWeight: 700, fontSize: 13 }}>{card.name}</span>
-                    {card.teamName && <span style={{ fontSize: 11, color: card.teamColor, fontWeight: 500 }}>{card.teamName}</span>}
-                    <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+                    {card.teamName && <span style={{ fontSize: 12, color: card.teamColor, fontWeight: 500 }}>{card.teamName}</span>}
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
                       {card.now.length + card.next.length} {t('bv.tasks')}
                     </span>
                   </div>
 
                   {myVacs.map((v, i) => (
-                    <div key={i} style={{ fontSize: 11, color: 'var(--am)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+                    <div key={i} style={{ fontSize: 12, color: 'var(--am)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
                       {t('bv.onVacation')}: {fmtDateDE(localDate(v.from))}–{fmtDateDE(localDate(v.to))}
                       {v.note && ` · ${v.note}`}
                     </div>
                   ))}
 
                   {card.now.length > 0 && <>
-                    <div style={{ fontSize: 9, color: 'var(--gr)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>{t('bv.now')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--gr)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>{t('bv.now')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: card.next.length ? 8 : 0 }}>
                       {card.now.map(renderItem)}
                     </div>
                   </>}
                   {card.next.length > 0 && <>
-                    <div style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>{t('bv.next')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 3 }}>{t('bv.next')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {card.next.map(renderItem)}
                     </div>
@@ -534,8 +534,8 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                   style={{ background: 'var(--bg2)', border: `1px solid ${projEndOk ? 'var(--b)' : 'var(--re)'}`, borderRadius: 'var(--r)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
                   onClick={() => onOpenItem?.(m.id)}>
                   <span style={{ fontWeight: 700, flex: 1 }}>{m.name}</span>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{fmtDateFull(dl)}</span>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: daysLeft <= 7 ? 'var(--re)' : 'var(--tx3)' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>{fmtDateFull(dl)}</span>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: daysLeft <= 7 ? 'var(--re)' : 'var(--tx3)' }}>
                     {daysLeft === 0 ? t('bv.today') : `${daysLeft}d`}
                   </span>
                   {!projEndOk && <span className="badge bc">{t('s.atRisk')}</span>}
@@ -549,27 +549,27 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
       {/* ══════ Jira drift — the reconcile result as rows, not a dialog ══════ */}
       <div className="section-h" style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         {t('js.title')}
-        <button className="btn btn-ghost btn-xs" style={{ padding: '1px 6px', fontSize: 10, marginLeft: 'auto' }}
+        <button className="btn btn-ghost btn-xs" style={{ padding: '1px 6px', fontSize: 11, marginLeft: 'auto' }}
           onClick={() => setJiraOpen(o => !o)}>
           <Icon name={jiraOpen ? 'chevronDown' : 'chevronRight'} size={11} /> {jiraOpen ? t('js.tabCompare') : t('js.pasteLabel')}
         </button>
       </div>
       <div style={{ marginBottom: 18 }}>
-        <p className="helper" style={{ marginTop: -4, marginBottom: 8, fontSize: 11 }}>
+        <p className="helper" style={{ marginTop: -4, marginBottom: 8, fontSize: 12 }}>
           {jiraFieldId
             ? t('js.fieldHint', (jiraFields.find(f => f.id === jiraFieldId)?.name || jiraFieldId))
             : <span style={{ color: 'var(--am)' }}>{t('js.noField')}</span>}
         </p>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--gr)' }} data-htip={t('js.tileLinkedTip')}>{jiraHealth.linked.length} {t('js.tileLinked')}</span>
-          <span style={{ fontSize: 11, color: jiraHealth.unlinkedOpen.length ? 'var(--am)' : 'var(--tx3)' }} data-htip={t('js.tileUnlinkedTip')}>{jiraHealth.unlinkedOpen.length} {t('js.tileUnlinked')}</span>
-          <span style={{ fontSize: 11, color: jiraHealth.duplicates.length ? 'var(--re)' : 'var(--tx3)' }} data-htip={t('js.tileDupesTip')}>{jiraHealth.duplicates.length} {t('js.tileDupes')}</span>
+          <span style={{ fontSize: 12, color: 'var(--gr)' }} data-htip={t('js.tileLinkedTip')}>{jiraHealth.linked.length} {t('js.tileLinked')}</span>
+          <span style={{ fontSize: 12, color: jiraHealth.unlinkedOpen.length ? 'var(--am)' : 'var(--tx3)' }} data-htip={t('js.tileUnlinkedTip')}>{jiraHealth.unlinkedOpen.length} {t('js.tileUnlinked')}</span>
+          <span style={{ fontSize: 12, color: jiraHealth.duplicates.length ? 'var(--re)' : 'var(--tx3)' }} data-htip={t('js.tileDupesTip')}>{jiraHealth.duplicates.length} {t('js.tileDupes')}</span>
           {jiraResult && <>
-            <span style={{ fontSize: 11, color: 'var(--gr)' }}>{jiraResult.matched} {t('js.tileMatched')}</span>
-            <span style={{ fontSize: 11, color: jiraStatusDiff.length ? 'var(--am)' : 'var(--tx3)' }}>{jiraStatusDiff.length} {t('js.tileStatusDiff')}</span>
-            <span style={{ fontSize: 11, color: jiraResult.missingInPlanr.length ? 'var(--ac)' : 'var(--tx3)' }}>{jiraResult.missingInPlanr.length} {t('js.tileOnlyJira')}</span>
-            <span style={{ fontSize: 11, color: jiraResult.missingInJira.length ? 'var(--ac)' : 'var(--tx3)' }}>{jiraResult.missingInJira.length} {t('js.tileOnlyPlanr')}</span>
+            <span style={{ fontSize: 12, color: 'var(--gr)' }}>{jiraResult.matched} {t('js.tileMatched')}</span>
+            <span style={{ fontSize: 12, color: jiraStatusDiff.length ? 'var(--am)' : 'var(--tx3)' }}>{jiraStatusDiff.length} {t('js.tileStatusDiff')}</span>
+            <span style={{ fontSize: 12, color: jiraResult.missingInPlanr.length ? 'var(--ac)' : 'var(--tx3)' }}>{jiraResult.missingInPlanr.length} {t('js.tileOnlyJira')}</span>
+            <span style={{ fontSize: 12, color: jiraResult.missingInJira.length ? 'var(--ac)' : 'var(--tx3)' }}>{jiraResult.missingInJira.length} {t('js.tileOnlyPlanr')}</span>
           </>}
         </div>
 
@@ -585,7 +585,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
             <JiraRow key={row.id} id={row.id} name={row.name} onClick={() => onOpenItem?.(row.id)} testId={`bv-jira-unlinked-${row.id}`} />
           ))}
           {jiraHealth.unlinkedOpen.length > JIRA_MAX_ROWS && (
-            <div style={{ fontSize: 9, color: 'var(--tx3)', textAlign: 'center', paddingTop: 2 }}>{t('js.more', jiraHealth.unlinkedOpen.length - JIRA_MAX_ROWS)}</div>
+            <div style={{ fontSize: 10, color: 'var(--tx3)', textAlign: 'center', paddingTop: 2 }}>{t('js.more', jiraHealth.unlinkedOpen.length - JIRA_MAX_ROWS)}</div>
           )}
         </JiraSection>
 
@@ -596,13 +596,13 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer' }}
                 onClick={() => onOpenItem?.(diff.id)}>
                 <input type="checkbox" checked={jiraAccepted.has(diff.id)} onClick={e => e.stopPropagation()} onChange={() => toggleJiraRow(diff.id)} />
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{diff.id}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{diff.id}</span>
                 <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{diff.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{S_DOT[diff.planrStatus]} → {S_DOT[diff.target]} {diff.jiraStatus}</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--tx3)', width: 62, textAlign: 'right', flexShrink: 0 }}>{diff.key}</span>
+                <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{S_DOT[diff.planrStatus]} → {S_DOT[diff.target]} {diff.jiraStatus}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', width: 62, textAlign: 'right', flexShrink: 0 }}>{diff.key}</span>
               </div>
             ))}
-            <button className="btn btn-pri btn-xs" style={{ alignSelf: 'flex-start', padding: '3px 10px', fontSize: 11, marginTop: 4 }}
+            <button className="btn btn-pri btn-xs" style={{ alignSelf: 'flex-start', padding: '3px 10px', fontSize: 12, marginTop: 4 }}
               disabled={!jiraAccepted.size}
               data-testid="bv-jira-apply"
               onClick={() => applyJiraDiffs(jiraStatusDiff, jiraAccepted)}
@@ -617,22 +617,22 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
         <JiraSection title={t('js.summaryDrift')} tone="var(--tx2)" count={jiraResult?.summaryDrift.length || 0} hint={t('js.summaryDriftHint')}>
           {(jiraResult?.summaryDrift || []).slice(0, JIRA_MAX_ROWS).map(row => (
             <JiraRow key={row.id} id={row.id} name={row.name} onClick={() => onOpenItem?.(row.id)}
-              right={<span style={{ fontSize: 9, color: 'var(--tx3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('js.inJira')}: {row.jiraSummary}</span>} />
+              right={<span style={{ fontSize: 10, color: 'var(--tx3)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('js.inJira')}: {row.jiraSummary}</span>} />
           ))}
         </JiraSection>
         <JiraSection title={t('js.onlyJira')} tone="var(--ac)" count={jiraResult?.missingInPlanr.length || 0} hint={t('js.onlyJiraHint')}>
           {(jiraResult?.missingInPlanr || []).slice(0, JIRA_MAX_ROWS).map(row => (
             <JiraRow key={row.key} id={row.key} name={row.summary || '—'}
               right={<span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                {row.knownPlanrId && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--am)' }}>{t('js.linkTo', row.knownPlanrId)}</span>}
-                {row.mapped && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{S_DOT[row.mapped]} {row.status}</span>}
+                {row.knownPlanrId && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--am)' }}>{t('js.linkTo', row.knownPlanrId)}</span>}
+                {row.mapped && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{S_DOT[row.mapped]} {row.status}</span>}
               </span>} />
           ))}
         </JiraSection>
         <JiraSection title={t('js.onlyPlanr')} tone="var(--ac)" count={jiraResult?.missingInJira.length || 0} hint={t('js.onlyPlanrHint')}>
           {(jiraResult?.missingInJira || []).slice(0, JIRA_MAX_ROWS).map(row => (
             <JiraRow key={row.id} id={row.id} name={row.name} onClick={() => onOpenItem?.(row.id)}
-              right={<span style={{ fontSize: 9, color: 'var(--tx3)' }}>{S_DOT[row.status]} {row.key}</span>} />
+              right={<span style={{ fontSize: 10, color: 'var(--tx3)' }}>{S_DOT[row.status]} {row.key}</span>} />
           ))}
         </JiraSection>
 
@@ -646,11 +646,11 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
               onChange={e => setJiraText(e.target.value)}
               placeholder={t('js.pastePlaceholder')}
               spellCheck={false}
-              style={{ width: '100%', minHeight: 72, fontFamily: 'var(--mono)', fontSize: 10,
+              style={{ width: '100%', minHeight: 72, fontFamily: 'var(--mono)', fontSize: 11,
                 background: 'var(--bg)', color: 'var(--tx2)', border: '1px solid var(--b)',
                 borderRadius: 'var(--r)', padding: 8, resize: 'vertical' }} />
             {jiraParsed && (
-              <div style={{ fontSize: 9, color: jiraParsed.error ? 'var(--re)' : 'var(--tx3)', marginTop: 3 }}>
+              <div style={{ fontSize: 10, color: jiraParsed.error ? 'var(--re)' : 'var(--tx3)', marginTop: 3 }}>
                 {jiraParsed.error === 'noKeyColumn' ? t('js.errNoKey')
                   : jiraParsed.error === 'noRows' ? t('js.errNoRows')
                   : `${t(jiraParsed.rows.length === 1 ? 'js.parsed1' : 'js.parsed', jiraParsed.rows.length)}${jiraParsed.skipped ? ` · ${t(jiraParsed.skipped === 1 ? 'js.skipped1' : 'js.skipped', jiraParsed.skipped)}` : ''}`}
@@ -661,10 +661,10 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
 
         {jiraResult
           ? (!jiraStatusDiff.length && !jiraResult.summaryDrift.length && !jiraResult.missingInPlanr.length && !jiraResult.missingInJira.length && (
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('js.inSync')}</div>
+            <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('js.inSync')}</div>
           ))
           : (!jiraHealth.unlinkedOpen.length && !jiraHealth.duplicates.length && (
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('js.allClean')}</div>
+            <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('js.allClean')}</div>
           ))}
       </div>
     </div>

@@ -34,9 +34,9 @@ export function ItemHistoryTimeline({ item, events = [], onEventsChange }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: 'var(--mono)', color: 'var(--ac)', fontWeight: 700 }}>{item?.id || '-'}</span>
           <span style={{ color: 'var(--tx)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item?.name || ''}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{itemEvents.length} events</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{itemEvents.length} events</span>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 4 }}>
           Version history for this item. Use the global Time-Travel mode in the header to back-date or replay changes across the whole plan.
         </div>
       </div>
@@ -46,8 +46,8 @@ export function ItemHistoryTimeline({ item, events = [], onEventsChange }) {
           <div style={{ padding: '28px 0', textAlign: 'center', color: 'var(--tx3)', fontSize: 12 }}>No history for this item.</div>
         ) : itemEvents.map((ev, idx) => (
           <div data-testid="item-history-row" key={`${ev.ts}-${idx}`} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 28px', gap: 8, alignItems: 'center', padding: '7px 10px', borderBottom: '1px solid var(--b)' }}>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx2)' }}>{effectiveDateOfEvent(ev) || '—'}</span>
-            <span style={{ fontSize: 11, color: 'var(--tx)' }}>{describeEvent(ev)}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>{effectiveDateOfEvent(ev) || '—'}</span>
+            <span style={{ fontSize: 12, color: 'var(--tx)' }}>{describeEvent(ev)}</span>
             <button
               className="btn btn-ghost btn-xs"
               disabled={!onEventsChange}

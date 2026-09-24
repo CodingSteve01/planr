@@ -169,14 +169,14 @@ export function ViewFilters({
   // with an emoji, an amber "Δ Review" pill and a blue "▶ Plan" pill, each
   // announcing itself louder than the controls underneath it.
   const sectionTitle = (label, tip) => (
-    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
+    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
       color: 'var(--tx3)', marginBottom: 6 }} data-htip={tip}>{label}</div>
   );
 
   const presetBtn = (current, val, label, onClick) => (
     <button key={val || 'off'}
       className={`btn btn-xs ${current === val ? 'btn-pri' : 'btn-sec'}`}
-      style={{ padding: '3px 8px', fontSize: 11 }}
+      style={{ padding: '3px 8px', fontSize: 12 }}
       onClick={() => onClick(val)}>{label}</button>
   );
 
@@ -188,15 +188,15 @@ export function ViewFilters({
         data-htip={t('vf.tip')}
         data-testid="view-filters-trigger"
         onClick={() => setOpen(v => !v)}
-        style={{ padding: '3px 9px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        style={{ padding: '3px 9px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
         <Icon name="gear" size={12} />
         <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em' }}>{t('vf.label')}</span>
         {activeCount > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(0,0,0,.22)', color: '#fff',
+          <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(0,0,0,.22)', color: '#fff',
             borderRadius: 8, padding: '1px 5px', minWidth: 14, textAlign: 'center' }}>{activeCount}</span>
         )}
-        {triggerLabel && <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em', color: activeCount ? '#fff' : 'var(--tx3)', fontSize: 10 }}>{triggerLabel}</span>}
+        {triggerLabel && <span style={{ fontFamily: 'var(--mono)', letterSpacing: '.03em', color: activeCount ? '#fff' : 'var(--tx3)', fontSize: 11 }}>{triggerLabel}</span>}
       </button>
       {open && anchor && createPortal(
         <div
@@ -210,12 +210,12 @@ export function ViewFilters({
             maxHeight: anchor.maxH, overflowY: 'auto',
             background: 'var(--bg2)', border: '1px solid var(--b2)',
             borderRadius: 8, boxShadow: '0 10px 32px rgba(0,0,0,.5)',
-            padding: 12, width: 320, fontSize: 11,
+            padding: 12, width: 320, fontSize: 12,
           }}
         >
           {showScope && (
             <section style={{ marginBottom: 12 }} data-testid="scope-section">
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
                 {scope.label}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -237,7 +237,7 @@ export function ViewFilters({
           )}
           {showQuick && (
             <section style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', marginBottom: 6 }}>
                 {t('vf.quick')}
               </div>
               <div data-testid="quick-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -264,7 +264,7 @@ export function ViewFilters({
                 onClick={() => setHideDone(!hideDone)}
                 style={{
                   padding: '4px 9px',
-                  fontSize: 11,
+                  fontSize: 12,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
@@ -284,12 +284,12 @@ export function ViewFilters({
                   aria-pressed={!!showArchived}
                   data-htip={t('arch.desc')}
                   onClick={() => setShowArchived(!showArchived)}
-                  style={{ padding: '3px 8px', fontSize: 11 }}
+                  style={{ padding: '3px 8px', fontSize: 12 }}
                 >{t('arch.show')}</button>
                 {/* What is archived used to be listed here, row by row, inside
                     a filter popup — a readout where a control was expected.
                     The count says as much as anyone reads. */}
-                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)' }}
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}
                   data-htip={archiveDetail}>
                   {archiveSummary || t('arch.none')}
                 </span>
@@ -315,7 +315,7 @@ export function ViewFilters({
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 {sectionTitle(t('diff.since'))}
                 {horizonDays && (
-                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
                 )}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -328,7 +328,7 @@ export function ViewFilters({
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(sinceDays) ? sinceDays : ''}
                   onChange={e => setSince(e.target.value)}
-                  style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                  style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               </div>
               {sinceDate && persistDiffOnlyChanged && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}
@@ -350,7 +350,7 @@ export function ViewFilters({
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 {sectionTitle(t('horizon.label'))}
                 {sinceDays && (
-                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--tx3)' }}>{t('vf.disabledByOther')}</span>
                 )}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
@@ -364,7 +364,7 @@ export function ViewFilters({
                 <input type="date"
                   value={/^\d{4}-\d{2}-\d{2}$/.test(horizonDays) ? horizonDays : ''}
                   onChange={e => setHorizon(e.target.value)}
-                  style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 11 }} />
+                  style={{ background: 'var(--bg)', border: '1px solid var(--b)', color: 'var(--tx2)', borderRadius: 3, padding: '2px 4px', fontSize: 12 }} />
               </div>
               {horizonEnd && persistHorizonOnly && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}

@@ -39,12 +39,12 @@ function Card({ cat, title, desc, action, disabled }) {
           offer, and a greyed-out way forward reads as another dead end. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: disabled ? 0.45 : 1 }}>
         <span style={{
-          fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
+          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
           color, padding: '1px 5px', border: `1px solid ${color}`, borderRadius: 3, flexShrink: 0,
         }}>{t(`ex.cat.${cat}`)}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{title}</span>
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--tx3)', lineHeight: 1.35, flex: 1, minHeight: 28, opacity: disabled ? 0.6 : 1 }}>{desc}</div>
+      <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.35, flex: 1, minHeight: 28, opacity: disabled ? 0.6 : 1 }}>{desc}</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>{action}</div>
     </div>
   );
@@ -110,13 +110,13 @@ export function ExportCards({
       <Card cat="pdf" title={t('ex.summary')}
         desc={t('ex.summary.desc')}
         action={<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }}
             data-htip={t('tt.plusTimetableTip')}>
             <input type="checkbox" checked={includeTimetable}
               onChange={e => setIncludeTimetable(e.target.checked)} />
             {t('tt.plusTimetable')}
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--tx3)', cursor: 'pointer' }}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }}
             data-htip={t('rm.plusProjectRoadmapsTip')}>
             <input type="checkbox" checked={includeProjectRoadmaps}
               onChange={e => setIncludeProjectRoadmaps(e.target.checked)} />

@@ -163,7 +163,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
             {DAY_NUMBERS.map((day, i) => {
               const on = wd.includes(day);
               return <button key={day} onClick={() => toggleDay(day)}
-                style={{ width: 44, padding: '7px 0', fontSize: 11, fontWeight: on ? 600 : 400, textAlign: 'center', cursor: 'pointer', border: 'none', borderRight: i < 6 ? '1px solid var(--b2)' : 'none', background: on ? 'var(--ac2)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx3)', transition: 'all .12s', fontFamily: 'var(--font)' }}>
+                style={{ width: 44, padding: '7px 0', fontSize: 12, fontWeight: on ? 600 : 400, textAlign: 'center', cursor: 'pointer', border: 'none', borderRight: i < 6 ? '1px solid var(--b2)' : 'none', background: on ? 'var(--ac2)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx3)', transition: 'all .12s', fontFamily: 'var(--font)' }}>
                 {dayLabels[i]}
               </button>;
             })}
@@ -185,7 +185,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                   <button className="btn btn-danger btn-xs" onClick={() => deleteTemplate(tp.id)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.5 }}>
                 {tp.phases.map((p, i) => {
                   const tn = phaseTeamLabel(p, teams);
                   return <span key={i}>{i > 0 ? ' → ' : ''}{p.name}{p.effortPct ? ` ${p.effortPct}%` : ''}{tn ? ` (${tn})` : ''}</span>;
@@ -193,7 +193,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
               </div>
             </div>
           ))}
-          {tpls.length === 0 && <div style={{ color: 'var(--tx3)', fontSize: 11, padding: '12px 0', textAlign: 'center' }}>{t('ph.noPhases')}</div>}
+          {tpls.length === 0 && <div style={{ color: 'var(--tx3)', fontSize: 12, padding: '12px 0', textAlign: 'center' }}>{t('ph.noPhases')}</div>}
           <button className="btn btn-sec btn-sm" style={{ width: '100%', marginTop: 4 }} onClick={addTemplate}>{t('ph.newTemplate')}</button>
         </>}
 
@@ -225,7 +225,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
         <h2>{t('set.sizeCatalogue')}</h2>
         <p className="helper" style={{ marginBottom: 12 }}>{t('set.sizeHelp')}</p>
 
-        <div style={{ display: 'flex', gap: 4, marginBottom: 6, fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', paddingRight: 28 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', paddingRight: 28 }}>
           <span style={{ flex: '0 0 64px' }}>{t('set.sizeLabel')}</span>
           <span style={{ width: 80, flexShrink: 0, textAlign: 'right' }}>{t('set.sizeDays')}</span>
           <span style={{ width: 72, flexShrink: 0, textAlign: 'right' }}>{t('set.sizeFactor')}</span>
@@ -259,7 +259,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
           <button className="btn btn-sec btn-xs" onClick={addSize}>{t('set.addSize')}</button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={resetSizeDefaults}>{t('set.resetSizes')}</button>
+          <button className="btn btn-ghost btn-xs" style={{ fontSize: 11, color: 'var(--tx3)' }} onClick={resetSizeDefaults}>{t('set.resetSizes')}</button>
         </div>
       </>}
 
@@ -272,29 +272,29 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
           <div key={cf.id || i} style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 8 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '1 1 140px', marginBottom: 0 }}>
-                <label style={{ fontSize: 10 }}>{t('cf.name')}</label>
+                <label style={{ fontSize: 11 }}>{t('cf.name')}</label>
                 <input value={cf.name} placeholder={t('cf.namePlaceholder')} onChange={e => updateCf(i, { name: e.target.value })} />
               </div>
               <div className="field" style={{ flex: '0 0 120px', marginBottom: 0 }}>
-                <label style={{ fontSize: 10 }}>{t('cf.type')}</label>
+                <label style={{ fontSize: 11 }}>{t('cf.type')}</label>
                 <SearchSelect value={cf.type} options={CF_TYPES} onSelect={id => updateCf(i, { type: id })} />
               </div>
               <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px', marginBottom: 1 }} onClick={() => removeCf(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
             </div>
             {cf.type === 'uri' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
-              <label style={{ fontSize: 10 }}>{t('cf.template')}</label>
+              <label style={{ fontSize: 11 }}>{t('cf.template')}</label>
               <input value={cf.uriTemplate || ''} placeholder={t('cf.uriPlaceholder')}
-                onChange={e => updateCf(i, { uriTemplate: e.target.value })} style={{ fontFamily: 'var(--mono)', fontSize: 11 }} />
+                onChange={e => updateCf(i, { uriTemplate: e.target.value })} style={{ fontFamily: 'var(--mono)', fontSize: 12 }} />
             </div>}
             {cf.type === 'select' && <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
-              <label style={{ fontSize: 10 }}>{t('cf.options')}</label>
+              <label style={{ fontSize: 11 }}>{t('cf.options')}</label>
               <input value={(cf.options || []).join(', ')} placeholder={t('cf.optionsPlaceholder')}
                 onChange={e => updateCf(i, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} />
             </div>}
           </div>
         ))}
 
-        {cfList.length === 0 && <div style={{ color: 'var(--tx3)', fontSize: 11, padding: '12px 0', textAlign: 'center' }}>No custom fields yet.</div>}
+        {cfList.length === 0 && <div style={{ color: 'var(--tx3)', fontSize: 12, padding: '12px 0', textAlign: 'center' }}>No custom fields yet.</div>}
         <button className="btn btn-sec btn-sm" style={{ width: '100%', marginTop: 4 }} onClick={addCf}>{t('cf.addField')}</button>
       </>}
 
@@ -314,7 +314,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
                 onChange={e => updateRisk(i, { weight: +e.target.value || 0.1 })}
                 style={{ textAlign: 'right' }} />
             </div>
-            <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0, width: 32, textAlign: 'right' }}>+{Math.round(risk.weight * 100)}%</span>
+            <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', flexShrink: 0, width: 32, textAlign: 'right' }}>+{Math.round(risk.weight * 100)}%</span>
             <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => removeRisk(i)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
           </div>
         ))}
@@ -322,7 +322,7 @@ export function SettingsModal({ meta, taskTemplates, risks: projectRisks, sizes:
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
           <button className="btn btn-sec btn-xs" onClick={addRisk}>{t('set.addRisk')}</button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: 'var(--tx3)' }} onClick={resetDefaults}>{t('set.resetRisks')}</button>
+          <button className="btn btn-ghost btn-xs" style={{ fontSize: 11, color: 'var(--tx3)' }} onClick={resetDefaults}>{t('set.resetRisks')}</button>
         </div>
       </>}
 

@@ -47,14 +47,34 @@ values, so the per-project bars in the Management-Summary PDF and the HTML
 report are the same scale as the screen — held there by
 [`printPalette.test.js`](../src/utils/__tests__/printPalette.test.js).
 
+## Type: a floor, and the platform's face
+
+- **No HTML text below 10px, and content text at 11px or more.** Everything
+  that was 9px or smaller went to 10, 10 to 11, 11 to 12 (Apple HIG, Material
+  and Primer all keep content text at 11–12px and up). SVG labels are exempt:
+  they scale with their viewBox.
+- **The platform's UI face** (`-apple-system` → SF Pro, Segoe UI on Windows —
+  Primer's stack) instead of IBM Plex. Plex has a fine stroke drawn the same
+  at every size and read thin at 10–12px; SF Pro has optical sizes that open
+  up and gain weight as the text gets smaller. Numbers stay aligned through
+  `font-variant-numeric: tabular-nums` on the body. The monospace is SF Mono.
+  The PDFs embed their own fonts and are unchanged.
+- **No `-webkit-font-smoothing: antialiased`** in either theme. On macOS it
+  draws light text on a dark ground thinner, which is the opposite of what
+  small text in the dark needs.
+
 ## Two rules the palette is held to
 
 **Readability is arithmetic, not taste.** Every ink/surface pair above is
 computed and asserted in
 [`src/utils/__tests__/paletteContrast.test.js`](../src/utils/__tests__/paletteContrast.test.js):
-`--tx`, `--tx2`, `--tx3`, `--ac` and the three state colours must clear WCAG AA
-(4.5:1) on `--bg`, `--bg2` **and** `--bg3`, and each `*-soft` ground must carry
-its own state colour at 4.5:1. That test is what settled the light values, and
+the text ladder must clear **AAA (7:1) for `--tx` and `--tx2` and 6:1 for
+`--tx3`** on `--bg`, `--bg2` **and** `--bg3`; `--ac` and the three state colours
+clear WCAG AA (4.5:1) there, and each `*-soft` ground must carry its own state
+colour at 4.5:1. The text bars used to be AA as well. AA is the floor for text
+of any size, and at the 10–12px this app runs at it was not enough to read for
+long — reported as headaches, in both palettes. 6:1 is where GitHub's and
+macOS's own secondary greys sit. That test is what settled the light values, and
 they are darker than they look picked by eye — light amber especially: an amber
 that reads right on white sits near 3.3:1 and fails as label text, which is why
 `--st-wip` is `#8a5a1a` and not the `#d97706` it used to be. The pre-token

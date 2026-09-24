@@ -138,10 +138,13 @@ describe('the vault mapping', () => {
 describe.each(THEMES)('on %s', (_, mode, theme) => {
   const hex = token => resolve(`var(--${token})`, mode, theme);
 
-  it.each(['tx', 'tx2', 'tx3', 'ac', 'st-done', 'st-wip', 'st-risk'])('reads --%s on every surface', token => {
+  // The text ladder to the same bars as Planr's own palette
+  // (paletteContrast.test.js): AAA for body and secondary, 6:1 for captions.
+  // Labels in a state colour and the accent stay at AA.
+  it.each([['tx', 7], ['tx2', 7], ['tx3', 6], ['ac', 4.5], ['st-done', 4.5], ['st-wip', 4.5], ['st-risk', 4.5]])('reads --%s on every surface', (token, bar) => {
     for (const surface of SURFACES) {
       const ratio = contrast(hex(token), hex(surface));
-      expect(ratio, `--${token} on --${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+      expect(ratio, `--${token} on --${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(bar);
     }
   });
 

@@ -94,7 +94,9 @@ describe('the built plugin', () => {
     const decls = {};
     rule.walkDecls(d => { decls[d.prop] = d.value; });
     expect(decls['--bg']).toBe('var(--background-primary)');
-    expect(decls['--bg2']).toBe('var(--background-secondary)');
+    // Not --background-secondary: Atom paints that 6% below the ground, and
+    // every zebra stripe and header row sits on --bg2.
+    expect(decls['--bg2']).toMatch(/color-mix\(in srgb, var\(--text-normal\) \d%, var\(--background-primary\)\)/);
     expect(decls['--b']).toBe('var(--background-modifier-border)');
     expect(decls['--tx']).toBe('var(--text-normal)');
     expect(decls['--ac2']).toBe('var(--interactive-accent)');

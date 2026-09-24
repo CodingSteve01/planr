@@ -247,7 +247,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
   return <>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       {isLeaf && <SBadge s={node.status} />}
-      {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 10 }}>{SL[f.status] || f.status} <span style={{ fontSize: 8, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span></span>}
+      {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 10, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span></span>}
       {!isRoot && phases.length > 0 && <span className="badge bo">{phases.length} {t('ph.phases').toLowerCase()}</span>}
       {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
       {isLeaf && onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => onEstimate(node)}>{t('qe.estimateNow')}</button>}
@@ -302,7 +302,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         <div className="field"><label>{t('qe.focusType')}</label>
           <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             {['', 'goal', 'painpoint', 'deadline'].map(ft =>
-              <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} style={{ fontSize: 10, padding: '3px 7px' }}
+              <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} style={{ fontSize: 11, padding: '3px 7px' }}
                 onClick={() => patchNode({ type: ft })}>{ft ? <><Icon name={GT_ICON[ft]} size={12} />{t(ft)}</> : t('none')}</button>)}
           </div>
         </div>
@@ -317,7 +317,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {(timeline?.period || timeline?.actual || timeline?.deadline) && <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
         <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{t('ins.timing')}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 12 }}>
           {timeline?.actual && <><span style={{ color: 'var(--tx3)' }}>{t('ins.actual')}</span><span>{timeline.actual.start.toLocaleDateString('de-DE')} — {timeline.actual.end.toLocaleDateString('de-DE')}</span></>}
           {!timeline?.actual && timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
           {timeline?.actual && timeline?.planned && (timeline.planned.start.getTime() !== timeline.actual.start.getTime() || timeline.planned.end.getTime() !== timeline.actual.end.getTime()) && <><span style={{ color: 'var(--tx3)' }}>{t('ins.planned')}</span><span>{timeline.planned.start.toLocaleDateString('de-DE')} — {timeline.planned.end.toLocaleDateString('de-DE')}</span></>}
@@ -332,7 +332,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         const doneCount = leafNodes(tree).filter(child => child.id.startsWith(node.id + '.') && child.status === 'done').length;
         return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{doneCount}/{leafCount} {t('qe.leafItems')} {t('done')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 11 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 12 }}>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
             <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
             {timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
@@ -343,7 +343,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
       {/* ── Custom fields ── */}
       {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
         {customFields.map(cf => <div key={cf.id} className="field">
           <label>{cf.name}</label>
           <CustomFieldInput field={cf} value={(f.customValues || {})[cf.id] ?? ''}
@@ -391,7 +391,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           onKeyUp={() => flushNode()}
           onBlur={() => flushNode()}
           style={{ flex: 1, accentColor: 'var(--ac)' }} />
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
       </div>}
 
       {/* Phases — define status + progress when present */}
@@ -409,13 +409,13 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         {/* Team-lock pill — bordered chip next to the team picker, no
             orphan slider. Same styling as the NodeModal counterpart. */}
         {isLeaf && f.team && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
             <span>{t('qe.teamLock')}</span>
             <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
           </div>
         )}
         {isLeaf && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 11, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
             <span>{t('qe.parallel') || 'Parallel'}</span>
             <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} /><span className="slider" /></label>
           </div>
@@ -457,7 +457,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             return <button key={sizeLabel} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
               style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
               data-htip={desc || undefined}
-              onClick={() => patchNode({ best: days, factor })}>{sizeLabel}<span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>{days}d</span></button>;
+              onClick={() => patchNode({ best: days, factor })}>{sizeLabel}<span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{days}d</span></button>;
           })}
         </div>
         {onEstimate && <button className="btn btn-pri btn-sm" onClick={() => onEstimate(node)}>{t('qe.estimateNow')}</button>}
@@ -483,7 +483,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             value={f.fixedDurationDays || ''}
             onChange={e => patchNode({ fixedDurationDays: Math.max(1, Math.ceil(+e.target.value || 1)) })}
             style={{ maxWidth: 110, fontFamily: 'var(--mono)' }} />
-          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
+          <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
         </div>
         <div className="helper">{t('qe.fixedDurationHint')}</div>
       </div>
@@ -495,23 +495,23 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           const eff = confidence[node.id] || 'committed';
           const reason = confReasons[node.id];
           const isAuto = !f.confidence;
-          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '6px 8px', background: 'var(--bg3)', border: `1px dashed ${CONF_COLOR[eff]}`, borderRadius: 'var(--r)', fontSize: 11 }}>
+          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '6px 8px', background: 'var(--bg3)', border: `1px dashed ${CONF_COLOR[eff]}`, borderRadius: 'var(--r)', fontSize: 12 }}>
             <span style={{ color: CONF_COLOR[eff] }}>{CONF_DOT[eff]}</span>
             <span style={{ color: CONF_COLOR[eff], fontWeight: 600 }}>{CONF_LABEL[eff]}</span>
-            {isAuto && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>auto</span>}
-            <span style={{ fontSize: 9, color: 'var(--tx3)', marginLeft: 'auto' }}>{REASON_TIP[reason] || ''}</span>
+            {isAuto && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>auto</span>}
+            <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{REASON_TIP[reason] || ''}</span>
           </div>;
         })()}
       </div>
 
-      {sc && <div style={{ fontSize: 11, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
+      {sc && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
         {f.fixedDurationDays > 0
           ? <><span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span><b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b></>
           : <><span style={{ color: 'var(--tx3)' }}>{f.best}d × {f.factor || 1.5} = </span><b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b><span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span></>}
         <br />
         <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)}</span>
       </div>}
-      {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 12 }}>
+      {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
         {f.fixedDurationDays > 0 ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d` : `${f.best}d × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`} · {t('qe.notScheduled')}
       </div>}
     </>}
@@ -523,7 +523,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           <div className="field"><label>{t('qe.decideBy')}</label>
             <input type="date" value={f.decideBy || ''} onChange={e => patchNode({ decideBy: e.target.value })} />
           </div>
-          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 10, color: 'var(--re)' }}>~</span>}</label>
+          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 11, color: 'var(--re)' }}>~</span>}</label>
             <div style={{ display: 'flex', gap: 4 }}>
               <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
               {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}><Icon name="x" size={11} /></button>}
@@ -575,7 +575,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           const sign = si.delta?.workDays > 0 ? `+${si.delta.workDays}d` : `${si.delta?.workDays ?? 0}d`;
           const confTip = t('qe.sollIstCalendarTip', si.ist.calDays, si.confounders.weekends, si.confounders.holidays);
           return (
-            <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 11 }}>
+            <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: si.delta ? 4 : 0 }}>
                 <span style={{ color: 'var(--tx3)' }}>Soll:</span>
                 <span style={{ fontFamily: 'var(--mono)' }} data-htip={t('qe.sollBestFactorTip', si.soll.best, si.soll.factor)}>
@@ -585,7 +585,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 <span style={{ fontFamily: 'var(--mono)' }} data-htip={confTip}>
                   {si.ist.workDays}d
                 </span>
-                <span style={{ color: 'var(--tx3)', fontSize: 10 }}>
+                <span style={{ color: 'var(--tx3)', fontSize: 11 }}>
                   ({si.ist.startD.toISOString().slice(0,10)} → {si.ist.endD.toISOString().slice(0,10)})
                 </span>
                 {si.delta && (
@@ -596,7 +596,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
                 )}
               </div>
               {si.planned && si.planned.workDays > 0 && (
-                <div style={{ fontSize: 10, color: 'var(--tx3)', display: 'flex', gap: 6 }}>
+                <div style={{ fontSize: 11, color: 'var(--tx3)', display: 'flex', gap: 6 }}>
                   <span>Plan:</span>
                   <span style={{ fontFamily: 'var(--mono)' }}>{si.planned.startD.toISOString().slice(0,10)} → {si.planned.endD.toISOString().slice(0,10)} ({si.planned.workDays}d)</span>
                 </div>
@@ -618,7 +618,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             />
             <span className="slider" />
           </label>
-          <span style={{ fontSize: 11, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+          <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
             {f.deadlineRelevant === false ? t('no') : t('yes')}
           </span>
         </div>
@@ -634,19 +634,19 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const label = (f._depLabels || {})[dep] || '';
             return <div key={'h_' + dep} className="dep-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title={t('qe.dep.hardTip')} style={{ fontSize: 8, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
-                {target?.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
+                <span title={t('qe.dep.hardTip')} style={{ fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
+                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 9, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
-                <span title={t('qe.dep.convertToSoft')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
+                <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
+                <span title={t('qe.dep.convertToSoft')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
                   patchNode({
                     deps: (f.deps || []).filter(id => id !== dep),
                     softDeps: [...new Set([...(f.softDeps || []), dep])],
                   });
                 }}>→S</span>
-                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
+                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => {
                   const nextDeps = (f.deps || []).filter(id => id !== dep);
                   const nextLabels = { ...(f._depLabels || {}) };
                   delete nextLabels[dep];
@@ -659,18 +659,18 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const target = tree.find(entry => entry.id === dep);
             return <div key={'s_' + dep} className="dep-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title={t('qe.dep.softTip')} style={{ fontSize: 8, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{dep}</span>
-                {target?.name && <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{target.name}</span>}
+                <span title={t('qe.dep.softTip')} style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{dep}</span>
+                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{target.name}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <span title={t('qe.dep.convertToHard')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
+                <span title={t('qe.dep.convertToHard')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
                   patchNode({
                     softDeps: (f.softDeps || []).filter(id => id !== dep),
                     deps: [...new Set([...(f.deps || []), dep])],
                   });
                 }}>→H</span>
-                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }} onClick={() => {
+                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => {
                   patchNode({ softDeps: (f.softDeps || []).filter(id => id !== dep) });
                 }}><Icon name="x" size={9} /></span>
               </div>
@@ -681,10 +681,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             const target = tree.find(entry => entry.id === dep);
             return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.5 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{dep}</span>
-                {target?.name && <span style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0 }}>{dep}</span>
+                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
               </div>
-              <span style={{ fontSize: 9, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
             </div>;
           })}
         </div>
@@ -697,8 +697,8 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             else patchNode({ softDeps: [...new Set([...(f.softDeps || []), id])] });
           }} placeholder={`+ ${depAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`} showIds />
           <div className="btn-group" style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('hard')} title={t('qe.dep.hard')}>H</button>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setDepAddKind('soft')} title={t('qe.dep.soft')}>S</button>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setDepAddKind('hard')} title={t('qe.dep.hard')}>H</button>
+            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setDepAddKind('soft')} title={t('qe.dep.soft')}>S</button>
           </div>
         </div>
       </div>
@@ -707,19 +707,19 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         {directSuccessors.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
           {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.85 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span title={s.soft ? 'Soft' : 'Hard'} style={{ fontSize: 8, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: s.soft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.id}</span>
-              {s.name && <span style={{ fontSize: 10, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
+              <span title={s.soft ? 'Soft' : 'Hard'} style={{ fontSize: 10, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: s.soft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.id}</span>
+              {s.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               {onAddDep && onRemoveDep && <span title={s.soft ? t('qe.dep.convertToHard') : t('qe.dep.convertToSoft')}
-                style={{ cursor: 'pointer', opacity: 0.7, fontSize: 9, color: s.soft ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: s.soft ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }}
                 onClick={() => {
                   onRemoveDep(s.id, node.id);
                   onAddDep(s.id, node.id, s.soft ? 'hard' : 'soft');
                 }}>{s.soft ? '→H' : '→S'}</span>}
               {onRemoveDep && <span className="tag-x" title={t('qe.dep.removeSuccessor')}
-                style={{ cursor: 'pointer', opacity: 0.6, fontSize: 11, color: 'var(--tx3)' }}
+                style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }}
                 onClick={() => onRemoveDep(s.id, node.id)}><Icon name="x" size={9} /></span>}
             </div>
           </div>)}
@@ -730,8 +730,8 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             return { id: i, label: entry?.name || '' };
           })} onSelect={id => onAddDep(id, node.id, succAddKind)} placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.successors')}`} showIds />
           <div style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('hard')} title={t('qe.dep.hard')}>H</button>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 9 }} onClick={() => setSuccAddKind('soft')} title={t('qe.dep.soft')}>S</button>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setSuccAddKind('hard')} title={t('qe.dep.hard')}>H</button>
+            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setSuccAddKind('soft')} title={t('qe.dep.soft')}>S</button>
           </div>
         </div>}
       </div>

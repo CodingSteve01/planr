@@ -179,7 +179,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
   }
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
-    <p className="helper" style={{ fontSize: 11, marginTop: 0, marginBottom: 14 }}>
+    <p className="helper" style={{ fontSize: 12, marginTop: 0, marginBottom: 14 }}>
       {withKey(t('wo.help'), 'ganttReorder')}
     </p>
     {owners.map(([owner, rows]) => {
@@ -211,8 +211,8 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
           <span style={{ width: 8, height: 8, borderRadius: label.team ? 2 : 8, background: label.color || 'var(--ac)', flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 600 }}>{label.name}</span>
-          {label.team && <span style={{ fontSize: 9, color: 'var(--tx3)' }}>{t('wo.unassigned')}</span>}
-          <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{ordered.length}</span>
+          {label.team && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('wo.unassigned')}</span>}
+          <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{ordered.length}</span>
           {(() => {
             // Multi-select is the tree's, and just as invisible here as it was
             // there: the rows highlight and nothing says a move takes all of
@@ -220,16 +220,16 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
             const mine = ordered.filter(id => picked.has(id)).length;
             if (mine < 2) return null;
             return <span data-testid="wo-picked" data-htip={t('wo.pickedTip')}
-              style={{ fontSize: 9, color: 'var(--ac)', background: 'var(--ac2)', border: '1px solid var(--ac)', borderRadius: 3, padding: '0 5px', fontWeight: 600 }}>
+              style={{ fontSize: 10, color: 'var(--ac)', background: 'var(--ac2)', border: '1px solid var(--ac)', borderRadius: 3, padding: '0 5px', fontWeight: 600 }}>
               {t('wo.picked', mine)}
             </span>;
           })()}
           {sorted && <>
-            <span style={{ fontSize: 9, color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3, padding: '0 5px' }}
+            <span style={{ fontSize: 10, color: 'var(--tx2)', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 3, padding: '0 5px' }}
               data-htip={t('g.queueSortedTip')}>{t('g.queueSorted')}</span>
             <button type="button" className="btn btn-ghost btn-xs" data-testid={`queue-reset-${owner}`}
               data-htip={t('g.queueReset')} onClick={() => onQueueReset?.(owner)}
-              style={{ padding: '1px 6px', fontSize: 10 }}>{t('g.queueReset')}</button>
+              style={{ padding: '1px 6px', fontSize: 11 }}>{t('g.queueReset')}</button>
           </>}
         </div>
         <table className="tree-tbl">
@@ -270,12 +270,12 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 data-dragging={dragId === id ? 'true' : undefined}
                 data-drop={dropId === id ? 'before' : undefined}
                 style={{ outline: 'none' }}>
-                <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
+                <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
                   data-htip={t('wo.dragTip')}>
                   <span className="tv-drag-handle"><Icon name="grip" size={11} /></span>{i + 1}
                 </td>
                 <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
-                <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+                <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
                   {(() => {
                     const doer = doerById.get(id);
                     if (!doer) return null;
@@ -313,7 +313,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                     const sameParent = sameProject && parent
                       && (prevChain.length > 1 ? prevChain[prevChain.length - 1] : '') === parent;
                     return <div data-queue-path data-htip={[id, ...chain].join(' › ')}
-                      style={{ fontSize: 9, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      style={{ fontSize: 10, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
                       {project && !sameProject && <><span style={{ color: 'var(--b3)' }}> · </span><span data-queue-project>{project}</span></>}
                       {parent && !sameParent && <><span style={{ color: 'var(--b3)' }}> › </span>{parent}</>}
@@ -341,7 +341,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                       data-htip={`${late ? t('wo.blockedLaterTip') : t('wo.blockedTip')}\n${names.join('\n')}`}
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
-                        fontSize: 9, fontFamily: 'var(--mono)', borderRadius: 3, padding: '0 4px',
+                        fontSize: 10, fontFamily: 'var(--mono)', borderRadius: 3, padding: '0 4px',
                         color: late ? 'var(--st-risk)' : 'var(--tx3)',
                         background: late ? 'var(--st-risk-soft)' : 'var(--bg3)',
                         border: `1px solid ${late ? 'var(--st-risk)' : 'var(--b2)'}`,
@@ -351,7 +351,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                   })()}
                 </div>
                 </td>
-                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
+                <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
                   {node.best ? `${node.best}T` : ''}
                 </td>
                 <td style={{ width: 28, verticalAlign: 'middle' }}>

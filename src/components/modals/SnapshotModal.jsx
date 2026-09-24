@@ -50,7 +50,7 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
     <div className="overlay" onClick={onClose}>
       <div className="modal" style={{ width: 'min(640px, 100%)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="undo" size={15} />{t('snap.title')}</h2>
-        <p style={{ fontSize: 11, color: 'var(--tx3)', marginTop: -4, marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: 'var(--tx3)', marginTop: -4, marginBottom: 12 }}>
           {t('snap.desc', snaps.length)}
         </p>
 
@@ -69,9 +69,9 @@ export function SnapshotModal({ onClose, onRestore, onExportJson }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: 'var(--tx)' }}>
                     {fmtTs(snap.ts)}
-                    {i === 0 && <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--gr)', color: '#fff' }}>{t('snap.latest')}</span>}
+                    {i === 0 && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--gr)', color: '#fff' }}>{t('snap.latest')}</span>}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
                     {summarize(snap.data)}
                   </div>
                 </div>

@@ -64,11 +64,17 @@ describe.each([['dark', DARK], ['light', LIGHT]])('the %s palette', (name, palet
 
   // --tx3 is the one that gets set too light every time: captions, column
   // heads, counts, and the second line of every work-order row.
-  it.each(['tx', 'tx2', 'tx3'])('reads --%s on every surface it sits on', token => {
+  //
+  // AA (4.5:1) is the floor for text of any size, and at 10–12px it is not
+  // enough to read comfortably for long: reported as headaches, in both
+  // palettes. So the text ladder is held above it — body and secondary text
+  // to AAA (7:1, WCAG 1.4.6), captions to 6:1, which is where GitHub's and
+  // macOS's own secondary greys sit.
+  it.each([['tx', 7], ['tx2', 7], ['tx3', 6]])('reads --%s on every surface it sits on', (token, bar) => {
     const ink = hexOf(palette, token);
     for (const surface of SURFACES) {
       const ratio = contrast(ink, hexOf(palette, surface));
-      expect(ratio, `--${token} on --${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+      expect(ratio, `--${token} on --${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(bar);
     }
   });
 
