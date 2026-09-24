@@ -211,7 +211,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
             onMouseEnter={e => showTip(row.id, row, e)}
             onMouseLeave={hideTip}>
             <span className="pr-label-id">{row.id}</span>
-            <span className={`pr-label-name${row.allDone ? ' done' : ''}`}>{row.name}</span>
+            <span className={`pr-label-name${row.allDone ? ' done' : ''}${row.dropped ? ' dropped' : ''}`}>{row.name}</span>
           </div>
         ))}
       </div>
@@ -289,8 +289,12 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
         <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
         {model.rows.map(row => (
           <div key={row.id} className="pr-figure" style={{ height: ROW_H }}>
-            <span className="pr-figure-count">{row.doneCount}/{row.leafCount}</span>
-            <span className={`pr-figure-pct${row.allDone ? ' done' : ''}`}>{progressPctLabel(row.progress)}%</span>
+            {row.dropped
+              ? <span className="pr-figure-count" data-pr-dropped="true">{t('rm.dropped')}</span>
+              : <>
+                <span className="pr-figure-count">{row.doneCount}/{row.leafCount}</span>
+                <span className={`pr-figure-pct${row.allDone ? ' done' : ''}`}>{progressPctLabel(row.progress)}%</span>
+              </>}
           </div>
         ))}
       </div>

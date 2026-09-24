@@ -729,6 +729,9 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .pr-label-id{font-family:var(--mono);font-size:11px;color:var(--tx3);flex-shrink:0;}
 .pr-label-name{font-size:12px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pr-label-name.done{opacity:.55;}
+/* Dropped: kept in view so the decision can be seen and taken back, but
+   struck through and out of every count (utils/projectRoadmap.js). */
+.pr-label-name.dropped{color:var(--tx3);text-decoration:line-through;}
 
 .pr-scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;}
 .pr-axis{position:relative;border-bottom:1px solid var(--b);}

@@ -116,6 +116,7 @@ export function Roadmap({ tree, scheduled, stats, teams = [], members = [], cpLa
     today: t('rm.today'),
     deadline: t('rm.deadlineShort'),
     noDates: t('rm.noDates'),
+    dropped: t('rm.dropped'),
     stateDone: t('rm.stateDone'),
     stateWip: t('rm.stateWip'),
     stateOpen: t('rm.stateOpen'),

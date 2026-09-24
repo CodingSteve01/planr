@@ -15,7 +15,7 @@
 //   * `data-tip` / `data-item-id` attributes match the subway renderer's, so
 //     Roadmap.jsx's tooltip and click-to-open work unchanged.
 import { localDate, iso } from './date.js';
-import { directChildren, descendantLeaves, isLeafNode, leafNodes } from './scheduler.js';
+import { directChildren, descendantLeaves, isLeafNode, leafNodes, treeIndex } from './scheduler.js';
 import { summarizeNodeTimeline } from './timeline.js';
 import { progressPctLabel } from './progress.js';
 
@@ -123,17 +123,34 @@ export function computeProjectRoadmap({ tree = [], scheduled = [], stats = {}, r
   const children = directChildren(tree, root.id);
   const rowNodes = children.length ? children : [root];
 
+  // Dropped work is not going to happen, so it is neither counted nor given a
+  // place on the axis — reported as a dropped package drawn like a normal one
+  // that merely had "no dates yet", and counted in "17/50 tasks". The row
+  // stays, marked, so the decision is visible and can be taken back.
+  const { droppedIds } = treeIndex(tree);
+  const liveLeavesOf = node => (isLeafNode(tree, node.id) ? [node] : descendantLeaves(tree, node.id))
+    .filter(leaf => !droppedIds.has(leaf.id));
+
   const rows = rowNodes.map(node => {
+    const live = liveLeavesOf(node);
+    // Dropped itself, or a package every task of which was dropped.
+    const allDropped = !isLeafNode(tree, node.id) && !live.length && descendantLeaves(tree, node.id).length > 0;
+    if (droppedIds.has(node.id) || allDropped) {
+      return {
+        id: node.id, name: node.name || node.id, status: statusOf(node), dropped: true,
+        allDone: false, progress: 0, leafCount: 0, doneCount: 0, start: null, end: null, milestones: [],
+      };
+    }
     const timeline = summarizeNodeTimeline(tree, scheduled, node);
     const window = timeline?.actual || timeline?.period || timeline?.planned || null;
-    const milestones = milestonesFor(tree, scheduled, node, scheduledMap);
+    const milestones = milestonesFor(tree, scheduled, node, scheduledMap).filter(m => !droppedIds.has(m.id));
     const fromMilestones = milestones.length
       ? { start: milestones[0].start || milestones[0].end, end: milestones[milestones.length - 1].end }
       : null;
     const start = window?.start || fromMilestones?.start || null;
     const end = window?.end || fromMilestones?.end || null;
-    const leafCount = timeline?.leafCount ?? 1;
-    const doneCount = timeline?.doneLeafCount ?? (statusOf(node) === 'done' ? 1 : 0);
+    const leafCount = live.length;
+    const doneCount = live.filter(leaf => leaf.status === 'done').length;
     return {
       id: node.id,
       name: node.name || node.id,
@@ -181,7 +198,7 @@ export function computeProjectRoadmap({ tree = [], scheduled = [], stats = {}, r
   // Above ~20 months, monthly ticks turn into a grey smear — label quarters.
   const tickEvery = months.length > 20 ? 3 : 1;
 
-  const allLeaves = isLeafNode(tree, root.id) ? [root] : descendantLeaves(tree, root.id);
+  const allLeaves = liveLeavesOf(root);
   return {
     root,
     progress: Number(stats?.[root.id]?._progress) || 0,
@@ -278,7 +295,7 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
     // Label column — id + name, click opens the item.
     out.push(`<g data-item-id="${esc(row.id)}" style="cursor:pointer" data-tip="${esc(rowTooltip(row, labels, dateLabel))}">`);
     out.push(`<text class="pr-id" x="${PAD + 4}" y="${mid + 4}" fill="var(--tx3,#8b95a7)">${esc(row.id)}</text>`);
-    out.push(`<text class="pr-lbl" x="${PAD + 4 + Math.min(74, 18 + row.id.length * 7)}" y="${mid + 4}" fill="var(--tx,#e8ecf4)" opacity="${row.allDone ? 0.55 : 1}">${esc(truncate(row.name, 30))}</text>`);
+    out.push(`<text class="pr-lbl" x="${PAD + 4 + Math.min(74, 18 + row.id.length * 7)}" y="${mid + 4}" fill="${row.dropped ? 'var(--tx3,#8b95a7)' : 'var(--tx,#e8ecf4)'}" opacity="${row.allDone ? 0.55 : 1}"${row.dropped ? ' text-decoration="line-through"' : ''}>${esc(truncate(row.name, 30))}</text>`);
     out.push('</g>');
 
     if (row.start && row.end) {
@@ -294,7 +311,7 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
       out.push(`<rect x="${bx.toFixed(1)}" y="${barY}" width="${bw.toFixed(1)}" height="14" rx="7" fill="none" stroke="${esc(color)}" stroke-width="1" opacity="0.6"/>`);
       out.push('</g>');
     } else {
-      out.push(`<text class="pr-meta" x="${PLOT_X + 4}" y="${mid + 3}" fill="var(--tx3,#8b95a7)" opacity="0.7">${esc(labels.noDates || 'no dates yet')}</text>`);
+      out.push(`<text class="pr-meta" x="${PLOT_X + 4}" y="${mid + 3}" fill="var(--tx3,#8b95a7)" opacity="0.7">${esc(row.dropped ? (labels.dropped || 'dropped') : (labels.noDates || 'no dates yet'))}</text>`);
     }
 
     // Milestone stops. A name is only drawn when there is actually room for it
@@ -323,7 +340,7 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
     });
 
     // Right column: count + percentage, the shared figure.
-    out.push(`<text class="pr-meta" x="${W - PAD - 4}" y="${mid + 3}" text-anchor="end" fill="${row.allDone ? esc(color) : 'var(--tx2,#cbd5e1)'}">${row.doneCount}/${row.leafCount}  ${progressPctLabel(row.progress)}%</text>`);
+    if (!row.dropped) out.push(`<text class="pr-meta" x="${W - PAD - 4}" y="${mid + 3}" text-anchor="end" fill="${row.allDone ? esc(color) : 'var(--tx2,#cbd5e1)'}">${row.doneCount}/${row.leafCount}  ${progressPctLabel(row.progress)}%</text>`);
   });
 
   // ── Today, and the deadline if there is one ──
@@ -346,6 +363,7 @@ export function renderProjectRoadmapSvg({ tree, scheduled, stats, rootId, color 
 }
 
 function rowTooltip(row, labels, dateLabel) {
+  if (row.dropped) return `<div><b>${esc(row.id)} ${esc(row.name)}</b><br/>${esc(labels.dropped || 'dropped')}</div>`;
   const period = row.start && row.end ? `${dateLabel(row.start)} → ${dateLabel(row.end)}` : (labels.noDates || 'no dates yet');
   return `<div><b>${esc(row.id)} ${esc(row.name)}</b><br/>${esc(period)}<br/>`
     + `${progressPctLabel(row.progress)}% · ${row.doneCount}/${row.leafCount} ${esc(labels.tasks || 'tasks')}</div>`;
