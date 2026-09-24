@@ -181,6 +181,15 @@ where the vault draws its tick). Pinned in
 [`obsidian/__tests__/bundle.test.js`](../obsidian/__tests__/bundle.test.js),
 against the built stylesheet rather than the source.
 
+Date inputs had the same kind of half-inherited widget. Obsidian pins the
+calendar icon of every `input[type=date]` to the left edge
+(`position: absolute; left: 4px`) and makes room for it with its own input
+padding. Planr's date fields bring tighter padding of their own, so the icon
+sat on top of the day and the field read "📅.mm.yyyy". Inside `.planr-view`
+the icon goes back into the flow, after the date, with a selector as specific
+as Obsidian's plus the scope. The filter popup is portalled, but into the
+view's own `.planr-view` container, so the rule reaches it there too.
+
 ### Build
 
 ```bash
