@@ -20,7 +20,7 @@ import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, AR
 import { buildExportCtx } from './utils/exportCtx.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
-import { applyTreeCommand, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
+import { applyTreeCommand, applyTreeCommandMany, moveSubtree, placeAmongSiblings, placeManyAmongSiblings } from './utils/treeMove.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -2774,7 +2774,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         lastShiftRangeRef.current = newRange;
       }
     } else if (ctrlLike) {
-      setMultiSel(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; });
+      // The first ⌘-click starts a selection FROM the row the cursor is on:
+      // click A, ⌘-click B is A and B — the rule every file list has, and
+      // the one the Work order view already had. It used to be B alone, so
+      // a move then took one row while two looked meant.
+      setMultiSel(s => {
+        const n = new Set(s.size ? s : (selected?.id && selected.id !== node.id ? [selected.id] : []));
+        n.has(node.id) ? n.delete(node.id) : n.add(node.id);
+        return n;
+      });
       if (!selected) setSel(node);
       lastShiftRangeRef.current = null;
     } else {
@@ -2784,6 +2792,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
   const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
   const onTreeReorder = useStableCallback((...a) => reorderSibling(...a));
+  // The same two, for a multi-selection: it moves as a block (utils/
+  // treeMove.js). One mutate, so one ⌘Z undoes the whole move, and the
+  // selection follows the rows to their new ids.
+  const onTreeCommandMany = useStableCallback((ids, command, visibleIds) => {
+    const planned = applyTreeCommandMany(tree, [...ids], command, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: applyTreeCommandMany(d.tree || [], [...ids], command, visibleIds)?.tree || d.tree }));
+    setMultiSel(new Set(planned.ids));
+    if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
+    return planned;
+  });
+  const onTreeReorderMany = useStableCallback((ids, target) => {
+    if (!placeManyAmongSiblings(tree, [...ids], target)) return;
+    mutate(d => ({ ...d, tree: placeManyAmongSiblings(d.tree || [], [...ids], target) || d.tree }));
+  });
   // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
   // Every one of these is a thin wrapper around the SAME mutate()-backed
   // primitives the mouse-driven controls already use (moveNode, addNode,
@@ -3627,6 +3650,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               onOpenBulkEdit={() => setBulkEditModalOpen(true)}
               onMove={onTreeMove}
               onCommand={onTreeCommand}
+              onCommandMany={onTreeCommandMany}
+              onReorderMany={onTreeReorderMany}
               onRevealHidden={onTreeRevealHidden}
               onInsertAfter={onTreeInsertAfter}
               onInsertChild={onTreeInsertChild}
