@@ -150,15 +150,14 @@ Phase 4 (docs/principles.md principle 5, "Fast means reversible") adds the keybo
 **Where the pure logic lives.** [`src/utils/treeEdit.js`](../src/utils/treeEdit.js) holds everything that doesn't need React or App.jsx state, unit-tested in [`src/utils/__tests__/treeEdit.test.js`](../src/utils/__tests__/treeEdit.test.js):
 
 - `sortTree(tree)` / `filterCollapsedRows(rows, collapsedIds)` — the parent-then-children, displayOrder-aware sort and the "hide rows under a collapsed ancestor" filter TreeView's `sorted`/`filt` memos already did inline; lifted out so the row order is one tested function instead of logic embedded in a component.
-- `siblingsOf(tree, id)` — the sibling group + rank a node belongs to (root items group by leading id-letter-prefix, exactly like `reorderSibling`/the ⤒▲▼⤓ toolbar in `App.jsx`/`TreeView.jsx` already do, so a no-op determination here never disagrees with what the App-level primitive would actually do).
-- `indentTarget(tree, id)` / `outdentTarget(id)` — the new parent id for Tab/⇧Tab, or `null` for a no-op (first child / already a root). Fed straight into the new `onMove` prop → App.jsx's existing `moveNode`.
-- `moveStep(tree, id, direction)` — `'up'`/`'down'` or `null` for ⌥↑/⌥↓, fed into the existing `onReorder` prop → `reorderSibling`.
 - `nextStatus`, `resolveSize`, `fieldPatchForKey` — the field-shortcut table (`1`–`4`, `S`/`M`/`L`/`X`, `Space`), resolving a project's `sizes` (falling back to `utils/sizes.js` `DEFAULT_SIZES`) case-insensitively and returning `null` (no-op) rather than inventing a size the project doesn't define.
+- The structural commands live next door in [`src/utils/treeMove.js`](../src/utils/treeMove.js) (tests: [`src/__tests__/treeMove.test.js`](../src/__tests__/treeMove.test.js)): `planTreeCommand(visibleIds, id, command)` for `moveUp`/`moveDown`/`moveFirst`/`moveLast`/`indent`/`outdent` — `null` when it cannot run, which is also the toolbar's disabled state — and `applyTreeCommand(tree, id, command, visibleIds)`, which runs it as one transformation built from two primitives, `moveSubtree` (re-parent + renumber + dependency remap) and `placeAmongSiblings` (write `displayOrder`). App.jsx's `moveNode` and `reorderSibling` are thin wrappers over the same two primitives.
 - `parsePastedRows(text)` / `buildPasteNodes(tree, parentId, rows)` — pasted text → `{name, depth}` rows (bullet-stripped, indentation clamped to at most one level deeper than the previous line) → full node objects with collision-free ids, computed against a local working copy of the tree so a whole pasted block gets correct ids in one pass.
 
 **The small new App.jsx callbacks.** Structure/creation needs a few thin wrappers alongside the existing ones, each still exactly one `mutate()`-shaped write:
 
-- `onTreeMove(id, newParentId)` — wraps `moveNode`; since re-parenting renumbers the moved node's id, it also updates `selected` to follow the new id so the next keypress still targets the right row.
+- `onTreeCommand(id, command, visibleIds)` — the one path for move up/down, indent and outdent, from the toolbar and the keyboard alike: `applyTreeCommand` inside a single functional `mutate()` (one undo step), then `selected` follows the row to its new id, and the id map goes back to `TreeView` so the fold state of a moved branch follows too.
+- `onTreeMove(id, newParentId)` — wraps `moveNode` for the item dialog's parent picker; since re-parenting renumbers the moved node's id, it also updates `selected` to follow the new id.
 - `onTreeInsertAfter(afterId)` / `onTreeInsertChild(parentId)` — create one **empty-named** node (`addNode` +, for "after", a `reorderSibling` to place it directly below `afterId`) and return its id synchronously so `TreeView` can start editing it immediately. Empty on purpose: `TreeView`'s `commitEdit` deletes an empty-named row it just created instead of committing it, so a rapid Enter-Enter session never litters the tree with nameless rows.
 - `onTreeBulkDelete(ids)` — the one genuinely new *batched* callback. `deleteNode` (and `addNode`) compute their next tree from the render-closure `tree`, not from the functional `setData` argument, which is safe for one call per keypress but would silently drop all-but-the-last deletion if looped synchronously over a multi-selection. `onTreeBulkDelete` does the whole selection in one **functional** `mutate(d => ...)` instead — correct regardless of loop order, and (like every `mutate()` call) one undo step.
 - `onTreePasteRows(afterId, rows)` — same shape: `buildPasteNodes` runs once against `d.tree` inside a single functional `mutate()`, so a ten-line paste is one undo step, not ten.
@@ -403,7 +402,7 @@ See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items.
 
 - **App.jsx and NetGraph.jsx are &gt; 400 LOC** — should be split
 - **Dark-mode palette needs a proper WCAG-AA pass** — currently iterated into shape, not designed
-- **One-member-one-team** — members can't have different capacities per team
+- **No per-team capacity** — a member can be in several teams (`member.teams`), but deliberately without a fixed split: the scheduled tasks decide how their one capacity divides. A planned "50 % Frontend" quota cannot be expressed (see [scheduler.md](scheduler.md#multi-team-members))
 - **Day-level scheduler granularity** — currently weekly
 
 ## Deployment

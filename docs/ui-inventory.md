@@ -700,7 +700,7 @@ Every place that mutates plan/task data (the explicit P2 audit). "Sanctioned" me
 - **JiraSyncModal.jsx:271-274 → App.jsx:1858-1863** (`onJiraApplyStatus`) — applies accepted Jira status patches via `setData` directly on the whole tree, bypassing `updateNode` entirely. The single largest batch-write path outside the tree editor.
 - **SnapshotModal.jsx:78-80** — "↶ Restore" replaces the entire project with a snapshot via `setData`, bypassing the tree editor (a whole-project operation, not a field edit, but still outside the sanctioned surface).
 - **Roadmap.jsx:55-69** (`onAssignmentChange`) — auto-persists the computed subway-map line/route/color layout back into the project the first time it drifts from what's stored; layout metadata, uncertain P2 relevance.
-- **App.jsx:2436** (`onRoadmapAssignmentChange`) — the App-level handler that receives the above and merges it into `data.roadmapAssignment`.
+- **App.jsx:2436** (`onRoadmapAssignmentChange`) — the App-level handler that receives the above and merges it into `data.roadmapAssignment` via `mergeRoadmapAssignment` (stored wins, except a slot two projects hold).
 
 ## Review pass
 

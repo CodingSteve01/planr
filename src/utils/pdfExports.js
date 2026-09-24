@@ -141,15 +141,21 @@ function headerTable(headers, rows, widths, title) {
 // rasterization, zero Image-loading drama with <style>/var() blocks. Only
 // requirements: explicit width/height on the root <svg>, no CSS custom
 // properties unresolved, and no external references.
-function prepareRoadmapSvg(svgStr, W = 1400, H = 800) {
+function prepareRoadmapSvg(svgStr) {
   if (!svgStr || !svgStr.startsWith('<svg')) return null;
   // The renderer appends an HTML legend after the drawing; the PDF builds its
   // own legend from the model (buildRoadmapLegendPdf), so what follows the
   // </svg> is nothing but trailing junk to an SVG renderer.
   const [drawing] = splitSvgMarkup(svgStr);
+  // Keep the renderer's own viewBox. It crops to the lanes in use and grows
+  // past 800 once a plan has more than eight projects; pinning `0 0 1400 800`
+  // here showed a window onto the board that no longer matched it — the top
+  // lane pressed against the edge, the bottom one past the box.
+  const vb = drawing.match(/^<svg [^>]*viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/);
+  const [x, y, W, H] = vb ? vb.slice(1).map(Number) : [0, 0, 1400, 800];
   let patched = drawing.replace(
     /^<svg [^>]*>/,
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${x} ${y} ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
   );
   // The roadmap CSS uses `stroke:var(--bg,#0e1116)` with `stroke-width:3.4`
   // on .rm-abbrev. Browser respects `paint-order: stroke fill` so the colored
@@ -247,13 +253,16 @@ function buildRoadmapSvgForPdf(ctx) {
     assignment: roadmapAssignment,
     expandedLegendIds: new Set(),
   });
-  return prepareRoadmapSvg(svgStr, 1400, 800);
+  return prepareRoadmapSvg(svgStr);
 }
 
 // A4 landscape (841.89pt) less the 36pt margins the summary uses on both
 // sides. Every full-width element on that page measures itself against this
 // rather than carrying its own rounded-down copy.
 const SUMMARY_W = 770;
+// What is left of a landscape A4 page (595pt, margins 36/40) under the
+// "Roadmap" heading.
+const ROADMAP_MAX_H = 470;
 
 // ── Summary page 1 ─────────────────────────────────────────────────────────
 // A board reads top-left first and forwards this page on its own, so it states
@@ -615,7 +624,10 @@ export async function exportSummaryPDF(ctx, options = {}) {
   };
   if (roadmapSvg) {
     content.push({ text: t('Roadmap', 'Roadmap'), style: 'h2', pageBreak: 'before' });
-    content.push({ svg: roadmapSvg, width: SUMMARY_W, margin: [0, 0, 0, 8] });
+    // `fit`, not `width`: a board with ten or more lanes is taller than the
+    // page has room for under the heading at full width, and pdfmake would
+    // rather start a new page than shrink it.
+    content.push({ svg: roadmapSvg, fit: [SUMMARY_W, ROADMAP_MAX_H], margin: [0, 0, 0, 8] });
     // Legend mirrors the Overview-tab block: per-line column with station rows.
     const { computeRoadmapModel } = await import('./roadmap.js');
     const rmModel = computeRoadmapModel(rmModelArgs);

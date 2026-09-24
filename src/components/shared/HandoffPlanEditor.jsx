@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SearchSelect } from './SearchSelect.jsx';
 import { useT } from '../../i18n.jsx';
 import { Icon } from './Icon.jsx';
+import { inTeam } from '../../utils/memberTeams.js';
 
 // Per-cutoff override editor. Cutoffs are not created here — the scheduler
 // derives them from member offboarding dates. This UI surfaces each derived
@@ -123,7 +124,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
       {stages.map(({ idx, predicted, override }) => {
         const stage = override || {};
         const stageMembers = stage.team
-          ? members.filter(m => m.team === stage.team)
+          ? members.filter(m => inTeam(m, stage.team))
           : members;
         const predictedLabel = predicted
           ? `Scheduler wählt: ${predicted.personName || '(unassigned)'}${predicted.unscheduled ? ' !' : ''}`

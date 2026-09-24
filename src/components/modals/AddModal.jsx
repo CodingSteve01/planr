@@ -7,11 +7,12 @@ import { GT, GT_ICON, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
+import { memberTeamNames } from '../../utils/memberTeams.js';
 
 export function AddModal({ tree, teams, members = [], taskTemplates, sizes: projectSizes, selected, onAdd, onClose }) {
   const { t } = useT();
   const defParent = useMemo(() => selected?.id || '', [selected]);
-  const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + (teams.find(team => team.id === member.team)?.name || member.team) : ''}`;
+  const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + memberTeamNames(member, teams).join(' + ') : ''}`;
 
   const parents = useMemo(() => {
     const opts = [{ id: '', label: t('add.newTopItemPlaceholder') }];

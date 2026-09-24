@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, cleanup, screen } from '@testing-library/react';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { TreeView } from '../components/views/TreeView.jsx';
+import { applyTreeCommand } from '../utils/treeMove.js';
 
 function wrap(node) {
   return render(
@@ -61,6 +62,16 @@ function Harness({ initialTree, initialSelectedId = null, initialMultiSelIds = [
   };
   const onReorder = (...a) => spies.onReorder?.(...a);
   const onMove = (id, newParentId) => spies.onMove?.(id, newParentId);
+  // What App.onTreeCommand does: run the pure command, then let the cursor
+  // follow the row to its (possibly renumbered) id.
+  const onCommand = (id, command, visibleIds) => {
+    spies.onCommand?.(id, command, visibleIds);
+    const res = applyTreeCommand(tree, id, command, visibleIds);
+    if (!res) return null;
+    setTree(res.tree);
+    setSelected(res.tree.find(r => r.id === res.id));
+    return { id: res.id, idMap: res.idMap };
+  };
   const insertNode = (id, atIndexOf, after) => {
     const node = mk(id, { name: '' });
     setTree(t => {
@@ -108,7 +119,7 @@ function Harness({ initialTree, initialSelectedId = null, initialMultiSelIds = [
     search="" teamFilter="" rootFilter="" personFilter="" stats={{}} teams={[]} members={[]} scheduled={[]}
     cpSet={new Set()} customFields={[]} sizes={sizes}
     onQuickAdd={() => {}} onDelete={onDelete} onReorder={onReorder} onTaskUpdate={onTaskUpdate}
-    onMove={onMove} onInsertAfter={onInsertAfter} onInsertChild={onInsertChild}
+    onMove={onMove} onCommand={onCommand} onInsertAfter={onInsertAfter} onInsertChild={onInsertChild}
     onBulkDelete={onBulkDelete} onPasteRows={onPasteRows} />;
 }
 
@@ -137,11 +148,11 @@ describe('tree editor — keyboard model', () => {
     expect(onSelect.mock.calls[2][0].id).toBe('P1.1');
   });
 
-  it('Enter opens an inline editor, and a second Enter commits + creates a sibling below', () => {
+  it('Enter opens an inline editor, and a second Enter saves the row and closes it', () => {
     const onTaskUpdate = vi.fn();
     const onInsertAfter = vi.fn();
     const tree = [mk('P1', { name: 'Root' })];
-    const { container, getByTestId } = renderHarness({
+    const { container, getByTestId, queryByTestId } = renderHarness({
       initialTree: tree, initialSelectedId: 'P1', spies: { onTaskUpdate, onInsertAfter },
     });
 
@@ -153,10 +164,25 @@ describe('tree editor — keyboard model', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(onTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'P1', name: 'Root renamed' }));
-    expect(onInsertAfter).toHaveBeenCalledWith('P1');
-    // The new sibling is immediately the active edit — an empty <input>.
-    const newInput = getByTestId('tree-name-input-NEW100');
-    expect(newInput.value).toBe('');
+    // Renaming an existing row is one edit: no empty row appears under it.
+    expect(onInsertAfter).not.toHaveBeenCalled();
+    expect(queryByTestId('tree-name-input-P1')).toBeNull();
+  });
+
+  it('Enter on a row just added commits it and opens the next one', () => {
+    const onInsertAfter = vi.fn();
+    const tree = [mk('P1', { name: 'Root' })];
+    const { container, getByTestId } = renderHarness({
+      initialTree: tree, initialSelectedId: 'P1', spies: { onInsertAfter },
+    });
+
+    fireEvent.keyDown(container, { key: 'Enter', shiftKey: true });   // new child, editing
+    const first = getByTestId('tree-name-input-NEW100');
+    fireEvent.change(first, { target: { value: 'First step' } });
+    fireEvent.keyDown(first, { key: 'Enter' });
+
+    expect(onInsertAfter).toHaveBeenCalledWith('NEW100');
+    expect(getByTestId('tree-name-input-NEW101').value).toBe('');
   });
 
   it('committing an empty name on a brand-new row deletes it again (Enter-Enter does not litter)', () => {
@@ -167,9 +193,8 @@ describe('tree editor — keyboard model', () => {
       initialTree: tree, initialSelectedId: 'P1', spies: { onDelete, onTaskUpdate },
     });
 
-    // First Enter: edit "Root" and commit unchanged, creating an empty sibling.
-    fireEvent.keyDown(container, { key: 'Enter' });
-    fireEvent.keyDown(getByTestId('tree-name-input-P1'), { key: 'Enter' });
+    // ⇧Enter: an empty child, open for typing.
+    fireEvent.keyDown(container, { key: 'Enter', shiftKey: true });
     const newInput = getByTestId('tree-name-input-NEW100');
     expect(newInput.value).toBe('');
 
@@ -227,57 +252,54 @@ describe('tree editor — keyboard model', () => {
     expect(queryByTestId('tree-name-input-NEW100')).toBeNull();
   });
 
-  it('Tab re-parents the active row under its previous sibling', () => {
-    const onMove = vi.fn();
+  it('Tab indents the active row under its previous sibling', () => {
+    const onCommand = vi.fn();
     const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.2', spies: { onMove } });
+    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.2', spies: { onCommand } });
 
     fireEvent.keyDown(container, { key: 'Tab' });
 
-    expect(onMove).toHaveBeenCalledWith('P1.2', 'P1.1');
+    expect(onCommand).toHaveBeenCalledWith('P1.2', 'indent', expect.any(Array));
   });
 
-  it('Tab on the first child is a no-op — onMove is never called', () => {
-    const onMove = vi.fn();
+  it('Tab on the first child is a no-op — the command is never sent', () => {
+    const onCommand = vi.fn();
     const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1', spies: { onMove } });
+    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1', spies: { onCommand } });
 
     fireEvent.keyDown(container, { key: 'Tab' });
 
-    expect(onMove).not.toHaveBeenCalled();
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
-  it('⇧Tab outdents to the parent of the parent', () => {
-    const onMove = vi.fn();
+  it('⇧Tab outdents', () => {
+    const onCommand = vi.fn();
     const tree = [mk('P1'), mk('P1.1'), mk('P1.1.1')];
-    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1.1', spies: { onMove } });
+    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1.1', spies: { onCommand } });
 
     fireEvent.keyDown(container, { key: 'Tab', shiftKey: true });
 
-    expect(onMove).toHaveBeenCalledWith('P1.1.1', 'P1');
+    expect(onCommand).toHaveBeenCalledWith('P1.1.1', 'outdent', expect.any(Array));
   });
 
   it('⌥↓ moves the active row down within its sibling order', () => {
-    const onReorder = vi.fn();
+    const onCommand = vi.fn();
     const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1', spies: { onReorder } });
+    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.1', spies: { onCommand } });
 
     fireEvent.keyDown(container, { key: 'ArrowDown', altKey: true });
 
-    // The step is expressed as a VISIBLE target rather than a bare 'down', so
-    // one press is one move the user can see — a hidden sibling (finished,
-    // archived, collapsed away, filtered out) no longer absorbs it.
-    expect(onReorder).toHaveBeenCalledWith('P1.1', { targetId: 'P1.2', position: 'after' });
+    expect(onCommand).toHaveBeenCalledWith('P1.1', 'moveDown', expect.any(Array));
   });
 
-  it('⌥↓ on the last sibling is a no-op', () => {
-    const onReorder = vi.fn();
-    const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.2', spies: { onReorder } });
+  it('⌥↓ on the last sibling is a no-op — it does not step out of the branch', () => {
+    const onCommand = vi.fn();
+    const tree = [mk('P1'), mk('P1.1'), mk('P1.2'), mk('P2')];
+    const { container } = renderHarness({ initialTree: tree, initialSelectedId: 'P1.2', spies: { onCommand } });
 
     fireEvent.keyDown(container, { key: 'ArrowDown', altKey: true });
 
-    expect(onReorder).not.toHaveBeenCalled();
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it('"2" on a three-row selection sets priority on all three in one keypress', () => {

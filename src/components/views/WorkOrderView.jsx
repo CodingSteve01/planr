@@ -180,7 +180,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
 
   return <div style={{ maxWidth: 960, margin: '0 auto' }}>
     <p className="helper" style={{ fontSize: 11, marginTop: 0, marginBottom: 14 }}>
-      {withKey(t('wo.help'), 'reorder')}
+      {withKey(t('wo.help'), 'ganttReorder')}
     </p>
     {owners.map(([owner, rows]) => {
       const label = ownerLabel(owner);

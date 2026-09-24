@@ -3,12 +3,6 @@ import {
   sortTree,
   compareSiblings,
   filterCollapsedRows,
-  siblingsOf,
-  indentTarget,
-  outdentTarget,
-  moveStep,
-  visibleSiblingTarget,
-  visibleIndentTarget,
   scrollAdjustment,
   nextStatus,
   resolveSize,
@@ -43,68 +37,6 @@ describe('treeEdit — sortTree / filterCollapsedRows', () => {
   it('returns the same rows when nothing is collapsed', () => {
     const rows = [mk('P1'), mk('P1.1')];
     expect(filterCollapsedRows(rows, new Set())).toBe(rows);
-  });
-});
-
-describe('treeEdit — Tab / ⇧Tab (indent / outdent)', () => {
-  it('indenting the first child is a no-op', () => {
-    const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    expect(indentTarget(tree, 'P1.1')).toBeNull();
-  });
-
-  it('indents under the immediately preceding sibling', () => {
-    const tree = [mk('P1'), mk('P1.1'), mk('P1.2'), mk('P1.3')];
-    expect(indentTarget(tree, 'P1.2')).toBe('P1.1');
-    expect(indentTarget(tree, 'P1.3')).toBe('P1.2');
-  });
-
-  it('indent respects displayOrder, not just id suffix', () => {
-    const tree = [mk('P1'), mk('P1.1', { displayOrder: 2 }), mk('P1.2', { displayOrder: 1 })];
-    // In display order: P1.2 (1st), P1.1 (2nd) — indenting P1.1 nests it under P1.2.
-    expect(indentTarget(tree, 'P1.1')).toBe('P1.2');
-  });
-
-  it('outdenting a root is a no-op', () => {
-    expect(outdentTarget('P1')).toBeNull();
-  });
-
-  it('outdents to the parent of the parent', () => {
-    expect(outdentTarget('P1.2.3')).toBe('P1');
-  });
-
-  it('outdenting a top-level child returns the empty (top-level) parent', () => {
-    expect(outdentTarget('P1.2')).toBe('');
-  });
-});
-
-describe('treeEdit — ⌥↑ / ⌥↓ (move within order)', () => {
-  it('⌥↓ on the last sibling is a no-op', () => {
-    const tree = [mk('P1.1'), mk('P1.2')];
-    expect(moveStep(tree, 'P1.2', 'down')).toBeNull();
-  });
-
-  it('⌥↑ on the first sibling is a no-op', () => {
-    const tree = [mk('P1.1'), mk('P1.2')];
-    expect(moveStep(tree, 'P1.1', 'up')).toBeNull();
-  });
-
-  it('a sole sibling (no others in its group) is always a no-op', () => {
-    const tree = [mk('P1.1')];
-    expect(moveStep(tree, 'P1.1', 'up')).toBeNull();
-    expect(moveStep(tree, 'P1.1', 'down')).toBeNull();
-  });
-
-  it('moves within bounds return the direction unchanged', () => {
-    const tree = [mk('P1.1'), mk('P1.2'), mk('P1.3')];
-    expect(moveStep(tree, 'P1.2', 'up')).toBe('up');
-    expect(moveStep(tree, 'P1.2', 'down')).toBe('down');
-  });
-
-  it('root items only group with siblings sharing their letter prefix', () => {
-    const tree = [mk('P1'), mk('P2'), mk('G1')];
-    // G1 is alone in its "G" group, so it can't move even though P2 exists.
-    expect(moveStep(tree, 'G1', 'down')).toBeNull();
-    expect(moveStep(tree, 'P1', 'down')).toBe('down');
   });
 });
 
@@ -267,111 +199,6 @@ describe('treeEdit — buildPasteNodes', () => {
     const nodes = buildPasteNodes([mk('P1')], 'P1', rows);
     expect(nodes).toHaveLength(3);
     expect(nodes.map(n => n.name)).toEqual(['One', 'Two', 'Three']);
-  });
-});
-
-describe('treeEdit — siblingsOf', () => {
-  it('orders siblings by displayOrder, falling back to numeric id', () => {
-    const tree = [mk('P1.1'), mk('P1.3'), mk('P1.2')];
-    expect(siblingsOf(tree, 'P1.1').map(r => r.id)).toEqual(['P1.1', 'P1.2', 'P1.3']);
-  });
-});
-
-// ── visibleSiblingTarget ──────────────────────────────────────────────────
-// The reported symptom: "moving stumbles over already-finished tasks". With
-// `hideDone` on, or an archived project, or a collapsed branch, the row above
-// you in the DATA is not the row above you on SCREEN — so a move swapped with
-// something invisible and looked like a dead key.
-describe('visibleSiblingTarget', () => {
-  // On screen: P1.1, P1.4, P1.7 — the rest are filtered out (done/archived).
-  const visible = ['P1', 'P1.1', 'P1.4', 'P1.7', 'P2'];
-
-  it('steps to the next VISIBLE sibling, not the next one in the data', () => {
-    expect(visibleSiblingTarget(visible, 'P1.1', 'down'))
-      .toEqual({ targetId: 'P1.4', position: 'after' });
-    expect(visibleSiblingTarget(visible, 'P1.7', 'up'))
-      .toEqual({ targetId: 'P1.4', position: 'before' });
-  });
-
-  it('goes all the way to either end in one press', () => {
-    expect(visibleSiblingTarget(visible, 'P1.7', 'first'))
-      .toEqual({ targetId: 'P1.1', position: 'before' });
-    expect(visibleSiblingTarget(visible, 'P1.1', 'last'))
-      .toEqual({ targetId: 'P1.7', position: 'after' });
-  });
-
-  it('returns null at the ends rather than a no-op move', () => {
-    expect(visibleSiblingTarget(visible, 'P1.1', 'up')).toBeNull();
-    expect(visibleSiblingTarget(visible, 'P1.7', 'down')).toBeNull();
-    expect(visibleSiblingTarget(visible, 'P1.1', 'first')).toBeNull();
-    expect(visibleSiblingTarget(visible, 'P1.7', 'last')).toBeNull();
-  });
-
-  it('never crosses into another branch', () => {
-    // P1.7 is the last visible child of P1; P2 follows it on screen but is
-    // not its sibling. Moving down must stop, not reparent by accident.
-    expect(visibleSiblingTarget(visible, 'P1.7', 'down')).toBeNull();
-    // And a root moves among roots only.
-    expect(visibleSiblingTarget(visible, 'P1', 'down'))
-      .toEqual({ targetId: 'P2', position: 'after' });
-  });
-
-  it('is a no-op for an only child or a row that is not on screen', () => {
-    expect(visibleSiblingTarget(['P1', 'P1.1'], 'P1.1', 'down')).toBeNull();
-    expect(visibleSiblingTarget(visible, 'P1.2', 'down')).toBeNull();
-  });
-
-  it('handles deep nesting by exact parent, not by prefix', () => {
-    // P1.1.1 and P1.10.1 share the prefix "P1.1" — grouping by prefix would
-    // make them siblings. They are not.
-    const deep = ['P1.1.1', 'P1.1.2', 'P1.10.1'];
-    expect(visibleSiblingTarget(deep, 'P1.1.1', 'last'))
-      .toEqual({ targetId: 'P1.1.2', position: 'after' });
-    expect(visibleSiblingTarget(deep, 'P1.10.1', 'up')).toBeNull();
-  });
-});
-
-// ── visibleIndentTarget ───────────────────────────────────────────────────
-// The workflow this exists for: move a row behind the task it belongs under,
-// then press ⌥→ (or Tab). If the "row above" is computed from the data rather
-// than the screen, it lands under something the filters are hiding — a
-// finished task, an archived project, a collapsed branch — and you have no
-// way to see what happened.
-describe('visibleIndentTarget', () => {
-  const visible = ['P1', 'P1.1', 'P1.4', 'P1.7', 'P2'];
-
-  it('subordinates to the preceding VISIBLE sibling', () => {
-    // P1.2 and P1.3 exist in the plan but are hidden; P1.4 must land under
-    // P1.1, which is what the user can see above it.
-    expect(visibleIndentTarget(visible, 'P1.4')).toBe('P1.1');
-    expect(visibleIndentTarget(visible, 'P1.7')).toBe('P1.4');
-  });
-
-  it('is a no-op for the first visible row in a run', () => {
-    expect(visibleIndentTarget(visible, 'P1.1')).toBeNull();
-    expect(visibleIndentTarget(visible, 'P1')).toBeNull();
-  });
-
-  it('never reaches across a branch for a parent', () => {
-    // P1.7 precedes P2 on screen but is not its sibling. P2's own preceding
-    // sibling is the root P1 — which is the right answer, and NOT P1.7.
-    expect(visibleIndentTarget(visible, 'P2')).toBe('P1');
-    // With no preceding root at all there is nothing to subordinate to.
-    expect(visibleIndentTarget(['P2', 'P2.1'], 'P2')).toBeNull();
-  });
-
-  it('groups by exact parent, not by id prefix', () => {
-    const deep = ['P1.1.1', 'P1.1.2', 'P1.10.1'];
-    expect(visibleIndentTarget(deep, 'P1.1.2')).toBe('P1.1.1');
-    // "P1.1" is a prefix of "P1.10" — these are not siblings.
-    expect(visibleIndentTarget(deep, 'P1.10.1')).toBeNull();
-  });
-
-  it('agrees with outdentTarget on what a no-op looks like', () => {
-    // Both answer `null` rather than a value the caller has to test for.
-    expect(outdentTarget('P1')).toBeNull();
-    expect(outdentTarget('P1.1')).toBe('');
-    expect(outdentTarget('P1.1.1')).toBe('P1');
   });
 });
 
