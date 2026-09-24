@@ -403,7 +403,7 @@ See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items.
 
 - **App.jsx and NetGraph.jsx are &gt; 400 LOC** — should be split
 - **Dark-mode palette needs a proper WCAG-AA pass** — currently iterated into shape, not designed
-- **One-member-one-team** — members can't have different capacities per team
+- **No per-team capacity** — a member can be in several teams (`member.teams`), but deliberately without a fixed split: the scheduled tasks decide how their one capacity divides. A planned "50 % Frontend" quota cannot be expressed (see [scheduler.md](scheduler.md#multi-team-members))
 - **Day-level scheduler granularity** — currently weekly
 
 ## Deployment
