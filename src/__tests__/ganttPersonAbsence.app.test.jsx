@@ -3,8 +3,8 @@
 // and the public holidays right in its timeline. Grouped by resource, the
 // person's own row is that row — so it carries both, once per person, while
 // the task bars keep their own absence hatching (docs/gantt.md).
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, cleanup, fireEvent, act, waitFor, screen } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
@@ -39,7 +39,10 @@ async function openSchedule() {
 }
 
 describe('a person\'s own row in the schedule', () => {
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  // The schedule starts at today; pin today so the vacation falls inside the
+  // task whatever day the suite runs on. Only Date — timers stay real.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-01-05T09:00:00')); });
+  afterEach(() => { vi.useRealTimers(); cleanup(); localStorage.clear(); });
 
   it('shows their vacation and the public holidays, grouped by resource', async () => {
     seed('resource');
@@ -48,6 +51,22 @@ describe('a person\'s own row in the schedule', () => {
     expect(vac).toBeTruthy();
     expect(vac.getAttribute('data-htip')).toMatch(/Anna · Vacation: 2026-02-09 → 2026-02-13 · Ski/);
     expect(document.querySelector('[data-person-holiday="2026-02-17"]')).toBeTruthy();
+  });
+
+  // Reported: two tooltips stacked over each other, the bar's and one of the
+  // vacation hatching inside it. The hatching has none of its own now; the
+  // bar's tooltip says when the vacation is.
+  it('shows one tooltip on a bar with vacation in it, naming the vacation', async () => {
+    seed('resource');
+    await openSchedule();
+    const band = document.querySelector('[data-vac-band="2026-02-09_2026-02-13"]');
+    expect(band, 'no absence hatching on the bar').toBeTruthy();
+    expect(band.hasAttribute('data-htip')).toBe(false);
+    expect(band.style.pointerEvents).toBe('none');
+    const bar = band.closest('.gbar');
+    await act(async () => { fireEvent.mouseEnter(bar, { clientX: 400, clientY: 200 }); });
+    const tip = await screen.findByTestId('item-tip');
+    expect(tip.querySelector('[data-testid="tip-vacations"]')?.textContent).toMatch(/2026-02-09 → 2026-02-13.*Anna · Ski/);
   });
 
   it('draws nothing of the kind where no row belongs to one person', async () => {
