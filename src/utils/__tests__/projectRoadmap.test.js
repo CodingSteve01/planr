@@ -258,3 +258,38 @@ describe('the full-map renderer is untouched by all this', () => {
       .toEqual(['D1.1.1', 'D1.1.2', 'D1.2.1', 'Other']);
   });
 });
+
+// Reported: a dropped package ("Factoring Schnittstelle") showed on the project
+// roadmap like any other package that just had "no dates yet", and was counted
+// in "17/50 tasks". It stays in view, marked, but out of every figure.
+describe('dropped work on the project roadmap', () => {
+  const tree = [
+    { id: 'P8', name: 'NAV', status: 'wip' },
+    { id: 'P8.1', name: 'Masks', status: 'wip' },
+    { id: 'P8.1.1', name: 'Done one', status: 'done', completedStart: '2026-03-01', completedEnd: '2026-03-10' },
+    { id: 'P8.1.2', name: 'Dropped inside', status: 'wip', progress: 40, dropped: true },
+    { id: 'P8.9', name: 'Factoring', status: 'open', dropped: true, best: 10 },
+  ];
+  const scheduled = [];
+  const model = computeProjectRoadmap({ tree, scheduled, stats: treeStats(tree), rootId: 'P8', now: d('2026-03-05') });
+
+  test('marks the dropped package and gives it no dates or counts', () => {
+    const row = model.rows.find(r => r.id === 'P8.9');
+    expect(row.dropped).toBe(true);
+    expect([row.start, row.end, row.leafCount]).toEqual([null, null, 0]);
+  });
+
+  test('leaves dropped tasks out of a package\'s count and out of the project\'s', () => {
+    const masks = model.rows.find(r => r.id === 'P8.1');
+    expect([masks.doneCount, masks.leafCount]).toEqual([1, 1]);
+    expect([model.doneCount, model.leafCount]).toEqual([1, 1]);
+    expect(masks.milestones.map(m => m.id)).not.toContain('P8.1.2');
+  });
+
+  test('says "dropped" in the SVG instead of "no dates yet", without figures', () => {
+    const svg = renderProjectRoadmapSvg({ tree, scheduled, stats: treeStats(tree), rootId: 'P8', labels: { dropped: 'verworfen', noDates: 'noch keine Termine' } });
+    expect(svg).toContain('verworfen');
+    expect(svg).not.toContain('noch keine Termine');
+    expect(svg).toMatch(/text-decoration="line-through"[^>]*>Factoring/);
+  });
+});

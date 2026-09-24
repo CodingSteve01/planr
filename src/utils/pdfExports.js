@@ -653,6 +653,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
       today: t('today', 'heute'),
       deadline: t('Deadline', 'Deadline'),
       noDates: t('no dates yet', 'noch keine Termine'),
+      dropped: t('dropped', 'verworfen'),
       stateDone: t('done', 'erledigt'),
       stateWip: t('in progress', 'in Bearbeitung'),
       stateOpen: t('open', 'offen'),
