@@ -520,20 +520,30 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
             data-htip={t('rv.leavingOn', member.end)}>{t('rv.leavingSoon')}</span>
         )}
       </td>
-      <td>
-        {rowTeams.map(team => (
-          <span key={team.id} className="res-team-badge" style={{ borderColor: team.color, color: team.color, marginRight: 3 }}>
-            {team.name}
-          </span>
-        ))}
-        {/* The split is an outcome of the scheduled tasks, never an input —
-            shown only when the person's work actually spans several teams. */}
-        {shares.length > 1 && (
-          <div className="res-row-meta" style={{ marginTop: 3, fontSize: 11 }} data-htip={t('rv.teamShareTip')}>
-            {shares.map(sh => `${Math.round(sh.pct * 100)} % ${teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}`).join(' · ')}
-            <span style={{ color: 'var(--tx3)' }}> {t('rv.teamShareFrom')}</span>
-          </div>
-        )}
+      <td className="res-td-teams">
+        {/* One chip per team, wrapping, with the realised share inside it.
+            It was a row of fixed chips plus a second line carrying the split
+            as prose; in a 40% column two chips already overflowed, so the
+            second team read "Front…" and the split "78 % Backend ·…" — the
+            one thing a multi-team row is for, cut off. The share is an
+            outcome of the scheduled tasks, never an input, and only shown
+            when the work actually spans several teams. */}
+        <span className="res-team-chips" data-htip={shares.length > 1 ? `${t('rv.teamShareTip')}` : undefined}>
+          {rowTeams.map(team => {
+            const share = shares.length > 1 ? shares.find(sh => sh.team === team.id) : null;
+            return <span key={team.id} className="res-team-badge" data-team-chip={team.id} style={{ borderColor: team.color, color: team.color }}>
+              {team.name}{share && <span className="res-team-share">{Math.round(share.pct * 100)} %</span>}
+            </span>;
+          })}
+          {/* Work on tasks of a team the person is not in (or of no team):
+              still part of the split, so it gets a chip of its own. */}
+          {shares.length > 1 && shares.filter(sh => !rowTeams.some(tm => tm.id === sh.team)).map(sh => (
+            <span key={sh.team || '-'} className="res-team-badge res-team-badge-other" data-team-chip={sh.team || ''}>
+              {teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}
+              <span className="res-team-share">{Math.round(sh.pct * 100)} %</span>
+            </span>
+          ))}
+        </span>
       </td>
       <td>
         <span className="res-plan-tags">
