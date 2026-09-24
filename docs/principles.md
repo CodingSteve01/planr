@@ -106,11 +106,12 @@ priorities. That is "just quickly".
 | Key | does |
 |---|---|
 | `↑ ↓` · `⇧↑ ⇧↓` | select · extend selection |
-| `Enter` | edit name / done — at end of row: new row below |
+| `Enter` · `F2` | edit the row in place / save |
+| `⌘↵` | new row below |
 | `E` | the full editor for this row |
 | `⇧Enter` | new child |
-| `Tab` · `⇧Tab` | indent · outdent (re-parent; dependencies follow) |
-| `⌥↑ ⌥↓` | move within the order |
+| `⌘⇧↑ ⌘⇧↓` (`⌥↑ ⌥↓`) | move up · down among siblings — never out of the branch |
+| `⌘⇧→ ⌘⇧←` (`Tab` · `⇧Tab`) | indent · outdent (re-parent; dependencies follow) |
 | `1–4` | priority · `0` drop from the plan · `S M L X` size · `Space` cycle status |
 | `⌫` | on an empty new row: gone — on an existing one: confirm |
 | `/` | palette for everything else |

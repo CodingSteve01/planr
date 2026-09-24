@@ -15,7 +15,7 @@ import { useT } from '../../i18n.jsx';
 // `'— None —'`. Every call that did not pass its own therefore printed English
 // into a German dialog, which is most of them: the empty option in Settings,
 // in the add dialog's team picker, everywhere `allowEmpty` appears alone.
-export function SearchSelect({ value, options, onSelect, placeholder, renderOption, allowEmpty = false, emptyLabel, showIds = false, compact = false, testId, inputRef }) {
+export function SearchSelect({ value, options, onSelect, placeholder, renderOption, allowEmpty = false, emptyLabel, showIds = false, compact = false, testId, inputRef, ariaLabel }) {
   const { t } = useT();
   placeholder = placeholder ?? t('ss.add');
   emptyLabel = emptyLabel ?? t('none');
@@ -171,6 +171,9 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
     <input
       ref={inputRef}
       data-testid={testId}
+      role="combobox"
+      aria-expanded={open}
+      aria-label={ariaLabel}
       value={open ? q : currentLabel}
       onChange={e => {
         const next = e.target.value;

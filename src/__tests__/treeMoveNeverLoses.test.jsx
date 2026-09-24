@@ -8,19 +8,18 @@
 //    empty where the item used to be, which is indistinguishable from losing
 //    it. A search over ids does the same thing for the same reason.
 //
-// 2. Moving up or down stopped dead at the end of a sibling run. Carrying an
-//    item on from there meant outdent, reorder, indent, in that order — so
-//    the obvious gesture was the one that did nothing.
+// 2. Moving up or down stopped dead at the end of a sibling run. That is
+//    the rule now, deliberately: up/down reorder among siblings and never
+//    change the parent. Going out a level is outdent, which lands the row
+//    right after the parent it left — so "carry it on" is ⌘⇧← then ⌘⇧↓.
 //
 // The first is guarded by watching the outcome rather than the cause: the
 // moved row is marked, and if it is not in the next filtered list the view
-// widens to wherever it went. The second is `outOfGroupTarget` — at the
-// boundary the row steps out a level and lands where it was pressing.
+// widens to wherever it went.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
-import { outOfGroupTarget, visibleSiblingTarget } from '../utils/treeEdit.js';
 
 const PLAN = [
   { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
@@ -94,88 +93,103 @@ describe('a move never hides what it moved', () => {
   });
 });
 
-describe('moving past the end of a sibling run', () => {
+// Up/down reorder and nothing else. They used to step out a level at the end
+// of a run, which made an arrow a re-parent in disguise; that is outdent's
+// job now, and outdent lands right after the parent it left.
+describe('the structural commands, by keyboard and by toolbar', () => {
   beforeEach(() => seed());
+  const grid = () => screen.getByTestId('tree-editor-surface');
+  const mod = { metaKey: true, shiftKey: true };
+  const selectedName = () => document.querySelector('tr.sel [data-testid="tree-row-name"]')?.textContent.trim();
+  // Depth as drawn: the indentation spacer in front of the name is 20px a level.
+  const levelOf = name => parseInt(rowNamed(name).querySelector('td[data-col="name"] span').style.width, 10) / 20 + 1;
 
-  it('steps the row out a level and puts it above the parent it left', async () => {
+  it('stops at the end of a sibling run instead of stepping out', async () => {
     await ready();
     await selectRow('Tariffs');                    // P1.1.1 — an only child
-    expect(names()).toEqual(['Billing', 'Prices', 'Tariffs', 'Masks', 'Other']);
-
     await press({ key: 'ArrowUp', altKey: true });
-    // Out of P1.1 and in front of it.
-    expect(names()).toEqual(['Billing', 'Tariffs', 'Prices', 'Masks', 'Other']);
-  });
-
-  it('steps out downwards too, landing below the parent', async () => {
-    await ready();
-    await selectRow('Tariffs');
-    await press({ key: 'ArrowDown', altKey: true });
+    await press({ key: 'ArrowDown', ...mod });
     expect(names()).toEqual(['Billing', 'Prices', 'Tariffs', 'Masks', 'Other']);
-    // Same row order as before — but a level further out, so the next press
-    // carries it past Masks rather than stopping.
-    await press({ key: 'ArrowDown', altKey: true });
-    expect(names()).toEqual(['Billing', 'Prices', 'Masks', 'Tariffs', 'Other']);
+    expect(screen.getByTestId('tv-move-up').disabled).toBe(true);
+    expect(screen.getByTestId('tv-move-down').disabled).toBe(true);
   });
 
-  it('carries a row all the way out to the top level, one press at a time', async () => {
+  it('⌘⇧← outdents to right after the old parent, ⌘⇧→ indents back as its last child', async () => {
     await ready();
     await selectRow('Tariffs');
-    await press({ key: 'ArrowUp', altKey: true });   // out of P1.1
-    await press({ key: 'ArrowUp', altKey: true });   // out of P1 — a project now
-    expect(names()).toEqual(['Tariffs', 'Billing', 'Prices', 'Masks', 'Other']);
-  });
-});
+    expect(levelOf('Tariffs')).toBe(3);
+    await press({ key: 'ArrowLeft', ...mod });
+    // Same place in the list — but now Prices' sibling, right after it.
+    expect(names()).toEqual(['Billing', 'Prices', 'Tariffs', 'Masks', 'Other']);
+    expect(levelOf('Tariffs')).toBe(2);
+    expect(selectedName()).toBe('Tariffs');
 
-describe('where the boundary is', () => {
-  const visible = ['P1', 'P1.1', 'P1.1.1', 'P1.2', 'P2'];
-
-  it('is not reached while the run still has somewhere to go', () => {
-    expect(visibleSiblingTarget(visible, 'P1.1', 'down')).toEqual({ targetId: 'P1.2', position: 'after' });
-    expect(outOfGroupTarget(visible, 'P1.1', 'down')).toBeNull();
+    await press({ key: 'ArrowRight', ...mod });
+    expect(levelOf('Tariffs')).toBe(3);
+    expect(selectedName()).toBe('Tariffs');
   });
 
-  it('hands the press to the parent at either end of the run', () => {
-    expect(outOfGroupTarget(visible, 'P1.1', 'up')).toEqual({ parentId: '', targetId: 'P1', position: 'before' });
-    expect(outOfGroupTarget(visible, 'P1.2', 'down')).toEqual({ parentId: '', targetId: 'P1', position: 'after' });
-  });
-
-  it('stops at a root — there is nothing further out', () => {
-    expect(outOfGroupTarget(visible, 'P1', 'up')).toBeNull();
-    expect(outOfGroupTarget(visible, 'P2', 'down')).toBeNull();
-  });
-
-  it('refuses to position against a parent it cannot see', () => {
-    // Nothing on screen to move relative to, so the press does nothing rather
-    // than guessing at a row the filters are hiding.
-    expect(outOfGroupTarget(['P1.1'], 'P1.1', 'up')).toBeNull();
-  });
-
-  it('answers nothing for the ends of the run, which stay inside it', () => {
-    expect(outOfGroupTarget(visible, 'P1.1', 'first')).toBeNull();
-    expect(outOfGroupTarget(visible, 'P1.1', 'last')).toBeNull();
-  });
-});
-
-describe('stepping out with the name still open', () => {
-  beforeEach(() => seed());
-
-  it('carries the typed name across the renumber', async () => {
-    // The move renumbers the row underneath the open editor — P1.1.1 becomes
-    // P1.2 — so an editor still pointing at the old id would write the name
-    // to a row that no longer exists.
+  it('runs one after another without the mouse: ⌘⇧↓, ⌘⇧↑, ⌘⇧← keep the row selected and the keyboard on the tree', async () => {
     await ready();
-    await selectRow('Tariffs');
-    await press({ key: 'Enter' });                       // open the name
+    await selectRow('Prices');                     // P1.1, before Masks
+    await press({ key: 'ArrowDown', ...mod });
+    expect(names()).toEqual(['Billing', 'Masks', 'Prices', 'Tariffs', 'Other']);
+    expect(selectedName()).toBe('Prices');
+    await press({ key: 'ArrowUp', ...mod });
+    expect(names()).toEqual(['Billing', 'Prices', 'Tariffs', 'Masks', 'Other']);
+    await press({ key: 'ArrowLeft', ...mod });     // Prices (with Tariffs) out, after Billing
+    expect(names()).toEqual(['Billing', 'Masks', 'Prices', 'Tariffs', 'Other']);
+    expect(levelOf('Prices')).toBe(1);
+    expect(levelOf('Tariffs')).toBe(2);             // its child came along
+    expect(selectedName()).toBe('Prices');
+    expect(document.activeElement).toBe(grid());
+  });
 
-    const input = document.querySelector('[data-testid="tree-name-input-P1.1.1"]');
-    expect(input, 'the inline editor did not open').toBeTruthy();
-    await act(async () => { fireEvent.change(input, { target: { value: 'Tariff model' } }); });
-    await act(async () => { fireEvent.keyDown(input, { key: 'ArrowUp', altKey: true }); });
-    await act(async () => { fireEvent.keyDown(document.querySelector('input[data-testid^="tree-name-input"]') || input, { key: 'Enter' }); });
-    await act(async () => { await new Promise(r => setTimeout(r, 80)); });
+  it('the toolbar buttons run the same commands and keep the keyboard on the tree', async () => {
+    await ready();
+    await selectRow('Masks');                      // P1.2, after Prices
+    expect(screen.getByTestId('tv-move-down').disabled).toBe(true);
+    expect(screen.getByTestId('tv-indent').disabled).toBe(false);
 
-    expect(names()).toContain('Tariff model');
+    await act(async () => { fireEvent.click(screen.getByTestId('tv-move-up')); });
+    expect(names()).toEqual(['Billing', 'Masks', 'Prices', 'Tariffs', 'Other']);
+    expect(selectedName()).toBe('Masks');
+    // The button went disabled under the focus; the keyboard is back on the tree.
+    expect(document.activeElement).toBe(grid());
+
+    await press({ key: 'ArrowDown', ...mod });   // and the next press still lands
+    expect(names()).toEqual(['Billing', 'Prices', 'Tariffs', 'Masks', 'Other']);
+  });
+
+  it('keeps a moved branch folded', async () => {
+    await ready();
+    await selectRow('Prices');
+    await press({ key: 'ArrowLeft' });            // fold Prices
     expect(names()).not.toContain('Tariffs');
+    await press({ key: 'ArrowLeft', ...mod });    // outdent — the ids renumber
+    expect(names()).toEqual(['Billing', 'Masks', 'Prices', 'Other']);
+    expect(selectedName()).toBe('Prices');
+  });
+
+  it('Home and End jump to the first and last row, → and ← still fold', async () => {
+    await ready();
+    await selectRow('Masks');
+    await press({ key: 'Home' });
+    expect(selectedName()).toBe('Billing');
+    await press({ key: 'End' });
+    expect(selectedName()).toBe('Other');
+    await press({ key: 'Home' });
+    await press({ key: 'ArrowLeft' });            // fold Billing
+    expect(names()).toEqual(['Billing', 'Other']);
+    await press({ key: 'ArrowRight' });           // open it again
+    await press({ key: 'ArrowRight' });           // and step into it
+    expect(selectedName()).toBe('Prices');
+  });
+
+  it('F2 opens the row for editing', async () => {
+    await ready();
+    await selectRow('Masks');
+    await press({ key: 'F2' });
+    expect(document.querySelector('[data-testid="tree-name-input-P1.2"]')).toBeTruthy();
   });
 });
