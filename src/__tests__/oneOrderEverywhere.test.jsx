@@ -79,3 +79,34 @@ describe('the work order view', () => {
     expect(order).toEqual(['Delta', 'Charlie', 'Bravo', 'Alpha']);
   });
 });
+
+describe('what the queue cannot decide', () => {
+  it('marks a row that waits for something further down the same list', async () => {
+    // A queue says "this one first"; a dependency says "not before that one",
+    // and the schedule honours the second. The list never mentioned it.
+    localStorage.clear();
+    localStorage.setItem('planr_v2', JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Alpha', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: ['M1'], deps: ['P1.2'] },
+        { id: 'P1.2', name: 'Bravo', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: ['M1'], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [], meetingPlans: [],
+      meta: { name: 'Held', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }));
+    renderApp();
+    const tab = await screen.findByText('Work order');
+    await act(async () => { fireEvent.click(tab); });
+
+    await waitFor(() => expect(document.querySelector('[data-queue-blocked]')).toBeTruthy());
+    // Alpha is first in tree order and waits for Bravo, which is second here.
+    const mark = document.querySelector('[data-queue-blocked]');
+    expect(mark.getAttribute('data-queue-blocked')).toBe('order');
+    expect(mark.textContent).toContain('P1.2');
+    expect(mark.closest('tr').textContent).toContain('Alpha');
+    // Bravo holds nobody up, so it carries no mark.
+    expect(document.querySelectorAll('[data-queue-blocked]')).toHaveLength(1);
+  });
+});

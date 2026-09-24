@@ -87,6 +87,19 @@ describe('importing a Jira board', () => {
     expect(screen.queryByTestId('jira-import-row-P1')).toBeNull();
   });
 
+// How many rows the plan holds, read off the grid.
+//
+// These assertions used to count `JSON.parse(localStorage.getItem('planr_v2'))`
+// — the autosave MIRROR, which is effect-driven and debounced. On an idle
+// machine it lands inside a `waitFor`; under load it does not, and the test
+// fails with the mirror's previous contents ("expected 1 to be 5", or the same
+// thing backwards after an undo). Twice today that read as a regression in
+// whatever had just been edited. treeEditor.app.test.jsx carries the warning
+// in its own header: the rendered row IS the app's answer, the mirror is a
+// copy of it that may not have been taken yet.
+const planRowCount = () => [...document.querySelectorAll('.tree-tbl tbody tr')]
+  .filter(r => r.hasAttribute('data-status') || r.querySelector('[data-testid="tree-row-name"]')).length;
+
   it('writes the tickets into the plan, key and all', async () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
@@ -94,10 +107,11 @@ describe('importing a Jira board', () => {
     await paste(box, CSV);
     await act(async () => { fireEvent.click(screen.getByTestId('jira-import-submit')); });
 
-    await waitFor(() => {
-      const stored = JSON.parse(localStorage.getItem('planr_v2'));
-      expect(stored.tree.length).toBe(5); // the one that was there + wrapper + three tickets
-    });
+    // the one that was there + wrapper + three tickets
+    await waitFor(() => expect(planRowCount()).toBe(5));
+    // The field values are only in the mirror, so wait for it before reading
+    // it rather than assuming the debounce has fired.
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('planr_v2')).tree.length).toBe(5));
     const stored = JSON.parse(localStorage.getItem('planr_v2'));
     const imported = stored.tree.filter(n => n.customValues?.jira);
     expect(imported.map(n => n.customValues.jira).sort()).toEqual(['NA-1', 'NA-2', 'NA-3']);
@@ -116,10 +130,10 @@ describe('importing a Jira board', () => {
     const box = await openImport();
     await paste(box, CSV);
     await act(async () => { fireEvent.click(screen.getByTestId('jira-import-submit')); });
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('planr_v2')).tree.length).toBe(5));
+    await waitFor(() => expect(planRowCount()).toBe(5));
 
     await act(async () => { fireEvent.click(screen.getByTestId('undo-btn')); });
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('planr_v2')).tree.length).toBe(1));
+    await waitFor(() => expect(planRowCount()).toBe(1));
   });
 
   it('offers the people it could not match, and leaves them out until asked', async () => {
