@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { keyHint } from '../../utils/shortcuts.js';
+import { usePortalRoot } from '../../utils/embedHost.js';
 
 // The file operations, back on screen.
 //
@@ -42,13 +43,22 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
   // opens, and it is re-measured every time it opens because a pane can be
   // resized between two clicks.
   const [flipped, setFlipped] = useState(false);
+  const portalRoot = usePortalRoot();
   useEffect(() => {
     if (!open) return;
     const box = ref.current?.getBoundingClientRect?.();
     if (!box) return;
-    const room = (window.innerWidth || 0) - box.left;
-    setFlipped(room < MENU_WIDTH);
-  }, [open]);
+    // Room up to the edge of the app's own box, not of the window. Inside
+    // Obsidian the pane ends where the right sidebar starts and clips what
+    // runs past it, so a menu that fit the window still vanished under the
+    // pane's edge. Both rects are in viewport pixels; the menu's width is in
+    // the app's own, which the UI scale (`zoom`) multiplies.
+    const root = portalRoot?.getBoundingClientRect ? portalRoot : null;
+    const rootBox = root?.getBoundingClientRect();
+    const rightEdge = Math.min(window.innerWidth || Infinity, rootBox?.width ? rootBox.right : Infinity);
+    const scale = root?.offsetWidth ? rootBox.width / root.offsetWidth : 1;
+    setFlipped(rightEdge - box.left < MENU_WIDTH * (scale > 0 ? scale : 1));
+  }, [open, portalRoot]);
 
   // `key` is a shortcuts.js id where one exists, so the menu teaches the
   // keystroke at the control instead of in a separate list.

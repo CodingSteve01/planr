@@ -249,6 +249,17 @@ and Obsidian's default theme, in both modes, to the same bars as
 present in the built `styles.css`. A theme with other values can still fall
 short; adding it is one more fixture in that test.
 
+### Menus measure the pane, not the window
+
+A pane in Obsidian ends where the right sidebar starts, and it clips whatever
+runs past that edge. The File menu used to decide which way to open from
+`window.innerWidth`: next to the pane's right edge it found plenty of room up
+to the window's edge, opened rightwards, and disappeared under the sidebar. It
+measures the room up to the right edge of the app's own container now
+(`usePortalRoot()`), with the UI scale factored in. The scale matters because the
+menu's width is in the app's own pixels while the rects are in viewport
+pixels. Covered by [`fileMenuEdge.test.jsx`](../src/__tests__/fileMenuEdge.test.jsx).
+
 ### Build
 
 ```bash
