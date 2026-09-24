@@ -248,6 +248,13 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 tabIndex={0}
                 onFocus={() => { if (!picked.size) setCursor(id); }}
                 onClick={e => selectRow(id, e, ordered)}
+                // A single click is the cursor — multi-select and the keys
+                // hang off it — so opening the editor takes the second one.
+                // E and the button at the end of the row do the same.
+                onDoubleClick={e => {
+                  if (e.target.closest?.('button')) return;
+                  setCursor(id); onFullEdit?.(node);
+                }}
                 onKeyDown={e => onKeyDown(e, node)}
                 draggable
                 onDragStart={e => { setDragId(id); e.dataTransfer?.setData?.('text/plain', id); }}

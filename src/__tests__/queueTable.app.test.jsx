@@ -330,6 +330,22 @@ describe('working in the list', () => {
     expect(dialog.getAttribute('data-node-id')).toBe('A.2');
   });
 
+  // Asked for: straight from the queue into the dialog with the mouse. A
+  // single click stays the cursor, so it is the double-click.
+  it('opens the dialog on a double-click on the row', async () => {
+    await openWorkOrder();
+    const row = document.querySelector('[data-queue-row="A.2"]');
+    await act(async () => { fireEvent.doubleClick(row.querySelector('[data-queue-title]')); });
+    const dialog = await screen.findByTestId('node-modal');
+    expect(dialog.getAttribute('data-node-id')).toBe('A.2');
+  });
+
+  it('keeps a single click as selection, without opening anything', async () => {
+    await openWorkOrder();
+    await act(async () => { fireEvent.click(document.querySelector('[data-queue-row="A.2"]')); });
+    expect(screen.queryByTestId('node-modal')).toBeNull();
+  });
+
   it('opening the dialog does not reorder anything', async () => {
     // The button sits on a draggable row; a click must not read as a drop.
     await openWorkOrder();
