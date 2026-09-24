@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { stickyTops } from '../components/views/TreeView.jsx';
+import { stickyTops, layoutScale } from '../components/views/TreeView.jsx';
 
 const src = readFileSync(path.join(process.cwd(), 'src/components/views/TreeView.jsx'), 'utf8');
 const css = readFileSync(path.join(process.cwd(), 'src/App.css'), 'utf8');
@@ -44,7 +44,38 @@ describe('a sticky stack', () => {
   });
 });
 
+// Reported again from Obsidian after the stack measured itself: the first row
+// sat under the head. Inside Obsidian the UI scale defaults to 110%, applied
+// as `zoom` on the app root, and under `zoom` a rect comes back in zoomed
+// pixels while `top` is read in the element's own. The toolbar measured 47px
+// for its 43, the head was written 15px too low. Measured from the vault:
+// --tv-head-top 164.9px against a table that starts at 149.9.
+describe('the zoom factor', () => {
+  const el = (offsetWidth, rectWidth) => ({ offsetWidth, getBoundingClientRect: () => ({ width: rectWidth }) });
+
+  it('is the ratio of the drawn width to the laid-out one', () => {
+    expect(layoutScale(el(800, 880))).toBeCloseTo(1.1);
+  });
+
+  it('is 1 without zoom, and for an element that is not laid out', () => {
+    expect(layoutScale(el(800, 800))).toBe(1);
+    expect(layoutScale(el(0, 0))).toBe(1);
+    expect(layoutScale(null)).toBe(1);
+  });
+
+  it('turns measured heights back into the pixels the stylesheet uses', () => {
+    const scale = layoutScale(el(800, 880));
+    const tops = stickyTops([47.3, 129.8].map(h => h / scale));
+    expect(tops[2]).toBeCloseTo(161);
+  });
+});
+
 describe('the tree view', () => {
+  it('divides every measured rect by the zoom before it writes a length', () => {
+    expect(src).toMatch(/getBoundingClientRect\(\)\.height \|\| 0\) \/ scale/);
+    expect(src).toMatch(/box\.scrollTop \+= delta \/ layoutScale\(box\)/);
+  });
+
   it('measures the bars instead of assuming their height', () => {
     expect(src).toMatch(/new ResizeObserver\(measure\)/);
     expect(src).toMatch(/--tv-head-top/);

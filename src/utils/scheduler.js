@@ -4,12 +4,18 @@ import { phaseProgress } from './phases.js';
 import { deriveCap, memberAtDate } from './capacity.js';
 import { treeOrderRank } from './displayOrder.js';
 import { applyPersonQueues } from './personQueue.js';
+import { inTeam, memberTeams } from './memberTeams.js';
 // Cyclic by design: progress.js needs leafProgress/scheduleEffort from here and
 // treeStats needs the one aggregate formula from there. Both sides only touch
 // the other at call time, so the cycle resolves cleanly.
 import { aggregateProgressPct } from './progress.js';
 
 export const pt = t => { if (!t) return ''; const m = t.match(/[A-Z][A-Z0-9]*/g); return m ? m[0] : t; };
+// Team pool membership. A member in several teams (`member.teams`) is a regular
+// candidate in every one of those pools. Capacity is not split between them:
+// all pools read the same per-person cursor (`pF`), so whatever one team books
+// is gone for the other.
+const inTeamPt = (m, team) => inTeam(m, team, pt);
 // Realistic effort: best × factor (no hidden caps — user's factor is respected)
 export const re = (best, factor) => best && best > 0 ? best * (factor || 1.5) : 0;
 export const fixedDurationDays = task => {
@@ -497,7 +503,10 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   //
   // Returns the chained segments + the leftover effort flag. Callers insert
   // the first segment themselves (for the primary run) and pass state in.
-  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned, isParallel = false, earliestStart = null }) => {
+  // `poolTeam` labels each segment with the team the work was booked under:
+  // a multi-team member picking up a Frontend handoff counts as Frontend, not
+  // as whatever their primary team happens to be.
+  const cascadeHandoff = ({ rem, lastOffboard, usedIds, tM: teamMembers, isPinned, isParallel = false, earliestStart = null, poolTeam = '' }) => {
     const segments = [];
     let lastWD = null, finalWi = -1;
     while (rem > 0 && lastOffboard) {
@@ -560,7 +569,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         offboarded: segOffboarded,
         handoff: true,
         crossTeam: !!nextBp._crossTeam,
-        team: nextBp.team,
+        team: (poolTeam && memberTeams(nextBp).find(t => pt(t) === pt(poolTeam))) || nextBp.team,
       });
       if (!isPinned && segLast) {
         pF[nextBp.id] = { wi: Math.min(wi2, wks.length - 1), nextDate: addWorkDays(segLast, 1, wdSet) };
@@ -671,7 +680,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       eff = eff - consumedEff;
     }
     const team = pt(r.team);
-    const tM = members.filter(m => pt(m.team) === team);
+    const tM = members.filter(m => inTeamPt(m, team));
     // Inherit deps from all ancestors so a parent dep blocks every leaf underneath
     const ancestorIds = []; let aid = parentId(r.id); while (aid) { ancestorIds.push(aid); aid = parentId(aid); }
     const inheritedDeps = ancestorIds.flatMap(a => [...(iMap[a]?.deps || []), ...(iMap[a]?.softDeps || [])]);
@@ -874,7 +883,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               const stageAssign = Array.isArray(stage?.assign) ? stage.assign : [];
               let pool = members;
               if (stageAssign.length) pool = members.filter(m2 => stageAssign.includes(m2.id));
-              else if (stage?.team) pool = members.filter(m2 => pt(m2.team) === pt(stage.team));
+              else if (stage?.team) pool = members.filter(m2 => inTeamPt(m2, stage.team));
               if (!pool.length) break;
               const chunk = cascadeHandoff({
                 rem: planState.remaining,
@@ -882,6 +891,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
                 usedIds,
                 tM: pool,
                 isPinned: !!r.pinnedStart, isParallel: false,
+                poolTeam: stage?.team || team,
               earliestStart: earlyDate,
             });
               if (!chunk.segments.length) break; // plan entry unusable, fall through to auto
@@ -901,6 +911,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               usedIds,
               tM,
               isPinned: !!r.pinnedStart, isParallel: false,
+              poolTeam: team,
               earliestStart: earlyDate,
             });
             let combined = {
@@ -912,7 +923,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
             };
             if (combined.remaining <= 0) return combined;
             const others = members
-              .filter(m2 => pt(m2.team) !== team && !usedIds.has(m2.id))
+              .filter(m2 => !inTeamPt(m2, team) && !usedIds.has(m2.id))
               .map(m2 => Object.assign({}, m2, { _crossTeam: true }));
             if (!others.length) return combined;
             const secondary = cascadeHandoff({
@@ -1177,9 +1188,9 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
         const stageAssign = Array.isArray(stage?.assign) ? stage.assign : [];
         let pool = members;
         if (stageAssign.length) pool = members.filter(mm => stageAssign.includes(mm.id));
-        else if (stage?.team) pool = members.filter(mm => pt(mm.team) === pt(stage.team));
+        else if (stage?.team) pool = members.filter(mm => inTeamPt(mm, stage.team));
         if (!pool.length) break;
-        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
+        const chunk = cascadeHandoff({ rem: planState.remaining, lastOffboard: planState.lastOffboard, usedIds, tM: pool, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate, poolTeam: stage?.team || team });
         if (!chunk.segments.length) break;
         chunk.segments.forEach(seg => { seg.planned = true; });
         planSegs.push(...chunk.segments);
@@ -1190,19 +1201,19 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       if (isMulti && state.remaining > 0) {
         const coAssignees = cands.filter(m => !usedIds.has(m.id));
         if (coAssignees.length) {
-          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
+          const coChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: coAssignees, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate, poolTeam: team });
           state = { remaining: coChunk.remaining, lastOffboard: coChunk.lastOffboard || state.lastOffboard, lastWD: coChunk.lastWD || state.lastWD, finalWi: coChunk.finalWi >= 0 ? coChunk.finalWi : state.finalWi };
           planSegs.push(...coChunk.segments);
         }
       }
       if (state.remaining <= 0) return { segments: planSegs, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 3) Same team auto-cascade
-      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
+      const primaryChunk = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate, poolTeam: team });
       state = { remaining: primaryChunk.remaining, lastOffboard: primaryChunk.lastOffboard || state.lastOffboard, lastWD: primaryChunk.lastWD || state.lastWD, finalWi: primaryChunk.finalWi >= 0 ? primaryChunk.finalWi : state.finalWi };
       const combined = [...planSegs, ...primaryChunk.segments];
       if (state.remaining <= 0) return { segments: combined, remaining: 0, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: null };
       // 4) Cross-team fallback
-      const others = members.filter(mm => pt(mm.team) !== team && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
+      const others = members.filter(mm => !inTeamPt(mm, team) && !usedIds.has(mm.id)).map(mm => Object.assign({}, mm, { _crossTeam: true }));
       if (!others.length) return { segments: combined, remaining: state.remaining, lastWD: state.lastWD, finalWi: state.finalWi, lastOffboard: state.lastOffboard };
       const secondary = cascadeHandoff({ rem: state.remaining, lastOffboard: state.lastOffboard || endDate, usedIds, tM: others, isPinned: !!r.pinnedStart, isParallel: false, earliestStart: earlyDate });
       return {
