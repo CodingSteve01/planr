@@ -14,6 +14,9 @@
   /* Tinted ground for the accent: selected rows, chips, the "n ausgewählt"
      badge. Grey reads as "disabled" in the dark, so selection is a tint. */
   --ac-soft:#1b2a38;
+  /* The label on a filled accent (primary buttons, count pills). White here;
+     a host with its own accent brings its own pairing (see the plugin). */
+  --on-ac:#fff;
   /* State tokens — fixed meaning everywhere in the app, independent of what
      they're painted on (badge, bar, dot, ring, …): done=green, wip=amber,
      open=neutral grey, risk=red/overdue, archived=muted. See
@@ -134,7 +137,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .pane-full{flex:1;overflow:hidden;display:flex;flex-direction:column;}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r);font-size:12px;font-weight:500;cursor:pointer;border:none;font-family:var(--font);transition:all .12s;white-space:nowrap;line-height:1;}
 .btn:active{transform:scale(.97);}
-.btn-pri{background:var(--ac2);color:#fff;}.btn-pri:hover{background:var(--ac);}
+.btn-pri{background:var(--ac2);color:var(--on-ac);}.btn-pri:hover{background:var(--ac);}
 .btn-sec{background:var(--bg3);color:var(--tx2);border:1px solid var(--b2);}.btn-sec:hover{background:var(--bg4);color:var(--tx);}
 .btn-ghost{background:transparent;color:var(--tx3);}.btn-ghost:hover{color:var(--tx2);background:var(--bg3);}
 .btn-danger{background:transparent;color:var(--re);border:1px solid var(--b2);}.btn-danger:hover{background:var(--st-risk-soft);border-color:var(--st-risk);}
@@ -367,7 +370,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .gantt-selection-actionbar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--b2);background:var(--bg2);box-shadow:0 12px 32px rgba(0,0,0,.32);color:var(--tx);font-size:12px;flex-wrap:nowrap;white-space:nowrap;max-width:calc(100vw - 32px);}
 [data-theme="light"] .gantt-selection-actionbar{box-shadow:0 12px 32px rgba(20,19,16,.14);}
 .sab-count{display:inline-flex;align-items:center;gap:8px;}
-.sab-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;background:var(--ac);color:#fff;border-radius:6px;font-weight:700;font-size:13px;}
+.sab-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;background:var(--ac2);color:var(--on-ac);border-radius:6px;font-weight:700;font-size:13px;}
 .sab-divider{display:inline-block;width:1px;height:22px;background:var(--b2);}
 .gantt-selection-actionbar .btn{padding:6px 12px;font-size:12px;height:30px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;}
 .gantt-selection-actionbar .btn-xs{padding:6px 12px;font-size:12px;height:30px;}
@@ -490,7 +493,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .goal-card.t-deadline{border-left-color:var(--re);}
 .goal-type-btn{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:var(--r);font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--b2);background:var(--bg3);color:var(--tx2);transition:all .12s;}
 .goal-type-btn:hover{background:var(--bg4);color:var(--tx);}
-.goal-type-btn.active{border-color:var(--ac);background:var(--ac2);color:#fff;}
+.goal-type-btn.active{border-color:var(--ac);background:var(--ac2);color:var(--on-ac);}
 .hol-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin-bottom:16px;}
 .hol-row{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--b);border-radius:var(--r);padding:6px 10px;}
 .hol-d{font-family:var(--mono);font-size:11px;color:var(--tx2);flex-shrink:0;}
@@ -513,7 +516,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .ob-sub{font-size:13px;color:var(--tx2);line-height:1.55;margin-bottom:22px;max-width:420px;}
 .ob-cta{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
 .ob-btn{padding:12px 20px;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:all .15s ease;display:inline-flex;align-items:center;gap:6px;}
-.ob-btn-pri{background:var(--ac2);color:#fff;box-shadow:0 2px 0 rgba(0,0,0,.15),0 0 0 1px color-mix(in srgb,var(--ac) 40%,transparent);}
+.ob-btn-pri{background:var(--ac2);color:var(--on-ac);box-shadow:0 2px 0 rgba(0,0,0,.15),0 0 0 1px color-mix(in srgb,var(--ac) 40%,transparent);}
 .ob-btn-pri:hover{background:var(--ac);transform:translateY(-1px);box-shadow:0 4px 16px rgba(108,160,255,.35),0 0 0 1px rgba(108,160,255,.6);}
 .ob-btn-pri:active{transform:translateY(0);}
 .ob-btn-arrow{transition:transform .15s ease;}
@@ -628,7 +631,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
 .new-feat-foot{display:flex;justify-content:flex-end;}
 
 /* ── "New!" badge (inline next to tab labels etc.) ── */
-.badge-new{display:inline-block;font-size:8px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;background:var(--ac2);color:#fff;border-radius:3px;padding:1px 4px;vertical-align:middle;margin-left:4px;line-height:1.4;}
+.badge-new{display:inline-block;font-size:8px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;background:var(--ac2);color:var(--on-ac);border-radius:3px;padding:1px 4px;vertical-align:middle;margin-left:4px;line-height:1.4;}
 
 /* ── Print ── */
 @media print{
@@ -644,7 +647,7 @@ tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
   --bg:#fafaf8;--bg2:#ffffff;--bg3:#f1efea;--bg4:#e6e4de;--bg5:#d5d2ca;--bg-done:#e8f1ea;
   --b:#e6e4de;--b2:#d5d2ca;--b3:#b5b2aa;
   --tx:#1a1a18;--tx2:#55544e;--tx3:#6a6861;
-  --ac:#2b5c8a;--ac2:#1e4467;--ac-soft:#eaf0f6;
+  --ac:#2b5c8a;--ac2:#1e4467;--ac-soft:#eaf0f6;--on-ac:#fff;
   /* State tokens, light values — --gr/--am/--re alias these, same as dark block.
      These are darker than a designer picks by eye: amber especially, because
      an amber that looks right on white is around 3.3:1 and fails as label
