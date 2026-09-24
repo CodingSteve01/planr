@@ -6,6 +6,7 @@ import { useT } from '../../i18n.jsx';
 import { deriveCap, capBreakdown, FTE_HOURS, sumMeetingHours, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
 import { Icon } from '../shared/Icon.jsx';
+import { inTeam, memberTeams, realisedTeamShares, withTeams } from '../../utils/memberTeams.js';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function initials(name) {
@@ -76,6 +77,33 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
   );
 }
 
+/* ─── MemberTeamsField ────────────────────────────────────────────────── */
+// Which team pools the person is eligible for. Deliberately no percentage per
+// team: the split falls out of the scheduled tasks (see the Members list).
+// The first team is the primary one (avatar colour, default for new tasks).
+function MemberTeamsField({ member, teams, onUpd, t }) {
+  const ids = memberTeams(member);
+  return (
+    <div>
+      {ids.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {ids.map((tid, i) => (
+            <span key={tid} className="tag" style={i === 0 && ids.length > 1 ? { fontWeight: 600 } : undefined}
+              data-htip={i === 0 && ids.length > 1 ? t('rv.primaryTeam') : undefined}>
+              {teams.find(tm => tm.id === tid)?.name || tid}
+              <span className="tag-x" onClick={() => onUpd(withTeams(member, ids.filter(id => id !== tid)))}><Icon name="x" size={9} /></span>
+            </span>
+          ))}
+        </div>
+      )}
+      <SearchSelect
+        options={teams.filter(tm => !ids.includes(tm.id)).map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
+        onSelect={tid => tid && onUpd(withTeams(member, [...ids, tid]))}
+        placeholder={ids.length ? t('rv.addTeam') : t('rv.chooseTeam')} />
+    </div>
+  );
+}
+
 /* ─── MemberEditModal ─────────────────────────────────────────────────── */
 function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocusName = false, onUpd, onClone, onDel, onClose, t }) {
   useEffect(() => {
@@ -107,7 +135,7 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
         <div className="res-edit-grid">
           {[
             [t('rv.fullName'),    <LazyInput autoFocus={autoFocusName} data-testid="rv-new-member-name" value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
-            [t('qe.team'),       <SearchSelect value={member.team || ''} options={teams.map(tm => ({ id: tm.id, label: tm.name }))} onSelect={v => onUpd({ ...member, team: v })} placeholder={t('rv.chooseTeam')} allowEmpty />],
+            [t('rv.teams'),      <MemberTeamsField member={member} teams={teams} onUpd={onUpd} t={t} />],
             [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />],
             [t('rv.vacDays'),    <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />],
             [t('rv.startDate'),  <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />],
@@ -314,14 +342,15 @@ function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
 function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
   const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
   const meetings = member.meetings || [];
-  // Inherited meetings: from team-level + member-level plans.
-  const team = member.team ? teams.find(t => t.id === member.team) : null;
+  // Inherited meetings: from the plans of every team the member is in, plus
+  // member-level plans.
+  const teamPlanIds = new Set(memberTeams(member).flatMap(tid => teams.find(t => t.id === tid)?.meetingPlanIds || []));
   const planIdSet = new Set([
-    ...((team?.meetingPlanIds) || []),
+    ...teamPlanIds,
     ...((member.meetingPlanIds) || []),
   ]);
   const inheritedPlans = meetingPlans.filter(p => planIdSet.has(p.id));
-  const inheritedMeetings = inheritedPlans.flatMap(p => (p.meetings || []).map(m => ({ ...m, _planName: p.name, _fromTeam: (team?.meetingPlanIds || []).includes(p.id) })));
+  const inheritedMeetings = inheritedPlans.flatMap(p => (p.meetings || []).map(m => ({ ...m, _planName: p.name, _fromTeam: teamPlanIds.has(p.id) })));
   const allMeetingsWeekly = sumMeetingHours([...inheritedMeetings, ...meetings]);
   const meetingH = allMeetingsWeekly; // keep legacy name for display
   const avail = Math.max(0, wh - meetingH);
@@ -351,8 +380,8 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
       {/* Plan-Picker für Member (zusätzlich zu Team-geerbten Plänen). */}
       <PlanPicker
         label="Meeting-Pläne (zusätzlich)"
-        hint={team?.meetingPlanIds?.length
-          ? `${team.meetingPlanIds.length} Plan(e) automatisch vom Team „${team.name}" geerbt.`
+        hint={teamPlanIds.size
+          ? `${teamPlanIds.size} Plan(e) automatisch vom Team „${memberTeams(member).map(tid => teams.find(tm => tm.id === tid)?.name || tid).join(' + ')}" geerbt.`
           : 'Pläne bündeln wiederkehrende Termine — verwalten unter „Meeting-Pläne".'}
         plans={meetingPlans}
         selected={member.meetingPlanIds || []}
@@ -458,7 +487,8 @@ function Avatar({ member, teams }) {
 }
 
 function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled = [], weeks = [], onClick, t }) {
-  const team = teams.find(t => t.id === member.team);
+  const rowTeams = memberTeams(member).map(tid => teams.find(t => t.id === tid)).filter(Boolean);
+  const shares = useMemo(() => realisedTeamShares(member, scheduled), [member, scheduled]);
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
   const today = new Date();
@@ -467,7 +497,7 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
   const offboardingSoon = endD && endD >= today && (endD - today) / 86400000 <= 60;
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
   // Build plan tag list: team-inherited plans flagged, member plans plain.
-  const teamPlanIds = new Set((team?.meetingPlanIds) || []);
+  const teamPlanIds = new Set(rowTeams.flatMap(tm => tm.meetingPlanIds || []));
   const memberPlanIds = new Set((member.meetingPlanIds) || []);
   const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
   const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
@@ -491,11 +521,19 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
         )}
       </td>
       <td>
-        {team ? (
-          <span className="res-team-badge" style={{ borderColor: team.color, color: team.color }}>
+        {rowTeams.map(team => (
+          <span key={team.id} className="res-team-badge" style={{ borderColor: team.color, color: team.color, marginRight: 3 }}>
             {team.name}
           </span>
-        ) : null}
+        ))}
+        {/* The split is an outcome of the scheduled tasks, never an input —
+            shown only when the person's work actually spans several teams. */}
+        {shares.length > 1 && (
+          <div className="res-row-meta" style={{ marginTop: 3, fontSize: 10 }} data-htip={t('rv.teamShareTip')}>
+            {shares.map(sh => `${Math.round(sh.pct * 100)} % ${teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}`).join(' · ')}
+            <span style={{ color: 'var(--tx3)' }}> {t('rv.teamShareFrom')}</span>
+          </div>
+        )}
       </td>
       <td>
         <span className="res-plan-tags">
@@ -553,7 +591,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   // and the member set narrows to that team. Filters intersect.
   const fMembers = members.filter(m => {
     if (personFilter && m.id !== personFilter) return false;
-    if (teamFilter && (m.team || '') !== teamFilter) return false;
+    if (teamFilter && !inTeam(m, teamFilter)) return false;
     if (!showOffboarded && isOffboarded(m)) return false;
     return true;
   });
@@ -562,12 +600,12 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
     if (teamFilter && tm.id !== teamFilter) return false;
     if (personFilter) {
       const p = members.find(x => x.id === personFilter);
-      if (p && p.team !== tm.id) return false;
+      if (p && !inTeam(p, tm.id)) return false;
     }
     // Hide team when every member is offboarded and the toggle is off.
     // Empty teams (no members at all) still show so they can be populated.
     if (!showOffboarded) {
-      const teamMembers = members.filter(m => (m.team || '') === tm.id);
+      const teamMembers = members.filter(m => inTeam(m, tm.id));
       if (teamMembers.length > 0 && teamMembers.every(isOffboarded)) return false;
     }
     return true;
@@ -581,7 +619,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
       })
     : meetingPlans;
 
-  const memberCountForTeam = tid => fMembers.filter(m => m.team === tid).length;
+  const memberCountForTeam = tid => fMembers.filter(m => inTeam(m, tid)).length;
 
   const editingTeam   = editingTeamId   != null ? teams.find(tm => tm.id === editingTeamId)   : null;
   const editingTeamIdx = editingTeam    != null ? teams.indexOf(editingTeam)                   : -1;
@@ -769,7 +807,8 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           </div>
         )}
         {[...fTeams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
-          const teamMembers = fMembers.filter(m => (m.team || '') === tm.id);
+          // A member in several teams is listed under each of them.
+          const teamMembers = fMembers.filter(m => tm.id ? inTeam(m, tm.id) : !m.team);
           if (!teamMembers.length && tm.id === '') return null;
           if (teamFilter && tm.id && tm.id !== teamFilter) return null;
           return (

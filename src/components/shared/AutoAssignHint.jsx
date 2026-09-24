@@ -1,5 +1,6 @@
 import { iso } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
+import { teamForAssignment } from '../../utils/memberTeams.js';
 
 /**
  * AutoAssignHint — shows the scheduler's auto-assign suggestion for unassigned tasks.
@@ -27,6 +28,6 @@ export function AutoAssignHint({ node, scheduled, members, onAccept }) {
     <span style={{ fontWeight: 600 }}>{m.name}</span>
     <span style={{ fontSize: 9, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{iso(sc.startD)} — {iso(sc.endD)}</span>
     <button className="btn btn-pri btn-xs" style={{ marginLeft: 'auto', flexShrink: 0 }}
-      onClick={() => onAccept({ assign: [sc.personId], team: m.team || node.team })}>{t('aa.accept')}</button>
+      onClick={() => onAccept({ assign: [sc.personId], team: teamForAssignment(m, node.team) })}>{t('aa.accept')}</button>
   </div>;
 }

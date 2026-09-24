@@ -5,6 +5,7 @@ import { iso } from './date.js';
 import { GT } from '../constants.js';
 import { buildMemberShortMap } from '../App.jsx';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';
+import { memberTeams } from './memberTeams.js';
 import { DEFAULT_SIZES } from './sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from './customFields.js';
 import { formatHistoryBlock } from './history.js';
@@ -66,7 +67,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       const cap = (!isDerived && m.cap < 1) ? ` (${Math.round(m.cap * 100)}%)` : '';
       const hours = isDerived && typeof m.weeklyHours === 'number' ? `, ${m.weeklyHours}h/w` : '';
       const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
-      md += `- **${m.name}** \`${shortMap[m.id]}\` — ${teamName(m.team)}${m.role ? ', ' + m.role : ''}${cap}${hours}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
+      md += `- **${m.name}** \`${shortMap[m.id]}\` — ${memberTeams(m).map(teamName).join(' + ')}${m.role ? ', ' + m.role : ''}${cap}${hours}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
       if (isDerived && (m.meetings || []).length) {
         const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
         md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ')}*\n`;
@@ -257,4 +258,35 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   }
 
   return md;
+}
+
+// One line of the `## Resources` section:
+//   - **Full Name** `SHORT` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD, bis YYYY-MM-DD
+// Several teams are joined with " + " (primary first); a single name is the
+// legacy form. Returns team NAMES — the caller resolves them to ids once the
+// whole file (and so the team table) is known. Null when the line is not a
+// member bullet.
+export function parseResourceLine(line) {
+  const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*(?:\s+`([^`]+)`)?\s*—?\s*(.*)/);
+  if (!rm) return null;
+  const meta = rm[3] || '';
+  const parts = meta.split(',').map(s => s.trim());
+  const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
+  const roleParts = parts.slice(1)
+    .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+(?:\.\d+)?d\/y$/.test(p) && !/^\d+(?:\.\d+)?h\/w$/.test(p))
+    .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
+    .filter(Boolean);
+  const capM = meta.match(/\((\d+)%\)/);
+  const hoursM = meta.match(/(\d+(?:\.\d+)?)h\/w/);
+  const vacM = meta.match(/(\d+(?:\.\d+)?)d\/y/);
+  const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
+  const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
+  const teams = teamPart.split(/\s+\+\s+/).map(s => s.trim()).filter(Boolean);
+  const out = {
+    name: rm[1].trim(), short: rm[2] || '', teams, team: teams[0] || '',
+    role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25,
+    start: startM?.[1] || '', end: endM?.[1] || '',
+  };
+  if (hoursM) { out.weeklyHours = parseFloat(hoursM[1]); out.capMode = 'derived'; out.meetings = []; }
+  return out;
 }
