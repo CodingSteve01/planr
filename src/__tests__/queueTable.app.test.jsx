@@ -323,6 +323,23 @@ describe('working in the list', () => {
   });
   afterEach(() => { cleanup(); localStorage.clear(); });
 
+  // Reported: rows in the queue that are nowhere to be seen in the tree. They
+  // were dropped work — one of them still at 63% and "in progress" — and the
+  // queue only left out what was done.
+  it('leaves dropped work out, and work under something dropped', async () => {
+    const plan = JSON.parse(localStorage.getItem('planr_v2'));
+    plan.tree.push(
+      { id: 'A.3', name: 'A drei (verworfen)', status: 'wip', progress: 63, dropped: true, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      { id: 'C', name: 'Projekt C', status: 'open', team: 'T1', dropped: true },
+      { id: 'C.1', name: 'C eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+    );
+    localStorage.setItem('planr_v2', JSON.stringify(plan));
+    await openWorkOrder();
+    expect(rowIds()).not.toContain('A.3');
+    expect(rowIds()).not.toContain('C.1');
+    expect(rowIds()).toContain('A.1');
+  });
+
   it('has a visible way into the dialog, not only a key', async () => {
     await openWorkOrder();
     await act(async () => { fireEvent.click(screen.getByTestId('wo-edit-A.2')); });
