@@ -141,6 +141,17 @@ Trade-off: the slot count defaults to the team's member count. A team of three c
 
 **Single-member teams are NOT routed through this path** — see step 5c above. They use the precise per-person scheduler instead, which handles explicit vacation weeks and the per-person sequencing counter. This avoids a subtle accuracy gap where "pick the team" (slot path) and "pick the sole member" (person path) produced different schedules.
 
+## Multi-team members
+
+A member can sit in several teams (`member.teams`, primary first in `member.team` — see [data-model.md](data-model.md#member)). Membership says which **pools** the person is eligible for; it is not a split of their time. There is no per-team percentage anywhere in the model.
+
+- **Every team pool counts them.** The task-team pool (`tM`), handoff-plan stages with a `team`, team-lock fan-out and the same-team auto-cascade all test membership through `inTeam(member, team)` ([memberTeams.js](../src/utils/memberTeams.js)) instead of `member.team === team`. A full-stack developer in Backend and Frontend is a *regular* candidate for both — never a `_crossTeam` fallback on the team that is not their primary. The cross-team cascade only reaches people who are in none of the task's teams.
+- **One capacity, never double-booked.** The pools are filters over the same `members` array, and every booking — team slot, explicit assign, handoff segment — advances the one per-person cursor `pF[member.id]` and reads the same `committedRem`, vacation and pin state. Whatever the Backend queue takes is gone for Frontend; a person appears at most once in any single pool, so they cannot be picked twice for one task either.
+- **The share is an outcome.** Which team gets how much of the person is whatever the tasks book. `realisedTeamShares(member, scheduled)` sums the effort of their scheduled rows by the row's team (optionally clipped to a window); the Resources tab prints it as "60 % Backend · 40 % Frontend (from tasks)".
+- **Handoff segments are labelled with the pool's team.** When a multi-team member takes over a Frontend task, the segment carries `team: Frontend` (the task/stage team they were picked for), not their primary team, so shares and per-team cards attribute it correctly.
+
+**Team-lock and a person who is only partly in the team.** Decision: a `teamLock` task on team X includes **every** member whose teams contain X, and blocks them **fully** for the lock's duration — including their work for their other teams. Reasons: (1) team-lock models things the whole team stops for (freeze, migration weekend, workshop); someone who is in the team attends. (2) Blocking only a fraction would need exactly the fixed percentage split this model refuses to have — and any fraction chosen would be invented, not derived. (3) It is visible: the lock sits in the person's lane like any other multi-assign task, and their other team's work queues behind it. If a person should *not* be held by a team's lock, they are not really in that team for planning purposes — remove the team from them, or assign the task explicitly instead of using the lock.
+
 ## Pinning semantics
 
 `pinnedStart` is a hard **floor** on the start date:
@@ -208,8 +219,8 @@ When a member's `end` date is set and their primary run on a task would need to 
 
 1. **Primary segment** — the initially-picked member works up to and **including** their end date (end-dates are inclusive).
 2. **`r.handoffPlan` overrides (optional)** — for each configured stage, the scheduler picks from the specified `assign[]` / `team`. Used when the user wants to name the successor explicitly.
-3. **Auto-cascade, same team** — next available member from the same team, sorted by earliest-free date.
-4. **Auto-cascade, cross-team** — any other team's members, tagged `crossTeam: true` so views can colour-code the step.
+3. **Auto-cascade, same team** — next available member from the same team (anyone who has it among their `teams`), sorted by earliest-free date.
+4. **Auto-cascade, cross-team** — members in none of the task's teams, tagged `crossTeam: true` so views can colour-code the step.
 5. **Unscheduled tail** — if nobody absorbs the remainder, a synthetic segment with `personId: null` extends the bar past the last offboard at unit capacity. Renders as a red hatched stripe in the Gantt and surfaces as a `critical` risk in the report.
 
 ### Output

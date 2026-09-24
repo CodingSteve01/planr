@@ -38,6 +38,8 @@ Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or a
                  //            (dashed thin edge in Gantt/NetGraph). Written as `~id` in markdown.
   teamLock,      // bool — task blocks the WHOLE team. Scheduler treats it as multi-assigned to
                  //        every current member of the team. Onboard/offboard flows through.
+                 //        Multi-team members are included and blocked fully (their one capacity
+                 //        is not divided between teams) — see docs/scheduler.md.
                  //        Markdown tag: `team-lock:true`.
   assign,        // [memberId] — assignees (usually 1; multiple means any of them can pick it up)
   progress,      // 0-100 on leaves, auto-cascaded on parents (never set manually on parents)
@@ -132,7 +134,9 @@ from the completion count.)
 {
   id,     // stable member ID
   name,   // shown everywhere
-  team,   // team ID
+  team,   // primary team ID (legacy field, always === teams[0] when `teams` is set)
+  teams,  // [teamId] | undefined — every team the person works in, primary first.
+          // Only written when there are two or more; a one-team member keeps just `team`.
   role,   // free-form role text
   cap,    // capacity fraction: 1.0 = full-time, 0.5 = half-time (used when capMode === 'manual')
   vac,    // total vacation days per year (default 25)
@@ -163,6 +167,8 @@ capacity profile, not the import-time one. Markdown roundtrip: `*Capacity plan:*
 **Derived capacity** (`capMode === 'derived'`) — computed by [`deriveCap()`](../src/utils/capacity.js) as `(weeklyHours − Σ meetingHoursPerWeek) / 40`. Meeting frequencies normalize to weekly equivalents: `daily ×5`, `weekly ×1`, `biweekly ×0.5`, `monthly ×12/52`. A 40h engineer with a 15-min daily standup (1.25h), biweekly retro (0.5h) and weekly planning (2h) ends up at `(40 − 3.75)/40 = 91%`. The scheduler sees the raw 0..1 number; ResView shows the breakdown for auditability.
 
 **Offboarding** — if `end` is set, the scheduler stops booking work days strictly *after* that date (inclusive: the end-date itself is still a productive day). When a task in progress on that day has remaining effort, the offboard-cascade kicks in — see [scheduler.md handoff](scheduler.md#offboard-cascade--handoff).
+
+**Several teams** — `teams` lists which team pools the person is *eligible* for; it is not a split. There is no percentage per team: the person has one capacity, and the scheduler books it task by task from whichever of their teams has work (see [scheduler.md](scheduler.md#multi-team-members)). The share per team is an *outcome* — [`realisedTeamShares()`](../src/utils/memberTeams.js) sums the effort of their scheduled rows by the row's team, and the Resources tab shows it as "60 % Backend · 40 % Frontend (from tasks)". Read membership through `memberTeams(m)` / `inTeam(m, teamId)` rather than `m.team`, so legacy one-team members and multi-team members go through the same path. Markdown: `— Backend + Frontend, Role` (see [import-export.md](import-export.md)).
 
 **Short name** — derived automatically for MD export (`buildMemberShortMap`). When the derived base collides, ALL occurrences get a numeric suffix so no one gets the bare base.
 
