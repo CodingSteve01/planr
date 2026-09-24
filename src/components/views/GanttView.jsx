@@ -1315,6 +1315,21 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     });
     return m;
   }, [vacations]);
+  // Every public holiday in the visible window, as a day column. The grid
+  // tints them only at day zoom; a person's own row shows them at every zoom,
+  // next to that person's vacation, because together they are the days that
+  // person is not there.
+  const holidayDays = useMemo(() => {
+    const out = [];
+    weeks.forEach((w, i) => {
+      const wds = new Set((w.wds || []).map(d => d.getTime()));
+      for (let d = 0; d < 7; d++) {
+        const date = addD(w.mon, d);
+        if (wdSet.has(date.getDay()) && !wds.has(date.getTime())) out.push({ x: i * WPX + d * DPX, iso: iso(date) });
+      }
+    });
+    return out;
+  }, [weeks, wdSet, WPX, DPX]);
   const vacBandsByTaskId = useMemo(() => {
     const bands = {};
     allItems.forEach(s => {
@@ -2662,7 +2677,31 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
               const loadCells = showLoadHeatmap && groupBy === 'resource' && row.personId && row.personId !== NO_PERSON
                 ? resourceLoadByWeek[row.personId]
                 : null;
+              // A person's own row, in resource grouping: the one row that
+              // belongs to exactly one person, so the one place their
+              // absence can be drawn across the whole timeline without
+              // repeating it on every task (see docs/gantt.md).
+              const ownPerson = groupBy === 'resource' && row.personId && row.personId !== NO_PERSON ? row.personId : null;
+              const personVacs = ownPerson ? (vacByPerson[ownPerson] || EMPTY_ARR) : EMPTY_ARR;
               return <div key={row.key} style={{ height: RH, position: 'relative', background: 'rgba(127,127,127,.035)', borderBottom: '1px solid var(--b2)' }}>
+                {ownPerson && holidayDays.map(h => <div key={`hol-${h.iso}`} data-person-holiday={h.iso}
+                  data-htip={`${t('g.holiday')}: ${h.iso}`}
+                  style={{ position: 'absolute', left: h.x, top: 0, width: Math.max(DPX, 3), height: '100%', background: 'color-mix(in srgb, var(--st-risk) 22%, transparent)', zIndex: 1 }} />)}
+                {personVacs.map((v, vi) => {
+                  const from = localDate(v.from), to = localDate(v.to);
+                  if (!from || !to) return null;
+                  const left = dateToX(from), right = dateToX(to) + DPX;
+                  if (right <= 0 || left >= tw) return null;
+                  return <div key={`vac-${vi}`} data-person-vacation={`${v.from}_${v.to}`}
+                    data-htip={`${row.label} · ${t('g.vacation')}: ${v.from} → ${v.to}${v.note ? ' · ' + v.note : ''}`}
+                    style={{
+                      position: 'absolute', left: Math.max(0, left), width: Math.max(3, right - Math.max(0, left)), top: 0, bottom: 0, zIndex: 3,
+                      // The bars' absence mark, at row scale: hatched wash,
+                      // solid seams where it starts and ends.
+                      background: 'repeating-linear-gradient(45deg, color-mix(in srgb, var(--st-wip) 45%, transparent) 0 2px, transparent 2px 6px)',
+                      boxShadow: 'inset 2px 0 0 var(--st-wip), inset -2px 0 0 var(--st-wip)',
+                    }} />;
+                })}
                 {loadCells?.map(cell => {
                   const pct = cell.percent || 0;
                   const taskLines = (cell.tasks || EMPTY_ARR).slice(0, 8)
