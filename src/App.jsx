@@ -3584,7 +3584,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><Frozen active={tab === 'briefing'}><BriefingView
         tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
         stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
-        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone} planTree={tree}
         horizonIds={horizonFilterSet}
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}

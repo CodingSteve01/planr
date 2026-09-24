@@ -14,12 +14,13 @@ import { ResourceLoadMatrix } from '../shared/ResourceLoadMatrix.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
+import { planInconsistencies } from '../../utils/planIntegrity.js';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations = [], meetingPlans = [], confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
+function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations = [], meetingPlans = [], confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, planTree = null, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -33,6 +34,12 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
   const [section, setSection] = useState('decide');
   const [phaseShowAll, setPhaseShowAll] = useState(false);
   const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
+  // Checked against the WHOLE plan, never the filtered tree this view gets:
+  // hide-done, the archive and the root filter are exactly what hide these
+  // entries, so a check over what is on screen would find nothing.
+  const fullTree = planTree || tree;
+  const fullMap = useMemo(() => Object.fromEntries(fullTree.map(r => [r.id, r])), [fullTree]);
+  const conflicts = useMemo(() => planInconsistencies(fullTree), [fullTree]);
   const sMap = useMemo(() => Object.fromEntries(scheduled.map(s => [s.id, s])), [scheduled]);
   const allLvs = useMemo(() => leafNodes(tree), [tree]);
   const lvs = useMemo(() => {
@@ -184,7 +191,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       {(() => {
         const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
         const truncated = scheduled.filter(s => s.truncatedByOffboard);
-        const warnCount = dueViolations.length + truncated.length;
+        const warnCount = dueViolations.length + truncated.length + conflicts.length;
         return [
           ['decide', `${t('p.decisions')} (${readyItems.length})`],
           ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],
@@ -394,10 +401,29 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
       const truncated = scheduled
         .filter(s => s.truncatedByOffboard)
         .sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-      if (!dueViolations.length && !truncated.length) {
+      if (!dueViolations.length && !truncated.length && !conflicts.length) {
         return <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.warningsNone')}</div>;
       }
+      const conflictDetail = c => c.kind === 'orphan'
+        ? t('pr.conflictOrphan', c.parentId)
+        : c.kind === 'droppedLive'
+          ? t('pr.conflictDroppedLive', c.progress)
+          : t('pr.conflictDoneOverOpen', c.openIds.length, c.openIds.slice(0, 3).join(', ') + (c.openIds.length > 3 ? ' …' : ''));
       return <>
+        {conflicts.length > 0 && <div style={{ marginBottom: 18 }} data-testid="plan-conflicts">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--am)' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--am)' }}>! {t('pr.conflicts')}</span>
+            <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{conflicts.length}</span>
+          </div>
+          <p className="helper" style={{ fontSize: 11, margin: '0 0 6px' }}>{t('pr.conflictsHelp')}</p>
+          {conflicts.map(c => <div key={`${c.kind}-${c.id}`} data-conflict={c.kind} data-conflict-id={c.id}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: '1px solid var(--b)', cursor: 'pointer', fontSize: 12 }}
+            onClick={() => onOpenItem?.(c.id)}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>{c.id}</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullMap[c.id]?.name || c.id}</span>
+            <span style={{ fontSize: 11, color: 'var(--am)', flexShrink: 0 }}>{conflictDetail(c)}</span>
+          </div>)}
+        </div>}
         {dueViolations.length > 0 && <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--re)' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>~ {t('pr.warnDueOverdue')}</span>

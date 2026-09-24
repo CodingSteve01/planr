@@ -3,7 +3,7 @@ import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { Icon } from '../shared/Icon.jsx';
-import { leafNodes } from '../../utils/scheduler.js';
+import { leafNodes, treeIndex } from '../../utils/scheduler.js';
 import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
 import { queueBlockers } from '../../utils/queueBlockers.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
@@ -91,6 +91,10 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
   };
 
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
+  // Dropped work, or work under something dropped, is not going to be done
+  // and has no place in an order of work — same as finished work. The tree
+  // keeps showing it, struck through, so it can be taken back.
+  const droppedIds = useMemo(() => treeIndex(tree).droppedIds, [tree]);
   // The same three filters every other working surface carries. A list of
   // everything everybody has is the one place you most want to narrow to one
   // team — and it narrows what is SHOWN, never the order that is stored: a
@@ -104,14 +108,14 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     const out = new Map();
     for (const node of tree) {
       if (!leafIds.has(node.id)) continue;
-      if (node.status === 'done') continue;
+      if (node.status === 'done' || droppedIds.has(node.id)) continue;
       const owner = queueOwnerOf(node);
       if (!owner) continue;
       if (!out.has(owner)) out.set(owner, []);
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds]);
+  }, [tree, leafIds, droppedIds]);
 
   const shown = useMemo(() => {
     const out = new Map();
@@ -122,7 +126,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       // sorted to the bottom, where it would still be scrolled past. It stays
       // in the STORED queue, though — a task finishing must not quietly
       // rewrite a decision somebody made.
-      if (node.status === 'done') continue;
+      if (node.status === 'done' || droppedIds.has(node.id)) continue;
       if (rootFilter && node.id.split('.')[0] !== rootFilter) continue;
       if (teamFilter && (node.team || '') !== teamFilter) continue;
       // Who will actually do it, not only who was hand-assigned. Filtering to
@@ -136,7 +140,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds, rootFilter, teamFilter, personFilter, doerById]);
+  }, [tree, leafIds, droppedIds, rootFilter, teamFilter, personFilter, doerById]);
 
   const ownerLabel = owner => {
     if (owner.startsWith('team:')) {
