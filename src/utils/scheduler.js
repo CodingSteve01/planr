@@ -326,13 +326,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
   const pF = Object.fromEntries(members.map(m => [m.id, { wi: planStartWi, nextDate: null }]));
   const tEW = {};
   const pPE = {}; // per-person parallel-end high-water mark {wi, nextDate}
-  // Per-person remaining committed effort (sum of effort of their assigned
-  // leaves not yet scheduled). Auto-assignment uses this as a virtual fd
-  // floor so a busy assignee does NOT look "free" just because their tasks
-  // happen to schedule later in ord. Without it, an unassigned due-bumped
-  // task lands on a slow/loaded body whose pF is still at planStartWi.
-  // Decremented as each assigned task actually runs.
-  const committedRem = Object.fromEntries(members.map(m => [m.id, 0]));
+  // There used to be a `committedRem` here: each person's explicitly
+  // assigned but not-yet-scheduled effort, used as a virtual "busy until"
+  // floor when auto-assigning unassigned work. It dates from when due dates
+  // reordered the schedule. With the tree as the one order, everything it
+  // counted is work that comes LATER in that order, so it reserved a person
+  // for their own lower-priority tasks while those still queued behind — the
+  // time went to neither. On the venneker plan it kept a full-time developer
+  // idle for six months and moved P8 48 days past its deadline. Removed; the
+  // person's real cursor (pF) is the only "busy" there is.
   lvs.forEach(r => {
     if (r.status === 'done') {
       const completedAt = clampCompletedDate(r.completedAt || r.completedEnd);
@@ -349,25 +351,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
     const fixedDays = fixedDurationDays(r);
     if ((!r.best || r.best === 0) && !fixedDays) tEW[r.id] = { wi: -1, nextDate: null };
-    // Sum remaining committed effort per assignee for not-yet-done leaves.
-    if (r.status !== 'done' && (r.best > 0 || fixedDays > 0)) {
-      const assigns = (r.assign || []).filter(a => committedRem[a] != null);
-      if (assigns.length) {
-        let eff = fixedDays || re(r.best, r.factor);
-        if (!fixedDays && _discountProgress && r.status === 'wip' && typeof r.progress === 'number'
-            && r.progress > 0 && r.progress < 100) {
-          eff *= (1 - r.progress / 100);
-        }
-        for (const aId of assigns) {
-          if (fixedDays) {
-            const member = members.find(m => m.id === aId);
-            committedRem[aId] += eff * Math.max(deriveCap(member || {}), 0.01);
-          } else {
-            committedRem[aId] += eff;
-          }
-        }
-      }
-    }
   });
   // Vacation: precompute per-person Set of blocked day ISO strings from date ranges.
   // Accepts both new {from, to} format and legacy {week} format (via normalizeVacation).
@@ -760,25 +743,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (earlyDate && earlyDate > fd) fd = earlyDate;
           if (!bypassPersonQueue && personFree.nextDate && personFree.nextDate > fd) fd = personFree.nextDate;
           if (!bypassPersonQueue && parallelEnd.nextDate && parallelEnd.nextDate > fd) fd = parallelEnd.nextDate;
-          // Virtual fd floor from committed-but-not-yet-scheduled assigned work.
-          // Without this, an unassigned task picks a body whose explicit-assign
-          // queue hasn't run yet but is heavy — landing speculative work on a
-          // de facto loaded person and starving the actually-free body.
-          const cap = deriveCap(m) * (vacInfo[m.id] || 1);
-          if (cap > 0 && committedRem[m.id] > 0) {
-            const projDays = Math.ceil(committedRem[m.id] / cap);
-            const projDate = addWorkDays(effectiveFloor, projDays, wdSet);
-            if (projDate > fd) fd = projDate;
-            // Map projDate to a week index. If it lands past the horizon end,
-            // findIndex returns -1 — clamp to wks.length so the candidate
-            // doesn't appear "earlier" than someone whose committed work fits
-            // inside the horizon. Without this clamp, an over-committed
-            // member's fw stayed at planStartWi and it stole every unassigned
-            // task on fw (week index) tiebreak.
-            let projWi = wks.findIndex(w => w.wds.some(d => d >= projDate));
-            if (projWi < 0) projWi = wks.length;
-            if (projWi > fw) fw = projWi;
-          }
           if (mEnd && fd > mEnd) continue; // this member would already be offboarded
           // Tiebreak when fw + fd are equal: prefer the BUSIER candidate
           // (highest personFree.nextDate). For a dep-blocked task all
@@ -1266,10 +1230,6 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     for (const m of allAssigned) {
       if (!r.pinnedStart) {
         pF[m.id] = { wi: eW, nextDate: nd };
-      }
-      if (committedRem[m.id] != null) {
-        const committedDrop = hasFixedDuration ? eff * Math.max(deriveCap(m), 0.01) : eff;
-        committedRem[m.id] = Math.max(0, committedRem[m.id] - committedDrop);
       }
     }
     if (r.pinnedStart) reservePinnedDays(asgn, workedDays);

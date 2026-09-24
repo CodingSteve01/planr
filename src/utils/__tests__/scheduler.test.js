@@ -689,6 +689,31 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     expect(aTask.personId).toBe('SL');
   });
 
+  // Regression — venneker plan 2026-09-24. JF had ~90 PT explicitly assigned
+  // in a project that comes LATER in the tree. That work was counted as a
+  // "busy until" floor from today, so JF looked full until March, the earlier
+  // project's unassigned Backend work went to a 33% colleague instead, and JF
+  // sat idle for six months while his own assigned work still queued behind.
+  test('work assigned later in the plan does not hold a person back from earlier work', () => {
+    const SLpart = { id: 'SLp', name: 'Steffen', team: 'B', cap: 0.33, vac: 0, start: '2026-01-01' };
+    const JFfull = { id: 'JFx', name: 'Jonas', team: 'B', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P1', name: 'Earlier project', best: 0 },
+      { id: 'P1.1', name: 'SL busy first', team: 'B', best: 20, factor: 1, assign: ['SLp'] },
+      { id: 'P1.2', name: 'unassigned backend', team: 'B', best: 5, factor: 1 },
+      { id: 'P2', name: 'Later project', best: 0 },
+      { id: 'P2.1', name: 'JF later', team: 'B', best: 45, factor: 1, assign: ['JFx'] },
+      { id: 'P2.2', name: 'JF later too', team: 'B', best: 45, factor: 1, assign: ['JFx'] },
+    ];
+    const r = runSchedule({ tree, members: [SLpart, JFfull], planStart: '2026-01-05', options: { now: '2026-01-05', anchorToToday: true } });
+    const task = r.results.find(x => x.id === 'P1.2');
+    expect(task.personId).toBe('JFx');
+    expect(iso(task.startD) <= '2026-01-09').toBe(true);
+    // And JF's own later work follows right after, instead of the gap.
+    const jfLater = r.results.find(x => x.id === 'P2.1');
+    expect(iso(jfLater.startD) < '2026-02-01').toBe(true);
+  });
+
   test('dep-blocked task carries blockedBy so UI can explain the gap', () => {
     const SLfull = { id: 'SLf', name: 'Steffen', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
     const JFfree = { id: 'JFf', name: 'Jonas',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
