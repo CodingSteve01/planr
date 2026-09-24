@@ -27,7 +27,7 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+<div className="modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t('rv.editTeam')}</span>
@@ -114,7 +114,13 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      {/* Wide and in two columns. At 560px with everything stacked the
+          dialog ran to 1100px tall — a strip you scrolled through, with the
+          labels in one narrow column and 150px inputs in another, so a role
+          was cut off at "Senior Full-Stack-D". The person on the left, the
+          capacity (the part that grows with meetings) on the right, the two
+          scheduled-change lists side by side underneath: roughly 4:3. */}
+      <div className="modal member-modal" data-testid="member-modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -131,30 +137,41 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
           <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
         </div>
 
-        {/* Body — 2-column grid */}
-        <div className="res-edit-grid">
-          {[
-            [t('rv.fullName'),    <LazyInput autoFocus={autoFocusName} data-testid="rv-new-member-name" value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />],
-            [t('rv.teams'),      <MemberTeamsField member={member} teams={teams} onUpd={onUpd} t={t} />],
-            [t('rv.role'),       <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />],
-            [t('rv.vacDays'),    <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />],
-            [t('rv.startDate'),  <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />],
-            [t('rv.endDate'),    <LazyInput type="date" value={member.end || ''} onCommit={v => onUpd({ ...member, end: v })} />],
-          ].map(([l, c]) => (
-            <div key={l} className="rf">
-              <label>{l}</label>{c}
+        <div className="member-cols">
+          <div className="member-fields">
+            <label className="mf mf-wide">{t('rv.fullName')}
+              <LazyInput autoFocus={autoFocusName} data-testid="rv-new-member-name" value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />
+            </label>
+            <div className="mf mf-wide"><span className="mf-l">{t('rv.teams')}</span>
+              <MemberTeamsField member={member} teams={teams} onUpd={onUpd} t={t} />
             </div>
-          ))}
+            <label className="mf mf-wide">{t('rv.role')}
+              <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />
+            </label>
+            <label className="mf">{t('rv.vacDays')}
+              <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />
+            </label>
+            <label className="mf">{t('rv.startDate')}
+              <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />
+            </label>
+            <label className="mf">{t('rv.endDate')}
+              <LazyInput type="date" value={member.end || ''} onCommit={v => onUpd({ ...member, end: v })} />
+            </label>
+          </div>
+          {/* Capacity is a compound field — the meetings list and the
+              breakdown are what make this dialog tall, so it gets a column. */}
+          <div className="member-cap">
+            <CapacityField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
+          </div>
         </div>
-        {/* Capacity is a compound field — breaks out of the narrow 150px
-            label/value grid so the meetings list and breakdown have room. */}
-        <CapacityField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
 
         {/* Time-shifted capacity changes — schedulable cap/weeklyHours
             overrides effective from a given date onward. Scheduler picks
             the latest entry whose `from` is on or before each task's start. */}
-        <CapChangesField member={member} onUpd={onUpd} t={t} />
-        <MeetingChangesField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} />
+        <div className="member-changes">
+          <CapChangesField member={member} onUpd={onUpd} t={t} />
+          <MeetingChangesField member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} />
+        </div>
 
         {/* Footer */}
         <div className="modal-footer">

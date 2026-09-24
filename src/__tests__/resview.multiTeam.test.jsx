@@ -63,6 +63,18 @@ describe('ResView: multi-team members', () => {
     expect(container.querySelector('.res-team-share')).toBeNull();
   });
 
+  // Reported: the dialog ran to 1100px tall at 560px wide and was hard to
+  // read. The person and the capacity sit side by side now.
+  it('lays the member dialog out in two columns', () => {
+    wrap(<ResView {...baseProps} />);
+    fireEvent.click(screen.getAllByText('Carla')[0].closest('tr'));
+    const modal = screen.getByTestId('member-modal');
+    const cols = modal.querySelector('.member-cols');
+    expect(cols.querySelector('.member-fields')).toBeTruthy();
+    expect(cols.querySelector('.member-cap')?.textContent).toMatch(/%/);
+    expect(modal.querySelector('.member-changes')?.children.length).toBe(2);
+  });
+
   it('adds a team through the editor without any percentage', () => {
     let updated = null;
     wrap(<ResView {...baseProps} members={[carla]} onUpd={m => { updated = m; }} />);

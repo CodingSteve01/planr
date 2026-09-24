@@ -483,6 +483,22 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .res-color-pick{width:24px;height:24px;padding:0;border:none;cursor:pointer;background:transparent;flex-shrink:0;border-radius:3px;}
 .res-edit-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
 .res-edit-grid{display:flex;flex-direction:column;gap:0;}
+/* Member dialog: two columns, stacked again when the pane is narrow. */
+.member-modal{width:min(920px,100%);container-type:inline-size;}
+.member-cols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:20px;align-items:start;}
+.member-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;}
+.mf{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx2);min-width:0;}
+.mf-wide{grid-column:1/-1;}
+.mf-l{font-size:12px;color:var(--tx2);}
+.mf input,.mf select{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--b2);border-radius:4px;color:var(--tx);font-size:13px;padding:5px 8px;outline:none;font-family:var(--font);}
+.mf input[type=number],.mf input[type=date]{font-family:var(--mono);font-size:12px;}
+.mf input:focus,.mf select:focus{border-color:var(--ac);}
+.member-cap > *{margin-top:0!important;}
+.member-changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px;align-items:start;}
+.member-changes > *{margin-top:0!important;}
+/* A container query, not a media query: inside Obsidian the pane is narrow
+   while the window is not. */
+@container (max-width:700px){.member-cols,.member-changes{grid-template-columns:1fr;}.member-fields{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .rf{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
 .rf label{color:var(--tx3);font-size:12px;flex-shrink:0;}
 .rf input,.rf select{width:150px;background:var(--bg3);border:1px solid var(--b2);border-radius:4px;color:var(--tx);font-size:12px;padding:4px 7px;outline:none;font-family:var(--mono);}
