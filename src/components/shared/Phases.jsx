@@ -6,6 +6,7 @@ import { createPhaseDraft, instantiateTemplatePhases, normalizePhases, phaseAssi
 import { derivePhaseStatus } from '../../utils/scheduler.js';
 import { useT } from '../../i18n.jsx';
 import { Icon } from './Icon.jsx';
+import { inTeam, memberTeamNames } from '../../utils/memberTeams.js';
 
 /* ══════════════════════════════════════════════════════════════════════
    PhaseEditPopout — modal dialog for editing a single phase.
@@ -18,7 +19,7 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
   const tIds = phaseTeamIds(d);
   const mIds = phaseAssigneeIds(d);
   const showAssignees = members?.length > 0;
-  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + (teams.find(tm => tm.id === m.team)?.name || m.team) : ''}`;
+  const memberLabel = m => `${m.name || m.id}${m.team ? ' — ' + memberTeamNames(m, teams).join(' + ') : ''}`;
 
   const patch = (k, v) => setD(prev => ({ ...prev, [k]: v }));
 
@@ -51,7 +52,8 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
             setD(prev => ({
               ...prev,
               assign: [...new Set([...phaseAssigneeIds(prev), mid])],
-              teams: [...new Set([...phaseTeamIds(prev), ...(member?.team ? [member.team] : [])])],
+              // Only widen the phase's teams when the person is in none of them yet.
+              teams: [...new Set([...phaseTeamIds(prev), ...(member?.team && !phaseTeamIds(prev).some(tid => inTeam(member, tid)) ? [member.team] : [])])],
             }));
           }}
           allowEmpty placeholder={t('ph.phaseAssigneeAdd')} />

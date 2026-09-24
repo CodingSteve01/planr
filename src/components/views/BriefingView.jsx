@@ -11,6 +11,7 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
+import { inTeam } from '../../utils/memberTeams.js';
 
 // Geometric marks, not dingbats: ● from the dingbat block renders as an
 // emoji on some platforms, and these three have to read as one family.
@@ -249,7 +250,7 @@ function BriefingViewImpl({ tree, scheduled, vacations, members, teams, stats, c
         if (personFilter && c.personId !== personFilter) return false;
         if (teamFilter) {
           const m = members.find(x => x.id === c.personId);
-          if (m?.team !== teamFilter) return false;
+          if (!inTeam(m, teamFilter)) return false;
         }
         return true;
       })

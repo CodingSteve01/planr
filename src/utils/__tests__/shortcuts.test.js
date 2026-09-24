@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
-import { SHORTCUTS, SCOPES, keyHint, withKey, shortcut, shortcutsByScope } from '../shortcuts.js';
+import { SHORTCUTS, SCOPES, keyHint, withKey, shortcut, shortcutsByScope, ariaChord, formatKey } from '../shortcuts.js';
 
 const SRC = join(__dirname, '..', '..');
 
@@ -54,14 +54,30 @@ describe('the shortcut table is well formed', () => {
 
 describe('keyHint / withKey', () => {
   it('joins alternatives with a slash and ranges with a dash', () => {
-    expect(keyHint('rename')).toBe('↵');
-    expect(keyHint('cursorMove')).toBe('↑ / ↓');
-    expect(keyHint('prio')).toBe('1–4');
-    expect(keyHint('size')).toBe('S–X');
+    expect(keyHint('rename', true)).toBe('↵ / F2');
+    expect(keyHint('cursorMove', true)).toBe('↑ / ↓');
+    expect(keyHint('prio', true)).toBe('1–4');
+    expect(keyHint('size', true)).toBe('S–X');
   });
 
   it('appends the hint to a tooltip', () => {
-    expect(withKey('Rename P1.2', 'rename')).toBe('Rename P1.2 · ↵');
+    expect(withKey('Rename P1.2', 'rename')).toBe(`Rename P1.2 · ${keyHint('rename')}`);
+  });
+
+  it('writes the keys the way the platform does', () => {
+    // The table is in Mac glyphs; Windows and Linux read the words on the keys.
+    expect(formatKey('Ctrl⇧↑', false)).toBe('Ctrl+Shift+↑');
+    expect(formatKey('⇧↵', false)).toBe('Shift+Enter');
+    expect(formatKey('⇧⇥', false)).toBe('Shift+Tab');
+    expect(formatKey('Alt⇧↓', false)).toBe('Alt+Shift+↓');
+    expect(formatKey('CtrlO', false)).toBe('Ctrl+O');
+    expect(formatKey('⇧CtrlS', false)).toBe('Ctrl+Shift+S');
+    expect(formatKey('⇧Space', false)).toBe('Shift+Space');
+    expect(formatKey('F2', false)).toBe('F2');
+    expect(formatKey('Esc', false)).toBe('Esc');
+    // On the Mac the glyphs stay.
+    expect(formatKey('⌘⇧↑', true)).toBe('⌘⇧↑');
+    expect(keyHint('rename', false)).toBe('Enter / F2');
   });
 
   it('degrades to the bare text for an unknown id rather than breaking the tooltip', () => {
@@ -98,8 +114,27 @@ describe('the table and the app agree', () => {
     // Guards the complaint this table was built for: the row editor used to
     // accept a name and nothing else.
     const editIds = SHORTCUTS.filter(s => s.scope === 'treeEdit').map(s => s.id);
-    for (const id of ['editPrio', 'editSize', 'editTeam', 'editStatus', 'editMove', 'editReorder', 'editIndent']) {
+    for (const id of ['editPrio', 'editSize', 'editTeam', 'editStatus', 'editMove']) {
       expect(editIds, `${id} missing from the treeEdit scope`).toContain(id);
     }
+  });
+
+  it('declares no structural gesture while a field has the keyboard', () => {
+    // Moving and re-parenting happen from the tree. Inside a text field
+    // ⌥←/→ is a word jump and ⌘⇧←/→ a selection.
+    const editIds = SHORTCUTS.filter(s => s.scope === 'treeEdit').map(s => s.id);
+    expect(editIds).not.toContain('editReorder');
+    expect(editIds).not.toContain('editIndent');
+  });
+
+  it('gives each structural command its own entry, ⌘⇧ chord first', () => {
+    const chord = { moveUp: '⇧↑', moveDown: '⇧↓', indent: '⇧→', outdent: '⇧←' };
+    Object.entries(chord).forEach(([id, tail]) => {
+      const s = shortcut(id);
+      expect(s, id).not.toBeNull();
+      expect(s.scope).toBe('tree');
+      expect(s.keys[0].endsWith(tail), `${id} leads with ${s.keys[0]}`).toBe(true);
+      expect(ariaChord(id)).toMatch(/^(Meta|Control)\+Shift\+Arrow(Up|Down|Left|Right)$/);
+    });
   });
 });

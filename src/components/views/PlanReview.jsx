@@ -2,6 +2,7 @@ import { useMemo, useState, memo } from 'react';
 import { CONF_COLOR } from '../../constants.js';
 import { isOnboard } from '../../utils/capacity.js';
 import { memberShades } from '../../utils/teamShades.js';
+import { memberTeams, teamForAssignment } from '../../utils/memberTeams.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { leafProgress, leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
@@ -108,7 +109,9 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
     // People who have left are not capacity, and a team of nothing but leavers
     // is not a team any more. Both were listed here at 0 PT beside the teams
     // actually doing the work.
-    members.filter(m => isOnboard(m)).forEach(m => { if (cap[m.team]) cap[m.team].members.push(m); });
+    // A member in several teams appears on each team's card, with the load
+    // that falls in that team (see memberShares below).
+    members.filter(m => isOnboard(m)).forEach(m => memberTeams(m).forEach(tid => { if (cap[tid]) cap[tid].members.push(m); }));
     // "Has someone on it" means the SCHEDULE placed a person, not that a name
     // was typed in: most work in a long plan is auto-assigned, so the explicit
     // test reported a team as almost entirely unstaffed while its people were
@@ -129,7 +132,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
     const sc = sMap[node.id];
     if (!sc?.autoAssigned || !sc.personId) return;
     const m = members.find(x => x.id === sc.personId);
-    if (m) onUpdate?.({ ...node, assign: [sc.personId], team: m.team || node.team });
+    if (m) onUpdate?.({ ...node, assign: [sc.personId], team: teamForAssignment(m, node.team) });
   };
 
   const total = confCounts.committed + confCounts.estimated + confCounts.exploratory;

@@ -7,9 +7,8 @@ import { useT } from './i18n.jsx';
 import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { mergeRoadmapAssignment } from './utils/roadmap.js';
-import { buildMarkdownText as _buildMd } from './utils/markdown.js';
+import { buildMarkdownText as _buildMd, parseResourceLine } from './utils/markdown.js';
 import { parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate } from './utils/history.js';
-import { structuralEditPending } from './utils/structuralEdit.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -20,7 +19,8 @@ import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped } from './utils/scheduler.js';
-import { buildPasteNodes, compareSiblings, sortTree } from './utils/treeEdit.js';
+import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
+import { applyTreeCommand, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -71,6 +71,7 @@ import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.
 import { FileMenu } from './components/shared/FileMenu.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
+import { withoutTeam } from './utils/memberTeams.js';
 
 // useEvent shim — stable callback ref that always invokes the latest closure.
 // Lets us pass App-defined functions to React.memo'd children without busting
@@ -946,24 +947,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Resources section: bulleted list
       if (section === 'resources') {
         // Format: - **Full Name** `SHORT` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD
-        const rm = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*(?:\s+`([^`]+)`)?\s*—?\s*(.*)/);
-        if (rm) {
-          const shortName = rm[2] || '';
-          const meta = rm[3] || '';
-          const parts = meta.split(',').map(s => s.trim());
-          const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
-          const roleParts = parts.slice(1)
-            .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+(?:\.\d+)?d\/y$/.test(p) && !/^\d+(?:\.\d+)?h\/w$/.test(p))
-            .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
-            .filter(Boolean);
-          const capM = meta.match(/\((\d+)%\)/);
-          const hoursM = meta.match(/(\d+(?:\.\d+)?)h\/w/);
-          const vacM = meta.match(/(\d+(?:\.\d+)?)d\/y/);
-          const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
-          const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
-          if (teamPart) teamSet.add(teamPart);
-          const m = { id: 'm' + Date.now() + mems.length, name: rm[1].trim(), team: teamPart, role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25, start: startM?.[1] || '', end: endM?.[1] || '' };
-          if (hoursM) { m.weeklyHours = parseFloat(hoursM[1]); m.capMode = 'derived'; m.meetings = []; }
+        const parsedMember = parseResourceLine(line);
+        if (parsedMember) {
+          const { teams: teamNames, short: shortName, ...fields } = parsedMember;
+          teamNames.forEach(n => teamSet.add(n));
+          const m = { id: 'm' + Date.now() + mems.length, ...fields };
+          if (teamNames.length > 1) m.teams = teamNames;
           if (shortName) m._parsedShort = shortName;
           mems.push(m);
           lastItem = m;
@@ -1298,7 +1287,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (r.team) teamSet.add(r.team);
       if (r.phases) r.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId)));
     });
-    mems.forEach(m => { if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); } });
+    mems.forEach(m => {
+      if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); }
+      if (m.teams) { m.teams = m.teams.map(sanitizeTeam).filter(Boolean); m.teams.forEach(t => teamSet.add(t)); }
+    });
     taskTemplates.forEach(tpl => tpl.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId))));
 
     // Build teams: prefer explicit team table, fall back to inferred
@@ -1319,7 +1311,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         });
       }
     });
-    mems.forEach(m => { if (m.team) m.team = teamLookup[m.team] || m.team; });
+    mems.forEach(m => {
+      if (m.team) m.team = teamLookup[m.team] || m.team;
+      if (m.teams) m.teams = m.teams.map(t => teamLookup[t] || t);
+    });
     taskTemplates.forEach(tpl => tpl.phases.forEach(p => {
       const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
       p.teams = teamsForPhase;
@@ -1495,7 +1490,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         }
       }
       // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
-      if ((e.ctrlKey || e.metaKey) && search && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      // ⇧ is not ours: ⌘⇧↑/↓ moves a row in the tree.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && search && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         e.preventDefault();
         setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
       }
@@ -1505,10 +1501,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const active = document.activeElement;
         const tag = active?.tagName;
         const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-        // …unless the last thing that happened was a structure command issued
-        // from inside that field. Then there is nothing in the text to undo
-        // and everything in the plan to undo (utils/structuralEdit.js).
-        if (!isEditable || structuralEditPending()) {
+        // No structure command can be issued from inside a field any more, so
+        // there is never plan history hiding behind a text field's ⌘Z.
+        if (!isEditable) {
           const isRedo = (e.key === 'y' || e.key === 'Y') || e.shiftKey;
           e.preventDefault();
           if (isRedo) handleRedo(); else handleUndo();
@@ -2548,53 +2543,26 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       alert('Cannot move an item under itself or one of its descendants.');
       return;
     }
-    const currentParent = nodeId.split('.').slice(0, -1).join('.');
-    if (currentParent === newParentId) return; // no-op
-    const idMap = computeIdMap(tree, nodeId, newParentId);
     // The id map depends on STRUCTURE only, so computing it from the render
     // closure is sound — but applying it must be functional, or a name
     // written in the same tick (Tab straight out of the inline editor) is
     // overwritten by this snapshot. That is exactly the bug addNode had.
-    const applyMove = src => {
-    // Rename moved items AND update dep references in all other items
-    const renamed = src.map(r => {
-      if (idMap[r.id] != null) {
-        // Moved item — rename + remap any internal-subtree deps
-        const newR = { ...r, id: idMap[r.id], deps: (r.deps || []).map(d => idMap[d] || d) };
-        if (r._depLabels) {
-          newR._depLabels = {};
-          Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
-        }
-        return newR;
-      }
-      // Other item — only update deps that pointed to moved items
-      const newDeps = (r.deps || []).map(d => idMap[d] || d);
-      if (newDeps.some((d, i) => d !== (r.deps || [])[i])) {
-        const newR = { ...r, deps: newDeps };
-        if (r._depLabels) {
-          newR._depLabels = {};
-          Object.entries(r._depLabels).forEach(([k, v]) => { newR._depLabels[idMap[k] || k] = v; });
-        }
-        return newR;
-      }
-      return r;
-    });
-    // Re-sort so parent-then-children order is preserved globally
-    renamed.sort((a, b) => {
-      const ap = a.id.split('.'), bp = b.id.split('.');
-      for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
-        if (ap[i] !== bp[i]) {
-          // Sort by numeric suffix when both are numeric, else lexicographic
-          const an = parseInt(ap[i].replace(/\D/g, '')) || 0, bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
-          return an !== bn ? an - bn : ap[i].localeCompare(bp[i]);
-        }
-      }
-      return ap.length - bp.length;
-    });
-    return renamed;
-    };
-    mutate(d => ({ ...d, tree: applyMove(d.tree || []) }));
-    return idMap[nodeId];
+    const planned = moveSubtree(tree, nodeId, newParentId);
+    if (!planned) return; // no-op
+    mutate(d => ({ ...d, tree: moveSubtree(d.tree || [], nodeId, newParentId)?.tree || d.tree }));
+    return planned.id;
+  }
+
+  // The work tree's four structural commands — move up/down, indent,
+  // outdent (utils/treeMove.js). One command, one state update, one undo
+  // step: outdent used to be a re-parent followed by a separate reorder.
+  // Returns { id, idMap } — where the row lives now — or null when the
+  // command cannot run from here.
+  function runTreeCommand(id, command, visibleIds) {
+    const planned = applyTreeCommand(tree, id, command, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: applyTreeCommand(d.tree || [], id, command, visibleIds)?.tree || d.tree }));
+    return { id: planned.id, idMap: planned.idMap };
   }
   // Reorder a node within its sibling list by writing persistent displayOrder
   // values. IDs and dependencies stay stable; the order round-trips as `ord:`.
@@ -2605,51 +2573,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // the one this render closed over — see mutate() above.
     const before = dataRef.current;
     setData(d => {
-      const currentTree = d.tree || [];
-      const node = currentTree.find(r => r.id === nodeId);
-      if (!node) return d;
-      const parent = nodeId.split('.').slice(0, -1).join('.');
-      const isRoot = !parent;
-      const siblings = currentTree
-        .filter(r => {
-          // Every root is a sibling of every other root — which is how
-          // sortTree() lays them out and therefore how they appear on
-          // screen. This used to additionally require the same leading
-          // letters, so "Paket 1" (P4) could be reordered against P2 and P3
-          // but not past "Projekt Pr1": the button was enabled, the press
-          // did nothing, and there was no way to tell why.
-          if (isRoot) return !r.id.includes('.');
-          return r.id.split('.').slice(0, -1).join('.') === parent;
-        })
-        // compareSiblings, not a private rank function — this must be the
-        // SAME order sortTree puts on screen, or the indices below refer to a
-        // list the user never saw. See its comment in utils/treeEdit.js.
-        .sort(compareSiblings);
-      const fromIdx = siblings.findIndex(s => s.id === nodeId);
-      if (fromIdx < 0 || siblings.length <= 1) return d;
-      let toIdx = fromIdx;
-      if (direction === 'up') toIdx = fromIdx - 1;
-      else if (direction === 'down') toIdx = fromIdx + 1;
-      else if (direction === 'first') toIdx = 0;
-      else if (direction === 'last') toIdx = siblings.length - 1;
-      else if (direction && typeof direction === 'object' && direction.targetId) {
-        const targetIdx = siblings.findIndex(s => s.id === direction.targetId);
-        if (targetIdx < 0 || direction.targetId === nodeId) return d;
-        const without = siblings.filter(s => s.id !== nodeId);
-        const adjustedTarget = without.findIndex(s => s.id === direction.targetId);
-        toIdx = adjustedTarget + (direction.position === 'after' ? 1 : 0);
-      }
-      toIdx = Math.max(0, Math.min(siblings.length - 1, toIdx));
-      if (toIdx === fromIdx) return d;
-      const reordered = [...siblings];
-      const [moved] = reordered.splice(fromIdx, 1);
-      reordered.splice(toIdx, 0, moved);
-      const order = new Map(reordered.map((s, idx) => [s.id, idx + 1]));
-      const nextTree = currentTree.map(r => {
-        if (!order.has(r.id)) return r;
-        const nextOrder = order.get(r.id);
-        return r.displayOrder === nextOrder ? r : { ...r, displayOrder: nextOrder };
-      });
+      const nextTree = placeAmongSiblings(d.tree || [], nodeId, direction);
+      if (!nextTree) return d;
       changed = true;
       return { ...d, tree: nextTree };
     });
@@ -2661,7 +2586,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
-  function cloneMember(src) { const id = 'm' + Date.now(); setD('members', [...members, { ...src, id, team: '', cap: 0.5 }]); }
+  function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
   function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
   function onSeqUpdate(taskId, patch) {
@@ -2874,6 +2799,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (newId) setSel({ id: newId });
     return newId;   // the inline editor follows the row to its new id
   });
+  // Toolbar buttons and structural shortcuts both land here — the one path
+  // for move up/down, indent and outdent. The cursor follows the row: a
+  // re-parent renumbers it, and the next keypress has to find it again.
+  const onTreeCommand = useStableCallback((id, command, visibleIds) => {
+    const res = runTreeCommand(id, command, visibleIds);
+    if (res && res.id !== id) setSel({ id: res.id });
+    return res;
+  });
   // The tree calls this when the row it just moved is not on screen any more.
   //
   // Re-parenting out a level renumbers the subtree into a project of its own
@@ -3065,7 +2998,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!deleted) return;
     mutate(d => {
       const nextTeams = d.teams.filter((_, j) => j !== i);
-      const nextMembers = d.members.map(m => m.team === deleted.id ? { ...m, team: '' } : m);
+      const nextMembers = d.members.map(m => withoutTeam(m, deleted.id));
       const nextTree = d.tree.map(r => {
         let out = r;
         if (r.team === deleted.id) out = { ...out, team: '' };
@@ -3693,6 +3626,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               onClearSelection={() => setMultiSel(new Set())}
               onOpenBulkEdit={() => setBulkEditModalOpen(true)}
               onMove={onTreeMove}
+              onCommand={onTreeCommand}
               onRevealHidden={onTreeRevealHidden}
               onInsertAfter={onTreeInsertAfter}
               onInsertChild={onTreeInsertChild}

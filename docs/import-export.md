@@ -24,7 +24,7 @@ The `.md` format is human-editable and renders nicely in any Markdown viewer (Gi
 - `# Project Name` — becomes `meta.name`
 - `## Plan` — `Start` / `End` key-value table → `meta.planStart` / `meta.planEnd`
 - `## Teams` — `Name | Color` table
-- `## Resources` — bulleted list: `- **Full Name** \`SHORT\` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD, bis YYYY-MM-DD`
+- `## Resources` — bulleted list: `- **Full Name** \`SHORT\` — Team, Role (cap%), 40h/w, 25d/y, ab YYYY-MM-DD, bis YYYY-MM-DD`. A person in several teams writes them joined by ` + `, primary first: `— Backend + Frontend, Dev`. Older files with one team read unchanged.
   - `(cap%)` is omitted when the member is in derived-capacity mode (see next field)
   - `40h/w` appears only when `capMode === 'derived'` — signals the weekly-hours baseline
   - `bis DATE` is the offboarding date (inclusive)

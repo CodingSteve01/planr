@@ -7,6 +7,8 @@
 // one full-time person". A 30h part-time member with 4h of meetings ends up
 // at 26/40 = 65 % — matches what a project manager would eyeball.
 
+import { memberTeams } from './memberTeams.js';
+
 export const FTE_HOURS = 40;
 
 // Weekly-equivalent multipliers. Daily meetings assume a 5-day work week; the
@@ -48,9 +50,12 @@ export function resolveMemberMeetings(member, ctxOrPlans) {
     plan.meetings.forEach(m => out.push({ ...m, _plan: plan.id, _planName: plan.name, _planSource: via }));
   };
   const out = [];
-  // Team-inherited plans
-  const team = member.team ? teams.find(t => t.id === member.team) : null;
-  (team?.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'team'));
+  // Team-inherited plans — from every team the member sits in (a person in
+  // two teams attends both stand-ups). Shared plans are emitted once.
+  memberTeams(member).forEach(tid => {
+    const team = teams.find(t => t.id === tid);
+    (team?.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'team'));
+  });
   // Member-attached plans
   (member.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'member'));
   // Individual ad-hoc meetings

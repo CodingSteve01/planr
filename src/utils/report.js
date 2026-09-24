@@ -1,5 +1,6 @@
 // Generates a self-contained HTML project report.
 // Opens in a new tab and auto-triggers the print dialog (→ save as PDF).
+import { memberTeams } from './memberTeams.js';
 import { iso, isoWeek, isoWeekYear } from './date.js';
 import { leafNodes, leafProgress, scheduleEffort } from './scheduler.js';
 import { aggregateProgressPct, deliveredEffort, progressPctLabel, totalEffort } from './progress.js';
@@ -127,7 +128,9 @@ export function buildReportModel(rawCtx) {
   // Team capacity.
   const teamCap = {};
   teams.forEach(tm => { teamCap[tm.id] = { id: tm.id, name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
-  members.forEach(m => { if (teamCap[m.team]) teamCap[m.team].members.push(m); });
+  // A member in several teams is listed under each of them; the per-team
+  // numbers below only count the work that falls in that team.
+  members.forEach(m => memberTeams(m).forEach(tid => { if (teamCap[tid]) teamCap[tid].members.push(m); }));
   // Placed by the SCHEDULER, not just by an explicit `assign`. Most work in a
   // long plan has no name typed on it — the scheduler picks the person — so
   // the old test reported a team of three people as "20 PT assigned, 488 PT
@@ -501,7 +504,8 @@ tr:nth-child(even) td{background:${PRINT.ground}}
     h += `<div style="border:1px solid ${PRINT.rule};border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
     h += `<h3 style="color:${tc.color};margin:0 0 4px">${tc.name}</h3>`;
     tc.members.forEach(m => {
-      const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
+      const multi = memberTeams(m).length > 1;
+      const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id) && (!multi || r.team === tc.id)));
       h += `<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:1px"><span>${m.name}${m.cap < 1 ? ` (${Math.round(m.cap*100)}%)` : ''}</span><span class="mono">${pp.toFixed(0)} PT</span></div>`;
     });
     if (total > 0) {

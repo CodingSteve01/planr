@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import postcss from 'postcss';
 // The same stand-in the vault-layer tests use: whatever the bundle expects
 // Obsidian to hand it has to exist here too, or this test is the one that
 // says so.
@@ -72,6 +73,50 @@ describe('the built plugin', () => {
       .filter(rule => !/\[type=checkbox\]/.test(rule.split('{')[0]))
       .forEach(rule => expect(rule.split('{')[0]).toMatch(/:not\(\[type=checkbox\]\)/));
     expect(css).toMatch(/\.planr-view input\[type=checkbox\][^{]*\{[^}]*appearance:\s*auto/);
+  });
+
+  // The neutral tokens follow the vault's theme. The rule has to survive the
+  // build as written — appended after the scoped app palette, keyed to both
+  // the vault's and Planr's theme — or the plugin quietly goes back to
+  // Planr's own colours and nobody notices until it sits next to a note.
+  it('maps the neutral tokens onto the vault theme in both modes', () => {
+    const css = readFileSync(path.join(out, 'styles.css'), 'utf8');
+    const rules = [];
+    postcss.parse(css).walkRules(rule => {
+      if (rule.selectors.some(s => /body\.theme-(dark|light) \.planr-view$/.test(s))) rules.push(rule);
+    });
+    expect(rules, 'no vault-palette rule in styles.css').toHaveLength(1);
+    const [rule] = rules;
+    expect(rule.selectors).toEqual(expect.arrayContaining([
+      'html[data-theme="dark"] body.theme-dark .planr-view',
+      'html[data-theme="light"] body.theme-light .planr-view',
+    ]));
+    const decls = {};
+    rule.walkDecls(d => { decls[d.prop] = d.value; });
+    expect(decls['--bg']).toBe('var(--background-primary)');
+    expect(decls['--bg2']).toBe('var(--background-secondary)');
+    expect(decls['--b']).toBe('var(--background-modifier-border)');
+    expect(decls['--tx']).toBe('var(--text-normal)');
+    expect(decls['--ac2']).toBe('var(--interactive-accent)');
+    expect(decls['--on-ac']).toBe('var(--text-on-accent)');
+    for (const token of ['--bg3', '--bg4', '--bg5', '--b2', '--b3', '--tx2', '--tx3', '--ac', '--bg-done']) {
+      expect(decls[token], `${token} is not mapped`).toMatch(/var\(--(background|text|interactive)-/);
+    }
+    // Semantic colours stay Planr's own.
+    for (const token of ['--st-done', '--st-wip', '--st-risk', '--diff', '--cf-hi']) {
+      expect(decls[token], `${token} must not follow the theme`).toBeUndefined();
+    }
+  });
+
+  // Reported: the calendar icon sits inside the date, covering the day.
+  // Obsidian positions it absolutely at the input's left edge.
+  it('puts the date picker icon back after the date', () => {
+    const css = readFileSync(path.join(out, 'styles.css'), 'utf8');
+    const rule = css.match(/\.planr-view input\[type=date\][^{]*::-webkit-calendar-picker-indicator[^{]*\{[^}]*\}/);
+    expect(rule, 'no date-picker rule in the plugin stylesheet').toBeTruthy();
+    expect(rule[0]).toMatch(/position:\s*static/);
+    // As specific as Obsidian's own selector, plus the scope — or it loses.
+    expect(rule[0]).toMatch(/:not\(\[disabled="true"\]\)::-webkit-calendar-picker-indicator/);
   });
 
   it('ships the three files Obsidian downloads, and nothing else', () => {
