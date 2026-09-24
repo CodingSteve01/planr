@@ -5,6 +5,7 @@ import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { leafNodes } from '../../utils/scheduler.js';
 import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueue.js';
+import { queueBlockers } from '../../utils/queueBlockers.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
 import { withKey } from '../../utils/shortcuts.js';
 
@@ -56,7 +57,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
   const [dragId, setDragId] = useState(null);
   const [dropId, setDropId] = useState(null);
 
-  const byId = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
+  const allById = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
   // Who will actually do it. An item with a team and nobody on it belongs to
   // the TEAM's queue, and the schedule then picks whoever comes free first —
   // so the row says who that turned out to be, marked as the schedule's answer
@@ -83,7 +84,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     const parts = id.split('.');
     const out = [];
     for (let i = 1; i < parts.length; i++) {
-      const node = byId.get(parts.slice(0, i).join('.'));
+      const node = allById.get(parts.slice(0, i).join('.'));
       if (node) out.push(node.name || node.id);
     }
     return out;
@@ -185,6 +186,10 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       const label = ownerLabel(owner);
       const ordered = reconcileQueue(personQueues?.[owner], rows.map(n => n.id));
       const byId = new Map(rows.map(n => [n.id, n]));
+      // What this order cannot decide. Resolved against the WHOLE plan, not
+      // this owner's rows — most of what holds somebody up is somebody else's
+      // work, and a lookup limited to their own queue would report none of it.
+      const held = queueBlockers(ordered, allById);
       // One list per person, and nothing between the rows.
       //
       // It used to break each queue into package headers — "settle the big
@@ -307,7 +312,37 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                       {parent && !sameParent && <><span style={{ color: 'var(--b3)' }}> › </span>{parent}</>}
                     </div>;
                   })()}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                   <div data-queue-title className="tn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name || id}</div>
+                  {/* What this order cannot decide.
+                      A queue says "this one first"; a dependency says "not
+                      before that one", and the schedule honours the second
+                      ahead of the first. This list never mentioned it, so a
+                      row could sit at the top of a queue and wait for
+                      something four rows below it with nothing to show for
+                      it. Two marks, because two different things are true:
+                      it waits for work still outstanding, and — louder — the
+                      work it waits for is BELOW it here, so the order as
+                      arranged cannot happen. */}
+                  {(() => {
+                    const wait = held.get(id);
+                    if (!wait) return null;
+                    const late = wait.later.length > 0;
+                    const names = wait.waitsFor
+                      .map(d => { const n = allById.get(d); return n?.name ? `${d} · ${n.name}` : d; });
+                    return <span data-queue-blocked={late ? 'order' : 'dep'}
+                      data-htip={`${late ? t('wo.blockedLaterTip') : t('wo.blockedTip')}\n${names.join('\n')}`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                        fontSize: 9, fontFamily: 'var(--mono)', borderRadius: 3, padding: '0 4px',
+                        color: late ? 'var(--st-risk)' : 'var(--tx3)',
+                        background: late ? 'var(--st-risk-soft)' : 'var(--bg3)',
+                        border: `1px solid ${late ? 'var(--st-risk)' : 'var(--b2)'}`,
+                      }}>
+                      <Icon name="link" size={9} />{wait.waitsFor[0]}{wait.waitsFor.length > 1 ? ` +${wait.waitsFor.length - 1}` : ''}
+                    </span>;
+                  })()}
+                </div>
                 </td>
                 <td style={{ width: 60, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle' }}>
                   {node.best ? `${node.best}T` : ''}
