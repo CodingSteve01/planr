@@ -72,6 +72,20 @@
   content: none;
 }
 
+/* Obsidian pins the date picker's calendar icon to the LEFT edge of every
+   date input (`position: absolute; left: 4px`) and makes room for it with its
+   own input padding. Planr's date fields bring their own, tighter padding, so
+   the icon sat on top of the day — "📅.mm.yyyy". Put the icon back in the
+   flow, after the date, where the browser draws it everywhere else. The
+   :not() matches Obsidian's selector, so this one outranks it. */
+.planr-view input[type=date]:not([disabled="true"])::-webkit-calendar-picker-indicator,
+.planr-view input[type=datetime-local]:not([disabled="true"])::-webkit-calendar-picker-indicator {
+  position: static;
+  left: auto;
+  right: auto;
+  margin-inline-start: 4px;
+}
+
 .planr-view select:not([class]) {
   background-color: var(--bg3);
   color: var(--tx);

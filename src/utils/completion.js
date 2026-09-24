@@ -1,4 +1,5 @@
 import { addD, addWorkDays, eachDayInclusive, iso, localDate, normalizeVacation } from './date.js';
+import { inTeam } from './memberTeams.js';
 import { isLeafNode, parentId, pt, re, resolveToLeafIds } from './scheduler.js';
 import { deriveCap } from './capacity.js';
 
@@ -80,7 +81,7 @@ export function inferCompletedPersonId(item, members, scheduledSnap = null) {
   if (scheduledSnap?.personId) return scheduledSnap.personId;
   if (item?.assign?.length) return item.assign[0];
   const teamId = pt(item?.team);
-  const teamMembers = (members || []).filter(m => pt(m.team) === teamId);
+  const teamMembers = (members || []).filter(m => inTeam(m, teamId, pt));
   return teamMembers.length === 1 ? teamMembers[0].id : null;
 }
 

@@ -108,6 +108,17 @@ describe('the built plugin', () => {
     }
   });
 
+  // Reported: the calendar icon sits inside the date, covering the day.
+  // Obsidian positions it absolutely at the input's left edge.
+  it('puts the date picker icon back after the date', () => {
+    const css = readFileSync(path.join(out, 'styles.css'), 'utf8');
+    const rule = css.match(/\.planr-view input\[type=date\][^{]*::-webkit-calendar-picker-indicator[^{]*\{[^}]*\}/);
+    expect(rule, 'no date-picker rule in the plugin stylesheet').toBeTruthy();
+    expect(rule[0]).toMatch(/position:\s*static/);
+    // As specific as Obsidian's own selector, plus the scope — or it loses.
+    expect(rule[0]).toMatch(/:not\(\[disabled="true"\]\)::-webkit-calendar-picker-indicator/);
+  });
+
   it('ships the three files Obsidian downloads, and nothing else', () => {
     const manifest = JSON.parse(readFileSync(path.join(out, 'manifest.json'), 'utf8'));
     expect(manifest.id).toBe('planr');

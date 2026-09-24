@@ -7,56 +7,24 @@
 // back was to click away first and undo there, which nobody thinks of while
 // watching their tree rearrange itself.
 //
-// Two rules, both here rather than behind a rendered grid: a gesture the text
-// can use belongs to the text, and a key pressed inside a text entry never
-// reaches the row shortcuts at all.
-import { describe, it, expect, beforeEach } from 'vitest';
-import { altArrowIsStructural, isTypingTarget } from '../components/views/TreeView.jsx';
-import { markStructuralEdit, clearStructuralEdit, structuralEditPending } from '../utils/structuralEdit.js';
-
-/** A text input with the caret somewhere in "Prices and conditions". */
-function inputAt(start, end = start, value = 'Prices and conditions') {
-  const el = document.createElement('input');
-  el.value = value;
-  el.setSelectionRange(start, end);
-  return el;
-}
-const key = (k, el, mods = {}) => ({ key: k, target: el, shiftKey: false, ...mods });
-
-describe('⌥+arrow inside a name', () => {
-  it('is the text\'s when a selection gesture is asked for', () => {
-    const el = inputAt(3);
-    expect(altArrowIsStructural(key('ArrowLeft', el, { shiftKey: true }))).toBe(false);
-    expect(altArrowIsStructural(key('ArrowRight', el, { shiftKey: true }))).toBe(false);
-  });
-
-  it('is the text\'s when the caret still has a word to jump', () => {
-    expect(altArrowIsStructural(key('ArrowLeft', inputAt(7)))).toBe(false);
-    expect(altArrowIsStructural(key('ArrowRight', inputAt(7)))).toBe(false);
-  });
-
-  it('is the text\'s when a range is selected', () => {
-    expect(altArrowIsStructural(key('ArrowLeft', inputAt(0, 6)))).toBe(false);
-  });
-
-  it('is the tree\'s at the very start and the very end', () => {
-    // Not taken away — it falls through exactly where the text cannot use it,
-    // which is where the caret sits when a name has just been typed.
-    expect(altArrowIsStructural(key('ArrowLeft', inputAt(0)))).toBe(true);
-    expect(altArrowIsStructural(key('ArrowRight', inputAt('Prices and conditions'.length)))).toBe(true);
-  });
-
-  it('is the tree\'s when there is no caret to speak of', () => {
-    const div = document.createElement('div');
-    expect(altArrowIsStructural(key('ArrowRight', div))).toBe(false);
-  });
-});
+// The rule now is the strict one: while a field has the keyboard there are
+// no structural gestures at all — not ⌥+arrow, not ⌘⇧+arrow — so a word jump
+// or a selection can never move the item. What counts as "a field" is
+// isTypingTarget, checked here without a rendered grid.
+import { describe, it, expect } from 'vitest';
+import { isTypingTarget } from '../components/views/TreeView.jsx';
 
 describe('what counts as typing', () => {
   it.each(['text', 'search', 'email', 'number', 'password', 'date', undefined])('an <input type=%s> does', type => {
     const el = document.createElement('input');
     if (type) el.type = type;
     expect(isTypingTarget(el)).toBe(true);
+  });
+
+  it('a combobox does, whatever element carries the role', () => {
+    const div = document.createElement('div');
+    div.setAttribute('role', 'combobox');
+    expect(isTypingTarget(div)).toBe(true);
   });
 
   it('a textarea, a select and a contenteditable do', () => {
@@ -77,17 +45,5 @@ describe('what counts as typing', () => {
     expect(isTypingTarget(document.createElement('tr'))).toBe(false);
     expect(isTypingTarget(document.createElement('button'))).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
-  });
-});
-
-describe('undo after a structure command from inside a field', () => {
-  beforeEach(() => clearStructuralEdit());
-
-  it('is the app\'s until the next keystroke edits the text', () => {
-    expect(structuralEditPending()).toBe(false);
-    markStructuralEdit();
-    expect(structuralEditPending()).toBe(true);
-    clearStructuralEdit();          // what the input's onChange does
-    expect(structuralEditPending()).toBe(false);
   });
 });
