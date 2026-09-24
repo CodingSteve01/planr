@@ -127,6 +127,12 @@ Walk forward week-by-week, subtracting the assignee's weekly capacity from the r
 
 If not `parallel`, set `pF[assignee] = endWi + 1` so their next assigned task can't overlap.
 
+## No reservation for work that comes later
+
+An unassigned task goes to the team member who is **actually free first**, their real cursor `pF`. Until September 2026 the scheduler also added a virtual "busy until" floor per person: all their explicitly assigned work that was not scheduled yet, counted from today (`committedRem`). It dates from when due dates reordered the schedule and an urgent task could run ahead of someone's own queue. Since the tree is the one order, everything that floor counted comes *later* in that order. It reserved a person for their own lower-priority tasks while those tasks still queued behind — the time went to neither.
+
+Measured on the venneker plan: a full-time developer with ~90 PT assigned in a later project looked full until March 2027, the earlier project's Backend work went to a 33 % colleague, and he sat idle for six months. Without the floor no project finishes later, and P8 moves from 17.08.2027 (48 days past its deadline) to 20.05.2027. The regression case from May 2026 still holds without it. Covered in [`scheduler.test.js`](../src/utils/__tests__/scheduler.test.js) ("work assigned later in the plan does not hold a person back").
+
 ## Team slots (multi-member unassigned tasks)
 
 Unassigned leaves used to schedule in parallel from the same start — a known critical bug. The current fix:
@@ -146,7 +152,7 @@ Trade-off: the slot count defaults to the team's member count. A team of three c
 A member can sit in several teams (`member.teams`, primary first in `member.team` — see [data-model.md](data-model.md#member)). Membership says which **pools** the person is eligible for; it is not a split of their time. There is no per-team percentage anywhere in the model.
 
 - **Every team pool counts them.** The task-team pool (`tM`), handoff-plan stages with a `team`, team-lock fan-out and the same-team auto-cascade all test membership through `inTeam(member, team)` ([memberTeams.js](../src/utils/memberTeams.js)) instead of `member.team === team`. A full-stack developer in Backend and Frontend is a *regular* candidate for both — never a `_crossTeam` fallback on the team that is not their primary. The cross-team cascade only reaches people who are in none of the task's teams.
-- **One capacity, never double-booked.** The pools are filters over the same `members` array, and every booking — team slot, explicit assign, handoff segment — advances the one per-person cursor `pF[member.id]` and reads the same `committedRem`, vacation and pin state. Whatever the Backend queue takes is gone for Frontend; a person appears at most once in any single pool, so they cannot be picked twice for one task either.
+- **One capacity, never double-booked.** The pools are filters over the same `members` array, and every booking — team slot, explicit assign, handoff segment — advances the one per-person cursor `pF[member.id]` and reads the same vacation and pin state. Whatever the Backend queue takes is gone for Frontend; a person appears at most once in any single pool, so they cannot be picked twice for one task either.
 - **The share is an outcome.** Which team gets how much of the person is whatever the tasks book. `realisedTeamShares(member, scheduled)` sums the effort of their scheduled rows by the row's team (optionally clipped to a window); the Resources tab prints it as "60 % Backend · 40 % Frontend (from tasks)".
 - **Handoff segments are labelled with the pool's team.** When a multi-team member takes over a Frontend task, the segment carries `team: Frontend` (the task/stage team they were picked for), not their primary team, so shares and per-team cards attribute it correctly.
 
