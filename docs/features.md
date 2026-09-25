@@ -208,6 +208,8 @@ QuickEdit and NodeModal share the same data model; QuickEdit now exposes the mos
 - **Effort** — quick estimate buttons (XS–XXL) + best/factor/priority + confidence + prominent "Estimate now" CTA with pulse animation when unestimated; only for leaf nodes
 - **Timing** — decide by, pinned start, parallel, queue + predecessors and inherited dependencies; available for all nodes (schedule controls only visible on leaves)
 
+**Every way into or out of an item goes through the same checks.** A click on a handoff bar asked the dialog for tab `'details'`, which is no tab id there, so it opened on Insights; the hint it meant to show sat on Workflow, in German only, pointing at a handoff section that is switched off. It now lands on Details, with the hint above the tabs (`nm.handoffHint`). The successor link and "Estimate now" left the dialog without the unsaved-changes question the breadcrumbs and Close ask. In the side panel, the Insights "waits for" link and dependency chips were drawn as links with no handler; they select the item now. [`itemLinksLand.test.jsx`](../src/__tests__/itemLinksLand.test.jsx).
+
 Tabs persist when switching between nodes — the active tab stays selected as long as it exists for the new node type. The same tab state is shared with batch editing so switching between single/multi selection feels seamless.
 
 Shared phase components (`PhaseList`, `PhaseEditPopout` in `src/components/shared/Phases.jsx`) are reused identically across QuickEdit, NodeModal, batch editing, and Settings template editor — ensuring a single design language for phase management everywhere.

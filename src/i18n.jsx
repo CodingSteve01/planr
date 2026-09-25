@@ -613,7 +613,8 @@ const en = {
   'bv.cycleStatusTip': 'Mark as {0}',
 
   // ── NodeModal / QuickEdit — Insights tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Insights', 'nm.tab.history': 'History',
+  'nm.handoffHint': 'Handoff stage {0} of this task — the fields here edit the whole task.',
   'ins.timing': 'Timing', 'ins.period': 'Period',
   'ins.offboardWarn': 'Offboard warning',
   'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
@@ -1763,7 +1764,8 @@ const de = {
   'bv.cycleStatusTip': 'Als {0} markieren',
 
   // ── NodeModal / QuickEdit — Insights-Tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Insights', 'nm.tab.history': 'Verlauf',
+  'nm.handoffHint': 'Etappe {0} dieser Aufgabe — die Felder hier bearbeiten die ganze Aufgabe.',
   'ins.timing': 'Zeitplan', 'ins.period': 'Zeitraum',
   'ins.offboardWarn': 'Offboarding-Warnung',
   'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',

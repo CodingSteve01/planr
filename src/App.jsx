@@ -3678,6 +3678,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
               onAddDep={addDep}
               onRemoveDep={removeDep}
+              onOpenItem={id => { const n = tree.find(r => r.id === id); if (n) setSel(n); }}
               onSplitHandoff={splitHandoff}
               onSplitTaskAtProgress={splitTaskAtProgress} /></div>
           </>}
