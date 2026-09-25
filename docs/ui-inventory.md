@@ -109,7 +109,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Ctrl/Cmd+S | Saves the file | src/App.jsx:1208 | Settings | 2 | ↔ duplicates 💾 and "Save as" |
-| Ctrl/Cmd+F | Focuses the search box (tree/gantt/net tabs only) | src/App.jsx:1209-1216 | Build | 2 | ↔ duplicates clicking the SearchBox |
+| Ctrl/Cmd+F | Focuses the search box (tree/order/gantt/net tabs only — the same `SEARCH_TABS` set that decides where the box is shown) | src/App.jsx:1209-1216 | Build | 2 | ↔ duplicates clicking the SearchBox |
 | Ctrl/Cmd+↓ / ↑ | Jumps to the next/previous search match | src/App.jsx:1218-1221 | Build | 2 | ↔ duplicates SearchBox's own ▲/▼ buttons |
 
 ---
@@ -363,12 +363,12 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Status SearchSelect (Workflow, leaf without phases) | Sets status | src/components/views/QuickEdit.jsx:351-363 | Build | 1 | |
 | Progress slider (Workflow, leaf without phases) | Sets progress % | src/components/views/QuickEdit.jsx:368-382 | Build | 1 | |
 | Phase list (Workflow, leaf) | Add/reorder/remove/apply-template/status-toggle phases | src/components/views/QuickEdit.jsx:387-394 | Build | 1 | reuses Phases.jsx — see its own table below |
-| Team SearchSelect (Workflow) | Sets team | src/components/views/QuickEdit.jsx:397 | Build | 1 | |
-| Team-lock toggle (Workflow, leaf) | Sets teamLock | src/components/views/QuickEdit.jsx:401-404 | Build | 1 | 🔧 mechanics exposed |
-| Parallel toggle (Workflow, leaf) | Sets the "parallel" scheduler flag | src/components/views/QuickEdit.jsx:406-411 | Build | 1 | 🔧 mechanics exposed |
-| Assignee tag remove (×) (Workflow) | Removes one assignee | src/components/views/QuickEdit.jsx:416 | Build | 1 | |
-| AutoAssignHint "accept" (Workflow, leaf) | Adopts the scheduler's suggested person/team | src/components/views/QuickEdit.jsx:418-419 | Plan | 1 | |
-| Assignee add (SearchSelect) (Workflow) | Adds an assignee | src/components/views/QuickEdit.jsx:421-430 | Build | 1 | |
+| Team SearchSelect (Overview) | Sets team | src/components/views/QuickEdit.jsx | Build | 1 | |
+| Team-lock toggle (Overview, leaf) | Sets teamLock | src/components/views/QuickEdit.jsx:401-404 | Build | 1 | 🔧 mechanics exposed |
+| Parallel toggle (Overview, leaf) | Sets the "parallel" scheduler flag | src/components/views/QuickEdit.jsx:406-411 | Build | 1 | 🔧 mechanics exposed |
+| Assignee tag remove (×) (Overview) | Removes one assignee | src/components/views/QuickEdit.jsx:416 | Build | 1 | |
+| AutoAssignHint "accept" (Overview, leaf) | Adopts the scheduler's suggested person/team | src/components/views/QuickEdit.jsx:418-419 | Plan | 1 | |
+| Assignee add (SearchSelect) (Overview) | Adds an assignee | src/components/views/QuickEdit.jsx:421-430 | Build | 1 | |
 | Quick-estimate size buttons (Effort, leaf) | Sets best/factor from a T-shirt size | src/components/views/QuickEdit.jsx:442-450 | Build | 1 | ↔ duplicates EstimationWizard's own size step |
 | "Estimate now" button (Effort tab) | Opens EstimationWizard | src/components/views/QuickEdit.jsx:452 | Build | 1 | ↔ duplicates the header button |
 | Best-days input (Effort, leaf) | Sets best estimate | src/components/views/QuickEdit.jsx:456 | Build | 1 | |
@@ -399,15 +399,15 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Name/description block click | Jumps to Overview/Details | src/components/shared/TaskInsights.jsx:207-230 | Build | 1 | |
 | Status+progress header click | Jumps to Workflow/Details | src/components/shared/TaskInsights.jsx:233-252 | Build | 1 | |
 | Timing section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:258 | Build | 1 | |
-| "Wartet auf" (blocked-by) link | Opens the blocking item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | |
+| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
 | Effort section click | Jumps to Effort | src/components/shared/TaskInsights.jsx:379 | Build | 1 | |
-| People section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
+| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
 | "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/TaskInsights.jsx:468-471 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
 | "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/TaskInsights.jsx:473-480 | Build | 1 | calls onSplitTaskAtProgress — same as above |
 | Phases section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:532 | Build | 1 | |
 | Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/TaskInsights.jsx:541-547 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
 | Dependencies section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:561 | Build | 1 | |
-| Predecessor/successor/inherited-dep link click | Opens that item | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
+| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
 | Custom fields section click | Jumps to Overview | src/components/shared/TaskInsights.jsx:611 | Build | 1 | |
 | Custom-field URI link click | Opens the external link | src/components/shared/TaskInsights.jsx:618 | Build | 1 | navigation only, no mutation |
 
@@ -442,7 +442,7 @@ This component is reused verbatim in three hosts (QuickEdit, NodeModal, Settings
 
 ### NodeModal (NodeModal.jsx)
 
-**Opened from more than the tree**: `onBarClick` in Gantt, `onNodeClick` in NetGraph, `onOpenItem` in PlanReview, and `openItem` in JiraSyncModal all open this same modal — in addition to the tree's own "⊞ Full edit" button. Every field below therefore becomes a P2 violation (writes data outside the tree) whenever the modal was opened from one of those non-tree surfaces; only the rows most central to that finding carry an explicit ⚠, but the finding applies to the whole table.
+**Opened from more than the tree**: `onBarClick` in Gantt, `onNodeClick` in NetGraph, `onOpenItem` in PlanReview, and the Overview, Roadmap, Briefing and Work order views all open this same modal (JiraSyncModal, once listed here, no longer exists) — in addition to the tree's own "⊞ Full edit" button. Every field below therefore becomes a P2 violation (writes data outside the tree) whenever the modal was opened from one of those non-tree surfaces; only the rows most central to that finding carry an explicit ⚠, but the finding applies to the whole table.
 
 Fields are buffered in local state and committed only by the "Save" button — a different editing model than QuickEdit, which commits per-field instantly.
 
@@ -456,16 +456,16 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | Custom field inputs (Overview) | Sets custom field values | src/components/modals/NodeModal.jsx:369-373 | Build | 2 | ↔ duplicates QuickEdit Overview |
 | Status SearchSelect, progress slider (Workflow) | Sets status/progress | src/components/modals/NodeModal.jsx:382-404 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit Workflow |
 | Phase list (Workflow) | Add/reorder/remove/status-toggle phases | src/components/modals/NodeModal.jsx:409-416 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; reuses Phases.jsx; ↔ duplicates QuickEdit |
-| Team SearchSelect, team-lock, parallel toggles (Workflow) | Sets team/teamLock/parallel | src/components/modals/NodeModal.jsx:418-447 | Build | 2 | 🔧 mechanics exposed (teamLock/parallel); ↔ duplicates QuickEdit |
-| Assignee tags/add, AutoAssignHint accept (Workflow) | Sets assignees/team | src/components/modals/NodeModal.jsx:424-451 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit |
+| Team SearchSelect, team-lock, parallel toggles (Overview) | Sets team/teamLock/parallel | src/components/modals/NodeModal.jsx:418-447 | Build | 2 | 🔧 mechanics exposed (teamLock/parallel); ↔ duplicates QuickEdit |
+| Assignee tags/add, AutoAssignHint accept (Overview) | Sets assignees/team | src/components/modals/NodeModal.jsx:424-451 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit |
 | Quick-estimate buttons, "Estimate now" (Effort) | Sets best/factor, opens EstimationWizard | src/components/modals/NodeModal.jsx:470-479 | Build | 2 | ↔ duplicates QuickEdit Effort |
 | Best/factor/priority inputs (Effort) | Sets estimate fields | src/components/modals/NodeModal.jsx:482-487 | Build | 2 | ↔ duplicates QuickEdit Effort |
 | Fixed-duration toggle+input, confidence (Effort) | Sets fixedDurationDays / confidence | src/components/modals/NodeModal.jsx:490-517 | Build | 2 | 🔧 mechanics exposed; ↔ duplicates QuickEdit Effort |
 | Decide-by/due/pinned-start inputs + "Pin today" (Timing) | Sets those date fields | src/components/modals/NodeModal.jsx:533-550 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; "Pin today" has no QuickEdit counterpart |
 | Completed-start/end/at inputs (Timing) | Sets the actual completion window | src/components/modals/NodeModal.jsx:551-561 | Run | 2 | 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
 | Deadline-relevant toggle (Timing) | Sets deadlineRelevant | src/components/modals/NodeModal.jsx:565-584 | Plan | 2 | ↔ duplicates QuickEdit Timing |
-| Predecessor list (remove/convert) + add (Timing) | Manages dependencies | src/components/modals/NodeModal.jsx:586-616 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
-| Successor list (navigate only) (Timing) | Opens a successor item | src/components/modals/NodeModal.jsx:618-637 | Build | 2 | ↔ duplicates QuickEdit Timing |
+| Predecessor list (remove) + add hard dependency (Timing) | Manages dependencies — no hard↔soft convert and no soft add here, unlike QuickEdit | src/components/modals/NodeModal.jsx:586-616 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
+| Successor list (navigate only) (Timing) | Opens a successor item, behind the same unsaved-changes check as the breadcrumbs | src/components/modals/NodeModal.jsx:618-637 | Build | 2 | ↔ duplicates QuickEdit Timing |
 | History tab (ItemHistoryTimeline) | Shows/edits the item's change history | src/components/modals/NodeModal.jsx:641-645 | Review | 2 | not present in QuickEdit at all — unique to NodeModal |
 | Advanced — parent SearchSelect (move node) | Moves the node to a new parent | src/components/modals/NodeModal.jsx:649-657 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; not present in QuickEdit |
 | ~~Advanced — seq number input~~ | — | — | — | — | ✗ removed: the field it set is no longer read by anything. Order is the tree's. |
@@ -554,6 +554,8 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | "Cancel" button | Closes the modal | src/components/modals/JiraExportModal.jsx:142 | Report | 2 | |
 
 ### JiraSyncModal (JiraSyncModal.jsx)
+
+> **Gone.** `JiraSyncModal.jsx` was deleted in #14 (`ccfdabf`); Jira reconciling lives in the Briefing's drift section and `JiraImportModal.jsx` now. The rows below describe the file as it was and are kept only as the record the mode decisions were made on.
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|

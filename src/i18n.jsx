@@ -613,7 +613,8 @@ const en = {
   'bv.cycleStatusTip': 'Mark as {0}',
 
   // ── NodeModal / QuickEdit — Insights tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Insights', 'nm.tab.history': 'History',
+  'nm.handoffHint': 'Handoff stage {0} of this task — the fields here edit the whole task.',
   'ins.timing': 'Timing', 'ins.period': 'Period',
   'ins.offboardWarn': 'Offboard warning',
   'ins.calDays': 'cal. days', 'ins.pinned': 'Pinned start', 'ins.decideBy': 'Decide by',
@@ -989,6 +990,7 @@ const en = {
   'g.queueHintTip': 'Grouped by resource you are looking at one person\u2019s queue, not the plan. Moving a task here changes only their order — it is the one way to put work from one project ahead of another\u2019s, which the tree cannot do. Dependencies and pinned dates still win.',
   'wo.help': 'Each person\u2019s tasks in scheduled order. ↑/↓ walk the rows, ⇧↑/⇧↓ extend the selection, Enter opens the item. Space cycles status, 1–4 sets priority, S M L X sets size, E or a double-click opens the editor. Reordering here can pull a task ahead of another project\u2019s; dependencies and pinned dates still take precedence. Move a task or the selection',
   'wo.empty': 'Nobody and no team has two or more tasks yet — an order needs something to order.',
+  'wo.noMatch': 'No open task in any queue matches “{0}”.',
   'wo.unassigned': 'nobody assigned yet',
   'wo.dragTip': 'Drag the row onto the place it should take.',
   'wo.picked': '{0} selected',
@@ -1765,7 +1767,8 @@ const de = {
   'bv.cycleStatusTip': 'Als {0} markieren',
 
   // ── NodeModal / QuickEdit — Insights-Tab ──
-  'nm.tab.insights': 'Insights',
+  'nm.tab.insights': 'Insights', 'nm.tab.history': 'Verlauf',
+  'nm.handoffHint': 'Etappe {0} dieser Aufgabe — die Felder hier bearbeiten die ganze Aufgabe.',
   'ins.timing': 'Zeitplan', 'ins.period': 'Zeitraum',
   'ins.offboardWarn': 'Offboarding-Warnung',
   'ins.calDays': 'Kaltage', 'ins.pinned': 'Fixierter Start', 'ins.decideBy': 'Entscheiden bis',
@@ -2145,6 +2148,7 @@ const de = {
   'g.queueHintTip': 'Nach Ressource gruppiert siehst du die Warteschlange einer Person, nicht den Plan. Eine Aufgabe hier zu verschieben ändert nur ihre Reihenfolge — und ist der einzige Weg, Arbeit aus einem Projekt vor die eines anderen zu ziehen, was der Tree nicht kann. Abhängigkeiten und feste Termine gehen weiterhin vor.',
   'wo.help': 'Die Aufgaben jeder Person in geplanter Reihenfolge. ↑/↓ wandern durch die Zeilen, ⇧↑/⇧↓ erweitern die Auswahl, Enter öffnet den Eintrag. Leertaste schaltet den Status, 1–4 setzt die Priorität, S M L X die Größe, E oder Doppelklick öffnet den Editor. Umsortieren kann eine Aufgabe vor die eines anderen Projekts ziehen; Abhängigkeiten und feste Termine gehen weiterhin vor. Aufgabe oder Auswahl verschieben',
   'wo.empty': 'Noch hat weder eine Person noch ein Team zwei oder mehr Aufgaben — eine Reihenfolge braucht etwas zu ordnen.',
+  'wo.noMatch': 'Keine offene Aufgabe in einer Queue passt zu „{0}“.',
   'wo.unassigned': 'noch niemandem zugewiesen',
   'wo.dragTip': 'Zeile auf den Platz ziehen, den sie einnehmen soll.',
   'wo.picked': '{0} ausgewählt',

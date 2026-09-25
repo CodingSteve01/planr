@@ -324,7 +324,7 @@ Common moves:
 - **Move work earlier** — reduce the estimate, remove a blocking dep, or bump `prio` (lower number = higher priority, breaks ties).
 - **Split a task** — add children under it via the `+` row button or the Add modal. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
 - **Mark done** — set status to `done` or slide progress to 100 %. The bar disappears from the timeline.
-- **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). Matches highlight amber across Tree, Gantt, and Network tabs, and each view auto-scrolls/pans to the first match.
+- **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). Matches highlight amber across Tree, Gantt, and Network tabs, and each view auto-scrolls/pans to the first match. In the Work order the search narrows the queues to matching rows; `Enter` jumps to the first one.
 - **Pull TODO lists per person** — use **Summary → Up next → Export TODO list** or the topbar export entry. You get Markdown grouped by person for the selected horizon.
 
 ## 10. Save
