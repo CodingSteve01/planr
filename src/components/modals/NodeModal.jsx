@@ -8,6 +8,7 @@ import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
+import { insightTarget } from '../../utils/insightTargets.js';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
@@ -340,13 +341,9 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         onSplitHandoff={onSplitHandoff}
         onSplitTaskAtProgress={onSplitTaskAtProgress}
         onEditSection={sectionId => {
-          const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
-          const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
-          const requested = tabMap[sectionId];
-          // Fallback: if requested tab is hidden, land on overview so user is never stuck.
-          const target = nmTabs.find(x => x.id === requested) ? requested : 'overview';
-          setNmTab(target);
-          setFocusHint(fieldMap[sectionId] || null);
+          const target = insightTarget(sectionId, nmTabs);
+          setNmTab(target.tab);
+          setFocusHint(target.focus);
         }}
       />}
 
