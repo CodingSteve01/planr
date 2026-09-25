@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, memo } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
@@ -31,7 +31,7 @@ import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 // when nobody is (utils/personQueue.js, `queueOwnerOf`) — a plan's early items
 // mostly have a team and nobody, and those are exactly the ones where the
 // question matters most.
-function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], rootFilter = '', teamFilter = '', personFilter = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit, onOpenBulkEdit }) {
+function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], rootFilter = '', teamFilter = '', personFilter = '', search = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit, onOpenBulkEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
   // The tree's selection model, because it is the same act: click, shift for a
@@ -100,6 +100,19 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     return out;
   };
 
+  // The toolbar search, applied like the three filters: it narrows what is
+  // shown and leaves the stored order alone, and the position number on each
+  // row stays the one in the full queue — "12" still means twelfth. A row
+  // matches on what it shows: id, title, the project and package it sits in,
+  // who does it — plus the note, as in the tree.
+  const query = (search || '').trim().toLowerCase();
+  const matchesSearch = node => {
+    if (!query) return true;
+    const doer = doerById.get(node.id)?.name || '';
+    return [node.id, node.name || '', node.note || '', doer, ...pathOf(node.id)]
+      .some(text => text.toLowerCase().includes(query));
+  };
+
   const leafIds = useMemo(() => new Set(leafNodes(tree).map(l => l.id)), [tree]);
   // Dropped work, or work under something dropped, is not going to be done
   // and has no place in an order of work — same as finished work. The tree
@@ -144,13 +157,14 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       // which is most of a plan early on, and exactly when reading it per
       // resource matters most.
       if (personFilter && (doerById.get(node.id)?.id || assigneeOf(node)) !== personFilter) continue;
+      if (!matchesSearch(node)) continue;
       const owner = queueOwnerOf(node);
       if (!owner) continue;
       if (!out.has(owner)) out.set(owner, []);
       out.get(owner).push(node);
     }
     return out;
-  }, [tree, leafIds, droppedIds, rootFilter, teamFilter, personFilter, doerById]);
+  }, [tree, leafIds, droppedIds, rootFilter, teamFilter, personFilter, doerById, query, allById]);
 
   const ownerLabel = owner => {
     if (owner.startsWith('team:')) {
@@ -267,23 +281,54 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     }
   };
 
+  // Enter in the search box hands the keyboard to the first matching row, as
+  // it does in the tree. The committed query reaches this view a render or
+  // two after the event (App state, then a deferred value), so the jump waits
+  // until the rows on screen are that query's — otherwise the cursor would
+  // land on the first row of the previous result.
+  const [jumpTo, setJumpTo] = useState(null);   // { query } | null
+  useEffect(() => {
+    const onEvent = e => {
+      if (!viewRef.current || viewRef.current.offsetParent === null) return;   // tab not showing
+      setJumpTo({ query: e?.detail?.query ?? '' });
+    };
+    window.addEventListener(QUEUE_FOCUS_EVENT, onEvent);
+    return () => window.removeEventListener(QUEUE_FOCUS_EVENT, onEvent);
+  }, []);
+  useEffect(() => {
+    if (!jumpTo || (search || '') !== jumpTo.query) return;
+    setJumpTo(null);
+    const first = rowEls()[0]?.getAttribute('data-queue-row');
+    if (!first) return;
+    setPicked(new Set()); extendRef.current = null;
+    setCursor(first);
+    focusRow(first);
+  }, [jumpTo, search, shown]);
+
   // An owner is worth a block when they hold more than one thing; what is
   // SHOWN of it is the filters' business.
   const owners = [...shown.entries()].filter(([owner]) => (byOwner.get(owner) || []).length > 1);
   if (!owners.length) {
-    return <div style={{ maxWidth: 960, margin: '0 auto' }}>
-      <p className="helper" style={{ fontSize: 12 }}>{t('wo.empty')}</p>
+    // The ref stays on the empty state too, so a search that finds nothing
+    // is still this view when the next Enter asks whether it is showing.
+    return <div ref={viewRef} style={{ maxWidth: 960, margin: '0 auto' }}>
+      <p className="helper" data-testid="wo-empty" style={{ fontSize: 12 }}>{query ? t('wo.noMatch', search.trim()) : t('wo.empty')}</p>
     </div>;
   }
 
   return <div ref={viewRef} style={{ maxWidth: 960, margin: '0 auto' }}>
     <p className="helper" style={{ fontSize: 12, marginTop: 0, marginBottom: 14 }}>
-      {withKey(t('wo.help'), 'ganttReorder')}
+      {withKey(t('wo.help'), 'orderMove')}
     </p>
     {owners.map(([owner, rows]) => {
       const label = ownerLabel(owner);
       const ordered = reconcileQueue(personQueues?.[owner], rows.map(n => n.id));
       const byId = new Map(rows.map(n => [n.id, n]));
+      // The number on a row is its place in the WHOLE queue, not in what the
+      // filters and the search left: narrowed to one match, the twelfth task
+      // still reads 12, because that is when it gets done.
+      const place = new Map(reconcileQueue(personQueues?.[owner], (byOwner.get(owner) || []).map(n => n.id))
+        .map((qid, at) => [qid, at + 1]));
       // What this order cannot decide. Resolved against the WHOLE plan, not
       // this owner's rows — most of what holds somebody up is somebody else's
       // work, and a lookup limited to their own queue would report none of it.
@@ -382,7 +427,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 style={{ outline: 'none' }}>
                 <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
                   data-htip={t('wo.dragTip')}>
-                  <span className="tv-drag-handle"><Icon name="grip" size={11} /></span>{i + 1}
+                  <span className="tv-drag-handle"><Icon name="grip" size={11} /></span>{place.get(id) ?? i + 1}
                 </td>
                 <td style={{ width: 20, verticalAlign: 'middle' }}><StatusIcon status={node.status || 'open'} progress={prog} /></td>
                 <td data-col="who" className="nc" style={{ width: 90, verticalAlign: 'middle', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
@@ -520,5 +565,9 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     </SelectionActionBar>
   </div>;
 }
+
+// Dispatched by the search box on Enter while the queue is the active tab;
+// carries the query so the jump waits for this view's rows to be its result.
+export const QUEUE_FOCUS_EVENT = 'planr:queue:focus';
 
 export const WorkOrderView = memo(WorkOrderViewImpl);

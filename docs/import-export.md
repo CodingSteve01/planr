@@ -2,7 +2,7 @@
 
 Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (PDF, DOCX, CSV, Sprint MD, Mermaid, SVG, PNG).
 
-All export operations are reached through a single **Export…** dialog in the topbar (`src/components/modals/ExportModal.jsx`). Every PDF carries the project name, export kind and generation date in the footer.
+All export operations are reached through a single **Export…** dialog in the topbar (`src/components/modals/ExportModal.jsx`). Every PDF carries the project name, export kind and generation date in the footer, plus "made with Planr." with the wordmark linked to the project page.
 
 ## Persistent formats
 

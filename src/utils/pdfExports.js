@@ -55,12 +55,28 @@ import { isOnboard } from './capacity.js';
 import { memberShades } from './teamShades.js';
 
 // ── Shared footer / header builders ─────────────────────────────────────────
-function footerBuilder({ meta, kind, dateStr }) {
+// Where "made with Planr" leads. A PDF travels further than the app does —
+// the person reading a management summary has usually never seen Planr — so
+// the footer says what made it and the wordmark is a link to find out.
+export const PLANR_URL = 'https://github.com/CodingSteve01/planr';
+
+// The app's wordmark as print text: "Planr" in bold with the accent-coloured
+// dot, both parts linked. Text rather than an image so it stays selectable
+// and sharp at any zoom, like the rest of the document.
+export function madeWithPlanr(t) {
+  return [
+    t('made with ', 'erstellt mit '),
+    { text: 'Planr', bold: true, color: PRINT.ink2, link: PLANR_URL },
+    { text: '.', bold: true, color: PRINT.accent, link: PLANR_URL },
+  ];
+}
+
+function footerBuilder({ meta, t, kind, dateStr }) {
   return (currentPage, pageCount) => ({
     margin: [40, 10, 40, 0],
     columns: [
       { text: (meta?.name || 'Project') + ' · ' + kind, fontSize: 8, color: PRINT.muted },
-      { text: dateStr, fontSize: 8, color: PRINT.muted, alignment: 'center' },
+      { text: [dateStr + ' · ', ...madeWithPlanr(t)], fontSize: 8, color: PRINT.muted, alignment: 'center' },
       { text: currentPage + ' / ' + pageCount, fontSize: 8, color: PRINT.muted, alignment: 'right' },
     ],
   });
@@ -913,7 +929,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     info: { title: (meta.name || 'Project') + ' — Management Summary', creator: 'Planr' },
     defaultStyle: { font: 'PlexSans', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
-    footer: footerBuilder({ meta, kind: t('Management Summary', 'Management-Summary'), dateStr }),
+    footer: footerBuilder({ meta, t, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
   };
   pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
@@ -971,7 +987,7 @@ export async function exportGanttPDF(ctx) {
     info: { title: (meta.name || 'Project') + ' — Gantt', creator: 'Planr' },
     defaultStyle: { font: 'PlexSans', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
-    footer: footerBuilder({ meta, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
+    footer: footerBuilder({ meta, t, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
   };
   pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
@@ -1049,7 +1065,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
     info: { title: (meta.name || 'Project') + ' — TODO', creator: 'Planr' },
     defaultStyle: { font: 'PlexSans', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
-    footer: footerBuilder({ meta, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
+    footer: footerBuilder({ meta, t, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
   };
   pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
@@ -1154,7 +1170,7 @@ export async function exportWhatWhenPDF(ctx) {
     info: { title: (meta.name || 'Project') + ' — What comes when', creator: 'Planr' },
     defaultStyle: { font: 'PlexSans', fontSize: 10, color: PRINT.ink },
     styles: STYLES,
-    footer: footerBuilder({ meta, kind: t('What comes when', 'Was kommt wann'), dateStr }),
+    footer: footerBuilder({ meta, t, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,
   };
   pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');

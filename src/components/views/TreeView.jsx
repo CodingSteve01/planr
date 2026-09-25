@@ -1003,15 +1003,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       onSelect(row, {}, visibleIds);
       return;
     }
-    if (!bare || e.altKey || !selected?.id) return;
-
     // ⇧←/⇧→ — the big version of ←/→: collapse or expand everything, or just
     // the selection when there is one, exactly like the two toolbar buttons.
-    if ((key === 'ArrowLeft' || key === 'ArrowRight') && e.shiftKey) {
+    // Before the "needs a selected row" check below, because "everything" is
+    // what it does with none — it used to do nothing until a row was picked.
+    if ((key === 'ArrowLeft' || key === 'ArrowRight') && e.shiftKey && bare && !e.altKey) {
       e.preventDefault();
       if (key === 'ArrowLeft') collapseAll(); else expandAll();
       return;
     }
+    if (!bare || e.altKey || !selected?.id) return;
     // ←/→ — the tree idiom every file browser and outliner shares: → opens a
     // closed branch and then steps into it, ← closes an open one and then
     // steps out to the parent. Structure navigation without leaving the

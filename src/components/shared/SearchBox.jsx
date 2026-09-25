@@ -61,7 +61,10 @@ export function SearchBox({ searchRef, onCommit, onResetIdx, onPrev, onNext, onG
           if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); onPrev?.(); }
         }}
       />
+      {/* ▲/▼ only where a view steps through matches; the tree filters to
+          them instead, and two buttons that do nothing are worse than none. */}
       {v && <>
+        {onNext && <>
         <button className="btn btn-ghost btn-xs" onClick={onPrev}
           data-htip={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
           aria-label={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
@@ -70,6 +73,7 @@ export function SearchBox({ searchRef, onCommit, onResetIdx, onPrev, onNext, onG
           data-htip={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
           aria-label={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
           style={{ padding: '2px 5px' }}><Icon name="chevronDown" size={12} strokeWidth={2.2} /></button>
+        </>}
         <button className="btn btn-ghost btn-xs"
           onClick={() => { setV(''); lastSentRef.current = ''; onCommit(''); }}
           data-htip={withKey(t('sb.clearSearchLabel'), 'closeDialog')}
