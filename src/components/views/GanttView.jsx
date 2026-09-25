@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { isOnScreen } from '../../utils/onScreen.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { tipLines } from '../../utils/tipText.js';
@@ -1170,6 +1171,11 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
   }, [visibleTaskIds, cursorId]);
   useEffect(() => {
     const h = (e) => {
+      // The Gantt stays mounted after you leave it, and this listener is on
+      // the window. Without this it kept answering on every other tab: ⌘A
+      // selected invisible bars, ↑/↓ stopped scrolling the Overview, and ⌥↑
+      // or E in the tree also reordered or opened the Gantt's old cursor row.
+      if (!isOnScreen(bR.current)) return;
       const tag = (document.activeElement?.tagName || '').toLowerCase();
       const editingText = ['input', 'textarea', 'select'].includes(tag) || document.activeElement?.isContentEditable;
       if (editingText) return;

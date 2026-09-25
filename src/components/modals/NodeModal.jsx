@@ -8,6 +8,7 @@ import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
 import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
+import { insightTarget } from '../../utils/insightTargets.js';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
@@ -64,7 +65,10 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     }
     const requestedTab = focusRequest.tab
       || (focusRequest.focusHint === 'deps' ? 'timing' : null)
-      || (focusRequest.section === 'handoff' ? 'details' : null);
+      // A click on a handoff bar lands on Details, where team and person are.
+      // This said 'details', which is no tab id here, so it opened Insights —
+      // and the hint below sat on Workflow, where nobody was sent.
+      || (focusRequest.section === 'handoff' ? 'overview' : null);
     if (requestedTab) setNmTab(requestedTab);
     if (focusRequest.focusHint) setFocusHint(focusRequest.focusHint);
     setHighlightedDepId(focusRequest.depId || null);
@@ -244,7 +248,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     { id: 'workflow', label: t('qe.tab.workflow') },
     ...(isLeaf ? [{ id: 'effort', label: t('qe.tab.effort') }] : []),
     { id: 'timing', label: t('qe.tab.timing') },
-    { id: 'history', label: 'History' },
+    { id: 'history', label: t('nm.tab.history') },
     { id: 'advanced', label: t('nm.advanced') },
   ];
   const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'insights';
@@ -290,6 +294,23 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onDockSide(); }}><Icon name="panelRight" size={13} /></button>}
       </div>
 
+      {/* Opened from a handoff bar: the bar was one stage of this task, and
+          what the dialog edits is the whole task. Above the tabs, because it
+          is true on every one of them — it used to sit on Workflow, where the
+          click never sent anybody, and pointed at a handoff section that is
+          switched off. */}
+      {isLeaf && focusRequest?.section === 'handoff' && (
+        <div data-testid="nm-handoff-hint" style={{
+          margin: '0 0 10px', padding: '4px 8px',
+          background: 'rgba(168,85,247,.10)',
+          borderLeft: '2px solid rgba(168,85,247,.6)',
+          fontSize: 11, color: 'var(--tx2)', lineHeight: 1.4,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <Icon name="swap" size={11} />{t('nm.handoffHint', (focusRequest.handoffStage ?? 0) + 1)}
+        </div>
+      )}
+
       {/* ── TAB BAR ── */}
       <div className="qe-tabs" role="tablist" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
         {nmTabs.map(x => <button
@@ -320,13 +341,9 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         onSplitHandoff={onSplitHandoff}
         onSplitTaskAtProgress={onSplitTaskAtProgress}
         onEditSection={sectionId => {
-          const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
-          const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
-          const requested = tabMap[sectionId];
-          // Fallback: if requested tab is hidden, land on overview so user is never stuck.
-          const target = nmTabs.find(x => x.id === requested) ? requested : 'overview';
-          setNmTab(target);
-          setFocusHint(fieldMap[sectionId] || null);
+          const target = insightTarget(sectionId, nmTabs);
+          setNmTab(target.tab);
+          setFocusHint(target.focus);
         }}
       />}
 
@@ -503,16 +520,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           onChange={handlePhaseChange}
         /></div>}
 
-        {isLeaf && focusRequest?.section === 'handoff' && (
-          <div style={{
-            margin: '8px 0 0', padding: '4px 8px',
-            background: 'rgba(168,85,247,.10)',
-            borderLeft: '2px solid rgba(168,85,247,.6)',
-            fontSize: 11, color: 'var(--tx2)', lineHeight: 1.4,
-          }}>
-            ⇄ Etappe {(focusRequest.handoffStage ?? 0) + 1} · Team/Person unten im Handoff-Abschnitt editieren.
-          </div>
-        )}
         {/* HandoffPlanEditor disabled (see QuickEdit comment) */}
       </>}
 
@@ -530,7 +537,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                 onClick={() => { s('best', d); s('factor', fc); }}>{sz}<span style={{ fontSize: 10, opacity: .6, marginLeft: 2 }}>{d}d</span></button>;
             })}
           </div>
-          {onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginTop: 4 }} onClick={() => { onClose(); onEstimate(node); }}>{t('qe.estimateNow')}</button>}
+          {onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginTop: 4 }} onClick={() => { if (isDirty && !confirm(t('nm.unsavedDiscard'))) return; onClose(); onEstimate(node); }}>{t('qe.estimateNow')}</button>}
         </div>
         <div className="frow">
           <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" step="0.1" value={f.best || 0} onChange={e => s('best', +e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
@@ -673,7 +680,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
           const succs = (tree || []).filter(r => r.id !== node.id && (((r.deps || []).includes(node.id)) || ((r.softDeps || []).includes(node.id))));
           if (!succs.length) return null;
           return <div className="field">
-            <label>Nachfolger</label>
+            <label>{t('qe.successors')}</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {succs.map(r => {
                 return <div key={'succ_' + r.id} className="dep-row">
@@ -682,7 +689,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
                     {r.name && <span style={{ fontSize: 12, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.name}</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                    {onNavigate && <button type="button" className="btn btn-ghost btn-xs" aria-label={t('nm.fullEditTip')} data-htip={t('nm.fullEditTip')} style={{ padding: '0 3px', color: 'var(--ac)' }} onClick={() => onNavigate(r.id)}><Icon name="link" size={11} /></button>}
+                    {onNavigate && <button type="button" className="btn btn-ghost btn-xs" aria-label={t('nm.fullEditTip')} data-htip={t('nm.fullEditTip')} style={{ padding: '0 3px', color: 'var(--ac)' }} onClick={() => handleNavigate(r.id)}><Icon name="link" size={11} /></button>}
                   </div>
                 </div>;
               })}

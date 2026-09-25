@@ -24,10 +24,12 @@ export function KeyboardMap() {
 
   useEffect(() => {
     const onKeyDown = e => {
-      // `?` is Shift+/ on most layouts and its own key on others — accept
-      // both, and never while the user is typing into a field (where `?` is
-      // just a character).
-      if (!open && (e.key === '?' || (e.key === '/' && e.shiftKey)) && !isEditableTarget(document.activeElement)) {
+      // `?` by the character it produces, whatever keys make it, and never
+      // while the user is typing into a field (where `?` is just a
+      // character). This also took `/` with Shift, which is how a German
+      // keyboard types a plain `/` (⇧7) — so there `/` opened this map AND
+      // the command palette at once.
+      if (!open && e.key === '?' && !isEditableTarget(document.activeElement)) {
         e.preventDefault();
         setOpen(true);
         return;

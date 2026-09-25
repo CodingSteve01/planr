@@ -353,6 +353,16 @@ tr[data-drop] > td{position:relative;}
 tr[data-drop="before"] > td{box-shadow:inset 0 2px 0 0 var(--ac);}
 tr[data-drop="after"] > td{box-shadow:inset 0 -2px 0 0 var(--ac);}
 tr[data-dragging] > td{opacity:.4;}
+/* Dropping INTO a package: the whole row lights up, top and bottom edge
+   marked, so it reads differently from "between two rows". */
+tr[data-drop="inside"] > td{background:var(--ac-soft);box-shadow:inset 0 2px 0 0 var(--ac), inset 0 -2px 0 0 var(--ac);}
+/* A draggable row says so: the grab cursor on the whole row, not only on
+   the grip — the row itself is the handle now, as in the Work order. */
+tr[draggable="true"]{cursor:grab;}
+tr[draggable="true"]:active{cursor:grabbing;}
+tr[draggable="true"] input, tr[draggable="true"] textarea{cursor:text;}
+/* What is in the hand while a multi-selection is dragged (utils/dragBadge.js). */
+.drag-badge{position:fixed;top:-100px;left:-100px;padding:4px 10px;border-radius:999px;background:var(--bg2);color:var(--tx);border:1px solid var(--ac);font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none;}
 /* The mouse path into the inline editor (docs/principles.md, principle 3:
    nothing is reachable by keyboard only). Three affordances, no new write
    path: the selected row's name reads as a field on hover, and every row
