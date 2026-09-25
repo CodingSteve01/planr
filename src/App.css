@@ -73,6 +73,14 @@
   --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;
   --font-display:'Instrument Serif',Georgia,'Times New Roman',serif;
   --sh:0 4px 24px rgba(0,0,0,.55);
+  /* Layers — the one scale every z-index at or above 100 comes from
+     (docs/design-tokens.md § Layers). Local stacking inside a view (bars over
+     grid lines, a sticky header over its rows) stays below 100 and in place.
+     The order is the contract: a dialog over the page, a popover over a
+     dialog, a dropdown over the popover it opens from, and a tooltip over
+     everything, because a tooltip explains whatever is under the pointer. */
+  --z-overlay:200;--z-overlay-top:300;
+  --z-popover:1000;--z-dropdown:1100;--z-drag:1500;--z-tooltip:2000;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body,#root{height:100%;}
@@ -179,7 +187,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 .calc{background:var(--bg3);border-radius:var(--r);padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--tx3);display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;}
 .calc b{color:var(--gr);}.calc .cp{color:var(--re);}
 .helper{font-size:12px;color:var(--tx3);margin-top:3px;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px 20px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);z-index:var(--z-overlay);display:flex;align-items:flex-start;justify-content:center;padding:60px 20px 20px;}
 .modal{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:22px;width:min(560px,100%);max-height:88vh;overflow-y:auto;overflow-x:hidden;box-shadow:var(--sh);}
 .modal-lg{width:min(720px,100%);}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
@@ -544,7 +552,11 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .hol-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin-bottom:16px;}
 .hol-row{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--b);border-radius:var(--r);padding:6px 10px;}
 .hol-d{font-family:var(--mono);font-size:12px;color:var(--tx2);flex-shrink:0;}
-.tt{position:fixed;background:var(--bg4);border:1px solid var(--b2);border-radius:var(--r);padding:10px 13px;font-size:12px;z-index:9999;pointer-events:none;max-width:320px;box-shadow:var(--sh);}
+.tt{position:fixed;background:var(--bg4);border:1px solid var(--b2);border-radius:var(--r);padding:10px 13px;font-size:12px;z-index:var(--z-tooltip);pointer-events:none;max-width:320px;box-shadow:var(--sh);}
+.layer-overlay-top{z-index:var(--z-overlay-top);}
+.layer-popover{z-index:var(--z-popover);}
+.layer-dropdown{z-index:var(--z-dropdown);}
+.layer-drag{z-index:var(--z-drag);}
 .tt-title{font-weight:600;font-size:12px;margin-bottom:7px;}
 .tt-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:3px;color:var(--tx2);}
 .tt-row b{color:var(--tx);font-family:var(--mono);font-size:11px;}
@@ -651,7 +663,7 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .saving{animation:pulse 1.2s ease infinite;}
 
 /* ── Tour ── */
-.tour-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+.tour-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:var(--z-overlay-top);display:flex;align-items:center;justify-content:center;padding:20px;}
 .tour-card{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:28px 28px 22px;width:min(420px,100%);box-shadow:var(--sh);position:relative;overflow:hidden;}
 .tour-progress{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bg3);}
 .tour-progress-fill{height:100%;background:var(--ac2);transition:width .25s ease;}
@@ -669,7 +681,7 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .tour-next{min-width:80px;}
 
 /* ── New-feature popover ── */
-.new-feat-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);z-index:299;display:flex;align-items:center;justify-content:center;padding:20px;}
+.new-feat-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);z-index:calc(var(--z-overlay-top) - 1);display:flex;align-items:center;justify-content:center;padding:20px;}
 .new-feat-card{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r2);padding:22px 24px 18px;width:min(420px,100%);box-shadow:var(--sh);}
 .new-feat-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 .new-feat-list{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:8px;}
@@ -719,7 +731,7 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 /* An indented detail line — the tasks under a week, the rows under a warning. */
 .htip-detail{margin-left:8px;color:var(--tx2);}
 .htip-muted{color:var(--tx3);}
-.htip-pop{background:var(--bg2);color:var(--tx);border:1px solid var(--b2);border-radius:var(--r);padding:6px 10px;font:500 12px/1.4 var(--font);box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}
+.htip-pop{z-index:var(--z-tooltip);background:var(--bg2);color:var(--tx);border:1px solid var(--b2);border-radius:var(--r);padding:6px 10px;font:500 12px/1.4 var(--font);box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}
 
 /* ── Plan mode's Roadmap tab (components/views/PlanRoadmap.jsx) ───────────
    Built to sit next to the Gantt and read as the same family: the same 28px

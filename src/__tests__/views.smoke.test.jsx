@@ -407,7 +407,8 @@ describe('view smoke', () => {
     const bar = container.querySelector('[data-task-bar="P1.1.1"]');
 
     fireEvent.mouseEnter(bar, { clientX: 100, clientY: 80 });
-    expect(container.querySelector('.tt-title')?.textContent).toContain('P1.1.1');
+    // The tooltip is portalled to the body, beside the popovers it must top.
+    expect(document.querySelector('.tt-title')?.textContent).toContain('P1.1.1');
 
     fireEvent.click(bar);
     expect(onBarClick).toHaveBeenCalled();

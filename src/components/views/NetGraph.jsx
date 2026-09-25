@@ -784,7 +784,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
       </g>
     </svg>
 
-    {ctxMenu && <div style={{ position: 'fixed', ...(({ x, y }) => ({ left: x, top: y }))(toFixedPoint(ctxMenu.x, ctxMenu.y, fixedFrame(portalRoot))), background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, zIndex: 999, boxShadow: 'var(--sh)', minWidth: 140 }} onClick={e => e.stopPropagation()}>
+    {ctxMenu && <div className="layer-popover" style={{ position: 'fixed', ...(({ x, y }) => ({ left: x, top: y }))(toFixedPoint(ctxMenu.x, ctxMenu.y, fixedFrame(portalRoot))), background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 4, boxShadow: 'var(--sh)', minWidth: 140 }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }} className="tr" onClick={() => { onNodeClick(iMap[ctxMenu.id]); setCtxMenu(null); }}>Edit {ctxMenu.id}</div>
       <div style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }} className="tr" onClick={() => { onDeleteNode(ctxMenu.id); setSelId(null); setCtxMenu(null); }}>Delete</div>
     </div>}

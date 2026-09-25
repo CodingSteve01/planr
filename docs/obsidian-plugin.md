@@ -260,6 +260,20 @@ measures the room up to the right edge of the app's own container now
 menu's width is in the app's own pixels while the rects are in viewport
 pixels. Covered by [`fileMenuEdge.test.jsx`](../src/__tests__/fileMenuEdge.test.jsx).
 
+### Planr's keys win while a plan has focus
+
+Obsidian runs its hotkeys from a keydown listener on the window in the capture
+phase, and a matched hotkey is stopped right there — Planr's listeners never
+hear it. ⌘F was the one noticed (Obsidian's "Search current file"), but every
+chord was exposed. Each `PlanrView` therefore carries its own `Scope`
+([`hostKeys.js`](../obsidian/src/hostKeys.js)) with every chord of the
+keyboard map (`src/utils/shortcuts.js`) registered on it. Obsidian asks the
+active view's scope first; the handler answers `true`, which ends the lookup
+without the preventDefault/stopPropagation that only `false` triggers, so the
+key reaches the app exactly as on the web. Bare keys are not claimed — they are
+no Obsidian hotkey. ⌘P, ⌘W and the other chords Planr does not use stay the
+vault's. Covered by [`hostKeys.test.js`](../obsidian/__tests__/hostKeys.test.js).
+
 ### Build
 
 ```bash

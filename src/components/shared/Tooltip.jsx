@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { iso, localDate } from '../../utils/date.js';
 import { phaseAssigneeLabel, phaseTeamLabel } from '../../utils/phases.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
@@ -124,7 +125,9 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
     capPct < 100 ? { label: t('tt.durCap'), value: `${capPct}%` } : null,
   ].filter(Boolean);
 
-  return (
+  // Portalled next to every other floating layer, so `--z-tooltip` is compared
+  // with the popovers' z-index and not trapped inside a view's stacking context.
+  return createPortal(
     <div className="tt" data-testid="item-tip" style={{ left: sx, top: sy }}>
       <div className="tt-title">{item.id} — {item.name}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -271,6 +274,7 @@ export function Tip({ item, x, y, teams, members, tree, scheduled = [], cpLabels
         <hr className="tt-sep" />
         <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{hint || t('tt.dblClick')}</div>
       </>}
-    </div>
+    </div>,
+    portalRoot,
   );
 }

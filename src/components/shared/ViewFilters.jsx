@@ -203,10 +203,11 @@ export function ViewFilters({
           ref={panelRef}
           role="dialog"
           data-testid="view-filters-panel"
+          className="layer-popover"
           style={{
             position: 'fixed',
             top: anchor.top ?? 'auto', bottom: anchor.bottom ?? 'auto',
-            left: anchor.left, zIndex: 9999,
+            left: anchor.left,
             maxHeight: anchor.maxH, overflowY: 'auto',
             background: 'var(--bg2)', border: '1px solid var(--b2)',
             borderRadius: 8, boxShadow: '0 10px 32px rgba(0,0,0,.5)',

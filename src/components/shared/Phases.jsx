@@ -23,7 +23,7 @@ export function PhaseEditPopout({ phase, teams, members, onSave, onClose }) {
 
   const patch = (k, v) => setD(prev => ({ ...prev, [k]: v }));
 
-  const content = <div className="overlay" style={{ zIndex: 300 }} onClick={onClose}>
+  const content = <div className="overlay layer-overlay-top" onClick={onClose}>
     <div className="modal" style={{ width: 'min(420px, 90%)' }} onClick={e => e.stopPropagation()}>
       <h2 style={{ fontSize: 14 }}>{d.name || t('ph.freePhase')}</h2>
 

@@ -52,8 +52,9 @@ export function KeyboardMap() {
   return <div
     onClick={() => setOpen(false)}
     data-testid="keymap-overlay"
+    className="layer-overlay-top"
     style={{
-      position: 'fixed', inset: 0, zIndex: 300, display: 'flex',
+      position: 'fixed', inset: 0, display: 'flex',
       alignItems: 'flex-start', justifyContent: 'center', paddingTop: '8vh',
       background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(2px)',
     }}>
