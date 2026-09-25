@@ -26,7 +26,7 @@ import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -281,6 +281,10 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       confReasons={confReasons}
       customFields={customFields}
       onPhaseToggle={togglePhase}
+      // The blocker link and the dependency chips open the item they name —
+      // here that means selecting it, so the panel shows it. Without this they
+      // were drawn as links and did nothing on click.
+      onOpenItem={onOpenItem}
       onSplitHandoff={onSplitHandoff}
       onSplitTaskAtProgress={onSplitTaskAtProgress}
       onEditSection={sectionId => {

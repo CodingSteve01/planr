@@ -399,7 +399,7 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Name/description block click | Jumps to Overview/Details | src/components/shared/TaskInsights.jsx:207-230 | Build | 1 | |
 | Status+progress header click | Jumps to Workflow/Details | src/components/shared/TaskInsights.jsx:233-252 | Build | 1 | |
 | Timing section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:258 | Build | 1 | |
-| "Wartet auf" (blocked-by) link | Opens the blocking item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | |
+| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
 | Effort section click | Jumps to Effort | src/components/shared/TaskInsights.jsx:379 | Build | 1 | |
 | People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
 | "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/TaskInsights.jsx:468-471 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
@@ -407,7 +407,7 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Phases section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:532 | Build | 1 | |
 | Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/TaskInsights.jsx:541-547 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
 | Dependencies section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:561 | Build | 1 | |
-| Predecessor/successor/inherited-dep link click | Opens that item | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
+| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
 | Custom fields section click | Jumps to Overview | src/components/shared/TaskInsights.jsx:611 | Build | 1 | |
 | Custom-field URI link click | Opens the external link | src/components/shared/TaskInsights.jsx:618 | Build | 1 | navigation only, no mutation |
 
@@ -442,7 +442,7 @@ This component is reused verbatim in three hosts (QuickEdit, NodeModal, Settings
 
 ### NodeModal (NodeModal.jsx)
 
-**Opened from more than the tree**: `onBarClick` in Gantt, `onNodeClick` in NetGraph, `onOpenItem` in PlanReview, and `openItem` in JiraSyncModal all open this same modal — in addition to the tree's own "⊞ Full edit" button. Every field below therefore becomes a P2 violation (writes data outside the tree) whenever the modal was opened from one of those non-tree surfaces; only the rows most central to that finding carry an explicit ⚠, but the finding applies to the whole table.
+**Opened from more than the tree**: `onBarClick` in Gantt, `onNodeClick` in NetGraph, `onOpenItem` in PlanReview, and the Overview, Roadmap, Briefing and Work order views all open this same modal (JiraSyncModal, once listed here, no longer exists) — in addition to the tree's own "⊞ Full edit" button. Every field below therefore becomes a P2 violation (writes data outside the tree) whenever the modal was opened from one of those non-tree surfaces; only the rows most central to that finding carry an explicit ⚠, but the finding applies to the whole table.
 
 Fields are buffered in local state and committed only by the "Save" button — a different editing model than QuickEdit, which commits per-field instantly.
 
@@ -464,8 +464,8 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | Decide-by/due/pinned-start inputs + "Pin today" (Timing) | Sets those date fields | src/components/modals/NodeModal.jsx:533-550 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; "Pin today" has no QuickEdit counterpart |
 | Completed-start/end/at inputs (Timing) | Sets the actual completion window | src/components/modals/NodeModal.jsx:551-561 | Run | 2 | 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
 | Deadline-relevant toggle (Timing) | Sets deadlineRelevant | src/components/modals/NodeModal.jsx:565-584 | Plan | 2 | ↔ duplicates QuickEdit Timing |
-| Predecessor list (remove/convert) + add (Timing) | Manages dependencies | src/components/modals/NodeModal.jsx:586-616 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
-| Successor list (navigate only) (Timing) | Opens a successor item | src/components/modals/NodeModal.jsx:618-637 | Build | 2 | ↔ duplicates QuickEdit Timing |
+| Predecessor list (remove) + add hard dependency (Timing) | Manages dependencies — no hard↔soft convert and no soft add here, unlike QuickEdit | src/components/modals/NodeModal.jsx:586-616 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; ↔ duplicates QuickEdit Timing |
+| Successor list (navigate only) (Timing) | Opens a successor item, behind the same unsaved-changes check as the breadcrumbs | src/components/modals/NodeModal.jsx:618-637 | Build | 2 | ↔ duplicates QuickEdit Timing |
 | History tab (ItemHistoryTimeline) | Shows/edits the item's change history | src/components/modals/NodeModal.jsx:641-645 | Review | 2 | not present in QuickEdit at all — unique to NodeModal |
 | Advanced — parent SearchSelect (move node) | Moves the node to a new parent | src/components/modals/NodeModal.jsx:649-657 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; 🔧 mechanics exposed; not present in QuickEdit |
 | ~~Advanced — seq number input~~ | — | — | — | — | ✗ removed: the field it set is no longer read by anything. Order is the tree's. |
@@ -554,6 +554,8 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | "Cancel" button | Closes the modal | src/components/modals/JiraExportModal.jsx:142 | Report | 2 | |
 
 ### JiraSyncModal (JiraSyncModal.jsx)
+
+> **Gone.** `JiraSyncModal.jsx` was deleted in #14 (`ccfdabf`); Jira reconciling lives in the Briefing's drift section and `JiraImportModal.jsx` now. The rows below describe the file as it was and are kept only as the record the mode decisions were made on.
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
