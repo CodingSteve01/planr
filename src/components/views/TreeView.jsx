@@ -129,8 +129,14 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     }
     wasEditingRef.current = !!editing;
     if (editing?.id && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
+      // ⇧Tab from the row below arrives at this row's LAST field, so ⇧Tab
+      // walks back through every field exactly as Tab walks forward.
+      const fields = editing.at === 'last'
+        ? [...(editInputRef.current.closest('tr')?.querySelectorAll('input[data-testid^="tree-edit-"]') || [])]
+        : [];
+      const target = fields[fields.length - 1] || editInputRef.current;
+      target.focus();
+      if (target === editInputRef.current) target.select();
     }
   }, [editing?.id]);
 
@@ -754,7 +760,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // ↑/↓ inside the editor: commit and carry the field to the neighbouring
   // row. The spreadsheet gesture — editing follows the cursor instead of
   // being a mode you leave and re-enter for every row.
-  function commitAndEditNeighbour(delta) {
+  // `at: 'last'` lands in the neighbour's last field instead of its name —
+  // what ⇧Tab needs to walk backwards through the fields without skipping.
+  function commitAndEditNeighbour(delta, { at } = {}) {
     if (!editing) return;
     const { id, draft, isNew } = editing;
     const idx = visibleIds.indexOf(id);
@@ -768,7 +776,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     }
     const nextRow = filt[idx + delta];
     if (!nextRow) { setEditing(null); return; }
-    setEditing({ id: nextRow.id, draft: nextRow.name || '', isNew: false });
+    setEditing({ id: nextRow.id, draft: nextRow.name || '', isNew: false, ...(at ? { at } : {}) });
     onSelect(nextRow, {}, visibleIds);
   }
 
@@ -807,9 +815,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // Tab walks the row's fields — name → priority → size → status → team —
     // which is what Tab means inside a field everywhere else. Native focus
     // order does it; the only edges worth owning are the two ends:
-    // ⇧Tab off the name goes back to the row above, Tab off the last field
-    // finishes the row and opens the next one (see handleFieldKeyDown).
-    if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1); return; }
+    // ⇧Tab off the name goes back to the LAST field of the row above, Tab
+    // off the last field on to the name of the row below (see
+    // handleFieldKeyDown) — one path through every field of every row, in
+    // either direction.
+    if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1, { at: 'last' }); return; }
     if (e.key === 'Tab') return;   // let the browser move to the next field
 
     // No structural gestures in here. Moving or re-parenting a row happens
@@ -841,9 +851,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
     if (e.key === 'Escape') { stop(); cancelEdit(); return; }
     if (e.key === 'Enter') { stop(); commitEdit(enterAdvance(e)); return; }
-    // Tab off the last field finishes this row and opens the next, so a whole
-    // item is one uninterrupted run of Tabs.
-    if (e.key === 'Tab' && !e.shiftKey && isLast) { stop(); commitEdit('next'); return; }
+    // Tab off the last field finishes this row and goes on, so a whole item
+    // is one uninterrupted run of Tabs. On to the NEXT ROW when there is one
+    // — the mirror of ⇧Tab off the name, which goes to the row above. It
+    // always inserted a new empty row instead, so Tabbing through existing
+    // items stopped at the first one with a blank row nobody asked for.
+    // A new row, or the last row, still opens a new one: that is typing a
+    // plan top to bottom.
+    if (e.key === 'Tab' && !e.shiftKey && isLast) {
+      stop();
+      const at = editing ? visibleIds.indexOf(editing.id) : -1;
+      if (editing && !editing.isNew && at >= 0 && at < visibleIds.length - 1) commitAndEditNeighbour(1);
+      else commitEdit('next');
+      return;
+    }
     // Everything else is the field's own: ↑/↓ picks a value, and there are
     // no structural gestures while a control owns the keyboard.
   }
