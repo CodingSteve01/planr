@@ -198,7 +198,7 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
       }}
     />
     {open && createPortal(
-      <div ref={popupRef} data-searchselect-popup="" style={{
+      <div ref={popupRef} data-searchselect-popup="" className="layer-dropdown" style={{
         position: 'fixed',
         top: popupPos.openUp ? 'auto' : popupPos.top,
         bottom: popupPos.openUp ? popupPos.bottom : 'auto',
@@ -207,8 +207,6 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
         maxHeight: 220, overflowY: 'auto',
         background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)',
         boxShadow: 'var(--sh)',
-        // Above modal sticky footers (z 5), modal overlays (z 50-1000), and any in-app SVG overlays.
-        zIndex: 9999,
       }}>
         {hasEmptyRow && <div
           data-ss-idx={0}

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { parseTip } from '../../utils/tipText.js';
@@ -73,11 +74,14 @@ export function HoverTipProvider() {
   const frame = fixedFrame(portalRoot);
   const start = toFixedPoint(tip.x, tip.y, frame);
   const { left, top } = placeHoverTip(start.x, start.y, sizeRef.current.w, sizeRef.current.h, frame);
-  return (
+  // Portalled where the popovers go. Rendered in place it came first in the
+  // DOM, and against a popover of the same z-index the later one wins — the
+  // tooltip of a filter chip then opened underneath the filter panel.
+  return createPortal(
     <div
       ref={tipRef}
       className="htip-pop"
-      style={{ position: 'fixed', left, top, pointerEvents: 'none', zIndex: 9999 }}
+      style={{ position: 'fixed', left, top, pointerEvents: 'none' }}
     >
       {parseTip(tip.text).map((line, li) => (
         <div key={li} className={line.indent ? 'htip-line htip-detail' : 'htip-line'}>
@@ -88,6 +92,7 @@ export function HoverTipProvider() {
           ))}
         </div>
       ))}
-    </div>
+    </div>,
+    portalRoot,
   );
 }

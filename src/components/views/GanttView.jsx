@@ -3489,7 +3489,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       }}
     />}
     {/* Viewport overlay for the live drag-to-link line */}
-    {linkDrag && <svg style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }}>
+    {linkDrag && <svg className="layer-drag" style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}>
       <defs><marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" /></marker></defs>
       {(() => {
         const el = document.querySelector(`[data-link-from="${linkDrag.fromId}"]`);

@@ -230,6 +230,37 @@ elsewhere in the same change. The same test also asserts `App.css` defines
 every token in the table above, in both palettes where the value differs.
 
 
+## Layers
+
+Every `z-index` of 100 or more comes from one scale in `:root` of `App.css`:
+
+| Token | Value | What sits there |
+|---|---|---|
+| `--z-overlay` | 200 | Dialog backdrops (`.overlay`) |
+| `--z-overlay-top` | 300 | What opens over a dialog: phase editor, keyboard map, tour |
+| `--z-popover` | 1000 | Filter panel, File menu, graph context menu |
+| `--z-dropdown` | 1100 | SearchSelect lists — they open from inside popovers and dialogs |
+| `--z-drag` | 1500 | The live link line while dragging a dependency |
+| `--z-tooltip` | 2000 | Hover tips and item tips, over everything |
+
+Components use them through `.layer-overlay-top`, `.layer-popover`,
+`.layer-dropdown`, `.layer-drag` (classes, because an inline `zIndex` would win
+over them), and `.tt`/`.htip-pop` carry `--z-tooltip` themselves. Stacking
+inside a view — bars over grid lines, a sticky header over its rows — stays
+below 100, where it is and local.
+
+Why a scale: tooltips opened underneath the filter panel. Both were `9999`,
+and between equal z-indexes the later element in the DOM wins — the panel is
+portalled after the app, so it covered every tip of its own chips. Both
+tooltips are also portalled now (`usePortalRoot()`), next to the popovers, so
+the numbers are compared in the same stacking context rather than inside
+whatever a view happens to create.
+
+[`layers.test.jsx`](../src/__tests__/layers.test.jsx) fails on any
+hand-typed `z-index`/`zIndex` of 100+ in `src/` or `obsidian/src/`, checks the
+tokens stay in the order above, and checks both tooltips render into the
+portal root. A new floating layer gets a token here, not a number.
+
 ## Icons are drawn, not typed
 
 [`src/components/shared/Icon.jsx`](../src/components/shared/Icon.jsx) holds one

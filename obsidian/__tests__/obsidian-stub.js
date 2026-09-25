@@ -12,6 +12,10 @@ export class WorkspaceLeaf {
   setViewState() {}
 }
 export class Modal {}
+export class Scope {
+  constructor(parent) { this.parent = parent; this.keys = []; }
+  register(modifiers, key, func) { const k = { modifiers, key, func }; this.keys.push(k); return k; }
+}
 export class Setting {}
 export class FuzzySuggestModal {}
 export class Notice {}

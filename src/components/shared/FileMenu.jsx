@@ -89,11 +89,12 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
     {open && <div
       role="menu"
       data-testid="file-menu"
+      className="layer-popover"
       style={{
         // Anchored to whichever edge has room. In a narrow pane — an Obsidian
         // sidebar, say — a menu pinned to the trigger's left edge ran off the
         // right of the window and its items could not be reached.
-        position: 'absolute', top: 'calc(100% + 4px)', zIndex: 120,
+        position: 'absolute', top: 'calc(100% + 4px)',
         ...(flipped ? { right: 0 } : { left: 0 }),
         minWidth: 210, maxWidth: 'min(280px, calc(100vw - 16px))', padding: 4, background: 'var(--bg2)',
         border: '1px solid var(--b2)', borderRadius: 8,

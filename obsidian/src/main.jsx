@@ -10,12 +10,13 @@
 // to do — a tab per file, the file's name in the header, back and forward,
 // "open in new pane", a restored workspace that reopens the right plans.
 
-import { FileView, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, addIcon } from 'obsidian';
+import { FileView, Notice, Plugin, PluginSettingTab, Scope, Setting, TFile, WorkspaceLeaf, addIcon } from 'obsidian';
 import { createRoot } from 'react-dom/client';
 import App from '../../src/App.jsx';
 import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';
 import { PortalRootContext } from '../../src/utils/embedHost.js';
 import '../../src/App.css';
+import { claimPlanrKeys } from './hostKeys.js';
 import { handleForPath, pickOpenFile, setLastPlanFolder, setVaultApp } from './vaultFs.js';
 
 export const VIEW_TYPE_PLANR = 'planr-view';
@@ -72,6 +73,9 @@ export class PlanrView extends FileView {
     this.mountEl = null;
     this.allowNoFile = false;
     this.navigation = true;
+    // While a plan has focus its keyboard map wins over the vault's hotkeys —
+    // ⌘F is Planr's search here, not "Search current file". See hostKeys.js.
+    this.scope = claimPlanrKeys(new Scope(this.app?.scope));
   }
 
   getViewType() { return VIEW_TYPE_PLANR; }
