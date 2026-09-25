@@ -497,6 +497,17 @@ describe('the tree editor writes through to the plan', () => {
     await press(next, 'Escape');
   });
 
+  it('⇧Tab off the name lands in the last field of the row above, so ⇧Tab walks back through every field', async () => {
+    renderApp();
+    await selectRow('P1.2');
+    await press(grid(), 'Enter');
+    await press(screen.getByTestId('tree-name-input-P1.2'), 'Tab', { shiftKey: true });
+    await screen.findByTestId('tree-name-input-P1.1');
+    await waitFor(() => expect(document.activeElement?.getAttribute('data-testid')).toBe('tree-edit-status'));
+    expect(document.activeElement.closest('tr').querySelector('[data-testid="tree-name-input-P1.1"]')).toBeTruthy();
+    await press(document.activeElement, 'Escape');
+  });
+
   it('edits in place: every control sits in its own column, the indentation stays, and no labels repeat the heads', async () => {
     renderApp();
     const before = await selectRowNamed('Prices');
