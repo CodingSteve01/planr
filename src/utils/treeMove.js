@@ -277,7 +277,8 @@ export function applyTreeCommandMany(tree, ids, command, visibleIds = sortTree(t
 
 // Drops a block of siblings next to `targetId`, keeping their own order.
 // Rows of the selection that are not siblings of the target stay where they
-// are: a drop reorders, it never re-parents (the tree's drag rule).
+// are. The tree's drag no longer goes through here — it can re-parent, see
+// `dropRows` below; this stays the plain sibling reorder.
 export function placeManyAmongSiblings(tree, ids, { targetId, position }) {
   const parent = parentOf(targetId);
   const siblings = tree
@@ -297,4 +298,57 @@ export function placeManyAmongSiblings(tree, ids, { targetId, position }) {
     return { ...r, displayOrder: orderMap.get(r.id) };
   });
   return changed ? next : null;
+}
+
+// ── Drag and drop ────────────────────────────────────────────────────────
+// A drop puts rows where the pointer says, which is not always among their
+// own siblings. The drag used to be the one gesture that could only reorder:
+// dragging a task onto another package's rows did nothing at all, with no
+// sign why, while the Work order next door took a row anywhere.
+//
+//   { targetId, position: 'before' | 'after' }   next to the target, under
+//                                                 the target's parent
+//   { targetId, position: 'inside' }             last child of the target
+//
+// Every dragged row takes its subtree along and keeps its screen order. Only
+// the selection's roots move (a selected child travels inside its selected
+// parent). A drop onto a dragged row or into its own subtree is impossible,
+// and so is one that would change nothing — both return null, the answer the
+// view uses to show no drop mark.
+//
+// Returns { tree, ids, idMap } — `ids` where the dragged rows live afterwards.
+export function dropRows(tree, ids, { targetId, position }, visibleIds = sortTree(tree).map(r => r.id)) {
+  if (!targetId || !tree.some(r => r.id === targetId)) return null;
+  const roots = selectionRoots(ids, visibleIds.includes(targetId) ? visibleIds : [...visibleIds, targetId]);
+  if (!roots.length) return null;
+  if (roots.some(id => id === targetId || targetId.startsWith(id + '.'))) return null;
+  const newParent = position === 'inside' ? targetId : parentOf(targetId);
+
+  let next = tree;
+  const idMap = {};
+  for (const id of roots) {
+    if (parentOf(id) === newParent) continue;
+    const res = moveSubtree(next, id, newParent);
+    if (!res) return null;
+    next = res.tree;
+    Object.assign(idMap, res.idMap);
+  }
+  const moved = roots.map(id => idMap[id] || id);
+
+  const siblings = next
+    .filter(r => (newParent ? parentOf(r.id) === newParent : !r.id.includes('.')))
+    .sort(compareSiblings);
+  // In the order they were on screen, whatever order they were picked in.
+  const block = moved.map(id => siblings.find(s => s.id === id)).filter(Boolean);
+  const rest = siblings.filter(s => !moved.includes(s.id));
+  const at = position === 'inside'
+    ? rest.length
+    : rest.findIndex(s => s.id === targetId) + (position === 'after' ? 1 : 0);
+  if (at < 0) return null;
+  const reordered = [...rest.slice(0, at), ...block, ...rest.slice(at)];
+  const reparented = Object.keys(idMap).length > 0;
+  if (!reparented && reordered.every((s, i) => s.id === siblings[i].id)) return null;
+  const order = new Map(reordered.map((s, i) => [s.id, i + 1]));
+  next = next.map(r => (order.has(r.id) && r.displayOrder !== order.get(r.id) ? { ...r, displayOrder: order.get(r.id) } : r));
+  return { tree: next, ids: [...ids].map(id => idMap[id] || id), idMap };
 }

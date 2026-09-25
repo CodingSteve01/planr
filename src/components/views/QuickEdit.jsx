@@ -7,6 +7,7 @@ import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
+import { insightTarget } from '../../utils/insightTargets.js';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
@@ -19,13 +20,13 @@ import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
-import { memberTeamNames } from '../../utils/memberTeams.js';
+import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 
 // REASON_TIP is built inside the component using t() — see reasonTip helper below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, tab: tabProp, onTabChange }) {
+export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -280,16 +281,16 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
       confReasons={confReasons}
       customFields={customFields}
       onPhaseToggle={togglePhase}
+      // The blocker link and the dependency chips open the item they name —
+      // here that means selecting it, so the panel shows it. Without this they
+      // were drawn as links and did nothing on click.
+      onOpenItem={onOpenItem}
       onSplitHandoff={onSplitHandoff}
       onSplitTaskAtProgress={onSplitTaskAtProgress}
       onEditSection={sectionId => {
-        const tabMap = { details: 'overview', timing: 'timing', effort: 'effort', people: 'workflow', phases: 'workflow', status: 'workflow', dependencies: 'timing', customFields: 'overview' };
-        const fieldMap = { details: 'name', timing: 'pinnedStart', effort: 'bestDays', people: 'assign', phases: 'phases', status: 'status', dependencies: 'deps', customFields: 'customFields' };
-        const requested = tabMap[sectionId];
-        // Fallback: if requested tab is hidden (e.g. workflow not shown), land on overview so user is never stuck.
-        const target = tabs.find(x => x.id === requested) ? requested : 'overview';
-        setTab(target);
-        setFocusHint(fieldMap[sectionId] || null);
+        const target = insightTarget(sectionId, tabs);
+        setTab(target.tab);
+        setFocusHint(target.focus);
       }}
     /></div>}
 
@@ -340,6 +341,46 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
           </div>
         </div>;
       })()}
+
+      {/* Team and assignee are attributes of the item, like its name, so they
+          sit on Overview — the same place NodeModal keeps them, which is where
+          the Insights "People" section jumps to in both editors. */}
+      <div className="field"><label>{t('qe.team')}</label>
+        <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
+        {/* Team-lock pill — bordered chip next to the team picker, no
+            orphan slider. Same styling as the NodeModal counterpart. */}
+        {isLeaf && f.team && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
+            <span>{t('qe.teamLock')}</span>
+            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
+          </div>
+        )}
+        {isLeaf && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
+            <span>{t('qe.parallel') || 'Parallel'}</span>
+            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} /><span className="slider" /></label>
+          </div>
+        )}
+      </div>
+
+      <div className="field"><label>{t('qe.assignee')}</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
+          {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}><Icon name="x" size={9} /></span></span>)}
+        </div>
+        {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
+          onAccept={({ assign, team }) => patchNode({ assign, team })} />
+        }
+        <div ref={focusRefs.assign}>
+          <SearchSelect
+            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
+            onSelect={id => {
+              const member = members.find(entry => entry.id === id);
+              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: teamForAssignment(member, f.team) });
+            }}
+            placeholder={t('qe.assignPerson')}
+          />
+        </div>
+      </div>
 
       {/* ── Custom fields ── */}
       {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
@@ -404,42 +445,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
         onChange={commitPhases}
       /></div>}
 
-      <div className="field"><label>{t('qe.team')}</label>
-        <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
-        {/* Team-lock pill — bordered chip next to the team picker, no
-            orphan slider. Same styling as the NodeModal counterpart. */}
-        {isLeaf && f.team && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
-            <span>{t('qe.teamLock')}</span>
-            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
-          </div>
-        )}
-        {isLeaf && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
-            <span>{t('qe.parallel') || 'Parallel'}</span>
-            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} /><span className="slider" /></label>
-          </div>
-        )}
-      </div>
-
-      <div className="field"><label>{t('qe.assignee')}</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
-          {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}><Icon name="x" size={9} /></span></span>)}
-        </div>
-        {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
-          onAccept={({ assign, team }) => patchNode({ assign, team })} />
-        }
-        <div ref={focusRefs.assign}>
-          <SearchSelect
-            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
-            onSelect={id => {
-              const member = members.find(entry => entry.id === id);
-              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: member?.team || f.team });
-            }}
-            placeholder={t('qe.assignPerson')}
-          />
-        </div>
-      </div>
       {/* HandoffPlanEditor disabled — auto-cascade is off by default;
           users handle offboard truncation via the explicit ↳ Split flow.
           Re-enable here only if pre-planned multi-stage handoffs become

@@ -187,6 +187,16 @@ object, not a copy — and keeps its DOM, its state and its scroll while doing n
 work. The moment it is shown again it takes the current children, so what
 appears is never stale.
 
+**A hidden pane still hears the window.** Frozen stops rendering, not
+effects: a view that binds keys on `window` keeps them bound after the user
+has left it, because it stays mounted. The Gantt did exactly that — once
+visited, its `⌘A` selected bars on every other tab, `↑/↓` stopped scrolling
+the Overview, and `⌥↑`/`E` in the tree also reordered or opened the Gantt's
+old cursor row. A window-level key handler asks
+[`isOnScreen`](../src/utils/onScreen.js) about its own element first (it
+walks the inline `display: none` of the panes, which happy-dom answers the
+same way a browser does). Guarded by `ganttKeysOffScreen.app.test.jsx`.
+
 **Except the tree pane**, which was written without it and stayed that way —
 the most expensive pane in the app, and the only one re-rendering unseen. A
 React `Profiler` around it, on a real 404-item plan in Chromium, put every tab

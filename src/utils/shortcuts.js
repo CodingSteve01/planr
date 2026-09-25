@@ -28,7 +28,7 @@ export const DEL = isMac ? '⌫' : 'Del';
 // scope: which surface the key is live on. `treeEdit` is the row editor —
 // the keys that work WHILE a name is being typed, which is exactly where
 // they were missing.
-export const SCOPES = ['global', 'tree', 'treeEdit', 'gantt', 'dialog'];
+export const SCOPES = ['global', 'tree', 'treeEdit', 'order', 'gantt', 'dialog'];
 
 export const SHORTCUTS = [
   // ── Global — live everywhere, handled in App.jsx ──────────────────────
@@ -72,6 +72,7 @@ export const SHORTCUTS = [
   { id: 'status', scope: 'tree', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
   { id: 'delete', scope: 'tree', keys: [DEL], labelKey: 'sc.delete' },
   { id: 'pasteRows', scope: 'tree', keys: [`${MOD}V`], labelKey: 'sc.pasteRows' },
+  { id: 'selectAll', scope: 'tree', keys: [`${MOD}A`], labelKey: 'sc.selectAll' },
 
   // ── Work tree, WHILE typing a name ───────────────────────────────────
   // Everything here works without leaving the field. Before, the editor was
@@ -87,6 +88,21 @@ export const SHORTCUTS = [
   { id: 'editSize', scope: 'treeEdit', keys: [`${ALT}S`, `${ALT}X`], labelKey: 'sc.editSize' },
   { id: 'editTeam', scope: 'treeEdit', keys: [`${ALT}T`], labelKey: 'sc.editTeam' },
   { id: 'editStatus', scope: 'treeEdit', keys: [`${ALT}Space`, `${ALT}⇧Space`], labelKey: 'sc.editStatus' },
+
+  // ── Work order — handled in WorkOrderView.jsx ───────────────────────
+  // The tree's keys, on purpose (the view's own comment says why). Only
+  // what the view actually handles is listed: no `0`, no delete, no paste.
+  { id: 'orderCursor', scope: 'order', keys: ['↑', '↓'], labelKey: 'sc.cursorMove' },
+  { id: 'orderExtend', scope: 'order', keys: ['⇧↑', '⇧↓'], labelKey: 'sc.cursorExtend' },
+  { id: 'orderEnds', scope: 'order', keys: ['Home', 'End'], labelKey: 'sc.orderEnds' },
+  { id: 'orderOpen', scope: 'order', keys: ['↵', 'E'], labelKey: 'sc.ganttOpen' },
+  { id: 'orderMove', scope: 'order', keys: [`${ALT}↑`, `${ALT}↓`, `${MOD}⇧↑`, `${MOD}⇧↓`], labelKey: 'sc.orderMove' },
+  { id: 'orderMoveEnds', scope: 'order', keys: [`${ALT}⇧↑`, `${ALT}⇧↓`], labelKey: 'sc.orderMoveEnds' },
+  { id: 'orderStatus', scope: 'order', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
+  { id: 'orderPrio', scope: 'order', keys: ['1', '2', '3', '4'], labelKey: 'sc.prio' },
+  { id: 'orderSize', scope: 'order', keys: ['S', 'M', 'L', 'X'], labelKey: 'sc.size' },
+  { id: 'orderSelectAll', scope: 'order', keys: [`${MOD}A`], labelKey: 'sc.orderSelectAll' },
+  { id: 'orderClear', scope: 'order', keys: ['Esc'], labelKey: 'sc.orderClear' },
 
   // ── Schedule ─────────────────────────────────────────────────────────
   // Deliberately the tree's keys. The schedule is where you SEE that
@@ -151,7 +167,7 @@ export function keyHint(id, mac = isMac) {
   const s = BY_ID.get(id);
   if (!s) return '';
   const keys = s.keys.map(k => formatKey(k, mac));
-  const range = ['prio', 'size', 'editPrio', 'editSize', 'dialogTab'].includes(id);
+  const range = ['prio', 'size', 'editPrio', 'editSize', 'orderPrio', 'orderSize', 'dialogTab'].includes(id);
   if (range) return `${keys[0]}–${keys[keys.length - 1]}`;
   return keys.join(' / ');
 }
