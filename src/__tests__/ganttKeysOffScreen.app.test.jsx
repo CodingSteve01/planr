@@ -46,10 +46,14 @@ describe('the schedule\'s keys stay on the schedule', () => {
     render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
     await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
 
-    // Showing: ↓ moves the Gantt cursor, so it takes the key.
-    let down;
-    await act(async () => { down = press({ key: 'ArrowDown' }); });
-    expect(down.defaultPrevented).toBe(true);
+    // Showing: ↓ moves the Gantt cursor, so it takes the key — once the view
+    // knows its rows, which under a loaded test run can be a render after the
+    // first bar is in the DOM.
+    await waitFor(async () => {
+      let down;
+      await act(async () => { down = press({ key: 'ArrowDown' }); });
+      expect(down.defaultPrevented).toBe(true);
+    });
 
     await act(async () => { fireEvent.mouseDown(tabNamed('Overview'), { button: 0 }); });
     await waitFor(() => { if (document.querySelector('[data-testid="gantt-timeline"]')?.closest('[style*="display: none"]') == null) throw new Error('gantt still shown'); });

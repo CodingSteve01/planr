@@ -380,7 +380,11 @@ tr.sel .tn-editable{cursor:text;}
 tr.sel .tn-editable:hover{border-color:var(--b2);background:var(--bg3);}
 .tv-row-act{display:inline-flex;gap:1px;opacity:0;transition:opacity .12s ease;}
 tr:hover .tv-row-act,tr.sel .tv-row-act,.tv-row-act:focus-within{opacity:1;}
-.tv-act-btn{width:22px;height:22px;padding:0;background:transparent;border:none;color:var(--tx3);cursor:pointer;font-size:12px;line-height:1;border-radius:3px;transition:background .12s ease,color .12s ease;}
+/* The icon sits in the middle of the hover square. As an inline button the
+   SVG rode on the text baseline, so the square lit up offset from the icon it
+   belongs to (and Obsidian's own button padding/min-height made it worse). */
+.tv-act-btn{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;width:22px;height:22px;min-height:0;padding:0;margin:0;vertical-align:middle;background:transparent;border:none;box-shadow:none;color:var(--tx3);cursor:pointer;font-size:12px;line-height:1;border-radius:3px;transition:background .12s ease,color .12s ease;}
+.tv-act-btn > svg{display:block;flex-shrink:0;}
 .tv-act-btn:hover{background:var(--bg4);color:var(--ac);}
 /* The row editor is the row: each value is swapped for a compact control in
    its own column, at the row's own height. It used to be a small form — the
