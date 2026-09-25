@@ -8,6 +8,9 @@ import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueu
 import { queueBlockers } from '../../utils/queueBlockers.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
 import { withKey } from '../../utils/shortcuts.js';
+import { statusChangePatch } from '../../utils/completion.js';
+import { setDragBadge } from '../../utils/dragBadge.js';
+import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 
 // In which order does who work.
 //
@@ -28,7 +31,7 @@ import { withKey } from '../../utils/shortcuts.js';
 // when nobody is (utils/personQueue.js, `queueOwnerOf`) — a plan's early items
 // mostly have a team and nobody, and those are exactly the ones where the
 // question matters most.
-function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], rootFilter = '', teamFilter = '', personFilter = '', search = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit }) {
+function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], rootFilter = '', teamFilter = '', personFilter = '', search = '', personQueues, onQueueReorder, onQueueReset, onTaskUpdate, onFullEdit, onOpenBulkEdit }) {
   const { t } = useT();
   const [cursor, setCursor] = useState(null);
   // The tree's selection model, because it is the same act: click, shift for a
@@ -58,8 +61,11 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     }
   };
   const movingFrom = id => (picked.size > 1 && picked.has(id) ? [...picked] : id);
-  const [dragId, setDragId] = useState(null);
-  const [dropId, setDropId] = useState(null);
+  // What is in the hand (one row, or the whole selection) and where it would
+  // land: before or after a row, by which half of it the pointer is over —
+  // "before" alone left no way to drop anything at the end of a queue.
+  const [dragIds, setDragIds] = useState(null);
+  const [drop, setDrop] = useState(null);   // { id, position } | null
 
   const allById = useMemo(() => new Map(tree.map(n => [n.id, n])), [tree]);
   // Who will actually do it. An item with a team and nobody on it belongs to
@@ -221,7 +227,23 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
     return true;
   };
 
+  // The rows a field key acts on: the whole selection when the row is part
+  // of it, as in the tree. Space on five picked rows used to change one.
+  const actOn = node => (picked.size > 1 && picked.has(node.id)
+    ? [...picked].map(id => allById.get(id)).filter(Boolean)
+    : [node]);
+
   const onKeyDown = (e, node) => {
+    // ⌘A — this owner's whole queue. A queue is one person's (or team's)
+    // order, and a move only makes sense inside one, so "all" means all of
+    // this list rather than every row on the page.
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const list = ownerRows(node.id);
+      if (list.length) { setPicked(new Set(list)); extendRef.current = null; }
+      return;
+    }
     // ⌘⇧↑/⌘⇧↓ — the tree's reorder chord, same as ⌥↑/⌥↓ here.
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
@@ -247,7 +269,16 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
       : ['1', '2', '3', '4'].includes(e.key) ? fieldPatchForKey(node, e.key, sizes)
         : ['S', 'M', 'L', 'X'].includes(String(e.key).toUpperCase()) && /^[a-zA-Z]$/.test(e.key)
           ? fieldPatchForKey(node, String(e.key).toUpperCase(), sizes) : null;
-    if (patch) { e.preventDefault(); onTaskUpdate?.({ ...node, ...patch }); }
+    if (!patch) return;
+    e.preventDefault();
+    // Each row takes the key on its own terms — Space steps every row from
+    // where IT is — which is what the tree does with a selection.
+    for (const target of actOn(node)) {
+      const own = target.id === node.id ? patch
+        : e.key === ' ' || e.key === 'Spacebar' ? fieldPatchForKey(target, ' ', sizes, { back: e.shiftKey })
+          : fieldPatchForKey(target, ['1', '2', '3', '4'].includes(e.key) ? e.key : String(e.key).toUpperCase(), sizes);
+      if (own) onTaskUpdate?.({ ...target, ...own });
+    }
   };
 
   // Enter in the search box hands the keyboard to the first matching row, as
@@ -369,18 +400,30 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
                 }}
                 onKeyDown={e => onKeyDown(e, node)}
                 draggable
-                onDragStart={e => { setDragId(id); e.dataTransfer?.setData?.('text/plain', id); }}
-                onDragOver={e => { if (dragId && dragId !== id) { e.preventDefault(); setDropId(id); } }}
-                onDragLeave={() => setDropId(cur => (cur === id ? null : cur))}
-                onDragEnd={() => { setDragId(null); setDropId(null); }}
+                onDragStart={e => {
+                  const moving = [].concat(movingFrom(id));
+                  setDragIds(moving);
+                  e.dataTransfer?.setData?.('text/plain', moving.join(','));
+                  if (moving.length > 1) setDragBadge(e, t('tv.dragRows', moving.length));
+                }}
+                onDragOver={e => {
+                  if (!dragIds || dragIds.includes(id)) return;
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const position = rect.height && e.clientY > rect.top + rect.height / 2 ? 'after' : 'before';
+                  setDrop(cur => (cur?.id === id && cur.position === position ? cur : { id, position }));
+                }}
+                onDragLeave={() => setDrop(cur => (cur?.id === id ? null : cur))}
+                onDragEnd={() => { setDragIds(null); setDrop(null); }}
                 onDrop={e => {
                   e.preventDefault();
-                  const moved = dragId || e.dataTransfer?.getData?.('text/plain');
-                  setDragId(null); setDropId(null);
-                  if (moved && moved !== id) onQueueReorder?.(movingFrom(moved), { before: id });
+                  const moving = dragIds || (e.dataTransfer?.getData?.('text/plain') || '').split(',').filter(Boolean);
+                  const position = drop?.id === id ? drop.position : 'before';
+                  setDragIds(null); setDrop(null);
+                  if (moving.length && !moving.includes(id)) onQueueReorder?.(moving.length > 1 ? moving : moving[0], { [position]: id });
                 }}
-                data-dragging={dragId === id ? 'true' : undefined}
-                data-drop={dropId === id ? 'before' : undefined}
+                data-dragging={dragIds?.includes(id) ? 'true' : undefined}
+                data-drop={drop?.id === id ? drop.position : undefined}
                 style={{ outline: 'none' }}>
                 <td style={{ width: 44, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}
                   data-htip={t('wo.dragTip')}>
@@ -492,6 +535,34 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
         </table>
       </div>;
     })}
+    {/* The tree's selection bar, for the same reason it has one: a picked
+        block is something you then want to DO something with, and keys
+        alone are invisible. Moves act on the block's owner queue. */}
+    <SelectionActionBar count={picked.size > 1 ? picked.size : 0}
+      onClear={() => { setPicked(new Set()); extendRef.current = null; }}
+      testId="wo-selection-actionbar">
+      {onOpenBulkEdit && <button type="button" className="sab-assign-trigger"
+        onClick={() => onOpenBulkEdit([...picked])} data-htip={t('g.bulkEditTip')} data-testid="wo-bulk-edit">
+        <span className="sab-icon"><Icon name="checkSquare" size={13} /></span>
+        <span>{t('g.bulkEdit')}</span>
+      </button>}
+      <span className="sab-divider" />
+      <button type="button" className="btn btn-sec" data-testid="wo-move-first"
+        onClick={() => onQueueReorder?.([...picked], 'first')}>{t('g.ctxRunFirst')}</button>
+      <button type="button" className="btn btn-sec" data-testid="wo-move-last"
+        onClick={() => onQueueReorder?.([...picked], 'last')}>{t('g.ctxRunLast')}</button>
+      <span className="sab-divider" />
+      {[['open', t('tv.statusOpen')], ['wip', t('tv.statusWip')], ['done', t('tv.statusDone')]].map(([status, label]) => (
+        <button key={status} type="button" className="btn btn-sec" data-testid={`wo-status-${status}`}
+          data-htip={t('tv.bulkStatusTip', label)}
+          onClick={() => {
+            for (const id of picked) {
+              const node = allById.get(id);
+              if (node && node.status !== status) onTaskUpdate?.({ ...node, ...statusChangePatch(node, status) });
+            }
+          }}>{label}</button>
+      ))}
+    </SelectionActionBar>
   </div>;
 }
 

@@ -18,7 +18,8 @@ import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
-import { canTreeCommand, canTreeCommandMany, remapIds } from '../../utils/treeMove.js';
+import { canTreeCommand, canTreeCommandMany, dropRows, remapIds } from '../../utils/treeMove.js';
+import { setDragBadge } from '../../utils/dragBadge.js';
 import { withKey, keyHint, ALT, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
@@ -83,7 +84,7 @@ export function isTypingTarget(el) {
   return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
 }
 
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onReorder, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onCommandMany, onReorderMany, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
+function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onCommandMany, onDropRows, onSelectAll, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true }) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -469,29 +470,73 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     return () => ro.disconnect();
   }, [selected?.id, !!selPos]);
 
-  const siblingKeyOf = id => {
-    const parent = id.split('.').slice(0, -1).join('.');
-    if (parent) return parent;
-    return `root:${id.match(/^[A-Za-z]+/)?.[0] || ''}`;
+  // Drag and drop, the Work order's way: the whole row is the handle, the
+  // rows in the hand dim, and a mark says where they land. It used to be a
+  // grip-only drag that could only reorder among siblings — dropping on any
+  // other package's rows did nothing, with nothing to say so.
+  //
+  // Where a drop lands comes from the pointer's height in the row: the top
+  // or bottom edge is before / after it, and the middle of a PACKAGE row is
+  // into it. A task row has no middle — dropping into a task would quietly
+  // turn it into a package. Whether a place is possible at all is decided by
+  // running the drop (utils/treeMove.js `dropRows`), once per row and zone,
+  // so the mark never promises something the drop then refuses.
+  //
+  // The handlers read the drag through a ref, not the render's closure: rows
+  // are cached (see the row signature below), and a cached row keeps the
+  // handlers of the render it was built in — where no drag had started yet,
+  // so dragover never saw one.
+  const dragLive = useRef({});
+  dragLive.current = { orderDrop, filt, tree, multiSel };
+  const dragIdsFor = id => {
+    const { multiSel: sel, filt: rows } = dragLive.current;
+    return sel?.size > 1 && sel.has(id) ? rows.map(x => x.id).filter(x => sel.has(x)) : [id];
   };
-  // Dragging a row of a multi-selection drags the selection: every selected
-  // sibling of the target lands with it, in their own order.
-  const dragsSelection = dragId => !!onReorderMany && multiSel?.size > 1 && multiSel.has(dragId);
-  const canDropOrder = (dragId, targetId) => !!dragId && !!targetId && dragId !== targetId && siblingKeyOf(dragId) === siblingKeyOf(targetId)
-    && !(dragsSelection(dragId) && multiSel.has(targetId));
-  const onOrderDragOver = (e, targetId) => {
-    if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
-    e.preventDefault();
+  const dropZone = (e, targetId) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    setOrderDrop(prev => prev?.targetId === targetId && prev?.position === position ? prev : { ...prev, targetId, position });
+    const y = rect.height ? (e.clientY - rect.top) / rect.height : 0.5;
+    if (!isLeafNode(dragLive.current.tree, targetId) && y > 0.3 && y < 0.7) return 'inside';
+    return y < 0.5 ? 'before' : 'after';
+  };
+  const onRowDragStart = (e, r) => {
+    if (!onDropRows) return;
+    if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) { e.preventDefault(); return; }
+    const dragIds = dragIdsFor(r.id);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData?.('text/plain', dragIds.join(','));
+    }
+    if (dragIds.length > 1) setDragBadge(e, t('tv.dragRows', dragIds.length));
+    const start = { dragIds, targetId: null, position: null, valid: false };
+    dragLive.current.orderDrop = start;
+    setOrderDrop(start);
+  };
+  const onOrderDragOver = (e, targetId) => {
+    const { orderDrop: live, tree: liveTree, filt: rows } = dragLive.current;
+    if (!onDropRows || !live?.dragIds) return;
+    const position = dropZone(e, targetId);
+    let valid = live.valid;
+    if (live.targetId !== targetId || live.position !== position) {
+      valid = !!dropRows(liveTree, live.dragIds, { targetId, position }, rows.map(x => x.id));
+      const next = { ...live, targetId, position, valid };
+      dragLive.current.orderDrop = next;
+      setOrderDrop(next);
+    }
+    if (valid) e.preventDefault();   // no preventDefault = the browser's "not here" cursor
   };
   const onOrderDrop = (e, targetId) => {
-    if (!onReorder || !orderDrop?.dragId || !canDropOrder(orderDrop.dragId, targetId)) return;
+    const { orderDrop: live, filt: rows } = dragLive.current;
+    if (!onDropRows || !live?.dragIds || live.targetId !== targetId || !live.valid) return;
     e.preventDefault();
-    const target = { targetId, position: orderDrop.position || 'before' };
-    if (dragsSelection(orderDrop.dragId)) onReorderMany([...multiSel], target);
-    else onReorder(orderDrop.dragId, target);
+    const res = onDropRows(live.dragIds, { targetId, position: live.position }, rows.map(x => x.id));
+    if (res?.idMap) {
+      setCollapsed(c => {
+        const n = remapIds(c, res.idMap);
+        // Dropped into a folded package: open it, or the rows just vanish.
+        if (live.position === 'inside') n.delete(targetId);
+        return n;
+      });
+    }
     setOrderDrop(null);
   };
   // `shortcutId` names the ⌘⇧ chord for aria-keyshortcuts, so a screen
@@ -902,6 +947,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (isTypingTarget(e.target)) return;
     const key = e.key;
     const bare = !e.ctrlKey && !e.metaKey; // leave Cmd/Ctrl combos (save, undo, find…) alone
+    // ⌘A — every row on screen, i.e. what the filters and folds left. The
+    // start of any "all of these" edit: status, priority, the bulk editor, a
+    // drag. Only from the grid itself; inside a field it is the field's.
+    if (!bare && !e.shiftKey && !e.altKey && (key === 'a' || key === 'A') && onSelectAll) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelectAll(filt.map(x => x.id));
+      return;
+    }
     const ARROW_COMMAND = { ArrowUp: 'moveUp', ArrowDown: 'moveDown', ArrowRight: 'indent', ArrowLeft: 'outdent' };
 
     // ⌘⇧+arrow (Ctrl⇧ elsewhere) — the four structural commands, one per
@@ -1151,7 +1205,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           // Diff-since badge — shared helper keeps the same rule used by the
           // "only with changes" filter so the two views stay in sync.
           const diffBadge = computeDiffBadge(r);
-          const dropHere = orderDrop?.targetId === r.id && canDropOrder(orderDrop.dragId, r.id) ? orderDrop.position : '';
+          const dropHere = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
+          const inHand = !!orderDrop?.dragIds?.includes(r.id);
           // Subway-Map line color for root items — same hex the Roadmap view
           // assigns to the line's start/end badges. Falls back to null when no
           // assignment has been computed yet (user hasn't opened Subway view).
@@ -1174,23 +1229,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             data-editing={isEditingRow ? 'true' : undefined}
             onBlur={isEditingRow ? handleEditorFocusOut : undefined}
             onClick={e => { if (isEditingRow) return; onSelect(r, e, filt.map(x => x.id)); containerRef.current?.focus(); }}
+            draggable={!!onDropRows && !isEditingRow}
+            onDragStart={e => onRowDragStart(e, r)}
+            onDragEnd={() => setOrderDrop(null)}
             onDragOver={e => onOrderDragOver(e, r.id)}
-            onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null } : prev)}
+            onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null, position: null, valid: false } : prev)}
             onDrop={e => onOrderDrop(e, r.id)}
+            data-dragging={inHand ? 'true' : undefined}
             data-drop={dropHere || undefined}>
             {/* ID column — when on critical path, show CP labels via tooltip on the critical-path marker */}
             <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
-              {onReorder && <span
+              {/* The grip is the cue; the whole row drags (onRowDragStart). */}
+              {onDropRows && <span
                 className="tv-drag-handle"
-                draggable
-                data-htip={t('tv.dragTip', r.id)}
-                onDragStart={e => {
-                  e.stopPropagation();
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', r.id);
-                  setOrderDrop({ dragId: r.id, targetId: null, position: 'before' });
-                }}
-                onDragEnd={() => setOrderDrop(null)}><Icon name="grip" size={11} /></span>}
+                data-htip={t('tv.dragTip', r.id)}><Icon name="grip" size={11} /></span>}
               {/* The id is the tool's spine — dependencies, the tooltip and
                   every export speak it — and on a narrow screen it is also
                   five dotted segments in front of every name you are trying
@@ -1499,11 +1551,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
           // a rename.
           const isSel = selected?.id === r.id;
           const isEditingRow = editing?.id === r.id;
-          const dropOn = orderDrop?.targetId === r.id && canDropOrder(orderDrop.dragId, r.id) ? orderDrop.position : '';
+          const dropOn = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
+          const inHandSig = !!orderDrop?.dragIds?.includes(r.id);
           const sig = [
             r, idx, isSel, multiSel?.has(r.id), collapsed.has(r.id),
             isEditingRow ? editing.draft : false,
-            dropOn, search && idx === 0,
+            dropOn, inHandSig, search && idx === 0,
             // Anything shared that changes the row's content.
             stats, sMap, scheduleRangeById, cpSet, cpLabels, roadmapAssignment,
             customFields, teams, sizeCatalogue, tree, t,

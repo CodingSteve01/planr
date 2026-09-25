@@ -20,7 +20,7 @@ import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, AR
 import { buildExportCtx } from './utils/exportCtx.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
-import { applyTreeCommand, applyTreeCommandMany, moveSubtree, placeAmongSiblings, placeManyAmongSiblings } from './utils/treeMove.js';
+import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
@@ -2810,7 +2810,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }
   });
   const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
-  const onTreeReorder = useStableCallback((...a) => reorderSibling(...a));
   // The same two, for a multi-selection: it moves as a block (utils/
   // treeMove.js). One mutate, so one ⌘Z undoes the whole move, and the
   // selection follows the rows to their new ids.
@@ -2822,9 +2821,27 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
     return planned;
   });
-  const onTreeReorderMany = useStableCallback((ids, target) => {
-    if (!placeManyAmongSiblings(tree, [...ids], target)) return;
-    mutate(d => ({ ...d, tree: placeManyAmongSiblings(d.tree || [], [...ids], target) || d.tree }));
+  // A drop in the tree: next to any row, or into a package — across parents
+  // too (utils/treeMove.js `dropRows`). One mutate, so one ⌘Z; the dragged
+  // rows stay selected at their new ids, and the cursor goes with them.
+  const onTreeDropRows = useStableCallback((ids, target, visibleIds) => {
+    const planned = dropRows(tree, [...ids], target, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: dropRows(d.tree || [], [...ids], target, visibleIds)?.tree || d.tree }));
+    if (planned.ids.length > 1) {
+      setMultiSel(new Set(planned.ids));
+      if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
+    } else {
+      setMultiSel(new Set());
+      setSel({ id: planned.ids[0] });
+    }
+    return planned;
+  });
+  // ⌘A in the tree: every row on screen, which is what the filters left.
+  const onTreeSelectAll = useStableCallback(ids => {
+    if (!ids?.length) return;
+    setMultiSel(new Set(ids));
+    if (!selected || !ids.includes(selected.id)) setSel({ id: ids[0] });
   });
   // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
   // Every one of these is a thin wrapper around the SAME mutate()-backed
@@ -2964,8 +2981,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const current = reconcileQueue(queues[person], mine);
       // `direction` is either a key's word — up/down/first/last — or the id a
       // drag was dropped on.
-      const next = typeof direction === 'object' && direction?.before
-        ? placeInQueue(current, moving, direction.before)
+      const next = typeof direction === 'object' && (direction?.before || direction?.after)
+        ? placeInQueue(current, moving, direction.before || direction.after, direction.after ? 'after' : 'before')
         : moveInQueue(current, moving, direction);
       if (next.join() === current.join() && queues[person]) return d;
       return { ...d, personQueues: { ...queues, [person]: next } };
@@ -3673,14 +3690,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               onlyChanged={diffOnlyChanged}
               horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
               roadmapAssignment={data?.roadmapAssignment || null}
-              onDelete={onTreeDelete} onReorder={onTreeReorder}
+              onDelete={onTreeDelete}
               onTaskUpdate={onGanttTaskUpdate}
               onClearSelection={() => setMultiSel(new Set())}
               onOpenBulkEdit={() => setBulkEditModalOpen(true)}
               onMove={onTreeMove}
               onCommand={onTreeCommand}
               onCommandMany={onTreeCommandMany}
-              onReorderMany={onTreeReorderMany}
+              onDropRows={onTreeDropRows}
+              onSelectAll={onTreeSelectAll}
               onRevealHidden={onTreeRevealHidden}
               onInsertAfter={onTreeInsertAfter}
               onInsertChild={onTreeInsertChild}
@@ -3760,7 +3778,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
         rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} search={deferredSearch}
         personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
-        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></Frozen></div>}
+        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }}
+        onOpenBulkEdit={ids => { setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></Frozen></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><Frozen active={tab === 'resources'}><ResView members={members} teams={teams} vacations={vacations}
         meetingPlans={data.meetingPlans || []}
         tree={tree} scheduled={scheduled} weeks={weeks}

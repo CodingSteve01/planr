@@ -332,7 +332,8 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 | "Collapse all" / "Collapse selection" | Collapses all rows or only the selected subtrees | src/components/views/TreeView.jsx:310 | Build | 1 | |
 | "Expand all" / "Expand selection" | Expands all rows or only the selected subtrees | src/components/views/TreeView.jsx:311 | Build | 1 | |
 | Row click | Selects the item (single, or multi with Shift/Ctrl) | src/components/views/TreeView.jsx:382 | Build | 1 | |
-| Drag handle (⋮⋮) reorder | Drags a row to reorder it among its siblings | src/components/views/TreeView.jsx:395-405,291-303 | Build | 1 | ↔ duplicates the "First/Up/Down/Last" toolbar buttons below |
+| Row drag (whole row; ⋮⋮ is the cue) | Drops rows before/after any row or into a package, across parents; drags the whole selection | src/components/views/TreeView.jsx (`onRowDragStart`, `onOrderDragOver`, `onOrderDrop`) | Build | 1 | ↔ the toolbar reorder and indent/outdent buttons cover part of it |
+| ⌘A | Selects every row on screen | src/components/views/TreeView.jsx (`handleContainerKeyDown`) | Build | 2 | |
 | Row expand/collapse toggle (▶/▼) | Toggles a row's children | src/components/views/TreeView.jsx:420 | Build | 1 | |
 | Per-row "+" quick-add | Adds a child under this row | src/components/views/TreeView.jsx:538-541 | Build | 1 | ↔ duplicates the sub-toolbar "+ Add item" button and AddModal |
 | "⤒ First" button (contextual toolbar) | Moves the selected item to the first sibling position | src/components/views/TreeView.jsx:328 | Build | 1 | ↔ duplicates the drag handle |

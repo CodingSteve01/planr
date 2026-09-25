@@ -72,6 +72,7 @@ export const SHORTCUTS = [
   { id: 'status', scope: 'tree', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
   { id: 'delete', scope: 'tree', keys: [DEL], labelKey: 'sc.delete' },
   { id: 'pasteRows', scope: 'tree', keys: [`${MOD}V`], labelKey: 'sc.pasteRows' },
+  { id: 'selectAll', scope: 'tree', keys: [`${MOD}A`], labelKey: 'sc.selectAll' },
 
   // ── Work tree, WHILE typing a name ───────────────────────────────────
   // Everything here works without leaving the field. Before, the editor was
@@ -100,6 +101,7 @@ export const SHORTCUTS = [
   { id: 'orderStatus', scope: 'order', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
   { id: 'orderPrio', scope: 'order', keys: ['1', '2', '3', '4'], labelKey: 'sc.prio' },
   { id: 'orderSize', scope: 'order', keys: ['S', 'M', 'L', 'X'], labelKey: 'sc.size' },
+  { id: 'orderSelectAll', scope: 'order', keys: [`${MOD}A`], labelKey: 'sc.orderSelectAll' },
   { id: 'orderClear', scope: 'order', keys: ['Esc'], labelKey: 'sc.orderClear' },
 
   // ── Schedule ─────────────────────────────────────────────────────────
