@@ -230,6 +230,8 @@ QuickEdit-specific:
 
 ## Global search
 
+The keyboard map (`?`) has a **Work order** section of its own — the view answers to the tree's keys, and the map listed them for the tree and the Gantt only.
+
 - **Single input** in the sub-toolbar (top right), shared across Work Tree, Work order, Schedule, and Network tabs — and shown only there. It used to sit on every filtered tab while only three views read it, so on the Work order, the Overview, the Roadmap and the Briefing typing into it did nothing, and ⌘F fell through to the browser's find on the Work order (reported as "⌘F does not work in the queue"). One set in `App.jsx`, `SEARCH_TABS`, now decides both where the box is and where ⌘F is taken.
 - **Ctrl/Cmd+F** focuses and selects the field; **Esc** clears
 - **Work order** — the search narrows the rows like the filters do, matching id, title, note, the project and package on the path line, and who does it. Each row keeps its number in the **whole** queue, so a single match that is twelfth still reads 12 (this holds for the team/person/project filters too, which used to renumber what they left). `Enter` puts the cursor on the first match, as in the tree; nothing found says so, rather than claiming there is nothing to order.
@@ -316,6 +318,8 @@ See [import-export.md](import-export.md).
 |---|---|
 | `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypass debounce) |
 | `Ctrl+F` / `Cmd+F` | Focus the global search field |
+| `Ctrl+↑/↓` / `Cmd+↑/↓` | Previous / next match — Schedule and Network only, the views that step through matches (the tree filters to them instead, so neither the keys nor the ▲/▼ buttons are offered there). Never from a text field other than the search box, where they are the caret's jump to the start or end; from the search box itself it used to step twice, skipping every other match |
+| `/` | Command palette; `?` the keyboard map. `?` is matched by the character alone — the map also took `/` with Shift, which is how a German keyboard types a plain `/` (⇧7), so `/` opened both at once |
 | `Ctrl+Z` / `Cmd+Z` | Undo the last edit (not while a text field has focus) |
 | `Ctrl+Y` / `Cmd+Shift+Z` | Redo (not while a text field has focus) |
 | `Esc` | Clear search / deselect / close modal |
@@ -332,6 +336,7 @@ The keys below are scoped to the tree's own container (`tabIndex` + `onKeyDown`,
 | `↑` / `↓` | Move the cursor to the previous/next visible row |
 | `⇧↑` / `⇇↓` | Extend the multi-selection from the cursor |
 | `Home` / `End` | First / last visible row |
+| `⇧←` / `⇧→` | Collapse / expand everything, or only the selection when there is one — also with no row selected, where it used to do nothing |
 | `→` / `←` | Open a branch, then step into it / close it, then step out to the parent |
 | `Enter` / `F2` | Edit the active row in place; `Enter` again saves |
 | `⌘↵` | New sibling row below, ready to type |

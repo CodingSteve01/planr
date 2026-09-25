@@ -255,6 +255,10 @@ const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', '
 // three views read it, so on the queue it filtered nothing and ⌘F fell through
 // to the browser's find.
 const SEARCH_TABS = new Set(['tree', 'order', 'gantt', 'net']);
+// The views that step through search matches one at a time (`searchIdx`).
+// The tree only filters to its matches, so there is nothing to step through,
+// and the ▲/▼ buttons and ⌘↑/⌘↓ did nothing there.
+const MATCH_STEP_TABS = new Set(['gantt', 'net']);
 
 // `mount` is how a host hands this app instance its document. Without one —
 // the web build — the app restores whatever was last opened, from IndexedDB
@@ -1496,7 +1500,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       }
       // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
       // ⇧ is not ours: ⌘⇧↑/↓ moves a row in the tree.
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && search && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      // Not from a text field: the search box steps on its own (this used to
+      // step a second time, so each press skipped a match), and anywhere else
+      // ⌘↑/⌘↓ is the caret's jump to the start or end of the text.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !typing && search && MATCH_STEP_TABS.has(tab) && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         e.preventDefault();
         setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
       }
@@ -3598,8 +3605,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         searchRef={searchRef}
         onCommit={v => setSearch(v)}
         onResetIdx={() => setSearchIdx(0)}
-        onPrev={() => setSearchIdx(i => i - 1)}
-        onNext={() => setSearchIdx(i => i + 1)}
+        onPrev={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i - 1) : undefined}
+        onNext={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i + 1) : undefined}
         // Carries the committed query so the tree can wait for ITS rows to be
         // that query's before moving the cursor — dispatching a bare event
         // would land on the first row of the previous result.
