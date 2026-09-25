@@ -28,7 +28,7 @@ export const DEL = isMac ? '⌫' : 'Del';
 // scope: which surface the key is live on. `treeEdit` is the row editor —
 // the keys that work WHILE a name is being typed, which is exactly where
 // they were missing.
-export const SCOPES = ['global', 'tree', 'treeEdit', 'order', 'gantt'];
+export const SCOPES = ['global', 'tree', 'treeEdit', 'order', 'gantt', 'dialog'];
 
 export const SHORTCUTS = [
   // ── Global — live everywhere, handled in App.jsx ──────────────────────
@@ -114,6 +114,13 @@ export const SHORTCUTS = [
   { id: 'ganttReorderEnds', scope: 'gantt', keys: [`${ALT}⇧↑`, `${ALT}⇧↓`], labelKey: 'sc.ganttReorderEnds' },
   { id: 'ganttSelectAll', scope: 'gantt', keys: [`${MOD}A`], labelKey: 'sc.ganttSelectAll' },
   { id: 'ganttClear', scope: 'gantt', keys: ['Esc'], labelKey: 'sc.ganttClear' },
+
+  // ── Item dialog (NodeModal) — opened with E ─────────────────────────
+  { id: 'dialogTab', scope: 'dialog', keys: [`${ALT}1`, `${ALT}7`], labelKey: 'sc.dialogTab' },
+  { id: 'dialogTabBar', scope: 'dialog', keys: ['←', '→'], labelKey: 'sc.dialogTabBar' },
+  { id: 'dialogSections', scope: 'dialog', keys: ['⇥', '↵'], labelKey: 'sc.dialogSections' },
+  { id: 'dialogSave', scope: 'dialog', keys: [`${MOD}↵`], labelKey: 'sc.dialogSave' },
+  { id: 'dialogClose', scope: 'dialog', keys: ['Esc'], labelKey: 'sc.dialogClose' },
 ];
 
 const BY_ID = new Map(SHORTCUTS.map(s => [s.id, s]));
@@ -160,7 +167,7 @@ export function keyHint(id, mac = isMac) {
   const s = BY_ID.get(id);
   if (!s) return '';
   const keys = s.keys.map(k => formatKey(k, mac));
-  const range = ['prio', 'size', 'editPrio', 'editSize', 'orderPrio', 'orderSize'].includes(id);
+  const range = ['prio', 'size', 'editPrio', 'editSize', 'orderPrio', 'orderSize', 'dialogTab'].includes(id);
   if (range) return `${keys[0]}–${keys[keys.length - 1]}`;
   return keys.join(' / ');
 }

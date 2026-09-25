@@ -49,11 +49,28 @@ function StatChip({ label, value, tone = 'default' }) {
   );
 }
 
+// Everything clickable here is reachable by keyboard too: Tab onto it, and
+// Enter or Space does what the click does. The dialog opens with E, and a
+// dialog you can open by key and then only use with the mouse is half a
+// keyboard path.
+export function activatable(onActivate, role = 'button') {
+  if (!onActivate) return {};
+  return {
+    role, tabIndex: 0, className: 'ins-activatable',
+    onKeyDown: e => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onActivate(e); }
+    },
+  };
+}
+
 function Section({ label, onClick, editLabel, children, extra }) {
   const clickable = !!onClick;
   return (
     <div
       onClick={onClick}
+      {...activatable(onClick)}
+      aria-label={clickable ? `${label} — ${editLabel}` : undefined}
       data-htip={clickable ? editLabel : undefined}
       style={{
         borderRadius: 'var(--r)',
@@ -207,6 +224,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Name + description — clickable, jumps to Details tab */}
       <div
         onClick={detailsClick}
+        {...activatable(detailsClick)}
         data-htip={detailsClick ? editLabel : undefined}
         style={{
           padding: '6px 8px', margin: '0 -8px 8px', borderRadius: 'var(--r)',
@@ -233,6 +251,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Status + progress header — clickable, jumps to Details tab */}
       <div
         onClick={onEditSection ? () => onEditSection('status') : undefined}
+        {...activatable(onEditSection ? () => onEditSection('status') : null)}
         data-htip={onEditSection ? editLabel : undefined}
         style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap',
@@ -565,7 +584,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {preds.map(p => (
                   <span key={p.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}
+                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
@@ -580,7 +600,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                 {inheritedPreds.map(p => (
                   <span key={p.id + ':' + p.via} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
                     data-htip={t('ins.inheritedDepTip', p.via, p.id)}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}>
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}
+                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>↰ {p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
@@ -595,7 +616,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {succs.map(s => (
                   <span key={s.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(s.id); }}>
+                    onClick={e => { e.stopPropagation(); onOpenItem?.(s.id); }}
+                    {...activatable(onOpenItem ? () => onOpenItem(s.id) : null, 'link')}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{s.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[s.status] }}>{S_DOT[s.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{s.name}</span>

@@ -205,6 +205,8 @@ See [network-graph.md](network-graph.md).
 
 ## QuickEdit sidebar + NodeModal
 
+**The item dialog works by keyboard, all the way through.** It opens with `E` (tree, Gantt, Work order) and could then only be used with the mouse: nothing inside had focus, the tabs took no keys, the Insights sections were click-only, Save had no key, `Tab` walked out into the page behind it, and `Esc` in an open dropdown closed the whole dialog. Now opening puts focus on the active tab (or the field the tab itself focuses); `←`/`→`, `Home`/`End` move along the tab bar (one tab stop, the WAI-ARIA tabs pattern); `⌥1`–`⌥7` switch tab from anywhere in the dialog (the physical key, since ⌥digit types a character on macOS); every Insights section, the name block, the status header and the dependency chips are `Tab` stops that `Enter`/`Space` open, with a focus ring (`activatable` in `TaskInsights.jsx`); `⌘↵` saves and closes; `Tab`/`⇧Tab` wrap inside the dialog; `Esc` is left to a dropdown that takes it. The keyboard map (`?`) lists them under *Item dialog*. [`dialogKeyboard.test.jsx`](../src/__tests__/dialogKeyboard.test.jsx).
+
 QuickEdit and NodeModal share the same data model; QuickEdit now exposes the most important actions in tabs so the sidebar stays easier to scan:
 
 - **Overview** — name, notes, status/progress + **phases** (when phases exist they define status and progress; manual editing is disabled). PhaseList component with progress bar, compact one-liner rows, and popout editor for details. Parent nodes show aggregate stats.

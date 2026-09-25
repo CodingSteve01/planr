@@ -770,3 +770,8 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .pr-figure-pct{color:var(--tx2);min-width:38px;text-align:right;}
 .pr-figure-pct.done{color:var(--gr);}
 .pr-zoom-val{font-family:var(--mono);font-size:11px;color:var(--tx3);min-width:26px;text-align:center;}
+/* Insights sections and links are keyboard targets (TaskInsights `activatable`):
+   the ring says where Tab has got to. Only for keyboard focus — a click does
+   not leave a ring behind. */
+.ins-activatable:focus{outline:none;}
+.ins-activatable:focus-visible{outline:2px solid var(--ac);outline-offset:1px;border-radius:var(--r);}

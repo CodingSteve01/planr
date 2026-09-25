@@ -17,6 +17,7 @@ import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
+import { ALT, formatKey, withKey } from '../../utils/shortcuts.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
@@ -35,6 +36,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   };
   const [f, setF] = useState({ ...node });
   const [nmTab, setNmTab] = useState('insights');
+  const nmTabsRef = useRef([]);   // the tabs this item shows, for ⌥1–⌥7
   const [focusHint, setFocusHint] = useState(null);
   const [highlightedDepId, setHighlightedDepId] = useState(null);
   const depRowRefs = useRef({});
@@ -109,11 +111,61 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
     onNavigate(id);
   };
+  // The dialog's keyboard. It opens with E from the tree, the Gantt and the
+  // Work order, and then could only be used with the mouse: nothing inside
+  // had focus, the tabs took no keys, Save had no key, and Tab walked out
+  // into the page behind. Now:
+  //   ⌥1–⌥7        switch tab, from anywhere in the dialog (the physical key —
+  //                ⌥digit types a character on macOS, so e.code is read)
+  //   ←/→ Home End on the tab bar, the WAI-ARIA tabs pattern
+  //   ⌘↵ / Ctrl↵   save and close
+  //   Esc          close — unless a dropdown in the dialog took it first
+  //   Tab / ⇧Tab   stay inside the dialog
+  const modalRef = useRef(null);
+  const tabBarRef = useRef(null);
+  const focusActiveTab = () => requestAnimationFrame(() => tabBarRef.current?.querySelector('[aria-selected="true"]')?.focus());
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') safeClose(); };
+    const h = e => {
+      if (e.key === 'Escape') { if (!e.defaultPrevented) safeClose(); return; }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.altKey) {
+        e.preventDefault();
+        if (isDirty) onUpdate(f);
+        onClose();
+        return;
+      }
+      const digit = /^Digit([1-9])$/.exec(e.code || '');
+      if (digit && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        const target = nmTabsRef.current[Number(digit[1]) - 1];
+        if (!target) return;
+        e.preventDefault();
+        setNmTab(target.id);
+        focusActiveTab();
+        return;
+      }
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusables = [...modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+          // Hidden tabs are unmounted, so what is in the DOM is what is on screen.
+          .filter(el => !el.disabled);
+        if (!focusables.length) return;
+        const first = focusables[0], last = focusables[focusables.length - 1];
+        const inside = modalRef.current.contains(document.activeElement);
+        if (!inside || (e.shiftKey && document.activeElement === first)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [isDirty]);
+  }, [isDirty, f]);
+  // Opening puts the keyboard in the dialog: on the active tab, unless the
+  // tab's own field already took it (Details focuses the name, an Insights
+  // jump its field). Before, focus stayed on the row behind the overlay.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      if (!modalRef.current || modalRef.current.contains(document.activeElement)) return;
+      tabBarRef.current?.querySelector('[aria-selected="true"]')?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [node?.id]);
   if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
@@ -252,11 +304,13 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     { id: 'advanced', label: t('nm.advanced') },
   ];
   const activeNmTab = nmTabs.find(x => x.id === nmTab) ? nmTab : 'insights';
+  nmTabsRef.current = nmTabs;
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
   const setCustomValue = (fieldId, val) => s('customValues', { ...(f.customValues || {}), [fieldId]: val });
 
   return <div className="overlay">
-    <div className="modal modal-lg fade" data-testid="node-modal" data-node-id={node.id} onClick={e => e.stopPropagation()}>
+    <div ref={modalRef} className="modal modal-lg fade" data-testid="node-modal" data-node-id={node.id} onClick={e => e.stopPropagation()}
+      role="dialog" aria-modal="true" aria-label={`${node.id} ${node.name || ''}`.trim()}>
 
       {/* ── HEADER ── */}
       {ancestors.length > 0 && <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -312,10 +366,23 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
       )}
 
       {/* ── TAB BAR ── */}
-      <div className="qe-tabs" role="tablist" style={{ margin: '0 -22px 14px', padding: '0 22px' }}>
-        {nmTabs.map(x => <button
+      <div ref={tabBarRef} className="qe-tabs" role="tablist" style={{ margin: '0 -22px 14px', padding: '0 22px' }}
+        onKeyDown={e => {
+          const at = nmTabs.findIndex(x => x.id === activeNmTab);
+          const to = e.key === 'ArrowRight' ? (at + 1) % nmTabs.length
+            : e.key === 'ArrowLeft' ? (at - 1 + nmTabs.length) % nmTabs.length
+              : e.key === 'Home' ? 0 : e.key === 'End' ? nmTabs.length - 1 : -1;
+          if (to < 0) return;
+          e.preventDefault();
+          setNmTab(nmTabs[to].id);
+          focusActiveTab();
+        }}>
+        {nmTabs.map((x, i) => <button
           key={x.id}
           role="tab"
+          // One tab stop for the whole bar; the arrows move within it.
+          tabIndex={activeNmTab === x.id ? 0 : -1}
+          data-htip={i < 9 ? `${x.label} · ${formatKey(`${ALT}${i + 1}`)}` : undefined}
           aria-selected={activeNmTab === x.id}
           className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
           data-testid={`nm-tab-${x.id}`}
@@ -743,7 +810,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         )}
         <div style={{ flex: 1 }} />
         <button className="btn btn-sec" onClick={safeClose}>{t('cancel')}</button>
-        <button className="btn btn-pri" data-testid="nm-save" onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
+        <button className="btn btn-pri" data-testid="nm-save" data-htip={withKey(t('save'), 'dialogSave')} onClick={() => { onUpdate(f); onClose(); }} disabled={!isDirty}>{isDirty ? t('save') : t('nm.noChanges')}</button>
       </div>
     </div>
   </div>;
