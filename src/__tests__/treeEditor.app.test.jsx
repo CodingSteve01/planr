@@ -472,13 +472,29 @@ describe('the tree editor writes through to the plan', () => {
       'tree-name-input-P1.2', 'tree-edit-team', 'tree-edit-prio', 'tree-edit-size', 'tree-edit-status',
     ]);
 
-    // Tab off the status field finishes the row and opens the next one.
+    // Tab off the status field of the LAST row finishes it and opens a new one.
     await press(screen.getByTestId('tree-edit-status'), 'Tab');
     await waitFor(() => expect(hasName('Masks tabbed')).toBe(true));
     const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(open, 'Tab off the last field should open the next row').toBeTruthy();
     expect(open.value).toBe('');
     await press(open, 'Escape');
+  });
+
+  // Reported: ⇧Tab goes to the previous item, but Tab off the last field
+  // never reached the next one — it inserted a new empty row instead.
+  it('Tab off the last field of an existing row edits the row below', async () => {
+    renderApp();
+    await selectRow('P1.1');
+    await press(grid(), 'Enter');
+    const input = screen.getByTestId('tree-name-input-P1.1');
+    await act(async () => { fireEvent.change(input, { target: { value: 'Prices tabbed' } }); });
+    await press(screen.getByTestId('tree-edit-status'), 'Tab');
+    await waitFor(() => expect(hasName('Prices tabbed')).toBe(true));
+    const next = await screen.findByTestId('tree-name-input-P1.2');
+    expect(next.value).toBe('Masks');
+    expect(document.querySelectorAll('tr input[data-testid^="tree-name-input-"]')).toHaveLength(1);
+    await press(next, 'Escape');
   });
 
   it('edits in place: every control sits in its own column, the indentation stays, and no labels repeat the heads', async () => {

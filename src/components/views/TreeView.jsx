@@ -763,7 +763,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // which is what Tab means inside a field everywhere else. Native focus
     // order does it; the only edges worth owning are the two ends:
     // ⇧Tab off the name goes back to the row above, Tab off the last field
-    // finishes the row and opens the next one (see handleFieldKeyDown).
+    // goes on to the row below (see handleFieldKeyDown).
     if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1); return; }
     if (e.key === 'Tab') return;   // let the browser move to the next field
 
@@ -796,9 +796,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const stop = () => { e.preventDefault(); e.stopPropagation(); };
     if (e.key === 'Escape') { stop(); cancelEdit(); return; }
     if (e.key === 'Enter') { stop(); commitEdit(enterAdvance(e)); return; }
-    // Tab off the last field finishes this row and opens the next, so a whole
-    // item is one uninterrupted run of Tabs.
-    if (e.key === 'Tab' && !e.shiftKey && isLast) { stop(); commitEdit('next'); return; }
+    // Tab off the last field finishes this row and goes on, so a whole item
+    // is one uninterrupted run of Tabs. On to the NEXT ROW when there is one
+    // — the mirror of ⇧Tab off the name, which goes to the row above. It
+    // always inserted a new empty row instead, so Tabbing through existing
+    // items stopped at the first one with a blank row nobody asked for.
+    // A new row, or the last row, still opens a new one: that is typing a
+    // plan top to bottom.
+    if (e.key === 'Tab' && !e.shiftKey && isLast) {
+      stop();
+      const at = editing ? visibleIds.indexOf(editing.id) : -1;
+      if (editing && !editing.isNew && at >= 0 && at < visibleIds.length - 1) commitAndEditNeighbour(1);
+      else commitEdit('next');
+      return;
+    }
     // Everything else is the field's own: ↑/↓ picks a value, and there are
     // no structural gestures while a control owns the keyboard.
   }
