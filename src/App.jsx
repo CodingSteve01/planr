@@ -43,7 +43,7 @@ import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
 import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
-import { WorkOrderView } from './components/views/WorkOrderView.jsx';
+import { WorkOrderView, QUEUE_FOCUS_EVENT } from './components/views/WorkOrderView.jsx';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
@@ -250,6 +250,11 @@ const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 // archive. Resources, Holidays and Report are inputs and outputs — nothing in
 // the filter bar reaches them, so it would be a control that does nothing.
 const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', 'net', 'plan', 'briefing']);
+// The views that read the toolbar search. One list for showing the box and for
+// ⌘F, because they drifted apart: the box sat on every filtered tab while only
+// three views read it, so on the queue it filtered nothing and ⌘F fell through
+// to the browser's find.
+const SEARCH_TABS = new Set(['tree', 'order', 'gantt', 'net']);
 
 // `mount` is how a host hands this app instance its document. Without one —
 // the web build — the app restores whatever was last opened, from IndexedDB
@@ -1483,7 +1488,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         // Only intercept when a searchable view is active
-        if (tab === 'tree' || tab === 'gantt' || tab === 'net') {
+        if (SEARCH_TABS.has(tab)) {
           e.preventDefault();
           searchRef.current?.focus();
           searchRef.current?.select();
@@ -3574,7 +3579,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         archiveDays={archiveDays} setArchiveDays={setArchiveDays}
       />
       <div style={{ flex: 1 }} />
-      {tab !== 'plan' && <SearchBox
+      {SEARCH_TABS.has(tab) && <SearchBox
         searchRef={searchRef}
         onCommit={v => setSearch(v)}
         onResetIdx={() => setSearchIdx(0)}
@@ -3583,7 +3588,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         // Carries the committed query so the tree can wait for ITS rows to be
         // that query's before moving the cursor — dispatching a bare event
         // would land on the first row of the previous result.
-        onGoToResults={tab === 'tree' ? q => window.dispatchEvent(new CustomEvent(TREE_FOCUS_EVENT, { detail: { query: q } })) : undefined}
+        onGoToResults={tab === 'tree' || tab === 'order'
+          ? q => window.dispatchEvent(new CustomEvent(tab === 'tree' ? TREE_FOCUS_EVENT : QUEUE_FOCUS_EVENT, { detail: { query: q } }))
+          : undefined}
         committedSearch={search}
       />}
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
@@ -3728,7 +3735,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           hand-assigned emptied the screen. */}
       {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
         tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
-        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} search={deferredSearch}
         personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
         onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }} /></Frozen></div>}
       {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><Frozen active={tab === 'resources'}><ResView members={members} teams={teams} vacations={vacations}

@@ -109,7 +109,7 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Ctrl/Cmd+S | Saves the file | src/App.jsx:1208 | Settings | 2 | ↔ duplicates 💾 and "Save as" |
-| Ctrl/Cmd+F | Focuses the search box (tree/gantt/net tabs only) | src/App.jsx:1209-1216 | Build | 2 | ↔ duplicates clicking the SearchBox |
+| Ctrl/Cmd+F | Focuses the search box (tree/order/gantt/net tabs only — the same `SEARCH_TABS` set that decides where the box is shown) | src/App.jsx:1209-1216 | Build | 2 | ↔ duplicates clicking the SearchBox |
 | Ctrl/Cmd+↓ / ↑ | Jumps to the next/previous search match | src/App.jsx:1218-1221 | Build | 2 | ↔ duplicates SearchBox's own ▲/▼ buttons |
 
 ---
@@ -363,12 +363,12 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Status SearchSelect (Workflow, leaf without phases) | Sets status | src/components/views/QuickEdit.jsx:351-363 | Build | 1 | |
 | Progress slider (Workflow, leaf without phases) | Sets progress % | src/components/views/QuickEdit.jsx:368-382 | Build | 1 | |
 | Phase list (Workflow, leaf) | Add/reorder/remove/apply-template/status-toggle phases | src/components/views/QuickEdit.jsx:387-394 | Build | 1 | reuses Phases.jsx — see its own table below |
-| Team SearchSelect (Workflow) | Sets team | src/components/views/QuickEdit.jsx:397 | Build | 1 | |
-| Team-lock toggle (Workflow, leaf) | Sets teamLock | src/components/views/QuickEdit.jsx:401-404 | Build | 1 | 🔧 mechanics exposed |
-| Parallel toggle (Workflow, leaf) | Sets the "parallel" scheduler flag | src/components/views/QuickEdit.jsx:406-411 | Build | 1 | 🔧 mechanics exposed |
-| Assignee tag remove (×) (Workflow) | Removes one assignee | src/components/views/QuickEdit.jsx:416 | Build | 1 | |
-| AutoAssignHint "accept" (Workflow, leaf) | Adopts the scheduler's suggested person/team | src/components/views/QuickEdit.jsx:418-419 | Plan | 1 | |
-| Assignee add (SearchSelect) (Workflow) | Adds an assignee | src/components/views/QuickEdit.jsx:421-430 | Build | 1 | |
+| Team SearchSelect (Overview) | Sets team | src/components/views/QuickEdit.jsx | Build | 1 | |
+| Team-lock toggle (Overview, leaf) | Sets teamLock | src/components/views/QuickEdit.jsx:401-404 | Build | 1 | 🔧 mechanics exposed |
+| Parallel toggle (Overview, leaf) | Sets the "parallel" scheduler flag | src/components/views/QuickEdit.jsx:406-411 | Build | 1 | 🔧 mechanics exposed |
+| Assignee tag remove (×) (Overview) | Removes one assignee | src/components/views/QuickEdit.jsx:416 | Build | 1 | |
+| AutoAssignHint "accept" (Overview, leaf) | Adopts the scheduler's suggested person/team | src/components/views/QuickEdit.jsx:418-419 | Plan | 1 | |
+| Assignee add (SearchSelect) (Overview) | Adds an assignee | src/components/views/QuickEdit.jsx:421-430 | Build | 1 | |
 | Quick-estimate size buttons (Effort, leaf) | Sets best/factor from a T-shirt size | src/components/views/QuickEdit.jsx:442-450 | Build | 1 | ↔ duplicates EstimationWizard's own size step |
 | "Estimate now" button (Effort tab) | Opens EstimationWizard | src/components/views/QuickEdit.jsx:452 | Build | 1 | ↔ duplicates the header button |
 | Best-days input (Effort, leaf) | Sets best estimate | src/components/views/QuickEdit.jsx:456 | Build | 1 | |
@@ -401,7 +401,7 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 | Timing section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:258 | Build | 1 | |
 | "Wartet auf" (blocked-by) link | Opens the blocking item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | |
 | Effort section click | Jumps to Effort | src/components/shared/TaskInsights.jsx:379 | Build | 1 | |
-| People section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
+| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
 | "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/TaskInsights.jsx:468-471 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
 | "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/TaskInsights.jsx:473-480 | Build | 1 | calls onSplitTaskAtProgress — same as above |
 | Phases section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:532 | Build | 1 | |
@@ -456,8 +456,8 @@ Fields are buffered in local state and committed only by the "Save" button — a
 | Custom field inputs (Overview) | Sets custom field values | src/components/modals/NodeModal.jsx:369-373 | Build | 2 | ↔ duplicates QuickEdit Overview |
 | Status SearchSelect, progress slider (Workflow) | Sets status/progress | src/components/modals/NodeModal.jsx:382-404 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit Workflow |
 | Phase list (Workflow) | Add/reorder/remove/status-toggle phases | src/components/modals/NodeModal.jsx:409-416 | Build | 2 | ⚠ writes data outside the tree when opened non-tree; reuses Phases.jsx; ↔ duplicates QuickEdit |
-| Team SearchSelect, team-lock, parallel toggles (Workflow) | Sets team/teamLock/parallel | src/components/modals/NodeModal.jsx:418-447 | Build | 2 | 🔧 mechanics exposed (teamLock/parallel); ↔ duplicates QuickEdit |
-| Assignee tags/add, AutoAssignHint accept (Workflow) | Sets assignees/team | src/components/modals/NodeModal.jsx:424-451 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit |
+| Team SearchSelect, team-lock, parallel toggles (Overview) | Sets team/teamLock/parallel | src/components/modals/NodeModal.jsx:418-447 | Build | 2 | 🔧 mechanics exposed (teamLock/parallel); ↔ duplicates QuickEdit |
+| Assignee tags/add, AutoAssignHint accept (Overview) | Sets assignees/team | src/components/modals/NodeModal.jsx:424-451 | Plan | 2 | ⚠ writes data outside the tree when opened non-tree; ↔ duplicates QuickEdit |
 | Quick-estimate buttons, "Estimate now" (Effort) | Sets best/factor, opens EstimationWizard | src/components/modals/NodeModal.jsx:470-479 | Build | 2 | ↔ duplicates QuickEdit Effort |
 | Best/factor/priority inputs (Effort) | Sets estimate fields | src/components/modals/NodeModal.jsx:482-487 | Build | 2 | ↔ duplicates QuickEdit Effort |
 | Fixed-duration toggle+input, confidence (Effort) | Sets fixedDurationDays / confidence | src/components/modals/NodeModal.jsx:490-517 | Build | 2 | 🔧 mechanics exposed; ↔ duplicates QuickEdit Effort |

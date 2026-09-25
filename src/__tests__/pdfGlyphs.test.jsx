@@ -274,3 +274,34 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
     expect(rendered).not.toContain('●');
   });
 });
+
+// A PDF is read by people who have never opened Planr. Every page says what
+// made it, and the wordmark is a link to where it comes from.
+describe('every PDF footer says it was made with Planr', () => {
+  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+
+  it.each([
+    ['exportSummaryPDF', [{ includeTimetable: false, includeProjectRoadmaps: false }]],
+    ['exportGanttPDF', []],
+    ['exportWhatWhenPDF', []],
+    ['exportTodoPDF', [90]],
+  ])('%s', async (name, args) => {
+    const mod = await import('../utils/pdfExports.js');
+    await mod[name](ctx(), ...args);
+
+    const footer = captured[0].footer(2, 5);
+    const strings = pdfStrings(footer);
+    const textOf = node => typeof node === 'string' ? node
+      : Array.isArray(node) ? node.map(textOf).join('') : textOf(node?.text ?? '');
+    expect(footer.columns.map(textOf).join(' | ')).toContain('erstellt mit Planr.');
+    expect(offenders(strings)).toEqual([]);
+
+    const linked = [];
+    (function walk(node) {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node && typeof node === 'object') { if (node.link) linked.push(node); Object.values(node).forEach(walk); }
+    })(footer);
+    expect(linked.map(n => n.text).join('')).toBe('Planr.');
+    expect(linked.every(n => n.link === mod.PLANR_URL)).toBe(true);
+  });
+});
