@@ -28,7 +28,7 @@ export const DEL = isMac ? '⌫' : 'Del';
 // scope: which surface the key is live on. `treeEdit` is the row editor —
 // the keys that work WHILE a name is being typed, which is exactly where
 // they were missing.
-export const SCOPES = ['global', 'tree', 'treeEdit', 'gantt'];
+export const SCOPES = ['global', 'tree', 'treeEdit', 'order', 'gantt'];
 
 export const SHORTCUTS = [
   // ── Global — live everywhere, handled in App.jsx ──────────────────────
@@ -88,6 +88,20 @@ export const SHORTCUTS = [
   { id: 'editTeam', scope: 'treeEdit', keys: [`${ALT}T`], labelKey: 'sc.editTeam' },
   { id: 'editStatus', scope: 'treeEdit', keys: [`${ALT}Space`, `${ALT}⇧Space`], labelKey: 'sc.editStatus' },
 
+  // ── Work order — handled in WorkOrderView.jsx ───────────────────────
+  // The tree's keys, on purpose (the view's own comment says why). Only
+  // what the view actually handles is listed: no `0`, no delete, no paste.
+  { id: 'orderCursor', scope: 'order', keys: ['↑', '↓'], labelKey: 'sc.cursorMove' },
+  { id: 'orderExtend', scope: 'order', keys: ['⇧↑', '⇧↓'], labelKey: 'sc.cursorExtend' },
+  { id: 'orderEnds', scope: 'order', keys: ['Home', 'End'], labelKey: 'sc.orderEnds' },
+  { id: 'orderOpen', scope: 'order', keys: ['↵', 'E'], labelKey: 'sc.ganttOpen' },
+  { id: 'orderMove', scope: 'order', keys: [`${ALT}↑`, `${ALT}↓`, `${MOD}⇧↑`, `${MOD}⇧↓`], labelKey: 'sc.orderMove' },
+  { id: 'orderMoveEnds', scope: 'order', keys: [`${ALT}⇧↑`, `${ALT}⇧↓`], labelKey: 'sc.orderMoveEnds' },
+  { id: 'orderStatus', scope: 'order', keys: ['Space', '⇧Space'], labelKey: 'sc.status' },
+  { id: 'orderPrio', scope: 'order', keys: ['1', '2', '3', '4'], labelKey: 'sc.prio' },
+  { id: 'orderSize', scope: 'order', keys: ['S', 'M', 'L', 'X'], labelKey: 'sc.size' },
+  { id: 'orderClear', scope: 'order', keys: ['Esc'], labelKey: 'sc.orderClear' },
+
   // ── Schedule ─────────────────────────────────────────────────────────
   // Deliberately the tree's keys. The schedule is where you SEE that
   // something sits too early, so it has to be somewhere you can say so —
@@ -144,7 +158,7 @@ export function keyHint(id, mac = isMac) {
   const s = BY_ID.get(id);
   if (!s) return '';
   const keys = s.keys.map(k => formatKey(k, mac));
-  const range = id === 'prio' || id === 'size' || id === 'editPrio' || id === 'editSize';
+  const range = ['prio', 'size', 'editPrio', 'editSize', 'orderPrio', 'orderSize'].includes(id);
   if (range) return `${keys[0]}–${keys[keys.length - 1]}`;
   return keys.join(' / ');
 }

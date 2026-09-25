@@ -247,7 +247,7 @@ function WorkOrderViewImpl({ tree, members, teams, scheduled = [], sizes = [], r
 
   return <div ref={viewRef} style={{ maxWidth: 960, margin: '0 auto' }}>
     <p className="helper" style={{ fontSize: 12, marginTop: 0, marginBottom: 14 }}>
-      {withKey(t('wo.help'), 'ganttReorder')}
+      {withKey(t('wo.help'), 'orderMove')}
     </p>
     {owners.map(([owner, rows]) => {
       const label = ownerLabel(owner);
