@@ -20,7 +20,7 @@ import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
-import { memberTeamNames } from '../../utils/memberTeams.js';
+import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 
 // REASON_TIP is built inside the component using t() — see reasonTip helper below
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
@@ -371,7 +371,7 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
             options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
             onSelect={id => {
               const member = members.find(entry => entry.id === id);
-              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: member?.team || f.team });
+              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: teamForAssignment(member, f.team) });
             }}
             placeholder={t('qe.assignPerson')}
           />

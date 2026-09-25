@@ -18,10 +18,10 @@ import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
 import { applyTreeCommand, applyTreeCommandMany, moveSubtree, placeAmongSiblings, placeManyAmongSiblings } from './utils/treeMove.js';
-import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
+import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { resolveMemberMeetings } from './utils/capacity.js';
 import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
@@ -71,7 +71,7 @@ import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.
 import { FileMenu } from './components/shared/FileMenu.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
-import { withoutTeam } from './utils/memberTeams.js';
+import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
 
 // useEvent shim — stable callback ref that always invokes the latest closure.
 // Lets us pass App-defined functions to React.memo'd children without busting
@@ -2130,13 +2130,20 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setData(d => {
       let t = d.tree || [];
       let changed = false;
-      // 1. Reconcile teams: person's team always wins
+      // 1. Reconcile teams with the first assignee, by the same rule the
+      //    editors assign with (teamForAssignment): the task keeps its team
+      //    when the person works in it, and otherwise takes the person's
+      //    primary team. This said "the person's team always wins", which
+      //    quietly relabelled a Frontend task as Backend the moment a
+      //    full-stack member was put on it — undoing, one render later, the
+      //    choice every editor had just made.
       if (members.length) {
         t = t.map(r => {
           if (!r.assign?.length) return r;
           const firstAssignee = members.find(m => m.id === r.assign[0]);
           if (!firstAssignee?.team) return r;
-          if (r.team !== firstAssignee.team) { changed = true; return { ...r, team: firstAssignee.team }; }
+          const team = teamForAssignment(firstAssignee, r.team);
+          if (r.team !== team) { changed = true; return { ...r, team }; }
           return r;
         });
       }
@@ -3169,7 +3176,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       </div>
       {bTab === 'overview' && <>
         {allLeaf && <div className="field"><label>{_t('qe.status')}{commonStatus == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, status: v } : r))} placeholder={_t('bulk.chooseStatus')} />
+          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => {
+            // The single editors' rules, not a bare status write: done stamps
+            // the completion dates and 100 %, open resets progress, wip seeds
+            // the start. A task with phases has no status of its own to set —
+            // its phases decide it — so it is left alone, as the single
+            // editors do by hiding the field.
+            if (!multiSel.has(r.id) || r.phases?.length) return r;
+            return { ...r, ...statusChangePatch(r, v) };
+          }))} placeholder={_t('bulk.chooseStatus')} />
         </div>}
         <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ` (${_t('bulk.mixed')})` : ''}</label>
           <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder={_t('bulk.notePlaceholder')} />
@@ -3208,11 +3223,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
                       setD('tree', tree.map(r => {
                         if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
                         const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
-                        const done = newPhases.filter(p => p.status === 'done').length;
-                        const wip2 = newPhases.filter(p => p.status === 'wip').length;
-                        const st = done === newPhases.length ? 'done' : (done > 0 || wip2 > 0) ? 'wip' : 'open';
-                        const prog = Math.round(done / newPhases.length * 100);
-                        return { ...r, phases: newPhases, status: st, progress: prog };
+                        // Same derivation as the single editors: a wip phase
+                        // counts for its share, not for nothing, so one click
+                        // gives one progress figure wherever it is made.
+                        const derived = derivePhaseStatus(newPhases);
+                        return { ...r, phases: newPhases, ...(derived ? { status: derived.status, progress: derived.progress } : {}) };
                       }));
                     }}>{dot}</span>
                   <span style={{ fontSize: 12, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
@@ -3234,7 +3249,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
                 {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip={_t('bulk.removeFromSelected')} onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}><Icon name="x" size={9} /></span></span>; })}
               </div>}
-              <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: m?.team || r.team } : r)); }} placeholder={_t('qe.assignPerson')} />
+              <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: teamForAssignment(m, r.team) } : r)); }} placeholder={_t('qe.assignPerson')} />
             </>;
           })()}
         </div>
