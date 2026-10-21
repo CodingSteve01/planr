@@ -317,7 +317,15 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     const ancestors = []; let aid = parentId(id); while (aid) { ancestors.push(aid); aid = parentId(aid); }
     return [...new Set([...ownDeps, ...ancestors.flatMap(a => iMap[a]?.deps || [])])];
   };
-  const visit = id => { if (vis.has(id)) return; vis.add(id); effectiveDeps(id).flatMap(resD).filter(d => d !== id).forEach(visit); ord.push(id); };
+  // A finished task waits for nothing any more, so its links say nothing about
+  // the order of the work still to do. Walking them anyway put its
+  // predecessors at the finished task's place in the tree: one stale
+  // "Requires" on done work moved a project the tree put last to the front.
+  const visit = id => {
+    if (vis.has(id)) return; vis.add(id);
+    if (iMap[id]?.status !== 'done') effectiveDeps(id).flatMap(resD).filter(d => d !== id).forEach(visit);
+    ord.push(id);
+  };
   sv.forEach(r => visit(r.id));
   // pF, tEW, and tSlots now track {wi, nextDate} pairs: wi is the week the
   // task ends in, nextDate is the FIRST WORKING DAY the resource/successor is
@@ -627,10 +635,53 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     }
   }
 
+  // Open work per project and team, counted down as the loop places it. A
+  // member's first team is the one they work in by preference: they take a
+  // task of another team only once their own has nothing left in that
+  // project. Counted per project because a backlog that runs into 2028
+  // would otherwise keep them out of the other team for good.
+  const openKey = (id, team) => `${id.split('.')[0]}|${pt(team || '')}`;
+  const openWork = new Map();
+  for (const id of ord) {
+    const r = iMap[id];
+    if (!r || r.status === 'done' || !isLeafNode(tree, r.id) || (!r.best && !fixedDurationDays(r))) continue;
+    const key = openKey(id, r.team);
+    openWork.set(key, (openWork.get(key) || 0) + 1);
+  }
+  const firstTeamOf = m => pt(memberTeams(m)[0] || '');
+
+  // The day a member would finish `eff` if they started on `from`, walking
+  // their real days the way the booking loop below does. Comparing
+  // candidates by their start alone handed long work to whoever had a free
+  // slot, however small their week. Null when their capacity is zero or they
+  // leave before it is done.
+  const projectedFinish = (m, fromWi, from, eff) => {
+    const snap = memberAtDate(m, wks[fromWi]?.mon || from);
+    const daily = deriveCap(snap) * (vacInfo[m.id] ?? 1);
+    if (daily <= 0) return null;
+    const end = m.end ? localDate(m.end) : null;
+    let rem = eff;
+    for (let wi = fromWi; wi < wks.length; wi++) {
+      for (const d of wks[wi].wds) {
+        if (d < from) continue;
+        if (end && d > end) return null;
+        const dIso = iso(d);
+        if (vs[m.id]?.has(dIso) || pinnedBusy.has(`${m.id}|${dIso}`)) continue;
+        rem -= daily;
+        if (rem <= 0) return d;
+      }
+    }
+    return null;
+  };
+
   const res = [];
   ord.forEach(id => {
     const r = iMap[id];
     if (r?.status === 'done') return;
+    if (r) {
+      const ownKey = openKey(id, r.team);
+      if (openWork.has(ownKey)) openWork.set(ownKey, Math.max(0, openWork.get(ownKey) - 1));
+    }
     if (tEW[id]?.wi === -1) return;
     const fixedDaysTotal = fixedDurationDays(r);
     const hasFixedDuration = fixedDaysTotal > 0;
@@ -726,9 +777,17 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
     // This prevents the scheduler from placing work where no one is actually free.
     if (!asgn.length) {
       if (tM.length > 0) {
-        // Find the team member who is free earliest (considering deps, on/offboarding, assigned work)
-        let bp = null, bs = Infinity, bDate = null, bestPF = null;
+        // Find the team member who FINISHES earliest (considering deps,
+        // on/offboarding, assigned work, their capacity). Who starts first
+        // only breaks a tie.
+        let bp = null, bs = Infinity, bDate = null, bestPF = null, bestFinish = null;
+        const notGone = m2 => !(m2.end && localDate(m2.end) < (earlyDate || planStartDate));
+        const firstTeamHere = tM.some(m2 => firstTeamOf(m2) === team && notGone(m2));
         for (const m of tM) {
+          // Someone whose first team is another one helps out here only when
+          // their own has nothing left in this project.
+          const first = firstTeamOf(m);
+          if (first !== team && firstTeamHere && (openWork.get(`${id.split('.')[0]}|${first}`) || 0) > 0) continue;
           const mStart = localDate(m.start || ps);
           const mEnd = m.end ? localDate(m.end) : null;
           const ji = wks.findIndex(w => w.wds.some(d => d >= mStart));
@@ -758,8 +817,16 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           //   - no-dep      → pick FREER (lowest candPF) for load balance;
           //     no-deps should fill the earliest genuinely-free body.
           const preferBusier = !noDeps;
+          const finish = hasFixedDuration ? fd : projectedFinish(m, fw, fd, eff);
+          const byFinish = !bp ? null
+            : finish && !bestFinish ? true
+              : !finish && bestFinish ? false
+                : finish && bestFinish && +finish !== +bestFinish ? finish < bestFinish
+                  : null;
           const better = !bp
             ? true
+            : byFinish !== null
+              ? byFinish
             : (fw < bs)
               ? true
               : (fw === bs && fd && bDate && fd < bDate)
@@ -768,7 +835,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
                     && (preferBusier ? candPF > bestPF : candPF < bestPF))
                   ? true
                   : false;
-          if (better) { bs = fw; bp = m; bDate = fd; bestPF = candPF; }
+          if (better) { bs = fw; bp = m; bDate = fd; bestPF = candPF; bestFinish = finish; }
         }
         if (bp) {
           // Snapshot bp at the task's start week so time-shifted cap /
