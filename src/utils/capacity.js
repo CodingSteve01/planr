@@ -165,3 +165,19 @@ export function isOnboard(member, on = new Date()) {
 export function onboardCount(members, on = new Date()) {
   return (members || []).filter(m => isOnboard(m, on)).length;
 }
+
+// Members whose week is used up before any project work: their meetings take
+// all of their hours, so `deriveCap` is zero. The scheduler no longer picks
+// them for open work, but work assigned to them by name still lands on them
+// and stretches to the end of the horizon. Reported with those tasks so the
+// plan says so instead of quietly showing a bar that ends years away.
+export function membersWithoutCapacity(members, scheduled, ctxOrPlans) {
+  const rows = (scheduled || []).filter(r => r.personId && !r.unscheduled && r.status !== 'done');
+  return (members || []).flatMap(member => {
+    const taskIds = rows
+      .filter(r => r.personId === member.id
+        && deriveCap(memberAtDate(member, r.startD || new Date()), ctxOrPlans) <= 0)
+      .map(r => r.treeId || r.id);
+    return taskIds.length ? [{ member, taskIds: [...new Set(taskIds)] }] : [];
+  });
+}
