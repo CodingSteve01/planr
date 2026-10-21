@@ -169,12 +169,20 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   const pxPerMonth = effectivePxDay * 30.4;
   const tickEvery = Math.max(model.tickEvery, Math.ceil(62 / Math.max(1, pxPerMonth)));
 
-  // The year is what gives the axis any temporal orientation at all — and
-  // showing it only on January meant a project starting mid-year (the
-  // common case) never printed one. It now shows on the FIRST rendered tick
-  // unconditionally, and on every January after that.
-  const monthLabel = (date, isFirstTick) => date.toLocaleDateString(undefined, { month: 'short' })
-    + (isFirstTick || date.getMonth() === 0 ? ` ’${String(date.getFullYear()).slice(2)}` : '');
+  // The year is what gives the axis any temporal orientation at all. It
+  // shows on the first rendered tick and on the first tick of every later
+  // year. Tying it to January instead failed whenever the labels skip
+  // January (every second or third month), and the next year's first label
+  // then read as the same year again.
+  const monthLabel = (date, prevTick) => date.toLocaleDateString(undefined, { month: 'short' })
+    + (!prevTick || prevTick.getFullYear() !== date.getFullYear() ? ` ’${String(date.getFullYear()).slice(2)}` : '');
+
+  // "Only changed" hides a package with nothing changed under it. The label
+  // column, the plot and the figures are three stacks of rows side by side,
+  // so all three take the same list or the bars drift onto other names.
+  const rowTouched = row => !!sinceDate && (row.milestones || []).some(m =>
+    diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
+  const rows = onlyChanged && sinceDate ? model.rows.filter(rowTouched) : model.rows;
 
   return <div className="pr" data-testid="plan-roadmap">
     {/* Header — the project, its figure, and the zoom. Mirrors the Gantt's
@@ -205,7 +213,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
           names stay readable however far right you scroll. */}
       <div className="pr-labels" style={{ width: LABEL_W }}>
         <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
-        {model.rows.map(row => (
+        {rows.map(row => (
           <div key={row.id} className="pr-label" style={{ height: ROW_H }}
             onClick={() => openItem(row.id)}
             onMouseEnter={e => showTip(row.id, row, e)}
@@ -223,25 +231,23 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
             {model.months.map((month, idx) => {
               if (idx % tickEvery) return null;
               return <span key={+month} className="pr-tick" style={{ left: xOf(month) }}>
-                <span className="pr-tick-lbl">{monthLabel(month, idx === 0)}</span>
+                <span className="pr-tick-lbl">{monthLabel(month, model.months[idx - tickEvery])}</span>
               </span>;
             })}
           </div>
 
           {/* Rows */}
-          <div style={{ position: 'relative', minHeight: model.rows.length * ROW_H }}>
+          <div style={{ position: 'relative', minHeight: rows.length * ROW_H }}>
             {model.months.map((month, idx) => (idx % tickEvery ? null : (
-              <span key={`g${+month}`} className="pr-grid" style={{ left: xOf(month), height: model.rows.length * ROW_H }} />
+              <span key={`g${+month}`} className="pr-grid" style={{ left: xOf(month), height: rows.length * ROW_H }} />
             )))}
 
-            {model.rows.map((row, idx) => {
+            {rows.map((row, idx) => {
               const hasSpan = row.start && row.end;
               const left = hasSpan ? xOf(row.start) : 0;
               const width = hasSpan ? Math.max(6, xOf(row.end) - left) : 0;
               // A package counts as touched when anything under it is.
-              const touched = !!sinceDate && (row.milestones || []).some(m =>
-                diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
-              if (onlyChanged && sinceDate && !touched) return null;
+              const touched = rowTouched(row);
               return <div key={row.id} data-pr-changed={touched ? 'true' : undefined}
                 className={`pr-row${idx % 2 ? ' alt' : ''}${touched ? ' changed' : ''}`} style={{ height: ROW_H }}>
                 {hasSpan && <span
@@ -272,11 +278,11 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
                 axis; a finished or not-yet-started project has nothing to
                 mark. */}
             {todayInRange && (
-              <span className="pr-today" style={{ left: xOf(model.today), height: model.rows.length * ROW_H }}
+              <span className="pr-today" style={{ left: xOf(model.today), height: rows.length * ROW_H }}
                 data-htip={`${t('rm.today')} · ${fmtDate(model.today)}`} />
             )}
             {model.deadline && (
-              <span className="pr-deadline" style={{ left: xOf(model.deadline), height: model.rows.length * ROW_H }}
+              <span className="pr-deadline" style={{ left: xOf(model.deadline), height: rows.length * ROW_H }}
                 data-htip={`${t('deadline')} · ${fmtDate(model.deadline)}`} />
             )}
           </div>
@@ -287,7 +293,7 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
           row, so a wide window is not wasted on whitespace. */}
       <div className="pr-figures">
         <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
-        {model.rows.map(row => (
+        {rows.map(row => (
           <div key={row.id} className="pr-figure" style={{ height: ROW_H }}>
             {row.dropped
               ? <span className="pr-figure-count" data-pr-dropped="true">{t('rm.dropped')}</span>
