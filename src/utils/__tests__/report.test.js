@@ -82,3 +82,20 @@ describe('buildReportModel progress parity with the on-screen KPI row', () => {
     expect(root.prog).toBeCloseTo(11 / 41 * 100, 6);
   });
 });
+
+describe('a late deadline names its cause', () => {
+  test('the risk says what holds it back and what moving it gains', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'open', type: 'deadline', date: '2026-01-05' },
+      { id: 'P1.1', name: 'Work', status: 'open', best: 5, factor: 1, team: 'T1' },
+    ];
+    const base = ctx(tree);
+    const waits = {
+      chain: [{ ids: ['P9'], names: ['Bookkeeping'], person: { id: 'm1', name: 'Jonas' }, pt: 42, totalGainDays: 80 }],
+    };
+    const m = buildReportModel({ ...base, projectWaitsOf: id => (id === 'P1' ? waits : null) });
+    const risk = m.risks.find(r => r.title.includes('Project'));
+    expect(risk.text).toContain('Jonas macht vorher 42 PT P9');
+    expect(risk.ask).toBe('P9 hinter P1 schieben: 80 Tage früher');
+  });
+});

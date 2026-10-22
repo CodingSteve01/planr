@@ -8,6 +8,7 @@ import { GT_ICON, GL, CONF_COLOR } from '../../constants.js';
 import { onboardCount } from '../../utils/capacity.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
+import { waitsLine } from '../shared/ProjectWaits.jsx';
 import { useT } from '../../i18n.jsx';
 import { Roadmap } from '../shared/Roadmap.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -30,7 +31,7 @@ import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, 
 const ORDER = ['goal', 'painpoint', 'deadline', ''];
 const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
 
-function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo }) {
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo, projectWaitsOf = null }) {
   const { t, lang } = useT();
   const isDe = lang === 'de';
   // Archive is a *display* filter: the header percentage, PT and leaf counts
@@ -468,6 +469,10 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
               {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
             </span>
           </div>
+          {isLate && projectWaitsOf && (() => {
+            const line = waitsLine(projectWaitsOf(dl.id), t);
+            return line ? <div className="pw-waits-line" data-pw-line={dl.id}>{line}</div> : null;
+          })()}
           {dl.description && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
           {timeline?.period?.end && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>

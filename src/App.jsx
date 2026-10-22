@@ -18,6 +18,7 @@ import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
+import { projectWaits } from './utils/projectWaits.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
 import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
@@ -1720,6 +1721,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
     return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };
   }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues]);
+  // The same schedule for a different tree: what-if runs for "what is this
+  // project waiting on?" (utils/projectWaits.js). Answers are cached until
+  // the plan changes and computed only when a view asks for a project.
+  const reschedule = useCallback(
+    nextTree => schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues }).results,
+    [enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, personQueues],
+  );
+  const projectWaitsOf = useMemo(() => {
+    const cache = new Map();
+    return rootId => {
+      if (!rootId) return null;
+      if (!cache.has(rootId)) cache.set(rootId, projectWaits({ tree, scheduled, rootId, reschedule, members: enrichedMembers }));
+      return cache.get(rootId);
+    };
+  }, [tree, scheduled, reschedule, enrichedMembers]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -2603,6 +2619,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }
   }
 
+  // "Move P10 behind P8" from a project's waits block: each cause goes
+  // directly after the project it holds back, in the order they are named.
+  const onMoveBehind = useStableCallback((ids, rootId) => {
+    let anchor = rootId;
+    for (const id of ids) { reorderSibling(id, { targetId: anchor, position: 'after' }); anchor = id; }
+  });
   function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
@@ -2633,7 +2655,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // utils/exportCtx.js.
   const _exportCtx = () => buildExportCtx({
     data, scheduled, weeks, cpSet, goalPaths, stats, confidence, lang: _lang,
-    diff, horizonIds, horizonEnd, futureProgressByRootId,
+    diff, horizonIds, horizonEnd, futureProgressByRootId, projectWaitsOf,
   });
   const isMdFile = fileName?.endsWith('.md');
   // Build the file content together with any new history events. The events
@@ -3635,7 +3657,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
     </div>}
     <div className="main">
-      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><Frozen active={tab === 'summary'}><SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><Frozen active={tab === 'summary'}><SumView projectWaitsOf={projectWaitsOf} tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
         historyEvents={data?.historyEvents || []}
         sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
         diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
@@ -3760,6 +3782,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           sinceDate={sinceDate}
           onlyChanged={diffOnlyChanged}
           onOpenItem={onOpenItemDialog}
+          projectWaitsOf={projectWaitsOf}
+          onMoveBehind={onMoveBehind}
         />
       </div>}
       {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><Frozen active={tab === 'net'}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}

@@ -3,6 +3,7 @@ import { computeProjectRoadmap } from '../../utils/projectRoadmap.js';
 import { progressPctLabel } from '../../utils/progress.js';
 import { fmtDate } from '../../utils/date.js';
 import { Tip } from '../shared/Tooltip.jsx';
+import { ProjectWaits } from '../shared/ProjectWaits.jsx';
 import { useT } from '../../i18n.jsx';
 
 // Plan mode's Roadmap tab, built the way the Gantt is built: real DOM, a
@@ -48,7 +49,8 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   // it, so a sprint review had to be read somewhere else and come back.
   // Same vocabulary as the Gantt: what finished in the window, what moved,
   // and the option to show only those.
-  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false }) {
+  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false,
+  waits = null, onMoveBehind = null }) {
   const { t } = useT();
   // The same tooltip the graph and the Gantt show — one item, one card, the
   // whole story: status, window, effort, deps, phases, handoff chain. The
@@ -207,6 +209,8 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
           data-htip={t('rm.zoomInTip')}>+</button>
       </span>
     </div>
+
+    <ProjectWaits waits={waits} onOpenItem={openItem} onMoveBehind={onMoveBehind} />
 
     <div className="pr-body">
       {/* Left column — sticky, exactly like the Gantt's row labels, so the
