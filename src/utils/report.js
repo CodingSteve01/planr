@@ -41,7 +41,7 @@ export function buildReportModel(rawCtx) {
   // Same guard as the PDFs: a report covers the plan, not the current view.
   // generateReport and the DOCX export both route through here, so guarding
   // this one function covers every HTML/Word surface.
-  const { tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data } =
+  const { tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data, projectWaitsOf } =
     projectScopedCtx(rawCtx, 'buildReportModel');
   const de = lang === 'de';
   const t = (en, deTxt) => de ? deTxt : en;
@@ -171,11 +171,24 @@ export function buildReportModel(rawCtx) {
     const ds = deadlineStates[dl.id];
     if (!ds?.isLate || !ds.end) return;
     const daysLate = Math.round((ds.end - ds.dateD) / 86400000);
+    // The cause, measured (utils/projectWaits.js): which earlier project holds
+    // this one back, on whom, and what moving it gains. Without it the only
+    // advice left is the generic one, which was all this ever said.
+    const waits = typeof projectWaitsOf === 'function' ? projectWaitsOf(dl.id) : null;
+    const cause = waits?.chain?.[0];
+    const gain = cause ? waits.chain[waits.chain.length - 1].totalGainDays : 0;
+    const ids = cause ? waits.chain.flatMap(c => c.ids).join(' + ') : '';
+    const causeText = !cause ? ''
+      : cause.person
+        ? t(`; ${cause.person.name} does ${Math.round(cause.pt)} PT of ${cause.ids.join(' + ')} first`, `; ${cause.person.name} macht vorher ${Math.round(cause.pt)} PT ${cause.ids.join(' + ')}`)
+        : t(`; ${cause.ids.join(' + ')} comes first`, `; ${cause.ids.join(' + ')} kommt vorher`);
     risks.push({
       severity: 'critical', rank: daysLate,
       title: t(`Deadline "${dl.name}"`, `Termin „${dl.name}"`),
-      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${dt(iso(ds.end))} gegen ${dt(dl.date)}`),
-      ask: t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
+      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${dt(iso(ds.end))} gegen ${dt(dl.date)}`) + causeText,
+      ask: cause
+        ? t(`Move ${ids} behind ${dl.id}: ${gain} days earlier`, `${ids} hinter ${dl.id} schieben: ${gain} Tage früher`)
+        : t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
     });
   });
   // 2. Exploratory items on critical path

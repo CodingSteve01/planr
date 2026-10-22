@@ -791,3 +791,23 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
    not leave a ring behind. */
 .ins-activatable:focus{outline:none;}
 .ins-activatable:focus-visible{outline:2px solid var(--ac);outline-offset:1px;border-radius:var(--r);}
+
+/* ── "What is this project waiting on?" (ProjectWaits.jsx) ── */
+.pw { flex-shrink: 0; padding: 10px 14px 12px; border-bottom: 1px solid var(--b); font-size: 12px; color: var(--tx); }
+.pw-title, .pw-sub-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; }
+.pw-sub-title { margin-top: 10px; }
+.pw-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 4px 12px; line-height: 1.5; }
+.pw-lbl { color: var(--tx2); }
+.pw-cause { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--am); border-left-width: 3px; border-radius: 0; background: var(--bg2); }
+.pw-cause-body { flex: 1; min-width: 0; line-height: 1.5; }
+.pw-cause-head { font-weight: 600; }
+.pw-cause-sub { color: var(--tx2); }
+.pw-cause-gain { font-family: var(--mono); font-size: 11px; color: var(--tx2); margin-top: 2px; }
+.pw-none { color: var(--tx3); margin-top: 6px; }
+.pw-path { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--b); }
+.pw-step { display: grid; grid-template-columns: 80px minmax(0, 1fr) 110px 170px; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--b); align-items: baseline; }
+.pw-step.foreign .pw-step-name { color: var(--am); }
+.pw-step-who { color: var(--tx2); }
+.pw-step-when { font-family: var(--mono); font-size: 11px; color: var(--tx2); }
+.pw-link { background: none; border: 0; padding: 0; font: inherit; font-family: var(--mono); color: var(--ac); cursor: pointer; text-align: left; }
+.pw-waits-line { font-size: 11px; color: var(--am); margin: -4px 0 8px; }
