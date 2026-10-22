@@ -19,6 +19,7 @@ import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { projectWaits } from './utils/projectWaits.js';
+import { applyRootOrder } from './utils/orderSearch.js';
 import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
 import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
@@ -2621,6 +2622,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   // "Move P10 behind P8" from a project's waits block: each cause goes
   // directly after the project it holds back, in the order they are named.
+  // "Apply" on an order from the planning review's search: one undo step.
+  const onApplyOrder = useStableCallback(order => {
+    const before = dataRef.current;
+    setData(d => ({ ...d, tree: applyRootOrder(d.tree || [], order) }));
+    setHistory(h => pushHistory(h, before, { coalesceMs: 0 }));
+    setSaved(false);
+  });
   const onMoveBehind = useStableCallback((ids, rootId) => {
     let anchor = rootId;
     for (const id of ids) { reorderSibling(id, { targetId: anchor, position: 'after' }); anchor = id; }
@@ -3690,7 +3698,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         diffChangedIds={diffFilterSet}
         diffVisibleIds={diffVisibleSet}
         onOpenItem={onOpenItemDialog}
-        onUpdate={onPlanReviewUpdate} /></Frozen></div>}
+        onUpdate={onPlanReviewUpdate} planTree={tree} reschedule={reschedule} onApplyOrder={onApplyOrder} /></Frozen></div>}
       {/* The tree pane was the one pane left outside Frozen. It is the most
           expensive of them all — 298 rows on a real plan — so it was the one
           re-rendering, unseen, on every switch to any other tab. Measured in

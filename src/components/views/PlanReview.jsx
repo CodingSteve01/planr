@@ -16,12 +16,13 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 import { planInconsistencies } from '../../utils/planIntegrity.js';
 import { membersWithoutCapacity } from '../../utils/capacity.js';
+import { OrderSearch } from '../shared/OrderSearch.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };
 const CC = { committed: 'var(--gr)', estimated: 'var(--am)', exploratory: 'var(--tx3)' };
 const CN = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 
-function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations = [], meetingPlans = [], confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, planTree = null, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate }) {
+function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations = [], meetingPlans = [], confidence, confReasons = {}, cpSet, cpLabels = {}, cpPaths = {}, stats, rootFilter = '', teamFilter = '', personFilter = '', hideDone = false, planTree = null, horizonIds = null, diffChangedIds = null, diffVisibleIds = null, onOpenItem, onUpdate, reschedule = null, onApplyOrder = null }) {
   const { t } = useT();
   const reasonText = r => ({
     'manual': t('pr.reasonManual'),
@@ -204,6 +205,7 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
           ['load', t('p.load') || 'Load'],
           ['blocked', `${t('p.blocked')} (${blockedItems.length})`],
           ['warnings', `${t('pr.warnings')}${warnCount > 0 ? ' (' + warnCount + ')' : ''}`],
+          ...(reschedule ? [['order', t('or.tab')]] : []),
           ['critical', `${t('pr.criticalPaths')} (${criticalScopes.reduce((sum, scope) => sum + scope.chains.length, 0)})`],
         ];
       })().map(([k, l]) =>
@@ -485,6 +487,8 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
         </div>}
       </>;
     })()}
+
+    {section === 'order' && reschedule && <OrderSearch tree={planTree || tree} reschedule={reschedule} onApplyOrder={onApplyOrder} onOpenItem={onOpenItem} />}
 
     {section === 'critical' && <>
       {criticalScopes.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.noCriticalPaths')}</div>}
