@@ -811,3 +811,10 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .pw-step-when { font-family: var(--mono); font-size: 11px; color: var(--tx2); }
 .pw-link { background: none; border: 0; padding: 0; font: inherit; font-family: var(--mono); color: var(--ac); cursor: pointer; text-align: left; }
 .pw-waits-line { font-size: 11px; color: var(--am); margin: -4px 0 8px; }
+
+/* ── Work out the order (OrderSearch.jsx) ── */
+.or-alt { border: 1px solid var(--b); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; background: var(--bg2); }
+.or-row { display: grid; grid-template-columns: 50px minmax(0, 1fr) 200px 110px; gap: 8px; padding: 3px 0; border-top: 1px solid var(--b); font-size: 12px; align-items: baseline; }
+.or-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.or-row-when { font-family: var(--mono); font-size: 11px; color: var(--tx2); }
+.or-row-delta { font-family: var(--mono); font-size: 11px; text-align: right; }
