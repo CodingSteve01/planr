@@ -55,6 +55,29 @@ describe('computeDiff historical fallback', () => {
     expect(diff.pastProgressByRootId.P1).toBeGreaterThan(0.45);
   });
 
+  test('a dropped leaf does not count towards the past line progress', () => {
+    // Regression: the live line leaves dropped work out, the past line did not,
+    // so a finished project with one dropped 63% task showed a phantom +25%.
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Done work', status: 'done', best: 5, factor: 1, completedAt: '2026-04-20' },
+      { id: 'P1.2', name: 'Dropped work', status: 'wip', progress: 63, best: 10, factor: 1, dropped: true },
+    ];
+    const historyEvents = [
+      { ts: '2026-05-22T17:39:21.764Z', id: 'P1.1', kind: 'added', status: 'done', progress: 100, completedAt: '2026-04-20' },
+      { ts: '2026-05-22T17:39:21.764Z', id: 'P1.2', kind: 'added', status: 'wip', progress: 63 },
+    ];
+
+    const diff = computeDiff({
+      tree,
+      historyEvents,
+      sinceDate: cutoff('2026-06-01'),
+    });
+
+    expect(diff).not.toBeNull();
+    expect(diff.pastProgressByRootId.P1).toBe(1);
+  });
+
   test('task added in-window surfaces as new even when older leaves have dated bars', () => {
     // Regression: the synthetic baseline backfill used to emit a `kind=added`
     // event for EVERY leaf at the project baseline, backdating genuinely-new
