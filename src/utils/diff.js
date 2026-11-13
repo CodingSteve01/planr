@@ -8,7 +8,7 @@
 // nodes) and look up ids in the returned sets.
 import { eventReplayTimestamp, stateAsOf } from './history.js';
 import { addD, iso, localDate } from './date.js';
-import { leafProgress, scheduleEffort } from './scheduler.js';
+import { leafProgress, scheduleEffort, treeIndex } from './scheduler.js';
 
 // Build a Set of day-of-week numbers that count as workdays. Defaults to
 // Mon–Fri (1..5). Helper kept local so callers don't have to pre-shape it.
@@ -235,10 +235,16 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   const roots = tree.filter(r => !r.id.includes('.'));
   const pastProgressByRootId = {};
   const newRootIds = [];
+  // Dropped work is not part of the plan, so it is not part of the line either.
+  // The live side (the train) already leaves it out; counting it here made a
+  // project whose only open task was dropped read as +25% "progress" in the
+  // window, with nobody having touched it.
+  const { droppedIds } = treeIndex(tree);
   for (const root of roots) {
     const subtreeLeaves = tree
       .filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
-      .filter(n => !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.')));
+      .filter(n => !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.')))
+      .filter(n => !droppedIds.has(n.id));
     let totalEff = 0, doneEff = 0;
     let anyPastLeaf = false;
     for (const lf of subtreeLeaves) {
