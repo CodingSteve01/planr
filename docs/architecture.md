@@ -458,6 +458,19 @@ log. What does not depend on those sits beside it:
   `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component
   calls from its memos (`viewTree.js`, `futureProgress.js`, `planRepairs.js`),
   and the shell helpers (`shell.js`, `storage.js`, `snapshots.js`).
+- `src/app/derived/`: the plan's derived data as hooks, each taking one
+  argument object and returning one object: the schedule and its facts
+  (`usePlanModel`), the archive, scope and view filters (`useVisibleTree`), the
+  filter chips (`useFilterChips`), resource load and the as-of lens
+  (`useResourceLoad`), the scenario comparison (`useScenarioView`) and the
+  review diff (`useReviewDiff`). They hold memos only, so `App` calls them
+  where the values are first needed.
+- `src/app/useFileSession.js`, `useFileSync.js`, `fileActions.js`: the file
+  layer. `useFileSession` owns the mounted handle and the state about it;
+  `useFileSync` writes and reads the file (auto-save, the external-change
+  poll, save and open). The baseline effect for the history log stays in
+  `App` between the two, because it must run in that place in the effect
+  order; `fileActions.js` holds the plain functions both hooks call.
 - `src/app/actions/`: the mutation handlers, one hook per concern
   (`useNodeActions`, `useTreeEditorActions`, `useQueueActions`,
   `useResourceActions`). Each takes one argument object and returns the named

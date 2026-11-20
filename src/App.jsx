@@ -61,8 +61,8 @@ import {
   exportTodoPDF,
   exportWhatWhenPDF,
 } from './utils/exports.js';
-import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
+import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
 import {} from './utils/fileWrite.js';
 import { applyPastEdit, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
@@ -733,7 +733,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   useEffect(() => {
     if (!data?.deadlines?.length) return;
     const dl = data.deadlines;
-    const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
     const updated = [...tree];
     dl.forEach(g => {
       // Find matching root by name similarity
@@ -1210,19 +1209,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (savedPlan) lastSavedPlanRef.current = savedPlan;
     if (scnRef.current) return;
     setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan?.dayLog));
-  }
-  function buildMarkdownText() {
-    const fd = fileDataRef.current || data;
-    if (fd !== data)
-      return _buildMd({
-        tree: sortTree(fd.tree || []),
-        members: fd.members || [],
-        teams: fd.teams || [],
-        vacations: fd.vacations || [],
-        data: fd,
-        meta: fd.meta || {},
-      });
-    return _buildMd({ tree, members, teams, vacations, data, meta });
   }
   function loadFile(e) {
     const f = e.target.files[0];
