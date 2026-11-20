@@ -17,6 +17,7 @@ import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
+import { useCompletedWindows } from './app/completedWindows.js';
 import { useGlobalKeys } from './app/useGlobalKeys.js';
 import { buildLogWriters } from './app/logWriters.js';
 import { useEarlierDay } from './app/useEarlierDay.js';
@@ -54,7 +55,6 @@ import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
 import { initialShell, loadLocalProject } from './app/shell.js';
 import { GT_MARKS } from './constants.js';
-import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
@@ -62,9 +62,7 @@ import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { CapacityProvider } from './utils/capacityLens.js';
 import { leafSnapshot } from './utils/history.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
-import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
@@ -368,135 +366,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     fileDataRef,
   });
 
-  // Persist the last visible schedule window for completed tasks so they stay visible
-  // in the Gantt after being marked done, without reintroducing them into future planning.
-  useEffect(() => {
-    const prevTree = prevTreeRef.current || [];
-    const prevTreeMap = new Map(prevTree.map(r => [r.id, r]));
-    const prevScheduledMap = new Map((prevScheduledRef.current || []).map(s => [s.id, s]));
-    const currentScheduledMap = new Map((scheduled || []).map(s => [s.id, s]));
-    const patches = new Map();
-    const todayIso = iso(new Date());
-
-    tree.forEach(r => {
-      if (!isLeafNode(tree, r.id)) return;
-      const hasCompletionMeta = !!(
-        r.completedAt ||
-        r.completedStart ||
-        r.completedEnd ||
-        r.completedPersonId ||
-        r.completedPerson ||
-        r.completedAutoAssigned ||
-        r.plannedStart ||
-        r.plannedEnd
-      );
-      const prev = prevTreeMap.get(r.id);
-      const snap = prevScheduledMap.get(r.id);
-
-      if (r.status === 'done') {
-        const completedPersonId = inferCompletedPersonId(r, members, snap);
-        const completedAt =
-          prev?.status !== 'done' && !r.completedAt
-            ? todayIso
-            : inferCompletedAt({
-                item: r,
-                tree,
-                scheduledMap: currentScheduledMap,
-                scheduledSnap: snap,
-                workDays,
-                planStart,
-                completedPersonId,
-                members,
-                vacations,
-                hm,
-              });
-        if (!completedAt) return;
-        // Persisted done-window takes precedence over re-inference. The user
-        // may reconstruct history by editing done-start/done-end directly, so
-        // do not recalculate that window just because completedAt changed in
-        // the same edit. Refresh only when no window exists, when a task is
-        // newly completed, or when the cached window is clearly stale.
-        const hasExistingWindow = !!r.completedStart && !!r.completedEnd;
-        const windowWasEdited = !!prev && (prev.completedStart !== r.completedStart || prev.completedEnd !== r.completedEnd);
-        const completedAtChanged = !!prev && prev.completedAt !== completedAt;
-        const windowMatchesCompletedAt = hasExistingWindow && r.completedEnd === completedAt;
-        const shouldRefreshWindow =
-          !hasExistingWindow ||
-          (prev && prev.status !== 'done') ||
-          (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt) ||
-          (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
-        const window = shouldRefreshWindow
-          ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
-          : { completedStart: r.completedStart, completedEnd: r.completedEnd };
-        const completedPerson =
-          r.completedPerson ||
-          (completedPersonId ? members.find(m => m.id === completedPersonId)?.name || completedPersonId : snap?.person || '');
-        const plannedStart = r.plannedStart || (snap?.startD ? iso(snap.startD) : '');
-        const plannedEnd = r.plannedEnd || (snap?.endD ? iso(snap.endD) : '');
-        const patch = {
-          completedAt,
-          completedStart: window.completedStart,
-          completedEnd: window.completedEnd,
-        };
-        if (completedPersonId) patch.completedPersonId = completedPersonId;
-        if (completedPerson) patch.completedPerson = completedPerson;
-        if (snap?.autoAssigned || r.completedAutoAssigned) patch.completedAutoAssigned = true;
-        if (plannedStart) patch.plannedStart = plannedStart;
-        if (plannedEnd) patch.plannedEnd = plannedEnd;
-        const needsPatch = Object.entries(patch).some(([key, value]) => r[key] !== value);
-        if (!needsPatch) return;
-        patches.set(r.id, patch);
-        return;
-      }
-      if (hasCompletionMeta) patches.set(r.id, { _clearCompletedWindow: true });
-    });
-
-    prevTreeRef.current = tree;
-    prevScheduledRef.current = scheduled;
-
-    if (!patches.size) return;
-
-    let didChange = false;
-    setData(d => {
-      if (!d?.tree?.length) return d;
-      const nextTree = d.tree.map(r => {
-        const patch = patches.get(r.id);
-        if (!patch) return r;
-        if (patch._clearCompletedWindow) {
-          const {
-            completedAt,
-            completedStart,
-            completedEnd,
-            completedPersonId,
-            completedPerson,
-            completedAutoAssigned,
-            plannedStart,
-            plannedEnd,
-            ...rest
-          } = r;
-          if (
-            completedAt == null &&
-            completedStart == null &&
-            completedEnd == null &&
-            completedPersonId == null &&
-            completedPerson == null &&
-            completedAutoAssigned == null &&
-            plannedStart == null &&
-            plannedEnd == null
-          )
-            return r;
-          didChange = true;
-          return rest;
-        }
-        const alreadyApplied = Object.entries(patch).every(([k, v]) => r[k] === v);
-        if (alreadyApplied) return r;
-        didChange = true;
-        return { ...r, ...patch };
-      });
-      return didChange ? { ...d, tree: nextTree } : d;
-    });
-    setSaved(false);
-  }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
+  useCompletedWindows({
+    tree,
+    scheduled,
+    members,
+    vacations,
+    hm,
+    workDays,
+    planStart,
+    setData,
+    setSaved,
+    prevTreeRef,
+    prevScheduledRef,
+  });
 
   // The comparison as a PDF. The model is built where the dialog is (one set
   // of figures and words for both); null while no scenario is on screen.
