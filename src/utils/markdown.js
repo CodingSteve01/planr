@@ -1,7 +1,6 @@
 // Markdown import/export extracted from App.jsx.
 // parseMdToProject: reads .md text → project data object
 // buildMarkdownText: project data → .md text (for saving)
-import { iso } from './date.js';
 import { GT } from '../constants.js';
 import { buildMemberShortMap } from './memberShort.js';
 import { formatPhaseToken, formatTemplatePhaseLine } from './phases.js';

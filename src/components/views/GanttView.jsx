@@ -4,10 +4,9 @@ import { isOnScreen } from '../../utils/onScreen.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { tipLines } from '../../utils/tipText.js';
-import { withKey } from '../../utils/shortcuts.js';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
-import { iso, addD, addWorkDays, localDate } from '../../utils/date.js';
+import { iso, addD, localDate } from '../../utils/date.js';
 import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
 import { deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
@@ -15,13 +14,11 @@ import { treeOrderRank } from '../../utils/displayOrder.js';
 import { buildThreadStructure } from '../../utils/threads.js';
 import { deadlineStatus } from '../../utils/timeline.js';
 import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
-import { chainShorts, hasChain, chainTooltip } from '../../utils/handoff.js';
+import { chainShorts } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
-import { AutoAssignBadge } from '../shared/AutoAssignBadge.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
-import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
 import { useT } from '../../i18n.jsx';
@@ -426,7 +423,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       const taskId = item.treeId || item.id;
       return _diffActive && item.status === 'done' && _diffChangedSet.has(taskId);
     };
-    let items = hideDone ? allItems.filter(item => item.status !== 'done' || isChangedDoneInDiff(item)) : allItems;
+    const items = hideDone ? allItems.filter(item => item.status !== 'done' || isChangedDoneInDiff(item)) : allItems;
     if (!searchNeedle) return items;
     return items.filter(item => {
       const taskId = item.treeId || item.id;
@@ -948,7 +945,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
       }
       return out;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [rows, cpOnly, cpRowMeta, _diffActive, onlyChanged, _diffChangedSet, horizonIds, horizonOnlyPlanned],
   );
 
@@ -2135,7 +2132,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         const newStart = addD(localDate(d.origCompletedStart), shift);
         const newEnd = addD(localDate(d.origCompletedEnd), shift);
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        let cappedEnd = newEnd > today ? today : newEnd;
+        const cappedEnd = newEnd > today ? today : newEnd;
         const span = +localDate(d.origCompletedEnd) - +localDate(d.origCompletedStart);
         let cappedStart = newStart;
         if (cappedEnd !== newEnd) cappedStart = new Date(+cappedEnd - span);
@@ -2288,6 +2285,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return () => window.removeEventListener('mouseup', finishLinkDrag, true);
   }, [linkDrag]);
 
+  const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('g.noItems')}</div>
@@ -2295,7 +2293,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     </div>
   </div>;
 
-  const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
 
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU}
     onClickCapture={e => {

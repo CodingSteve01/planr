@@ -48,8 +48,7 @@ describe('reading a Jira export', () => {
 });
 
 describe('a priority', () => {
-  it.each([['Highest', 1], ['Blocker', 1], ['High', 2], ['Medium', 3], ['Low', 4], ['Lowest', 4]])
-    ('maps %s to %i', (word, prio) => expect(mapJiraPriority(word)).toBe(prio));
+  it.each([['Highest', 1], ['Blocker', 1], ['High', 2], ['Medium', 3], ['Low', 4], ['Lowest', 4]])('maps %s to %i', (word, prio) => expect(mapJiraPriority(word)).toBe(prio));
 
   it('lands in the middle when the word means nothing here', () => {
     // Guessing "critical" out of an unknown word would put work at the front

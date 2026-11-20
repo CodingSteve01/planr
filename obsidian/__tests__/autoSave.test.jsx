@@ -9,7 +9,7 @@
 // real App with a vault-shaped handle and asks the only question that matters:
 // does anything reach the file?
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, act, screen, waitFor } from '@testing-library/react';
 import App from '../../src/App.jsx';
 import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';

@@ -1,10 +1,9 @@
 import { useMemo, useState, memo } from "react";
 import { Icon } from '../shared/Icon.jsx';
-import { TBadge } from '../shared/Badges.jsx';
-import { leafNodes, leafProgress, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
+import { leafNodes, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
 import { iso, diffDays } from '../../utils/date.js';
 import { horizonLabel } from '../../utils/horizon.js';
-import { GT_ICON, GL, CONF_COLOR } from '../../constants.js';
+import { GT_ICON, CONF_COLOR } from '../../constants.js';
 import { onboardCount } from '../../utils/capacity.js';
 import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
 import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
@@ -15,7 +14,6 @@ import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { stripArchivedRoots } from '../../utils/archive.js';
 import { TimetableView } from './TimetableView.jsx';
 import { stateAsOf } from '../../utils/history.js';
-import { ViewFilters } from '../shared/ViewFilters.jsx';
 import { aggregateSollIst } from '../../utils/sollIst.js';
 // Shared with the HTML report and every PDF export — one formula, one format,
 // so screen and export can never print different percentages.

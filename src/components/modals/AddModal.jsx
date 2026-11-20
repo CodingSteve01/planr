@@ -3,7 +3,7 @@ import { Icon } from '../shared/Icon.jsx';
 import { nextChildId } from '../../utils/scheduler.js';
 import { instantiateTemplatePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
-import { GT, GT_ICON, GL } from '../../constants.js';
+import { GT_ICON, GL } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';

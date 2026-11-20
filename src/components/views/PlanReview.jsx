@@ -1,21 +1,19 @@
 import { useMemo, useState, memo } from 'react';
 import { CONF_COLOR } from '../../constants.js';
-import { isOnboard } from '../../utils/capacity.js';
+import { isOnboard, membersWithoutCapacity } from '../../utils/capacity.js';
 import { memberShades } from '../../utils/teamShades.js';
 import { memberTeams, teamForAssignment } from '../../utils/memberTeams.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
-import { leafProgress, leafNodes, isLeafNode, re, parentId, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
-import { diffDays, iso } from '../../utils/date.js';
+import { leafNodes, re, resolveToLeafIds, derivePhaseStatus, isDepsReady } from '../../utils/scheduler.js';
+import { iso } from '../../utils/date.js';
 import { createPhaseDraft, normalizePhases, phaseAssigneeIds, phaseAssigneeLabel, phaseTeamIds, phaseTeamLabel } from '../../utils/phases.js';
-import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { ResourceLoadMatrix } from '../shared/ResourceLoadMatrix.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 import { planInconsistencies } from '../../utils/planIntegrity.js';
-import { membersWithoutCapacity } from '../../utils/capacity.js';
 import { OrderSearch } from '../shared/OrderSearch.jsx';
 
 const CL = { committed: '●', estimated: '◐', exploratory: '○' };

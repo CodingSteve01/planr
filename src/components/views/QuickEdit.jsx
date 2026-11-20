@@ -1,9 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GT_ICON, CONF_COLOR } from '../../constants.js';
+import { SL, GT_ICON, CONF_COLOR } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
@@ -18,6 +17,10 @@ import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
+// Switched off, not removed (see the comment where it used to render): kept
+// imported so the file stays part of the app and is found when it is wanted.
+// eslint-disable-next-line no-unused-vars
+import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
@@ -27,7 +30,13 @@ import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, historyEvents = [], onHistoryChange, viewDay = '', tab: tabProp, onTabChange }) {
+// The side panel's editor for one item. The check for "no item" sits out here
+// so that the component below calls its hooks on every render.
+export function QuickEdit(props) {
+  return props.node ? <QuickEditBody {...props} /> : null;
+}
+
+function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, historyEvents = [], onHistoryChange, viewDay = '', tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -96,7 +105,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
-  if (!node) return null;
 
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');

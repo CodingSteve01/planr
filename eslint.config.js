@@ -1,19 +1,24 @@
-// One rule, and the reason it exists is a white screen.
+// What `npm run lint` holds the code to, and how it got there.
 //
-// Two handlers were deleted by a careless region replacement in App.jsx while
-// three other identifiers around them were being merged. Everything still
-// built, 849 tests still passed, and the plugin went blank the moment anybody
-// opened the Planning tab — because nothing in the app reads an identifier
-// until React renders the component that uses it, and no test opened that tab.
+// It began as one rule, `no-undef`, after two deleted handlers shipped a white
+// screen that 849 passing tests did not see. The rest was added in one step
+// with a baseline: `eslint-suppressions.json` records, per file and rule, how
+// many findings were there on the day the rule was switched on. Those are
+// tolerated; one more in the same file is an error, and so is a suppression
+// that is no longer needed (run `npm run lint:prune` after paying one off).
+// So the numbers can only go down.
 //
-// `no-undef` catches that before it is written to disk. It is deliberately the
-// only rule turned on: a style config over ten thousand lines of existing code
-// is a week of arguing about semicolons, and the bug that actually shipped was
-// not a style problem. More rules can be earned later, one at a time, each
-// with a reason.
+//   npm run lint          what CI runs
+//   npm run lint:prune    drop suppressions that are no longer needed
 //
-//   npm run lint
+// The limits (docs/quality.md has the reasons):
+//   a function        complexity 15, nesting 4, 7 parameters,
+//                     80 lines (.js) or 200 lines (.jsx: a component with its markup)
+//   a file            800 lines
+// Tests are held to correctness rules only: a `describe` block is one long
+// function by nature.
 
+import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 
@@ -43,14 +48,42 @@ export default [
     // with them is a separate piece of work from not shipping a white screen.
     plugins: { 'react-hooks': reactHooks },
     rules: {
+      ...js.configs.recommended.rules,
       'no-undef': 'error',
+      'no-unused-vars': ['error', { args: 'after-used', argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
+      // The dependency arrays in this codebase are deliberate in several
+      // places; arguing with them is a piece of work of its own.
       'react-hooks/exhaustive-deps': 'off',
-      // Off, and it should not stay off: it reports 12 real violations that
-      // predate this config (QuickEdit.jsx and three others call hooks after
-      // an early return). Turning it on today would mean `npm run lint` fails
-      // from the first run, which teaches everyone to ignore it. Fix them,
-      // then flip it — that is a piece of work with its own PR.
-      'react-hooks/rules-of-hooks': 'off',
+      // A hook after an early return works until the day the return is taken.
+      'react-hooks/rules-of-hooks': 'error',
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-duplicate-imports': 'error',
+      'no-var': 'error',
+      'prefer-const': ['error', { destructuring: 'all' }],
     },
+  },
+  {
+    // Size and shape, for the code that ships.
+    files: ['src/**/*.{js,jsx}', 'obsidian/src/**/*.{js,jsx}', 'scripts/**/*.mjs'],
+    ignores: ['**/__tests__/**', 'src/utils/pdfFonts.js', 'src/i18n.jsx'],
+    rules: {
+      complexity: ['error', 15],
+      'max-depth': ['error', 4],
+      'max-params': ['error', 7],
+      'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true, IIFEs: false }],
+    },
+  },
+  {
+    files: ['src/**/*.jsx', 'obsidian/src/**/*.jsx'],
+    ignores: ['**/__tests__/**', 'src/i18n.jsx'],
+    rules: { 'max-lines-per-function': ['error', { max: 200, skipBlankLines: true, skipComments: true, IIFEs: false }] },
+  },
+  {
+    // The dictionary: one object literal, where the only thing that can go
+    // wrong is the same key twice.
+    files: ['src/i18n.jsx'],
+    rules: { 'no-dupe-keys': 'error' },
   },
 ];

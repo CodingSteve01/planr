@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { leafNodes, isLeafNode, treeIndex } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
-import { exportJiraCSV } from '../../utils/exports.js';
 import { useT } from '../../i18n.jsx';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -26,7 +25,7 @@ export function JiraExportModal({ tree, scheduled, members, teams, meta, onClose
     // Dropped work is not offered: exportJiraCSV drops it anyway, so listing
     // it here would only promise tickets that never get written.
     const dropped = treeIndex(tree).droppedIds;
-    let items = tree.filter(r => {
+    const items = tree.filter(r => {
       if (dropped.has(r.id)) return false;
       const root = r.id.split('.')[0];
       if (!selectedRoots.has(root)) return false;

@@ -1,9 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GT_ICON, CONF_COLOR } from '../../constants.js';
+import { SL, GT_ICON, CONF_COLOR } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
@@ -26,7 +25,13 @@ import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 // t() — see reasonTip below (the label reuses the global conf.* keys).
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, viewDay = '', onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress, onDockSide }) {
+// The dialog for one item. Nothing to show without one; the check sits out
+// here so that the component below calls its hooks on every render.
+export function NodeModal(props) {
+  return props.node ? <NodeModalBody {...props} /> : null;
+}
+
+function NodeModalBody({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, viewDay = '', onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress, onDockSide }) {
   const { t, lang } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -170,7 +175,6 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
     });
     return () => cancelAnimationFrame(id);
   }, [node?.id]);
-  if (!node) return null;
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const deadlineRootId = useMemo(() => deadlineRootIdForNode(tree, node.id), [tree, node.id]);

@@ -7,8 +7,7 @@ import { computeProjectRoadmap, renderProjectRoadmapSvg } from './projectRoadmap
 import { projectScopedCtx } from './exportCtx.js';
 import { sanitizePdfDoc, PDF_GLYPH_MAP } from './pdfGlyphs.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
-import { progressPctLabel, totalEffort } from './progress.js';
-import { formatPhaseToken } from './phases.js';
+import { progressPctLabel } from './progress.js';
 
 export function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
 

@@ -795,7 +795,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
           if (mEnd && mEnd < (earlyDate || planStartDate)) continue; // already offboarded
           const personFree = pF[m.id] || { wi: planStartWi, nextDate: null };
           const parallelEnd = pPE[m.id] || { wi: -1, nextDate: null };
-          let fw = bypassPersonQueue
+          const fw = bypassPersonQueue
             ? Math.max(early, ji >= 0 ? ji : 0)
             : Math.max(personFree.wi, parallelEnd.wi >= 0 ? parallelEnd.wi : 0, early, ji >= 0 ? ji : 0);
           let fd = mStart;
@@ -945,7 +945,7 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
               poolTeam: team,
               earliestStart: earlyDate,
             });
-            let combined = {
+            const combined = {
               segments: [...planSegs, ...primary.segments],
               remaining: primary.remaining,
               lastWD: primary.lastWD || planState.lastWD,

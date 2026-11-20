@@ -1,0 +1,9 @@
+{
+  "path": ["src", "obsidian/src"],
+  "ignore": ["**/__tests__/**", "**/pdfFonts.js", "**/i18n.jsx"],
+  "minLines": 8,
+  "minTokens": 70,
+  "threshold": 1.5,
+  "reporters": ["consoleFull"],
+  "silent": true
+}

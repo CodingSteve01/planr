@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
 import { Tip } from '../shared/Tooltip.jsx';
-import { SL } from '../../constants.js';
 import { pt } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { chainShorts } from '../../utils/handoff.js';
@@ -106,7 +105,6 @@ function layoutSubtree(node, childMap) {
   }
 
   let maxRowW = 0;
-  let totalH = 0;
   const rowMeta = rows.map(row => {
     const rowW = row.reduce((s, l) => s + l.w + TREE_GAP, -TREE_GAP);
     const rowH = Math.max(...row.map(l => l.h));
@@ -401,7 +399,7 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
     if (_diffOnlyMode) items = applyKeep(_diffChangedSet);
     if (horizonIds && horizonOnlyPlanned) items = applyKeep(horizonIds);
     return items;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [_treeProp, _diffOnlyMode, horizonIds, horizonOnlyPlanned]);
   const svgRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });

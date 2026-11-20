@@ -1,7 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { monthAgo } from '../effective.js';
-import { inIdsOf } from '../dayLog.js';
-import { recordToday, planAtEndOf, planOn, statusAsOf, applyPastEdit, formatDayLogBlock, parseDayLogBlock, logStart } from '../dayLog.js';
+import { inIdsOf, recordToday, planAtEndOf, planOn, statusAsOf, applyPastEdit, formatDayLogBlock, parseDayLogBlock, logStart } from '../dayLog.js';
 
 const node = (id, extra = {}) => ({ id, name: id, status: 'open', progress: 0, best: 1, factor: 1, deps: [], assign: [], ...extra });
 const plan = (tree, extra = {}) => ({ meta: { name: 'P' }, tree, members: [{ id: 'm1', name: 'Anna', short: 'AN', team: 'T1', cap: 1 }], teams: [{ id: 'T1', name: 'Dev' }], vacations: [], ...extra });

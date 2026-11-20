@@ -11,7 +11,7 @@
 // right in plan order, into the first lane where the bar fits, opening a new
 // lane underneath only where two of them genuinely overlap. A group is then as
 // tall as its busiest moment, which is the number the reader wanted.
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';

@@ -11,7 +11,6 @@
 // These are stroke icons on a 24 unit grid, in `currentColor`, at the weight
 // of the UI text. The typographic arrows the app uses in SHORTCUT HINTS and
 // DATE RANGES (→, ⇧, ↵, ⌥) are text, not icons, and stay as they are.
-import React from 'react';
 
 // Each entry is the inside of the <svg>. Kept flat and alphabetical so a new
 // icon is one obvious line.

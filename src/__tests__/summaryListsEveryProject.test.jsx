@@ -8,7 +8,7 @@
 // eight projects absent, the largest running one included. A management
 // summary that omits the biggest project is worse than none.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, screen, waitFor } from '@testing-library/react';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { buildExportCtx } from '../utils/exportCtx.js';

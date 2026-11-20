@@ -8,7 +8,7 @@
 // read the Gantt's own bars and the dates it prints.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
+import { render, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { schedule } from '../utils/scheduler.js';
