@@ -1,9 +1,26 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { useStableCallback } from './app/useStableCallback.js';
+import { pushSnapshot } from './app/snapshots.js';
+import {
+  initialShell,
+  loadLocalProject,
+  isValidProjectData,
+  scheduleIdleWrite,
+  cancelIdleWrite,
+  activateOnPress,
+  SIDE_DOCK_MIN_WIDTH,
+  TAB_ICONS,
+  NEW_BADGE_TAB_IDS,
+  FILTERED_TABS,
+  SEARCH_TABS,
+  MATCH_STEP_TABS,
+} from './app/shell.js';
 import { Icon } from './components/shared/Icon.jsx';
 import { flushSync } from 'react-dom';
 import { SK, GT_MARKS } from './constants.js';
-import { iso, normalizeVacation } from './utils/date.js';
+import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
+import { normalizeLoadedData } from './utils/loadedData.js';
 import {
   exportJSON,
   exportNetworkPNG,
@@ -37,27 +54,10 @@ import {
 } from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import {
-  addDays,
-  changeDates,
-  compileMembers,
-  dropChange,
-  foldEdit,
-  migrateLegacyChanges,
-  pruneChanges,
-  resourcesAsOf,
-} from './utils/effective.js';
+import { addDays, changeDates, compileMembers, dropChange, foldEdit, pruneChanges, resourcesAsOf } from './utils/effective.js';
 import { EffectiveBar, EffectiveProvider, EffectiveSwitch, EFFECTIVE_OPEN_EVENT } from './components/shared/Effective.jsx';
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
-import {
-  compactHistory,
-  leafSnapshot,
-  diffSnapshots,
-  supersededByBackdate,
-  pendingDate,
-  stampPendingDates,
-  withoutPendingDates,
-} from './utils/history.js';
+import { leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -97,14 +97,10 @@ import {
   queryHandlePermission,
   requestHandlePermission,
 } from './utils/fileHandleStore.js';
-import { TAB_IDS, initialTab } from './utils/modes.js';
+import { TAB_IDS } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
 import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
-
-// Below this the side panel stops being help and starts being the thing in
-// the way: 360px of editor against what is left of a work tree.
-const SIDE_DOCK_MIN_WIDTH = 1180;
 import { Tour } from './components/shared/Tour.jsx';
 import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
@@ -150,159 +146,6 @@ import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
 
-// useEvent shim — stable callback ref that always invokes the latest closure.
-// Lets us pass App-defined functions to React.memo'd children without busting
-// memoization on every render, while keeping the function's captured state
-// fresh. Safe for callbacks invoked imperatively (event handlers, etc.) — do
-// NOT use during render.
-// Which view a load starts on. A mode used to be decided here too, and had to
-// be reconciled with the tab so the two agreed from the first paint; there is
-// one thing to decide now.
-function initialShell() {
-  let savedTab = null;
-  try {
-    savedTab = localStorage.getItem('planr_tab');
-  } catch {
-    /* ignore */
-  }
-  return { tab: initialTab(savedTab) };
-}
-
-function useStableCallback(fn) {
-  const ref = useRef(fn);
-  ref.current = fn;
-  return useCallback((...args) => ref.current(...args), []);
-}
-
-function loadLocalProject() {
-  try {
-    const s = localStorage.getItem(SK);
-    return s ? JSON.parse(s) : null;
-  } catch {
-    return null;
-  }
-}
-
-// ── Rolling JSON snapshot ring ────────────────────────────────────────────
-// Survives the markdown writer touching the on-disk file: every successful
-// save also drops the current data into a 20-slot ring in localStorage,
-// keyed by timestamp. If the .md file ever gets corrupted by an external
-// editor (Obsidian rendering, iCloud merge), the user can restore from the
-// last known-good JSON snapshot via Help → "Restore snapshot…".
-const SNAPSHOT_KEY = 'planr_v2_snapshots';
-const SNAPSHOT_MAX = 20;
-// Module-scoped cache + dedup hash. Drops the per-keystroke
-// double-parse/double-stringify that used to dominate during typing.
-// Pushes are coalesced into a single idle task so a burst of edits
-// becomes one stringify-and-compare instead of one per change.
-let _snapCache = null; // [{ ts, data }, …] | null = not yet loaded
-let _lastSnapHash = null; // hash (= JSON.stringify) of the most recent push
-let _pendingData = null; // data scheduled for next idle snapshot
-let _pendingHandle = null; // outstanding requestIdleCallback id
-function loadSnapshots() {
-  if (_snapCache) return _snapCache;
-  try {
-    const arr = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
-    _snapCache = Array.isArray(arr) ? arr : [];
-  } catch {
-    _snapCache = [];
-  }
-  if (_snapCache.length) {
-    // Seed hash from the most-recent stored snapshot so a fresh page load
-    // doesn't push a duplicate as the first snapshot.
-    try {
-      _lastSnapHash = JSON.stringify(_snapCache[0].data);
-    } catch {
-      /* ignore */
-    }
-  }
-  return _snapCache;
-}
-function _runSnapshot() {
-  _pendingHandle = null;
-  const data = _pendingData;
-  _pendingData = null;
-  if (!data || !Array.isArray(data.tree)) return;
-  let hash;
-  try {
-    hash = JSON.stringify(data);
-  } catch {
-    return;
-  }
-  // Dedup by content. Skip when nothing actually changed since the last
-  // snapshot — that gives us a long, sparse history dominated by real
-  // edits instead of one entry per auto-save.
-  if (_lastSnapHash === hash) return;
-  const arr = loadSnapshots();
-  arr.unshift({ ts: Date.now(), data });
-  if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
-  _snapCache = arr;
-  _lastSnapHash = hash;
-  try {
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
-  } catch {
-    // Quota fallback: halve the ring, retry once, wipe as last resort.
-    try {
-      const half = arr.slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(half));
-      _snapCache = half;
-    } catch {
-      try {
-        localStorage.removeItem(SNAPSHOT_KEY);
-      } catch {
-        /* ignore */
-      }
-      _snapCache = [];
-      _lastSnapHash = null;
-    }
-  }
-}
-// Min seconds between two snapshot writes. The localStorage value can grow
-// to ~2MB (20 × ~100KB project) — stringify+write on every save jankers the
-// main thread. Throttle so the ring catches edits at human cadence, not at
-// every keystroke-debounced auto-save.
-const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
-let _lastSnapAt = 0;
-function pushSnapshot(data) {
-  if (!data || !Array.isArray(data.tree)) return;
-  if (Date.now() - _lastSnapAt < SNAPSHOT_MIN_INTERVAL_MS) return;
-  _lastSnapAt = Date.now();
-  // Coalesce rapid pushes: keep only the latest pending data, run once
-  // when the browser goes idle. Avoids stringifying on every keystroke.
-  _pendingData = data;
-  if (_pendingHandle != null) return;
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    _pendingHandle = window.requestIdleCallback(_runSnapshot, { timeout: 3000 });
-  } else {
-    _pendingHandle = setTimeout(_runSnapshot, 0);
-  }
-}
-
-function isValidProjectData(value) {
-  return value && Array.isArray(value.tree);
-}
-
-function scheduleIdleWrite(work, timeout = 1000) {
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    return window.requestIdleCallback(work, { timeout });
-  }
-  return window.setTimeout(work, 0);
-}
-
-function cancelIdleWrite(id) {
-  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
-    window.cancelIdleCallback(id);
-    return;
-  }
-  clearTimeout(id);
-}
-
-function activateOnPress(e, action) {
-  if (e.button !== 0) return;
-  e.preventDefault();
-  action();
-}
-
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
 export { buildMemberShortMap };
 
@@ -310,37 +153,6 @@ const NO_SCENARIOS = [];
 // Every tab the shell knows about, in bar order — declared in utils/modes.js
 // and re-exported here because that is where the rest of the app looks for it.
 export { TAB_IDS };
-// Glyphs for the `/` palette. Kept here beside TAB_IDS so a new tab is an
-// obvious two-line change; an unlisted id falls back to a neutral marker
-// rather than leaving a ragged gap in the column.
-const TAB_ICONS = {
-  summary: 'target',
-  briefing: 'sun',
-  plan: 'pencil',
-  tree: 'list',
-  gantt: 'gantt',
-  order: 'grip',
-  roadmap: 'map',
-  net: 'network',
-  resources: 'users',
-  holidays: 'beach',
-  report: 'doc',
-};
-// Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
-const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
-// Views that answer to scope / quick filters / the review window / the
-// archive. Resources, Holidays and Report are inputs and outputs — nothing in
-// the filter bar reaches them, so it would be a control that does nothing.
-const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', 'net', 'plan', 'briefing']);
-// The views that read the toolbar search. One list for showing the box and for
-// ⌘F, because they drifted apart: the box sat on every filtered tab while only
-// three views read it, so on the queue it filtered nothing and ⌘F fell through
-// to the browser's find.
-const SEARCH_TABS = new Set(['tree', 'order', 'gantt', 'net']);
-// The views that step through search matches one at a time (`searchIdx`).
-// The tree only filters to its matches, so there is nothing to step through,
-// and the ▲/▼ buttons and ⌘↑/⌘↓ did nothing there.
-const MATCH_STEP_TABS = new Set(['gantt', 'net']);
 
 // `mount` is how a host hands this app instance its document. Without one —
 // the web build — the app restores whatever was last opened, from IndexedDB
@@ -2433,99 +2245,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     });
   }, [stats, members]);
 
-  // Normalize a loaded data object: convert legacy week-based vacations to {from, to} on load.
-  // Every load goes through here, so this is where a log full of events that
-  // changed nothing is brought back to what happened (utils/history.js,
-  // `compactHistory`). The next save writes the shorter log.
-  function normalizeLoadedData(d) {
-    // The per-person lists of dated capacity and meeting changes move into
-    // the one timeline (utils/effective.js); changes naming somebody the plan
-    // no longer has are dropped.
-    // A date waiting for a save belongs to the session that set it.
-    const out = withoutPendingDates(pruneChanges(migrateLegacyChanges(normalizeLoadedCore(d))));
-    if (!out || !Array.isArray(out.historyEvents) || out.historyEvents.length < 2) return out;
-    const { events, dropped } = compactHistory(out.historyEvents);
-    return dropped ? { ...out, historyEvents: events } : out;
-  }
-  function normalizeLoadedCore(d) {
-    if (!d) return d;
-    const rawVacations = Array.isArray(d.vacations) ? d.vacations : [];
-    const vacations = rawVacations.map(normalizeVacation);
-    const vacChanged =
-      rawVacations.length !== vacations.length ||
-      rawVacations.some((vac, idx) => {
-        const norm = vacations[idx];
-        return vac?.person !== norm?.person || vac?.from !== norm?.from || vac?.to !== norm?.to || vac?.note !== norm?.note;
-      });
-    if (!Array.isArray(d.tree) || !d.tree.length) {
-      return vacChanged ? { ...d, vacations } : d;
-    }
-
-    const members = Array.isArray(d.members) ? d.members : [];
-    const tree = Array.isArray(d.tree) ? d.tree : [];
-    const hm = buildHMap(d.holidays || []);
-    const workDays = d.meta?.workDays || [1, 2, 3, 4, 5];
-    const planStart = d.meta?.planStart || iso(new Date());
-    const emptyScheduledMap = new Map();
-    let changed = vacChanged;
-
-    const nextTree = tree.map(item => {
-      if (item.status !== 'done') return item;
-
-      const completedPersonId = inferCompletedPersonId(item, members, null);
-      const completedAt = inferCompletedAt({
-        item,
-        tree,
-        scheduledMap: emptyScheduledMap,
-        scheduledSnap: null,
-        workDays,
-        planStart,
-        completedPersonId,
-        members,
-        vacations,
-        hm,
-      });
-      if (!completedAt) return item;
-
-      const derivedWindow = deriveCompletedWindow({
-        item,
-        completedAt,
-        completedPersonId,
-        members,
-        vacations,
-        hm,
-        workDays,
-      });
-      const completedStart = item.completedStart && item.completedStart <= completedAt ? item.completedStart : derivedWindow.completedStart;
-      const completedEnd = completedAt;
-      const completedPerson =
-        item.completedPerson || (completedPersonId ? members.find(m => m.id === completedPersonId)?.name || completedPersonId : '');
-      const plannedStart = item.plannedStart || item.pinnedStart || '';
-      const next = {
-        ...item,
-        completedAt,
-        completedStart,
-        completedEnd,
-      };
-      if (completedPersonId) next.completedPersonId = completedPersonId;
-      if (completedPerson) next.completedPerson = completedPerson;
-      if (plannedStart && !item.plannedStart) next.plannedStart = plannedStart;
-      if (
-        next.completedAt !== item.completedAt ||
-        next.completedStart !== item.completedStart ||
-        next.completedEnd !== item.completedEnd ||
-        next.completedPersonId !== item.completedPersonId ||
-        next.completedPerson !== item.completedPerson ||
-        next.plannedStart !== item.plannedStart
-      ) {
-        changed = true;
-        return next;
-      }
-      return item;
-    });
-
-    return changed ? { ...d, vacations, tree: nextTree } : d;
-  }
   function setD(k, v) {
     mutate(d => ({ ...d, [k]: v }));
   }
