@@ -212,7 +212,7 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 14
+      "count": 13
     },
     "max-depth": {
       "count": 1
@@ -401,6 +401,14 @@
   },
   "src/utils/gantt/items.js": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/gantt/loadModel.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
       "count": 1
     }
   },
