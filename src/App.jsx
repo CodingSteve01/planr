@@ -929,6 +929,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   async function writeToHandle(handle, content) {
     await writeWithRetry(handle, content);
     diskTextRef.current = content;
+    busyRoundsRef.current = 0;
   }
 
   // Save to file (File System Access API). On failure, fall back to Save-As with previous filename.

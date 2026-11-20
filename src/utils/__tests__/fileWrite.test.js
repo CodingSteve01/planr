@@ -50,8 +50,8 @@ describe('writing a file a sync service is touching', () => {
     const gone = { createWritable: async () => { state.tries++; throw new DOMException('gone', 'NotFoundError'); } };
     await expect(writeWithRetry(gone, 'plan', { sleep: noSleep })).rejects.toThrow('gone');
     expect(state.tries).toBe(1);
-    expect([isBusy(new DOMException('x', 'NoModificationAllowedError')), isBusy(new DOMException('x', 'NotFoundError')), isBusy(new DOMException('x', 'NotAllowedError')), isBusy(null)])
-      .toEqual([true, false, false, false]);
+    expect([isBusy(new DOMException('x', 'NoModificationAllowedError')), isBusy(new DOMException('x', 'NotFoundError')), isBusy(new DOMException('x', 'NotAllowedError')), isBusy(new DOMException('x', 'InvalidStateError')), isBusy(null)])
+      .toEqual([true, false, false, false, false]);
   });
 
   test('a stream that failed half way is thrown away before the next attempt', async () => {
@@ -59,7 +59,7 @@ describe('writing a file a sync service is touching', () => {
     let tries = 0;
     const h = { createWritable: async () => {
       const n = ++tries;
-      return { write: async () => { if (n === 1) throw new DOMException('busy', 'InvalidStateError'); }, close: async () => {}, abort: async () => { aborted.push(n); } };
+      return { write: async () => { if (n === 1) throw new DOMException('busy', 'NoModificationAllowedError'); }, close: async () => {}, abort: async () => { aborted.push(n); } };
     } };
     await writeWithRetry(h, 'plan', { sleep: noSleep });
     expect(aborted).toEqual([1]);

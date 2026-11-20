@@ -10,7 +10,9 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Errors that pass on their own: the file is locked or was changed under the
 // handle. A file that is gone, or a permission that was taken away, is not
 // one of them, and trying again only delays saying so.
-const BUSY = new Set(['NoModificationAllowedError', 'InvalidStateError', 'InvalidModificationError', 'AbortError', 'TimeoutError', 'OperationError', 'UnknownError']);
+// (`InvalidStateError` is not in the list: the save path treats it as a handle
+// that no longer points at the file, and offers to save under a name.)
+const BUSY = new Set(['NoModificationAllowedError', 'InvalidModificationError', 'TimeoutError', 'OperationError', 'UnknownError']);
 export const isBusy = error => BUSY.has(error?.name);
 
 // Write, and try again after a pause while the file is busy. Throws the last

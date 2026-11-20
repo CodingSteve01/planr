@@ -137,4 +137,37 @@ describe('the file-changed notice in the header', () => {
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     await waitFor(() => expect(document.querySelector('.topbar').textContent).toContain('re-mount'), { timeout: 20000, interval: 250 });
   }, 30000);
+
+  // The rounds: three attempts within a few seconds, then again every quarter
+  // of a minute. The clock is driven by hand.
+  const openAndDelete = async busyWrites => {
+    const { handle, state } = changingFile(PLAN, { onDisk: true });
+    const create = handle.createWritable;
+    const count = { busy: 0 };
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+    handle.createWritable = async () => { if (count.busy++ < busyWrites) throw new DOMException('locked', 'NoModificationAllowedError'); return create(); };
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    return { state, count };
+  };
+  const rounds = async n => { for (let i = 0; i < n; i++) await act(async () => { await vi.advanceTimersByTimeAsync(26000); }); };
+
+  it('a file busy for longer than one save is tried again a quarter of a minute later', async () => {
+    const { state, count } = await openAndDelete(4);
+    await rounds(3);
+    expect(count.busy).toBeGreaterThanOrEqual(5);
+    expect(parseMdToProject(state.text).tree.map(n => n.name)).toEqual(['Project', 'Alpha Task']);
+    expect(document.querySelector('.topbar').textContent).not.toContain('re-mount');
+  }, 60000);
+
+  it('a file that stays busy is given up on after a bounded number of rounds', async () => {
+    const { count } = await openAndDelete(Infinity);
+    await rounds(10);
+    expect(document.querySelector('.topbar').textContent).toContain('re-mount');
+    const tried = count.busy;
+    await rounds(3);
+    expect(count.busy).toBe(tried);
+  }, 90000);
 });
