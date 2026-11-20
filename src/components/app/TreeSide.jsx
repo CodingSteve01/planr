@@ -1,8 +1,9 @@
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { Icon } from '../shared/Icon.jsx';
+import { BulkEditBody } from './BulkEditBody.jsx';
 import { QuickEdit } from '../views/QuickEdit.jsx';
 
-export function TreeSide({ plan, view, handlers, _t, renderBulkEditBody }) {
+export function TreeSide({ plan, view, handlers, _t }) {
   const { confReasons, confidence, cpLabels, cpSet, data, hm, members, past, scheduled, stats, teams, tree, workDays } = plan;
   const {
     editorAsDialog,
@@ -45,7 +46,7 @@ export function TreeSide({ plan, view, handlers, _t, renderBulkEditBody }) {
                   <Icon name="x" size={13} />
                 </button>
               </div>
-              {renderBulkEditBody()}
+              <BulkEditBody plan={plan} view={view} handlers={handlers} _t={_t} />
             </>
           ) : (
             <>
