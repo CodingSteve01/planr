@@ -536,7 +536,16 @@ rows. Pure code it calls from its memos is under `src/utils/gantt/` (geometry,
 items, structure, row layout, the load model, dependency lines, edits on the
 selection), each with unit tests. Stateless parts of the markup are under
 `src/components/views/gantt/` (header and axis, label column, grid layer,
-dependency lines, flag strip, selection bar, footer). The functions that were
-over the limits moved as they stood. The components still take the view's
+dependency lines, flag strip, selection bar, footer) and the two row
+components, `GanttTaskBarRow` and `GanttGroupBarRow`; the task bar's numbers
+come from `buildTaskBarModel` in `src/utils/gantt/taskBarModel.js`, and its
+overlays are `BarOverlays`. The view's state and effects are grouped into
+hooks in the same folder: `useGanttZoom` (zoom and the wheel gesture),
+`useGanttPrefs` (remembered view choices), `useGanttSelection` (selection and
+the keyboard cursor), `useGanttScrollTo` (scroll to match and to today) and
+`useGanttDrag` (bar, pan, selection-rectangle and link drag). The drag state
+itself stays in the view, because memos early in the file read it; the hook
+gets the values and setters. The functions that were over the limits moved as
+they stood. The components still take the view's
 locals one prop each, under the view's own short names: that is the state
 after a move, not the cut to aim for.
