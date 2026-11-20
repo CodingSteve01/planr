@@ -63,6 +63,11 @@ describe('the file-changed notice in the header', () => {
     fireEvent.click(screen.getByTestId('external-reload'));
     await screen.findByText('Gamma Task', {}, { timeout: 10000 });
     await waitFor(() => expect(screen.queryByTestId('external-change')).toBeNull());
+    // A change right after the reload is measured against what was just read.
+    state.mod = 20000;
+    state.text = state.text.replace('Gamma Task', 'Delta Task');
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    expect(await screen.findByTestId('external-change', {}, { timeout: 5000 })).toBeTruthy();
   }, 45000);
 
   it('a file that was only touched, as a sync service does, is not a changed file', async () => {
@@ -109,4 +114,27 @@ describe('the file-changed notice in the header', () => {
     // A task that comes back is appended; the views sort the tree themselves.
     expect(planAtEndOf(real, yesterday).tree.map(n => n.name).sort()).toEqual(['Alpha Task', 'Beta Task', 'Project']);
   }, 45000);
+
+  it('a file that is busy for a moment is saved a moment later, without asking for it again', async () => {
+    const { handle, state } = changingFile(PLAN, { onDisk: true });
+    let busy = 0;
+    const create = handle.createWritable;
+    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
+    // From now on the first two writes find the file locked.
+    handle.createWritable = async () => { if (busy++ < 2) throw new DOMException('locked', 'NoModificationAllowedError'); return create(); };
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    await waitFor(() => expect(parseMdToProject(state.text).tree.map(n => n.name)).toEqual(['Project', 'Alpha Task']), { timeout: 25000, interval: 250 });
+    expect(busy).toBeGreaterThanOrEqual(3);
+    expect(document.querySelector('.topbar').textContent).not.toContain('re-mount');
+  }, 40000);
+
+  it('a file that is gone says so', async () => {
+    const { handle } = changingFile(PLAN, { onDisk: true });
+    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
+    handle.createWritable = async () => { throw new DOMException('gone', 'NotFoundError'); };
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    await waitFor(() => expect(document.querySelector('.topbar').textContent).toContain('re-mount'), { timeout: 20000, interval: 250 });
+  }, 30000);
 });

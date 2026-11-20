@@ -116,10 +116,11 @@ are still read and become dated changes on load.
 A sync service (iCloud, Dropbox, OneDrive) touches a plan file in two ways
 that are not a change: it bumps the modification time when it uploads, and it
 locks the file for a moment while it does. Planr compares the text, not the
-time, before it says the file changed outside. A write that fails is tried
-again twice within a few seconds and, while the permission is intact, again
-after a quarter of a minute; the file is asked for again only when the browser
-has taken the permission away (`src/utils/fileWrite.js`). After a page reload
+time, before it says the file changed outside. A write that finds the file
+busy is tried again twice within a few seconds and then every quarter of a
+minute, six rounds at most. The file is asked for again when it is gone, when
+the browser has taken the permission away, or when it stays busy beyond that
+(`src/utils/fileWrite.js`). After a page reload
 the browser asks for the permission once more unless it was granted for every
 visit; that prompt is the browser's.
 

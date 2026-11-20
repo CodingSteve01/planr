@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { writeWithRetry, stillWritable } from '../fileWrite.js';
+import { writeWithRetry, stillWritable, isBusy } from '../fileWrite.js';
 
 // A handle whose first `failures` writes throw, the way a file does while a
 // sync service has it.
@@ -43,5 +43,26 @@ describe('writing a file a sync service is touching', () => {
     expect(await stillWritable({ queryPermission: async () => { throw new Error('gone'); } })).toBe(false);
     // A host without the permission API (the plugin's own file object).
     expect(await stillWritable({})).toBe(true);
+  });
+
+  test('a file that is gone is reported at once, not waited for', async () => {
+    const state = { tries: 0 };
+    const gone = { createWritable: async () => { state.tries++; throw new DOMException('gone', 'NotFoundError'); } };
+    await expect(writeWithRetry(gone, 'plan', { sleep: noSleep })).rejects.toThrow('gone');
+    expect(state.tries).toBe(1);
+    expect([isBusy(new DOMException('x', 'NoModificationAllowedError')), isBusy(new DOMException('x', 'NotFoundError')), isBusy(new DOMException('x', 'NotAllowedError')), isBusy(null)])
+      .toEqual([true, false, false, false]);
+  });
+
+  test('a stream that failed half way is thrown away before the next attempt', async () => {
+    const aborted = [];
+    let tries = 0;
+    const h = { createWritable: async () => {
+      const n = ++tries;
+      return { write: async () => { if (n === 1) throw new DOMException('busy', 'InvalidStateError'); }, close: async () => {}, abort: async () => { aborted.push(n); } };
+    } };
+    await writeWithRetry(h, 'plan', { sleep: noSleep });
+    expect(aborted).toEqual([1]);
+    expect(tries).toBe(2);
   });
 });
