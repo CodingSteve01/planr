@@ -22,23 +22,21 @@ import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { AssignModal } from '../modals/AssignModal.jsx';
 import { useT } from '../../i18n.jsx';
-
-const NO_TEAM = '__no_team__';
-const NO_TEAM_COLOR = '#64748b';
-const NO_PERSON = '__no_person__';
-const EMPTY_ARR = [];
-const DAY_ZOOM = 98;
-const MONTH_ZOOM = 9;
-
-function normalizeViewMode(mode) {
-  if (mode === 'person') return 'resource';
-  if (mode === 'projteam') return 'team';
-  return mode || 'project';
-}
-
-function fmtLoadDays(value) {
-  return `${(Math.round((Number(value) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '')}d`;
-}
+import {
+  NO_TEAM,
+  NO_TEAM_COLOR,
+  NO_PERSON,
+  EMPTY_ARR,
+  DAY_ZOOM,
+  MONTH_ZOOM,
+  normalizeViewMode,
+  fmtLoadDays,
+  personIdsOf,
+  typeColorOf,
+  loadHeatColor,
+  loadHeatStroke,
+  rowDrawsBar,
+} from '../../utils/gantt/helpers.js';
 
 function GanttViewImpl({
   scheduled,
@@ -645,15 +643,6 @@ function GanttViewImpl({
   const threadStructure = useMemo(() => {
     return buildThreadStructure({ groupBy, allItems, tree, iMap, scheduled });
   }, [groupBy, allItems, tree, iMap, scheduled]);
-  const personIdsOf = s => {
-    const ids = new Set();
-    if (s.personId) ids.add(s.personId);
-    (s.assign || []).forEach(a => ids.add(a));
-    return [...ids];
-  };
-  const typeColorOf = node =>
-    node?.type === 'deadline' ? 'var(--re)' : node?.type === 'painpoint' ? 'var(--am)' : node?.type === 'goal' ? 'var(--ac)' : 'var(--ac2)';
-
   const treeRank = useMemo(() => treeOrderRank(tree), [tree]);
   const structure = useMemo(() => {
     const defaultCollapsed = new Set();
@@ -1243,12 +1232,6 @@ function GanttViewImpl({
   // ran to a blank row in the middle of a group and looked like it had come
   // adrift. In compact it is worse: a row with no bar takes no lane, so the
   // line landed on a lane belonging to other work entirely.
-  const rowDrawsBar = row => {
-    if (row?.type !== 'task' || !row.s) return false;
-    if (row.s._unestimated) return false;
-    if (row.s._completed && (!row.s.startD || !row.s.endD)) return false;
-    return true;
-  };
   const rowIdx = useMemo(() => {
     const m = {};
     visibleRows.forEach((r, i) => {
@@ -1750,26 +1733,6 @@ function GanttViewImpl({
     });
   }, [weeks, resourceLoadByWeek, memberById, t]);
 
-  const loadHeatColor = (percent, meta = null) => {
-    if (meta?.historicalOnly) return 'rgba(148,163,184,.12)';
-    if (!Number.isFinite(percent) || percent <= 0) return 'rgba(148,163,184,.08)';
-    if (percent < 50) return 'rgba(59,130,246,.18)';
-    if (percent < 90) return 'rgba(16,185,129,.20)';
-    if (percent <= 110) return 'rgba(245,158,11,.26)';
-    return 'rgba(239,68,68,.34)';
-  };
-  // Load, as one line of colour. Four bands and nothing in between, because
-  // the question is "is this week free, full, or over", not "what exactly is
-  // the percentage" — the figure is one hover away. Palette tokens rather
-  // than the old hardcoded Tailwind rgbas, so it holds in both themes.
-  const loadHeatStroke = (percent, meta = null) => {
-    if (meta?.historicalOnly) return 'var(--b3)';
-    if (!Number.isFinite(percent) || percent <= 0) return 'var(--b2)';
-    if (percent < 50) return 'color-mix(in srgb, var(--ac) 55%, transparent)';
-    if (percent < 90) return 'var(--st-done)';
-    if (percent <= 110) return 'var(--st-wip)';
-    return 'var(--st-risk)';
-  };
   const taskLoadCells = (s, barLeft, barWidth) => {
     if (!showLoadHeatmap || !s || s._unestimated || !barWidth) return EMPTY_ARR;
     const ids = personIdsOf(s).filter(id => resourceLoadByWeek[id]);
