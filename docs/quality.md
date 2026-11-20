@@ -4,7 +4,7 @@ What the pipeline holds the code to, and how to work with it. One command runs
 everything that does not need the test suite:
 
 ```bash
-npm run quality        # lint, duplicates, dead code, versions, private terms
+npm run quality        # lint, duplicates, dead code, versions, semgrep, private terms
 npm run test:coverage  # the suite, with the coverage floor
 ```
 
@@ -43,6 +43,18 @@ tests too; the size limits do not, because a `describe` block is one long
 function by nature. `src/i18n.jsx` and the embedded fonts are exempt from the
 size limits: one is a dictionary, the other is data.
 
+## Before CI: the hooks
+
+`npm install` installs three git hooks (`scripts/install-hooks.mjs`, also
+`npm run hooks`):
+
+- **pre-commit** lints the staged files and checks them for private terms;
+- **commit-msg** checks the message for private terms;
+- **pre-push** runs `npm run quality`.
+
+A hook of the same name that was already there and is not ours is left alone
+and reported. `git commit --no-verify` skips them; CI does not.
+
 ## The other checks
 
 - **Dead code** (`npm run deadcode`, knip): no file that nothing imports, no
@@ -54,6 +66,15 @@ size limits: one is a dictionary, the other is data.
   [contributing.md](contributing.md#nothing-from-a-real-plan). It needs the
   owner's word list and checks nothing without it, so it is not part of CI.
 - **Audit**: `npm audit --omit=dev --audit-level=high` on what ships.
+- **Security** (`npm run security`, semgrep's default rules): over the code
+  that ships, the scripts and the workflows, with no finding allowed. Tests
+  are left out (`.semgrepignore` says why). A finding that is not one gets a
+  `nosemgrep` comment with the rule id and the reason on the line above.
+- **Workflows**: every action is pinned to a commit, because a tag can be
+  moved; `hooks.test.js` holds them to it and Dependabot keeps the pins fresh,
+  a week behind publication. Values a contributor controls (a branch name)
+  reach a workflow's shell as environment variables, never as text pasted
+  into the script.
 
 ## Raising a limit, lowering the baseline
 

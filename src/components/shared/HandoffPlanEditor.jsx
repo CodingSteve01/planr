@@ -32,7 +32,6 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
   }, [focusStage]);
   const plan = Array.isArray(node.handoffPlan) ? node.handoffPlan : [];
   const memberName = id => members.find(m => m.id === id)?.name || id;
-  const teamName = id => teams.find(tm => tm.id === id)?.name || id;
 
   // Pull the forecasted segment chain from the scheduler. Primary segment
   // (index 0) is the original assignee; subsequent segments are cutoffs.

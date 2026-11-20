@@ -596,14 +596,6 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
   );
 }
 
-function weekNum(d) {
-  // ISO week number — Mon-based.
-  const x = new Date(d.getTime());
-  x.setHours(0, 0, 0, 0);
-  x.setDate(x.getDate() + 4 - (x.getDay() || 7));
-  const yearStart = new Date(x.getFullYear(), 0, 1);
-  return Math.ceil((((x - yearStart) / 86400000) + 1) / 7);
-}
 
 /* ─── Main component ──────────────────────────────────────────────────── */
 export const RES_JOB_EVENT = 'planr:resources:job';

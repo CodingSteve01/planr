@@ -30,12 +30,6 @@ function parseHexColor(color) {
   return null;
 }
 
-function mixWithWhite(color, amount = 0) {
-  const rgb = parseHexColor(color);
-  if (!rgb) return color;
-  const mix = c => Math.round(c + (255 - c) * amount);
-  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
-}
 
 export function buildReportModel(rawCtx) {
   // Same guard as the PDFs: a report covers the plan, not the current view.
@@ -213,7 +207,6 @@ export function buildReportModel(rawCtx) {
   const projectSpanYears = projectSpanDays / 365;
   members.forEach(m => {
     const primaryPt = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
-    const parallelPt = 0;
     const capDays = deriveCap(m, { plans: data?.meetingPlans || [], teams }) * 220 * projectSpanYears;
     const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
     if (util > 100) {

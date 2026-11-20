@@ -22,7 +22,6 @@ export function schedulePlanData(data, now = new Date()) {
   const meta = data.meta || {};
   // The array carries the plan's order (see `tree` in App.jsx).
   const tree = sortTree(data.tree);
-  const members = data.members || [];
   // The same people the screen's schedule gets: the dated changes flattened
   // per person, every meeting plan resolved (utils/effective.js).
   const enriched = compileMembers(data);

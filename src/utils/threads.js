@@ -36,9 +36,6 @@ function naturalCompare(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
-function threadClusterKey(id) {
-  return parentId(id) || id;
-}
 
 function ownSoftDependencyIds(id, iMap) {
   return [...(iMap[id]?.softDeps || [])];

@@ -1,0 +1,17 @@
+# Actions are pinned to a commit (a tag can be moved). This keeps the pins,
+# and the packages, from going stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    # A version published this week may be a mistake, or worse.
+    cooldown: { default-days: 7 }
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    # A version published this week may be a mistake, or worse.
+    cooldown: { default-days: 7 }
+    groups:
+      dev:
+        dependency-type: development

@@ -24,6 +24,8 @@ export function loadTerms(file = termsFile()) {
   if (!existsSync(file)) return null;
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return readFileSync(file, 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+    // The patterns come from the owner's own file on this machine, not from input.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     .map(l => (l.startsWith('re:') ? new RegExp(l.slice(3), 'i') : new RegExp(`(?<![\\p{L}\\p{N}])${esc(l)}(?![\\p{L}\\p{N}])`, 'iu')));
 }
 

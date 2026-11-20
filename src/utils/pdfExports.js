@@ -439,12 +439,11 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
-  const { meta, t, dateStr, done, wip, open, totalPt, prog, progLabel, donePt, projectEnd, roots, rootData, cc, ccPt, ccTotal, teamCap, cpItems, risks, deadlineStates, confidence, members, lvs, scheduled, teams } = m;
+  const { meta, t, dateStr,  totalPt,  progLabel,  roots, rootData,  ccPt,  teamCap, cpItems, risks, deadlineStates,  scheduled, teams } = m;
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const de = m.de;
   const projects = projectStatus(m);
   const v = summaryVerdict(m, projects);
-  const openPt = ccPt.committed + ccPt.estimated + ccPt.exploratory;
 
   // The confidence ramp, used identically in the per-project mini-bars and in
   // the summary bar further down.
@@ -942,7 +941,6 @@ export async function exportGanttPDF(ctx) {
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
   const pdfMake = await loadPdfMake();
   const gantt = await rasterizeGantt(ctx, 3);
-  const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
   // Pick page size based on gantt width so small text stays readable.
   // A3 landscape = 1191 x 842 pt. A2 landscape = 1684 x 1191.
@@ -1077,7 +1075,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
 export async function exportWhatWhenPDF(ctx) {
   ctx = projectScopedCtx(ctx, 'exportWhatWhenPDF');
   const m = buildReportModel(ctx);
-  const { meta, t, dateStr, scheduled, tree, teams, confidence, rootData, lvs, deadlineStates } = m;
+  const { meta, t, dateStr, scheduled,  teams, confidence, rootData, lvs, deadlineStates } = m;
   if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
   const pdfMake = await loadPdfMake();
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';

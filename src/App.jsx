@@ -1163,7 +1163,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     (byParent[''] || []).forEach(root => visit(root.id));
     return source.filter(r => keep.has(r.id));
   }, [activeTree, hideDone]);
-  const visibleIdSet = useMemo(() => new Set(visibleTree.map(r => r.id)), [visibleTree]);
   const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
   const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
   const netTree = useMemo(() => {
@@ -1620,7 +1619,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const diffVisibleSet = sinceDate && diffChangedSet.size > 0 ? diffChangedSet : null;
   const cpData = useMemo(() => rootCpm(tree), [tree]);
   const cpSet = cpData.critical;
-  const cpEdges = cpData.edges;
   const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
   const goalPaths = useMemo(() => goalCpm(tree), [tree]);
   // Global resource-load + overbooked task ids — shared by the quick-filter
@@ -1786,13 +1784,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   );
   const viewCpSet = cpData.critical;
   const viewCpEdges = cpData.edges;
-  const viewGoalPaths = goalPaths;
   const leaves = useMemo(() => leafNodes(tree), [tree]);
   // Dropped work leaves every count, which would make it invisible; say how
   // much of it there is, so the denominator is explicable.
   const droppedCount = useMemo(() => tree.filter(r => r.dropped).length, [tree]);
   const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
-  const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
 
   // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
   // so NRW dates landed a day early in the file. Detect that and rewrite them
@@ -2326,10 +2322,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     let anchor = rootId;
     for (const id of ids) { reorderSibling(id, { targetId: anchor, position: 'after' }); anchor = id; }
   });
-  function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
   function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
   function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
-  function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
   // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
   function onSeqUpdate(taskId, patch) {
     const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
@@ -2462,12 +2456,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const fd = fileDataRef.current || data;
     if (fd !== data) return _buildMd({ tree: sortTree(fd.tree || []), members: fd.members || [], teams: fd.teams || [], vacations: fd.vacations || [], data: fd, meta: fd.meta || {} });
     return _buildMd({ tree, members, teams, vacations, data, meta });
-  }
-  function serializeForSave() {
-    // Legacy entrypoint kept for callers that don't care about history (e.g.
-    // export-as-JSON, copy-to-clipboard). All save paths that write the file
-    // should use composeFileForSave + commitSaveSideEffects instead.
-    return isMdFile ? buildMarkdownText() : JSON.stringify(withoutPendingDates(fileDataRef.current || data), null, 2);
   }
   function loadFile(e) {
     const f = e.target.files[0]; if (!f) return;

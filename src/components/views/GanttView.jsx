@@ -36,16 +36,6 @@ function normalizeViewMode(mode) {
   return mode || 'project';
 }
 
-function withAlpha(color, alpha) {
-  if (!color?.startsWith('#')) return color;
-  let hex = color.slice(1);
-  if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
-  if (hex.length !== 6) return color;
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 
 function fmtLoadDays(value) {
@@ -89,7 +79,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     })();
     return chainShorts(s, shortMap, primary);
   };
-  const memberNameOf = id => (members.find(m => m.id === id)?.name) || id;
   const [tip, setTip] = useState(null); // {item, x, y} — hover tooltip on left-panel task names
   const [drag, setDrag] = useState(null);
   const [dDelta, setDDelta] = useState(0);
@@ -388,7 +377,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return items;
   }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays]);
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
-  const rootOf = id => id.split('.')[0];
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
   const searchNeedle = useMemo(() => (search || '').trim().toLowerCase(), [search]);
   const searchTextById = useMemo(() => {
@@ -683,7 +671,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
         if (!visibleThreadItems.length) return;
         const sortedItems = sortItems(threadItems);
         const namespace = `thread:${thread.cid}`;
-        const firstNode = iMap[thread.ids[0]];
         // Single-task threads render as a bare row — the "Solo · …" header is
         // pure noise when there's only one child and the row itself already
         // shows the task name.
@@ -2473,8 +2460,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
           const isMatchL = searchMatches?.has(s.id);
           const isActiveMatchL = s.id === activeMatchId;
           const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
-          const confL = confidence[s.id] || 'committed';
-          const confDot = isSummary ? null : (confL === 'exploratory' ? '○' : confL === 'estimated' ? '◐' : null);
           const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
           const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
           const _alt = (_taskIdx++ % 2) === 1;

@@ -38,7 +38,7 @@ afterEach(() => { WorkspaceLeaf.prototype.setViewState = original; });
 
 describe('opening a plan note', () => {
   it('never builds the Markdown view', () => {
-    const plugin = patchedPlugin();
+    patchedPlugin();
     const l = leaf('leaf-1');
 
     l.setViewState({ type: 'markdown', state: { file: 'Projekte/team.planr.md', mode: 'source' } });
@@ -50,7 +50,7 @@ describe('opening a plan note', () => {
   });
 
   it('leaves every other note alone', () => {
-    const plugin = patchedPlugin();
+    patchedPlugin();
     const l = leaf('leaf-1');
 
     l.setViewState({ type: 'markdown', state: { file: 'Notizen/einkaufen.md' } });
@@ -59,7 +59,7 @@ describe('opening a plan note', () => {
   });
 
   it('stands down when the setting is off', () => {
-    const plugin = patchedPlugin({ openPlanNotes: false });
+    patchedPlugin({ openPlanNotes: false });
     const l = leaf('leaf-1');
 
     l.setViewState({ type: 'markdown', state: { file: 'Projekte/team.planr.md' } });

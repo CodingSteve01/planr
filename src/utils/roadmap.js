@@ -132,9 +132,6 @@ function formatPercentNumber(progress) {
   return trim1(clamp(progress || 0, 0, 1) * 100);
 }
 
-function formatPercent(progress) {
-  return `${formatPercentNumber(progress)}%`;
-}
 
 function contrastText(color) {
   if (!color?.startsWith('#')) return '#fff';
@@ -182,9 +179,6 @@ function monthIndex(date) {
   return date.getFullYear() * 12 + date.getMonth();
 }
 
-function monthCountInclusive(start, end) {
-  return monthIndex(end) - monthIndex(start) + 1;
-}
 
 function compareByTime(a, b) {
   const ad = a.anchorDate ? +a.anchorDate : Infinity;
@@ -275,38 +269,6 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
   return result;
 }
 
-function pickFeaturedMinors(minorNodes, meta) {
-  if (!minorNodes.length) return { visible: [], hidden: 0 };
-  const doneNodes = minorNodes.filter(node => meta[node.id]?.allDone);
-  const activeNodes = minorNodes.filter(node => !meta[node.id]?.allDone && (meta[node.id]?.prog || 0) > 0);
-  const futureNodes = minorNodes.filter(node => !meta[node.id]?.allDone && !(meta[node.id]?.prog > 0));
-
-  const MAX_MINOR_PER_ROOT = 5;
-  const picked = [];
-  const seen = new Set();
-  const push = node => {
-    if (!node || seen.has(node.id) || picked.length >= MAX_MINOR_PER_ROOT) return;
-    seen.add(node.id);
-    picked.push(node);
-  };
-
-  doneNodes.slice(-1).forEach(push);
-  activeNodes.slice(0, 2).forEach(push);
-  futureNodes.slice(0, 2).forEach(push);
-  if (!picked.length) minorNodes.slice(0, MAX_MINOR_PER_ROOT).forEach(push);
-
-  return {
-    visible: picked.sort((a, b) => {
-      const ad = meta[a.id]?.earliestStart || meta[a.id]?.latestEnd;
-      const bd = meta[b.id]?.earliestStart || meta[b.id]?.latestEnd;
-      if (ad && bd && +ad !== +bd) return ad - bd;
-      if (ad) return -1;
-      if (bd) return 1;
-      return a.id.localeCompare(b.id, undefined, { numeric: true });
-    }),
-    hidden: Math.max(0, minorNodes.length - picked.length),
-  };
-}
 
 // ─── Metro-specific helpers ───────────────────────────────────────────────────
 
@@ -1958,7 +1920,6 @@ export function renderRoadmapSvg(args) {
   // Render each line's HTML once, paired with its estimated height + a
   // stable sort key (line index in `lines`) so column order within a bin
   // matches the natural project order.
-  const blockHtmlByIdx = new Map();
   const blockHeights = new Map();
   const linesForLegend = lines
     .map((line, idx) => ({ line, idx }))

@@ -18,5 +18,8 @@
   ],
   "ignoreDependencies": [
     "buffer"
+  ],
+  "ignoreBinaries": [
+    "semgrep"
   ]
 }

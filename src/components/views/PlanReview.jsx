@@ -57,9 +57,6 @@ function PlanReviewImpl({ tree, scheduled, members, teams, weeks = [], vacations
     return f;
   }, [allLvs, rootFilter, teamFilter, personFilter, hideDone, horizonIds, diffChangedIds, diffVisibleIds]);
   const doneSet = useMemo(() => new Set(lvs.filter(r => r.status === 'done').map(r => r.id)), [lvs]);
-  const teamName = id => teams.find(tm => tm.id === id)?.name || id || '';
-  const teamColor = id => teams.find(tm => tm.id === id)?.color || 'var(--b3)';
-  const memberName = id => members.find(m => m.id === id)?.name || id;
   const memberShort = id => { const m = members.find(x => x.id === id); if (!m) return '?'; const w = (m.name || '').trim().split(/\s+/); return w.length === 1 ? w[0].slice(0, 2).toUpperCase() : w.map(x => x[0]).join('').toUpperCase(); };
   const memberFullName = id => members.find(x => x.id === id)?.name || id || '?';
   const shortMap = useMemo(() => buildMemberShortMap(members), [members]);

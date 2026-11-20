@@ -1,9 +1,4 @@
 {
-  "obsidian/__tests__/planNoteRedirect.test.js": {
-    "no-unused-vars": {
-      "count": 3
-    }
-  },
   "src/App.jsx": {
     "complexity": {
       "count": 11
@@ -18,7 +13,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 9
+      "count": 3
     }
   },
   "src/__tests__/archive.roadmap.test.jsx": {
@@ -33,16 +28,6 @@
   },
   "src/__tests__/jiraExportDropped.test.jsx": {
     "no-irregular-whitespace": {
-      "count": 1
-    }
-  },
-  "src/__tests__/personQueue.app.test.jsx": {
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
-  "src/__tests__/queueIsBinding.app.test.jsx": {
-    "no-unused-vars": {
       "count": 1
     }
   },
@@ -80,9 +65,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "src/components/modals/SettingsModal.jsx": {
@@ -98,17 +80,12 @@
       "count": 1
     }
   },
-  "src/components/shared/FeatureCarousel.jsx": {
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
   "src/components/shared/HandoffPlanEditor.jsx": {
     "complexity": {
       "count": 2
     },
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/shared/ItemHistoryTimeline.jsx": {
@@ -171,7 +148,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/shared/Tooltip.jsx": {
@@ -212,7 +189,7 @@
       "count": 3
     },
     "no-unused-vars": {
-      "count": 11
+      "count": 6
     }
   },
   "src/components/views/NetGraph.jsx": {
@@ -221,9 +198,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 4
     }
   },
   "src/components/views/Onboard.jsx": {
@@ -239,7 +213,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 5
+      "count": 2
     }
   },
   "src/components/views/PlanRoadmap.jsx": {
@@ -256,9 +230,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "src/components/views/ResView.jsx": {
@@ -272,7 +243,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/views/SumView.jsx": {
@@ -283,7 +254,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 16
+      "count": 15
     }
   },
   "src/components/views/TimetableView.jsx": {
@@ -432,9 +403,6 @@
     },
     "max-lines-per-function": {
       "count": 2
-    },
-    "no-unused-vars": {
-      "count": 14
     }
   },
   "src/utils/planIntegrity.js": {
@@ -466,7 +434,7 @@
       "count": 2
     },
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/utils/roadmap.js": {
@@ -483,7 +451,7 @@
       "count": 5
     },
     "no-unused-vars": {
-      "count": 5
+      "count": 2
     }
   },
   "src/utils/scenario.js": {
@@ -499,9 +467,6 @@
       "count": 3
     },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "no-unused-vars": {
       "count": 1
     }
   },
@@ -541,7 +506,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/utils/timeline.js": {
