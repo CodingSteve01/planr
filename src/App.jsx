@@ -16,6 +16,7 @@ import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
 import { useLogWriters } from './app/useLogWriters.js';
 import { useEarlierDay } from './app/useEarlierDay.js';
+import { fileLoaders } from './app/fileLoaders.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
 import { useVisibleTree } from './app/derived/useVisibleTree.js';
 import { useFilterChips } from './app/derived/useFilterChips.js';
@@ -47,14 +48,12 @@ import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
-import { initialShell, loadLocalProject, isValidProjectData, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
+import { initialShell, loadLocalProject, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
 import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { normalizeLoadedData } from './utils/loadedData.js';
 import { exportSprintMarkdown } from './utils/exports.js';
-import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
@@ -64,7 +63,6 @@ import { buildExportCtx } from './utils/exportCtx.js';
 import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
-import { requestHandlePermission } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
@@ -839,33 +837,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedLeavesRef,
   });
   logWritersRef.current = logWriters;
-  function loadFile(e) {
-    const f = e.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = async ev => {
-      try {
-        const text = ev.target.result;
-        const isMd = f.name.endsWith('.md');
-        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
-          throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
-        // Set data first, then clean up handle in background
-        setData(d);
-        resetHistory(); // different document — the old undo stack doesn't apply
-        setSel(null);
-        setSaved(true);
-        setFileName(f.name);
-        setFileWriteOk(false);
-        setAutoSave(true);
-        forgetHandle().catch(() => {});
-      } catch (e) {
-        alert(e.message || 'Invalid project file.');
-      }
-    };
-    r.readAsText(f);
-    e.target.value = '';
-  }
+  const { loadFile, newProject, restoreMountedFile } = fileLoaders({
+    setData,
+    resetHistory,
+    setSel,
+    setSaved,
+    setModal,
+    setTab,
+    setFileName,
+    setFileWriteOk,
+    setAutoSave,
+    setLastSavedAt,
+    forgetHandle,
+    fileHandleRef,
+    ensureHandlePermission,
+  });
   function onBarClick(s, focusRequest = null) {
     const node = tree.find(r => r.id === (s.treeId || s.id));
     if (!node) return;
@@ -893,47 +879,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       setModal('node');
     });
   }
-  async function newProject() {
-    await forgetHandle();
-    setFileWriteOk(false);
-    setAutoSave(true);
-    setSaved(true);
-    setLastSavedAt(null);
-    setData(null);
-    resetHistory();
-    setSel(null);
-    setModal(null);
-    setTab('summary');
-  }
-
-  // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
-  async function restoreMountedFile() {
-    const handle = fileHandleRef.current;
-    if (!handle) return;
-    try {
-      const granted = await requestHandlePermission(handle, 'readwrite');
-      if (granted !== 'granted') {
-        const readOnly = await requestHandlePermission(handle, 'read');
-        if (readOnly !== 'granted') return;
-      }
-      const file = await handle.getFile();
-      const text = await file.text();
-      const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
-      if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
-      setData(d);
-      resetHistory(); // different document — the old undo stack doesn't apply
-      setSel(null);
-      setSaved(true);
-      setLastSavedAt(new Date());
-      const canWrite = await ensureHandlePermission(handle, false);
-      setFileWriteOk(canWrite);
-      setAutoSave(true);
-    } catch (e) {
-      alert('Could not restore mounted file: ' + (e.message || e));
-      await forgetHandle();
-    }
-  }
-
   const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   // Clicking an item — anywhere — opens that item's own edit dialog. The same
