@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, memo } from 'react';
 import { useCapacityAt } from '../../utils/capacityLens.js';
 import { isOnScreen } from '../../utils/onScreen.js';
 import { GanttFooter } from './gantt/GanttFooter.jsx';
@@ -9,6 +9,7 @@ import { GanttLabelColumn } from './gantt/GanttLabelColumn.jsx';
 import { DepLinesSvg } from './gantt/DepLinesSvg.jsx';
 import { GanttFlagStrip } from './gantt/GanttFlagStrip.jsx';
 import { GanttGridLayer } from './gantt/GanttGridLayer.jsx';
+import { useGanttZoom } from './gantt/useGanttZoom.js';
 import { GanttTaskBarRow } from './gantt/GanttTaskBarRow.jsx';
 import { GanttGroupBarRow } from './gantt/GanttGroupBarRow.jsx';
 import { computeRowLayout } from '../../utils/gantt/rowLayout.js';
@@ -45,7 +46,7 @@ import { chainShorts } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { useT } from '../../i18n.jsx';
-import { NO_TEAM, NO_TEAM_COLOR, EMPTY_ARR, DAY_ZOOM, normalizeViewMode, rowDrawsBar } from '../../utils/gantt/helpers.js';
+import { NO_TEAM, NO_TEAM_COLOR, EMPTY_ARR, normalizeViewMode, rowDrawsBar } from '../../utils/gantt/helpers.js';
 
 function GanttViewImpl({
   scheduled,
@@ -217,26 +218,10 @@ function GanttViewImpl({
       return 18;
     }
   });
-  // Zoom: WPX = pixels per week. 20 = default, lower zooms out (months), higher zooms in (toward day-level)
-  const [zoom, setZoom] = useState(() => {
-    try {
-      return +localStorage.getItem('planr_gantt_zoom') || DAY_ZOOM;
-    } catch {
-      return DAY_ZOOM;
-    }
-  });
-  const clampZoom = v => Math.max(8, Math.min(140, v));
-  const setZ = v => {
-    const c = clampZoom(v);
-    setZoom(c);
-    try {
-      localStorage.setItem('planr_gantt_zoom', String(c));
-    } catch {}
-    return c;
-  };
-  const WPX = zoom;
-  const showDays = WPX >= 70; // at this zoom, individual days fit (~14 px each)
-  const zoomMode = showDays ? 'day' : WPX <= 12 ? 'month' : 'week';
+  const hR = useRef(null),
+    bR = useRef(null),
+    lR = useRef(null);
+  const { zoom, setZ, WPX, showDays, zoomMode } = useGanttZoom({ hR, bR });
   const [showLoadHeatmap, setShowLoadHeatmap] = useState(() => {
     try {
       return localStorage.getItem('planr_gantt_load_heatmap') !== 'false';
@@ -294,11 +279,7 @@ function GanttViewImpl({
     e.preventDefault();
     action();
   };
-  const hR = useRef(null),
-    bR = useRef(null),
-    lR = useRef(null);
   const hoverClearTimerRef = useRef(null);
-  const zoomAnchorRef = useRef(null);
   const [bodyScrollbarH, setBodyScrollbarH] = useState(0);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
@@ -324,38 +305,6 @@ function GanttViewImpl({
       bR.current.scrollLeft += e.deltaX;
     }
   }
-  const onTimelineWheel = useCallback(
-    e => {
-      const isZoomGesture = e.ctrlKey || e.metaKey;
-      if (!isZoomGesture) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const body = bR.current;
-      if (!body) {
-        setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
-        return;
-      }
-      const rect = body.getBoundingClientRect();
-      const anchorX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-      const timeAtPointer = (body.scrollLeft + anchorX) / Math.max(WPX, 1);
-      zoomAnchorRef.current = { timeAtPointer, anchorX };
-      setZ(WPX * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
-    },
-    [WPX],
-  );
-  useLayoutEffect(() => {
-    const anchor = zoomAnchorRef.current;
-    if (!anchor || !bR.current) return;
-    zoomAnchorRef.current = null;
-    bR.current.scrollLeft = Math.max(0, anchor.timeAtPointer * WPX - anchor.anchorX);
-    if (hR.current) hR.current.scrollLeft = bR.current.scrollLeft;
-  }, [WPX]);
-  useEffect(() => {
-    const targets = [hR.current, bR.current].filter(Boolean);
-    if (!targets.length) return undefined;
-    targets.forEach(el => el.addEventListener('wheel', onTimelineWheel, { passive: false }));
-    return () => targets.forEach(el => el.removeEventListener('wheel', onTimelineWheel));
-  }, [onTimelineWheel]);
   useEffect(() => {
     try {
       localStorage.setItem('planr_gantt_collapsed', JSON.stringify(collapsedByMode));
