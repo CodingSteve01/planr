@@ -212,16 +212,13 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 11
-    },
-    "max-depth": {
-      "count": 1
+      "count": 2
     },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     },
     "no-unused-vars": {
       "count": 6
@@ -334,6 +331,14 @@
       "count": 3
     }
   },
+  "src/components/views/gantt/BarOverlays.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/components/views/gantt/DepLinesSvg.jsx": {
     "complexity": {
       "count": 1
@@ -349,6 +354,11 @@
       "count": 1
     }
   },
+  "src/components/views/gantt/GanttGroupBarRow.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/components/views/gantt/GanttHeader.jsx": {
     "max-lines-per-function": {
       "count": 1
@@ -360,6 +370,38 @@
     },
     "max-lines-per-function": {
       "count": 2
+    }
+  },
+  "src/components/views/gantt/GanttTaskBarRow.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/gantt/useGanttDrag.js": {
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/components/views/gantt/useGanttPrefs.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/gantt/useGanttSelection.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/__tests__/phaseWalk.test.js": {
@@ -446,6 +488,14 @@
     },
     "max-lines-per-function": {
       "count": 2
+    }
+  },
+  "src/utils/gantt/taskBarModel.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/history.js": {
