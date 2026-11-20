@@ -447,3 +447,20 @@ version bump — `npm run version:set 1.1.0` writes `package.json`,
 `.github/workflows/obsidian-plugin.yml` test, build, tag and publish the three
 files. Tags in this repository are plugin releases; the tag name is the
 version, no `v` prefix. Full story in [obsidian-plugin.md](obsidian-plugin.md).
+
+## Where the app component's parts live
+
+`src/App.jsx` holds the state that is intertwined: the document, undo,
+scenarios, the earlier-day view and the save path with its history and day
+log. What does not depend on those sits beside it:
+
+- `src/app/`: hooks for self-contained state (`useViewFilters`, `useUiPrefs`,
+  `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component
+  calls from its memos (`viewTree.js`, `futureProgress.js`, `planRepairs.js`),
+  and the shell helpers (`shell.js`, `storage.js`, `snapshots.js`).
+- `src/utils/loadedData.js`: what a loaded document is normalised to.
+- `src/utils/gantt/helpers.js`: the Gantt's constants and pure helpers.
+
+A hook there takes what it needs as arguments and returns what `App` uses. The
+memos and effects that call the derivations stayed where they were, with their
+dependency lists, so the order in which things run did not change.

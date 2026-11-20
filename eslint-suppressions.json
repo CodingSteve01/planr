@@ -1,10 +1,10 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 11
+      "count": 9
     },
     "max-depth": {
-      "count": 5
+      "count": 2
     },
     "max-lines": {
       "count": 1
