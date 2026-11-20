@@ -383,6 +383,11 @@
       "count": 1
     }
   },
+  "src/components/views/gantt/useGanttPrefs.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/utils/__tests__/phaseWalk.test.js": {
     "no-useless-assignment": {
       "count": 1
