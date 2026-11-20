@@ -1,0 +1,377 @@
+# Data Model
+
+All types. No TypeScript — the code is plain JS — so these are documentation conventions, not enforced interfaces.
+
+## Top-level shape
+
+```js
+{
+  meta: { name, planStart, planEnd, version, holidays? },
+  teams: [Team],
+  members: [Member],
+  tree: [TreeItem],
+  vacations: [Vacation],
+  holidays: [Holiday],
+  taskTemplates: [TaskTemplate],  // optional
+  risks: [Risk],                  // optional — project-specific risk catalogue
+  sizes: [Size],                  // optional — project-specific T-shirt sizes
+  customFields: [CustomField],    // optional — user-defined fields shown on all tasks
+  scenarios: [Scenario],          // optional — what-if versions of the plan, each as a patch
+  changes: [DatedChange]          // optional — what changes about people, teams, meeting plans on a date
+}
+```
+
+Persisted as JSON (`planr_v2` key in localStorage, or mounted `.json` file) or as Markdown (mounted `.md` file). See [import-export.md](import-export.md) for format details.
+
+## TreeItem
+
+```js
+{
+  id,            // hierarchical dot notation — "P1", "P1.2", "P1.2.3"
+  name,          // display label, shown everywhere
+  status,        // "open" | "wip" | "done"
+  team,          // team ID (resolved to team.name in UI)
+  best,          // optimistic effort in days (0 = unestimated)
+  factor,        // complexity multiplier, default 1.5
+  prio,          // priority, lower = higher. Default 2
+  deps,          // [taskId] — HARD predecessors (A must finish before B because B needs A)
+  softDeps,      // [taskId] — SOFT predecessors (sequencing/parallelism intent, no semantic dep)
+                 //            Both block the scheduler the same way; only the visual differs
+                 //            (dashed thin edge in Gantt/NetGraph). Written as `~id` in markdown.
+  teamLock,      // bool — task blocks the WHOLE team. Scheduler treats it as multi-assigned to
+                 //        every current member of the team. Onboard/offboard flows through.
+                 //        Multi-team members are included and blocked fully (their one capacity
+                 //        is not divided between teams) — see docs/scheduler.md.
+                 //        Markdown tag: `team-lock:true`.
+  assign,        // [memberId] — assignees (usually 1; multiple means any of them can pick it up)
+  progress,      // 0-100 on leaves, auto-cascaded on parents (never set manually on parents)
+  note,          // short free-form text, shown in tooltips
+  // Plan level, not item level:
+  //   personQueues: { [memberId]: [leafId, …] }
+  //     One person's own order of work. Overrides the plan order for THEIR
+  //     tasks only, by permuting the slots their work already holds. See
+  //     utils/personQueue.js and docs/scheduler.md.
+
+  dropped,       // true = not going to happen. Not a status: the status it had is
+                 // kept, so taking it back gives you the item you had. Leaves BOTH
+                 // sides of every fraction (utils/scheduler.js, `isDropped`) and is
+                 // never scheduled. Replaces the "done at 0 %" workaround, which
+                 // counted it as delivered AND dragged the percentage down.
+  seq,           // dead. Parsed from older plan files and ignored, never written.
+                 // Order is the tree's (see displayOrder + docs/scheduler.md).
+  parallel,      // legacy flag: bypass person capacity (kept for MD round-trip, not in UI)
+  displayOrder,  // integer — per-sibling layout rank (Reorganize button → topo sort of deps+softDeps).
+                 // Drives TreeView/Gantt row order. Falls back to id-numeric when unset.
+                 // Markdown tag: `ord:N`.
+  _depLabels,    // { depId: "label" } — display labels for individual deps
+
+  // Root-only fields (id has no dot):
+  type,          // "goal" | "painpoint" | "deadline"
+  severity,      // "critical" | "high" | "medium"
+  date,          // target date (YYYY-MM-DD) for deadlines
+  description,   // long-form description, richer than `note`
+
+  // Confidence (on any item):
+  confidence,    // "committed" | "estimated" | "exploratory" | undefined
+                 // If set, overrides the auto-derived value from computeConfidence().
+                 // Parents inherit the worst confidence from their children.
+
+  // Scheduling overrides (on any item):
+  decideBy,      // YYYY-MM-DD — decision gate date (amber/red diamond in Gantt)
+  pinnedStart,   // YYYY-MM-DD — hard floor for the scheduler
+
+  // Phases (non-root items only):
+  phases,        // [{id, name, team, teams, assign, effortPct, status}] — workflow phases, undefined if none
+  templateId,    // string — informational: which TaskTemplate was used (snapshot, not live ref)
+
+  // Custom field values (any item):
+  customValues,  // { [fieldId]: string|number } — keyed by CustomField.id; absent = no values set
+
+  // Handoff plan (leaf only): per-stage override for the scheduler's
+  // offboard-cascade. Each stage represents one link in the chain *after*
+  // the primary assignee offboards. Empty array / unset → pure auto-cascade.
+  handoffPlan    // [{ assign?: [memberId], team?: teamId }] | undefined
+}
+```
+
+### ID conventions
+
+- Roots: `P1`, `P2`, `D1`, `Pr1`, etc. — no dot
+- Children: `P1.1`, `P1.2`, `P1.2.3` — dot-separated integers
+
+Root IDs are user-chosen by convention (typically `P` for painpoint, `D` for deadline, etc.). Child IDs are auto-generated by `nextChildId(tree, parentId)` in [scheduler.js](../src/utils/scheduler.js).
+
+### Leaf vs parent
+
+A node is a leaf iff no other node has it as a prefix-parent. `isLeafNode(tree, id)` checks structurally — there is no "level 3 = leaf" rule. Only leaves are scheduled.
+
+### Progress cascade
+
+- **Leaves**: explicit `progress` 0-100, or derived from status (`done` = 100, `wip` = 50, else 0)
+- **Parents**: weighted average of leaf progress, weights = realistic effort (`best × factor`). Cascades up through all ancestors via `treeStats(tree)`.
+
+#### Goal / root "N/M" completion count
+
+Everywhere a goal/painpoint/deadline root shows a `done/total` fraction (PDF
+report, Summary Focus cards, Roadmap stations) the count is the root's **own
+descendant leaves** — the concrete work packages, not direct children and not
+all intermediate nodes. `report.js` uses `childLeaves` (`lvs.filter(l => l.id ===
+root.id || l.id.startsWith(root.id + '.'))`); `SumView` mirrors it. Counts read
+the live tree, so adding a task under a goal raises its `M` immediately. (The
+Focus card's critical-path chips still use the dependency-aware `goalCpm` scope,
+which can pull in leaves from other goals — that is intentional and separate
+from the completion count.)
+
+### Confidence inheritance
+
+- **Leaves**: auto-derived by `computeConfidence()` from assignment, estimate, and risk factors. Can be overridden by setting the `confidence` field explicitly.
+- **Parents**: inherit the worst (least confident) level from their children:
+  - `exploratory` > `estimated` > `committed` (worst wins)
+  - A parent with one `committed` child and one `exploratory` child is `exploratory`.
+- The auto-derivation logic: committed = has person + estimate + low risk; estimated = has estimate but no person; exploratory = scope unclear (no estimate or high risk).
+
+## Member
+
+```js
+{
+  id,     // stable member ID
+  name,   // shown everywhere
+  team,   // primary team ID (legacy field, always === teams[0] when `teams` is set)
+  teams,  // [teamId] | undefined — every team the person works in, primary first.
+          // Only written when there are two or more; a one-team member keeps just `team`.
+  role,   // free-form role text
+  cap,    // capacity fraction: 1.0 = full-time, 0.5 = half-time (used when capMode === 'manual')
+  vac,    // total vacation days per year (default 25)
+  start,  // availability start date, YYYY-MM-DD (onboard)
+  end,    // availability end date, YYYY-MM-DD inclusive (offboard)
+
+  // Derived capacity (optional — defaults to manual `cap` if unset):
+  capMode,        // 'manual' | 'derived'
+  weeklyHours,    // number — default 40 (FTE). Only honored when capMode === 'derived'
+  meetings,       // [{ id, name, hours, frequency }] — recurring meetings subtracted from weeklyHours
+                  // frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' (normalized to weekly-equivalent hours)
+
+  // Time-shifted profile — scheduled changes that take effect on/after a date:
+  capChanges,     // [{ date: 'YYYY-MM-DD', cap?, weeklyHours? }] — sorted ascending by date.
+                  // Each entry overrides cap/weeklyHours from `date` onward (latest wins per field).
+  meetingChanges, // [{ date: 'YYYY-MM-DD', meetings: [...] }] — replaces the whole meetings array
+                  // from `date` onward.
+}
+```
+
+`memberAtDate(member, date)` in [capacity.js](../src/utils/capacity.js) returns a shallow clone with the
+overrides applied. The scheduler calls it at task start so a task scheduled in 2027 sees the 2027
+capacity profile, not the import-time one. Markdown roundtrip: `*Capacity plan:* 2026-09-01→50%, 2027-01-01→100%30h/w` /
+`*Meeting plan:* 2026-06-01→[Standup 0.5h/d, Retro 0.5h/2w]` (the pre-rename tags `*Cap-Plan:*` / `*Meeting-Plan:*` still read correctly).
+
+**Capacity** — `cap` scales the whole weekly budget. `vac` splits into explicit vacation weeks (zero-capacity) + a blanket deduction across the horizon. See [scheduler.md](scheduler.md#vacation-model).
+
+**Derived capacity** (`capMode === 'derived'`) — computed by [`deriveCap()`](../src/utils/capacity.js) as `(weeklyHours − Σ meetingHoursPerWeek) / 40`. Meeting frequencies normalize to weekly equivalents: `daily ×5`, `weekly ×1`, `biweekly ×0.5`, `monthly ×12/52`. A 40h engineer with a 15-min daily standup (1.25h), biweekly retro (0.5h) and weekly planning (2h) ends up at `(40 − 3.75)/40 = 91%`. The scheduler sees the raw 0..1 number; ResView shows the breakdown for auditability.
+
+**Offboarding** — if `end` is set, the scheduler stops booking work days strictly *after* that date (inclusive: the end-date itself is still a productive day). When a task in progress on that day has remaining effort, the offboard-cascade kicks in — see [scheduler.md handoff](scheduler.md#offboard-cascade--handoff).
+
+**Several teams** — `teams` lists which team pools the person is *eligible* for, first team first; it is not a split. The order is a preference: work of a later team comes to them once their first team has nothing left in that project (see [scheduler.md](scheduler.md#multi-team-members)). There is no percentage per team: the person has one capacity, and the scheduler books it task by task from whichever of their teams has work (see [scheduler.md](scheduler.md#multi-team-members)). The share per team is an *outcome* — [`realisedTeamShares()`](../src/utils/memberTeams.js) sums the effort of their scheduled rows by the row's team, and the Resources tab shows it as "60 % Backend · 40 % Frontend (from tasks)". Read membership through `memberTeams(m)` / `inTeam(m, teamId)` rather than `m.team`, so legacy one-team members and multi-team members go through the same path. Markdown: `— Backend + Frontend, Role` (see [import-export.md](import-export.md)).
+
+**Short name** — derived automatically for MD export (`buildMemberShortMap`). When the derived base collides, ALL occurrences get a numeric suffix so no one gets the bare base.
+
+## Team
+
+```js
+{ id, name, color }
+```
+
+- `color` — any CSS color (typically hex). Propagates into the tree, Gantt bars, and network graph node borders.
+- Teams are managed under the **Resources** tab, not in Settings.
+
+## Vacation
+
+```js
+{ person, week, note? }
+```
+
+- `person` = member ID
+- `week` = Monday of the vacation week (YYYY-MM-DD)
+- `note` = optional free-form text
+
+Vacation weeks zero a person's capacity for that week. Use this for booked, planned time off. Use `member.vac` for the background "they have N more days they'll take sometime" deduction.
+
+## Holiday
+
+```js
+{ date, name, auto }
+```
+
+- `auto: true` for entries generated by the NRW preset (Easter-based algorithm)
+- `auto: false` for user-added entries
+
+Holidays reduce the working-day count for affected weeks.
+
+## TaskTemplate
+
+```js
+{
+  id,       // stable ID, e.g. 'tpl_' + Date.now()
+  name,     // display name, e.g. "Full-Stack Programming"
+  phases    // [{ name, team, teams, effortPct }] — ordered list of phase blueprints
+}
+```
+
+Templates define reusable workflow blueprints. When applied to a task, the template's phases are **copied** (snapshot) — editing a template later does not retroactively change existing tasks.
+
+Stored at project level in `data.taskTemplates`, exported/imported with JSON and Markdown.
+
+## Size
+
+```js
+{
+  label,   // display name shown in pickers, e.g. "M"
+  days,    // best-case day count used to pre-fill the three-point estimate
+  factor,  // default uncertainty factor applied when a size is quick-picked
+  desc     // optional hint text shown as tooltip / sublabel in pickers (may be absent or "")
+}
+```
+
+The full catalogue is editable in **Settings → T-Shirt Sizes**. When `data.sizes` is absent (existing saved plans), the built-in defaults from `src/utils/sizes.js` are used transparently. Missing `desc` on existing sizes is treated as empty — no migration needed.
+
+Default sizes: XS=1d (×1.3), S=3d (×1.3), M=7d (×1.4), L=15d (×1.5), XL=30d (×1.5), XXL=45d (×1.6).
+
+## CustomField
+
+```js
+{
+  id,           // unique slug, e.g. 'jira' or 'cf_1234567890'
+  name,         // display label shown in NodeModal/QuickEdit, e.g. "Jira ID"
+  type,         // "text" | "number" | "uri" | "select"
+  uriTemplate,  // (uri only) e.g. "https://company.atlassian.net/browse/{value}"
+                //   — if empty, the value itself is treated as the URL
+  options       // (select only) string[] of selectable values
+}
+```
+
+Managed in **Settings → Custom Fields** (between T-Shirt Sizes and Risks). If `data.customFields` is absent on load, the default seed `[{ id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: '' }]` is used transparently.
+
+Values live on each `TreeItem.customValues` — absent means no value set; render as empty/blank, never error.
+
+Exported to Markdown under `## Custom Fields` (field definitions) and inline in tree items as `{cv.fieldId:value}` tags. Both are parsed on import for full round-trip.
+
+## DatedChange
+
+```js
+{ from: 'YYYY-MM-DD', patch: { members?: { set }, teams?: { set }, meetingPlans?: { set } } }
+```
+
+What takes effect on `from`, per entity id, for the fields that can carry a
+date (`cap`, `weeklyHours`, `meetings`, `meetingPlanIds` on a member;
+`meetingPlanIds` on a team; `meetings` on a meeting plan). See
+[dated-changes.md](dated-changes.md). The per-member `capChanges` /
+`meetingChanges` below are the legacy form: read from older files, moved into
+`changes` on load, and still the shape the scheduler is handed.
+
+## Scenario
+
+```js
+{
+  id,         // "s1", "s2", … unique within the plan
+  name,       // shown in the switch and the bar; unique, case-insensitively
+  createdAt,  // ISO timestamp
+  updatedAt,  // ISO timestamp of the last change to the patch
+  patch,      // what differs from the plan, or null while nothing does
+  lost        // only after a Markdown load: references that no longer resolved
+}
+```
+
+`patch` is the output of `diffPlan(plan, scenario)` in
+[`utils/scenario.js`](../src/utils/scenario.js) — per id-list `add` / `del` /
+`set` / `unset`, per value-list `add` / `del`. The scenario's full data is never
+stored; it is `applyPatch(plan, patch)`. See [scenarios.md](scenarios.md).
+
+## ProjectTemplate (seed only — not stored in project data)
+
+Templates live in `src/utils/projectTemplates.js` and are only used at project-creation time to seed `data.risks`, `data.sizes`, and `data.taskTemplates`. They are **not** an ongoing property of the project — once created, the project's own fields are the source of truth.
+
+```js
+{
+  id,            // unique slug, e.g. 'software-dev'
+  nameKey,       // i18n key for the display name
+  descKey,       // i18n key for the short description shown in the picker
+  icon,          // emoji displayed in the picker card
+  risks,         // [Risk] — initial risk catalogue (plain-text names, no i18nKey)
+  sizes,         // [Size] — initial size catalogue (includes desc)
+  taskTemplates  // [TaskTemplate] — initial task templates
+}
+```
+
+Two built-in templates are provided: `software-dev` (💻, default) and `generic` (📋).
+
+## Phase (on TreeItem)
+
+```js
+{
+  id,       // unique within the task, e.g. 'ph' + Date.now()
+  name,     // phase name, e.g. "Requirements Engineering"
+  team,     // first team ID (legacy convenience field)
+  teams,    // [teamId] — one or more responsible teams
+  assign,   // [memberId] — one or more responsible people
+  effortPct,// optional effort share in percent
+  status    // "open" | "wip" | "done"
+}
+```
+
+- Phases are an ordered array — order = workflow sequence
+- Available on non-root nodes (leaves and parent nodes, but not top-level root items)
+- Phases do **not** affect the scheduler — the task's `best × factor` estimate covers all phases
+- When phases exist, task `status` and `progress` are auto-derived via `derivePhaseStatus()`:
+  - All done → done/100%, any wip or some done → wip/proportional, all open → open/0%
+  - If `effortPct` is set, progress is weighted by effort share instead of treating every phase equally
+- The manual progress slider is hidden when phases are present
+
+## meta
+
+```js
+{
+  name,       // project name, shown in the title bar
+  planStart,  // YYYY-MM-DD — first week to schedule
+  planEnd,    // YYYY-MM-DD — last week to schedule
+  version,    // "2" — current file-format version
+  holidays?   // "NRW" or similar preset marker (not exported to MD)
+}
+```
+
+## Field defaults
+
+When a field is missing from an import:
+
+- `tree[].status` → `"open"`
+- `tree[].factor` → `1.5`
+- `tree[].prio` → `2`
+- `tree[].deps` → `[]`
+- `tree[].assign` → `[]`
+- `tree[].severity` → `"high"` (only on roots with a type)
+- `tree[].confidence` → `undefined` (auto-derived by `computeConfidence()`)
+- `tree[].phases` → `undefined` (no phases)
+- `tree[].templateId` → `undefined`
+- `tree[].customValues` → `{}` (no custom field values)
+- `members[].cap` → `1.0`
+- `members[].vac` → `25`
+- `meta.planStart` → today
+- `meta.planEnd` → year-end two years out
+
+### `asOfPending` (never in a file)
+
+`data.asOfPending = { [itemId]: { day, status, progress } }` holds the day a
+status or progress edit from the item dialog counts for and the state that
+edit left, from the edit until the next save. The save's history diff stamps
+the day on the item's events while the item is still in that state, and on a
+package above when every item event under it in that save was dated
+(`stampPendingDates`, `src/utils/history.js`), then takes it out again
+(`withoutPendingDates`). It lives in `data` so that undo restores it with the
+edit. It is stripped on load, from the saved file and from the JSON export;
+the local cache written between an edit and its save may carry it, and
+loading drops it. Scenario patches ignore it.
+
+### `dayLog`
+
+`data.dayLog = [{ day: 'YYYY-MM-DD', back: patch }]`, one entry per day on
+which the plan changed; `back` leads from the end of that day to its start.
+Written by every save (`recordToday`), read by the date switch for days
+before today. Scenario patches ignore it. See [earlier-days.md](earlier-days.md).

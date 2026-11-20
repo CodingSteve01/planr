@@ -1,0 +1,75 @@
+name: Bump the version on a PR
+
+# "Werden die Versionen des Plugins automatisch hochgezählt?"
+#
+# They are now. A pull request that changes what the plugin DOES gets a patch
+# bump pushed onto its own branch, so merging it carries the bump to main and
+# `obsidian-plugin.yml` publishes the release. Nobody has to remember
+# `npm run version:set`, and nobody on BRAT stays on the version before the
+# last five changes — which is exactly what had happened.
+#
+# On the PR branch rather than on main, deliberately: main is protected, a
+# workflow pushing to it needs either a bypass or a token with admin rights,
+# and neither is a thing to hand a CI job for a convenience. A PR branch is
+# unprotected, the bump is visible in the diff before it lands, and a human can
+# still overrule it — `npm run version:set 1.1.0` in the branch wins, because
+# the bump only runs when the version has not already moved.
+#
+# For a minor or major release, set it by hand in the PR. This only ever adds
+# a patch to what is already there.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'obsidian/**'
+      - 'index.html'
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    # A fork cannot be pushed to, and this is not worth a privileged token.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - id: state
+        name: Has the version already moved in this branch?
+        run: |
+          base=$(git show "origin/${{ github.event.pull_request.base.ref }}:manifest.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          head=$(node -p "require('./manifest.json').version")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          if [ "$base" = "$head" ]; then echo "moved=false" >> "$GITHUB_OUTPUT"; else echo "moved=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Bump the patch
+        if: steps.state.outputs.moved == 'false'
+        run: node scripts/version.mjs --bump
+
+      - name: Push it onto the PR branch
+        if: steps.state.outputs.moved == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json manifest.json versions.json
+          git commit -m "$(node -p "require('./manifest.json').version")"
+          git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+
+      - name: Say what happened
+        run: |
+          if [ "${{ steps.state.outputs.moved }}" = "true" ]; then
+            echo "Version already set to ${{ steps.state.outputs.head }} in this branch — left alone."
+          else
+            echo "Bumped ${{ steps.state.outputs.base }} → $(node -p "require('./manifest.json').version")."
+          fi

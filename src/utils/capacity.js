@@ -1,0 +1,192 @@
+// Derive a member's scheduling capacity (0..1 of FTE) from a transparent
+// hours/week budget minus recurring meetings. Legacy members keep the raw
+// `cap` number; anyone with `capMode: 'derived'` + `weeklyHours`/`meetings`
+// gets an auditable computed value.
+//
+// FTE baseline is fixed at 40 h/week so cap% matches the convention "100 % =
+// one full-time person". A 30h part-time member with 4h of meetings ends up
+// at 26/40 = 65 % — matches what a project manager would eyeball.
+
+import { memberTeams } from './memberTeams.js';
+
+export const FTE_HOURS = 40;
+
+// Weekly-equivalent multipliers. Daily meetings assume a 5-day work week; the
+// scheduler already excludes weekends from capacity, so 5× is correct.
+const FREQ_MULT = { daily: 5, weekly: 1, biweekly: 0.5, monthly: 12 / 52 };
+
+export function meetingWeeklyHours(meeting) {
+  if (!meeting || !meeting.hours) return 0;
+  const mult = FREQ_MULT[meeting.frequency || 'weekly'] ?? 1;
+  return Math.max(0, meeting.hours * mult);
+}
+
+export function sumMeetingHours(meetings) {
+  if (!Array.isArray(meetings)) return 0;
+  return meetings.reduce((s, m) => s + meetingWeeklyHours(m), 0);
+}
+
+// Collect the full set of meetings that apply to a member, in order:
+//   1. Team-level plans (team.meetingPlanIds) — inherited by every team member
+//   2. Member-level plans (member.meetingPlanIds) — additional individual plans
+//   3. Member.meetings — one-off individual meetings
+// Each plan meeting carries `_plan` / `_planName` for the UI breakdown.
+//
+// Pass `ctx = { plans, teams }` (both optional). Accepts also the legacy
+// single-argument form `resolveMemberMeetings(member, allPlans)` so older
+// call-sites keep working.
+export function resolveMemberMeetings(member, ctxOrPlans) {
+  if (!member) return [];
+  const ctx = Array.isArray(ctxOrPlans) ? { plans: ctxOrPlans, teams: [] } : (ctxOrPlans || {});
+  const plans = Array.isArray(ctx.plans) ? ctx.plans : [];
+  const teams = Array.isArray(ctx.teams) ? ctx.teams : [];
+  const planById = Object.fromEntries(plans.map(p => [p.id, p]));
+  const seenPlanIds = new Set();
+  const emitPlan = (pid, out, via) => {
+    if (seenPlanIds.has(pid)) return;
+    const plan = planById[pid];
+    if (!plan || !Array.isArray(plan.meetings)) return;
+    seenPlanIds.add(pid);
+    plan.meetings.forEach(m => out.push({ ...m, _plan: plan.id, _planName: plan.name, _planSource: via }));
+  };
+  const out = [];
+  // Team-inherited plans — from every team the member sits in (a person in
+  // two teams attends both stand-ups). Shared plans are emitted once.
+  memberTeams(member).forEach(tid => {
+    const team = teams.find(t => t.id === tid);
+    (team?.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'team'));
+  });
+  // Member-attached plans
+  (member.meetingPlanIds || []).forEach(pid => emitPlan(pid, out, 'member'));
+  // Individual ad-hoc meetings
+  (Array.isArray(member.meetings) ? member.meetings : []).forEach(m => out.push(m));
+  return out;
+}
+
+// Baseline hours: derived-mode → weeklyHours (default 40); manual-mode →
+// cap × 40 so a part-time member with cap=0.5 starts from 20h. Meetings
+// (team plans + member plans + individual) reduce that baseline regardless
+// of capMode — team-inherited plans always count, matching the user's
+// expectation that "Team-Plans gelten egal auf was die Ressource steht".
+// Resolve a member's effective profile for a given calendar date. Honours
+// `capChanges` and `meetingChanges` arrays: each entry { from: 'YYYY-MM-DD',
+// ... } overrides the prior value from `from` onward. Both arrays must be
+// sorted ascending by `from`; helper picks the latest entry whose `from` is
+// <= the target date.
+//
+// Returns a shallow-cloned member with overridden `cap` / `weeklyHours` /
+// `meetings` (the fields deriveCap reads). Other fields are preserved so
+// downstream callers (e.g. scheduling-window helpers) don't lose context.
+// A change's day as LOCAL midnight. `new Date('2027-03-01')` is midnight UTC,
+// which east of Greenwich is an hour or two into the day — so a change dated
+// on a Monday was not yet in effect at that Monday's own midnight, and the
+// week that starts there was scheduled a day's worth at the old capacity.
+function dayStart(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(day);
+}
+
+export function memberAtDate(member, date) {
+  if (!member) return member;
+  const target = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(+target)) return member;
+  let m = member;
+  const capChanges = Array.isArray(member.capChanges) ? member.capChanges : [];
+  if (capChanges.length) {
+    let active = null;
+    for (const c of capChanges) {
+      if (!c?.from) continue;
+      const d = dayStart(c.from);
+      if (Number.isNaN(+d) || d > target) continue;
+      if (!active || dayStart(active.from) < d) active = c;
+    }
+    if (active) {
+      m = { ...m };
+      if (typeof active.cap === 'number') m.cap = active.cap;
+      if (typeof active.weeklyHours === 'number') m.weeklyHours = active.weeklyHours;
+    }
+  }
+  const meetingChanges = Array.isArray(member.meetingChanges) ? member.meetingChanges : [];
+  if (meetingChanges.length) {
+    let active = null;
+    for (const c of meetingChanges) {
+      if (!c?.from) continue;
+      const d = dayStart(c.from);
+      if (Number.isNaN(+d) || d > target) continue;
+      if (!active || dayStart(active.from) < d) active = c;
+    }
+    if (active) {
+      m = { ...m };
+      if (Array.isArray(active.meetings)) m.meetings = active.meetings;
+      if (Array.isArray(active.meetingPlanIds)) m.meetingPlanIds = active.meetingPlanIds;
+    }
+  }
+  return m;
+}
+
+export function deriveCap(member, ctxOrPlans) {
+  if (!member) return 1;
+  const wh = member.capMode === 'derived'
+    ? (typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS)
+    : (typeof member.cap === 'number' ? Math.max(0, member.cap) * FTE_HOURS : FTE_HOURS);
+  const allMeetings = resolveMemberMeetings(member, ctxOrPlans);
+  const meetingHours = sumMeetingHours(allMeetings);
+  const avail = Math.max(0, wh - meetingHours);
+  return avail / FTE_HOURS;
+}
+
+// Human-readable breakdown for tooltips / insights.
+export function capBreakdown(member, ctxOrPlans) {
+  if (!member || member.capMode !== 'derived') {
+    const pct = Math.round((member?.cap ?? 1) * 100);
+    return [{ kind: 'manual', text: `Manual: ${pct} %` }];
+  }
+  const wh = typeof member.weeklyHours === 'number' ? member.weeklyHours : FTE_HOURS;
+  const lines = [{ kind: 'base', text: `${wh} h / Woche` }];
+  const all = resolveMemberMeetings(member, ctxOrPlans);
+  for (const m of all) {
+    const weeklyH = meetingWeeklyHours(m);
+    if (weeklyH <= 0) continue;
+    const src = m._planName ? ` [Plan: ${m._planName}${m._planSource === 'team' ? ' · via Team' : ''}]` : '';
+    const freqLabel = m.frequency && m.frequency !== 'weekly' ? ` (${m.frequency})` : '';
+    lines.push({ kind: 'meeting', text: `− ${weeklyH.toFixed(2)} h  ${m.name || 'Meeting'}${freqLabel}${src}` });
+  }
+  const avail = Math.max(0, wh - sumMeetingHours(all));
+  const pct = Math.round(avail / FTE_HOURS * 100);
+  lines.push({ kind: 'result', text: `= ${avail.toFixed(2)} h  →  ${pct} % FTE` });
+  return lines;
+}
+
+// Whether a member is on the team on a given day. `start`/`end` are inclusive
+// and either may be absent, which reads as "always" on that side.
+//
+// A headcount that ignores this counts people who left months ago, which is
+// how "12 Personen" ended up on an overview beside a capacity figure that
+// nine of them contribute to.
+export function isOnboard(member, on = new Date()) {
+  if (!member) return false;
+  const day = on instanceof Date ? on : new Date(on);
+  if (member.start && new Date(member.start + 'T00:00:00') > day) return false;
+  if (member.end && new Date(member.end + 'T23:59:59') < day) return false;
+  return true;
+}
+
+export function onboardCount(members, on = new Date()) {
+  return (members || []).filter(m => isOnboard(m, on)).length;
+}
+
+// Members whose week is used up before any project work: their meetings take
+// all of their hours, so `deriveCap` is zero. The scheduler no longer picks
+// them for open work, but work assigned to them by name still lands on them
+// and stretches to the end of the horizon. Reported with those tasks so the
+// plan says so instead of quietly showing a bar that ends years away.
+export function membersWithoutCapacity(members, scheduled, ctxOrPlans) {
+  const rows = (scheduled || []).filter(r => r.personId && !r.unscheduled && r.status !== 'done');
+  return (members || []).flatMap(member => {
+    const taskIds = rows
+      .filter(r => r.personId === member.id
+        && deriveCap(memberAtDate(member, r.startD || new Date()), ctxOrPlans) <= 0)
+      .map(r => r.treeId || r.id);
+    return taskIds.length ? [{ member, taskIds: [...new Set(taskIds)] }] : [];
+  });
+}

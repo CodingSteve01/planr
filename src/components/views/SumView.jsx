@@ -1,0 +1,736 @@
+import { useMemo, useState, memo } from "react";
+import { Icon } from '../shared/Icon.jsx';
+import { TBadge } from '../shared/Badges.jsx';
+import { leafNodes, leafProgress, resolveToLeafIds, scheduleEffort, treeStats } from '../../utils/scheduler.js';
+import { iso, diffDays } from '../../utils/date.js';
+import { horizonLabel } from '../../utils/horizon.js';
+import { GT_ICON, GL, CONF_COLOR } from '../../constants.js';
+import { onboardCount } from '../../utils/capacity.js';
+import { deadlineScopedScheduledItems } from '../../utils/deadlines.js';
+import { deadlineStatus, summarizeNodeTimeline } from '../../utils/timeline.js';
+import { waitsLine } from '../shared/ProjectWaits.jsx';
+import { useT } from '../../i18n.jsx';
+import { Roadmap } from '../shared/Roadmap.jsx';
+import { SearchSelect } from '../shared/SearchSelect.jsx';
+import { stripArchivedRoots } from '../../utils/archive.js';
+import { TimetableView } from './TimetableView.jsx';
+import { stateAsOf } from '../../utils/history.js';
+import { ViewFilters } from '../shared/ViewFilters.jsx';
+import { aggregateSollIst } from '../../utils/sollIst.js';
+// Shared with the HTML report and every PDF export — one formula, one format,
+// so screen and export can never print different percentages.
+import { MIN_VISIBLE_PROGRESS_DELTA_PCT, aggregateProgressPct, deliveredEffort, effortWeightedProgress, progressDeltaLabel, progressPctLabel, totalEffort } from '../../utils/progress.js';
+
+// The three focus types, and then everything else.
+//
+// `goals` is roots WITH a `type`, and this section listed only those — so a
+// project nobody had labelled a goal, a pain point or a deadline was not in
+// the overview and not in the PDF either. On a real plan that was five of
+// eight, the largest running project among them. A focus type is an
+// annotation on a project, not the thing that makes it exist.
+const ORDER = ['goal', 'painpoint', 'deadline', ''];
+const BC = { goal: 'var(--ac)', painpoint: 'var(--am)', deadline: 'var(--re)' };
+
+function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths, stats, confidence = {}, historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, scenarioShifts = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays, onNavigate, onOpenItem, onExportTodo, projectWaitsOf = null }) {
+  const { t, lang } = useT();
+  const isDe = lang === 'de';
+  // Archive is a *display* filter: the header percentage, PT and leaf counts
+  // below still read the full tree, so archiving a finished project never
+  // changes what the project has achieved. Only the map, the Fahrplan and the
+  // goal cards drop the archived lines.
+  const archivedRootIds = (!showArchived && archive?.rootIds?.size) ? archive.rootIds : null;
+  const activeTree = useMemo(
+    () => (archivedRootIds ? stripArchivedRoots(tree, archivedRootIds) : tree),
+    [tree, archivedRootIds],
+  );
+  const activeGoals = useMemo(
+    () => (archivedRootIds ? goals.filter(goal => !archivedRootIds.has(goal.id)) : goals),
+    [goals, archivedRootIds],
+  );
+  const lvs = leafNodes(tree);
+  const done = lvs.filter(r => r.status === 'done').length;
+  const wip = lvs.filter(r => r.status === 'wip').length;
+  const open = lvs.filter(r => r.status === 'open').length;
+  const onboard = useMemo(() => onboardCount(members), [members]);
+  const tR = useMemo(() => totalEffort(lvs), [lvs]);
+  // Absolute realistic PT delivered. The percentage above drops when new
+  // scope lands; this number only ever goes up as work gets done, so users
+  // can see real progress even while the % is being diluted by scope growth.
+  const doneR = useMemo(() => deliveredEffort(lvs), [lvs]);
+  const prog = useMemo(() => aggregateProgressPct(lvs), [lvs]);
+  const latE = scheduled.length > 0 ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+  const byT = {}; scheduled.forEach(s => { if (!byT[s.team]) byT[s.team] = { t: 0, pt: 0 }; byT[s.team].t++; byT[s.team].pt += s.effort; });
+
+  // Sprint horizon (next-N-days) — for the "Up next" planning view.
+  // Distinct from the project-wide horizon filter in ViewFilters; this is a local control
+  // for the upcoming-sprint table.
+  const [sprintDays, setSprintDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
+  const setHd = v => { setSprintDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
+  const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + sprintDays); return d; }, [sprintDays]);
+  const now = new Date();
+  const h1Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } }, []);
+  const h2Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h2_weeks') || 18; } catch { return 18; } }, []);
+  const h1Date = useMemo(() => { const date = new Date(); date.setDate(date.getDate() + h1Weeks * 7); return date; }, [h1Weeks]);
+  const h2Date = useMemo(() => { const date = new Date(); date.setDate(date.getDate() + h2Weeks * 7); return date; }, [h2Weeks]);
+  // Collect: scheduled tasks that are not done and start within the horizon (or are already in progress)
+  const upcoming = useMemo(() => scheduled
+    .filter(s => s.status !== 'done' && s.startD && s.startD <= sprintEnd)
+    .sort((a, b) => (a.startD - b.startD) || (a.prio || 4) - (b.prio || 4))
+  , [scheduled, sprintEnd]);
+  // Group by person (with NO_PERSON bucket per team)
+  const sprintGroups = useMemo(() => {
+    const groups = new Map();
+    upcoming.forEach(s => {
+      const key = s.personId || `team:${s.team || 'none'}`;
+      if (!groups.has(key)) {
+        const tName = teams.find(tm => tm.id === s.team)?.name || s.team || t('noTeam');
+        groups.set(key, { key, label: s.personId ? s.person : `${tName} ${t('pc.unassigned')}`, isPerson: !!s.personId, color: s.personId ? 'var(--ac)' : 'var(--tx3)', items: [] });
+      }
+      groups.get(key).items.push(s);
+    });
+    return [...groups.values()].sort((a, b) => a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1);
+  }, [upcoming, teams]);
+  const iMap = useMemo(() => Object.fromEntries(tree.map(r => [r.id, r])), [tree]);
+  const timelineById = useMemo(
+    () => Object.fromEntries(tree.map(node => [node.id, summarizeNodeTimeline(tree, scheduled, node)])),
+    [tree, scheduled],
+  );
+
+  // Every root, not only the annotated ones. Dropped projects stay out: the
+  // decision not to do something is not a focus.
+  const untypedRoots = useMemo(() => tree.filter(node => (
+    !String(node.id).includes('.')
+    && !node.type
+    && !node.dropped
+    && !(archivedRootIds && archivedRootIds.has(node.id))
+  )), [tree, archivedRootIds]);
+  const grouped = ORDER
+    .map(tp => ({ type: tp, items: tp ? activeGoals.filter(g => g.type === tp) : untypedRoots }))
+    .filter(g => g.items.length);
+
+  // `sinceDays`, `persistSince`, `sinceDate` now flow in from App.jsx so the
+  // diff state is shared across all views (Roadmap, Tree, Timetable, Gantt,
+  // Network). The picker UI lives in RoadmapSwitcher / TreeView toolbars.
+
+  // Effort-weighted overall progress AT the cutoff. Mirrors the live
+  // Subway-map train semantics: partial progress counts by realistic effort,
+  // but a non-done task is capped below 100%. New leaves count as 0%.
+  const pastOverallProg = useMemo(() => {
+    if (!sinceDate) return null;
+    const past = diff?.pastLeafState || (historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null);
+    if (!past) return null;
+    // Same weighting as the live figure, only the per-leaf progress lookup
+    // swaps to the historical state.
+    return effortWeightedProgress(lvs, lf => {
+      const p = past.get(lf.id);
+      if (!p) return 0;
+      if (p.status === 'done') return 100;
+      return Math.min(99, Math.max(0, p.progress || 0));
+    }).pct;
+  }, [diff?.pastLeafState, historyEvents, sinceDate, lvs]);
+  const overallDelta = pastOverallProg != null ? prog - pastOverallProg : null;
+  // Scope delta — PT added/removed since the diff cutoff. We only know which
+  // leaves existed at the cutoff (history tracks add/remove + status), not
+  // what their estimates were back then, so this approximates by summing
+  // *current* effort for leaves that did exist at the cutoff and comparing
+  // to the current total. Net result: shows scope growth from new items and
+  // (with sign flip) work removed. Estimate-only edits silently vanish.
+  const scopeDelta = useMemo(() => {
+    if (!sinceDate) return null;
+    const past = diff?.pastLeafState || (historyEvents.length ? stateAsOf(historyEvents, sinceDate) : null);
+    if (!past) return null;
+    let pastTotal = 0;
+    for (const lf of lvs) {
+      if (past.has(lf.id)) pastTotal += scheduleEffort(lf) || 0;
+    }
+    return tR - pastTotal;
+  }, [diff?.pastLeafState, historyEvents, sinceDate, lvs, tR]);
+  const futureOverallProg = useMemo(() => {
+    if (!futureProgressByRootId) return null;
+    const roots = tree.filter(r => !r.id.includes('.'));
+    let total = 0, progressed = 0;
+    for (const root of roots) {
+      const leaves = lvs.filter(lf => lf.id === root.id || lf.id.startsWith(root.id + '.'));
+      const effort = leaves.reduce((sum, lf) => sum + (scheduleEffort(lf) || 1), 0);
+      if (effort <= 0) continue;
+      total += effort;
+      const rootProgress = Object.prototype.hasOwnProperty.call(futureProgressByRootId, root.id)
+        ? futureProgressByRootId[root.id] * 100
+        : (stats?.[root.id]?._progress || 0);
+      progressed += effort * Math.max(0, Math.min(100, rootProgress)) / 100;
+    }
+    return total > 0 ? (progressed / total) * 100 : null;
+  }, [futureProgressByRootId, lvs, stats, tree]);
+  const futureOverallDelta = futureOverallProg != null ? futureOverallProg - prog : null;
+  const futureOverallDeltaLabel = futureOverallDelta > MIN_VISIBLE_PROGRESS_DELTA_PCT
+    ? progressDeltaLabel(futureOverallDelta)
+    : '';
+  const futureOverallTip = futureOverallProg != null
+    ? t('s.futureOverallTip', progressPctLabel(prog), progressPctLabel(futureOverallProg)) + (futureOverallDeltaLabel ? ` (${futureOverallDeltaLabel})` : '')
+    : '';
+  const currentPct = Math.max(0, Math.min(100, prog));
+  const pastPct = pastOverallProg != null ? Math.max(0, Math.min(100, pastOverallProg)) : null;
+  const futurePct = futureOverallProg != null ? Math.max(0, Math.min(100, futureOverallProg)) : null;
+  const showPastStripe = pastPct != null && currentPct - pastPct > MIN_VISIBLE_PROGRESS_DELTA_PCT;
+  const showFutureStripe = futurePct != null && futurePct - currentPct > MIN_VISIBLE_PROGRESS_DELTA_PCT;
+
+  return <div style={{ maxWidth: 960, margin: '0 auto' }}>
+    {/* One figure carries the view. It used to be a 28px number at the head
+        of a row of eight chips, all the same size and each with its own
+        colour, so nothing said which of them was the answer. Everything else
+        ranks under it: the forecast beside it because it is the same
+        quantity, the rest in cards below because they are different ones. */}
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 28, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span data-testid="overview-progress"
+          style={{ fontFamily: 'var(--font-display)', fontSize: 58, lineHeight: 1, letterSpacing: '-.015em', color: 'var(--tx)' }}>
+          {progressPctLabel(prog)}<span style={{ fontSize: 28, color: 'var(--tx3)', marginLeft: 2 }}>%</span>
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('s.progressCaption', Math.round(tR))}</span>
+      </div>
+
+      {futureOverallProg != null && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+            <span data-testid="overview-plan" data-htip={futureOverallTip}
+              style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500, color: 'var(--tx2)', cursor: 'help' }}>
+              {progressPctLabel(futureOverallProg)}%
+            </span>
+            {futureOverallDeltaLabel && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--st-done)', background: 'var(--st-done-soft)', borderRadius: 3, padding: '1px 5px' }}>
+                {futureOverallDeltaLabel}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('s.planLabel')}</span>
+        </div>
+      )}
+
+      {overallDelta != null && Math.abs(overallDelta) >= MIN_VISIBLE_PROGRESS_DELTA_PCT && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <span data-htip={t('diff.tipPastNow', progressPctLabel(pastOverallProg), iso(sinceDate), progressPctLabel(prog))}
+            style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500,
+              color: overallDelta >= 0 ? 'var(--st-done)' : 'var(--st-risk)', cursor: 'help' }}>
+            {progressDeltaLabel(overallDelta)}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+        </div>
+      )}
+      {overallDelta != null && Math.abs(overallDelta) < MIN_VISIBLE_PROGRESS_DELTA_PCT && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6 }}>
+          <span data-htip={t('diff.noMovement')}
+            style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 500, color: 'var(--tx3)', cursor: 'help' }}>±0%</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('diff.since')} {iso(sinceDate)}</span>
+        </div>
+      )}
+    </div>
+    <div className="prog-wrap" style={{ height: 8, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
+      <div className="prog-fill" style={{ width: `${currentPct}%`, position: 'absolute', inset: '0 auto 0 0', zIndex: 1 }} />
+      {showPastStripe && (
+        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
+          style={{
+            position: 'absolute',
+            left: `${pastPct}%`,
+            width: `${currentPct - pastPct}%`,
+            top: 0,
+            bottom: 0,
+            zIndex: 2,
+            background: 'repeating-linear-gradient(115deg, var(--diff) 0 7px, color-mix(in srgb, var(--diff) 45%, var(--bg2)) 7px 13px)',
+            opacity: 0.95,
+            cursor: 'help',
+          }} />
+      )}
+      {showFutureStripe && (
+        <div data-htip={futureOverallTip}
+          style={{
+            position: 'absolute',
+            left: `${currentPct}%`,
+            width: `${futurePct - currentPct}%`,
+            top: 0,
+            bottom: 0,
+            zIndex: 2,
+            background: 'repeating-linear-gradient(115deg, var(--ac) 0 7px, color-mix(in srgb, var(--ac) 45%, var(--bg2)) 7px 13px)',
+            opacity: 0.95,
+            cursor: 'help',
+          }} />
+      )}
+      {/* Past-progress marker: thin vertical line on the bar showing where
+          progress sat at the cutoff. Makes the gained delta tangible. */}
+      {showPastStripe && (
+        <div data-htip={t('diff.tipPastNow', progressPctLabel(pastPct), iso(sinceDate), progressPctLabel(currentPct))}
+          style={{ position: 'absolute', left: `${pastPct}%`, top: -2, bottom: -2,
+            width: 2, background: 'var(--diff)', opacity: 0.9, cursor: 'help', zIndex: 3 }} />
+      )}
+    </div>
+
+    {/* The figures that are NOT the headline: different quantities, so they
+        get their own row of cards rather than a line of chips beside it.
+        Label above, value below, everything in mono so the column of numbers
+        scans down. */}
+    <div className="sum-kpis">
+      <div className="sum-kpi" data-htip={t('s.donePtTip', Math.round(doneR), Math.round(tR))}>
+        <span className="sum-kpi-l">{t('s.kpiDelivered')}</span>
+        <span className="sum-kpi-v">{Math.round(doneR)} PT</span>
+      </div>
+      <div className="sum-kpi">
+        <span className="sum-kpi-l">{t('s.kpiOpen')}</span>
+        <span className="sum-kpi-v">{Math.max(0, Math.round(tR - doneR))} PT</span>
+      </div>
+      <div className="sum-kpi" data-htip={t('s.doneOf', done, wip, open, lvs.length)}>
+        <span className="sum-kpi-l">{t('s.kpiItems')}</span>
+        <span className="sum-kpi-v">{done}<span className="sum-kpi-sub">/{lvs.length}</span></span>
+      </div>
+      {latE && <div className="sum-kpi" data-htip={iso(latE)}>
+        <span className="sum-kpi-l">{t('s.kpiEnd')}</span>
+        <span className="sum-kpi-v sm">{horizonLabel(latE, null, isDe, now)}</span>
+      </div>}
+      {scopeDelta != null && Math.abs(scopeDelta) >= 1 && (
+        <div className="sum-kpi" data-htip={t('s.scopeDeltaTip')}>
+          <span className="sum-kpi-l">{t('s.kpiScope')}</span>
+          <span className="sum-kpi-v" style={{ color: scopeDelta >= 0 ? 'var(--st-wip)' : 'var(--st-done)' }}>
+            {(scopeDelta >= 0 ? '+' : '') + Math.round(scopeDelta)} PT
+          </span>
+        </div>
+      )}
+    </div>
+
+    {/* Roadmap + Fahrplan — switchable sub-views sharing the same data. */}
+    <RoadmapSwitcher tree={activeTree} scheduled={scheduled} stats={stats} goals={activeGoals} scenarioShifts={scenarioShifts}
+      teams={teams} members={members} onOpenItem={onOpenItem}
+      historyEvents={historyEvents}
+      archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+      archiveDays={archiveDays} setArchiveDays={setArchiveDays}
+      sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+      diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
+      horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
+      horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+      futureProgressByRootId={futureProgressByRootId}
+      workDays={workDays} holidayIso={holidayIso}
+      roadmapAssignment={roadmapAssignment} onAssignmentChange={onAssignmentChange} />
+
+    {/* Planning confidence */}
+    {(() => {
+      const cc = { committed: 0, estimated: 0, exploratory: 0 };
+      const ccPt = { committed: 0, estimated: 0, exploratory: 0 };
+      lvs.filter(r => r.status !== 'done').forEach(r => {
+        const c = confidence[r.id] || 'committed';
+        cc[c]++;
+        // REMAINING effort, matching the exports: counting the whole of a
+        // half-finished item made the three tiers sum past the open total.
+        ccPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
+      });
+      const total = cc.committed + cc.estimated + cc.exploratory;
+      const totalPtOpen = ccPt.committed + ccPt.estimated + ccPt.exploratory;
+      if (!total || !totalPtOpen) return null;
+      return <div style={{ background: 'var(--bg2)', border: '1px solid var(--b)', borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)' }}>{t('s.planConfidence')}</span>
+          <span style={{ fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
+        </div>
+        {/* Split by EFFORT, not item count. A 45 PT rebuild and a 1 PT typo fix
+            counted the same here, so the bar could sit green while most of the
+            work in it was unscoped — the same reason the progress figure is
+            effort-weighted. The ●/◐/○ marks are gone: the swatch says which
+            tier a row is, and the glyph said it a second time. */}
+        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 8, background: 'var(--bg4)' }}>
+          {ccPt.committed > 0 && <div style={{ width: `${ccPt.committed / totalPtOpen * 100}%`, background: CONF_COLOR.committed, transition: 'width .3s' }} />}
+          {ccPt.estimated > 0 && <div style={{ width: `${ccPt.estimated / totalPtOpen * 100}%`, background: CONF_COLOR.estimated, transition: 'width .3s' }} />}
+          {ccPt.exploratory > 0 && <div style={{ width: `${ccPt.exploratory / totalPtOpen * 100}%`, background: CONF_COLOR.exploratory, transition: 'width .3s' }} />}
+        </div>
+        <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--tx2)', flexWrap: 'wrap' }}>
+          {[['committed', cc.committed, ccPt.committed], ['estimated', cc.estimated, ccPt.estimated], ['exploratory', cc.exploratory, ccPt.exploratory]]
+            .map(([key, count, pt]) => <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: CONF_COLOR[key], flexShrink: 0 }} />
+              {t('conf.' + key)}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>
+                {pt > 0 ? Math.round(pt) : '?'} PT · {count}
+              </span>
+            </span>)}
+        </div>
+      </div>;
+    })()}
+
+    {/* Pulse Check — actionable warnings instead of static horizon explainer */}
+    {(() => {
+      const notDone = scheduled.filter(s => s.status !== 'done');
+      const inH1 = notDone.filter(s => s.startD && s.startD <= h1Date);
+      const inH2 = notDone.filter(s => s.startD && s.startD > h1Date && s.startD <= h2Date);
+      const h1NoAssign = inH1.filter(s => !s.personId);
+      const h1NoEstimate = inH1.filter(s => { const n = iMap[s.id]; return !n?.best || n.best === 0; });
+      const h2Exploratory = inH2.filter(s => confidence[s.id] === 'exploratory');
+      const blockedNoOwner = notDone.filter(s => {
+        if (s.personId) return false;
+        const n = iMap[s.id];
+        const deps = n?.deps || [];
+        return deps.some(d => { const dt = tree.find(r => r.id === d); return dt && dt.status !== 'done'; });
+      });
+      // Completed deadlines never count as a pulse-check warning — the work is
+      // delivered, so there is no action left to take.
+      const deadlinesAtRisk = goals.filter(g => g.type === 'deadline'
+        && deadlineStatus(tree, scheduled, g, timelineById[g.id])?.isLate);
+      const checks = [
+        h1NoAssign.length > 0 && { warn: true, text: t('pc.h1NoPerson', h1NoAssign.length), items: h1NoAssign },
+        h1NoEstimate.length > 0 && { warn: true, text: t('pc.h1NoEstimate', h1NoEstimate.length), items: h1NoEstimate },
+        h2Exploratory.length > 0 && { warn: true, text: t('pc.h2Exploratory', h2Exploratory.length), items: h2Exploratory },
+        blockedNoOwner.length > 0 && { warn: true, text: t('pc.blockedNoPerson', blockedNoOwner.length), items: blockedNoOwner },
+        deadlinesAtRisk.length > 0 && { warn: true, text: t('pc.deadlinesAtRisk', deadlinesAtRisk.length), items: deadlinesAtRisk },
+      ].filter(Boolean);
+      const allClear = checks.length === 0;
+
+      return <div style={{ background: 'var(--bg2)', border: `1px solid ${allClear ? 'var(--gr)' : 'var(--am)'}`, borderRadius: 'var(--r)', padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: checks.length ? 10 : 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: allClear ? 'var(--gr)' : 'var(--am)' }}>{t('pc.title')}</span>
+          <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+            <span style={{ color: 'var(--gr)' }}>H1 {iso(h1Date)}</span>
+            <span style={{ color: 'var(--am)' }}>H2 {iso(h2Date)}</span>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', cursor: 'pointer' }} onClick={() => onNavigate?.(null, 'plan')}>{t('s.openPlanReview')}</span>
+        </div>
+        {allClear && <div style={{ fontSize: 12, color: 'var(--gr)' }}>{t('pc.allClear')}</div>}
+        {checks.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+          <span style={{ color: 'var(--am)', flexShrink: 0 }}>!</span>
+          <span style={{ color: 'var(--tx)' }}>{c.text}</span>
+          {c.items?.[0]?.id && <span style={{ fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)', cursor: 'pointer' }}
+            onClick={() => onNavigate?.(c.items[0].id, 'tree')}>→ {c.items[0].id}</span>}
+        </div>)}
+      </div>;
+    })()}
+
+    {/* Team effort - compact */}
+    <div className="section-h">{t('s.resources')}</div>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+      {/* People on the team TODAY. The raw list keeps everyone who ever was,
+          so this used to count leavers beside a capacity figure they no longer
+          contribute to. Departed members are named underneath rather than
+          dropped silently. */}
+      <div className="sum-card" style={{ minWidth: 80 }}>
+        <div className="sum-v">{onboard}</div>
+        <div className="sum-l">{t('s.people')}</div>
+        {members.length > onboard && <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>
+          {t('s.peopleLeft', members.length - onboard)}
+        </div>}
+      </div>
+      <div className="sum-card" style={{ minWidth: 80 }}><div className="sum-v" style={{ color: 'var(--gr)' }}>{tR.toFixed(0)}</div><div className="sum-l">{t('s.totalPt')}</div></div>
+      {Object.entries(byT).sort().map(([tk, d]) => { const team = teams.find(x => x.id === tk);
+        return <div key={tk} className="sum-card" style={{ minWidth: 100 }}>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 2 }}>{team?.name || tk}</div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 600, color: team?.color || 'var(--tx)' }}>{d.pt.toFixed(0)} PT</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{d.t} {t('s.tasks')}</div>
+        </div>; })}
+    </div>
+
+    {/* Focus */}
+    <div className="section-h" style={{ marginTop: 0 }}>{t('s.focus')}</div>
+    {grouped.map(g => <div key={g.type}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
+      {g.items.map(dl => {
+        const gp = goalPaths?.[dl.id];
+        const st = stats?.[dl.id];
+        const timeline = timelineById[dl.id];
+        const linked = dl.type === 'deadline'
+          ? deadlineScopedScheduledItems(tree, scheduled, dl.id)
+          : scheduled.filter(s => s.id.startsWith(dl.id + '.'));
+        // Shared with Deadlines, Gantt, Subway-Map, report and PDFs — finished
+        // work reports done/doneLate instead of an "at risk" alarm.
+        const dlState = deadlineStatus(tree, scheduled, dl, timeline);
+        const maxEnd = dlState?.end
+          || (dl.type !== 'deadline' && linked.length > 0 ? linked.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null);
+        const dlDate = dl.date ? new Date(dl.date) : null;
+        const isLate = !!dlState?.isLate;
+        const daysLeft = dlDate ? diffDays(new Date(), dlDate) : null;
+        // Count the goal's OWN leaf work packages (concrete tasks), matching
+        // the PDF report (report.js childLeaves). Earlier this used gp.needed,
+        // which folds in transitive dependencies from *other* goals and so
+        // inflated the denominator beyond this goal's own scope. leafNodes is
+        // derived from the live tree, so newly added tasks bump the count
+        // automatically.
+        const goalLeaves = lvs.filter(l => l.id === dl.id || l.id.startsWith(dl.id + '.'));
+        const gpTotal = goalLeaves.length;
+        const gpDone = goalLeaves.filter(l => l.status === 'done').length;
+        // Effort-weighted (utils/progress.js) — the same figure the Subway-Map
+        // train sits at and the PDF prints. The N/M next to it stays a task
+        // count; the two answer different questions and will differ.
+        const gpProg = aggregateProgressPct(goalLeaves);
+        const borderC = dl.type === 'painpoint' ? 'var(--am)' : isLate ? 'var(--re)' : BC[dl.type] || 'var(--b)';
+
+        return <div key={dl.id} style={{ background: 'var(--bg2)', border: `1px solid ${isLate && dl.type === 'deadline' ? 'var(--re)' : 'var(--b)'}`, borderLeft: `3px solid ${borderC}`, borderRadius: 'var(--r)', padding: '14px 16px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[dl.type] || 'folder'} size={13} /></span>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{dl.name}</span>
+            {dlDate && <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)' }}>{dl.date}</span>}
+            {dlDate && daysLeft >= 0 && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('pc.dLeft', daysLeft)}</span>}
+            <span style={{ marginLeft: 'auto' }}>
+              {dl.type === 'deadline' && (
+                dlState?.state === 'atRisk' ? <span className="badge bc">{t('s.atRisk')}</span>
+                  : dlState?.state === 'doneLate' ? <span className="badge bh" data-htip={t('s.deadlineDoneLateTip', dl.date)}>{t('s.deadlineDoneLate')}</span>
+                    : dlState?.state === 'done' ? <span className="badge bd" data-htip={t('s.deadlineDoneTip')}>{t('s.deadlineDone')}</span>
+                      : maxEnd ? <span className="badge bd">{t('s.onTrack')}</span> : null
+              )}
+              {dl.type !== 'deadline' && linked.length > 0 && <span className="badge bo">{linked.length} {t('s.linked')}</span>}
+            </span>
+          </div>
+          {isLate && projectWaitsOf && (() => {
+            const line = waitsLine(projectWaitsOf(dl.id), t);
+            return line ? <div className="pw-waits-line" data-pw-line={dl.id}>{line}</div> : null;
+          })()}
+          {dl.description && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 8 }}>{dl.description}</div>}
+          {timeline?.period?.end && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--tx3)', marginBottom: 8, fontFamily: 'var(--mono)' }}>
+              <span data-htip={iso(timeline.period.start) + ' → ' + iso(timeline.period.end)}>{t('ins.period')}: {horizonLabel(timeline.period.start, null, isDe, now)} → {horizonLabel(timeline.period.end, null, isDe, now)}</span>
+              {timeline.deadline && <span data-htip={iso(timeline.deadline.start) + ' → ' + iso(timeline.deadline.end)}>{t('qe.affectsDeadline')}: {horizonLabel(timeline.deadline.start, null, isDe, now)} → {horizonLabel(timeline.deadline.end, null, isDe, now)}</span>}
+            </div>
+          )}
+          {/* The progress block hung off goalPaths, which is only built for
+              TYPED roots — so an ordinary project showed its name and a date
+              and nothing else, while a goal beside it showed a bar, a count
+              and its critical items. The figures never needed goalPaths:
+              goalLeaves is derived from the live tree either way. Only the
+              critical-item chips do. */}
+          {gpTotal > 0 && <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--tx3)', marginBottom: 3 }}>
+              <span>{t('s.tasksDone', gpDone + '/' + gpTotal, gp?.critical.size || 0)}</span>
+              <span data-htip={t('s.progressTip', progressPctLabel(gpProg))}>{progressPctLabel(gpProg)}%</span>
+            </div>
+            {/* Delivered work is green. This bar was amber for every project
+                that was not flagged critical, which reads as a warning about
+                having made progress; the severity already has the left edge
+                of the card. */}
+            <div className="prog-wrap"><div className="prog-fill" style={{ width: `${gpProg}%`, background: 'var(--st-done)' }} /></div>
+            {gp?.critical.size > 0 && <div style={{ marginTop: 6, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              {[...gp.critical].slice(0, 6).map(id => { const r = tree.find(x => x.id === id); return <span key={id} style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--re)', background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, cursor: 'pointer' }} onClick={() => onNavigate?.(id, 'tree')} data-htip={r?.name}>{id}</span>; })}
+              {gp.critical.size > 6 && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>+{gp.critical.size - 6}</span>}
+            </div>}
+          </>}
+        </div>;
+      })}
+    </div>)}
+
+    {/* Project breakdown */}
+    {tree.filter(r => r.lvl === 1).length > 0 && <>
+      <div className="section-h">{t('s.topItems')}</div>
+      <table className="tree-tbl">
+        <thead><tr><th>{t('col.item')}</th><th className="r">{t('s.effort')}</th><th className="r">{t('s.progress')}</th><th>{t('s.projected')}</th></tr></thead>
+        <tbody>{tree.filter(r => r.lvl === 1).map(r => { const s = stats[r.id] || r;
+          const timeline = timelineById[r.id];
+          const leaves = lvs.filter(c => c.id === r.id || c.id.startsWith(r.id + '.'));
+          const done = leaves.filter(l => l.status === 'done').length;
+          const prog = aggregateProgressPct(leaves);
+          return <tr key={r.id} className="tr l1" style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(r.id, 'tree')}>
+            <td><span className="tid">{r.id}</span><span style={{ marginLeft: 8 }}>{r.name}</span></td>
+            <td className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{s._r > 0 ? s._r.toFixed(0) + 'd' : ''}</td>
+            <td className="nc"><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 40 }}><div style={{ width: `${prog}%`, height: '100%', background: prog >= 99.95 ? 'var(--gr)' : 'var(--ac)', borderRadius: 3 }} /></div>
+              <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--tx3)', whiteSpace: 'nowrap' }} data-htip={t('s.progressTip', progressPctLabel(prog))}>{progressPctLabel(prog)}% · {done}/{leaves.length}</span>
+            </div></td>
+            <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: timeline?.period?.end ? 'var(--tx)' : 'var(--tx3)' }}>
+              {timeline?.period?.end ? timeline.period.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              {timeline?.deadline?.end && <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>{t('qe.affectsDeadline')}: {timeline.deadline.end.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+            </td>
+          </tr>; })}</tbody>
+      </table>
+    </>}
+  </div>;
+}
+
+function RoadmapSwitcher({ tree, scheduled, stats, goals, teams, members, onOpenItem, historyEvents = [], sinceDays, persistSince, sinceDate, diff, scenarioShifts = null, diffOnlyChanged = false, persistDiffOnlyChanged, horizonDays = '', persistHorizon, horizonEnd = null, horizonIds = null, horizonOnlyPlanned = true, persistHorizonOnly, futureProgressByRootId = null, workDays = null, holidayIso = null, roadmapAssignment = null, onAssignmentChange = null, archive = null, showArchived = false, setShowArchived, archiveDays, setArchiveDays }) {
+  const { t } = useT();
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('planr_roadmap_view') || 'map'; } catch { return 'map'; }
+  });
+  const setAndPersist = v => {
+    setView(v);
+    try { localStorage.setItem('planr_roadmap_view', v); } catch { /* noop */ }
+  };
+  // The MAP is the portfolio lens (docs/features.md, Roadmap lenses): every
+  // project, one glance, Δ since the last review window. Its old "solo one
+  // line" mode is gone — a duplicate of the calendar that now lives beside
+  // the Gantt in Plan mode (RoadmapLens.jsx), and a worse fit here besides:
+  // a portfolio review is exactly the moment you do not want to narrow to
+  // one line.
+  //
+  // The TIMETABLE is a different surface that happens to share this switcher,
+  // and narrowing it to one project is NOT a duplicate of anything — no
+  // other view lists one project's dates as a schedule. So the picker stays,
+  // scoped to the view that still needs it. (Phase 5 dropped it for both;
+  // that took a capability away, which is the one thing a removal may never
+  // do.)
+  const [scheduleRoot, setScheduleRoot] = useState(() => {
+    try { return localStorage.getItem('planr_timetable_root') || ''; } catch { return ''; }
+  });
+  const roots = useMemo(() => tree.filter(node => !String(node.id).includes('.')), [tree]);
+  // A stored root that no longer exists (renamed, deleted, archived) must not
+  // blank the schedule.
+  const scopeRoot = scheduleRoot && roots.some(r => r.id === scheduleRoot) ? scheduleRoot : '';
+  const setScope = id => {
+    const next = id === scopeRoot ? '' : id;
+    setScheduleRoot(next);
+    try { localStorage.setItem('planr_timetable_root', next); } catch { /* noop */ }
+  };
+  const scheduleTree = useMemo(
+    () => (scopeRoot ? tree.filter(n => n.id === scopeRoot || String(n.id).startsWith(scopeRoot + '.')) : tree),
+    [tree, scopeRoot],
+  );
+  // diff comes in from App.jsx — same precomputed bag every view uses, so
+  // Roadmap, Timetable, Tree, Gantt and Network stay in sync.
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+        <button className={`btn btn-xs ${view === 'map' ? 'btn-pri' : 'btn-sec'}`}
+          style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setAndPersist('map')}>{t('tt.map')}</button>
+        <button className={`btn btn-xs ${view === 'schedule' ? 'btn-pri' : 'btn-sec'}`}
+          style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setAndPersist('schedule')}>{t('tt.title')}</button>
+        {view === 'schedule' && roots.length > 1 && (
+          <span style={{ width: 190, marginLeft: 8 }} data-htip={t('tt.scopeTip')} data-testid="timetable-root-picker">
+            <SearchSelect
+              value={scopeRoot}
+              options={roots.map(root => ({ id: root.id, label: root.name || root.id }))}
+              onSelect={id => setScope(id)}
+              placeholder={t('tt.allProjects')}
+              allowEmpty
+              emptyLabel={t('tt.allProjects')}
+              showIds />
+          </span>
+        )}
+        <span style={{ marginLeft: 8 }}>
+          {/* The filter control lives in the sub-toolbar now, which the
+              Overview gets like every other filtered view. Two copies of the
+              same control on one screen is one too many. */}
+        </span>
+        {/* Archived count stays visible next to the filters so a shorter map
+            is never a silent omission. */}
+        {!!archive?.count && !showArchived && typeof setShowArchived === 'function' && (
+          <button className="btn btn-xs btn-sec" style={{ padding: '3px 8px', fontSize: 11 }}
+            onClick={() => setShowArchived(true)}
+            data-htip={t('arch.pillTip', [
+              archive.roots.length ? t(archive.roots.length === 1 ? 'arch.root' : 'arch.roots', archive.roots.length) : '',
+              archive.members.length ? t(archive.members.length === 1 ? 'arch.member' : 'arch.members', archive.members.length) : '',
+            ].filter(Boolean).join(' · '))}>
+            {t('arch.pill', archive.count)}
+          </button>
+        )}
+        {/* hideDone toggle lives in the App-level subtoolbar / popup, not
+            here — Summary's tt.map view doesn't filter rows by status. */}
+      </div>
+
+      {view === 'map' && diff && (
+        <div style={{ marginBottom: 8, padding: '6px 10px', background: 'rgba(245,158,11,.08)',
+            border: '1px solid rgba(245,158,11,.35)', borderRadius: 4, fontSize: 12,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--diff)' }}>{t('diff.stand', iso(sinceDate))}</span>
+          <span style={{ color: 'var(--tx2)' }}>·</span>
+          <span data-htip={t('diff.tipDone')}>{t('diff.tasksDone', diff.doneCount)}</span>
+          {diff.startedInWindowIds.length > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipStartedDetail')}>{t('diff.tasksStarted', diff.startedInWindowIds.length)}</span>
+          </>}
+          <span style={{ color: 'var(--tx2)' }}>·</span>
+          <span data-htip={t('diff.tipEffortDetail')}>{t('diff.effort', Math.round(diff.effortInWindow))}</span>
+          {diff.availablePersonDays > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipCapacity', Math.round(diff.availablePersonDays), diff.grossWorkdays, diff.holidayCount)}>
+              {t('diff.capacity', Math.round(diff.availablePersonDays))}
+            </span>
+          </>}
+          {diff.vacationDaysInWindow > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span>{t('diff.vacation', Math.round(diff.vacationDaysInWindow))}</span>
+          </>}
+          {diff.holidayCount > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span>{t('diff.holidays', diff.holidayCount)}</span>
+          </>}
+          {typeof diff.utilisation === 'number' && diff.utilisation > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span data-htip={t('diff.tipUtilisation', Math.round(diff.effortInWindow), Math.max(1, Math.round(diff.availablePersonDays - diff.vacationDaysInWindow)))}
+              style={{ color: diff.utilisation >= 80 ? 'var(--gr)' : diff.utilisation >= 40 ? 'var(--am)' : 'var(--tx3)', fontWeight: 600 }}>
+              {t('diff.utilisation', diff.utilisation)}
+            </span>
+          </>}
+          {diff.newRootIds.length > 0 && <>
+            <span style={{ color: 'var(--tx2)' }}>·</span>
+            <span>{t(diff.newRootIds.length === 1 ? 'diff.newLines' : 'diff.newLinesPlural', diff.newRootIds.length)}</span>
+          </>}
+          {diff.doneCount === 0 && diff.newRootIds.length === 0 && diff.progressedInWindowIds.length === 0 && diff.startedInWindowIds.length === 0 && (
+            <span style={{ color: 'var(--tx3)', fontStyle: 'italic', marginLeft: 'auto' }}>{t('diff.noMovement')}</span>
+          )}
+        </div>
+      )}
+      {/* Retro panel — only when the diff window is on. Aggregates Soll/Ist
+          across leaves that completed in the window so the review tells
+          the planning-accuracy story alongside the raw movement banner. */}
+      {view === 'map' && diff && sinceDate && (() => {
+        const doneInWindow = (diff.doneInWindowIds || []).map(id => tree.find(r => r.id === id)).filter(Boolean);
+        if (!doneInWindow.length) return null;
+        const agg = aggregateSollIst(doneInWindow, { workDays, holidayIso });
+        if (!agg.count) return null;
+        const tone = agg.ratio == null ? 'var(--tx3)'
+          : agg.ratio > 1.2 ? 'var(--re)'
+          : agg.ratio < 0.8 ? 'var(--gr)' : 'var(--am)';
+        const ratioStr = agg.ratio != null ? `${agg.ratio.toFixed(2)}×` : '—';
+        const hitPct = agg.hitRate != null ? Math.round(agg.hitRate * 100) : null;
+        const topOverruns = agg.overruns.slice(0, 3);
+        const topUnderruns = agg.underruns.slice(0, 3);
+        return (
+          <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(59,130,246,.06)',
+              border: '1px solid rgba(59,130,246,.30)', borderRadius: 4, fontSize: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: topOverruns.length || topUnderruns.length ? 6 : 0, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, color: 'var(--ac)', fontFamily: 'var(--mono)' }}>{t('retro.title')}</span>
+              <span style={{ color: 'var(--tx2)' }}>·</span>
+              <span data-htip={t('retro.sumTip', agg.count)}>{t('retro.sum', agg.sollSum.toFixed(0), agg.istSum.toFixed(0))}</span>
+              <span style={{ color: 'var(--tx2)' }}>·</span>
+              <span style={{ color: tone, fontWeight: 700 }} data-htip={t('retro.ratioTip')}>{t('retro.ratio', ratioStr)}</span>
+              {hitPct != null && <>
+                <span style={{ color: 'var(--tx2)' }}>·</span>
+                <span data-htip={t('retro.hitRateTip')}>{t('retro.hitRate', hitPct, agg.hits, agg.count)}</span>
+              </>}
+            </div>
+            {(topOverruns.length || topUnderruns.length) > 0 && (
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {topOverruns.length > 0 && (
+                  <div style={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topOver')}</div>
+                    {topOverruns.map(e => (
+                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '1px 0', cursor: 'pointer' }}
+                        onClick={() => onOpenItem?.(e.id)}>
+                        <span style={{ color: 'var(--re)', fontWeight: 700, fontFamily: 'var(--mono)', minWidth: 48 }}>+{e.delta.percent}%</span>
+                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', minWidth: 70 }}>{e.id}</span>
+                        <span style={{ color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {topUnderruns.length > 0 && (
+                  <div style={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{t('retro.topUnder')}</div>
+                    {topUnderruns.map(e => (
+                      <div key={e.id} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '1px 0', cursor: 'pointer' }}
+                        onClick={() => onOpenItem?.(e.id)}>
+                        <span style={{ color: 'var(--gr)', fontWeight: 700, fontFamily: 'var(--mono)', minWidth: 48 }}>{e.delta.percent}%</span>
+                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx3)', minWidth: 70 }}>{e.id}</span>
+                        <span style={{ color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      {view === 'map'
+        ? <Roadmap tree={tree} scheduled={scheduled} goals={goals} stats={stats} teams={teams} members={members} onOpenItem={onOpenItem} diff={diff}
+            scenarioShifts={scenarioShifts}
+            horizonIds={horizonIds} horizonEnd={horizonEnd}
+            futureProgressByRootId={futureProgressByRootId}
+            assignment={roadmapAssignment}
+            onAssignmentChange={onAssignmentChange} />
+        : <TimetableView tree={scheduleTree} scheduled={scheduled} stats={stats} teams={teams} members={members}
+            diffDoneIds={diff?.doneInWindowIds} diffProgressedIds={diff?.progressedInWindowIds} sinceDate={sinceDate}
+            scenarioShifts={scenarioShifts} />
+      }
+    </div>
+  );
+}
+
+export const SumView = memo(SumViewImpl);

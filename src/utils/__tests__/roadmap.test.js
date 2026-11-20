@@ -1,0 +1,715 @@
+import { describe, expect, test } from 'vitest';
+import { computeRoadmapModel, renderRoadmapSvg, splitSvgMarkup } from '../roadmap.js';
+import { treeStats } from '../scheduler.js';
+
+function d(iso) {
+  return new Date(`${iso}T00:00:00`);
+}
+
+function modelFor(tree, scheduled) {
+  return computeRoadmapModel({
+    tree,
+    scheduled,
+    stats: treeStats(tree),
+    now: d('2026-01-01'),
+  });
+}
+
+// The legend, on its own. Stations on the map carry `data-item-id` too now
+// (they are click targets, like every other thing that offers a pointer), so
+// "is this id anywhere in the markup" stopped being a question about the
+// legend. `splitSvgMarkup` is the same split the renderer's two halves get
+// everywhere else.
+const legendOf = svg => splitSvgMarkup(svg)[1];
+
+describe('computeRoadmapModel progress semantics', () => {
+  test('a non-done task at 100% progress is not marked as reached', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'open', best: 0 },
+      { id: 'P1.1', name: 'Almost', status: 'wip', progress: 100, best: 4, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Almost', status: 'wip', progress: 100, effort: 4, startD: d('2026-01-05'), endD: d('2026-01-08') },
+    ];
+
+    const model = modelFor(tree, scheduled);
+    const line = model.lines[0];
+    const station = line.majorStations[0];
+
+    expect(line.progress).toBeLessThan(1);
+    expect(station.allDone).toBe(false);
+    expect(station.prog).toBeLessThan(1);
+  });
+
+  test('station progress uses partial task progress weighted by effort', () => {
+    // A station is a work PACKAGE now, and the depth is chosen by what fits
+    // the canvas: the deepest level whose stations still fit wins, because
+    // that is the most detail the map can carry. So to exercise the weighting
+    // the fixture has to be big enough that the LEAF level does not fit —
+    // sixteen leaves under two packages, against a cap of fourteen.
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'open', best: 0 },
+      { id: 'P1.1', name: 'Erfassung', status: 'wip', best: 0 },
+      { id: 'P1.2', name: 'Migration', status: 'open', best: 0 },
+    ];
+    const scheduled = [];
+    for (let i = 1; i <= 8; i++) {
+      // Four at half done, four untouched: (4 x 10 x 0.5) / 80 = 0.25.
+      const wip = i <= 4;
+      tree.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', progress: wip ? 50 : 0, best: 10, factor: 1 });
+      scheduled.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', effort: 10, startD: d('2026-01-05'), endD: d(`2026-01-0${5 + (i % 4)}`) });
+    }
+    for (let i = 1; i <= 8; i++) {
+      tree.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', progress: 0, best: 10, factor: 1 });
+      scheduled.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', effort: 10, startD: d('2026-03-02'), endD: d(`2026-03-0${2 + (i % 5)}`) });
+    }
+
+    const model = modelFor(tree, scheduled);
+    const station = model.lines[0].majorStations[0];
+
+    expect(station.done).toBe(0);
+    expect(station.allDone).toBe(false);
+    expect(station.prog).toBeCloseTo(0.25, 4);
+    // …and it is named after the package, not after whichever task happened
+    // to have the longest name.
+    expect(station.name).toBe('Erfassung');
+  });
+
+  test('done and open tasks are not clustered into one reached station', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'open', best: 0 },
+      { id: 'P1.1', name: 'Done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done', status: 'done', effort: 1, startD: d('2026-01-05'), endD: d('2026-01-05') },
+      { id: 'P1.2', name: 'Open', status: 'open', effort: 1, startD: d('2026-01-06'), endD: d('2026-01-06') },
+    ];
+
+    const model = modelFor(tree, scheduled);
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+
+    expect(stations).toHaveLength(2);
+    expect(stations[0].done).toBe(1);
+    expect(stations[0].total).toBe(1);
+    expect(stations[0].allDone).toBe(true);
+    expect(stations[1].allDone).toBe(false);
+  });
+
+  test('done and unfinished work close in time become separate stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done predecessor', status: 'done', progress: 100, best: 8, factor: 1 },
+      { id: 'P1.2', name: 'Active successor', status: 'wip', progress: 25, best: 8, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done predecessor', status: 'done', effort: 8, startD: d('2026-01-01'), endD: d('2026-01-10') },
+      { id: 'P1.2', name: 'Active successor', status: 'wip', effort: 8, startD: d('2026-01-11'), endD: d('2026-01-12') },
+    ];
+
+    const model = modelFor(tree, scheduled);
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+
+    expect(stations).toHaveLength(2);
+    expect(stations[0].id).toBe('P1.1');
+    expect(stations[0].allDone).toBe(true);
+    expect(stations[1].allDone).toBe(false);
+  });
+
+  test('long chains of completed work are split into multiple stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Step 1', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.2', name: 'Step 2', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.3', name: 'Step 3', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.4', name: 'Step 4', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.5', name: 'Step 5', status: 'done', progress: 100, best: 2, factor: 1 },
+      { id: 'P1.6', name: 'Step 6', status: 'done', progress: 100, best: 2, factor: 1 },
+    ];
+    const scheduled = ['2026-01-05', '2026-01-15', '2026-01-26', '2026-02-05', '2026-02-16', '2026-02-26']
+      .map((day, idx) => ({
+        id: `P1.${idx + 1}`,
+        name: `Step ${idx + 1}`,
+        status: 'done',
+        effort: 2,
+        startD: d(day),
+        endD: d(day),
+      }));
+
+    const model = modelFor(tree, scheduled);
+    const stations = model.lines[0].majorStations;
+
+    expect(stations.length).toBeGreaterThan(1);
+    expect(Math.max(...stations.map(station => station.clusterSize))).toBeLessThan(6);
+  });
+
+  test('live train sits at the reached route end and cannot pass the first not-done station', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'open', best: 0 },
+      { id: 'P1.1', name: 'Large done task', status: 'done', progress: 100, best: 100, factor: 1 },
+      { id: 'P1.2', name: 'Small future task', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Large done task', status: 'done', effort: 100, startD: d('2026-01-05'), endD: d('2026-01-05') },
+      { id: 'P1.2', name: 'Small future task', status: 'open', effort: 1, startD: d('2026-03-02'), endD: d('2026-03-02') },
+    ];
+
+    const model = modelFor(tree, scheduled);
+    const line = model.lines[0];
+    const firstOpenStation = [...line.majorStations, ...line.minorStations]
+      .filter(station => !station.allDone)
+      .sort((a, b) => a.t - b.t)[0];
+
+    expect(line.progress).toBeGreaterThan(0.9);
+    expect(line.reachedT).toBeLessThan(firstOpenStation.t);
+    expect(line.trainT).toBe(line.reachedT);
+    expect(line.trainT).toBeLessThan(firstOpenStation.t);
+  });
+
+  test('station placement follows weighted scope progress instead of calendar time', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'done', best: 0 },
+      { id: 'P1.1', name: 'Small first', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Large later', status: 'done', progress: 100, best: 99, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Small first', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Large later', status: 'done', effort: 99, startD: d('2026-12-31'), endD: d('2026-12-31') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2027-01-15'),
+    });
+    const firstStation = model.lines[0].majorStations.sort((a, b) => a.t - b.t)[0];
+
+    expect(firstStation.id).toBe('P1.1');
+    expect(firstStation.t).toBeLessThan(0.08);
+  });
+
+  test('legend exposes current, past-delta and future total progress percentages', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.25 }, doneInWindowIds: [], changedInWindowIds: [] },
+      futureProgressByRootId: { P1: 0.75 },
+    });
+
+    expect(svg).toContain('50%');
+    expect(svg).toContain('+25%');
+    expect(svg).toContain('Plan 75%');
+    expect(svg).toContain('Differenz: +25%');
+  });
+
+  test('legend keeps sub-percent progress deltas visible as permille', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Tiny movement', status: 'wip', progress: 50.04, best: 100, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Tiny movement', status: 'wip', effort: 100, startD: d('2026-01-01'), endD: d('2026-01-31') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.5 }, doneInWindowIds: [], changedInWindowIds: [] },
+    });
+
+    expect(svg).toContain('+0.04%');
+  });
+
+  test('new lines stripe only the reached segment, not the entire future route', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({ tree, scheduled, stats: treeStats(tree), now: d('2026-01-15') });
+    const line = model.lines[0];
+    const fullRoutePath = line.route.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { newRootIds: ['P1'], pastProgressByRootId: {}, doneInWindowIds: [], changedInWindowIds: [] },
+    });
+
+    const fullStripe = `<path d="${fullRoutePath}" fill="none" stroke="url(#rm-past-stripe)"`;
+    expect(line.trainT).toBeLessThan(0.96);
+    expect(svg).not.toContain(fullStripe);
+    expect(svg).toContain('stroke="url(#rm-past-stripe)"');
+  });
+
+  test('route progress percentages stay in tooltips and legend, while diff labels stay visible on map lanes', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0.25 }, doneInWindowIds: [], changedInWindowIds: [] },
+      futureProgressByRootId: { P1: 0.75 },
+    });
+
+    expect(svg).toContain('50%');
+    expect(svg).toContain('Differenz: +25%');
+    expect(svg).toMatch(/>\+25%<\/text>/);
+    expect(svg).not.toMatch(/>50%<\/text>/);
+  });
+
+  test('route progress percentages are hidden on map lanes outside diff overlays', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+
+    expect(svg).toContain('50%');
+    expect(svg).not.toMatch(/>[+-]?\d+(?:\.\d+)?%<\/text>/);
+  });
+
+  test('done stations with invalid future completion dates are capped at now before placement', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Already done but dated too late',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-03-02',
+        completedEnd: '2026-03-02',
+      },
+      { id: 'P1.2', name: 'Future open', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.2', name: 'Future open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+    const doneStation = stations.find(station => station.id === 'P1.1');
+    const openStation = stations.find(station => station.id === 'P1.2');
+
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.endDate).toEqual(d('2026-01-15'));
+    expect(doneStation.t).toBeLessThan(openStation.t);
+  });
+
+  test('scheduled done stations are capped at now even without explicit completion metadata', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done with stale future plan', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done with stale future plan', status: 'done', effort: 1, startD: d('2026-08-01'), endD: d('2026-08-05') },
+      { id: 'P1.2', name: 'Open future', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const doneStation = model.lines[0].majorStations.find(station => station.id === 'P1.1');
+
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.endDate).toEqual(d('2026-01-15'));
+  });
+
+  test('done station order uses actual completion date instead of stale future plan', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Finished early',
+        status: 'done',
+        progress: 100,
+        best: 2,
+        factor: 1,
+        completedStart: '2026-04-01',
+        completedEnd: '2026-04-03',
+      },
+      { id: 'P1.2', name: 'Current planned work', status: 'open', progress: 0, best: 2, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Finished early', status: 'done', effort: 2, startD: d('2026-08-01'), endD: d('2026-08-05') },
+      { id: 'P1.2', name: 'Current planned work', status: 'open', effort: 2, startD: d('2026-05-01'), endD: d('2026-05-02') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-05-15'),
+    });
+    const stations = model.lines[0].majorStations.sort((a, b) => a.t - b.t);
+
+    expect(stations[0].id).toBe('P1.1');
+    expect(stations[0].endDate).toEqual(d('2026-04-03'));
+    expect(stations[1].id).toBe('P1.2');
+  });
+
+  test('completed stations cannot move ahead of the train when future scope is unscheduled', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      {
+        id: 'P1.1',
+        name: 'Completed package',
+        status: 'done',
+        progress: 100,
+        best: 10,
+        factor: 1,
+        completedStart: '2026-01-01',
+        completedEnd: '2026-01-05',
+      },
+      { id: 'P1.2', name: 'Unscheduled future scope', status: 'open', progress: 0, best: 90, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Completed package', status: 'done', effort: 10, startD: d('2026-01-01'), endD: d('2026-01-05') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const doneStation = line.majorStations.find(station => station.id === 'P1.1');
+
+    expect(line.progress).toBeCloseTo(0.1, 4);
+    expect(doneStation.allDone).toBe(true);
+    expect(doneStation.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+  });
+
+  test('anti-collision spacing cannot push completed stations ahead of the train', () => {
+    const doneDates = ['2025-08-01', '2025-08-21', '2025-09-10', '2025-09-30', '2025-10-20', '2025-11-09', '2025-11-29', '2025-12-19'];
+    const doneLeaves = Array.from({ length: 8 }, (_, idx) => ({
+      id: `P1.${idx + 1}`,
+      name: `Completed ${idx + 1}`,
+      status: 'done',
+      progress: 100,
+      best: 1,
+      factor: 1,
+      completedStart: doneDates[idx],
+      completedEnd: doneDates[idx],
+    }));
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      ...doneLeaves,
+      { id: 'P1.99', name: 'Large unscheduled future scope', status: 'open', progress: 0, best: 92, factor: 1 },
+    ];
+    const scheduled = doneLeaves.map((item, idx) => ({
+      id: item.id,
+      name: item.name,
+      status: 'done',
+      effort: 1,
+      startD: d(doneDates[idx]),
+      endD: d(doneDates[idx]),
+    }));
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const doneStations = line.majorStations.filter(station => station.allDone);
+
+    expect(line.progress).toBeCloseTo(0.08, 4);
+    expect(doneStations.length).toBeGreaterThan(1);
+    doneStations.forEach(station => {
+      expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    });
+  });
+
+  test('completed milestones compress behind the real progress train instead of pulling it forward', () => {
+    const doneDates = ['2025-08-01', '2025-08-21', '2025-09-10', '2025-09-30', '2025-10-20', '2025-11-09', '2025-11-29', '2025-12-19'];
+    const doneLeaves = Array.from({ length: 8 }, (_, idx) => ({
+      id: `P1.${idx + 1}`,
+      name: `Completed ${idx + 1}`,
+      status: 'done',
+      progress: 100,
+      best: 1,
+      factor: 1,
+      completedStart: doneDates[idx],
+      completedEnd: doneDates[idx],
+    }));
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      ...doneLeaves,
+      { id: 'P1.99', name: 'Large future scope', status: 'open', progress: 0, best: 92, factor: 1 },
+    ];
+    const scheduled = doneLeaves.map((item, idx) => ({
+      id: item.id,
+      name: item.name,
+      status: 'done',
+      effort: 1,
+      startD: d(doneDates[idx]),
+      endD: d(doneDates[idx]),
+    }));
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const line = model.lines[0];
+    const rawProgressT = 0.04 + line.progress * 0.92;
+
+    expect(line.progress).toBeCloseTo(0.08, 4);
+    expect(line.trainT).toBeCloseTo(rawProgressT, 4);
+    line.majorStations.filter(station => station.allDone).forEach(station => {
+      expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    });
+  });
+
+  test('unfinished milestones stay ahead of the train even when their plan date is older than completed work', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Old planned but still open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Completed later', status: 'done', progress: 100, best: 9, factor: 1, completedStart: '2026-02-01', completedEnd: '2026-02-01' },
+      { id: 'P1.3', name: 'Large future scope', status: 'open', progress: 0, best: 90, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Old planned but still open', status: 'open', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Completed later', status: 'done', effort: 9, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-02-15'),
+    });
+    const line = model.lines[0];
+    const openStation = line.majorStations.find(station => station.id === 'P1.1');
+    const doneStation = line.majorStations.find(station => station.id === 'P1.2');
+
+    expect(line.progress).toBeCloseTo(0.09, 4);
+    expect(doneStation.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+    expect(openStation.allDone).toBe(false);
+    expect(openStation.t).toBeGreaterThan(line.trainT);
+  });
+
+  test('completed stations are ordered by actual completion date, not schedule end date', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Completed later in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-03-01', completedEnd: '2026-03-01' },
+      { id: 'P1.2', name: 'Completed earlier in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-01-01', completedEnd: '2026-01-01' },
+      { id: 'P1.3', name: 'Future scope', status: 'open', progress: 0, best: 8, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Completed later in reality', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Completed earlier in reality', status: 'done', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-03-15'),
+    });
+    const line = model.lines[0];
+    const earlier = line.majorStations.find(station => station.id === 'P1.2');
+    const later = line.majorStations.find(station => station.id === 'P1.1');
+
+    expect(earlier.milestoneDate < later.milestoneDate).toBe(true);
+    expect(earlier.t).toBeLessThan(later.t);
+  });
+
+  test('diff mode uses static station halos instead of pulsing rings', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+    });
+
+    expect(svg).not.toContain('values="10;13;10"');
+    expect(svg).not.toContain('values="6;9;6"');
+  });
+
+  test('diff legend hides untouched future stations but keeps current context', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Current open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Current open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+    });
+
+    expect(legendOf(svg)).toContain('data-item-id="P1.1"');
+    expect(legendOf(svg)).toContain('data-item-id="P1.2"');
+    expect(legendOf(svg)).not.toContain('data-item-id="P1.3"');
+  });
+
+  test('diff legend can expand hidden untouched stations', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Changed done', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Current open', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Changed done', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Current open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+      { id: 'P1.3', name: 'Untouched future', status: 'open', effort: 1, startD: d('2026-03-01'), endD: d('2026-03-01') },
+    ];
+    const base = {
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      diff: { pastProgressByRootId: { P1: 0 }, doneInWindowIds: ['P1.1'], changedInWindowIds: ['P1.1'] },
+      labels: { showMore: '+{0} more', showLess: 'Show fewer' },
+    };
+
+    const collapsedSvg = renderRoadmapSvg(base);
+    const expandedSvg = renderRoadmapSvg({ ...base, expandedLegendIds: new Set(['P1']) });
+
+    expect(legendOf(collapsedSvg)).not.toContain('data-item-id="P1.3"');
+    expect(collapsedSvg).toContain('data-rm-toggle="P1"');
+    expect(collapsedSvg).toContain('+1 more');
+    expect(legendOf(expandedSvg)).toContain('data-item-id="P1.3"');
+    expect(expandedSvg).toContain('Show fewer');
+  });
+
+  test('legend progress pill keeps readable contrast on light route colors', () => {
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Done half', status: 'done', progress: 100, best: 1, factor: 1 },
+      { id: 'P1.2', name: 'Open half', status: 'open', progress: 0, best: 1, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Done half', status: 'done', effort: 1, startD: d('2026-01-01'), endD: d('2026-01-01') },
+      { id: 'P1.2', name: 'Open half', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
+    ];
+
+    const svg = renderRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+      assignment: { P1: { routeIdx: 1, colorIdx: 2 } },
+    });
+
+    // The invariant is the CONTRAST, not the hex: a light route colour has to
+    // get dark ink on its pill. Pinning '#f59e0b' pinned the palette instead,
+    // and broke the moment the palette was retuned.
+    const pill = svg.match(/background:(#[0-9a-f]{6});color:(#[0-9a-f]{6})/i);
+    expect(pill, 'no legend progress pill rendered').toBeTruthy();
+    const lum = hex => {
+      const ch = i => {
+        const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+    };
+    const pair = [lum(pill[1]), lum(pill[2])].sort((a, b) => b - a);
+    expect((pair[0] + 0.05) / (pair[1] + 0.05)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('open stations preserve chronological order along the route even with uneven effort', () => {
+    // The subway map is a hybrid: stations sort by milestoneDate, but spacing
+    // is effort-weighted. Even when a small late task sits next to a huge
+    // early one, the calendar order must hold — otherwise the user reads the
+    // future in the wrong sequence.
+    const tree = [
+      { id: 'P1', name: 'Project', status: 'wip', best: 0 },
+      { id: 'P1.1', name: 'Early big', status: 'open', progress: 0, best: 30, factor: 1 },
+      { id: 'P1.2', name: 'Mid tiny',  status: 'open', progress: 0, best: 1,  factor: 1 },
+      { id: 'P1.3', name: 'Late big',  status: 'open', progress: 0, best: 20, factor: 1 },
+    ];
+    const scheduled = [
+      { id: 'P1.1', name: 'Early big', status: 'open', effort: 30, startD: d('2026-02-01'), endD: d('2026-02-28') },
+      { id: 'P1.2', name: 'Mid tiny',  status: 'open', effort: 1,  startD: d('2026-04-15'), endD: d('2026-04-16') },
+      { id: 'P1.3', name: 'Late big',  status: 'open', effort: 20, startD: d('2026-06-01'), endD: d('2026-06-30') },
+    ];
+    const model = computeRoadmapModel({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      now: d('2026-01-15'),
+    });
+    const stations = model.lines[0].majorStations.slice().sort((a, b) => a.t - b.t);
+    expect(stations.map(s => s.id)).toEqual(['P1.1', 'P1.2', 'P1.3']);
+  });
+});

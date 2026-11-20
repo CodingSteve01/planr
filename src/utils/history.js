@@ -1,0 +1,413 @@
+// History log: append-only event stream of leaf state changes (status, progress,
+// completedAt) plus add/remove markers. Lives in the markdown file under
+// `## History` as a fenced `planr-history` block. Each line:
+//
+//   <ISO_TS> <ID> key=value [key=value ...]
+//
+// Recognised keys: status, progress, completedAt, effectiveAt,
+// kind (added|removed).
+// Lines outside that shape are ignored on parse so future schema extensions
+// stay forward-compatible.
+//
+// The log lets the UI compute "what changed since <date>" — train positions,
+// new lines, progress jumps — without keeping the full project state for each
+// historical timestamp.
+
+export const HISTORY_VERSION = 'v1';
+
+// ── Parse a fenced planr-history block out of full markdown text ─────────────
+export function parseHistoryFromMarkdown(md) {
+  if (!md) return [];
+  const m = md.match(/```planr-history\s*\n([\s\S]*?)```/);
+  if (!m) return [];
+  return parseHistoryBlock(m[1]);
+}
+
+export function parseHistoryBlock(blockText) {
+  const out = [];
+  const lines = blockText.split('\n');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line === HISTORY_VERSION) continue;          // version header
+    if (line.startsWith('#') || line.startsWith('//')) continue; // comments
+    const parts = line.split(/\s+/);
+    if (parts.length < 3) continue;
+    const [ts, id, ...kvs] = parts;
+    // Reject lines whose first token is not an ISO timestamp — keeps malformed
+    // input from masquerading as events with random words for ts/id.
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(ts)) continue;
+    const ev = { ts, id };
+    for (const kv of kvs) {
+      const eq = kv.indexOf('=');
+      if (eq < 0) continue;
+      const k = kv.slice(0, eq);
+      let v = kv.slice(eq + 1);
+      if (k === 'progress') v = parseInt(v, 10);
+      ev[k] = v;
+    }
+    out.push(ev);
+  }
+  return out;
+}
+
+// ── Format event list as the fenced markdown block body ──────────────────────
+export function formatHistoryBlock(events) {
+  const lines = [HISTORY_VERSION, ...events.map(formatEvent)];
+  return lines.join('\n');
+}
+
+export function formatEvent(ev) {
+  const order = ['kind', 'status', 'progress', 'completedAt'];
+  const kvs = order
+    .filter(k => ev[k] !== undefined && ev[k] !== null && ev[k] !== '')
+    .map(k => `${k}=${ev[k]}`);
+  for (const k of Object.keys(ev)) {
+    if (k === 'ts' || k === 'id' || order.includes(k)) continue;
+    if (ev[k] === undefined || ev[k] === null || ev[k] === '') continue;
+    kvs.push(`${k}=${ev[k]}`);
+  }
+  return [ev.ts, ev.id, ...kvs].join(' ');
+}
+
+export function eventReplayTimestamp(ev) {
+  const day = ev?.completedAt || ev?.effectiveAt || '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return `${day}T12:00:00.000Z`;
+  return ev?.ts || '';
+}
+
+// ── Snapshot helpers ─────────────────────────────────────────────────────────
+// Build a leaf-state map from a tree array. Stores only the fields the diff
+// machinery looks at (status, progress, completedAt). Used both pre- and
+// post-save to compute the diff.
+export function leafSnapshot(tree) {
+  const m = new Map();
+  if (!Array.isArray(tree)) return m;
+  for (const r of tree) {
+    if (!r?.id) continue;
+    const status = r.status || 'open';
+    const rawProgress = typeof r.progress === 'number'
+      ? r.progress
+      : status === 'done' ? 100 : status === 'wip' ? 50 : 0;
+    m.set(r.id, {
+      status,
+      progress: status === 'done' ? 100 : Math.max(0, Math.min(99, rawProgress)),
+      completedAt: r.completedAt || null,
+    });
+  }
+  return m;
+}
+
+// Compute the diff between two snapshots and emit events. All events share
+// the same timestamp so a single save shows up as one coherent batch.
+//
+// `effectiveAt` is the day the batch is meant to COUNT for, which is not
+// always the day it was written. Restructuring a package today — splitting it
+// in three, re-parenting it — is bookkeeping about work that was already
+// there, and dating it today makes this week's review read as if three tasks
+// appeared out of nowhere. Stamping the batch with an earlier day puts it
+// before the review window, where it belongs. The timestamp stays honest
+// about when the edit happened; the effective date is a separate claim about
+// when it counts, and every window filter reads the latter
+// (utils/historyView.js, `effectiveDateOfEvent`).
+export function diffSnapshots(prev, curr, ts, effectiveAt = null) {
+  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(effectiveAt || '')) ? { effectiveAt } : null;
+  const events = [];
+  const seen = new Set();
+  for (const [id, c] of curr) {
+    seen.add(id);
+    const p = prev.get(id);
+    if (!p) {
+      events.push({ ts, id, kind: 'added', status: c.status, progress: c.progress, ...(c.completedAt ? { completedAt: c.completedAt } : {}), ...on });
+      continue;
+    }
+    const delta = {};
+    if (p.status !== c.status) delta.status = c.status;
+    if (p.progress !== c.progress) delta.progress = c.progress;
+    if ((p.completedAt || '') !== (c.completedAt || '') && c.completedAt) delta.completedAt = c.completedAt;
+    if (Object.keys(delta).length) events.push({ ts, id, ...delta, ...on });
+  }
+  for (const [id] of prev) {
+    if (!seen.has(id)) events.push({ ts, id, kind: 'removed', ...on });
+  }
+  return events;
+}
+
+// ── Replay: state at a given point in time ──────────────────────────────────
+// Walks events chronologically, applies each, returns the resulting leaf
+// state. `asOfDate` is an ISO date or Date — events strictly after it are
+// skipped. Removed leaves drop out of the map.
+export function stateAsOf(events, asOfDate) {
+  const cutoff = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
+  const m = new Map();
+  if (!Array.isArray(events)) return m;
+  const sorted = [...events].sort((a, b) => {
+    const at = eventReplayTimestamp(a);
+    const bt = eventReplayTimestamp(b);
+    return at < bt ? -1 : at > bt ? 1 : 0;
+  });
+  for (const ev of sorted) {
+    if (new Date(eventReplayTimestamp(ev)) > cutoff) break;
+    if (ev.kind === 'removed') { m.delete(ev.id); continue; }
+    const prev = m.get(ev.id) || { status: 'open', progress: 0, completedAt: null };
+    const next = { ...prev };
+    if (ev.status != null) next.status = ev.status;
+    if (ev.progress != null) next.progress = ev.progress;
+    if (ev.completedAt != null) next.completedAt = ev.completedAt;
+    if (ev.kind === 'added' && !m.has(ev.id)) {
+      // First appearance — keep the captured state.
+    }
+    m.set(ev.id, next);
+  }
+  return m;
+}
+
+// ── Time-Travel: rebuild a tree snapshot as it was at `operatingDate` ────────
+// Combines `stateAsOf` (leaf state per event log) with the current tree's
+// structural fields (name, deps, assign, team, best, factor, …). Items whose
+// `kind=added` event is in the future of `operatingDate` are filtered out so
+// the snapshot reflects "the plan as it stood that day".
+//
+// Caveat: structural fields aren't versioned in the event log yet. Renames,
+// dep edits, or estimate changes don't time-travel. v1 covers status,
+// progress, completedAt — the most common back-dating use cases.
+export function replayToDate(tree, events, operatingDate) {
+  if (!Array.isArray(tree)) return [];
+  const state = stateAsOf(events || [], operatingDate);
+  const cutoff = operatingDate instanceof Date ? operatingDate : new Date(operatingDate);
+  // Find items whose `added` event is strictly after the cutoff → they didn't
+  // exist yet. Sub-tree under such an item is removed too.
+  const futureAdditions = new Set();
+  for (const ev of events || []) {
+    if (ev.kind !== 'added') continue;
+    const ts = new Date(eventReplayTimestamp(ev));
+    if (ts > cutoff) futureAdditions.add(ev.id);
+  }
+  return tree
+    .filter(node => {
+      if (!node?.id) return false;
+      for (const futId of futureAdditions) {
+        if (node.id === futId || node.id.startsWith(futId + '.')) return false;
+      }
+      return true;
+    })
+    .map(node => {
+      const s = state.get(node.id);
+      const next = { ...node };
+      if (s) {
+        if (s.status != null) next.status = s.status;
+        if (s.progress != null) next.progress = s.progress;
+        if (s.completedAt != null) next.completedAt = s.completedAt;
+        else if (s.status !== 'done') delete next.completedAt;
+      }
+      // Roll back any completion that hasn't happened yet at operatingDate.
+      // Covers items whose current tree state says "done on 2026-06" while
+      // the user is scrubbed back to 2026-05.
+      const cmp = next.completedAt || next.completedEnd || next.completedStart;
+      if (cmp && new Date(cmp) > cutoff) {
+        delete next.completedAt;
+        delete next.completedEnd;
+        delete next.completedStart;
+        if (next.status === 'done') {
+          next.status = (s && s.status !== 'done') ? s.status : 'open';
+          if (next.status !== 'done' && (next.progress ?? 100) === 100) next.progress = s?.progress ?? 0;
+        }
+      }
+      return next;
+    });
+}
+
+// ── Convenience: diff between two snapshots, returning a per-id summary ──────
+// Used by UI to label "what changed". Returns Map<id, {wasStatus, nowStatus,
+// wasProgress, nowProgress, isNew, isGone}>.
+export function diffForUi(prev, curr) {
+  const out = new Map();
+  const seen = new Set();
+  for (const [id, c] of curr) {
+    seen.add(id);
+    const p = prev.get(id);
+    if (!p) { out.set(id, { isNew: true, nowStatus: c.status, nowProgress: c.progress }); continue; }
+    if (p.status !== c.status || p.progress !== c.progress) {
+      out.set(id, {
+        wasStatus: p.status, nowStatus: c.status,
+        wasProgress: p.progress, nowProgress: c.progress,
+      });
+    }
+  }
+  for (const [id, p] of prev) {
+    if (!seen.has(id)) out.set(id, { isGone: true, wasStatus: p.status, wasProgress: p.progress });
+  }
+  return out;
+}
+
+// ── Catching up on a day that already has entries after it ─────────────────
+// Recording "done as of the 14th" today, when the log already carries a "wip"
+// for that item on the 20th, leaves a replay that walks done → wip → done. The
+// 20th entry is not news, it is what the log believed while nobody had told it
+// the work was finished; keeping it means every review between those dates
+// reports the wrong state.
+//
+// So a backdated event supersedes the later entries for the SAME item that
+// claim the same fields. Only those: another item's history is untouched,
+// events before the effective date are untouched, and a field the backdated
+// event says nothing about (a progress entry, when only the status was
+// recorded) survives.
+export function supersededByBackdate(existing, newEvents) {
+  const backdated = (newEvents || []).filter(ev => ev && ev.effectiveAt);
+  if (!backdated.length) return { kept: existing || [], dropped: [] };
+
+  const FIELDS = ['status', 'progress', 'completedAt'];
+  const rules = new Map();
+  for (const ev of backdated) {
+    const fields = FIELDS.filter(f => ev[f] != null);
+    if (!fields.length) continue;
+    const prev = rules.get(ev.id);
+    const from = prev && prev.from < ev.effectiveAt ? prev.from : ev.effectiveAt;
+    rules.set(ev.id, { from, fields: new Set([...(prev?.fields || []), ...fields]) });
+  }
+
+  const kept = [];
+  const dropped = [];
+  for (const ev of existing || []) {
+    const rule = rules.get(ev?.id);
+    if (!rule) { kept.push(ev); continue; }
+    const on = eventEffectiveDate(ev);
+    // Strictly after: an entry ON the backdated day is a peer, not a
+    // contradiction, and ordering between the two is already decided by ts.
+    if (!on || on <= rule.from) { kept.push(ev); continue; }
+    const claims = FIELDS.filter(f => ev[f] != null);
+    if (!claims.length || !claims.every(f => rule.fields.has(f))) { kept.push(ev); continue; }
+    dropped.push(ev);
+  }
+  return { kept, dropped };
+}
+
+function eventEffectiveDate(ev) {
+  if (!ev) return '';
+  return ev.completedAt || ev.effectiveAt || (ev.ts ? String(ev.ts).slice(0, 10) : '');
+}
+
+// ── Dated edits waiting for a save ───────────────────────────────────────────
+// `pending` maps an item id to `{ day, status, progress }`: the day its last
+// status or progress edit from the item dialog counts for, and the state that
+// edit left. The save's diff stamps the day on the item's events, but only
+// while the item is still in that state: any later edit, from wherever, is a
+// change made today and the day no longer applies.
+//
+// A package's status follows from the items under it. Its event takes the
+// day when every item event under it in this save was dated; one change from
+// today among them and the package changed today.
+//
+// An event that already carries a day (a global backdate) keeps it.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export function pendingDate(day, node) {
+  const state = leafSnapshot([node]).get(node?.id);
+  return state && DAY.test(String(day || '')) ? { day, status: state.status, progress: state.progress } : null;
+}
+export function stampPendingDates(events, pending, snapshot, ts = null) {
+  const dayOf = new Map();
+  for (const [id, p] of Object.entries(pending || {})) {
+    const now = snapshot?.get(id);
+    if (p && DAY.test(String(p.day || '')) && now && now.status === p.status && now.progress === p.progress) dayOf.set(id, p.day);
+  }
+  if (!dayOf.size) return events;
+  const list = events || [];
+  const dayFor = id => {
+    if (dayOf.has(id)) return dayOf.get(id);
+    const below = list.filter(ev => ev && ev.id.startsWith(id + '.') && !list.some(o => o && o.id.startsWith(ev.id + '.')));
+    if (!below.length || below.some(ev => !dayOf.has(ev.id))) return null;
+    return below.map(ev => dayOf.get(ev.id)).sort()[0];
+  };
+  const out = list.map(ev => {
+    if (!ev || ev.effectiveAt || ev.kind === 'removed') return ev;
+    const day = dayFor(ev.id);
+    return day ? { ...ev, effectiveAt: day } : ev;
+  });
+  // A dated edit that left the item where it already is today changes
+  // nothing for the diff, and still says something: the item was in that
+  // state from that day on. With a timestamp to write it under, it is said.
+  if (ts) {
+    const seen = new Set(list.map(ev => ev?.id));
+    for (const [id, day] of dayOf) {
+      if (seen.has(id)) continue;
+      const now = snapshot.get(id);
+      out.push({ ts, id, status: now.status, progress: now.progress, ...(now.status === 'done' && now.completedAt ? { completedAt: now.completedAt } : {}), effectiveAt: day });
+    }
+  }
+  return out;
+}
+
+// The document without the dates a save has read. With `read`, only the
+// entries that still say what that save saw (same day, same state) are
+// taken out.
+export function withoutPendingDates(data, read = null) {
+  if (!data || !data.asOfPending) return data;
+  const { asOfPending, ...rest } = data;
+  if (!read) return rest;
+  const same = (a, b) => !!a && !!b && a.day === b.day && a.status === b.status && a.progress === b.progress;
+  const left = Object.fromEntries(Object.entries(asOfPending).filter(([id, p]) => !same(read[id], p)));
+  return Object.keys(left).length ? { ...rest, asOfPending: left } : rest;
+}
+
+// ── Compaction: a log that says only what happened ──────────────────────────
+// An event that leaves the item exactly as it was is not history. A real plan
+// had 11,731 events of which 563 were changes: the baseline every save is
+// diffed against used to be taken before the file had loaded, so the first
+// save after every open recorded each item as "added" again (fixed where the
+// baseline is set, in App.jsx). What that left behind is removed here, on
+// load, by one rule that cannot change what any replay returns:
+//
+//   an event is dropped when replaying the log up to and including it gives
+//   the same state for its item as replaying up to just before it.
+//
+// plus one that can, deliberately, and only in the artefact's own shape:
+//
+//   a "removed" directly followed (for that item) by an "added" that restores
+//   the state the item had before, RECORDED within three days of it, is
+//   dropped together with it — the item was never gone, a save was diffed
+//   against another document's baseline. Three days because the artefact is
+//   two saves in a row (on a real plan: four within a day), while an item
+//   that was really deleted and came back weeks later is history and stays.
+//
+// Order in the file is kept for everything that stays.
+const FLAP_WINDOW_MS = 3 * 24 * 3600 * 1000;
+function withinFlapWindow(removed, added) {
+  const a = Date.parse(removed?.ts || ''), b = Date.parse(added?.ts || '');
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(b - a) <= FLAP_WINDOW_MS;
+}
+
+export function compactHistory(events) {
+  if (!Array.isArray(events) || events.length < 2) return { events: events || [], dropped: 0 };
+  const order = events.map((ev, i) => ({ ev, i, at: eventReplayTimestamp(ev) }))
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.i - b.i));
+  const same = (a, b) => !!a && !!b && a.status === b.status && a.progress === b.progress && (a.completedAt || null) === (b.completedAt || null);
+  const state = new Map();     // id → { status, progress, completedAt } while present
+  const pending = new Map();   // id → { index, before } for a "removed" that may turn out to be a flap
+  const drop = new Set();
+  for (const { ev, i } of order) {
+    if (!ev || !ev.id) continue;
+    const prev = state.get(ev.id);
+    if (ev.kind === 'removed') {
+      if (!prev) { drop.add(i); continue; }           // removing what is not there
+      state.delete(ev.id);
+      pending.set(ev.id, { index: i, before: prev });
+      continue;
+    }
+    const base = prev || { status: 'open', progress: 0, completedAt: null };
+    const next = { ...base };
+    if (ev.status != null) next.status = ev.status;
+    if (ev.progress != null) next.progress = ev.progress;
+    if (ev.completedAt != null) next.completedAt = ev.completedAt;
+    const flap = pending.get(ev.id);
+    pending.delete(ev.id);
+    if (!prev && flap && ev.kind === 'added' && same(flap.before, next) && withinFlapWindow(events[flap.index], ev)) {
+      drop.add(flap.index); drop.add(i);              // gone and back, unchanged: never gone
+      state.set(ev.id, flap.before);
+      continue;
+    }
+    if (prev && same(prev, next)) { drop.add(i); continue; }
+    state.set(ev.id, next);
+  }
+  if (!drop.size) return { events, dropped: 0 };
+  return { events: events.filter((_, i) => !drop.has(i)), dropped: drop.size };
+}

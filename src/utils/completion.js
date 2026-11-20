@@ -1,0 +1,207 @@
+import { addD, addWorkDays, eachDayInclusive, iso, localDate, normalizeVacation } from './date.js';
+import { inTeam } from './memberTeams.js';
+import { isLeafNode, parentId, pt, re, resolveToLeafIds } from './scheduler.js';
+import { deriveCap } from './capacity.js';
+
+const DEFAULT_WORK_DAYS = [1, 2, 3, 4, 5];
+
+export function clampCompletedDate(dateLike) {
+  if (!dateLike) return '';
+  const date = typeof dateLike === 'string' ? localDate(dateLike) : localDate(dateLike);
+  const today = localDate(new Date());
+  return iso(date > today ? today : date);
+}
+
+function buildVacationSets(vacations) {
+  const sets = {};
+  (vacations || []).forEach(v => {
+    const nv = normalizeVacation(v);
+    if (!nv.person || !nv.from || !nv.to) return;
+    if (!sets[nv.person]) sets[nv.person] = new Set();
+    for (const d of eachDayInclusive(nv.from, nv.to)) sets[nv.person].add(iso(d));
+  });
+  return sets;
+}
+
+function isUsableWorkDay(date, wdSet, hm, vacationSets, assigneeIds) {
+  const dayIso = iso(date);
+  if (!wdSet.has(date.getDay())) return false;
+  if (hm?.[dayIso]) return false;
+  if (assigneeIds.some(id => vacationSets[id]?.has(dayIso))) return false;
+  return true;
+}
+
+function effectiveDeps(tree, item) {
+  const deps = new Set([...(item?.deps || []), ...(item?.softDeps || [])]);
+  let aid = parentId(item?.id || '');
+  while (aid) {
+    const ancestor = tree.find(r => r.id === aid);
+    (ancestor?.deps || []).forEach(dep => deps.add(dep));
+    (ancestor?.softDeps || []).forEach(dep => deps.add(dep));
+    aid = parentId(aid);
+  }
+  return [...deps];
+}
+
+function completedWindowOf(item, today = localDate(new Date())) {
+  const startLike = item?.completedStart || item?.completedAt || item?.completedEnd;
+  const endLike = item?.completedEnd || item?.completedAt || item?.completedStart;
+  if (!startLike || !endLike) return null;
+  let start = localDate(startLike);
+  let end = localDate(endLike);
+  if (end > today) end = new Date(today);
+  if (start > end) start = new Date(end);
+  return { start, end };
+}
+
+export function normalizeCompletedWindows(tree, { workDays: _workDays, now } = {}) {
+  // Trust the recorded window as-is. Earlier versions cascaded done items
+  // behind their done predecessors and then clamped against today, which hid
+  // the actual recorded dates and snapped bars onto "today minus duration"
+  // whenever a predecessor's recorded end ran late. Users record history
+  // deliberately; anomalies should be visible, not auto-corrected.
+  const rows = tree || [];
+  const today = localDate(now || new Date());
+  const windows = new Map();
+  rows.forEach(item => {
+    if (!item?.id || item.status !== 'done' || !isLeafNode(rows, item.id)) return;
+    const original = completedWindowOf(item, today);
+    if (!original) return;
+    windows.set(item.id, {
+      start: iso(original.start),
+      end: iso(original.end),
+      adjusted: false,
+    });
+  });
+  return windows;
+}
+
+export function inferCompletedPersonId(item, members, scheduledSnap = null) {
+  if (item?.completedPersonId) return item.completedPersonId;
+  if (scheduledSnap?.personId) return scheduledSnap.personId;
+  if (item?.assign?.length) return item.assign[0];
+  const teamId = pt(item?.team);
+  const teamMembers = (members || []).filter(m => inTeam(m, teamId, pt));
+  return teamMembers.length === 1 ? teamMembers[0].id : null;
+}
+
+function estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, vacations, hm, workDays }) {
+  if (!item?.pinnedStart) return '';
+  const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
+  const vacationSets = buildVacationSets(vacations);
+  const member = completedPersonId ? (members || []).find(m => m.id === completedPersonId) : null;
+  const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
+  const dailyCap = Math.max(0.1, deriveCap(member));
+  let remainingEffort = re(item?.best || 0, item?.factor || 1.5);
+  let cursor = localDate(item.pinnedStart);
+  let lastWorkDay = new Date(cursor);
+  let guard = 0;
+
+  while (!isUsableWorkDay(cursor, wdSet, hm, vacationSets, assigneeIds) && guard < 60) {
+    cursor = addD(cursor, 1);
+    lastWorkDay = new Date(cursor);
+    guard++;
+  }
+  if (!remainingEffort || remainingEffort <= 0) return clampCompletedDate(cursor);
+
+  while (remainingEffort > 0 && guard < 4000) {
+    if (isUsableWorkDay(cursor, wdSet, hm, vacationSets, assigneeIds)) {
+      remainingEffort -= dailyCap;
+      lastWorkDay = new Date(cursor);
+    }
+    if (remainingEffort <= 0) break;
+    cursor = addD(cursor, 1);
+    guard++;
+  }
+  return clampCompletedDate(lastWorkDay);
+}
+
+export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, workDays, planStart, completedPersonId, members, vacations, hm }) {
+  if (item?.completedAt) return clampCompletedDate(item.completedAt);
+  if (item?.completedEnd) return clampCompletedDate(item.completedEnd);
+  if (scheduledSnap?.endD) return clampCompletedDate(scheduledSnap.endD);
+
+  const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
+  let earliestSuccessorStart = null;
+
+  (tree || []).forEach(candidate => {
+    if (!candidate || candidate.id === item?.id || !isLeafNode(tree || [], candidate.id) || candidate.status === 'done') return;
+    const scheduled = scheduledMap?.get(candidate.id);
+    if (!scheduled?.startD) return;
+    const dependsOnItem = effectiveDeps(tree || [], candidate)
+      .some(depId => resolveToLeafIds(tree || [], depId).includes(item.id));
+    if (!dependsOnItem) return;
+    if (!earliestSuccessorStart || scheduled.startD < earliestSuccessorStart) earliestSuccessorStart = scheduled.startD;
+  });
+
+  if (earliestSuccessorStart) {
+    return clampCompletedDate(addWorkDays(earliestSuccessorStart, -1, wdSet));
+  }
+
+  const pinnedEstimate = estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, vacations, hm, workDays });
+  if (pinnedEstimate) return pinnedEstimate;
+
+  return clampCompletedDate(planStart || new Date());
+}
+
+export function deriveCompletedWindow({ item, completedAt, completedPersonId, members, vacations, hm, workDays }) {
+  const wdSet = new Set(workDays || DEFAULT_WORK_DAYS);
+  const vacationSets = buildVacationSets(vacations);
+  const member = completedPersonId ? (members || []).find(m => m.id === completedPersonId) : null;
+  const assigneeIds = [...new Set([...(item?.assign || []), ...(completedPersonId ? [completedPersonId] : [])])];
+  const dailyCap = Math.max(0.1, deriveCap(member));
+
+  const endDate = localDate(clampCompletedDate(completedAt || item?.completedAt || item?.completedEnd || new Date()));
+
+  let remainingEffort = re(item?.best || 0, item?.factor || 1.5);
+  if (!remainingEffort || remainingEffort <= 0) {
+    const dayIso = iso(endDate);
+    return { completedStart: dayIso, completedEnd: dayIso };
+  }
+
+  let startDate = new Date(endDate);
+  let cursor = new Date(endDate);
+  let steps = 0;
+  while (remainingEffort > 0 && steps < 4000) {
+    if (isUsableWorkDay(cursor, wdSet, hm, vacationSets, assigneeIds)) {
+      startDate = new Date(cursor);
+      remainingEffort -= dailyCap;
+    }
+    if (remainingEffort <= 0) break;
+    cursor = addD(cursor, -1);
+    steps++;
+  }
+
+  return {
+    completedStart: iso(startDate),
+    completedEnd: iso(endDate),
+  };
+}
+
+// What a manual status change should also touch on the node, beyond the
+// status field itself — shared by QuickEdit's status dropdown/progress
+// slider and Run mode's row-level status control (utils/attention.js feeds
+// the rows, App.jsx's updateNode() does the actual write either way).
+//
+//   → done: progress snaps to 100 and completedAt/-End/-Start are stamped so
+//     the done-bar and Soll/Ist have real dates, never a future one.
+//   → wip:  completedStart is seeded (existing value, else plannedStart if
+//     not in the future, else today) so Soll/Ist has an Ist-Start the moment
+//     work begins, and progress keeps whatever partial value it had.
+//   → open: progress resets to 0; nothing else changes.
+export function statusChangePatch(node, status) {
+  const today = iso(new Date());
+  if (status === 'done') {
+    const completedAt = (node.completedAt && node.completedAt <= today) ? node.completedAt : today;
+    const completedEnd = (node.completedEnd && node.completedEnd <= completedAt) ? node.completedEnd : completedAt;
+    const seedCandidate = node.completedStart || node.plannedStart || completedEnd;
+    const completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
+    return { status: 'done', progress: 100, completedAt, completedEnd, completedStart };
+  }
+  if (status === 'wip') {
+    const completedStart = node.completedStart || ((node.plannedStart && node.plannedStart <= today) ? node.plannedStart : today);
+    const progress = (node.progress && node.progress > 0 && node.progress < 100) ? node.progress : 50;
+    return { status: 'wip', progress, completedStart };
+  }
+  return { status: 'open', progress: 0 };
+}

@@ -1,0 +1,1062 @@
+import { describe, test, expect } from 'vitest';
+import { schedule, re, nextChildId } from '../scheduler.js';
+import { iso } from '../date.js';
+
+// Minimal project builder — returns the canonical `schedule()` invocation so
+// tests can focus on scenario state, not boilerplate.
+function runSchedule({
+  tree,
+  members,
+  vacations = [],
+  planStart = '2026-01-05',   // Monday
+  planEnd = '2026-12-31',
+  holidays = {},
+  workDays = [1, 2, 3, 4, 5],
+  options = {},
+}) {
+  // Pin `now` to planStart so tests stay deterministic regardless of when
+  // they run. Auto-advance + WIP-discount are still exercised — tests that
+  // need to verify those pass `now` / `discountProgress` through `options`.
+  // autoCascade defaults true here so the existing handoff suite stays
+  // valid — those tests exercise cascade mechanics. App-side default is
+  // false (user explicitly splits via the Insights ↳ Split button).
+  const opts = { now: planStart, anchorToToday: false, discountProgress: false, autoCascade: true, ...options };
+  return schedule(tree, members, vacations, planStart, planEnd, holidays, workDays, planStart, opts);
+}
+
+describe('re() effort calculation', () => {
+  test('best × factor', () => {
+    expect(re(10, 1.5)).toBe(15);
+  });
+  test('zero best → 0', () => {
+    expect(re(0, 1.5)).toBe(0);
+  });
+  test('undefined best → 0', () => {
+    expect(re(undefined, 1.5)).toBe(0);
+  });
+});
+
+describe('schedule(): basic single-task scenarios', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' };
+
+  test('empty tree returns empty results', () => {
+    const { results } = runSchedule({ tree: [], members: [alex] });
+    expect(results).toEqual([]);
+  });
+
+  test('single 5-day task assigned to full-time member', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Task', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe('P1.1');
+    expect(results[0].personId).toBe('M1');
+  });
+
+  test('auto-assign picks team member when no explicit assign', () => {
+    // Need 2+ team members to exercise the auto-assign branch (the single-
+    // member shortcut short-circuits to the explicit-assign path).
+    const sam = { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' };
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Task', team: 'T1', best: 3, factor: 1, assign: [], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex, sam] });
+    expect(['M1', 'M2']).toContain(results[0].personId);
+    expect(results[0].autoAssigned).toBe(true);
+  });
+});
+
+describe('schedule(): offboard cascade', () => {
+  // Two members, same team. M1 offboards mid-task, M2 is available.
+  const members = [
+    { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
+    { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+  ];
+
+  test('single-assign task cascades to same-team member on offboard', () => {
+    // 60-day task, M1 offboards Feb 13 mid-task → remainder picks up by M2.
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members });
+    const primary = results.find(s => s.id === 'P1.1');
+    const handoff = results.find(s => s.isHandoff && !s.unscheduled);
+    expect(primary.hasHandoffSegments).toBe(true);
+    expect(handoff).toBeDefined();
+    expect(handoff.personId).toBe('M2');
+    expect(handoff.unscheduled).toBeFalsy();
+  });
+
+  test('truncation when no team member can absorb remainder', () => {
+    // Only M1, offboards mid-task, 60d task → ghost tail
+    const soloTeam = [members[0]];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: soloTeam });
+    const primary = results.find(s => s.id === 'P1.1');
+    const ghost = results.find(s => s.isHandoff && s.unscheduled);
+    expect(primary.truncatedByOffboard).toBeTruthy();
+    expect(ghost).toBeDefined();
+    expect(ghost.personId).toBeNull();
+    expect(ghost.effort).toBeGreaterThan(0);
+  });
+
+  test('truncation names the person who left, without a cascade ghost', () => {
+    // autoCascade is off by default in the app, so no "(unassigned)" ghost
+    // segment is appended and the task keeps its single segment. Reading the
+    // second-to-last segment then fell off the start of the array, and the
+    // risk list printed the literal word "undefined" into the exported PDF.
+    const soloTeam = [members[0]];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: soloTeam, options: { autoCascade: false } });
+    const tr = results.find(s => s.id === 'P1.1').truncatedByOffboard;
+    expect(tr).toBeTruthy();
+    expect(tr.personId).toBe('M1');
+    expect(tr.personName).toBe('Alex');
+  });
+
+  test('cross-team cascade when same-team exhausted', () => {
+    const cross = [
+      { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
+      { id: 'M2', name: 'Sam',  team: 'T2', cap: 1, vac: 0, start: '2026-01-01' },
+    ];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: cross });
+    const handoff = results.find(s => s.isHandoff && !s.unscheduled);
+    expect(handoff?.personId).toBe('M2');
+    expect(handoff?.crossTeam).toBe(true);
+  });
+
+  test('handoffPlan override forces specific assignee', () => {
+    const trio = [
+      { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
+      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      { id: 'M3', name: 'Robin', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+    ];
+    // Without override Scheduler might pick either M2 or M3 (earliest-free).
+    // With override → must be M3.
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1,
+        assign: ['M1'], status: 'open',
+        handoffPlan: [{ assign: ['M3'] }] },
+    ];
+    const { results } = runSchedule({ tree, members: trio });
+    const handoff = results.find(s => s.isHandoff && !s.unscheduled);
+    expect(handoff?.personId).toBe('M3');
+    expect(handoff?.plannedHandoff).toBe(true);
+  });
+});
+
+describe('schedule(): dependencies', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('dependent task starts after predecessor finishes', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [], status: 'open' },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(second.startD > first.endD).toBe(true);
+  });
+
+  test('soft dependency from Gantt link serialises same-resource tasks', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 5, factor: 1, assign: ['M1'], softDeps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(second.startD > first.endD).toBe(true);
+  });
+
+  test('wip progress does not visually move a dep-blocked successor before its predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'First', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Second', team: 'T1', best: 10, factor: 1, assign: ['M1'], softDeps: ['P1.1'], status: 'wip', progress: 50 },
+    ];
+    const { results } = runSchedule({
+      tree,
+      members: [alex],
+      options: { discountProgress: true },
+    });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(second.startD > first.endD).toBe(true);
+  });
+
+  test('inherited dep from parent blocks all children', () => {
+    // P2 depends on P1. Leaves under P2 inherit the dependency and all must
+    // start after P1.1 finishes.
+    const tree = [
+      { id: 'P1', name: 'Gate', team: '', best: 0 },
+      { id: 'P1.1', name: 'Gate task', team: 'T1', best: 3, factor: 1, assign: ['M1'], deps: [], status: 'open' },
+      { id: 'P2', name: 'Next', team: '', best: 0, deps: ['P1'] },
+      { id: 'P2.1', name: 'After gate', team: 'T1', best: 2, factor: 1, assign: ['M1'], deps: [], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const gate = results.find(s => s.id === 'P1.1');
+    const after = results.find(s => s.id === 'P2.1');
+    expect(after.startD >= gate.endD).toBe(true);
+  });
+
+  test('done tasks are not scheduled', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Already done', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'done' },
+      { id: 'P1.2', name: 'Still open', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    expect(results.find(s => s.id === 'P1.1')).toBeUndefined();
+    expect(results.find(s => s.id === 'P1.2')).toBeDefined();
+  });
+});
+
+describe('schedule(): pinned starts', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('pinned task starts on its pin date (not earlier)', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1,
+        assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const s = results.find(r => r.id === 'P1.1');
+    expect(s.startD >= new Date(2026, 2, 2)).toBe(true);
+  });
+
+  test('pinned task does not consume queue slot before its pin', () => {
+    // P1.1 pinned in March doesn't block P1.2 (un-pinned) from running
+    // earlier on the same person.
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1,
+        assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
+      { id: 'P1.2', name: 'Early', team: 'T1', best: 2, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const early = results.find(s => s.id === 'P1.2');
+    expect(early.startD < new Date(2026, 2, 2)).toBe(true);
+  });
+});
+
+// Link-driven Gantt: a leaf without `deps` / `softDeps` runs from its earliest
+// legal floor (planStart/today/member-start). The person queue is bypassed so
+// the task starts in parallel with whatever the resource is already doing.
+// Links are the explicit way to enforce sequencing.
+
+describe('schedule(): no-dep starters queue per assignee by default', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('two unrelated no-dep tasks on same person run sequentially (auto-scheduler)', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.1');
+    const b = results.find(s => s.id === 'P1.2');
+    expect(b.startD > a.endD).toBe(true);
+  });
+
+  test('parallel:true on a no-dep task bypasses the queue and starts at earliest', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', parallel: true },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.1');
+    const b = results.find(s => s.id === 'P1.2');
+    expect(a.startD.getTime()).toBe(b.startD.getTime());
+  });
+
+  test('successor still waits for predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Succ', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const pred = results.find(s => s.id === 'P1.1');
+    const succ = results.find(s => s.id === 'P1.2');
+    // Successor uses normal queue mechanics — it still waits for pred.endD.
+    expect(succ.startD >= pred.endD).toBe(true);
+  });
+});
+
+describe('schedule(): dep + parallel interaction', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('linked successor always waits; once both dep is dropped AND parallel set, starts at earliest', () => {
+    const linked = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], status: 'open', deps: ['P1.1'], parallel: true },
+    ];
+    const linkedRes = runSchedule({ tree: linked, members: [alex] });
+    const linkedA = linkedRes.results.find(s => s.id === 'P1.1');
+    const linkedB = linkedRes.results.find(s => s.id === 'P1.2');
+    expect(linkedB.startD >= linkedA.endD).toBe(true);
+
+    const unlinked = linked.map(n => n.id === 'P1.2' ? { ...n, deps: [] } : n);
+    const unlinkedRes = runSchedule({ tree: unlinked, members: [alex] });
+    const ulA = unlinkedRes.results.find(s => s.id === 'P1.1');
+    const ulB = unlinkedRes.results.find(s => s.id === 'P1.2');
+    expect(ulB.startD.getTime()).toBe(ulA.startD.getTime());
+  });
+});
+
+describe('schedule(): fan-out auto-parallel (shared capacity)', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('N successors with same predecessor + same assignee share start, span = N × eff', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.4', name: 'C', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const a = results.find(s => s.id === 'P1.2');
+    const b = results.find(s => s.id === 'P1.3');
+    const c = results.find(s => s.id === 'P1.4');
+    // All three share the same start (= predecessor's end + 1 day, rounded
+    // to the week-grid the scheduler operates on).
+    expect(a.startD.getTime()).toBe(b.startD.getTime());
+    expect(a.startD.getTime()).toBe(c.startD.getTime());
+    // Calendar span covers all three efforts back-to-back (shared cap = 1/3
+    // throughput on each → identical end for all three).
+    expect(a.endD.getTime()).toBe(b.endD.getTime());
+    expect(a.endD.getTime()).toBe(c.endD.getTime());
+  });
+
+  test('singleton successor stays on regular per-person path', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'Only', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex] });
+    const t = results.find(s => s.id === 'P1.2');
+    expect(t).toBeDefined();
+    expect(t._autoParallel).toBeFalsy();
+  });
+
+  test('different assignees keep the regular sequential per-person schedule', () => {
+    const max = { id: 'M2', name: 'Max', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pred', team: 'T1', best: 1, factor: 1, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'A', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'B', team: 'T1', best: 5, factor: 1, assign: ['M2'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alex, max] });
+    const a = results.find(s => s.id === 'P1.2');
+    const b = results.find(s => s.id === 'P1.3');
+    // Different people → no batching. They may still start at the same time
+    // because both wait on the same predecessor, but neither is marked auto-
+    // parallel because the grouping requires identical assignee sets.
+    expect(a._autoParallel).toBeFalsy();
+    expect(b._autoParallel).toBeFalsy();
+  });
+});
+
+describe('schedule(): vacations', () => {
+  test('explicit vacation days lower effective capacity', () => {
+    const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' };
+    const explicitVac = [{ person: 'M1', from: '2026-01-19', to: '2026-01-23', note: '' }];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Task', team: 'T1', best: 10, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const withVac = runSchedule({ tree, members: [alex], vacations: explicitVac });
+    const withoutVac = runSchedule({ tree, members: [{ ...alex, vac: 0 }], vacations: [] });
+    const a = withVac.results.find(s => s.id === 'P1.1');
+    const b = withoutVac.results.find(s => s.id === 'P1.1');
+    // With vacation + annual allowance the task spans more calendar days.
+    expect(a.calDays).toBeGreaterThan(b.calDays);
+  });
+});
+
+describe('schedule(): multi-assign (pair programming)', () => {
+  const m1 = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+  const m2 = { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('multi-assign pair task with dep-blocked follow-ups: sequential', () => {
+    // Exercise the multi-assign-blocks-both mechanic with explicit deps so
+    // the assertion is about pair blocking, not ordinary queue order.
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pair', team: 'T1', best: 5, factor: 1,
+        assign: ['M1', 'M2'], status: 'open' },
+      { id: 'P1.2', name: 'Other-A', team: 'T1', best: 3, factor: 1,
+        assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'Other-B', team: 'T1', best: 3, factor: 1,
+        assign: ['M2'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [m1, m2] });
+    const pair = results.find(s => s.id === 'P1.1');
+    const a = results.find(s => s.id === 'P1.2');
+    const b = results.find(s => s.id === 'P1.3');
+    // Follow-ups now wait for the pair via explicit dep.
+    expect(a.startD >= pair.endD).toBe(true);
+    expect(b.startD >= pair.endD).toBe(true);
+  });
+});
+
+describe('schedule(): cross-team + planned handoff layered', () => {
+  const t1 = { id: 'M1', name: 'T1-out', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' };
+  const t1b = { id: 'M2', name: 'T1-stay', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' };
+  const t2 = { id: 'M3', name: 'T2', team: 'T2', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('falls through to cross-team when team exhausted', () => {
+    // Both T1 members offboard early; T2 member is only path.
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [t1, t1b, t2] });
+    const handoffs = results.filter(s => s.isHandoff && !s.unscheduled);
+    const crossRow = handoffs.find(s => s.crossTeam);
+    expect(crossRow).toBeDefined();
+    expect(crossRow.personId).toBe('M3');
+  });
+});
+
+describe('schedule(): cyclic deps', () => {
+  const alex = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('cycle does not throw; both nodes appear', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'A', team: 'T1', best: 2, factor: 1, assign: ['M1'], deps: ['P1.2'], status: 'open' },
+      { id: 'P1.2', name: 'B', team: 'T1', best: 2, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const run = () => runSchedule({ tree, members: [alex] });
+    expect(run).not.toThrow();
+    const { results } = run();
+    expect(results.find(s => s.id === 'P1.1')).toBeDefined();
+    expect(results.find(s => s.id === 'P1.2')).toBeDefined();
+  });
+});
+
+describe('schedule(): cascade respects dep earliest-start', () => {
+  // Regression: Primary offboarded BEFORE the task's dep was ready.
+  // Cascade used to start at primary.end + 1, ignoring dep.end → successor
+  // reported "Dep violation" in console. Fix: cascade clamps nextStart to
+  // max(primary.end + 1, dep.nextDate).
+  test('handoff does not start before its dep is free', () => {
+    const warn = [];
+    const origWarn = console.warn;
+    console.warn = (...args) => { warn.push(args.join(' ')); };
+    try {
+      const members = [
+        // M1 offboards very early; assigned to the LATE task. Pool member M2
+        // takes over via cascade.
+        { id: 'M1', name: 'Early-Out', team: 'T1', cap: 1, vac: 0,
+          start: '2026-01-01', end: '2026-01-16' },
+        { id: 'M2', name: 'Stayer', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        // M3 runs the long predecessor.
+        { id: 'M3', name: 'Blocker', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      ];
+      const tree = [
+        { id: 'P1', name: 'Root', team: '', best: 0 },
+        // Predecessor: 40 work days; ends late March/April.
+        { id: 'P1.1', name: 'Long', team: 'T1', best: 40, factor: 1,
+          assign: ['M3'], status: 'open' },
+        // Successor assigned to M1 who is already offboarded by then. Without
+        // the fix, the cascade would start at Jan 17 (M1.end + 1) instead of
+        // after P1.1 finishes.
+        { id: 'P1.2', name: 'After', team: 'T1', best: 5, factor: 1,
+          assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      ];
+      const { results } = runSchedule({ tree, members });
+      // No dep-violation warning emitted.
+      expect(warn.find(m => /Dep violation/.test(m))).toBeUndefined();
+      // Successor actually starts >= predecessor end.
+      const pre = results.find(s => s.id === 'P1.1');
+      const suc = results.find(s => s.id === 'P1.2');
+      expect(suc.startD >= pre.endD).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+});
+
+describe('schedule(): pinned + offboard cascade', () => {
+  test('pinned task whose assignee offboards still hands off', () => {
+    const members = [
+      { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-03-13' },
+      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+    ];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Pinned+long', team: 'T1', best: 50, factor: 1,
+        assign: ['M1'], pinnedStart: '2026-02-02', status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members });
+    const primary = results.find(s => s.id === 'P1.1');
+    const handoff = results.find(s => s.isHandoff && !s.unscheduled);
+    // Primary starts no earlier than pin.
+    expect(primary.startD >= new Date(2026, 1, 2)).toBe(true);
+    // Handoff triggers on M1 offboard and falls to M2.
+    expect(handoff?.personId).toBe('M2');
+  });
+});
+
+describe('schedule(): meeting-plan capacity reduction end-to-end', () => {
+  test('team-inherited plan reduces scheduled throughput', () => {
+    // Same task scheduled twice: once with a heavy team plan, once without.
+    // The one with plans should take more calendar days.
+    const makeMembers = (withPlan) => ([{
+      id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01',
+      capMode: 'derived', weeklyHours: 40,
+      // Manual enrichment (scheduler reads member.meetings directly; App.jsx
+      // does this via resolveMemberMeetings at call-site).
+      meetings: withPlan
+        ? [{ id: 'm', name: 'Heavy', hours: 20, frequency: 'weekly' }]
+        : [],
+    }]);
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Task', team: 'T1', best: 10, factor: 1, assign: ['M1'], status: 'open' },
+    ];
+    const withPlan = runSchedule({ tree, members: makeMembers(true) });
+    const withoutPlan = runSchedule({ tree, members: makeMembers(false) });
+    const a = withPlan.results.find(s => s.id === 'P1.1');
+    const b = withoutPlan.results.find(s => s.id === 'P1.1');
+    expect(a.calDays).toBeGreaterThan(b.calDays);
+  });
+});
+
+describe('schedule(): segment sums are conservative', () => {
+  // Primary + handoff effort should sum to original task effort.
+  test('segments sum equals eff', () => {
+    const members = [
+      { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
+      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+    ];
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 40, factor: 1.5, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members });
+    const all = results.filter(s => (s.treeId || s.id) === 'P1.1');
+    const sumEffort = all.reduce((s, r) => s + (r.effort || 0), 0);
+    // Effort = best*factor = 40*1.5 = 60
+    expect(sumEffort).toBeCloseTo(60, 1);
+  });
+});
+
+describe('schedule(): anchor to today', () => {
+  test('non-pinned tasks slide forward when today > planStart', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 5, factor: 1, status: 'open' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    // planStart way in the past, "today" 60 days later. Without anchorToToday,
+    // task would start on planStart. With it, task starts on or after today.
+    const r = runSchedule({
+      tree, members,
+      planStart: '2026-01-05',
+      planEnd: '2026-12-31',
+      options: { now: '2026-03-09', anchorToToday: true },
+    });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item).toBeTruthy();
+    expect(item.startD).toBeInstanceOf(Date);
+    // Should start no earlier than the synthetic "today" (compare via the
+    // local-TZ iso() helper so we don't hit UTC-midnight skew).
+    expect(iso(item.startD) >= '2026-03-09').toBe(true);
+  });
+
+  test('pinned tasks ignore the today-floor', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 5, factor: 1, status: 'open', pinnedStart: '2026-02-01' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({
+      tree, members,
+      planStart: '2026-01-05',
+      planEnd: '2026-12-31',
+      options: { now: '2026-03-09', anchorToToday: true },
+    });
+    const item = r.results.find(x => x.id === 'A');
+    // Pinned start kept even though "today" is later.
+    expect(iso(item.startD) < '2026-03-09').toBe(true);
+  });
+});
+
+describe('schedule(): WIP progress discount', () => {
+  test('half-done WIP task uses half the effort', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'wip', progress: 50 }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: true } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(5, 1);
+  });
+
+  test('open task is unaffected by progress discount', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'open' }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: true } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(10, 1);
+  });
+
+  test('disabled discount keeps full effort even on wip', () => {
+    const tree = [{ id: 'A', name: 'A', team: 'T', best: 10, factor: 1, status: 'wip', progress: 50 }];
+    const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
+    const r = runSchedule({ tree, members, options: { discountProgress: false } });
+    const item = r.results.find(x => x.id === 'A');
+    expect(item.effort).toBeCloseTo(10, 1);
+  });
+});
+
+describe('schedule(): auto-assign respects committed assigned work', () => {
+  // Regression — real dataset 2026-05-05. ML has a heavy explicit-assign
+  // queue (cap=0.5, ~50 effort committed). TR and NB are full-cap and free.
+  // An UNASSIGNED task scheduled before ML's queue used to land on ML because
+  // pF[ML] was still empty at sort time → unassigned starved on the slowest
+  // body. Fix: virtual fd/fw floor from committedRem so ML looks as loaded as
+  // he actually is. (What put the task ahead of ML's stack back then was the
+  // due-date bump; the order comes from the tree now, and the floor is what
+  // this test is about either way.)
+  const ML = { id: 'ML', name: 'Mara', team: 'T', cap: 0.5, vac: 0, start: '2026-01-01' };
+  const TR = { id: 'TR', name: 'Tom',   team: 'T', cap: 1,   vac: 0, start: '2026-01-01' };
+  const NB = { id: 'NB', name: 'Noah',   team: 'T', cap: 1,   vac: 0, start: '2026-01-05' };
+
+  test('due-bumped unassigned task lands on free body, not slow committed assignee', () => {
+    // ML: 5 explicit assigned tasks of 10d each = 50d committed → ~100 work
+    // days at cap 0.5. TR and NB: zero committed work. A small unassigned
+    // task with a near-term due has to find a free body rather than queue
+    // behind all of it.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.A', name: 'ML-1', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 10 },
+      { id: 'P.B', name: 'ML-2', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 20 },
+      { id: 'P.C', name: 'ML-3', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 30 },
+      { id: 'P.D', name: 'ML-4', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 40 },
+      { id: 'P.E', name: 'ML-5', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 50 },
+      { id: 'P.U', name: 'urgent', team: 'T', best: 5, factor: 1, prio: 4, due: '2026-03-06' },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [ML, TR, NB],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const urgent = r.results.find(x => x.id === 'P.U');
+    expect(urgent).toBeDefined();
+    // The unassigned urgent task MUST go to a full-cap body (TR or NB), not
+    // ML whose committed queue would push the urgent task past its due.
+    expect(['TR', 'NB']).toContain(urgent.personId);
+    // And it must finish before its due date.
+    expect(iso(urgent.endD) <= '2026-03-06').toBe(true);
+  });
+
+  test('all ML committed work still lands on ML (auto-assign does not steal)', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.A', name: 'ML-1', team: 'T', best: 10, factor: 1, assign: ['ML'], prio: 4, seq: 10 },
+      { id: 'P.U', name: 'fill', team: 'T', best: 5, factor: 1, prio: 4, seq: 20 },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [ML, TR, NB],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const aTask = r.results.find(x => x.id === 'P.A');
+    expect(aTask.personId).toBe('ML');
+  });
+
+  // Regression — real plan 2026-09-24. NB had ~90 PT explicitly assigned
+  // in a project that comes LATER in the tree. That work was counted as a
+  // "busy until" floor from today, so NB looked full until March, the earlier
+  // project's unassigned Backend work went to a 33% colleague instead, and NB
+  // sat idle for six months while his own assigned work still queued behind.
+  test('work assigned later in the plan does not hold a person back from earlier work', () => {
+    const MLpart = { id: 'MLp', name: 'Mara', team: 'B', cap: 0.33, vac: 0, start: '2026-01-01' };
+    const NBfull = { id: 'NBx', name: 'Noah', team: 'B', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P1', name: 'Earlier project', best: 0 },
+      { id: 'P1.1', name: 'ML busy first', team: 'B', best: 20, factor: 1, assign: ['MLp'] },
+      { id: 'P1.2', name: 'unassigned backend', team: 'B', best: 5, factor: 1 },
+      { id: 'P2', name: 'Later project', best: 0 },
+      { id: 'P2.1', name: 'NB later', team: 'B', best: 45, factor: 1, assign: ['NBx'] },
+      { id: 'P2.2', name: 'NB later too', team: 'B', best: 45, factor: 1, assign: ['NBx'] },
+    ];
+    const r = runSchedule({ tree, members: [MLpart, NBfull], planStart: '2026-01-05', options: { now: '2026-01-05', anchorToToday: true } });
+    const task = r.results.find(x => x.id === 'P1.2');
+    expect(task.personId).toBe('NBx');
+    expect(iso(task.startD) <= '2026-01-09').toBe(true);
+    // And NB's own later work follows right after, instead of the gap.
+    const jfLater = r.results.find(x => x.id === 'P2.1');
+    expect(iso(jfLater.startD) < '2026-02-01').toBe(true);
+  });
+
+  test('dep-blocked task carries blockedBy so UI can explain the gap', () => {
+    const MLfull = { id: 'MLf', name: 'Mara', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const NBfree = { id: 'NBf', name: 'Noah',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      { id: 'P.ML', name: 'long', team: 'TT', best: 30, factor: 1, assign: ['MLf'], prio: 4, seq: 5 },
+      { id: 'P.D', name: 'dep-blocked', team: 'TT', best: 5, factor: 1, prio: 4, seq: 10, deps: ['P.ML'] },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [MLfull, NBfree],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const dep = r.results.find(x => x.id === 'P.D');
+    expect(dep.blockedBy).toBeTruthy();
+    expect(dep.blockedBy.id).toBe('P.ML');
+    expect(dep.blockedBy.endD).toBeInstanceOf(Date);
+  });
+
+  test('done dep does NOT flag blockedBy when the assignee queue is the real binder', () => {
+    // Regression: P.T depends on a long-completed predecessor (P.D). The actual
+    // reason P.T sits far in the future is that its assignee is buried under an
+    // earlier long task. Surfacing blockedBy here would lie ("Waiting for P.D")
+    // when P.D finished months ago. Rule: blockedBy fires only when the dep was
+    // the binding floor (bs === depWi).
+    const MLfull = { id: 'MLf', name: 'Mara', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      // Done predecessor — finished well before plan start.
+      { id: 'P.D', name: 'done predecessor', team: 'TT', best: 5, factor: 1, status: 'done', completedAt: '2025-12-01' },
+      // Assignee's long earlier task — eats their queue until well past P.D's end.
+      { id: 'P.LONG', name: 'long earlier', team: 'TT', best: 60, factor: 1, assign: ['MLf'], prio: 4, seq: 5 },
+      // Target task: depends on the done predecessor, same assignee as the long task.
+      { id: 'P.T', name: 'target', team: 'TT', best: 5, factor: 1, assign: ['MLf'], prio: 4, seq: 10, deps: ['P.D'] },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [MLfull],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const target = r.results.find(x => x.id === 'P.T');
+    expect(target).toBeTruthy();
+    // Assignee queue is the binder — done predecessor must not be flagged.
+    expect(target.blockedBy).toBeNull();
+  });
+
+  test('dep-blocked task picks busier candidate so freer body keeps no-dep slot', () => {
+    // Forward-pass scheduler can't gap-fill. If a dep-blocked task lands on
+    // the freest body, that body's pF jumps past the dep — wasting weeks of
+    // pre-dep idle time. Tiebreak fix: when fw + fd are equal, pick the
+    // BUSIER candidate (highest personFree.nextDate). The dep-blocked task
+    // goes to whoever is barely free in time, leaving the genuinely-free
+    // body for later no-dep tasks.
+    const MLfull = { id: 'MLf', name: 'Mara', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const TRmid  = { id: 'TRm', name: 'Tom',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const NBfree = { id: 'NBf', name: 'Noah',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      // ML: 40-day task → finishes ~Mar 2 (40 working days from Jan 5).
+      { id: 'P.ML', name: 'long', team: 'TT', best: 40, factor: 1, assign: ['MLf'], prio: 4, seq: 5 },
+      // TR: 15-day task → finishes ~Jan 23.
+      { id: 'P.TR', name: 'mid',  team: 'TT', best: 15, factor: 1, assign: ['TRm'], prio: 4, seq: 6 },
+      // Dep-blocked: depends on P.ML, can't start before P.ML ends (~Mar 2).
+      { id: 'P.D', name: 'dep-blocked', team: 'TT', best: 5, factor: 1, prio: 4, seq: 10, deps: ['P.ML'] },
+      // No-dep task — should fill NB's earlier free slot, not be pushed late.
+      { id: 'P.U', name: 'no-dep', team: 'TT', best: 5, factor: 1, prio: 4, seq: 20 },
+    ];
+    const r = runSchedule({
+      tree,
+      members: [MLfull, TRmid, NBfree],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
+    const noDep = r.results.find(x => x.id === 'P.U');
+    const depBlocked = r.results.find(x => x.id === 'P.D');
+    // No-dep must land on NB (freest) and start in mid-January.
+    expect(noDep.personId).toBe('NBf');
+    expect(iso(noDep.startD) < '2026-02-01').toBe(true);
+    // Dep-blocked must NOT land on NB — NB's pre-dep slot stays available.
+    expect(depBlocked.personId).not.toBe('NBf');
+  });
+});
+
+describe('schedule(): fixedDurationDays', () => {
+  const alexLowCap = { id: 'M1', name: 'Alex', team: 'T1', cap: 0.25, vac: 25, start: '2026-01-01' };
+
+  test('schedules a task with fixed duration even without a best estimate', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Known duration', team: 'T1', best: 0, factor: 1, fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alexLowCap] });
+    const task = results.find(s => s.id === 'P1.1');
+    expect(task).toBeTruthy();
+    expect(task.fixedDurationDays).toBe(3);
+    expect(iso(task.startD)).toBe('2026-01-05');
+    expect(iso(task.endD)).toBe('2026-01-07');
+  });
+
+  test('fixed duration ignores capacity and vacations when placing the end date', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Exact', team: 'T1', best: 20, factor: 1, fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+    ];
+    const vacations = [{ person: 'M1', from: '2026-01-06', to: '2026-01-06', note: 'away' }];
+    const { results } = runSchedule({ tree, members: [alexLowCap], vacations });
+    const task = results.find(s => s.id === 'P1.1');
+    expect(iso(task.startD)).toBe('2026-01-05');
+    expect(iso(task.endD)).toBe('2026-01-07');
+    expect(task.capPct).toBe(100);
+    expect(task.vacDed).toBe(0);
+  });
+
+  test('successor starts after a fixed-duration predecessor', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1', name: 'Exact', team: 'T1', fixedDurationDays: 3, assign: ['M1'], status: 'open' },
+      { id: 'P1.2', name: 'After', team: 'T1', best: 1, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [alexLowCap] });
+    const first = results.find(s => s.id === 'P1.1');
+    const second = results.find(s => s.id === 'P1.2');
+    expect(iso(first.endD)).toBe('2026-01-07');
+    expect(iso(second.startD)).toBe('2026-01-08');
+  });
+});
+
+describe('schedule(): seq drives global tiebreak, displayOrder does not', () => {
+  // Regression: in a real plan P1.1.4.3 (seq 680, displayOrder 1 under
+  // its parent) was scheduled BEFORE P1.1.1.3.14 (seq 330, displayOrder 14
+  // under a different parent), because the tiebreak read displayOrder first.
+  // displayOrder is sibling-local — comparing it across parents is wrong.
+  // After the fix, tiebreak is `seq ?? 0` and the lower seq wins.
+  const fe = { id: 'F1', name: 'Frontend Dev', team: 'FE', cap: 1, vac: 0, start: '2026-01-01' };
+
+  test('lower seq schedules first across different parents', () => {
+    const tree = [
+      { id: 'P1', name: 'Root', team: '', best: 0 },
+      { id: 'P1.1.1.3', name: 'Bestand', team: 'FE', best: 0, displayOrder: 3 },
+      { id: 'P1.1.1.3.14', name: 'Journal FE', team: 'FE',
+        best: 14, factor: 1.6, prio: 4, seq: 330, displayOrder: 14, status: 'open' },
+      { id: 'P1.1.4', name: 'PWA', team: 'FE', best: 0, displayOrder: 4 },
+      { id: 'P1.1.4.3', name: 'Spike PWA', team: 'FE',
+        best: 8, factor: 1.5, prio: 4, seq: 680, displayOrder: 1, status: 'open' },
+    ];
+    const { results } = runSchedule({ tree, members: [fe] });
+    const a = results.find(r => r.id === 'P1.1.1.3.14');
+    const b = results.find(r => r.id === 'P1.1.4.3');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    // seq 330 must place before seq 680, even though displayOrder is 14 vs 1.
+    expect(a.startD.getTime()).toBeLessThan(b.startD.getTime());
+  });
+});
+
+describe('nextChildId()', () => {
+  // Regression: a tree loaded from a file/demo project has roots that
+  // predate the `lvl` field (only AddModal ever wrote it). Deriving the next
+  // root number from `r.lvl === 1` saw an empty set on such a tree and
+  // always handed back "P1" — colliding with an existing P1 root the first
+  // time a new top-level item was added.
+  test('root ids continue the existing P-prefixed sequence even when no node carries lvl', () => {
+    const tree = [
+      { id: 'P1', name: 'Goal' },
+      { id: 'P1.1', name: 'Child' },
+      { id: 'P2', name: 'Painpoint' },
+      { id: 'D1', name: 'Deadline (non-P prefix, hand-authored)' },
+    ];
+    expect(nextChildId(tree, '')).toBe('P3');
+  });
+
+  test('root ids start at P1 for an empty tree', () => {
+    expect(nextChildId([], '')).toBe('P1');
+  });
+
+  test('child ids continue the sibling sequence under a given parent', () => {
+    const tree = [{ id: 'P1' }, { id: 'P1.1' }, { id: 'P1.3' }];
+    expect(nextChildId(tree, 'P1')).toBe('P1.4');
+  });
+});
+
+// Reported: the order of execution cannot be set the way it can in the tree,
+// so work sits at the front of the timeline that is meant for much later.
+//
+// The queue was ordered by priority → assigned-first → due date → `seq` → id,
+// and `displayOrder` — what ⌥↑↓ writes — was deliberately excluded because it
+// only counts within one parent. So the plan you arranged and the plan the
+// scheduler ran were two different plans, and the tree had no say in either.
+//
+// The promise these tests hold: what is above in the tree starts first.
+describe('the tree is the order of the work', () => {
+  const one = { id: 'M1', name: 'Solo', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const leaf = (id, extra = {}) => ({ id, name: id, team: 'T', best: 5, factor: 1, assign: ['M1'], ...extra });
+  const startOf = (r, id) => iso(r.results.find(x => x.id === id).startD);
+
+  test('moving a row up in the tree moves it earlier on the timeline', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A'), leaf('P.B'), leaf('P.C'),
+    ];
+    const before = runSchedule({ tree, members: [one] });
+    expect(startOf(before, 'P.A') < startOf(before, 'P.C')).toBe(true);
+
+    // The one gesture the user has: ⌥↑ on P.C until it is first. That writes
+    // displayOrder, and nothing else about the plan changes.
+    const after = runSchedule({
+      tree: tree.map(r => ({ ...r, displayOrder: { 'P.C': 1, 'P.A': 2, 'P.B': 3 }[r.id] })),
+      members: [one],
+    });
+    expect(startOf(after, 'P.C')).toBe(startOf(before, 'P.A'));
+    expect(startOf(after, 'P.C') < startOf(after, 'P.A')).toBe(true);
+  });
+
+  test('a low-priority row above a high-priority one still goes first', () => {
+    // This is the whole change in one assertion. Before, prio 1 jumped the
+    // queue no matter where you put it, which is why "just move it down"
+    // never worked.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { prio: 4 }),
+      leaf('P.B', { prio: 1 }),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
+  });
+
+  test('a near-term due date warns rather than silently reordering', () => {
+    // The old dueBump promoted anything due within 90 days toward critical.
+    // A deadline that will not hold is now something the plan says out loud
+    // (utils/timeline.js, `deadlineStatus`) instead of a reshuffle nobody
+    // asked for.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A'),
+      leaf('P.B', { due: '2026-01-20' }),
+    ];
+    const r = runSchedule({ tree, members: [one], options: { now: '2026-01-05' } });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
+  });
+
+  test('order compares across projects, not just between siblings', () => {
+    // `displayOrder` is 1..N per parent, so the first child of the second
+    // project and the first child of the first project both say "1". Walking
+    // the tree is what makes them comparable — without it the second
+    // project's work interleaved with the first project's by id.
+    const tree = [
+      { id: 'P1', name: 'First', team: '', best: 0 },
+      leaf('P1.1'), leaf('P1.2'),
+      { id: 'P2', name: 'Second', team: '', best: 0 },
+      leaf('P2.1'), leaf('P2.2'),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P1.2') <= startOf(r, 'P2.1')).toBe(true);
+  });
+
+  test('a dependency still wins over the tree order', () => {
+    // Order is the default, not an override: if A genuinely cannot start
+    // before B, the link says so and the link holds.
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { deps: ['P.B'] }),
+      leaf('P.B'),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.B') < startOf(r, 'P.A')).toBe(true);
+  });
+
+  test('seq is no longer an input', () => {
+    const tree = [
+      { id: 'P', name: 'Root', team: '', best: 0 },
+      leaf('P.A', { seq: 999 }),
+      leaf('P.B', { seq: 1 }),
+    ];
+    const r = runSchedule({ tree, members: [one] });
+    expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
+  });
+});
+
+// Asked: what about several large projects running in parallel?
+//
+// Depth-first makes a project a block: two projects, one shared person, and
+// she does all of A and then all of B. There is no move in the tree that says
+// "this one task from B, first" — the two are not siblings, and there is no
+// order between them to change other than the whole projects'.
+//
+// A person's queue is the one override for that (utils/personQueue.js). It
+// permutes only the slots that person's work already occupies, which is what
+// keeps it from being `seq` again: the plan's order is untouched, nobody
+// else's work moves, and the facts — dependencies, pinned dates — still win.
+describe('a person\'s own order of work', () => {
+  const anna = { id: 'M1', name: 'Anna', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const bob = { id: 'M2', name: 'Bob', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const task = (id, person, extra = {}) => ({ id, name: id, team: 'T', best: 10, factor: 1, assign: [person], ...extra });
+  const twoProjects = [
+    { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
+    { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M1'),
+  ];
+  const run = (tree, members, personQueues) => runSchedule({
+    tree, members, planStart: '2026-01-05', planEnd: '2027-12-31',
+    options: { now: '2026-01-05', personQueues },
+  });
+  const byStart = r => r.results.slice().sort((a, b) => a.startD - b.startD).map(x => x.id);
+
+  test('without a queue, a project is a block — which is the problem', () => {
+    expect(byStart(run(twoProjects, [anna]))).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
+  });
+
+  test('a queue pulls one task across the project boundary', () => {
+    expect(byStart(run(twoProjects, [anna], { M1: ['B.1', 'A.1', 'A.2', 'B.2'] })))
+      .toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
+  });
+
+  test('and leaves everybody else where the plan put them', () => {
+    const shared = [
+      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M2'),
+      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M2'),
+    ];
+    const r = run(shared, [anna, bob], { M1: ['B.1', 'A.1'] });
+    const anna1 = r.results.find(x => x.id === 'B.1');
+    const anna2 = r.results.find(x => x.id === 'A.1');
+    const bob1 = r.results.find(x => x.id === 'A.2');
+    const bob2 = r.results.find(x => x.id === 'B.2');
+    expect(anna1.startD < anna2.startD).toBe(true);
+    // Bob never asked for anything; his order is still the plan's.
+    expect(bob1.startD < bob2.startD).toBe(true);
+  });
+
+  test('a dependency still beats the queue — it is a fact, not a preference', () => {
+    const tree = [
+      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
+      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1', { deps: ['A.1'] }),
+    ];
+    const r = run(tree, [anna], { M1: ['B.1', 'A.1', 'A.2'] });
+    expect(iso(r.results.find(x => x.id === 'A.1').endD) < iso(r.results.find(x => x.id === 'B.1').startD)).toBe(true);
+  });
+
+  test('a queue written before the plan moved on does not lose or duplicate work', () => {
+    const r = run(twoProjects, [anna], { M1: ['B.2', 'gone-since', 'A.2'] });
+    expect(r.results.map(x => x.id).sort()).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
+    // What was decided is kept — B.2 before A.2 — and the two the queue never
+    // named take the places the plan gives them relative to it.
+    expect(byStart(r)).toEqual(['A.1', 'B.2', 'A.2', 'B.1']);
+  });
+});

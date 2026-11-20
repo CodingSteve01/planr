@@ -1,0 +1,3762 @@
+import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { Icon } from './components/shared/Icon.jsx';
+import { flushSync } from 'react-dom';
+import { SK, GT_MARKS } from './constants.js';
+import { iso, normalizeVacation } from './utils/date.js';
+import { useT } from './i18n.jsx';
+import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
+import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
+import { mergeRoadmapAssignment } from './utils/roadmap.js';
+import { buildMarkdownText as _buildMd } from './utils/markdown.js';
+import { parseMdToProject } from './utils/markdownParse.js';
+import { buildMemberShortMap } from './utils/memberShort.js';
+import { applyPastEdit, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
+import { applyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
+import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
+import { exportScenarioComparePDF } from './utils/scenarioReport.js';
+import { addDays, changeDates, compileMembers, dayOf, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from './utils/effective.js';
+import { EffectiveBar, EffectiveProvider, EffectiveSwitch, EFFECTIVE_OPEN_EVENT } from './components/shared/Effective.jsx';
+import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
+import { compactHistory, parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
+import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
+import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
+import { computeDiff, parseSinceValue } from './utils/diff.js';
+import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
+import { buildHMap, computeNRW } from './utils/holidays.js';
+import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
+import { inferGanttViewStart } from './utils/viewWindow.js';
+import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
+import { buildExportCtx } from './utils/exportCtx.js';
+import { projectWaits } from './utils/projectWaits.js';
+import { applyRootOrder } from './utils/orderSearch.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
+import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
+import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
+import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
+import { resolveMemberMeetings } from './utils/capacity.js';
+import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
+import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
+import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
+import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
+import { TAB_IDS, initialTab } from './utils/modes.js';
+import { withKey } from './utils/shortcuts.js';
+import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
+import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
+
+// Below this the side panel stops being help and starts being the thing in
+// the way: 360px of editor against what is left of a work tree.
+const SIDE_DOCK_MIN_WIDTH = 1180;
+import { Tour } from './components/shared/Tour.jsx';
+import { ViewFilters } from './components/shared/ViewFilters.jsx';
+import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
+import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
+import { QuickEdit } from './components/views/QuickEdit.jsx';
+import { GanttView } from './components/views/GanttView.jsx';
+import { NetGraph } from './components/views/NetGraph.jsx';
+import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
+import { WorkOrderView, QUEUE_FOCUS_EVENT } from './components/views/WorkOrderView.jsx';
+import { Frozen } from './components/shared/Frozen.jsx';
+import { HolView } from './components/views/HolView.jsx';
+import { SumView } from './components/views/SumView.jsx';
+import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
+import { PlanReview } from './components/views/PlanReview.jsx';
+import { Onboard } from './components/views/Onboard.jsx';
+import { NodeModal } from './components/modals/NodeModal.jsx';
+import { AddModal } from './components/modals/AddModal.jsx';
+import { SettingsModal } from './components/modals/SettingsModal.jsx';
+import { NewProjModal } from './components/modals/NewProjModal.jsx';
+import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
+import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
+import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
+import { buildImportedProject } from './utils/jiraImport.js';
+import { detectJiraFieldId } from './utils/jiraSync.js';
+import { ExportModal } from './components/modals/ExportModal.jsx';
+import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
+import { BackdateModal } from './components/modals/BackdateModal.jsx';
+import { SearchBox } from './components/shared/SearchBox.jsx';
+import { SearchSelect } from './components/shared/SearchSelect.jsx';
+import { LazyInput } from './components/shared/LazyInput.jsx';
+import { HoverTipProvider } from './components/shared/HoverTip.jsx';
+import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
+import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
+import { FileMenu } from './components/shared/FileMenu.jsx';
+import { ScenarioBar, ScenarioCompare, ScenarioNotice, ScenarioSwitch, SCENARIO_NEW_EVENT, useScenarioReport } from './components/shared/Scenario.jsx';
+import { ReportView } from './components/views/ReportView.jsx';
+import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
+import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
+
+// useEvent shim — stable callback ref that always invokes the latest closure.
+// Lets us pass App-defined functions to React.memo'd children without busting
+// memoization on every render, while keeping the function's captured state
+// fresh. Safe for callbacks invoked imperatively (event handlers, etc.) — do
+// NOT use during render.
+// Which view a load starts on. A mode used to be decided here too, and had to
+// be reconciled with the tab so the two agreed from the first paint; there is
+// one thing to decide now.
+function initialShell() {
+  let savedTab = null;
+  try { savedTab = localStorage.getItem('planr_tab'); } catch { /* ignore */ }
+  return { tab: initialTab(savedTab) };
+}
+
+function useStableCallback(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args) => ref.current(...args), []);
+}
+
+function loadLocalProject() {
+  try {
+    const s = localStorage.getItem(SK);
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Rolling JSON snapshot ring ────────────────────────────────────────────
+// Survives the markdown writer touching the on-disk file: every successful
+// save also drops the current data into a 20-slot ring in localStorage,
+// keyed by timestamp. If the .md file ever gets corrupted by an external
+// editor (Obsidian rendering, iCloud merge), the user can restore from the
+// last known-good JSON snapshot via Help → "Restore snapshot…".
+const SNAPSHOT_KEY = 'planr_v2_snapshots';
+const SNAPSHOT_MAX = 20;
+// Module-scoped cache + dedup hash. Drops the per-keystroke
+// double-parse/double-stringify that used to dominate during typing.
+// Pushes are coalesced into a single idle task so a burst of edits
+// becomes one stringify-and-compare instead of one per change.
+let _snapCache = null;       // [{ ts, data }, …] | null = not yet loaded
+let _lastSnapHash = null;    // hash (= JSON.stringify) of the most recent push
+let _pendingData = null;     // data scheduled for next idle snapshot
+let _pendingHandle = null;   // outstanding requestIdleCallback id
+function loadSnapshots() {
+  if (_snapCache) return _snapCache;
+  try {
+    const arr = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
+    _snapCache = Array.isArray(arr) ? arr : [];
+  } catch { _snapCache = []; }
+  if (_snapCache.length) {
+    // Seed hash from the most-recent stored snapshot so a fresh page load
+    // doesn't push a duplicate as the first snapshot.
+    try { _lastSnapHash = JSON.stringify(_snapCache[0].data); } catch { /* ignore */ }
+  }
+  return _snapCache;
+}
+function _runSnapshot() {
+  _pendingHandle = null;
+  const data = _pendingData;
+  _pendingData = null;
+  if (!data || !Array.isArray(data.tree)) return;
+  let hash;
+  try { hash = JSON.stringify(data); } catch { return; }
+  // Dedup by content. Skip when nothing actually changed since the last
+  // snapshot — that gives us a long, sparse history dominated by real
+  // edits instead of one entry per auto-save.
+  if (_lastSnapHash === hash) return;
+  const arr = loadSnapshots();
+  arr.unshift({ ts: Date.now(), data });
+  if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
+  _snapCache = arr;
+  _lastSnapHash = hash;
+  try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr)); }
+  catch {
+    // Quota fallback: halve the ring, retry once, wipe as last resort.
+    try {
+      const half = arr.slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(half));
+      _snapCache = half;
+    } catch {
+      try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+      _snapCache = []; _lastSnapHash = null;
+    }
+  }
+}
+// Min seconds between two snapshot writes. The localStorage value can grow
+// to ~2MB (20 × ~100KB project) — stringify+write on every save jankers the
+// main thread. Throttle so the ring catches edits at human cadence, not at
+// every keystroke-debounced auto-save.
+const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
+let _lastSnapAt = 0;
+function pushSnapshot(data) {
+  if (!data || !Array.isArray(data.tree)) return;
+  if (Date.now() - _lastSnapAt < SNAPSHOT_MIN_INTERVAL_MS) return;
+  _lastSnapAt = Date.now();
+  // Coalesce rapid pushes: keep only the latest pending data, run once
+  // when the browser goes idle. Avoids stringifying on every keystroke.
+  _pendingData = data;
+  if (_pendingHandle != null) return;
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    _pendingHandle = window.requestIdleCallback(_runSnapshot, { timeout: 3000 });
+  } else {
+    _pendingHandle = setTimeout(_runSnapshot, 0);
+  }
+}
+
+function isValidProjectData(value) {
+  return value && Array.isArray(value.tree);
+}
+
+function scheduleIdleWrite(work, timeout = 1000) {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    return window.requestIdleCallback(work, { timeout });
+  }
+  return window.setTimeout(work, 0);
+}
+
+function cancelIdleWrite(id) {
+  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(id);
+    return;
+  }
+  clearTimeout(id);
+}
+
+function activateOnPress(e, action) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  action();
+}
+
+// Lives in utils/memberShort.js; re-exported because that is where callers look.
+export { buildMemberShortMap };
+
+const NO_SCENARIOS = [];
+// Every tab the shell knows about, in bar order — declared in utils/modes.js
+// and re-exported here because that is where the rest of the app looks for it.
+export { TAB_IDS };
+// Glyphs for the `/` palette. Kept here beside TAB_IDS so a new tab is an
+// obvious two-line change; an unlisted id falls back to a neutral marker
+// rather than leaving a ragged gap in the column.
+const TAB_ICONS = {
+  summary: 'target', briefing: 'sun', plan: 'pencil', tree: 'list', gantt: 'gantt',
+  order: 'grip', roadmap: 'map', net: 'network', resources: 'users',
+  holidays: 'beach', report: 'doc',
+};
+// Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
+const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
+// Views that answer to scope / quick filters / the review window / the
+// archive. Resources, Holidays and Report are inputs and outputs — nothing in
+// the filter bar reaches them, so it would be a control that does nothing.
+const FILTERED_TABS = new Set(['summary', 'tree', 'order', 'gantt', 'roadmap', 'net', 'plan', 'briefing']);
+// The views that read the toolbar search. One list for showing the box and for
+// ⌘F, because they drifted apart: the box sat on every filtered tab while only
+// three views read it, so on the queue it filtered nothing and ⌘F fell through
+// to the browser's find.
+const SEARCH_TABS = new Set(['tree', 'order', 'gantt', 'net']);
+// The views that step through search matches one at a time (`searchIdx`).
+// The tree only filters to its matches, so there is nothing to step through,
+// and the ▲/▼ buttons and ⌘↑/⌘↓ did nothing there.
+const MATCH_STEP_TABS = new Set(['gantt', 'net']);
+
+// `mount` is how a host hands this app instance its document. Without one —
+// the web build — the app restores whatever was last opened, from IndexedDB
+// and a localStorage snapshot, and owns that choice itself. With one, the host
+// owns it: this instance edits exactly the file it was given, keeps nothing in
+// the shared snapshot (two plans open side by side would overwrite each
+// other's), and reports back through `onFileChange` when Save As moves the
+// document somewhere else, so the host's tab can follow.
+export default function App({ mount = null, onFileChange = null } = {}) {
+  const hosted = !!onFileChange;
+  const { t: _t, lang: _lang } = useT();
+  const portalRoot = usePortalRoot();
+  const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
+  const [tab, _setTab] = useState(() => initialShell().tab);
+  const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
+
+  // The tab row scrolls sideways instead of wrapping (see .tab-bar-wrap in
+  // App.css). Two things have to follow from that: the active tab is brought
+  // into view whenever it changes — it can be selected from the palette or a
+  // shortcut, not only by clicking it — and the edges say when there is more
+  // row than pane, because a tab you cannot see must not read as a tab that
+  // is not there.
+  const tabBarRef = useRef(null);
+  const activeTabRef = useRef(null);
+  const [tabFades, setTabFades] = useState({ l: false, r: false });
+  const syncTabFades = useStableCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setTabFades(prev => {
+      const next = { l: el.scrollLeft > 2, r: max > 2 && el.scrollLeft < max - 2 };
+      return prev.l === next.l && prev.r === next.r ? prev : next;
+    });
+  });
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+    syncTabFades();
+  }, [tab, syncTabFades]);
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(syncTabFades);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncTabFades]);
+  // Keep every visited tab mounted (display:none for inactive) so switching
+  // back is instant. Each view is wrapped in React.memo and its callbacks
+  // are useCallback'd, so an App re-render that doesn't touch a view's data
+  // skips its reconciliation entirely — no input-lag cascade.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
+  useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
+  // Plan mode's project lens (RoadmapLens.jsx) — a calendar-style roadmap for
+  // one project, shown beside the Gantt. Both bits of state are local to the
+  // shell (not the plan file): which project is focused, and whether the
+  // panel is open at all. Persisted so the choice survives a reload.
+  const [ganttRoadmapFocus, _setGanttRoadmapFocus] = useState(() => {
+    try { return localStorage.getItem('planr_gantt_roadmap_focus') || ''; } catch { return ''; }
+  });
+  const setGanttRoadmapFocus = id => { _setGanttRoadmapFocus(id); try { localStorage.setItem('planr_gantt_roadmap_focus', id || ''); } catch {} };
+  // Store only the selected node's ID; derive the actual node from the tree.
+  // This ensures `selected` always reflects the latest tree state — fixes a bug
+  // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
+  // because the old code held a stale node object in state.
+  const [sideTab, setSideTab] = useState('insights');
+  const [selId, _setSelId] = useState(null);
+  const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
+  const [multiSel, setMultiSel] = useState(new Set());
+  // Backdating: while set, every history event this session writes counts as
+  // of that day rather than today. Restructuring a package — splitting it,
+  // re-parenting it — is bookkeeping about work that was already there, and
+  // dating it today makes the next review read as if the work appeared out of
+  // nowhere (utils/history.js, `diffSnapshots`).
+  //
+  // Deliberately NOT persisted. A backdate you forgot about falsifies every
+  // review after it, silently and forever, and the cost of switching it on
+  // again after a reload is one keystroke. It is also loud while it is on:
+  // see the chip in the top bar.
+  const [backdate, setBackdate] = useState('');
+  const [modal, setModal] = useState(null);
+  const [modalNode, setMN] = useState(null);
+  const [modalFocus, setModalFocus] = useState(null);
+  // Committed, debounced search only — the raw input state lives inside
+  // <SearchBox> so keystrokes don't trigger an App-level render and cascade
+  // through every mounted tab pane.
+  const [search, setSearch] = useState('');
+  const [searchIdx, setSearchIdx] = useState(0);
+  const deferredSearch = useDeferredValue(search);
+  const [teamFilter, setTeamFilter] = useState(() => { try { return localStorage.getItem('planr_team_filter') || ''; } catch { return ''; } });
+  const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
+  const [personFilter, setPersonFilter] = useState(() => { try { return localStorage.getItem('planr_person_filter') || ''; } catch { return ''; } });
+  const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
+  // Archive filter — see utils/archive.js. Default ON (i.e. archived hidden):
+  // a plan that has been running for a year should open on the work that is
+  // still live, not on last spring's finished projects.
+  const [showArchived, setShowArchived] = useState(() => { try { return localStorage.getItem('planr_show_archived') === 'true'; } catch { return false; } });
+  const [archiveDays, setArchiveDays] = useState(() => {
+    try { const v = parseInt(localStorage.getItem('planr_archive_days'), 10); return Number.isFinite(v) && v > 0 ? v : ARCHIVE_DEFAULT_DAYS; }
+    catch { return ARCHIVE_DEFAULT_DAYS; }
+  });
+  const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => { try { return localStorage.getItem('planr_only_auto') === 'true'; } catch { return false; } });
+  const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
+  const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
+  const [onlyOverbooked, setOnlyOverbooked] = useState(() => { try { return localStorage.getItem('planr_only_overbooked') === 'true'; } catch { return false; } });
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
+  const [saved, setSaved] = useState(true);
+  // ── Undo/redo ────────────────────────────────────────────────────────────
+  // `history` holds only past/future — the present lives in `data` itself.
+  // `mutate` is the single gateway every USER-initiated edit routes through
+  // (see utils/undo.js for the coalescing/redo-clearing rules). Automatic
+  // writes — parent-status derivation, completion-metadata sync, roadmap-
+  // assignment merge, autosave, migrations — stay on plain setData so they
+  // never show up as an undo step. Loading a different document (file open,
+  // new project, snapshot restore) calls resetHistory() instead.
+  const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
+  // A different document is on screen: its undo stack is gone, and so is any
+  // scenario that was open over the previous one.
+  function resetHistory() { setEffDate(''); setPast(null); lastSavedPlanRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
+  // ── Scenarios ────────────────────────────────────────────────────────────
+  // While a scenario is on screen, `data` IS the scenario — the plan with the
+  // scenario's changes applied — and every view, edit, undo and export works
+  // on it exactly as it does on the plan. The plan itself waits in `scn.base`.
+  // The file always holds the plan plus, per scenario, what differs
+  // (`fileData` below); nothing a scenario does reaches the plan until it is
+  // applied. See utils/scenario.js and docs/scenarios.md.
+  const [scn, setScn] = useState(null); // { id, base, conflicts } | null
+  const scnRef = useRef(scn);
+  scnRef.current = scn;
+  // ── An earlier day ───────────────────────────────────────────────────
+  // The same arrangement for time: while an earlier day is chosen, `data` IS
+  // the plan as it stood on that day, and every view and edit works on it as
+  // always. The real plan waits in `past.base`; what belongs in the file is
+  // that plan with what was edited on screen applied from the chosen day on
+  // (`fileData`, utils/dayLog.js). Not available inside a scenario.
+  const [past, setPast] = useState(null); // { day, base, baseScreen } | null
+  const pastRef = useRef(past);
+  pastRef.current = past;
+  // The plan as the last save (or the load) left it: what today's log entry
+  // is measured against.
+  const lastSavedPlanRef = useRef(null);
+  // The plan's undo stack, set aside while a scenario is on screen, so that a
+  // look at a what-if does not cost the plan its history.
+  const planHistoryRef = useRef(null); // { history, ids }
+  // Which tab of the comparison was open: kept for the app's lifetime so a
+  // jump to a task and back lands where it left.
+  const scnCompareMemory = useRef({ tab: 'projects', onlyMoved: true });
+  // What just happened to a scenario — applied, deleted — said out loud for a
+  // moment, with the way back. Leaving a mode must not look like nothing.
+  const [scnNotice, setScnNotice] = useState(null); // { kind, name, changes }
+  useEffect(() => {
+    if (!scnNotice) return undefined;
+    const timer = setTimeout(() => setScnNotice(null), 12000);
+    return () => clearTimeout(timer);
+  }, [scnNotice]);
+  // Always the data of the latest completed render — see mutate() below.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  // The snapshot comes from a ref, not from the render closure. This file's
+  // mutation helpers are deliberately written as functional updaters because
+  // callbacks fired in rapid succession would otherwise see a stale `data`
+  // (see the comments on updateNode / removeDep) — and a stale SNAPSHOT is
+  // the same bug wearing a different hat: ⌘Z would jump back further than the
+  // one edit the user just made. Coalescing hides it most of the time, which
+  // is exactly what would make it hard to find later.
+  function mutate(updater) {
+    // The notice offers "undo" for the apply or delete it reports; after
+    // another edit that button would undo the edit instead.
+    setScnNotice(null);
+    setHistory(h => pushHistory(h, dataRef.current, { coalesceMs: 300 }));
+    setData(updater);
+    setSaved(false);
+  }
+  function handleUndo() {
+    if (!canUndo(history)) return;
+    const { history: nextHistory, snapshot } = undoHistory(history, data);
+    if (snapshot === undefined) return;
+    setHistory(nextHistory);
+    setData(snapshot);
+    setSaved(false);
+    setScnNotice(null);
+  }
+  function handleRedo() {
+    if (!canRedo(history)) return;
+    const { history: nextHistory, snapshot } = redoHistory(history, data);
+    if (snapshot === undefined) return;
+    setHistory(nextHistory);
+    setData(snapshot);
+    setSaved(false);
+    setScnNotice(null);
+  }
+  const scnPatch = useMemo(() => (scn && data ? diffPlan(scn.base, data) : null), [scn, data]);
+  const scnChanges = useMemo(() => (scn && data ? describeChanges(scn.base, data, scnPatch) : NO_SCENARIOS), [scn, data, scnPatch]);
+  // What belongs in the file: the plan, and each scenario as its patch.
+  const fileData = useMemo(() => {
+    if (past && data) return applyPastEdit(past.base, past.baseScreen, data, past.day);
+    if (!scn || !data) return data;
+    // Nothing changed in this visit: the entry keeps its stored patch, its
+    // count of changes that no longer fit, and its date. Opening a scenario
+    // whose plan has moved on would otherwise save the shortened patch on
+    // sight and lose the record that something was left out.
+    if (deepEqual(scnPatch, scn.entryPatch)) return { ...scn.base, scenarios: data.scenarios || [] };
+    return { ...scn.base, scenarios: withScenarioPatch(data.scenarios || [], scn.id, scnPatch, scnChanges.length) };
+  }, [scn, past, data, scnPatch, scnChanges]);
+  const fileDataRef = useRef(fileData);
+  fileDataRef.current = fileData;
+  // Put a document on screen: the plan (`scenarioId` null) or one of its
+  // scenarios. `fd` is always file-shaped — the plan with its scenario list.
+  // `undoTo`, when given, becomes the one step ⌘Z can take back: used where
+  // leaving a scenario also changes the plan (apply) or drops it (discard).
+  function showDocument(fd, scenarioId, undoTo = null) {
+    const target = scenarioId ? (fd.scenarios || []).find(s => s.id === scenarioId) : null;
+    if (target) {
+      const { data: work, conflicts } = applyPatch(fd, target.patch);
+      // `entryPatch` is what the scenario amounts to as it was opened. While
+      // the visit has not changed that, the stored entry is left exactly as
+      // it is (see fileData) — looking at a scenario must not rewrite it.
+      setScn({ id: target.id, base: fd, conflicts: conflicts.length + (target.lost || 0), entryPatch: diffPlan(fd, work) });
+      setData(work);
+    } else {
+      setScn(null);
+      setData(fd);
+    }
+    // Undo. A scenario starts each visit with an empty stack — its earlier
+    // snapshots were measured against a plan that may have moved since. The
+    // plan gets its own stack back, with the scenario list in every snapshot
+    // brought up to date (carryScenarioList), so ⌘Z after a visit undoes the
+    // last edit to the plan and nothing that was done in the scenario.
+    const wasInPlan = !scnRef.current;
+    let next = createHistory({ limit: 100 });
+    if (target) {
+      if (wasInPlan) planHistoryRef.current = { history, ids: new Set((dataRef.current?.scenarios || []).map(s => s.id)) };
+    } else {
+      const kept = planHistoryRef.current;
+      planHistoryRef.current = null;
+      if (wasInPlan) next = history;
+      else if (kept) {
+        const list = (undoTo || fd).scenarios || [];
+        next = { ...kept.history, past: kept.history.past.map(snap => carryScenarioList(snap, list, kept.ids)), future: [], lastPushAt: null };
+      }
+      if (undoTo) next = pushHistory({ ...next, lastPushAt: null }, undoTo, { coalesceMs: 0 });
+    }
+    setHistory(next);
+    setMultiSel(new Set());
+    setScnNotice(null);
+  }
+  const scenarioList = data?.scenarios || NO_SCENARIOS;
+  const activeScenario = scn ? scenarioList.find(s => s.id === scn.id) || null : null;
+  function scenarioSwitch(id) {
+    if (pastRef.current) return;
+    if ((scn?.id || null) === (id || null)) return;
+    showDocument(fileDataRef.current, id || null);
+  }
+  function scenarioCreate(name, { copyOf = null } = {}) {
+    const fd = fileDataRef.current;
+    if (!fd || pastRef.current) return null;
+    const list = fd.scenarios || [];
+    const source = copyOf ? list.find(s => s.id === copyOf) : null;
+    const id = newScenarioId(list);
+    const fallback = source ? _t('scn.copyName', source.name) : _t('scn.defaultName', list.length + 1);
+    const entry = {
+      id, name: uniqueScenarioName((name || '').trim() || fallback, list),
+      createdAt: new Date().toISOString(),
+      patch: source?.patch || null,
+    };
+    showDocument({ ...fd, scenarios: [...list, entry] }, id);
+    setSaved(false);
+    return id;
+  }
+  function scenarioRename(id, name) {
+    const clean = (name || '').trim();
+    if (!clean) return;
+    mutate(d => ({ ...d, scenarios: (d.scenarios || []).map(s => (s.id === id ? { ...s, name: uniqueScenarioName(clean, d.scenarios || [], id) } : s)) }));
+  }
+  // Deleting the scenario on screen leaves it for the plan; ⌘Z brings it back.
+  function scenarioDelete(id) {
+    if (scn?.id === id) {
+      const fd = fileDataRef.current;
+      const gone = (fd.scenarios || []).find(s => s.id === id);
+      const rest = { ...fd, scenarios: (fd.scenarios || []).filter(s => s.id !== id) };
+      if (!rest.scenarios.length) delete rest.scenarios;
+      showDocument(rest, null, fd);
+      setScnNotice({ kind: 'deleted', name: gone?.name || '', changes: scnChanges.length });
+      setSaved(false);
+      return;
+    }
+    mutate(d => ({ ...d, scenarios: (d.scenarios || []).filter(s => s.id !== id) }));
+  }
+  // The scenario becomes the plan. Everything else in the list stays, and now
+  // measures against the new plan. One ⌘Z takes it back, scenario included.
+  function scenarioApply() {
+    if (!scn || !data) return;
+    const before = fileDataRef.current;
+    const plan = { ...data, scenarios: (data.scenarios || []).filter(s => s.id !== scn.id) };
+    if (!plan.scenarios.length) delete plan.scenarios;
+    const name = activeScenario?.name || '';
+    const changes = scnChanges.length;
+    showDocument(plan, null, before);
+    setScnNotice({ kind: 'applied', name, changes });
+    setSaved(false);
+    setModal(m => (m === 'scenario' ? null : m));
+  }
+  function scenarioRevertChange(change) {
+    if (!scn) return;
+    const { data: work } = applyPatch(scn.base, revertChange(scnPatch, change));
+    mutate(d => ({ ...work, scenarios: d.scenarios, historyEvents: d.historyEvents, roadmapAssignment: d.roadmapAssignment }));
+  }
+  const fRef = useRef(null);
+  const searchRef = useRef(null);
+  const fileHandleRef = useRef(null);
+  const prevTreeRef = useRef([]);
+  const prevScheduledRef = useRef([]);
+  // Leaf-state snapshot at the moment of the last successful persist (load or
+  // save). Drives the history-event diff: every save compares the current tree
+  // to this snapshot and appends only the changes. Reseeded on file load so
+  // we don't emit fake "added" events for the whole tree.
+  const lastSavedLeavesRef = useRef(null);
+  const leafBaselineStaleRef = useRef(true);
+  const [fileName, setFileName] = useState(null);
+  // Where the item editor lives. A 360px column beside the tree is a gift on
+  // a wide screen and a theft on a narrow one, so "auto" measures and picks —
+  // and it measures the app, not the window: inside Obsidian the leaf can be
+  // narrow while the window is wide.
+  const [editorDock, _setEditorDock] = useState(() => {
+    try { return localStorage.getItem('planr_editor_dock') || 'auto'; } catch { return 'auto'; }
+  });
+  const setEditorDock = v => { _setEditorDock(v); try { localStorage.setItem('planr_editor_dock', v); } catch {} };
+  const [narrow, setNarrow] = useState(false);
+  const appRef = useRef(null);
+  useEffect(() => {
+    const el = appRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < SIDE_DOCK_MIN_WIDTH));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const editorAsDialog = editorDock === 'dialog' || (editorDock === 'auto' && narrow);
+  // UI scale. Planr's density is deliberate — 11px rows are canon — but a
+  // dense grid designed for a 27" screen is unreadable in a workspace pane,
+  // and Obsidian's own zoom would blow up Obsidian with it. `zoom` reflows
+  // rather than stretching, so a scaled Planr is still a crisp Planr.
+  //
+  // It goes on the element the popups are portalled into, not on .app: a
+  // portal that lands outside the zoomed subtree would render at 100% beside
+  // a 125% app. utils/embedHost.js measures the factor back out for anything
+  // that positions itself from mouse or rect coordinates.
+  // The default depends on where Planr is: 100% in a browser window, which is
+  // the width the density was drawn for, and 125% inside a host, where the app
+  // lives in a pane beside everything else. One number could not be right for
+  // both — 125% in a full browser window is enormous.
+  const [uiScale, _setUiScale] = useState(() => {
+    const fallback = isEmbedded() ? 110 : 100;
+    try { return Number(localStorage.getItem('planr_ui_scale')) || fallback; } catch { return fallback; }
+  });
+  const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
+  useEffect(() => {
+    const el = portalRoot;
+    if (!el) return;
+    el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
+    return () => { el.style.zoom = ''; };
+  }, [uiScale, portalRoot]);
+  // Off by default. Everything that distracts is opt-in: the id is the
+  // tool's spine when you are wiring dependencies, and five dotted segments
+  // in front of every name the rest of the time.
+  const [showTreeIds, _setShowTreeIds] = useState(() => {
+    try { return localStorage.getItem('planr_tree_ids') === 'true'; } catch { return false; }
+  });
+  const setShowTreeIds = v => { _setShowTreeIds(v); try { localStorage.setItem('planr_tree_ids', String(v)); } catch {} };
+  const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
+  useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
+  useEffect(() => { try { localStorage.setItem('planr_show_archived', String(showArchived)); } catch {} }, [showArchived]);
+  useEffect(() => { try { localStorage.setItem('planr_archive_days', String(archiveDays)); } catch {} }, [archiveDays]);
+  useEffect(() => { try { localStorage.setItem('planr_team_filter', teamFilter); } catch {} }, [teamFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_root_filter', rootFilter); } catch {} }, [rootFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_person_filter', personFilter); } catch {} }, [personFilter]);
+  useEffect(() => { try { localStorage.setItem('planr_only_auto', String(onlyAutoAssigned)); } catch {} }, [onlyAutoAssigned]);
+  useEffect(() => { try { localStorage.setItem('planr_only_overdue', String(onlyOverdue)); } catch {} }, [onlyOverdue]);
+  useEffect(() => { try { localStorage.setItem('planr_only_unest', String(onlyUnestimated)); } catch {} }, [onlyUnestimated]);
+  useEffect(() => { try { localStorage.setItem('planr_only_overbooked', String(onlyOverbooked)); } catch {} }, [onlyOverbooked]);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
+
+  // ── Tour state ──
+  // tourStep === null → tour closed; 0..N → active step
+  const TOUR_DONE_KEY = 'planr_tour_done';
+  const NEW_SEEN_KEY = 'planr_new_seen_v1';
+  const [tourStep, setTourStep] = useState(null);
+  // Show new-feature popover once for existing users (has a project, hasn't seen v1 yet)
+  const [showNewFeat, setShowNewFeat] = useState(() => {
+    try {
+      const seen = localStorage.getItem(NEW_SEEN_KEY);
+      const hasProject = !!localStorage.getItem(SK);
+      return !seen && hasProject;
+    } catch { return false; }
+  });
+  const dismissNewFeat = () => {
+    setShowNewFeat(false);
+    try { localStorage.setItem(NEW_SEEN_KEY, '1'); } catch {}
+  };
+  const startTour = () => setTourStep(0);
+  const closeTour = () => {
+    setTourStep(null);
+    try { localStorage.setItem(TOUR_DONE_KEY, '1'); } catch {}
+  };
+
+  async function rememberHandle(handle) {
+    fileHandleRef.current = handle;
+    setFileName(handle?.name || null);
+    if (hosted) { onFileChange(handle || null); return; }
+    try {
+      if (handle) await persistMountedFileHandle(handle);
+      else await clearMountedFileHandle();
+    } catch (e) {
+      console.error('Could not persist mounted file handle:', e);
+    }
+  }
+
+  async function forgetHandle() {
+    fileHandleRef.current = null;
+    setFileName(null);
+    if (hosted) { onFileChange(null); return; }
+    try {
+      await clearMountedFileHandle();
+    } catch (e) {
+      console.error('Could not clear mounted file handle:', e);
+    }
+  }
+
+  async function ensureHandlePermission(handle, interactive = false) {
+    if (!handle) return false;
+    if (!interactive) {
+      // Non-interactive: only check existing permission, do not prompt
+      const permission = await queryHandlePermission(handle, 'readwrite');
+      return permission === 'granted';
+    }
+    // Interactive: try requestPermission directly (preserves Chrome user activation)
+    // requestPermission returns 'granted' if already granted, otherwise prompts the user
+    const permission = await requestHandlePermission(handle, 'readwrite');
+    return permission === 'granted';
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const handle = mount || await loadMountedFileHandle();
+        if (!handle) return;
+        fileHandleRef.current = handle;
+        if (!cancelled) setFileName(handle.name || null);
+
+        const readPermission = await queryHandlePermission(handle, 'read');
+        // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
+        if (readPermission !== 'granted') { if (!cancelled) setFileWriteOk(false); return; }
+
+        const file = await handle.getFile();
+        const text = await file.text();
+        const restored = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
+        if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
+
+        if (!cancelled) {
+          setData(restored);
+          resetHistory(); // different document — the old undo stack doesn't apply
+          setSel(null);
+          // Check if we have write permission (non-interactive)
+          const canWrite = await ensureHandlePermission(handle, false);
+          if (!cancelled) setFileWriteOk(canWrite);
+        }
+      } catch (e) {
+        console.error('Mounted file restore failed:', e);
+        fileHandleRef.current = null;
+        if (!cancelled) setFileName(null);
+        try {
+          if (!hosted) await clearMountedFileHandle();
+        } catch {}
+      } finally {
+        if (!cancelled) setBootstrapped(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Save to localStorage on every change (fast, in-memory) — separate from file save
+  const [fileWriteOk, setFileWriteOk] = useState(true);
+  const [fileSynced, setFileSynced] = useState(true); // whether the file on disk matches current data
+  const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
+  const lastWrittenDataRef = useRef(null);
+  useEffect(() => {
+    if (!data) return;
+    // A hosted instance is one of several: its document is the file, and the
+    // shared snapshot key would just be whichever tab typed last. Nothing is
+    // cached, so nothing is claimed saved either — the file write says that.
+    if (hosted) return;
+    // Bail early if `data` is the exact same reference we last wrote — saves
+    // a JSON.stringify on the main thread for a project that may be ~100KB.
+    // Reference equality is enough because every mutating helper produces a
+    // fresh top-level object.
+    if (data === lastWrittenDataRef.current) return;
+    let idleId = null;
+    const t = setTimeout(() => {
+      idleId = scheduleIdleWrite(() => {
+        // Never the scenario on screen: what is cached is what a file would
+        // hold, so a reload opens on the plan with its scenarios intact.
+        localStorage.setItem(SK, JSON.stringify(fileDataRef.current));
+        lastWrittenDataRef.current = data;
+        // localStorage save is always successful → data is "saved" (just maybe not to file yet)
+        setSaved(true);
+        setLastSavedAt(new Date());
+        // Every history-recording path used to hang off a file handle, so with
+        // nothing mounted the log stayed empty for ever — which silently took
+        // the diff/review window and backdating with it: you could switch
+        // backdating on, record a sprint's worth of catching up, and nothing
+        // was written anywhere. This is the only persist that happens without
+        // a file, so it is where the log has to be written.
+        if (!fileHandleRef.current && !scnRef.current) recordHistoryForLocalSave();
+      }, 1200);
+    }, 800);
+    return () => {
+      clearTimeout(t);
+      if (idleId != null) cancelIdleWrite(idleId);
+    };
+  }, [data]);
+  // Mark file-out-of-sync whenever data changes
+  useEffect(() => { if (data) setFileSynced(false); }, [data]);
+
+  // Auto-save: debounced N seconds after the last change. Each new change
+  // resets the timer, so rapid edits coalesce into a single write.
+  // Manual force-save via the disk icon (saveToFile) bypasses this.
+  const SAVE_DEBOUNCE_MS = 5000;
+  const lastChangeTimeRef = useRef(Date.now());
+  useEffect(() => { if (data) lastChangeTimeRef.current = Date.now(); }, [data]);
+  // Reseed the leaf-state baseline whenever a different file is loaded so the
+  // first save after load only emits real edits made in this session, not the
+  // entire tree as "added".
+  //
+  // Taken when the DOCUMENT arrives, not when its file name does. It used to
+  // hang on `fileName`, which is set before the file has been read: the
+  // baseline was the previous document's tree, or an empty one in a host that
+  // starts with no document, and the first save after every open recorded
+  // every item as "added" all over again. A real plan had 11,731 events of
+  // which 563 were changes. `resetHistory()` — called wherever a different
+  // document is loaded — marks the baseline stale; the first `data` after
+  // that is the new baseline. A scenario on screen never is: its baseline is
+  // the plan's.
+  useEffect(() => {
+    if (!data || !leafBaselineStaleRef.current || scnRef.current) return;
+    lastSavedLeavesRef.current = leafSnapshot(sortTree(data.tree || []));
+    lastSavedPlanRef.current = data;
+    leafBaselineStaleRef.current = false;
+  }, [data]);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!data || !autoSave || !fileHandleRef.current || fileSynced) return;
+    const t = setTimeout(async () => {
+      const handle = fileHandleRef.current;
+      if (!handle) return;
+      const canWrite = await ensureHandlePermission(handle, false);
+      if (!canWrite) { setFileWriteOk(false); return; }
+      setSaving(true);
+      try {
+        const { content, ...composed } = composeFileForSave();
+        const wr = await handle.createWritable();
+        await wr.write(content);
+        await wr.close();
+        setFileWriteOk(true);
+        setFileSynced(true);
+        lastOwnWriteRef.current = Date.now();
+        setLastSavedAt(new Date());
+        // Snapshot ring tracks file-save events, throttled internally.
+        pushSnapshot(fileDataRef.current);
+        commitSaveSideEffects(composed);
+      } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
+      finally { setSaving(false); }
+    }, SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [data, autoSave, fileSynced]);
+
+  // 1-second tick to drive the live countdown. Only ticks while there's something to wait for.
+  const [, setSaveTick] = useState(0);
+  useEffect(() => {
+    if (fileSynced || !autoSave || !fileHandleRef.current) return;
+    const i = setInterval(() => setSaveTick(t => t + 1), 1000);
+    return () => clearInterval(i);
+  }, [fileSynced, autoSave]);
+  const saveCountdown = (!fileSynced && autoSave && fileHandleRef.current)
+    ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
+    : 0;
+
+  // Detect external file changes (poll every 5s). NEVER auto-load — only notify.
+  // Writing is one-way (app → file). When the file changes externally, show a prompt
+  // so the user decides whether to reload. Auto-loading was destructive: external edits
+  // (or file-system sync hiccups) silently overwrote in-memory state.
+  const lastModRef = useRef(null);
+  const [externalChangeAvailable, setExternalChangeAvailable] = useState(false);
+  useEffect(() => {
+    if (!fileHandleRef.current) return;
+    const poll = setInterval(async () => {
+      try {
+        const file = await fileHandleRef.current.getFile();
+        const mod = file.lastModified;
+        // Skip if this is our own write (within 3s window)
+        const isOwnWrite = (Date.now() - lastOwnWriteRef.current) < 3000;
+        if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
+          setExternalChangeAvailable(true);
+        }
+        lastModRef.current = mod;
+      } catch {}
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [fileName]);
+  async function reloadFromFile() {
+    try {
+      const file = await fileHandleRef.current.getFile();
+      const text = await file.text();
+      const isMd = file.name.endsWith('.md');
+      const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
+      if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
+        setData(d);
+        resetHistory(); // reloaded from disk — treat as a fresh document
+        setLastSavedAt(new Date(file.lastModified));
+        lastModRef.current = file.lastModified;
+        setSaved(true);
+        setFileSynced(true);
+      }
+    } catch (e) { console.error('Reload failed:', e); }
+    setExternalChangeAvailable(false);
+  }
+
+  // Guard: warn on browser close/reload with unsaved changes
+  useEffect(() => {
+    const h = (e) => { if (!saved) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [saved]);
+
+  // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
+  // Used as fallback when the existing handle's permission/write fails after a reload.
+  async function pickSaveHandle(suggestedFromName) {
+    if (!filePickerAvailable()) { exportJSON(); return null; }
+    const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
+    const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
+    const isMd = suggested.endsWith('.md');
+    return await pickFileToSave({
+      suggestedName: suggested,
+      types: isMd
+        ? [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }, { description: 'Planr JSON', accept: { 'application/json': ['.json'] } }]
+        : [{ description: 'Planr JSON', accept: { 'application/json': ['.json'] } }, { description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+    });
+  }
+
+  // Write content to a handle (caller already has write permission)
+  async function writeToHandle(handle, content) {
+    const wr = await handle.createWritable();
+    await wr.write(content);
+    await wr.close();
+  }
+
+  // Save to file (File System Access API). On failure, fall back to Save-As with previous filename.
+  async function saveToFile(saveAs) {
+    if (!data) return;
+    let handle = saveAs ? null : fileHandleRef.current;
+    const previousFileName = fileName; // remember for fallback suggestion
+    try {
+      // Path A: no handle yet → open Save-As picker right away
+      if (!handle) {
+        handle = await pickSaveHandle(previousFileName);
+        if (!handle) return; // exportJSON path or aborted
+      } else {
+        // Path B: have a handle → request permission interactively
+        const canWrite = await ensureHandlePermission(handle, true);
+        if (!canWrite) {
+          // Permission denied/failed → offer Save-As fallback so the user can re-mount
+          // (this is critical after page reload when permissions reset)
+          const ok = confirm('File access was not granted by the browser. Click OK to choose where to save (suggesting the original location), or Cancel to skip.');
+          if (!ok) { setFileWriteOk(false); return; }
+          handle = await pickSaveHandle(previousFileName);
+          if (!handle) { setFileWriteOk(false); return; }
+        }
+      }
+      const { content, ...composed } = composeFileForSave();
+      await writeToHandle(handle, content);
+      lastOwnWriteRef.current = Date.now();
+      await rememberHandle(handle);
+      setAutoSave(true);
+      setFileWriteOk(true);
+      setFileSynced(true);
+      setSaved(true);
+      setLastSavedAt(new Date());
+      // Persist a JSON snapshot tied to a real file write — recovery scenarios
+      // care about state that landed on disk, not every keystroke. Throttled
+      // internally to ≥60s so manual rapid saves don't churn the ring.
+      pushSnapshot(fileDataRef.current);
+      commitSaveSideEffects(composed);
+    } catch (e) {
+      if (e.name === 'AbortError') return; // user cancelled file picker
+      console.error('Save failed:', e);
+      // If write fails (handle invalid, file moved/deleted), offer Save-As fallback
+      const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError' || e.name === 'InvalidStateError';
+      if (isInvalidHandle) {
+        const retry = confirm(`Save failed: ${e.message || e.name}\n\nThe file may have been moved or access was revoked. Click OK to choose where to save (suggesting the original location), or Cancel to skip.`);
+        if (retry) {
+          try {
+            const handle2 = await pickSaveHandle(previousFileName);
+            if (!handle2) return;
+            const { content, ...composed } = composeFileForSave();
+            await writeToHandle(handle2, content);
+            await rememberHandle(handle2);
+            setAutoSave(true);
+            setFileWriteOk(true);
+            setFileSynced(true);
+            setSaved(true);
+            setLastSavedAt(new Date());
+            commitSaveSideEffects(composed);
+            return;
+          } catch (e2) {
+            if (e2.name !== 'AbortError') alert('Save still failed: ' + (e2.message || e2.name));
+            return;
+          }
+        }
+      }
+      setFileWriteOk(false);
+      alert('Could not save: ' + (e.message || e.name || 'unknown error'));
+    }
+  }
+  async function loadFromFile() {
+    try {
+      if (filePickerAvailable()) {
+        const handle = await pickFileToOpen({ types: [
+          { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
+          { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+        ] });
+        const file = await handle.getFile();
+        const text = await file.text();
+        const isMd = handle.name.endsWith('.md');
+        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.' : 'Invalid JSON project file — no tree items found.');
+        // Apply data immediately — don't block on file write permission
+        await rememberHandle(handle);
+        setData(d);
+        resetHistory(); // different document — the old undo stack doesn't apply
+        setSel(null);
+        setSaved(true);
+        setLastSavedAt(new Date());
+        // Try to establish write permission (non-blocking for UI update)
+        const canWrite = await ensureHandlePermission(handle, true);
+        setFileWriteOk(canWrite);
+        setAutoSave(true);
+      } else { fRef.current?.click(); }
+    } catch (e) { if (e.name !== 'AbortError') alert('Could not load file: ' + e.message); }
+  }
+  // Accept both .json and .md files
+
+  // Global keyboard shortcuts. The file ones are the platform conventions
+  // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
+  // ⌘E export, ⌘, settings — declared in utils/shortcuts.js so the keymap
+  // and the menus name exactly what is bound here.
+  //
+  // ⌘N (new) is deliberately NOT bound: browsers keep it for "new window"
+  // and never deliver it to the page, so binding it would look like a
+  // feature and do nothing. New project lives in the File menu and the
+  // palette instead.
+  useEffect(() => {
+    const h = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      const key = (e.key || '').toLowerCase();
+      // Never steal a file shortcut from a text field the user is typing in
+      // — except Save, which people expect to work from anywhere.
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
+
+      if (mod && key === 's' && e.shiftKey) { e.preventDefault(); saveToFile(true); return; }
+      if (mod && key === 'o' && !typing) { e.preventDefault(); loadFromFile(); return; }
+      if (mod && key === 'e' && !typing) { e.preventDefault(); setTab('report'); return; }
+      if (mod && e.key === ',' && !typing) { e.preventDefault(); setModal('settings'); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        // Only intercept when a searchable view is active
+        if (SEARCH_TABS.has(tab)) {
+          e.preventDefault();
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
+      }
+      // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
+      // ⇧ is not ours: ⌘⇧↑/↓ moves a row in the tree.
+      // Not from a text field: the search box steps on its own (this used to
+      // step a second time, so each press skipped a match), and anywhere else
+      // ⌘↑/⌘↓ is the caret's jump to the start or end of the text.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !typing && search && MATCH_STEP_TABS.has(tab) && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
+      }
+      // Undo/redo — never while focus is in a text-editing control, so
+      // native text-field undo wins there instead of ours.
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
+        const active = document.activeElement;
+        const tag = active?.tagName;
+        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
+        // No structure command can be issued from inside a field any more, so
+        // there is never plan history hiding behind a text field's ⌘Z.
+        if (!isEditable) {
+          const isRedo = (e.key === 'y' || e.key === 'Y') || e.shiftKey;
+          e.preventDefault();
+          if (isRedo) handleRedo(); else handleUndo();
+        }
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
+
+  const { members = [], teams = [], vacations = [], meta = {} } = data || {};
+  // One order, everywhere.
+  //
+  // Reported after a long afternoon rearranging the tree: the work order
+  // queues showed something else entirely. They did — `displayOrder` is a
+  // number written onto the rows, and nothing ever reordered the ARRAY, so
+  // every surface that simply walked `data.tree` was reading the order the
+  // rows happened to be stored in. That was the tree's order once, before the
+  // first reorder; after an afternoon of them the two had nothing to do with
+  // each other (measured on the plan reported: 171 of 181 positions differed).
+  // Only the tree view and the Gantt sorted; the queues, the resource views,
+  // the report and every PDF did not, and each of them was presenting itself
+  // as the plan's order.
+  //
+  // So the array carries the order. Sorting once here rather than in nine
+  // places is also the only version that stays true — a new view cannot
+  // forget to do it. The tree view still sorts its own rows, which is now a
+  // no-op, and the scheduler still ranks by the same comparator.
+  const tree = useMemo(() => sortTree(data?.tree || []), [data?.tree]);
+  // Derive selected node from tree — always fresh after any tree mutation.
+  const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
+  // ── Archive layer ────────────────────────────────────────────────────────
+  // Long-finished projects and long-gone people are dropped from what the
+  // views render, but NOT from `tree` / `stats` / `scheduled`. The headline
+  // percentage and PT totals keep counting them — archiving a finished
+  // project must never make the project look less finished.
+  const archive = useMemo(
+    () => scanArchive({ tree, members, days: archiveDays }),
+    [tree, members, archiveDays],
+  );
+  const activeTree = useMemo(
+    () => (showArchived ? tree : stripArchivedRoots(tree, archive.rootIds)),
+    [tree, showArchived, archive.rootIds],
+  );
+  const activeMembers = useMemo(
+    () => (showArchived ? members : stripArchivedMembers(members, archive.memberIds)),
+    [members, showArchived, archive.memberIds],
+  );
+  const visibleTree = useMemo(() => {
+    // Archive first, then hide-done: both are display filters over the same
+    // tree, and the archive set is the coarser of the two.
+    const source = activeTree;
+    if (!hideDone) return source;
+    const byId = Object.fromEntries(source.map(r => [r.id, r]));
+    const byParent = {};
+    source.forEach(r => {
+      const pid = r.id.split('.').slice(0, -1).join('.');
+      if (!byParent[pid]) byParent[pid] = [];
+      byParent[pid].push(r);
+    });
+    const keep = new Set();
+    const visit = id => {
+      const node = byId[id];
+      if (!node) return false;
+      const children = byParent[id] || [];
+      if (!children.length) {
+        // Dropped counts as finished here. "Hide done" is a request to see
+        // what is still to be done, and a task that was rejected has no work
+        // left in it either — it stayed on screen alongside the open ones,
+        // struck through, in a view whose whole point was that it is not.
+        const shouldShow = node.status !== 'done' && !isDropped(node);
+        if (shouldShow) keep.add(id);
+        return shouldShow;
+      }
+      // For non-leaf structure, derived parent statuses can be stale or intentionally
+      // aggregate child state. Hide/show should therefore be driven only by whether
+      // there is any non-done leaf left below this branch.
+      let hasVisibleChild = false;
+      children.forEach(child => {
+        if (visit(child.id)) hasVisibleChild = true;
+      });
+      if (hasVisibleChild) keep.add(id);
+      return hasVisibleChild;
+    };
+    (byParent[''] || []).forEach(root => visit(root.id));
+    return source.filter(r => keep.has(r.id));
+  }, [activeTree, hideDone]);
+  const visibleIdSet = useMemo(() => new Set(visibleTree.map(r => r.id)), [visibleTree]);
+  const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
+  const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
+  const netTree = useMemo(() => {
+    let items = visibleTree;
+    if (rootFilter) items = items.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
+    const ancestorVisible = (idSet, id) => {
+      idSet.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
+    };
+    if (teamFilter) {
+      const visibleIds = new Set();
+      items.forEach(r => { if ((r.team || '').includes(teamFilter)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (personFilter) {
+      const visibleIds = new Set();
+      items.forEach(r => { if ((r.assign || []).includes(personFilter)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (onlyUnestimated) {
+      const visibleIds = new Set();
+      items.forEach(r => {
+        const isLeaf = !items.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
+        if (isLeaf && !r.best && !r.fixedDurationDays && r.status !== 'done') ancestorVisible(visibleIds, r.id);
+      });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    return items;
+  }, [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated]);
+  useEffect(() => {
+    if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
+  }, [rootItems, rootFilter]);
+  useEffect(() => {
+    if (teamFilter && !teams.some(t => t.id === teamFilter)) setTeamFilter('');
+  }, [teams, teamFilter]);
+  useEffect(() => {
+    if (personFilter && !members.some(m => m.id === personFilter)) setPersonFilter('');
+  }, [members, personFilter]);
+  // Repair names the markdown round trip damaged. buildMarkdownText wrote the
+  // root's type as an emoji while parseMdToProject looked for a different
+  // marker, so every save-then-load moved the emoji from the type field into
+  // the NAME and left it there. Both sides agree now; this clears what the
+  // disagreement already wrote into saved plans. Runs once, and only when
+  // there is something to clear.
+  useEffect(() => {
+    const MARKS = Object.values(GT_MARKS).flat().filter(mk => mk !== '!');
+    const clean = n => MARKS.reduce((acc, mk) => acc.split(mk).join(' '), String(n || ''))
+      .replace(/\s{2,}/g, ' ').trim();
+    const dirty = tree.filter(r => !String(r.id).includes('.') && clean(r.name) !== r.name);
+    if (!dirty.length) return;
+    const ids = new Set(dirty.map(r => r.id));
+    setData(d => ({ ...d, tree: d.tree.map(r => ids.has(r.id) ? { ...r, name: clean(r.name) } : r) }));
+  }, []);
+
+  // Backward compat: migrate old deadlines[] into tree roots
+  useEffect(() => {
+    if (!data?.deadlines?.length) return;
+    const dl = data.deadlines; const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
+    const updated = [...tree];
+    dl.forEach(g => {
+      // Find matching root by name similarity
+      const root = updated.find(r => !r.id.includes('.') && (r.name.includes(g.name) || g.name.includes(r.name.split(' ')[0])));
+      if (root && !root.type) { root.type = g.type || 'goal'; root.severity = g.severity || 'high'; if (g.date) root.date = g.date; if (g.description) root.description = g.description; }
+    });
+    setData(d => { const { deadlines, ...rest } = d; return { ...rest, tree: updated }; });
+  }, []);
+  const goals = useMemo(() => tree.filter(r => !r.id.includes('.') && r.type), [tree]);
+  const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
+  const planStart = meta.planStart || iso(new Date());
+  // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
+  // planStart = scheduling start. New/unstarted tasks begin here.
+  const viewStart = useMemo(() => inferGanttViewStart(tree, planStart, meta.viewStart, 14), [tree, planStart, meta.viewStart]);
+  // Headroom horizon for the scheduler — +10 years so even long migrations
+  // fit. After scheduling we trim the resulting `weeks` array back to the
+  // latest scheduled endD + padding so the Gantt / Roadmap don't render
+  // empty decades. Plans with an explicit `End` in the Plan table honour
+  // that exactly.
+  const GANTT_WINDOW_PADDING_DAYS = 14;
+  const SCHEDULER_HEADROOM_END = iso(new Date(new Date().getFullYear() + 10, 11, 31));
+  const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
+  const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
+  // Enrich members with effective meetings (team-inherited plans + member
+  // plans + individual) so the scheduler's deriveCap() sees the same capacity
+  // picture as Gantt/Resource load.
+  //
+  // And over time: everything that changes on a date (utils/effective.js) is
+  // flattened per person here, with each meeting plan resolved, because the
+  // scheduler has no catalogue to look a plan up in.
+  const enrichedMembers = useMemo(
+    () => compileMembers({ members, teams: data?.teams || [], meetingPlans: data?.meetingPlans || [], changes: data?.changes || [] }),
+    [members, data?.meetingPlans, data?.teams, data?.changes],
+  );
+  // The one answer to "how much of this person is there on that day", for
+  // everything that draws availability (utils/capacityLens.js).
+  const capacityAt = useMemo(() => capacityLookup(enrichedMembers), [enrichedMembers]);
+  // ── The day you are working on ───────────────────────────────────────────
+  // Empty = today. Set, the Resources view shows people, teams and meeting
+  // plans as they will be on that day, and what is edited there goes into the
+  // change at that date instead of into the plan as it always was. Not
+  // persisted: like backdating, a date you forgot about would quietly send
+  // every later edit to the wrong place.
+  const [effDate, setEffDate] = useState('');
+  const resLens = useMemo(() => resourcesAsOf(data, effDate || new Date()), [data, effDate]);
+  const effDates = useMemo(() => changeDates(data), [data?.changes]);
+  const effCount = effDates.find(d => d.from === effDate)?.count || 0;
+  // A day before today is a look at the plan as it was (and a place to
+  // correct it from then on); a day after today is where capacity changes.
+  const pickEffDate = day => {
+    const wanted = day || '';
+    const goPast = !!wanted && wanted < localDay() && !scnRef.current;
+    const from = pastRef.current;
+    if (from || goPast) {
+      // Back to the real plan first, with whatever was edited on that day.
+      let real = from ? fileDataRef.current : recordToday(lastSavedPlanRef.current, dataRef.current);
+      if (!real) return;
+      // What was changed today and not saved yet is written to the history
+      // now, as of today: once the earlier day is on screen, every entry a
+      // save finds counts for that day.
+      if (!from && lastSavedLeavesRef.current) {
+        const snapshot = leafSnapshot(sortTree(real.tree || []));
+        const ts = new Date().toISOString();
+        const events = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, backdate || null), real.asOfPending, snapshot, ts);
+        lastSavedLeavesRef.current = snapshot;
+        real = recordSavedEvents(real, events, real.asOfPending || null);
+      }
+      lastSavedPlanRef.current = real;
+      if (goPast) {
+        const screen = planOn(real, wanted);
+        setPast({ day: wanted, base: real, baseScreen: screen });
+        setData(screen);
+      } else {
+        setPast(null);
+        setData(real);
+      }
+      // Snapshots of one day are not edits of another.
+      setHistory(createHistory({ limit: 100 }));
+      if (from) setSaved(false);
+    }
+    setEffDate(wanted);
+    if (wanted && !goPast) setTab('resources');
+  };
+  // On an earlier day the screen already is that day: an edit there is an
+  // ordinary edit, and the day log carries it forward.
+  const effFold = past ? null : (effDate || null);
+  const pastStart = useMemo(() => (past ? logStart(past.base) : null), [past]);
+  const effDropDate = from => mutate(d => dropChange(d, from));
+  const effContext = useMemo(() => ({
+    date: effDate,
+    changes: data?.changes || [],
+    onGo: day => pickEffDate(day || ''),
+    onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
+  }), [effDate, data?.changes, past?.day, scn?.id, backdate]);
+  // A person's own order of work, when they have one. The plan's order is the
+  // tree's; this is the single override, and it only permutes the slots that
+  // person's work already holds (utils/personQueue.js).
+  const personQueues = data?.personQueues || null;
+  const { results: scheduled, weeks } = useMemo(() => {
+    if (!data) return { results: [], weeks: [] };
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues, ...(past ? { now: past.day } : {}) });
+    // Trim weeks to the actual horizon when planEnd wasn't user-set:
+    // latest scheduled endD + padding. Falls back to a 6-month
+    // window when nothing is scheduled so the Gantt isn't empty.
+    if (meta.planEnd) return out; // explicit user choice — leave alone
+    let latest = null;
+    for (const s of out.results || []) {
+      const endD = s.endD instanceof Date ? s.endD : (s.endD ? new Date(s.endD) : null);
+      if (endD && (!latest || endD > latest)) latest = endD;
+    }
+    const horizonEnd = latest
+      ? new Date(latest.getFullYear(), latest.getMonth(), latest.getDate() + GANTT_WINDOW_PADDING_DAYS)
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 6, 1);
+    const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
+    return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };
+  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues, past?.day]);
+  // The same schedule for a different tree: what-if runs for "what is this
+  // project waiting on?" (utils/projectWaits.js). Answers are cached until
+  // the plan changes and computed only when a view asks for a project.
+  const reschedule = useCallback(
+    nextTree => schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues, ...(past ? { now: past.day } : {}) }).results,
+    [enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, personQueues, past?.day],
+  );
+  const projectWaitsOf = useMemo(() => {
+    const cache = new Map();
+    return rootId => {
+      if (!rootId) return null;
+      if (!cache.has(rootId)) cache.set(rootId, projectWaits({ tree, scheduled, rootId, reschedule, members: enrichedMembers }));
+      return cache.get(rootId);
+    };
+  }, [tree, scheduled, reschedule, enrichedMembers]);
+
+  // Persist the last visible schedule window for completed tasks so they stay visible
+  // in the Gantt after being marked done, without reintroducing them into future planning.
+  useEffect(() => {
+    const prevTree = prevTreeRef.current || [];
+    const prevTreeMap = new Map(prevTree.map(r => [r.id, r]));
+    const prevScheduledMap = new Map((prevScheduledRef.current || []).map(s => [s.id, s]));
+    const currentScheduledMap = new Map((scheduled || []).map(s => [s.id, s]));
+    const patches = new Map();
+    const todayIso = iso(new Date());
+
+    tree.forEach(r => {
+      if (!isLeafNode(tree, r.id)) return;
+      const hasCompletionMeta = !!(r.completedAt || r.completedStart || r.completedEnd || r.completedPersonId || r.completedPerson || r.completedAutoAssigned || r.plannedStart || r.plannedEnd);
+      const prev = prevTreeMap.get(r.id);
+      const snap = prevScheduledMap.get(r.id);
+
+      if (r.status === 'done') {
+        const completedPersonId = inferCompletedPersonId(r, members, snap);
+        const completedAt = (prev?.status !== 'done' && !r.completedAt)
+          ? todayIso
+          : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart, completedPersonId, members, vacations, hm });
+        if (!completedAt) return;
+        // Persisted done-window takes precedence over re-inference. The user
+        // may reconstruct history by editing done-start/done-end directly, so
+        // do not recalculate that window just because completedAt changed in
+        // the same edit. Refresh only when no window exists, when a task is
+        // newly completed, or when the cached window is clearly stale.
+        const hasExistingWindow = !!r.completedStart && !!r.completedEnd;
+        const windowWasEdited = !!prev && (prev.completedStart !== r.completedStart || prev.completedEnd !== r.completedEnd);
+        const completedAtChanged = !!prev && prev.completedAt !== completedAt;
+        const windowMatchesCompletedAt = hasExistingWindow && r.completedEnd === completedAt;
+        const shouldRefreshWindow = !hasExistingWindow
+          || (prev && prev.status !== 'done')
+          || (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt)
+          || (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
+        const window = shouldRefreshWindow
+          ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
+          : { completedStart: r.completedStart, completedEnd: r.completedEnd };
+        const completedPerson = r.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : snap?.person || '');
+        const plannedStart = r.plannedStart || (snap?.startD ? iso(snap.startD) : '');
+        const plannedEnd = r.plannedEnd || (snap?.endD ? iso(snap.endD) : '');
+        const patch = {
+          completedAt,
+          completedStart: window.completedStart,
+          completedEnd: window.completedEnd,
+        };
+        if (completedPersonId) patch.completedPersonId = completedPersonId;
+        if (completedPerson) patch.completedPerson = completedPerson;
+        if (snap?.autoAssigned || r.completedAutoAssigned) patch.completedAutoAssigned = true;
+        if (plannedStart) patch.plannedStart = plannedStart;
+        if (plannedEnd) patch.plannedEnd = plannedEnd;
+        const needsPatch = Object.entries(patch).some(([key, value]) => r[key] !== value);
+        if (!needsPatch) return;
+        patches.set(r.id, patch);
+        return;
+      }
+      if (hasCompletionMeta) patches.set(r.id, { _clearCompletedWindow: true });
+    });
+
+    prevTreeRef.current = tree;
+    prevScheduledRef.current = scheduled;
+
+    if (!patches.size) return;
+
+    let didChange = false;
+    setData(d => {
+      if (!d?.tree?.length) return d;
+      const nextTree = d.tree.map(r => {
+        const patch = patches.get(r.id);
+        if (!patch) return r;
+        if (patch._clearCompletedWindow) {
+          const { completedAt, completedStart, completedEnd, completedPersonId, completedPerson, completedAutoAssigned, plannedStart, plannedEnd, ...rest } = r;
+          if (completedAt == null && completedStart == null && completedEnd == null && completedPersonId == null && completedPerson == null && completedAutoAssigned == null && plannedStart == null && plannedEnd == null) return r;
+          didChange = true;
+          return rest;
+        }
+        const alreadyApplied = Object.entries(patch).every(([k, v]) => r[k] === v);
+        if (alreadyApplied) return r;
+        didChange = true;
+        return { ...r, ...patch };
+      });
+      return didChange ? { ...d, tree: nextTree } : d;
+    });
+    setSaved(false);
+  }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
+
+  const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
+  // ── Scenario against plan ────────────────────────────────────────────────
+  // The plan is scheduled a second time, once per visit to a scenario, so the
+  // two can be laid side by side. Same scheduler, same day, same inputs but
+  // for the scenario's changes — which is what makes the difference theirs.
+  const baseScheduled = useMemo(() => (scn ? schedulePlanData(scn.base) : null), [scn]);
+  const scnComparison = useMemo(
+    () => (scn && data ? compareScenario({ base: scn.base, work: data, baseScheduled, workScheduled: scheduled }) : null),
+    [scn, data, baseScheduled, scheduled],
+  );
+  const scnBaseline = useMemo(() => (scnComparison ? baselineWindows(scnComparison) : null), [scnComparison]);
+  // The comparison as a PDF. The model is built where the dialog is (one set
+  // of figures and words for both); null while no scenario is on screen.
+  const scnReport = useScenarioReport({
+    scenario: activeScenario, planName: data?.meta?.name || '', base: scn?.base || null, work: scn ? data : null,
+    comparison: scnComparison, changes: scnChanges, conflicts: scn?.conflicts || 0,
+  });
+  // A failed export is said out loud from every way in, and said once. The
+  // report card has its own handling (ExportCards `run`: message, and no
+  // success tick), so it gets the function that throws; the dialog and the
+  // palette have none, so they get the one that reports.
+  const exportScenarioPDFOrThrow = scnReport ? () => exportScenarioComparePDF(scnReport()) : null;
+  const exportScenarioPDF = exportScenarioPDFOrThrow ? async () => {
+    try { await exportScenarioPDFOrThrow(); }
+    catch (e) { console.error(e); alert('Export failed: ' + (e?.message || e)); }
+  } : null;
+  // What the scenario moves, per task, for the views that mark it: calendar
+  // days later (+) or earlier (−); `null` for a task that is new, gone or no
+  // longer scheduled — affected, with no shift to put a number on.
+  const scnShifts = useMemo(() => {
+    if (!scnComparison) return null;
+    const out = new Map();
+    for (const it of scnComparison.items) {
+      if (it.presence !== 'both') { out.set(it.id, null); continue; }
+      const days = it.endShift || it.startShift;
+      if (days) out.set(it.id, days);
+    }
+    return out;
+  }, [scnComparison]);
+  // Rows the scenario itself changed (not the ones that merely moved because
+  // of it): marked in the tree, where they are edited.
+  const scnChangedIds = useMemo(
+    () => (scn ? new Set(scnChanges.filter(c => c.kind === 'item' && c.op !== 'remove').map(c => c.id)) : null),
+    [scn, scnChanges],
+  );
+  // ── Diff overlay (project-wide "since" window) ─────────────────────────────
+  // Lives at app level so every view (Roadmap, TreeView, Timetable, Gantt,
+  // Network) reads the same cutoff and the same precomputed event-based diff
+  // bag. Persists in localStorage.
+  const [sinceDays, setSinceDays] = useState(() => { try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; } });
+  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
+  // Paused while a scenario is on screen. Two overlays at once is how amber
+  // rows for "progressed since the 5th" came to be read as "moved by the
+  // scenario". The window is not forgotten — `sinceDays` stays as it is and
+  // the filter says it is paused — it just does not paint while the question
+  // on screen is a different one (principles.md: overlays belong to a
+  // moment, never two at once).
+  const sinceDate = useMemo(() => (scn ? null : parseSinceValue(sinceDays)), [sinceDays, scn]);
+  // "Only with changes" filter — currently consumed by TreeView. Lives at app
+  // level so the toggle inside the global ViewFilters popup stays the only
+  // place to flip it.
+  const [diffOnlyChanged, setDiffOnlyChanged] = useState(() => {
+    try { return localStorage.getItem('planr_diff_only_changed') === 'true'; } catch { return false; }
+  });
+  const persistDiffOnlyChanged = (v) => { setDiffOnlyChanged(v); try { localStorage.setItem('planr_diff_only_changed', String(v)); } catch { /* noop */ } };
+  // ── Planning-horizon filter (project-wide) ─────────────────────────────────
+  // Mirrors the diff picker shape: presets in days (7/14/30) or an explicit
+  // date. When set, every view narrows to tasks scheduled within the window
+  // so the planner can focus on one horizon at a time.
+  const [horizonDays, setHorizonDays] = useState(() => { try { return localStorage.getItem('planr_horizon') || ''; } catch { return ''; } });
+  const persistHorizon = (val) => { setHorizonDays(val); try { localStorage.setItem('planr_horizon', val); } catch { /* noop */ } };
+  const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
+  const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
+  // "Only planned" — strict filter mode. Default on so the picker behaves
+  // like the diff "Only changed" toggle (filter is the obvious effect).
+  // When off, views fall back to soft hinting (dim/badge) without dropping
+  // rows, so the user can still see the full plan with the horizon marker.
+  const [horizonOnlyPlanned, setHorizonOnlyPlanned] = useState(() => {
+    try { const v = localStorage.getItem('planr_horizon_only'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const persistHorizonOnly = (v) => { setHorizonOnlyPlanned(v); try { localStorage.setItem('planr_horizon_only', String(v)); } catch { /* noop */ } };
+  // Forward-looking per-root progress: where would the train sit at horizonEnd
+  // if the current schedule plays out? Used by the Subway map to draw a "Plan"
+  // ghost-train ahead of the live one (Diff = past, Ist = now, Plan = future).
+  const futureProgressByRootId = useMemo(() => {
+    if (!horizonEnd) return null;
+    const sById = Object.fromEntries((scheduled || []).map(s => [s.id, s]));
+    const roots = tree.filter(r => !r.id.includes('.'));
+    // Live leaves only. Dropped work leaves BOTH sides of every fraction —
+    // the same rule progress.js applies to the "Ist" figure right next to
+    // this one. Counting it here made a finished project project as unfinished
+    // forever, on screen and in the Management Summary's Subway Map.
+    const liveLeaves = leafNodes(tree);
+    const out = {};
+    for (const root of roots) {
+      const leaves = liveLeaves.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'));
+      const today = new Date();
+      let total = 0, doneByHorizon = 0;
+      for (const lf of leaves) {
+        const eff = scheduleEffort(lf) || 1;
+        total += eff;
+        // Floor by the leaf's CURRENT progress so the future projection never
+        // regresses below the live train.
+        const curFrac = leafProgress(lf) / 100;
+        const maxFutureFrac = lf.status === 'done' ? 1 : 0.99;
+        let projFrac = curFrac;
+        if (lf.status === 'done') {
+          projFrac = 1;
+        } else {
+          // Source 1: scheduled bar — partial credit prorated across the bar
+          // duration up to the horizon.
+          const s = sById[lf.id];
+          if (s?.endD) {
+            const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
+            const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
+            if (endD <= horizonEnd) projFrac = maxFutureFrac;
+            else if (startD < horizonEnd) {
+              const dur = +endD - +startD;
+              const elapsed = +horizonEnd - +startD;
+              const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
+              projFrac = Math.max(projFrac, Math.min(maxFutureFrac, frac));
+            }
+          }
+          // Source 2: WIP + due date — linear interpolation from current
+          // progress toward 100% by `due`. Captures the user's plan: "I know
+          // I'll finish D1.1 by 2026-06-30 because I'm 58% there now". Even
+          // if the scheduler isn't routing the work into the horizon window
+          // (because another assignee's queue is full), the active task's
+          // own trajectory still counts.
+          if (lf.status === 'wip' && lf.due && projFrac < maxFutureFrac) {
+            const dueD = new Date(lf.due);
+            const horizonD = horizonEnd instanceof Date ? horizonEnd : new Date(horizonEnd);
+            if (dueD > today) {
+              if (horizonD >= dueD) projFrac = Math.max(projFrac, maxFutureFrac);
+              else {
+                const span = +dueD - +today;
+                const elapsed = +horizonD - +today;
+                const frac = span > 0 ? Math.min(1, Math.max(0, elapsed / span)) : 0;
+                projFrac = Math.max(projFrac, curFrac + (maxFutureFrac - curFrac) * frac);
+              }
+            }
+          }
+        }
+        doneByHorizon += eff * Math.min(projFrac, maxFutureFrac);
+      }
+      const allDone = leaves.length > 0 && leaves.every(lf => lf.status === 'done');
+      const projected = total > 0 ? doneByHorizon / total : 0;
+      out[root.id] = allDone ? projected : Math.min(0.99, projected);
+    }
+    return out;
+  }, [tree, scheduled, horizonEnd]);
+  const diff = useMemo(() => computeDiff({
+    tree,
+    historyEvents: data?.historyEvents || [],
+    sinceDate,
+    members,
+    vacations,
+    holidays: hm,
+    workDays,
+  }), [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays]);
+  const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
+  const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
+  const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
+  // Effective filter sets: pass to views only when they actually carry
+  // entries. Critical: an empty Set is truthy, so consumers like Plan /
+  // Briefing / Queues would `if (diffChangedIds)` and filter EVERYTHING
+  // out the moment the toggle was on without a matching diff/horizon
+  // configured. Null when inactive → consumer skips the filter cleanly.
+  const horizonFilterSet = horizonOnlyPlanned && horizonIds && horizonIds.size > 0 ? horizonIds : null;
+  const diffFilterSet = diffOnlyChanged && diffChangedSet.size > 0 ? diffChangedSet : null;
+  const diffVisibleSet = sinceDate && diffChangedSet.size > 0 ? diffChangedSet : null;
+  const cpData = useMemo(() => rootCpm(tree), [tree]);
+  const cpSet = cpData.critical;
+  const cpEdges = cpData.edges;
+  const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
+  const goalPaths = useMemo(() => goalCpm(tree), [tree]);
+  // Global resource-load + overbooked task ids — shared by the quick-filter
+  // chip and any view that wants to flag overbookings (vs each view rolling
+  // its own load matrix and drifting out of sync).
+  const resourceLoadByWeek = useMemo(
+    () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans: data?.meetingPlans || [], scheduled, weeks, capacityAt }),
+    [members, teams, vacations, data?.meetingPlans, scheduled, weeks],
+  );
+  const overbookedTaskIds = useMemo(() => {
+    const out = new Set();
+    if (!Object.keys(resourceLoadByWeek || {}).length) return out;
+    (scheduled || []).forEach(s => {
+      if (!s || !s.startD || !s.endD) return;
+      const ids = [...new Set([s.personId, ...(s.assign || [])].filter(Boolean))];
+      if (!ids.length) return;
+      const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
+      const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
+      for (let wi = 0; wi < weeks.length; wi++) {
+        const w = weeks[wi]; if (!w?.mon) continue;
+        const wkEnd = new Date(w.mon); wkEnd.setDate(wkEnd.getDate() + 6);
+        if (wkEnd < start || w.mon > end) continue;
+        if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
+          out.add(s.treeId || s.id);
+          break;
+        }
+      }
+    });
+    return out;
+  }, [scheduled, weeks, resourceLoadByWeek]);
+
+  // The quick filters as data, so the sub-toolbar and the filter popup show
+  // the same set without either of them owning it. Two of them only exist
+  // when they have something to filter: an archive toggle on a plan with
+  // nothing archived, or an overbooked toggle with nobody overbooked, is a
+  // control that can only disappoint.
+  const quickFilters = useMemo(() => [
+    { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
+    archive.count > 0
+      ? { id: 'archived', label: _t('arch.pill', archive.count), tip: _t('arch.chipTip'), active: showArchived, onToggle: () => setShowArchived(v => !v) }
+      : null,
+    { id: 'auto', label: _t('chip.auto'), tip: _t('chip.autoTip'), active: onlyAutoAssigned, onToggle: () => setOnlyAutoAssigned(v => !v) },
+    { id: 'overdue', label: _t('chip.overdue'), tip: _t('chip.overdueTip'), active: onlyOverdue, onToggle: () => setOnlyOverdue(v => !v) },
+    { id: 'unestimated', label: _t('chip.unestimated'), tip: _t('chip.unestimatedTip'), active: onlyUnestimated, onToggle: () => setOnlyUnestimated(v => !v) },
+    overbookedTaskIds.size > 0
+      ? { id: 'overbooked', label: _t('chip.overbooked', overbookedTaskIds.size), tip: _t('chip.overbookedTip'), active: onlyOverbooked, onToggle: () => setOnlyOverbooked(v => !v) }
+      : null,
+  ].filter(Boolean), [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked]);
+  const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
+
+  // Scope lives in the filter popup and comes back out as a chip the moment
+  // one is set — a narrowed view has to say so (principles.md, "a view is
+  // never the truth"), an unnarrowed one has nothing to say. The chip clears
+  // the filter, which is the only thing you want from it once you see it.
+  const scopeFields = useMemo(() => [
+    {
+      id: 'root', value: rootFilter, options: netRootOptions, showIds: true,
+      placeholder: _t('tv.allRoots'),
+      onSelect: v => { setRootFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'team', value: teamFilter, options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
+      placeholder: _t('tv.allTeams'),
+      onSelect: v => { setTeamFilter(v); setSearchIdx(0); },
+    },
+    {
+      id: 'person', value: personFilter, options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
+      placeholder: _t('tv.allPeople'),
+      onSelect: v => { setPersonFilter(v); setSearchIdx(0); },
+    },
+  ], [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t]);
+
+  const activeScopeChips = useMemo(() => scopeFields
+    .filter(f => f.value)
+    .map(f => ({
+      id: `scope-${f.id}`,
+      label: f.options.find(o => o.id === f.value)?.label || f.value,
+      onToggle: () => f.onSelect(''),
+    })), [scopeFields]);
+
+  // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
+  // their primary in scheduled[]. Match either id or treeId so all segments
+  // pass through view-filters together with their tree node.
+  // Quick-filter chips that depend on the scheduler output (auto-assigned,
+  // overdue, overbooked). Applied to netTree downstream so all views share
+  // the same view.
+  const quickFilteredNetTree = useMemo(() => {
+    if (!onlyAutoAssigned && !onlyOverdue) return netTree;
+    let items = netTree;
+    const ancestorVisible = (idSet, id) => {
+      idSet.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
+    };
+    if (onlyAutoAssigned) {
+      const autoIds = new Set((scheduled || []).filter(s => s.autoAssigned).map(s => s.treeId || s.id));
+      const visibleIds = new Set();
+      items.forEach(r => { if (autoIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (onlyOverdue) {
+      const overdueIds = new Set((scheduled || []).filter(s => s.dueOverdue || (s.due && s.endD && new Date(s.endD) > new Date(s.due) && s.status !== 'done')).map(s => s.treeId || s.id));
+      const visibleIds = new Set();
+      items.forEach(r => { if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    if (onlyOverbooked && overbookedTaskIds.size > 0) {
+      const visibleIds = new Set();
+      items.forEach(r => { if (overbookedTaskIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items = items.filter(r => visibleIds.has(r.id));
+    }
+    return items;
+  }, [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds]);
+  const visibleTreeForViews = useMemo(() => {
+    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
+    const keep = new Set(quickFilteredNetTree.map(r => r.id));
+    // Re-add done items that moved inside the review window. Sourced from
+    // activeTree, so a diff window can't drag an archived project back onto
+    // the screen.
+    const byId = Object.fromEntries(activeTree.map(r => [r.id, r]));
+    diffChangedSet.forEach(id => {
+      const node = byId[id];
+      if (!node || node.status !== 'done') return;
+      keep.add(id);
+      const parts = id.split('.');
+      for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
+    });
+    return activeTree.filter(r => keep.has(r.id));
+  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
+  const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
+  // Don't keep the cursor on a row nobody can see.
+  //
+  // This used to consult `visibleIdSet` — the hide-done list — while the tree
+  // renders from `visibleTreeForViews`, which deliberately puts finished items
+  // back when a Δ review window is open. Two lists, one for drawing and one
+  // for guarding, and they disagreed about exactly the rows a review is for:
+  // you clicked a done item that was plainly on screen and the highlight
+  // vanished a beat later, because an effect had decided it was not there.
+  // One list now — the one that decides what is drawn.
+  useEffect(() => {
+    if (!hideDone) return;
+    if (selId && !visibleViewIdSet.has(selId)) _setSelId(null);
+    setMultiSel(prev => {
+      const next = new Set([...prev].filter(id => visibleViewIdSet.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [hideDone, selId, visibleViewIdSet]);
+  const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
+  const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
+  const viewStats = useMemo(() => {
+    if (!hideDone) return stats;
+    const s = treeStats(visibleTreeForViews);
+    enrichParentSchedules(s, visibleTreeForViews, viewScheduled);
+    return s;
+  }, [hideDone, stats, visibleTreeForViews, viewScheduled]);
+  // Gantt reads `scheduled` directly (not the view tree), so it needs its own
+  // archive-filtered copy — same reason the tree gets one.
+  const activeScheduled = useMemo(
+    () => (showArchived || !archive.rootIds.size
+      ? scheduled
+      : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
+    [scheduled, showArchived, archive.rootIds],
+  );
+  const viewCpSet = cpData.critical;
+  const viewCpEdges = cpData.edges;
+  const viewGoalPaths = goalPaths;
+  const leaves = useMemo(() => leafNodes(tree), [tree]);
+  // Dropped work leaves every count, which would make it invisible; say how
+  // much of it there is, so the denominator is explicable.
+  const droppedCount = useMemo(() => tree.filter(r => r.dropped).length, [tree]);
+  const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
+  const shortNamesMap = useMemo(() => buildMemberShortMap(members), [members]);
+
+  // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
+  // so NRW dates landed a day early in the file. Detect that and rewrite them
+  // from a fresh computeNRW(). Runs idempotently — if everything already matches,
+  // no state update fires.
+  useEffect(() => {
+    if (!data?.holidays?.length || !meta.planStart || !meta.planEnd) return;
+    const ys = new Date(meta.planStart).getFullYear(), ye = new Date(meta.planEnd).getFullYear();
+    const years = []; for (let y = ys; y <= ye; y++) years.push(y);
+    const fresh = computeNRW(years);
+    const freshByKey = new Map(fresh.map(h => [`${h.name}|${h.date.slice(0, 4)}`, h.date]));
+    let changed = false;
+    const migrated = data.holidays.map(h => {
+      if (!h.auto) return h;
+      const key = `${h.name}|${h.date.slice(0, 4)}`;
+      const expected = freshByKey.get(key);
+      if (expected && expected !== h.date) { changed = true; return { ...h, date: expected }; }
+      return h;
+    });
+    if (changed) setData(d => ({ ...d, holidays: migrated }));
+  }, [data?.holidays?.length, meta.planStart, meta.planEnd]);
+
+  // Auto-fix tree: derive parent statuses + reconcile team with assigned person.
+  // IMPORTANT: these two mutations are combined into ONE setData call so they
+  // cannot overwrite each other. The old two-effect pattern caused Effect B to
+  // overwrite Effect A's tree, triggering A again → potential render storm.
+  useEffect(() => {
+    if (!data || !tree.length) return;
+    // Use a functional updater so we always operate on the LATEST tree from
+    // state, not the closure-captured snapshot (which may be stale if another
+    // effect already queued an update).
+    setData(d => {
+      let t = d.tree || [];
+      let changed = false;
+      // 1. Reconcile teams with the first assignee, by the same rule the
+      //    editors assign with (teamForAssignment): the task keeps its team
+      //    when the person works in it, and otherwise takes the person's
+      //    primary team. This said "the person's team always wins", which
+      //    quietly relabelled a Frontend task as Backend the moment a
+      //    full-stack member was put on it — undoing, one render later, the
+      //    choice every editor had just made.
+      if (members.length) {
+        t = t.map(r => {
+          if (!r.assign?.length) return r;
+          const firstAssignee = members.find(m => m.id === r.assign[0]);
+          if (!firstAssignee?.team) return r;
+          const team = teamForAssignment(firstAssignee, r.team);
+          if (r.team !== team) { changed = true; return { ...r, team }; }
+          return r;
+        });
+      }
+      // 2. Derive parent statuses — must run on the (possibly team-fixed) tree
+      // Only treeStats is needed here (for _autoStatus); enrichParentSchedules
+      // is display-only and already runs in the useMemo above.
+      const st = treeStats(t);
+      const t2 = deriveParentStatuses(t, st);
+      if (t2.some((r, i) => r.status !== t[i].status)) { changed = true; t = t2; }
+      if (!changed) return d; // no-op: same reference = React skips re-render
+      return { ...d, tree: t };
+    });
+  }, [stats, members]);
+
+  // Normalize a loaded data object: convert legacy week-based vacations to {from, to} on load.
+  // Every load goes through here, so this is where a log full of events that
+  // changed nothing is brought back to what happened (utils/history.js,
+  // `compactHistory`). The next save writes the shorter log.
+  function normalizeLoadedData(d) {
+    // The per-person lists of dated capacity and meeting changes move into
+    // the one timeline (utils/effective.js); changes naming somebody the plan
+    // no longer has are dropped.
+    // A date waiting for a save belongs to the session that set it.
+    const out = withoutPendingDates(pruneChanges(migrateLegacyChanges(normalizeLoadedCore(d))));
+    if (!out || !Array.isArray(out.historyEvents) || out.historyEvents.length < 2) return out;
+    const { events, dropped } = compactHistory(out.historyEvents);
+    return dropped ? { ...out, historyEvents: events } : out;
+  }
+  function normalizeLoadedCore(d) {
+    if (!d) return d;
+    const rawVacations = Array.isArray(d.vacations) ? d.vacations : [];
+    const vacations = rawVacations.map(normalizeVacation);
+    const vacChanged = rawVacations.length !== vacations.length || rawVacations.some((vac, idx) => {
+      const norm = vacations[idx];
+      return vac?.person !== norm?.person || vac?.from !== norm?.from || vac?.to !== norm?.to || vac?.note !== norm?.note;
+    });
+    if (!Array.isArray(d.tree) || !d.tree.length) {
+      return vacChanged ? { ...d, vacations } : d;
+    }
+
+    const members = Array.isArray(d.members) ? d.members : [];
+    const tree = Array.isArray(d.tree) ? d.tree : [];
+    const hm = buildHMap(d.holidays || []);
+    const workDays = d.meta?.workDays || [1, 2, 3, 4, 5];
+    const planStart = d.meta?.planStart || iso(new Date());
+    const emptyScheduledMap = new Map();
+    let changed = vacChanged;
+
+    const nextTree = tree.map(item => {
+      if (item.status !== 'done') return item;
+
+      const completedPersonId = inferCompletedPersonId(item, members, null);
+      const completedAt = inferCompletedAt({
+        item,
+        tree,
+        scheduledMap: emptyScheduledMap,
+        scheduledSnap: null,
+        workDays,
+        planStart,
+        completedPersonId,
+        members,
+        vacations,
+        hm,
+      });
+      if (!completedAt) return item;
+
+      const derivedWindow = deriveCompletedWindow({
+        item,
+        completedAt,
+        completedPersonId,
+        members,
+        vacations,
+        hm,
+        workDays,
+      });
+      const completedStart = item.completedStart && item.completedStart <= completedAt
+        ? item.completedStart
+        : derivedWindow.completedStart;
+      const completedEnd = completedAt;
+      const completedPerson = item.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : '');
+      const plannedStart = item.plannedStart || item.pinnedStart || '';
+      const next = {
+        ...item,
+        completedAt,
+        completedStart,
+        completedEnd,
+      };
+      if (completedPersonId) next.completedPersonId = completedPersonId;
+      if (completedPerson) next.completedPerson = completedPerson;
+      if (plannedStart && !item.plannedStart) next.plannedStart = plannedStart;
+      if (next.completedAt !== item.completedAt
+        || next.completedStart !== item.completedStart
+        || next.completedEnd !== item.completedEnd
+        || next.completedPersonId !== item.completedPersonId
+        || next.completedPerson !== item.completedPerson
+        || next.plannedStart !== item.plannedStart) {
+        changed = true;
+        return next;
+      }
+      return item;
+    });
+
+    return changed ? { ...d, vacations, tree: nextTree } : d;
+  }
+  function setD(k, v) { mutate(d => ({ ...d, [k]: v })); }
+  // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
+  // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
+  // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
+  // `opts.asOf` dates a status or progress change to an earlier day. The date
+  // is kept in the document (`asOfPending`) until the next save reads it, so
+  // an undo takes it back together with the change, a later edit of the item
+  // from anywhere voids it, and the save's diff stays
+  // the one place that writes history (utils/history.js `stampPendingDates`).
+  function updateNode(u, opts = {}) {
+    const pending = opts.asOf && !scnRef.current ? pendingDate(opts.asOf, u) : null;
+    const dated = d => (pending ? { ...d, asOfPending: { ...(d.asOfPending || {}), [u.id]: pending } } : d);
+    // Auto-extend viewStart if the user pins a task before the current visual horizon.
+    if (u.pinnedStart) {
+      const vs = meta.viewStart || meta.planStart;
+      if (vs && u.pinnedStart < vs) {
+        // Extend viewStart 2 weeks before the pin so the bar isn't flush at the left edge.
+        const pinD = new Date(u.pinnedStart);
+        const extended = new Date(pinD); extended.setDate(extended.getDate() - 14);
+        const extStr = extended.toISOString().slice(0, 10);
+        mutate(d => dated({
+          ...d,
+          meta: { ...d.meta, viewStart: extStr },
+          tree: (d.tree || []).map(r => r.id === u.id ? u : r),
+        }));
+        return;
+      }
+    }
+    mutate(d => dated({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
+  }
+  // Bulk status write from Run mode's Jira drift rows (BriefingView.jsx).
+  // Patches carry whole nodes (see utils/jiraSync.js statusPatches); parent
+  // statuses and the done-window metadata are filled in by the effects that
+  // already watch the tree, exactly as with a hand edit.
+  const onJiraApplyStatus = useStableCallback(patches => {
+    if (!patches?.length) return;
+    const byId = new Map(patches.map(patch => [patch.id, patch]));
+    mutate(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
+  });
+  // First-start import (JiraImportModal.jsx): the tickets already exist in
+  // Jira and nobody types two hundred of them again. The nodes arrive fully
+  // formed and already numbered past whatever the plan has, so this appends
+  // rather than merges — and it goes through `mutate`, so ⌘Z takes the whole
+  // import back in one press, which is the only thing that makes trying it
+  // safe.
+  const applyJiraImport = useStableCallback(({ nodes = [], newMembers = [] }) => {
+    if (!nodes.length) return;
+    mutate(d => ({
+      ...d,
+      tree: [...(d.tree || []), ...nodes],
+      members: newMembers.length ? [...(d.members || []), ...newMembers] : d.members,
+    }));
+    setModal(null);
+    setTab('tree');
+    setSel(nodes[0]);
+  });
+  // Targeted dep mutations: read current tree state and touch ONLY the deps field.
+  // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
+  // out unrelated field changes that happened after the callback was created.
+  // Remove a dep edge — checks both hard and soft buckets so the caller
+  // can stay agnostic ("delete this connection") without knowing the
+  // kind. Returns the node to either bucket if it lives there.
+  function removeDep(fromId, depId) {
+    mutate(d => {
+      const tree = d.tree || [];
+      const mutated = tree.map(r => {
+        if (r.id !== fromId) return r;
+        const next = { ...r, deps: (r.deps || []).filter(x => x !== depId) };
+        // Strip any lingering softDeps too — legacy field that's no longer
+        // emitted, but old plans might still carry it on the in-memory node.
+        if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
+        return next;
+      });
+      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
+    });
+  }
+  // Add a hard dep edge. Soft deps were removed — every link is a hard
+  // dependency now ("X must finish before Y"). Drag-link, NodeModal picker,
+  // and selection "Reihenfolge linken" all go through this single path.
+  function addDep(fromId, depId) {
+    if (fromId === depId) return;
+    mutate(d => {
+      const mutated = (d.tree || []).map(r => {
+        if (r.id !== fromId) return r;
+        const merged = new Set([...(r.deps || []), ...(r.softDeps || [])]);
+        if (merged.has(depId)) {
+          // Already linked (possibly as legacy soft); ensure it lives in deps
+          // and drop any stale softDeps reference.
+          const next = { ...r, deps: [...new Set([...(r.deps || []), depId])] };
+          if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
+          return next;
+        }
+        return { ...r, deps: [...(r.deps || []), depId] };
+      });
+      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
+    });
+  }
+  // Functional, and prefix-safe. Two bugs lived in the one-liner this
+  // replaces, both harmless while deleting was a mouse trip behind a confirm
+  // and both reachable now that ⌫ deletes in one keystroke:
+  //   * it read `tree` from the render closure, so a delete chained after
+  //     another edit in the same tick overwrote that edit,
+  //   * `startsWith(id)` is not a subtree test — deleting "P1" also deleted
+  //     "P10" and "P12". Only `id` itself and `id + '.'` are descendants.
+  function deleteNode(id) {
+    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => r.id !== id && !r.id.startsWith(id + '.')) }));
+    setSel(null);
+  }
+  // Materialize handoff segments as standalone tree tasks, chained by deps.
+  // The primary task stays in place but is trimmed to its own consumed
+  // effort (so the schedule no longer includes the handoff portion in its
+  // best estimate). Each cascade leg becomes a sibling with the next
+  // assignee, the segment's remaining effort, and a dep on the previous
+  // leg. Drops the source task's handoffPlan so the scheduler doesn't
+  // re-cascade into the freshly created tasks.
+  function splitHandoff(nodeId) {
+    const sc = scheduled.find(s => s.id === nodeId);
+    const node = tree.find(r => r.id === nodeId);
+    if (!node || !sc?.segments || sc.segments.length <= 1) return;
+    const handoffSegs = sc.segments.slice(1).filter(s => !s.unscheduled);
+    if (!handoffSegs.length) return;
+
+    const factor = node.factor || 1.5;
+    const primaryEff = sc.segments[0]?.effort || 0;
+    // Round (not ceil) so the trimmed primary fits inside the consumed
+    // portion. ceil gave a 0.5–1d slop that pushed the primary past the
+    // offboard date and re-triggered a cascade — exactly the synthetic
+    // `#N` row the split was supposed to eliminate.
+    const newPrimaryBest = Math.max(1, Math.round(primaryEff / factor));
+
+    // noCascade: the scheduler still re-cascades on offboard even after we
+    // dropped handoffPlan, because cascading is triggered by the assignee's
+    // end-date alone. Mark the trimmed primary as opt-out so the synthetic
+    // `#N` row doesn't reappear after the split — the new sibling tasks own
+    // that work now.
+    const updatedPrimary = { ...node, best: newPrimaryBest, noCascade: true };
+    delete updatedPrimary.handoffPlan;
+
+    // Find next free sibling slot under the same parent.
+    const parent = nodeId.split('.').slice(0, -1).join('.');
+    const sibIds = tree
+      .filter(r => {
+        const p = r.id.split('.').slice(0, -1).join('.');
+        return p === parent;
+      })
+      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
+    let nextNum = sibIds.length ? Math.max(...sibIds) : 0;
+
+    let prevId = node.id;
+    const newTasks = handoffSegs.map(seg => {
+      nextNum += 1;
+      const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
+      const remBest = Math.max(1, Math.ceil((seg.effort || 0) / factor));
+      const t = {
+        id: newId,
+        name: `${node.name} → ${seg.personName || '?'}`,
+        status: 'open',
+        team: seg.team || node.team || '',
+        best: remBest,
+        factor,
+        prio: node.prio || 2,
+        deps: [prevId],
+        note: _t('split.handoff.note', node.id),
+        assign: seg.personId ? [seg.personId] : [],
+      };
+      if (node.confidence) t.confidence = node.confidence;
+      prevId = newId;
+      return t;
+    });
+
+    // Insert new tasks right after the primary's tree slot so the order
+    // matches the Gantt's left-to-right reading.
+    const next = [];
+    for (const r of tree) {
+      if (r.id === nodeId) {
+        next.push(updatedPrimary);
+      } else {
+        next.push(r);
+      }
+    }
+    // Splice new tasks in after the primary's last descendant (same logic
+    // as addNode for nested IDs).
+    let insertAt = next.length;
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
+        insertAt = i + 1; break;
+      }
+    }
+    next.splice(insertAt, 0, ...newTasks);
+    setD('tree', next);
+  }
+  // Split an interrupted task. The original is closed at its current
+  // progress (clamped `best`, status=done) and a new sibling carries the
+  // remaining effort with a dep on the original. Useful when work paused
+  // mid-task and the rest will be picked up later — possibly by someone
+  // else, possibly after blocking work resolves. progressPct overrides
+  // node.progress for explicit control.
+  function splitTaskAtProgress(nodeId, progressPct) {
+    const node = tree.find(r => r.id === nodeId);
+    if (!node || !node.best) return;
+    const factor = node.factor || 1.5;
+    const totalEff = node.best * factor;
+    const prog = Number.isFinite(progressPct) ? progressPct : (node.progress ?? 0);
+    if (prog <= 0 || prog >= 100) return; // nothing to split
+    const consumedEff = totalEff * (prog / 100);
+    const remEff = totalEff - consumedEff;
+    if (remEff <= 0) return;
+
+    const today = iso(new Date());
+    const newDoneBest = Math.max(1, Math.round(consumedEff / factor));
+    const newRemBest = Math.max(1, Math.round(remEff / factor));
+
+    const updated = {
+      ...node,
+      best: newDoneBest,
+      status: 'done',
+      progress: 100,
+      completedAt: node.completedAt || today,
+      completedEnd: node.completedEnd || today,
+    };
+    delete updated.handoffPlan;
+
+    const parent = nodeId.split('.').slice(0, -1).join('.');
+    const sibIds = tree
+      .filter(r => {
+        const p = r.id.split('.').slice(0, -1).join('.');
+        return p === parent;
+      })
+      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
+    const nextNum = (sibIds.length ? Math.max(...sibIds) : 0) + 1;
+    const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
+
+    const newTask = {
+      id: newId,
+      name: `${node.name} ${_t('split.task.suffix')}`,
+      status: 'open',
+      team: node.team || '',
+      best: newRemBest,
+      factor,
+      prio: node.prio || 2,
+      deps: [nodeId],
+      note: _t('split.task.note', node.id),
+      assign: node.assign || [],
+    };
+    if (node.confidence) newTask.confidence = node.confidence;
+
+    const next = tree.map(r => r.id === nodeId ? updated : r);
+    let insertAt = next.length;
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
+        insertAt = i + 1; break;
+      }
+    }
+    next.splice(insertAt, 0, newTask);
+    setD('tree', next);
+  }
+  // Functional for the same reason as every other mutator here: the tree
+  // editor commits a rename and inserts the next row inside ONE keypress, and
+  // reading `tree` from the render closure made the insert write back a
+  // snapshot taken before the rename — silently throwing the typed name away.
+  // That is the exact failure the comments on updateNode and removeDep warn
+  // about; it just took a single-keystroke workflow to make it reachable.
+  function addNode(node) {
+    const pid = node.id.split('.').slice(0, -1).join('.');
+    mutate(d => {
+      const nt = [...(d.tree || [])];
+      if (!pid) { nt.push(node); return { ...d, tree: nt }; }
+      let ins = -1;
+      for (let i = nt.length - 1; i >= 0; i--) {
+        if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) { ins = i + 1; break; }
+      }
+      if (ins >= 0) nt.splice(ins, 0, node); else nt.push(node);
+      return { ...d, tree: nt };
+    });
+  }
+
+  // Compute an ID map for moving/duplicating a subtree rooted at `nodeId` under `newParentId`.
+  // Returns: { [oldId]: newId } for the node and every descendant.
+  function computeIdMap(tree, nodeId, newParentId) {
+    const subtreeIds = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)];
+    const newBase = nextChildId(tree, newParentId);
+    const map = { [nodeId]: newBase };
+    subtreeIds.slice(1).forEach(old => { map[old] = newBase + old.slice(nodeId.length); });
+    return map;
+  }
+
+  // Duplicate a node + its entire subtree. Deps pointing INSIDE the subtree are remapped;
+  // deps pointing OUTSIDE are preserved. Returns the new root node id.
+  function duplicateNode(nodeId) {
+    const node = tree.find(r => r.id === nodeId); if (!node) return null;
+    const parentOfNode = nodeId.split('.').slice(0, -1).join('.'); // stays under same parent
+    const idMap = computeIdMap(tree, nodeId, parentOfNode);
+    const copies = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)].map(oldId => {
+      const orig = tree.find(r => r.id === oldId);
+      const copy = { ...orig, id: idMap[oldId] };
+      // Remap deps that point within the subtree, keep deps pointing outside
+      copy.deps = (orig.deps || []).map(d => idMap[d] || d);
+      // Preserve _depLabels but remap keys
+      if (orig._depLabels) {
+        copy._depLabels = {};
+        Object.entries(orig._depLabels).forEach(([k, v]) => { copy._depLabels[idMap[k] || k] = v; });
+      }
+      // Reset progress/status for fresh copy (user decides)
+      delete copy.pinnedStart;
+      if (copy.phases) {
+        copy.phases = copy.phases.map(p => ({
+          ...p,
+          id: 'ph' + Date.now() + Math.random().toString(36).slice(2, 6),
+          status: 'open',
+          assign: [],
+        }));
+      }
+      return copy;
+    });
+    setD('tree', [...tree, ...copies]);
+    return idMap[nodeId];
+  }
+
+  // Move a node (and its subtree) under a new parent ('' for top-level).
+  // Updates IDs, dep references everywhere, and re-sorts so siblings are grouped.
+  function moveNode(nodeId, newParentId) {
+    if (nodeId === newParentId) return;
+    // Prevent moving into own descendant (would create a cycle)
+    if (newParentId && (newParentId === nodeId || newParentId.startsWith(nodeId + '.'))) {
+      alert('Cannot move an item under itself or one of its descendants.');
+      return;
+    }
+    // The id map depends on STRUCTURE only, so computing it from the render
+    // closure is sound — but applying it must be functional, or a name
+    // written in the same tick (Tab straight out of the inline editor) is
+    // overwritten by this snapshot. That is exactly the bug addNode had.
+    const planned = moveSubtree(tree, nodeId, newParentId);
+    if (!planned) return; // no-op
+    mutate(d => ({ ...d, tree: moveSubtree(d.tree || [], nodeId, newParentId)?.tree || d.tree }));
+    return planned.id;
+  }
+
+  // The work tree's four structural commands — move up/down, indent,
+  // outdent (utils/treeMove.js). One command, one state update, one undo
+  // step: outdent used to be a re-parent followed by a separate reorder.
+  // Returns { id, idMap } — where the row lives now — or null when the
+  // command cannot run from here.
+  function runTreeCommand(id, command, visibleIds) {
+    const planned = applyTreeCommand(tree, id, command, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: applyTreeCommand(d.tree || [], id, command, visibleIds)?.tree || d.tree }));
+    return { id: planned.id, idMap: planned.idMap };
+  }
+  // Reorder a node within its sibling list by writing persistent displayOrder
+  // values. IDs and dependencies stay stable; the order round-trips as `ord:`.
+  // Direction: 'up'|'down'|'first'|'last' or { targetId, position:'before'|'after' }.
+  function reorderSibling(nodeId, direction) {
+    let changed = false;
+    // The snapshot undo will return to must be the state that is CURRENT, not
+    // the one this render closed over — see mutate() above.
+    const before = dataRef.current;
+    setData(d => {
+      const nextTree = placeAmongSiblings(d.tree || [], nodeId, direction);
+      if (!nextTree) return d;
+      changed = true;
+      return { ...d, tree: nextTree };
+    });
+    if (changed) {
+      setHistory(h => pushHistory(h, before, { coalesceMs: 300 }));
+      setSaved(false);
+    }
+  }
+
+  // "Move P10 behind P8" from a project's waits block: each cause goes
+  // directly after the project it holds back, in the order they are named.
+  // "Apply" on an order from the planning review's search: one undo step.
+  const onApplyOrder = useStableCallback(order => {
+    const before = dataRef.current;
+    setData(d => ({ ...d, tree: applyRootOrder(d.tree || [], order) }));
+    setHistory(h => pushHistory(h, before, { coalesceMs: 0 }));
+    setSaved(false);
+  });
+  const onMoveBehind = useStableCallback((ids, rootId) => {
+    let anchor = rootId;
+    for (const id of ids) { reorderSibling(id, { targetId: anchor, position: 'after' }); anchor = id; }
+  });
+  function updateMember(m) { setD('members', members.map(x => x.id === m.id ? m : x)); }
+  function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
+  function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
+  function deleteMember(id) { setD('members', members.filter(m => m.id !== id)); }
+  // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
+  function onSeqUpdate(taskId, patch) {
+    const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
+    setD('tree', tree.map(r => r.id === taskId ? { ...r, ...update } : r));
+  }
+  // Extend the plan start date backward so partially-done tasks that began before the
+  // current horizon fit naturally. Scheduler re-computes with the wider window; existing
+  // positions shift right by the added weeks.
+  // Extend the VISUAL start (viewStart) without touching the scheduling start (planStart).
+  // Pre-planStart weeks exist for display only — the scheduler still begins at planStart.
+  function extendViewStart(newStart) {
+    if (!newStart || newStart >= (meta.viewStart || meta.planStart || '9999')) return;
+    mutate(d => ({ ...d, meta: { ...d.meta, viewStart: newStart } }));
+  }
+
+  // Export context — shared data bag for all export functions in utils/exports.js.
+  // diff / horizonIds / horizonEnd / futureProgressByRootId / roadmapAssignment
+  // must be forwarded so the PDF Subway-Map renders the SAME line assignments
+  // and overlays as the on-screen Roadmap.jsx — otherwise the export shows a
+  // re-computed assignment and projects land on different lines.
+  // NOTE: tree / members / teams / meta / roadmapAssignment are deliberately
+  // NOT passed — buildExportCtx reads them off `data`, so the filtered view
+  // copies (activeTree, visibleTree, …) can never reach an export. See
+  // utils/exportCtx.js.
+  // An export of a scenario says so in its title: a PDF travels without the
+  // bar that marks the screen, and a what-if must never pass for the plan.
+  const exportData = activeScenario && data
+    ? { ...data, meta: { ...(data.meta || {}), name: _t('scn.exportSuffix', data.meta?.name || '', activeScenario.name) } }
+    : data;
+  const _exportCtx = () => buildExportCtx({
+    data: exportData, scheduled, weeks, cpSet, goalPaths, stats, confidence, lang: _lang,
+    diff, horizonIds, horizonEnd, futureProgressByRootId, projectWaitsOf,
+  });
+  const isMdFile = fileName?.endsWith('.md');
+  // Build the file content together with any new history events. The events
+  // capture the delta between the leaf state at the last successful persist
+  // (`lastSavedLeavesRef`) and the current tree. Returns { content, newEvents,
+  // snapshot } so the caller can commit the ref+state after a successful write.
+  function composeFileForSave() {
+    // A scenario on screen: the file gets the plan it rests on plus the
+    // scenario's patch, and no history — nothing in a what-if has happened.
+    if (scnRef.current) {
+      const fd = fileDataRef.current;
+      const content = isMdFile
+        ? _buildMd({ tree: sortTree(fd.tree || []), members: fd.members || [], teams: fd.teams || [], vacations: fd.vacations || [], data: fd, meta: fd.meta || {} })
+        : JSON.stringify(fd, null, 2);
+      return { content, newEvents: [], snapshot: lastSavedLeavesRef.current };
+    }
+    // An earlier day on screen: the file gets the real plan, with what was
+    // edited here applied from that day on. Its history entries count for
+    // that day, and the day log was rebuilt with the edit (utils/dayLog.js).
+    const visit = pastRef.current;
+    const real = visit ? fileDataRef.current : recordToday(lastSavedPlanRef.current, data);
+    const realTree = visit ? sortTree(real.tree || []) : tree;
+    const ts = new Date().toISOString();
+    const currSnapshot = leafSnapshot(realTree);
+    let newEvents = [];
+    if (lastSavedLeavesRef.current) {
+      newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : (backdate || null)), real?.asOfPending, currSnapshot, ts);
+    }
+    // A backdated entry supersedes the later ones it contradicts, or the
+    // replay walks done → wip → done and every review in between reports the
+    // wrong state (utils/history.js).
+    const { kept } = supersededByBackdate(real?.historyEvents || [], newEvents);
+    const eventsForFile = newEvents.length ? [...kept, ...newEvents] : kept;
+    const plain = withoutPendingDates(real);
+    const dataForFile = eventsForFile.length ? { ...plain, historyEvents: eventsForFile } : plain;
+    const content = isMdFile
+      ? _buildMd({ tree: realTree, members: real.members || [], teams: real.teams || [], vacations: real.vacations || [], data: dataForFile, meta: real.meta || {} })
+      : JSON.stringify(dataForFile, null, 2);
+    return { content, newEvents, snapshot: currSnapshot, pendingRead: real?.asOfPending || null, savedPlan: real, visit: visit ? { day: visit.day, screen: data } : null };
+  }
+  // The same diff the file-save path takes, for when there is no file. Kept
+  // separate because composeFileForSave also serialises the whole project,
+  // which this does not need.
+  function recordHistoryForLocalSave() {
+    // An earlier day on screen: recorded once the visit is over, from the
+    // real plan (its dated entries wait in `asOfPending`).
+    if (!Array.isArray(tree) || scnRef.current || pastRef.current) return;
+    const snapshot = leafSnapshot(tree);
+    if (!lastSavedLeavesRef.current) { lastSavedLeavesRef.current = snapshot; return; }
+    const pendingRead = data?.asOfPending || null;
+    const ts = new Date().toISOString();
+    const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, backdate || null), pendingRead, snapshot, ts);
+    lastSavedLeavesRef.current = snapshot;
+    const savedPlan = recordToday(lastSavedPlanRef.current, data);
+    lastSavedPlanRef.current = savedPlan;
+    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan.dayLog));
+  }
+  // The document with the day log a save wrote; the same object when nothing
+  // differs, so that a save which changed nothing does not start another.
+  function withDayLog(next, log) {
+    if (deepEqual(next.dayLog || [], log || [])) return next;
+    if (!log || !log.length) { const { dayLog, ...rest } = next; return rest; }
+    return { ...next, dayLog: log };
+  }
+  // What a finished save leaves in the document: its events, and none of the
+  // dates it read. A date set while the save was under way is another one and
+  // stays for the next save.
+  function recordSavedEvents(d, newEvents, pendingRead) {
+    const left = withoutPendingDates(d, pendingRead);
+    return newEvents && newEvents.length ? { ...left, historyEvents: [...supersededByBackdate(left?.historyEvents || [], newEvents).kept, ...newEvents] } : left;
+  }
+  function commitSaveSideEffects({ newEvents, snapshot, pendingRead, savedPlan, visit }) {
+    lastSavedLeavesRef.current = snapshot;
+    if (visit) {
+      // The visit goes on from what was just written: the real plan with its
+      // new entries, and the screen as it was when the save read it.
+      const base = recordSavedEvents(savedPlan, newEvents, pendingRead);
+      if (pastRef.current?.day !== visit.day) {
+        // The day was left while the file was being written: what the save
+        // recorded goes to wherever the real plan is now. What today's log
+        // entry is measured against was set on leaving, and includes edits
+        // made after this save read the screen.
+        if (pastRef.current) setPast(p => (p ? { ...p, base: recordSavedEvents(p.base, newEvents, pendingRead) } : p));
+        else if (!scnRef.current) setData(d => recordSavedEvents(d, newEvents, pendingRead));
+        return;
+      }
+      lastSavedPlanRef.current = base;
+      const baseScreen = { ...visit.screen, historyEvents: base.historyEvents };
+      setPast({ day: visit.day, base, baseScreen });
+      setData(d => (d === visit.screen ? baseScreen : { ...d, historyEvents: base.historyEvents }));
+      return;
+    }
+    if (savedPlan) lastSavedPlanRef.current = savedPlan;
+    if (scnRef.current) return;
+    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan?.dayLog));
+  }
+  function buildMarkdownText() {
+    const fd = fileDataRef.current || data;
+    if (fd !== data) return _buildMd({ tree: sortTree(fd.tree || []), members: fd.members || [], teams: fd.teams || [], vacations: fd.vacations || [], data: fd, meta: fd.meta || {} });
+    return _buildMd({ tree, members, teams, vacations, data, meta });
+  }
+  function serializeForSave() {
+    // Legacy entrypoint kept for callers that don't care about history (e.g.
+    // export-as-JSON, copy-to-clipboard). All save paths that write the file
+    // should use composeFileForSave + commitSaveSideEffects instead.
+    return isMdFile ? buildMarkdownText() : JSON.stringify(withoutPendingDates(fileDataRef.current || data), null, 2);
+  }
+  function loadFile(e) {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = async ev => {
+      try {
+        const text = ev.target.result;
+        const isMd = f.name.endsWith('.md');
+        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
+        // Set data first, then clean up handle in background
+        setData(d);
+        resetHistory(); // different document — the old undo stack doesn't apply
+        setSel(null);
+        setSaved(true);
+        setFileName(f.name);
+        setFileWriteOk(false);
+        setAutoSave(true);
+        forgetHandle().catch(() => {});
+      } catch (e) {
+        alert(e.message || 'Invalid project file.');
+      }
+    };
+    r.readAsText(f); e.target.value = '';
+  }
+  function onBarClick(s, focusRequest = null) {
+    const node = tree.find(r => r.id === (s.treeId || s.id));
+    if (!node) return;
+    let effectiveFocus = focusRequest;
+    let modalNodeValue;
+    if (s.isHandoff && typeof s.segmentIdx === 'number') {
+      // Handoff-shadow click: open the PRIMARY's modal (not the shadow), jump
+      // the user straight into the handoff editor on the right stage. We do
+      // NOT spread the shadow over the node — that would put `#N` in the
+      // title and make the top-level Team/Assign fields look like they edit
+      // the shadow (they don't; they edit the primary tree item).
+      effectiveFocus = {
+        ...(focusRequest || {}),
+        section: 'handoff',
+        handoffStage: s.segmentIdx - 1,
+        handoffShadowId: s.id,
+      };
+      modalNodeValue = node;
+    } else {
+      modalNodeValue = { ...node, ...s };
+    }
+    flushSync(() => {
+      setModalFocus(effectiveFocus);
+      setMN(modalNodeValue);
+      setModal('node');
+    });
+  }
+  async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); resetHistory(); setSel(null); setModal(null); setTab('summary'); }
+
+  // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
+  async function restoreMountedFile() {
+    const handle = fileHandleRef.current;
+    if (!handle) return;
+    try {
+      const granted = await requestHandlePermission(handle, 'readwrite');
+      if (granted !== 'granted') {
+        const readOnly = await requestHandlePermission(handle, 'read');
+        if (readOnly !== 'granted') return;
+      }
+      const file = await handle.getFile();
+      const text = await file.text();
+      const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
+      if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
+      setData(d);
+      resetHistory(); // different document — the old undo stack doesn't apply
+      setSel(null);
+      setSaved(true);
+      setLastSavedAt(new Date());
+      const canWrite = await ensureHandlePermission(handle, false);
+      setFileWriteOk(canWrite);
+      setAutoSave(true);
+    } catch (e) {
+      alert('Could not restore mounted file: ' + (e.message || e));
+      await forgetHandle();
+    }
+  }
+
+  // Stable callback wrappers for memo'd children. MUST run unconditionally
+  // every render — placed BEFORE any early-return so React sees the same
+  // hook order whether `data` is null (Onboard splash) or loaded.
+  // Each callback's body resolves identifiers at invocation time, so the
+  // closures still see fresh `tree`, `selected`, etc. via the latest-closure
+  // ref pattern inside useStableCallback.
+  // Standard list-selection (Finder / Explorer / VS Code):
+  //   plain         → single select, clear multi, anchor = clicked
+  //   shift         → replace the previous shift-range with [anchor..click];
+  //                   manually pinned items (added via cmd+click) survive
+  //   cmd|ctrl      → toggle clicked, anchor moves, previous range forgotten
+  //   cmd|ctrl+shift→ unconditional add of [anchor..click] to selection
+  const lastShiftRangeRef = useRef(null);
+  const onTreeSelect = useStableCallback((node, e, visibleIds) => {
+    const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
+    if (e?.shiftKey && selected && visibleIds) {
+      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+      if (ai >= 0 && bi >= 0) {
+        const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
+        const newRange = new Set(range);
+        setMultiSel(prev => {
+          const next = new Set(prev);
+          if (!ctrlLike && lastShiftRangeRef.current) {
+            lastShiftRangeRef.current.forEach(x => next.delete(x));
+          }
+          newRange.forEach(x => next.add(x));
+          return next;
+        });
+        lastShiftRangeRef.current = newRange;
+      }
+    } else if (ctrlLike) {
+      // The first ⌘-click starts a selection FROM the row the cursor is on:
+      // click A, ⌘-click B is A and B — the rule every file list has, and
+      // the one the Work order view already had. It used to be B alone, so
+      // a move then took one row while two looked meant.
+      setMultiSel(s => {
+        const n = new Set(s.size ? s : (selected?.id && selected.id !== node.id ? [selected.id] : []));
+        n.has(node.id) ? n.delete(node.id) : n.add(node.id);
+        return n;
+      });
+      if (!selected) setSel(node);
+      lastShiftRangeRef.current = null;
+    } else {
+      setSel(node); setMultiSel(new Set());
+      lastShiftRangeRef.current = null;
+    }
+  });
+  const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
+  // The same two, for a multi-selection: it moves as a block (utils/
+  // treeMove.js). One mutate, so one ⌘Z undoes the whole move, and the
+  // selection follows the rows to their new ids.
+  const onTreeCommandMany = useStableCallback((ids, command, visibleIds) => {
+    const planned = applyTreeCommandMany(tree, [...ids], command, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: applyTreeCommandMany(d.tree || [], [...ids], command, visibleIds)?.tree || d.tree }));
+    setMultiSel(new Set(planned.ids));
+    if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
+    return planned;
+  });
+  // A drop in the tree: next to any row, or into a package — across parents
+  // too (utils/treeMove.js `dropRows`). One mutate, so one ⌘Z; the dragged
+  // rows stay selected at their new ids, and the cursor goes with them.
+  const onTreeDropRows = useStableCallback((ids, target, visibleIds) => {
+    const planned = dropRows(tree, [...ids], target, visibleIds);
+    if (!planned) return null;
+    mutate(d => ({ ...d, tree: dropRows(d.tree || [], [...ids], target, visibleIds)?.tree || d.tree }));
+    if (planned.ids.length > 1) {
+      setMultiSel(new Set(planned.ids));
+      if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
+    } else {
+      setMultiSel(new Set());
+      setSel({ id: planned.ids[0] });
+    }
+    return planned;
+  });
+  // ⌘A in the tree: every row on screen, which is what the filters left.
+  const onTreeSelectAll = useStableCallback(ids => {
+    if (!ids?.length) return;
+    setMultiSel(new Set(ids));
+    if (!selected || !ids.includes(selected.id)) setSel({ id: ids[0] });
+  });
+  // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
+  // Every one of these is a thin wrapper around the SAME mutate()-backed
+  // primitives the mouse-driven controls already use (moveNode, addNode,
+  // reorderSibling) — see docs/principles.md principle 2. Nothing here is a
+  // new write path; it's the existing ones, reachable without a modal.
+
+  // Tab / ⇧Tab re-parent — moveNode renumbers the moved subtree and every
+  // dependency reference to it, then hands back the node's new id (it
+  // changes on every re-parent); the cursor (selected) follows it so the
+  // next keypress still targets the right row.
+  const onTreeMove = useStableCallback((id, newParentId) => {
+    const newId = moveNode(id, newParentId);
+    if (newId) setSel({ id: newId });
+    return newId;   // the inline editor follows the row to its new id
+  });
+  // Toolbar buttons and structural shortcuts both land here — the one path
+  // for move up/down, indent and outdent. The cursor follows the row: a
+  // re-parent renumbers it, and the next keypress has to find it again.
+  const onTreeCommand = useStableCallback((id, command, visibleIds) => {
+    const res = runTreeCommand(id, command, visibleIds);
+    if (res && res.id !== id) setSel({ id: res.id });
+    return res;
+  });
+  // The tree calls this when the row it just moved is not on screen any more.
+  //
+  // Re-parenting out a level renumbers the subtree into a project of its own
+  // — P1.1 becomes P4 — and every filter keyed on where a row USED to be then
+  // excludes it: the project filter above all, a search over ids, a review
+  // window it is no longer part of. The row is in the plan and nowhere on the
+  // screen, which reads as losing it.
+  //
+  // So the view widens to where the row went. Everything that narrows the
+  // tree comes off at once rather than guessing which one did it; the guard
+  // on the other side only fires when the row really has vanished, and the
+  // filter chips going quiet is itself the notice that they were dropped.
+  const onTreeRevealHidden = useStableCallback(() => {
+    setRootFilter('');
+    setTeamFilter('');
+    setPersonFilter('');
+    setSearch('');
+    setHideDone(false);
+    setDiffOnlyChanged(false);
+    setHorizonOnlyPlanned(false);
+  });
+  // Enter, mid-edit: create an empty sibling directly after `afterId` (same
+  // parent) and hand back its id so TreeView can immediately edit it. Empty
+  // on purpose — see onTreeBulkDelete's neighbour, commitEdit in
+  // TreeView.jsx, for why an empty commit on a still-new row deletes it
+  // again instead of littering the tree.
+  const onTreeInsertAfter = useStableCallback(afterId => {
+    const pid = parentId(afterId);
+    const id = nextChildId(tree, pid);
+    // No priority — see buildPasteNodes in utils/treeEdit.js. The team IS
+    // inherited from the sibling: adding a row next to a Backend item almost
+    // always means another Backend item, and that is a fact about where you
+    // are, not a guess about what you meant.
+    const sibling = tree.find(r => r.id === afterId);
+    addNode({ id, name: '', status: 'open', team: sibling?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: pid ? pid.split('.').length + 1 : 1 });
+    reorderSibling(id, { targetId: afterId, position: 'after' });
+    return id;
+  });
+  // ⇧Enter: create an empty child under `parentIdArg` (mirrors onTreeQuickAdd
+  // above, but with an empty name — see onTreeInsertAfter).
+  const onTreeInsertChild = useStableCallback(parentIdArg => {
+    const id = nextChildId(tree, parentIdArg);
+    const parentNode = tree.find(r => r.id === parentIdArg);
+    addNode({ id, name: '', status: 'open', team: parentNode?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1 });
+    return id;
+  });
+  // ⌫/Delete on a multi-selection: deleteNode's `setD('tree', tree.filter(...))`
+  // reads `tree` from the render closure, so looping it per id inside one
+  // keypress would have each call overwrite the previous one's result — the
+  // "do not loop single updates" case principle 5's brief calls out. This is
+  // the one batched callback: a single functional mutate() over the whole
+  // id set, so it's correct AND one undo step.
+  const onTreeBulkDelete = useStableCallback(ids => {
+    if (!ids?.length) return;
+    // `startsWith(id)` alone is not a subtree test: it also matches P10 when
+    // deleting P1 (the bug just fixed in deleteNode). A node is in the set if
+    // it IS one of the ids, or sits strictly below one of them.
+    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => !ids.some(id => r.id === id || r.id.startsWith(id + '.'))) }));
+    setSel(null); setMultiSel(new Set());
+  });
+  // Paste a list: parse → build the whole batch of new nodes against a
+  // local working copy of the tree (utils/treeEdit.js buildPasteNodes, so
+  // ids don't collide within the pasted block itself) → splice them in with
+  // ONE mutate() call, right after the active row's own subtree.
+  const onTreePasteRows = useStableCallback((afterId, rows) => {
+    if (!rows?.length) return;
+    const pid = parentId(afterId);
+    mutate(d => {
+      const currentTree = d.tree || [];
+      const newNodes = buildPasteNodes(currentTree, pid, rows);
+      const next = currentTree.slice();
+      let insertAt = next.length;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) { insertAt = i + 1; break; }
+      }
+      next.splice(insertAt, 0, ...newNodes);
+      return { ...d, tree: next };
+    });
+  });
+  const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
+  const onGanttSeqUpdate = useStableCallback((...a) => onSeqUpdate(...a));
+  const onGanttExtendViewStart = useStableCallback((...a) => extendViewStart(...a));
+  const onGanttTaskUpdate = useStableCallback((...a) => updateNode(...a));
+  const onGanttRemoveDep = useStableCallback((...a) => removeDep(...a));
+  const onGanttAddDep = useStableCallback((...a) => addDep(...a));
+  const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
+  // Move a task within its assignee's own queue. The plan's order is the
+  // tree's and this does not touch it: the queue permutes only the slots that
+  // person's work already holds (utils/personQueue.js). It is stored against
+  // the person for the same reason — a rank smeared over every task is what
+  // `seq` was, and what competed with the tree everywhere.
+  const onQueueReset = useStableCallback(personId => {
+    mutate(d => {
+      const queues = d.personQueues || {};
+      if (!queues[personId]) return d;
+      const { [personId]: _gone, ...rest } = queues;
+      return { ...d, personQueues: Object.keys(rest).length ? rest : undefined };
+    });
+  });
+  const onQueueReorder = useStableCallback((taskIds, direction) => {
+    // One id or a selection. The owner is taken from the first — a selection
+    // spanning two owners is not one move, and the rest is ignored rather than
+    // half-applied.
+    const ids = Array.isArray(taskIds) ? taskIds : [taskIds];
+    const node = tree.find(r => r.id === ids[0]);
+    const person = queueOwnerOf(node);
+    if (!person) return;
+    const mine = leaves.filter(l => queueOwnerOf(l) === person).map(l => l.id);
+    if (mine.length < 2) return;
+    const moving = ids.filter(id => mine.includes(id));
+    mutate(d => {
+      const queues = d.personQueues || {};
+      const current = reconcileQueue(queues[person], mine);
+      // `direction` is either a key's word — up/down/first/last — or the id a
+      // drag was dropped on.
+      const next = typeof direction === 'object' && (direction?.before || direction?.after)
+        ? placeInQueue(current, moving, direction.before || direction.after, direction.after ? 'after' : 'before')
+        : moveInQueue(current, moving, direction);
+      if (next.join() === current.join() && queues[person]) return d;
+      return { ...d, personQueues: { ...queues, [person]: next } };
+    });
+  });
+  const onNetNodeClick = useStableCallback(r => onBarClick(r));
+  // Clicking an item — anywhere — opens that item's own edit dialog. The same
+  // one a Gantt bar and a graph node open, because it is the same question:
+  // what is this, and can I change it without leaving what I was reading.
+  //
+  // There were three of these. #27 gave the Roadmap tab this behaviour and
+  // said why: routing a click through "set the root filter and jump to the
+  // Tree" is navigation, not editing — you lose the map you were reading to
+  // get a dialog you could have had in place. The Overview's subway map kept
+  // the old handler, which is the map that gets looked at most, and Planning
+  // had a third one that opened the bare tree node without the schedule's half
+  // of the answer. One handler now (principle 7).
+  //
+  // Navigating to a row in the tree is still a thing you can want, and it is
+  // still here — as `onNavigate`, a separate gesture with its own name, rather
+  // than as what a click silently did to a work package but not to a leaf.
+  const onOpenItemDialog = useStableCallback(id => {
+    // A leaf has a scheduled row — dates, effort, assignment — and the dialog
+    // wants it merged in; a work package has none and opens as the tree node.
+    const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
+    onBarClick(row || { id });
+  });
+  const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
+  const onNetAddNode = useStableCallback(() => setModal('add'));
+  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
+  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
+  // Row-level status change from Run mode (attention list + per-person
+  // queues) — same updateNode() → mutate() path every other status control
+  // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one
+  // undo step either way.
+  const onBriefingUpdate = useStableCallback((...a) => updateNode(...a));
+  // Reorganize tree layout: per-parent topological sort of children by
+  // their dep + softDep edges so paths render top-to-bottom in the Gantt.
+  // Manually-triggered so live edits don't shuffle the tree on the user.
+  const onReorganizeLayout = useStableCallback(() => {
+    const order = computeDisplayOrder(tree);
+    mutate(d => ({ ...d, tree: applyDisplayOrder(d.tree || [], order) }));
+  });
+  // Persistent Subway-Map assignment: Roadmap.jsx fires this when its
+  // computed {rootId → routeIdx, colorIdx} differs from what's stored
+  // (first render of a fresh plan, or a new root entered). Locks the
+  // layout so projects keep their colour + lane across data edits.
+  const onRoadmapAssignmentChange = useStableCallback(computed => {
+    // Merge, never replace — see mergeRoadmapAssignment.
+    setData(d => {
+      const prev = d.roadmapAssignment || {};
+      const rootIds = new Set((d.tree || []).filter(r => !r.id.includes('.')).map(r => r.id));
+      const merged = mergeRoadmapAssignment(prev, computed, rootIds);
+      const unchanged = Object.keys(merged).length === Object.keys(prev).length
+        && Object.keys(merged).every(id => prev[id]
+          && prev[id].routeIdx === merged[id].routeIdx
+          && prev[id].colorIdx === merged[id].colorIdx);
+      return unchanged ? d : { ...d, roadmapAssignment: merged };
+    });
+  });
+  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
+  // Everything the Resources view edits goes through the lens of the day you
+  // are working on (`effDate`, empty = today): `foldEdit` puts each field
+  // where it belongs — the change at that date, or the plan itself.
+  const onResMeetingPlansUpd = useStableCallback(list => mutate(d => {
+    const known = new Set((d.meetingPlans || []).map(p => p.id));
+    const kept = new Set((list || []).map(p => p.id));
+    // Plans that were removed or added are timeless; edited ones are folded.
+    let next = { ...d, meetingPlans: [...(d.meetingPlans || []).filter(p => kept.has(p.id)), ...(list || []).filter(p => !known.has(p.id))] };
+    for (const plan of list || []) if (known.has(plan.id)) next = foldEdit(next, 'meetingPlans', plan, effFold);
+    return pruneChanges(next);
+  }));
+  const onResMemberUpd = useStableCallback(m => mutate(d => foldEdit(d, 'members', m, effFold)));
+  const onResMemberAdd = useStableCallback(teamId => {
+    // Somebody added while working on a date joins on that date.
+    if (!effDate) { addMember(teamId); return; }
+    const id = 'm' + Date.now();
+    mutate(d => ({ ...d, members: [...(d.members || []), { id, name: 'New person', team: teamId || d.teams?.[0]?.id || '', role: '', cap: 1.0, vac: 25, start: effDate }] }));
+  });
+  const onResMemberClone = useStableCallback((...a) => cloneMember(...a));
+  const onResMemberDel = useStableCallback(id => {
+    // Removed while working on a date: they leave the day before, and stay
+    // in the plan for everything up to then.
+    // Never LATER than they were already leaving; and somebody who would
+    // only join on or after that day was never there — they are deleted.
+    const target = members.find(m => m.id === id);
+    if (effDate && target && !(target.start && target.start >= effDate)) {
+      const last = addDays(effDate, -1);
+      mutate(d => ({ ...d, members: (d.members || []).map(m => (m.id === id ? { ...m, end: m.end && m.end < last ? m.end : last } : m)) }));
+      return;
+    }
+    mutate(d => pruneChanges({ ...d, members: (d.members || []).filter(m => m.id !== id) }));
+  });
+  const onResVacUpd = useStableCallback(v => setD('vacations', v));
+  const onResTeamUpd = useStableCallback((i, k, v) => {
+    const team = resLens.teams[i];
+    if (team) mutate(d => foldEdit(d, 'teams', { ...team, [k]: v }, effFold));
+  });
+  const onResTeamAdd = useStableCallback(() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]));
+  const onResTeamDel = useStableCallback(i => {
+    const deleted = teams[i];
+    if (!deleted) return;
+    mutate(d => {
+      const nextTeams = d.teams.filter((_, j) => j !== i);
+      const nextMembers = d.members.map(m => withoutTeam(m, deleted.id));
+      const nextTree = d.tree.map(r => {
+        let out = r;
+        if (r.team === deleted.id) out = { ...out, team: '' };
+        if (r.phases?.length) {
+          const phases = r.phases.map(p => {
+            const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
+            if (!hasMatch) return p;
+            const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
+            return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
+          });
+          if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
+        }
+        return out;
+      });
+      // A dated change for the team that is gone goes with it: team ids are
+      // reused, and an orphan would come back to life on the next new team.
+      return pruneChanges({ ...d, teams: nextTeams, members: nextMembers, tree: nextTree });
+    });
+  });
+  const onHolUpdate = useStableCallback(v => setD('holidays', v));
+
+  if (!bootstrapped) return <div className="onboard">
+    <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
+      <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
+      <div className="onboard-sub" style={{ marginBottom: 0 }}>Restoring project context...</div>
+    </div>
+  </div>;
+
+  if (!data && fileName && fileHandleRef.current) return <div className="onboard">
+    <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
+      <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
+      <div className="onboard-sub" style={{ marginBottom: 22 }}>Restore mounted project</div>
+      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="doc" size={14} />{fileName}</div>
+      <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>Browser security requires you to grant file access again after a page reload.</p>
+      <div className="ob-actions">
+        <button className="ob-btn ob-pri" onClick={restoreMountedFile}>Reactivate file access</button>
+        <button className="ob-btn ob-sec" onClick={async () => { await forgetHandle(); }}>Discard mount</button>
+      </div>
+    </div>
+  </div>;
+
+  if (!data) return <>
+    <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
+      onJiraImport={() => setModal('jiraImport')}
+      onBackdate={() => setModal('backdate')}
+      onLoadDemo={() => {
+        import('./utils/demoProject.js').then(m => {
+          const demo = m.buildDemoProject(_t);
+          setData(demo); resetHistory(); setSaved(false); setTab('summary'); setSel(demo.tree?.[0] || null);
+        });
+      }} />
+    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => {
+      setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
+      // Auto-start tour for first-time users (tour not yet dismissed)
+      try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
+    }} />}
+    {/* The other way to start: the work is already in Jira. Same shell the
+        wizard builds — standard template, NRW holidays, two teams — with the
+        tree coming from the paste instead of from an empty form. */}
+    {modal === 'jiraImport' && <JiraImportModal
+      onClose={() => setModal(null)}
+      onImport={({ nodes, newMembers, projectName }) => {
+        const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
+        setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
+      }} />}
+    <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
+  </>;
+
+  // removed: topDownReady guide bubble (was blocking tree view)
+
+  // "New!" badge: shown on tabs until the user dismisses the new-feature popover
+  const showNewBadge = showNewFeat;
+  const TABS = TAB_IDS.map(id => ({
+    id,
+    label: _t(`tab.${id}`),
+    isNew: showNewBadge && NEW_BADGE_TAB_IDS.has(id),
+  }));
+
+  // ── Tour steps (resolved at render time so they pick up the active language) ──
+  const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
+    icon: _t(`tour.s${i}.icon`),
+    title: _t(`tour.s${i}.title`),
+    body: _t(`tour.s${i}.body`),
+  }));
+
+  // ── New-feature list (shown once to existing users) ──
+  const NEW_FEATURES = [
+    _t('new.roadmap'),
+    _t('new.dayZoom'),
+    _t('new.confidence'),
+    _t('new.dragLink'),
+    _t('new.planReview'),
+    _t('new.archive'),
+    _t('new.jiraSync'),
+    // TODO: add Network Graph improvements once documented
+  ];
+
+  // Bulk-edit body — same content rendered into the Tree sidebar AND the
+  // standalone bulk-edit modal. Closure captures the App's state + setters.
+  const renderBulkEditBody = () => {
+    if (multiSel.size === 0) return null;
+    const selItems = tree.filter(r => multiSel.has(r.id));
+    const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
+    const commonTeam = commonOf('team');
+    const commonStatus = commonOf('status');
+    const commonPrio = commonOf('prio');
+    const commonBest = commonOf('best');
+    const commonFactor = commonOf('factor');
+    const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
+    const commonCompletedStart = commonOf('completedStart', r => r.completedStart || '');
+    const commonCompletedEnd = commonOf('completedEnd', r => r.completedEnd || '');
+    const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
+    const commonConfidence = commonOf('confidence', r => r.confidence || '');
+    const commonNote = commonOf('note');
+    const commonParallel = commonOf('parallel', r => !!r.parallel);
+    const commonTeamLock = commonOf('teamLock', r => !!r.teamLock);
+    const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
+    const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
+      const rootId = deadlineRootIdForNode(tree, item.id);
+      return !!rootId && item.id !== rootId;
+    });
+    const deadlineParentExcluded = allDeadlineScoped && selItems.some(item => {
+      const rootId = deadlineRootIdForNode(tree, item.id);
+      const pid = item.id.split('.').slice(0, -1).join('.');
+      return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
+    });
+    const commonDeadlineRelevant = allDeadlineScoped
+      ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false)
+      : null;
+    const anyNonRoot = selItems.some(r => r.id.includes('.'));
+    const batchTabs = [
+      { id: 'overview', label: _t('qe.tab.overview') },
+      { id: 'workflow', label: _t('qe.tab.workflow') },
+      ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
+      ...((allLeaf || allDeadlineScoped) ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
+    ];
+    const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
+    return <div className="side-body">
+      <p className="helper" style={{ marginBottom: 10 }}>{_t('bulk.hint')}</p>
+      <div className="qe-tabs" role="tablist">
+        {batchTabs.map(bt => <button key={bt.id} role="tab" aria-selected={bTab === bt.id} className={`qe-tab${bTab === bt.id ? ' active' : ''}`} onClick={() => setSideTab(bt.id)}>{bt.label}</button>)}
+      </div>
+      {bTab === 'overview' && <>
+        {allLeaf && <div className="field"><label>{_t('qe.status')}{commonStatus == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => {
+            // The single editors' rules, not a bare status write: done stamps
+            // the completion dates and 100 %, open resets progress, wip seeds
+            // the start. A task with phases has no status of its own to set —
+            // its phases decide it — so it is left alone, as the single
+            // editors do by hiding the field.
+            if (!multiSel.has(r.id) || r.phases?.length) return r;
+            return { ...r, ...statusChangePatch(r, v) };
+          }))} placeholder={_t('bulk.chooseStatus')} />
+        </div>}
+        <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+          <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder={_t('bulk.notePlaceholder')} />
+        </div>
+        {anyNonRoot && <>
+          {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
+            <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+              onSelect={tplId => {
+                const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
+                if (!tpl) return;
+                setD('tree', tree.map(r => {
+                  if (!multiSel.has(r.id)) return r;
+                  const phases = instantiateTemplatePhases(tpl.phases);
+                  return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
+                }));
+              }} placeholder={_t('ph.applyTemplate')} />
+          </div>}
+          {(() => {
+            const withPhases = selItems.filter(r => r.phases?.length);
+            if (!withPhases.length) return null;
+            const refPhases = withPhases[0].phases;
+            const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
+            if (!allSameStructure) return null;
+            return <div className="field"><label>{_t('ph.phases')}</label>
+              {refPhases.map((ph, i) => {
+                const statuses = withPhases.map(r => r.phases[i].status);
+                const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
+                // One geometric triple — filled / half / ring — rather than a dingbat
+                // check that renders as an emoji on some platforms.
+                const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                const dotColor = common === 'done' ? 'var(--st-done)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+                return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
+                    onClick={() => {
+                      const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
+                      setD('tree', tree.map(r => {
+                        if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
+                        const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
+                        // Same derivation as the single editors: a wip phase
+                        // counts for its share, not for nothing, so one click
+                        // gives one progress figure wherever it is made.
+                        const derived = derivePhaseStatus(newPhases);
+                        return { ...r, phases: newPhases, ...(derived ? { status: derived.status, progress: derived.progress } : {}) };
+                      }));
+                    }}>{dot}</span>
+                  <span style={{ fontSize: 12, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
+                  {common == null && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
+                </div>;
+              })}
+            </div>;
+          })()}
+        </>}
+      </>}
+      {bTab === 'workflow' && <>
+        <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+          <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder={_t('bulk.chooseTeam')} allowEmpty />
+        </div>
+        <div className="field"><label>{_t('qe.assignee')}</label>
+          {(() => {
+            const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
+            return <>
+              {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip={_t('bulk.removeFromSelected')} onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}><Icon name="x" size={9} /></span></span>; })}
+              </div>}
+              <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: teamForAssignment(m, r.team) } : r)); }} placeholder={_t('qe.assignPerson')} />
+            </>;
+          })()}
+        </div>
+        {allLeaf && (
+          <div className="field"><label>{_t('qe.parallel') || 'Parallel'}{commonParallel == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="toggle">
+                <input type="checkbox" checked={commonParallel === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r))} />
+                <span className="slider" />
+              </label>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
+            </div>
+          </div>
+        )}
+        {allLeaf && (
+          <div className="field"><label>{_t('qe.teamLock')}{commonTeamLock == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="toggle">
+                <input type="checkbox" checked={commonTeamLock === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r))} />
+                <span className="slider" />
+              </label>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
+            </div>
+          </div>
+        )}
+      </>}
+      {bTab === 'effort' && <>
+        {allLeaf && <div className="frow">
+          <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="number" min="0" step="0.1" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
+          </div>
+        </div>}
+        <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+          <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder={_t('bulk.choosePriority')} />
+        </div>
+        <div className="field"><label>{_t('qe.confidence')}</label>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
+              <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 11 }}
+                onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
+          </div>
+        </div>
+      </>}
+      {bTab === 'timing' && <>
+        {allLeaf && <div className="frow">
+          <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedStart')}{commonCompletedStart == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="date" value={commonCompletedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedStart: v } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedEnd')}{commonCompletedEnd == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="date" value={commonCompletedEnd ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r))} />
+          </div>
+          <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+            <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r))} />
+          </div>
+        </div>}
+        {allDeadlineScoped && <div className="field">
+          <label>{_t('qe.affectsDeadline')}{commonDeadlineRelevant == null ? ` (${_t('bulk.mixed')})` : ''}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={commonDeadlineRelevant !== false}
+                disabled={deadlineParentExcluded}
+                onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r))}
+              />
+              <span className="slider" />
+            </label>
+            <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
+              {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
+            </span>
+          </div>
+        </div>}
+      </>}
+      <hr className="divider" />
+      <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>{_t('bulk.clearSelection')}</button>
+    </div>;
+  };
+
+  // Shared between the Export dialog and Report mode (ReportView.jsx) — both
+  // render the same ExportCards grid with the same handlers, so this object
+  // is built once and spread into whichever one is mounted.
+  const exportHandlerProps = {
+    tab,
+    onOpenJira: () => setModal('jira'),
+    onSummaryPDF: (opts) => exportSummaryPDF(_exportCtx(), opts),
+    onScenarioPDF: exportScenarioPDFOrThrow,
+    onGanttPDF: () => exportGanttPDF(_exportCtx()),
+    onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
+    onTodoPDF: horizonDays => exportTodoPDF(_exportCtx(), horizonDays),
+    onReportDocx: () => exportReportDocx(_exportCtx()),
+    onSprintMarkdown: horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }),
+    onMermaid: () => exportMermaid(_exportCtx()),
+    onNetworkPNG: () => exportNetworkPNG(_exportCtx()),
+    onGanttPNG: () => exportGanttPNG(_exportCtx()),
+    // The JSON export is the file in another format: the plan and its
+    // scenarios, whichever of them happens to be on screen.
+    onJSON: () => exportJSON({ ..._exportCtx(), data: withoutPendingDates(fileDataRef.current || data) }),
+    // The two picture exports are taken from a live view, so from anywhere
+    // else their card can only say no. Given the way there, it stops being a
+    // dead card and becomes one click of setup.
+  };
+
+  // `/` command palette — every control displaced from the topbar (principle
+  // 4, tier 2), plus a jump to each mode and each view. One flat list; the
+  // palette itself groups by `group`/`groupLabel` and fuzzy-filters
+  // (src/utils/palette.js).
+  const fileGroup = _t('palette.group.file');
+  const jobGroup = _t('palette.group.jobs');
+  const viewGroup = _t('palette.group.views');
+  // `keywords` are the words you reach for when the label is in the other
+  // language, or is a sentence where your head holds one noun.
+  const JOBS = [
+    { id: 'jira', icon: 'swap', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
+      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
+    { id: 'vacation', icon: 'beach', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
+    { id: 'onboard', icon: 'plus', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
+      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
+  ];
+  // `icon` and `key` are what make this list scannable rather than twenty
+  // rows of identical text; `key` is a shortcuts.js id, so the palette
+  // teaches the keystroke instead of hiding it.
+  const paletteCommands = [
+    { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
+    { id: 'snapshots', icon: 'undo', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
+    { id: 'saveAs', icon: 'save', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
+    // Export… means "go look at the Report view" — the export cards rendered
+    // as a normal view (ReportView.jsx). The old dialog stays one entry below
+    // so nothing that worked before stops working.
+    { id: 'export', icon: 'upload', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
+    { id: 'exportDialog', icon: 'doc', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
+    { id: 'jiraImport', icon: 'download', labelKey: 'ji.title', group: 'file', groupLabel: fileGroup,
+      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'], run: () => setModal('jiraImport') },
+    { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
+    { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
+    { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', keywords: ['backdate', 'rückdatieren', 'nachtragen', 'sprint', 'review'], group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
+    // The jobs that come back every week. Each lands on the surface with the
+    // work already started — the paste box focused, the row created — rather
+    // than on the tab that contains it. A command that only changed tabs would
+    // duplicate the view jumps below it.
+    // Scenarios: one entry to start one, one per scenario to go there, and
+    // while one is on screen the three things you do with it.
+    { id: 'effective.pick', icon: 'calendar', labelKey: 'eff.cmd', group: 'scenario', groupLabel: _t('palette.group.scenario'),
+      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit'],
+      run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)) },
+    { id: 'scenario.new', icon: 'branch', labelKey: 'scn.cmd.new', group: 'scenario', groupLabel: _t('palette.group.scenario'),
+      keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
+      run: () => window.dispatchEvent(new Event(SCENARIO_NEW_EVENT)) },
+    ...(scn ? [
+      { id: 'scenario.leave', icon: 'undo', labelKey: 'scn.cmd.leave', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['plan', 'verlassen', 'leave'], run: () => scenarioSwitch(null) },
+      { id: 'scenario.compare', icon: 'swap', labelKey: 'scn.cmd.compare', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['vergleich', 'compare', 'diff'], run: () => setModal('scenario') },
+      { id: 'scenario.pdf', icon: 'doc', labelKey: 'scn.cmd.pdf', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['pdf', 'report', 'bericht', 'export', 'vergleich'], run: () => exportScenarioPDF?.() },
+      { id: 'scenario.apply', icon: 'check', labelKey: 'scn.cmd.apply', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['übernehmen', 'apply', 'merge'], run: () => scenarioApply() },
+    ] : []),
+    ...scenarioList.filter(sc => sc.id !== scn?.id).map(sc => ({
+      id: `scenario.go.${sc.id}`, icon: 'branch', label: _t('scn.cmd.switch', sc.name), labelKey: 'scn.cmd.switch', group: 'scenario', groupLabel: _t('palette.group.scenario'),
+      keywords: ['scenario', 'szenario'], run: () => scenarioSwitch(sc.id),
+    })),
+    ...JOBS.map(j => ({
+      id: `job.${j.id}`, icon: j.icon, labelKey: j.labelKey, keywords: j.keywords, group: 'job', groupLabel: jobGroup,
+      run: () => { setTab(j.tab); window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0); },
+    })),
+    ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || 'chevronRight', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
+  ];
+
+  return <>
+    <CapacityProvider value={capacityAt}>
+    <HoverTipProvider />
+    <CommandPalette commands={paletteCommands} />
+    <KeyboardMap />
+    <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
+    <div className="topbar">
+      {/* Not a button. It was "New project" — the same command the / palette
+          carries, on a target nobody aims at deliberately, discarding the
+          whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
+      {/* A host already says where you are — the Obsidian tab is labelled
+          with the plan's name. A wordmark on top of that is decoration. */}
+      {!isEmbedded() && <>
+        <span className="logo">Planr<span className="logo-dot">.</span></span>
+        <div className="vsep" />
+      </>}
+      {/* One shrinkable group for everything file/save related. The bar used
+          to wrap, and the save status changes its own text constantly
+          ("saving…" → "all saved · 14:32" → "unsaved · saving in 3s"), so on
+          a narrow window the whole header kept re-sorting itself while you
+          worked. Now this group absorbs the width instead: it truncates, the
+          controls on the right never move. */}
+      <span className="topbar-file">
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
+        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
+      </span>
+      {fileName && <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* A host names the tab after the file already. Repeating it here
+            spends the narrowest part of the bar saying the same thing twice. */}
+        {!hosted && fileName}
+        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}><Icon name="save" size={13} /></button>}
+      </span>}
+      <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">
+        <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
+        <span className="slider" />
+      </label>
+      {(() => {
+        // One status pill that summarises everything: file mounted? auto on? changes pending? countdown?
+        let text, color, tip, clickable = false;
+        if (!fileName) {
+          text = 'no file mounted'; color = 'var(--tx3)';
+          tip = _t('app.save.pillNoFile');
+        } else if (!fileWriteOk) {
+          text = 'click to re-mount'; color = 'var(--am)'; clickable = true;
+          tip = _t('app.save.pillPermissionLost');
+        } else if (!autoSave) {
+          text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
+          color = 'var(--tx3)';
+          tip = _t('app.save.pillAutoOff');
+        } else if (saving) {
+          text = 'saving…'; color = 'var(--ac)';
+          tip = _t('app.save.pillSaving');
+        } else if (fileSynced) {
+          text = lastSavedAt ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'all saved';
+          color = 'var(--gr)';
+          tip = _t('app.save.pillAllSaved');
+        } else {
+          text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
+          color = 'var(--am)';
+          tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
+        }
+        return <span className="topbar-status" style={{ fontSize: 11, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
+          data-htip={tip}
+          onClick={() => { if (clickable) saveToFile(true); }}>
+          {text}
+        </span>;
+      })()}
+      </span>
+      {/* The file changed on disk. Outside the group above on purpose: that
+          group gives up its width first and cuts off what does not fit, and
+          this is the one thing in the bar that asks for a decision. */}
+      {externalChangeAvailable && <span data-testid="external-change" className="topbar-external">
+        <button className="btn btn-xs" data-testid="external-reload" onClick={() => reloadFromFile()} data-htip={_t('app.save.reloadTip')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="restart" size={11} />{_t('app.save.externalChanged')}</button>
+        <button className="btn btn-ghost btn-icon sm" data-testid="external-dismiss" onClick={() => setExternalChangeAvailable(false)}
+          aria-label={_t('app.save.dismissExternalTip')} data-htip={_t('app.save.dismissExternalTip')}><Icon name="x" size={10} /></button>
+      </span>}
+      {/* Which truth is on screen. Quiet while it is the plan, in the
+          scenario's colour the moment it is not. */}
+      {/* An earlier day is the real plan's past; a scenario has none. */}
+      {!past && <ScenarioSwitch
+        scenarios={scenarioList}
+        activeId={scn?.id || null}
+        activeChanges={scnChanges.length}
+        onSwitch={scenarioSwitch}
+        onCreate={name => scenarioCreate(name)}
+        onDuplicate={id => scenarioCreate('', { copyOf: id })}
+        onRename={scenarioRename}
+        onDelete={scenarioDelete}
+      />}
+      {/* Which day you are working on. Quiet while it is today. */}
+      <EffectiveSwitch date={effDate} dates={effDates} onPick={pickEffDate} onDropDate={effDropDate} travel={!!past} canTravel={!scn} />
+      <button className="btn btn-sec btn-xs" data-testid="undo-btn" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}><Icon name="undo" size={13} /></button>
+      <button className="btn btn-sec btn-xs" data-testid="redo-btn" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}><Icon name="redo" size={13} /></button>
+      {/* "How far along is this?" is the question the Overview and the Report
+          are for. Anywhere else the same two numbers are a readout nobody
+          asked for, in the one row every view has to look at. */}
+      {(tab === 'summary' || tab === 'report') && <>
+        <div className="vsep" />
+        <span className="topbar-count" style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
+          data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done{droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}</span>
+      </>}
+      {backdate && <span
+        data-testid="backdate-chip"
+        className="chip on"
+        data-htip={_t('bd.chipTip', backdate)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <Icon name="undo" size={12} />
+        <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
+        <button
+          type="button"
+          data-testid="backdate-clear"
+          aria-label={_t('bd.clear')}
+          onClick={() => setBackdate('')}
+          style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}
+        ><Icon name="x" size={11} /></button>
+      </span>}
+      <div className="sp" />
+      {/* File operations have a visible home again. Phase 3 moved them all
+          into the palette; opening and saving a file is not a command you go
+          hunting for. The palette keeps every one of these entries — this is
+          a way in, not a replacement. */}
+      <FileMenu
+        fileName={fileName}
+        dirty={!saved}
+        onLoad={() => loadFromFile()}
+        onSaveAs={() => saveToFile(true)}
+        onSnapshots={() => setModal('snapshots')}
+        onExport={() => setTab('report')}
+        onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
+        onJiraImport={() => setModal('jiraImport')}
+        onBackdate={() => setModal('backdate')}
+      />
+      <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
+        onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
+      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} aria-label={_t('set.title')}
+        data-htip={withKey(_t('set.title'), 'settings')}><Icon name="gear" size={14} /></button>
+      <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
+    </div>
+    {scn && <ScenarioBar
+      scenario={activeScenario}
+      changeCount={scnChanges.length}
+      comparison={scnComparison}
+      conflicts={scn.conflicts || 0}
+      onRename={scenarioRename}
+      onDuplicate={id => scenarioCreate('', { copyOf: id })}
+      onCompare={() => setModal('scenario')}
+      onApply={scenarioApply}
+      onDelete={scenarioDelete}
+      onLeave={() => scenarioSwitch(null)}
+    />}
+    <EffectiveBar date={effDate} count={effCount} showResources={tab !== 'resources'} onResources={() => setTab('resources')}
+      travel={!!past} logStart={pastStart}
+      onDropDate={effDropDate} onLeave={() => pickEffDate('')} />
+    {!scn && <ScenarioNotice notice={scnNotice} onUndo={handleUndo} onClose={() => setScnNotice(null)} />}
+    <div className="tab-bar-wrap">
+      <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
+        {TABS.map(t => (
+          <div
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            ref={tab === t.id ? activeTabRef : undefined}
+            className={`tab${tab === t.id ? ' on' : ''}`}
+            onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
+            onClick={e => { if (e.detail === 0) setTab(t.id); }}
+          >
+            {t.label}
+            {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+          </div>
+        ))}
+        <div style={{ flex: 1, minWidth: 16 }} />
+      </div>
+      <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
+      <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
+    </div>
+    {/* The filter bar belongs on every view these filters actually change —
+        it used to skip the Overview and the Roadmap, which both answer to the
+        archive filter and the Review/Plan window, so on those two a narrowed
+        view had no way to say so and no way to be widened again. Left out
+        only where nothing here has an effect: Resources, Holidays, Report. */}
+    {FILTERED_TABS.has(tab) && <div className="subtoolbar">
+      {/* Scope (project / team / person) moved into the filter popup, the
+          same move the quick filters made and for the same reason: as three
+          always-visible pickers they were ~380px of toolbar reading "Alle
+          Pakete / Alle Teams / Alle Personen" — three empty fields waiting
+          to be filled in, which is the opposite of what they are. Setting one
+          is rare; seeing that one is SET has to be unmissable, and that is
+          what the chips below do. */}
+      {/* The quick filters used to sit here as a row of six toggles, five of
+          them off at any given moment — a permanent bar of switched-off
+          switches, which is what a toolbar looks like when nobody asks what
+          it costs at rest. They live in the filter popup now, and come back
+          out here as chips the moment one is on: a filtered view has to say
+          so (principles.md, "a view is never the truth"), an unfiltered one
+          has nothing to say. */}
+      {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
+        <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+          {activeScopeChips.map(f => (
+            <button key={f.id} type="button" className="chip on" data-testid={f.id}
+              onClick={() => f.onToggle()} data-htip={_t('chip.clearTip', f.label)}>
+              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}><Icon name="x" size={9} /></span>
+            </button>
+          ))}
+          {activeQuickFilters.map(f => (
+            <button key={f.id} type="button" className="chip on" onClick={() => f.onToggle()}
+              data-htip={_t('chip.clearTip', f.label)}>
+              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}><Icon name="x" size={9} /></span>
+            </button>
+          ))}
+        </span>
+      )}
+      {/* Review/Plan picker — sprint-review diff window + planning horizon.
+          Not a generic filter; it overlays the data with a time window. */}
+      <ViewFilters
+        quickFilters={quickFilters}
+        scope={{ label: _t('vf.scope'), fields: scopeFields }}
+        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
+        reviewPaused={!!scn && !!sinceDays}
+        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
+        hasHistory={(data?.historyEvents || []).length > 0}
+        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
+        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+        hideDone={hideDone}
+        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
+      />
+      <div style={{ flex: 1 }} />
+      {SEARCH_TABS.has(tab) && <SearchBox
+        searchRef={searchRef}
+        onCommit={v => setSearch(v)}
+        onResetIdx={() => setSearchIdx(0)}
+        onPrev={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i - 1) : undefined}
+        onNext={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i + 1) : undefined}
+        // Carries the committed query so the tree can wait for ITS rows to be
+        // that query's before moving the cursor — dispatching a bare event
+        // would land on the first row of the previous result.
+        onGoToResults={tab === 'tree' || tab === 'order'
+          ? q => window.dispatchEvent(new CustomEvent(tab === 'tree' ? TREE_FOCUS_EVENT : QUEUE_FOCUS_EVENT, { detail: { query: q } }))
+          : undefined}
+        committedSearch={search}
+      />}
+      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
+    </div>}
+    <div className="main">
+      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><Frozen active={tab === 'summary'}><SumView projectWaitsOf={projectWaitsOf} tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
+        historyEvents={data?.historyEvents || []}
+        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+        scenarioShifts={scnShifts}
+        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
+        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
+        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
+        futureProgressByRootId={futureProgressByRootId}
+        workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))}
+        roadmapAssignment={data?.roadmapAssignment || null}
+        onAssignmentChange={onRoadmapAssignmentChange}
+        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
+        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
+        onNavigate={onSumNavigate}
+        onOpenItem={onOpenItemDialog}
+        onExportTodo={onSumExportTodo} /></Frozen></div>}
+      {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><Frozen active={tab === 'briefing'}><BriefingView
+        tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
+        stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone} planTree={tree}
+        horizonIds={horizonFilterSet}
+        diffChangedIds={diffFilterSet}
+        diffVisibleIds={diffVisibleSet}
+        customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+        onOpenItem={onOpenItemDialog}
+        onUpdate={onBriefingUpdate}
+        onApplyStatus={onJiraApplyStatus}
+        onExportTodo={onSumExportTodo}
+      /></Frozen></div>}
+      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><Frozen active={tab === 'plan'}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
+        horizonIds={horizonFilterSet}
+        diffChangedIds={diffFilterSet}
+        diffVisibleIds={diffVisibleSet}
+        onOpenItem={onOpenItemDialog}
+        onUpdate={onPlanReviewUpdate} planTree={tree} reschedule={reschedule} onApplyOrder={onApplyOrder} /></Frozen></div>}
+      {/* The tree pane was the one pane left outside Frozen. It is the most
+          expensive of them all — 298 rows on a real plan — so it was the one
+          re-rendering, unseen, on every switch to any other tab. Measured in
+          Chromium on a 404-item plan: ~40 ms per switch, gone. */}
+      {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}><Frozen active={tab === 'tree'}>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {!visibleTreeForViews.length
+            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="list" size={32} strokeWidth={1.4} /></div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
+            : <TreeView changedIds={scnChangedIds} tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
+              onSelect={onTreeSelect}
+              showIds={showTreeIds}
+              onFullEdit={node => { setMN(node); setModal('node'); }}
+              editorInDialog={editorAsDialog}
+              search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
+              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+              sizes={data.sizes || []}
+              historyEvents={data?.historyEvents || []}
+              sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
+              onlyChanged={diffOnlyChanged}
+              horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
+              roadmapAssignment={data?.roadmapAssignment || null}
+              onDelete={onTreeDelete}
+              onTaskUpdate={onGanttTaskUpdate}
+              onClearSelection={() => setMultiSel(new Set())}
+              onOpenBulkEdit={() => setBulkEditModalOpen(true)}
+              onMove={onTreeMove}
+              onCommand={onTreeCommand}
+              onCommandMany={onTreeCommandMany}
+              onDropRows={onTreeDropRows}
+              onSelectAll={onTreeSelectAll}
+              onRevealHidden={onTreeRevealHidden}
+              onInsertAfter={onTreeInsertAfter}
+              onInsertChild={onTreeInsertChild}
+              onBulkDelete={onTreeBulkDelete}
+              onPasteRows={onTreePasteRows} />
+          }
+        </div>
+        {selected && !editorAsDialog && <div className="side fade">
+          {multiSel.size > 0 ? <>
+            <div className="side-hdr">
+              <h3>{multiSel.size} items selected</h3>
+              <button className="btn btn-sec btn-xs" onClick={() => setBulkEditModalOpen(true)} data-htip={_t('bulk.openModalTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="maximize" size={11} />{_t('bulk.openModal')}</button>
+              <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}><Icon name="x" size={13} /></button>
+            </div>
+            {renderBulkEditBody()}
+          </> : <>
+            <div className="side-hdr"><h3>{selected.id}</h3>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}><Icon name="maximize" size={13} /></button>
+              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} data-testid="editor-dock-dialog"
+                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}><Icon name="panelLeft" size={13} /></button>
+              <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}><Icon name="x" size={13} /></button>
+            </div>
+            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
+              onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
+              onAddDep={addDep}
+              onRemoveDep={removeDep}
+              onOpenItem={id => { const n = tree.find(r => r.id === id); if (n) setSel(n); }}
+              historyEvents={data?.historyEvents || []}
+              viewDay={past?.day || ''}
+              onHistoryChange={events => mutate(d => ({ ...d, historyEvents: events }))}
+              onSplitHandoff={splitHandoff}
+              onSplitTaskAtProgress={splitTaskAtProgress} /></div>
+          </>}
+        </div>}
+      </Frozen></div>}
+      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><Frozen active={tab === 'gantt'}>
+        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+          <GanttView baseline={scnBaseline} scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
+        </div>
+      </Frozen></div>}
+      {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
+          per-project roadmap, a TAB of its own beside the Gantt rather than a
+          panel hanging off it. It was a chip in the filter row opening a
+          380px sidebar, and nobody found it: a view is not a filter, and the
+          ask was for a roadmap *next to* the Gantt, in the same style. Same
+          data scope as the chart it sits beside (activeTree/activeScheduled:
+          rootFilter/team/person + archive applied). */}
+      {visitedTabs.has('roadmap') && <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
+        <RoadmapLens
+          tree={activeTree}
+          scheduled={activeScheduled}
+          stats={stats}
+          roadmapAssignment={data?.roadmapAssignment || null}
+          teams={teams}
+          members={members}
+          cpSet={viewCpSet}
+          cpLabels={cpLabels}
+          focusId={ganttRoadmapFocus}
+          onFocusChange={setGanttRoadmapFocus}
+          diffDoneIds={diffDoneSet}
+          diffProgressedIds={diffProgressedSet}
+          sinceDate={sinceDate}
+          onlyChanged={diffOnlyChanged}
+          onOpenItem={onOpenItemDialog}
+          projectWaitsOf={projectWaitsOf}
+          onMoveBehind={onMoveBehind}
+        />
+      </div>}
+      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><Frozen active={tab === 'net'}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
+        diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
+        horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
+        onNodeClick={onNetNodeClick}
+        onPickRoot={id => { setRootFilter(id); setSearchIdx(0); }}
+        onAddNode={onNetAddNode}
+        onDeleteNode={onNetDeleteNode} /></Frozen></div>}
+      {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
+          This view runs its own three filters, and it has to see the work the
+          schedule GAVE somebody before it can narrow to them; the pre-filtered
+          tree matches on `assign`, so filtering to a person with nothing
+          hand-assigned emptied the screen. */}
+      {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
+        tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
+        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} search={deferredSearch}
+        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
+        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }}
+        onOpenBulkEdit={ids => { setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></Frozen></div>}
+      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><Frozen active={tab === 'resources'}><EffectiveProvider value={effContext}><ResView members={resLens.members} teams={resLens.teams} vacations={vacations}
+        meetingPlans={resLens.meetingPlans}
+        tree={tree} scheduled={scheduled} weeks={weeks}
+        teamFilter={teamFilter} personFilter={personFilter}
+        onMeetingPlansUpd={onResMeetingPlansUpd}
+        onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}
+        onTeamUpd={onResTeamUpd}
+        onTeamAdd={onResTeamAdd}
+        onTeamDel={onResTeamDel} /></EffectiveProvider></Frozen></div>}
+      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><Frozen active={tab === 'holidays'}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></Frozen></div>}
+      {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><Frozen active={tab === 'report'}><ReportView {...exportHandlerProps} /></Frozen></div>}
+    </div>
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} backdate={past ? '' : backdate} viewDay={past?.day || ''} focusRequest={modalFocus}
+      onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
+      onDockSide={editorAsDialog ? () => { setEditorDock('side'); setModal(null); setMN(null); setModalFocus(null); } : undefined}
+      onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
+      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
+      onSplitHandoff={splitHandoff}
+      onSplitTaskAtProgress={splitTaskAtProgress}
+      onHistoryChange={events => {
+        mutate(d => ({ ...d, historyEvents: events }));
+      }}
+      onNavigate={id => {
+        const target = tree.find(r => r.id === id);
+        if (!target) return;
+        setModalFocus(null);
+        setMN(target);
+        setSel(target);
+      }} />}
+    {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
+    {modal === 'backdate' && <BackdateModal
+      value={backdate}
+      onApply={date => { setBackdate(date); setModal(null); }}
+      onClose={() => setModal(null)} />}
+    {modal === 'scenario' && scn && <ScenarioCompare
+      scenario={activeScenario}
+      base={scn.base}
+      work={data}
+      comparison={scnComparison}
+      changes={scnChanges}
+      conflicts={scn.conflicts || 0}
+      memory={scnCompareMemory.current}
+      onExport={exportScenarioPDF}
+      onClose={() => setModal(null)}
+      onApply={scenarioApply}
+      onRevert={scenarioRevertChange}
+      onOpenItem={id => { if (!tree.some(r => r.id === id)) return; setModal(null); setTab('tree'); setSel(id); }}
+    />}
+    {modal === 'snapshots' && <SnapshotModal
+      onClose={() => setModal(null)}
+      onRestore={snap => {
+        if (!confirm(`Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`)) return;
+        // Take a defensive snapshot of current state before restoring.
+        if (data) pushSnapshot(data);
+        setData(snap.data); resetHistory(); setSaved(false); setModal(null);
+      }}
+      onExportJson={snap => {
+        const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+        a.click();
+      }}
+    />}
+    {bulkEditModalOpen && multiSel.size > 0 && (
+      <div className="overlay" onClick={() => setBulkEditModalOpen(false)}>
+        <div className="modal" style={{ width: 'min(640px, 96vw)', maxHeight: '88vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 15 }}>{_t('bulk.title') || `Massenänderung — ${multiSel.size} Items`}</h2>
+            <button className="btn btn-ghost btn-icon sm" onClick={() => setBulkEditModalOpen(false)} aria-label={_t('close')}><Icon name="x" size={11} /></button>
+          </div>
+          {renderBulkEditBody()}
+        </div>
+      </div>
+    )}
+    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} uiScale={uiScale} setUiScale={setUiScale} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
+    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
+    {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
+      onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
+      onClose={() => { setModal(null); setMN(null); }} />}
+    {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
+    {modal === 'jiraImport' && <JiraImportModal
+      tree={tree} members={members}
+      jiraFieldId={detectJiraFieldId(data?.customFields || DEFAULT_CUSTOM_FIELDS, tree) || 'jira'}
+      hasProject
+      onClose={() => setModal(null)}
+      onImport={applyJiraImport} />}
+    {modal === 'export' && <ExportModal
+      onClose={() => setModal(null)}
+      {...exportHandlerProps}
+    />}
+
+    {/* ── Onboarding tour ── */}
+    {tourStep !== null && (
+      <Tour
+        steps={TOUR_STEPS}
+        step={tourStep}
+        onNext={() => setTourStep(s => Math.min(s + 1, TOUR_STEPS.length - 1))}
+        onPrev={() => setTourStep(s => Math.max(s - 1, 0))}
+        onSkip={closeTour}
+      />
+    )}
+
+    {/* ── New-feature popover (one-time, existing users) ── */}
+    {showNewFeat && tourStep === null && (
+      <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
+        <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
+          <div className="new-feat-title">
+            <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}><Icon name="sparkle" size={16} /></span>
+            {_t('new.title')}
+          </div>
+          <ul className="new-feat-list">
+            {NEW_FEATURES.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+          <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--tx3)' }}
+              onClick={() => { dismissNewFeat(); startTour(); }}>
+              {_t('tour.restartTour')} →
+            </button>
+            <button className="btn btn-pri btn-sm" onClick={dismissNewFeat}>
+              {_t('new.dismiss')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+    </CapacityProvider>
+  </>;
+}

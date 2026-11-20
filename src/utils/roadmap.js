@@ -1,0 +1,2161 @@
+// ─── Metro/Subway Roadmap Renderer ────────────────────────────────────────────
+// Each project becomes a colored subway line. Stations are depth-2 milestones.
+// Routes are pre-computed fixed shapes (like U-Bahn lines), assigned by duration.
+import { deadlineStatus } from './timeline.js';
+import { leafProgress, resolveToLeafIds, scheduleEffort } from './scheduler.js';
+import { aggregateProgressPct } from './progress.js';
+import { normalizeCompletedWindows } from './completion.js';
+import { treeOrderRank } from './displayOrder.js';
+
+// Line colours. One family rather than eight unrelated brights: they share a
+// chroma and a lightness, so no line shouts over its neighbours and the map
+// reads as one drawing. The old set was the default Tailwind ramp
+// (#3b82f6, #10b981, #f59e0b …), which is high-chroma and unrelated hue to
+// hue — fine for a badge, wrong for eight lines on one canvas.
+//
+// Each one is picked to clear 3:1 against BOTH grounds, because the same hex
+// is drawn on near-white and on near-black; a colour tuned for one goes muddy
+// on the other. Guarded in src/utils/__tests__/roadmapPalette.test.js.
+const PALETTE = ['#3d7ab0', '#4a8f63', '#c08a3a', '#8f6ba1', '#bf5a4d', '#3d8a92', '#a06f8c', '#6f8440'];
+
+// Looks up the Subway-Map line color for a top-level root id. Returns null
+// when no assignment has been computed yet (user hasn't opened the Subway
+// view) so the caller can fall back to its default styling.
+export function getLineColor(rootId, assignment) {
+  if (!rootId || !assignment) return null;
+  const stored = assignment[rootId];
+  if (stored?.colorIdx == null) return null;
+  return PALETTE[stored.colorIdx % PALETTE.length];
+}
+
+const DAY = 864e5;
+
+// ─── Fixed metro route network (1400×800 canvas) ─────────────────────────────
+// Every route runs WEST → EAST, and that is the whole point rather than a
+// style choice. A station's place along its route IS the project's progress
+// (see progressToRouteT), so the reading has to be "further right = further
+// on" for every line on the map at once. The routes this replaced were a
+// hand-drawn metro network: one ran right-to-left, one ran vertically, one
+// was a U-shape doubling back on itself. On those, a line's own geometry
+// contradicted the quantity it was drawing, and you could not compare two
+// projects by looking — which is the only thing a portfolio map is for.
+//
+// Each route is a lane with one vertical jog, and the jogs sit at different x
+// per lane so it still reads as a network rather than a bar chart. The jog is
+// vertical rather than diagonal because polylineToPath rounds every corner:
+// two 16-unit curves either side of a 36-unit drop meet as a single S, which
+// is what a metro map draws. A 45° diagonal reads as a line going somewhere
+// else; a curve reads as the same line continuing.
+// The board the lines run on.
+//
+// It was a literal table of eight lanes, and two things were wrong with that.
+//
+// A plan with more than eight projects ran out: `nextFreeRoute` wrapped to
+// route 0 with the comment "two lines will share a route", and the spacing
+// pass below then found two routes sitting exactly on top of each other and
+// shoved them apart — whole routes, horizontally as well as vertically, ten
+// passes of it. The result was the reported "looks odd": lines no longer
+// starting at a common left edge, a lane pushed off the top with its title
+// gone. The filters made it come and go because they change how many
+// projects there are to draw.
+//
+// And the table contradicted itself. Seven lanes jogged DOWN and the eighth
+// jogged UP, so lane 6's jog at y=668 and lane 7's at y=688 sat 20px apart —
+// under the 50px minimum — and collided every single time both were in use.
+// The spacing pass was cleaning up after the board rather than after the data.
+//
+// Generated instead: one lane per line, always, every jog in the same
+// direction. Lane i runs at y = 80 + 92i and jogs down 36 in the middle, so
+// a jog clears the next lane by 56 and the next jog by 92. Nothing on this
+// board is ever closer than the minimum, which leaves the spacing pass as
+// what it should have been — a guard that normally does nothing.
+const LANE_Y0 = 80;      // first lane's y
+const LANE_GAP = 92;     // between lanes
+const LANE_JOG = 36;     // how far the middle of a lane drops
+const LANE_X0 = 60;      // where every line starts
+const LANE_X1 = 1340;    // and ends
+const LANE_MIN = 8;      // keep the familiar board for small plans
+// Where each lane's jog sits. Staggered so the vertical segments of nearby
+// lanes do not line up into a column; the cycle is deliberately not a
+// divisor of the lane count, so it takes a while to repeat.
+const JOG_STARTS = [300, 420, 200, 540, 320, 620, 260, 460, 380, 240, 560, 340];
+const JOG_WIDTH = 480;
+
+export function buildRoutes(count) {
+  const lanes = Math.max(LANE_MIN, count || 0);
+  const out = [];
+  for (let i = 0; i < lanes; i++) {
+    const y = LANE_Y0 + LANE_GAP * i;
+    const jogY = y + LANE_JOG;
+    const xa = JOG_STARTS[i % JOG_STARTS.length];
+    const xb = Math.min(xa + JOG_WIDTH, LANE_X1 - 120);
+    out.push([
+      { x: LANE_X0, y }, { x: xa, y }, { x: xa, y: jogY },
+      { x: xb, y: jogY }, { x: xb, y }, { x: LANE_X1, y },
+    ]);
+  }
+  return out;
+}
+
+/** How tall the board is for a given number of lines, with room to breathe. */
+export function boardHeight(count) {
+  const lanes = Math.max(LANE_MIN, count || 0);
+  return LANE_Y0 + LANE_GAP * (lanes - 1) + LANE_JOG + 60;
+}
+// ─── Canvas dimensions ────────────────────────────────────────────────────────
+const SVG_W = 1400;
+// The tallest board the fixed eight lanes need. `boardHeight()` is the real
+// answer once the line count is known; this is the floor everything that has
+// no line count to hand can use.
+const SVG_H = boardHeight(LANE_MIN);
+const ROUTE_T_LO = 0.04;
+const ROUTE_T_HI = 0.96;
+const MIN_VISIBLE_PROGRESS_DELTA = 0.00005; // 0.005 percentage points = 0.05 permille
+
+// ─── Helpers (preserved from original) ───────────────────────────────────────
+const parentId = id => id.split('.').slice(0, -1).join('.');
+const depthOf = id => id.split('.').length;
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const progressToRouteT = progress => ROUTE_T_LO + clamp(progress || 0, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO);
+const truncate = (text, len) => !text ? '' : text.length > len ? `${text.slice(0, len - 1)}...` : text;
+
+function trim1(value) {
+  return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
+}
+
+function trim2(value) {
+  return (Math.round(value * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+}
+
+function formatPercentNumber(progress) {
+  return trim1(clamp(progress || 0, 0, 1) * 100);
+}
+
+function formatPercent(progress) {
+  return `${formatPercentNumber(progress)}%`;
+}
+
+function contrastText(color) {
+  if (!color?.startsWith('#')) return '#fff';
+  let hex = color.slice(1);
+  if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+  if (hex.length !== 6) return '#fff';
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.56 ? '#111318' : '#fff';
+}
+
+function formatProgressDelta(deltaProgress) {
+  const delta = Number(deltaProgress) || 0;
+  if (Math.abs(delta) < MIN_VISIBLE_PROGRESS_DELTA) return '0%';
+  const sign = delta > 0 ? '+' : '-';
+  const absPct = Math.abs(delta) * 100;
+  if (absPct >= 0.1) return `${sign}${trim1(absPct)}%`;
+  return `${sign}${trim2(absPct)}%`;
+}
+
+function esc(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function toDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value) : new Date(String(value));
+  if (Number.isNaN(+date)) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function monthIndex(date) {
+  return date.getFullYear() * 12 + date.getMonth();
+}
+
+function monthCountInclusive(start, end) {
+  return monthIndex(end) - monthIndex(start) + 1;
+}
+
+function compareByTime(a, b) {
+  const ad = a.anchorDate ? +a.anchorDate : Infinity;
+  const bd = b.anchorDate ? +b.anchorDate : Infinity;
+  if (ad !== bd) return ad - bd;
+  return a.id.localeCompare(b.id, undefined, { numeric: true });
+}
+
+function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = new Map(), now = new Date()) {
+  const today = toDate(now) || toDate(new Date());
+  const ordered = [...tree].sort((a, b) => depthOf(b.id) - depthOf(a.id) || b.id.localeCompare(a.id));
+  const leafIdsById = {};
+  const result = {};
+
+  ordered.forEach(node => {
+    const children = childMap[node.id] || [];
+    const leafIds = children.length
+      ? children.flatMap(child => leafIdsById[child.id] || [])
+      : [node.id];
+
+    leafIdsById[node.id] = leafIds;
+
+    let done = 0;
+    let earliestStart = null;
+    let latestEnd = null;
+    let totalEffort = 0;
+    const leafRows = [];
+
+    leafIds.forEach(id => {
+      const n = nodeMap[id];
+      if (n?.status === 'done') done++;
+      if (n) leafRows.push(n);
+      totalEffort += scheduleEffort(n) || 1;
+      const sched = schedMap[id];
+      // For DONE items prefer the actual completion dates (`completedStart` /
+      // `completedEnd`) so past work lands at its real past timestamp on the
+      // roadmap. Falling back to pinnedStart/decideBy/date loses the "this
+      // was finished in April" signal and pushes done items into the future
+      // window of their successors.
+      const doneWindow = n?.status === 'done' ? completedWindows.get(id) : null;
+      let start = toDate(
+        doneWindow?.start
+        || (n?.status === 'done' ? n?.completedStart : null)
+        || sched?.startD
+        || (n?.status === 'done' ? n?.completedEnd : null)
+        || n?.pinnedStart
+        || n?.decideBy
+        || n?.date,
+      );
+      let end = toDate(
+        doneWindow?.end
+        || (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
+        || sched?.endD
+        || n?.date
+        || n?.pinnedStart
+        || n?.decideBy,
+      );
+      if (n?.status === 'done') {
+        if (end && end > today) end = new Date(today);
+        if (start && start > today) start = new Date(today);
+        if (start && end && start > end) start = new Date(end);
+      }
+      if (start && (!earliestStart || start < earliestStart)) earliestStart = start;
+      if (end && (!latestEnd || end > latestEnd)) latestEnd = end;
+    });
+
+    const ownDate = toDate(node.pinnedStart || node.decideBy || node.date);
+    if (!earliestStart && ownDate) earliestStart = ownDate;
+    if (!latestEnd && ownDate) latestEnd = ownDate;
+
+    // Same helper the tree grid, the goal cards and every export use, so the
+    // train position can never contradict the percentage printed elsewhere.
+    const progressPct = leafRows.length
+      ? aggregateProgressPct(leafRows)
+      : (stats?.[node.id]?._progress ?? 0);
+    result[node.id] = {
+      total: leafIds.length,
+      done,
+      prog: clamp(progressPct / 100, 0, 1),
+      effort: totalEffort || stats?.[node.id]?._effort || Math.max(leafIds.length, 1),
+      allDone: leafIds.length > 0 && done === leafIds.length,
+      earliestStart,
+      latestEnd,
+      hasChildren: children.length > 0,
+    };
+  });
+
+  return result;
+}
+
+function pickFeaturedMinors(minorNodes, meta) {
+  if (!minorNodes.length) return { visible: [], hidden: 0 };
+  const doneNodes = minorNodes.filter(node => meta[node.id]?.allDone);
+  const activeNodes = minorNodes.filter(node => !meta[node.id]?.allDone && (meta[node.id]?.prog || 0) > 0);
+  const futureNodes = minorNodes.filter(node => !meta[node.id]?.allDone && !(meta[node.id]?.prog > 0));
+
+  const MAX_MINOR_PER_ROOT = 5;
+  const picked = [];
+  const seen = new Set();
+  const push = node => {
+    if (!node || seen.has(node.id) || picked.length >= MAX_MINOR_PER_ROOT) return;
+    seen.add(node.id);
+    picked.push(node);
+  };
+
+  doneNodes.slice(-1).forEach(push);
+  activeNodes.slice(0, 2).forEach(push);
+  futureNodes.slice(0, 2).forEach(push);
+  if (!picked.length) minorNodes.slice(0, MAX_MINOR_PER_ROOT).forEach(push);
+
+  return {
+    visible: picked.sort((a, b) => {
+      const ad = meta[a.id]?.earliestStart || meta[a.id]?.latestEnd;
+      const bd = meta[b.id]?.earliestStart || meta[b.id]?.latestEnd;
+      if (ad && bd && +ad !== +bd) return ad - bd;
+      if (ad) return -1;
+      if (bd) return 1;
+      return a.id.localeCompare(b.id, undefined, { numeric: true });
+    }),
+    hidden: Math.max(0, minorNodes.length - picked.length),
+  };
+}
+
+// ─── Metro-specific helpers ───────────────────────────────────────────────────
+
+/** Compute total pixel length of a route (sum of all segment lengths). */
+function routeLength(waypoints) {
+  let total = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    total += Math.sqrt(dx * dx + dy * dy);
+  }
+  return total;
+}
+
+/** Return the {x, y} point at fraction t (0–1) along the route. */
+function pointAtFraction(waypoints, t) {
+  if (waypoints.length === 1) return { ...waypoints[0] };
+  const total = routeLength(waypoints);
+  const target = clamp(t, 0, 1) * total;
+  let traveled = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (traveled + segLen >= target || i === waypoints.length - 1) {
+      const rem = target - traveled;
+      const frac = segLen > 0 ? rem / segLen : 0;
+      return {
+        x: waypoints[i - 1].x + dx * frac,
+        y: waypoints[i - 1].y + dy * frac,
+      };
+    }
+    traveled += segLen;
+  }
+  return { ...waypoints[waypoints.length - 1] };
+}
+
+/** Build an SVG path `d` attribute from waypoints. */
+// How far back from a corner the curve starts. A jog is a 36-unit vertical
+// drop, so 16 leaves a few units of straight between the two curves and the
+// bend reads as one S rather than two kinks.
+const ROUTE_CORNER_R = 16;
+
+// Every stop is the same size, whatever state it is in.
+//
+// It was not: a reached stop was drawn r=9 and an unreached one r=5, so a line
+// visibly shrank towards its future and the two read as two kinds of thing
+// rather than one thing in two states. On a metro map a station is a station.
+// The state is carried by the FILL — solid and ticked for reached, a ring for
+// still to come — at one outer diameter, so the row of them is a row.
+const STATION_R = 9;
+// The train is the one mark that is not a station, so it is bigger than one
+// rather than the same size with a different outline.
+const TRAIN_W = 26;
+const TRAIN_H = 16;
+
+// A stop, at `STATION_R` whatever it is.
+//   reached  → filled, with a tick
+//   current  → ring with a dot in it, thicker, in the line's colour
+//   ahead    → ring
+function stationGlyph(cx, cy, color, { done = false, current = false } = {}) {
+  const x = Number(cx).toFixed(1), y = Number(cy).toFixed(1);
+  if (done) {
+    const ink = contrastText(color);
+    return `<circle cx="${x}" cy="${y}" r="${STATION_R}" fill="${color}"/>`
+      // The tick is what makes "reached" say so on its own — a filled circle
+      // alone is only darker than its neighbour, and on a finished line every
+      // circle is filled and nothing says why.
+      + `<path d="M${(+x - 3.9).toFixed(1)} ${(+y + 0.2).toFixed(1)}`
+      + ` l 2.8 2.9 l 5 -5.6" fill="none" stroke="${ink}" stroke-width="2"`
+      + ` stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  if (current) {
+    // r + half the stroke = STATION_R, so the outer edge lands where every
+    // other stop's does.
+    const sw = 3.4;
+    return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="${sw}"/>`
+      + `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`;
+  }
+  const sw = 2.5;
+  return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg,#111318)" stroke="${color}" stroke-width="${sw}"/>`;
+}
+
+// A polyline with rounded corners. Metro maps draw curves, not mitres, and
+// the difference is not decoration: a 45° diagonal reads as a line going
+// somewhere else, while a curve reads as the same line continuing. At each
+// interior vertex back off `r` along both adjacent segments (never more than
+// half of either, so short legs degrade gracefully) and put a quadratic
+// through the vertex itself.
+//
+// The travelled overlay goes through here too, on its own clipped point list,
+// so the two paths curve identically where they share a corner.
+function polylineToPath(points, r = ROUTE_CORNER_R) {
+  const p = points.filter((q, i) => i === 0 || q.x !== points[i - 1].x || q.y !== points[i - 1].y);
+  if (!p.length) return null;
+  if (p.length === 1) return `M ${p[0].x} ${p[0].y}`;
+  const n = v => Number(v.toFixed(1));
+  if (p.length === 2 || r <= 0) {
+    return `M ${n(p[0].x)} ${n(p[0].y)} ` + p.slice(1).map(q => `L ${n(q.x)} ${n(q.y)}`).join(' ');
+  }
+  const out = [`M ${n(p[0].x)} ${n(p[0].y)}`];
+  for (let i = 1; i < p.length - 1; i++) {
+    const a = p[i - 1], b = p[i], c = p[i + 1];
+    const d1 = Math.hypot(b.x - a.x, b.y - a.y);
+    const d2 = Math.hypot(c.x - b.x, c.y - b.y);
+    if (!d1 || !d2) continue;
+    const rr = Math.min(r, d1 / 2, d2 / 2);
+    out.push(`L ${n(b.x + (a.x - b.x) / d1 * rr)} ${n(b.y + (a.y - b.y) / d1 * rr)}`);
+    out.push(`Q ${n(b.x)} ${n(b.y)} ${n(b.x + (c.x - b.x) / d2 * rr)} ${n(b.y + (c.y - b.y) / d2 * rr)}`);
+  }
+  const last = p[p.length - 1];
+  out.push(`L ${n(last.x)} ${n(last.y)}`);
+  return out.join(' ');
+}
+
+function waypointsToPath(waypoints) {
+  return polylineToPath(waypoints);
+}
+
+/**
+ * Build an SVG path `d` for the portion of a route from t=0 to t=fraction.
+ * Splits at the exact fractional point and returns only the traveled portion.
+ */
+function partialPath(waypoints, fraction, startFraction = 0) {
+  if (fraction <= startFraction) return null;
+  const total = routeLength(waypoints);
+  const target = clamp(fraction, 0, 1) * total;
+  const startTarget = clamp(startFraction, 0, 1) * total;
+
+  // Two-pass: when startFraction > 0, find the start point on the route, emit
+  // an `M` at that point, then accumulate intermediate vertices and the end
+  // point.
+  if (startFraction > 0) {
+    const startPt = pointAtFraction(waypoints, startFraction);
+    const parts = [{ x: startPt.x, y: startPt.y }];
+    let traveled = 0;
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i].x - waypoints[i - 1].x;
+      const dy = waypoints[i].y - waypoints[i - 1].y;
+      const segLen = Math.sqrt(dx * dx + dy * dy);
+      const segStart = traveled;
+      const segEnd = traveled + segLen;
+      // Skip segments that lie entirely before start
+      if (segEnd <= startTarget) { traveled = segEnd; continue; }
+      // Final segment containing the target — emit and stop
+      if (segEnd >= target) {
+        const rem = target - traveled;
+        const frac = segLen > 0 ? rem / segLen : 0;
+        const ex = waypoints[i - 1].x + dx * frac;
+        const ey = waypoints[i - 1].y + dy * frac;
+        parts.push({ x: ex, y: ey });
+        return polylineToPath(parts);
+      }
+      // Mid segment, fully traversed in window — emit endpoint
+      // (segStart may be < startTarget but we already emitted M at start)
+      void segStart;
+      parts.push({ x: waypoints[i].x, y: waypoints[i].y });
+      traveled = segEnd;
+    }
+    return polylineToPath(parts);
+  }
+
+  const parts = [{ x: waypoints[0].x, y: waypoints[0].y }];
+  let traveled = 0;
+
+  for (let i = 1; i < waypoints.length; i++) {
+    const dx = waypoints[i].x - waypoints[i - 1].x;
+    const dy = waypoints[i].y - waypoints[i - 1].y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+
+    if (traveled + segLen >= target) {
+      const rem = target - traveled;
+      const frac = segLen > 0 ? rem / segLen : 0;
+      const ex = waypoints[i - 1].x + dx * frac;
+      const ey = waypoints[i - 1].y + dy * frac;
+      parts.push({ x: ex, y: ey });
+      break;
+    }
+
+    parts.push({ x: waypoints[i].x, y: waypoints[i].y });
+    traveled += segLen;
+
+    if (traveled >= target) break;
+  }
+
+  return polylineToPath(parts);
+}
+
+/**
+ * Simple string hash → integer (djb2-style).
+ * Used to create stable route assignment based on root ID.
+ */
+function hashStr(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) ^ str.charCodeAt(i);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Generate a short abbreviation for a station name (up to 3 chars).
+ * Takes first letter of each word; falls back to first 2 chars.
+ */
+/**
+ * Inline SVG status indicator — same visual language across SVG and legend:
+ * - 'done'   → filled circle with white checkmark
+ * - 'wip'    → outlined circle with a pie-slice filled showing progress
+ * - 'open'   → empty outlined circle
+ * Progress in [0..1] only used for 'wip'.
+ */
+function statusIcon(status, color, progress = 0, size = 12) {
+  const r = size / 2 - 1.2;
+  const c = size / 2;
+  if (status === 'done') {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+      + `<circle cx="${c}" cy="${c}" r="${r}" fill="${color}"/>`
+      + `<path d="M${c - r * 0.55},${c} L${c - r * 0.1},${c + r * 0.45} L${c + r * 0.65},${c - r * 0.45}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `</svg>`;
+  }
+  if (status === 'wip' && progress > 0) {
+    // Pie slice for progress
+    const angle = Math.min(Math.max(progress, 0), 1) * Math.PI * 2;
+    const ex = c + r * Math.sin(angle);
+    const ey = c - r * Math.cos(angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = progress >= 0.999
+      ? `M${c},${c - r} A${r},${r} 0 1,1 ${c - 0.01},${c - r} Z`
+      : `M${c},${c} L${c},${c - r} A${r},${r} 0 ${large},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+      + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
+      + `<path d="${path}" fill="${color}" opacity=".6"/>`
+      + `</svg>`;
+  }
+  // open (includes wip with 0 progress)
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
+    + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
+    + `</svg>`;
+}
+
+function makeAbbrev(name) {
+  if (!name) return '?';
+  // Strip parenthetical content, leading articles/prefixes, technical noise
+  const clean = name
+    .replace(/\(.*?\)/g, '')
+    .replace(/\b(Ursache|Erstellung|Anpassung|Entwicklung|Umstellung|Integration|Domain|UI\s+Migration)\b:?\s*/gi, '')
+    .trim();
+  // Keep only words starting with a letter (drop arrows, symbols, numerals-only)
+  const words = (clean || name).trim().split(/\s+/).filter(w => /^[A-Za-zÄÖÜäöüß]/.test(w));
+  if (words.length >= 2) {
+    return words.slice(0, 3).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3);
+  }
+  return (words[0] || name).replace(/[^A-Za-zÄÖÜäöüß0-9]/g, '').slice(0, 3).toUpperCase();
+}
+
+/**
+ * Ensure abbreviations are unique within a line by appending numeric suffixes.
+ */
+function deduplicateAbbrevs(stations) {
+  const counts = {};
+  stations.forEach(st => {
+    counts[st.abbrev] = (counts[st.abbrev] || 0) + 1;
+  });
+  const seen = {};
+  stations.forEach(st => {
+    if (counts[st.abbrev] > 1) {
+      seen[st.abbrev] = (seen[st.abbrev] || 0) + 1;
+      st.abbrev = st.abbrev + seen[st.abbrev];
+    }
+  });
+}
+
+// ─── computeRoadmapModel ──────────────────────────────────────────────────────
+
+/**
+ * Fold the map's computed {rootId → {routeIdx, colorIdx}} into the stored one.
+ *
+ * Merge, never replace. The map only ever sees the *rendered* tree, which can
+ * be a subset (archive filter, single-line mode) — replacing would drop the
+ * colours and lanes of every project that happens to be hidden right now.
+ * Stored entries win; computed values fill gaps for roots with no mapping.
+ *
+ * The one exception: a stored lane or colour that another stored project
+ * holds too. The old eight-lane board wrote such duplicates, and the map now
+ * gives the second project a free slot (see computeRoadmapModel) — taking
+ * that over is what repairs the file, rather than resolving the same
+ * collision again on every render.
+ */
+export function mergeRoadmapAssignment(prev, computed, rootIds) {
+  const merged = {};
+  Object.keys(prev || {}).forEach(id => { if (rootIds.has(id)) merged[id] = prev[id]; });
+  const holders = key => {
+    const count = new Map();
+    Object.values(merged).forEach(v => {
+      if (Number.isFinite(v?.[key])) count.set(v[key], (count.get(v[key]) || 0) + 1);
+    });
+    return count;
+  };
+  const routeHolders = holders('routeIdx');
+  const colorHolders = holders('colorIdx');
+  Object.keys(computed || {}).forEach(id => {
+    const was = merged[id];
+    if (!rootIds.has(id) || !computed[id]) return;
+    if (!was || routeHolders.get(was.routeIdx) > 1 || colorHolders.get(was.colorIdx) > 1) merged[id] = computed[id];
+  });
+  return merged;
+}
+
+export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), assignment = null }) {
+  const nodeMap = Object.fromEntries(tree.map(node => [node.id, node]));
+  const today = toDate(now) || toDate(new Date());
+  const childMap = {};
+  tree.forEach(node => {
+    const pid = parentId(node.id);
+    if (!childMap[pid]) childMap[pid] = [];
+    childMap[pid].push(node);
+  });
+  const schedMap = scheduled ? Object.fromEntries(scheduled.map(item => [item.id, item])) : {};
+  const completedWindows = normalizeCompletedWindows(tree || [], { now: today });
+  const meta = buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows, today);
+
+  const roots = tree.filter(node => !node.id.includes('.'));
+  if (!roots.length) return null;
+
+  // The plan's own order, once for the whole map. Everything the map puts in a
+  // sequence — the stops along a line, the rows in its legend — uses it, so
+  // the map, the tree, the work order and the schedule all say the same thing
+  // about what comes first.
+  const planRank = treeOrderRank(tree);
+
+  const buildStation = (node, kind, fallbackDate) => {
+    const info = meta[node.id] || {};
+    const anchorDate = info.earliestStart
+      || toDate(node.pinnedStart)
+      || toDate(node.decideBy)
+      || toDate(node.date)
+      || info.latestEnd
+      || fallbackDate;
+    const endDate = info.latestEnd
+      || toDate(node.date)
+      || toDate(node.decideBy)
+      || toDate(node.pinnedStart)
+      || anchorDate;
+
+    return {
+      id: node.id,
+      name: node.name,
+      abbrev: makeAbbrev(node.name),
+      parentId: parentId(node.id),
+      kind,
+      anchorDate,
+      milestoneDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
+      endDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
+      prog: info.prog || 0,
+      done: info.done || 0,
+      total: info.total || 0,
+      allDone: !!info.allDone,
+      depth: depthOf(node.id),
+    };
+  };
+
+  // Build raw lines (one per root)
+  const rawLines = roots.map((root) => {
+    const rootInfo = meta[root.id] || {};
+
+    // ── Scheduled-item clustering ─────────────────────────────────────────────
+    // Get all scheduled items for this root project
+    const rootScheduled = (scheduled || [])
+      .filter(s => s.id.startsWith(root.id + '.') && !(childMap[s.id]?.length));
+    const schedIds = new Set(rootScheduled.map(s => s.id));
+
+    // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
+    // Done tasks = "the journey already traveled". They may lack dates from the scheduler,
+    // so we give dateless done items a synthetic "past" date before the project's first event.
+    const firstSchedDate = rootScheduled.reduce((min, s) => {
+      const d = toDate(s.startD || s.endD);
+      return d && (!min || d < min) ? d : min;
+    }, null);
+    const syntheticPast = firstSchedDate ? addDays(firstSchedDate, -14) : addDays(toDate(now), -30);
+
+    const doneLeaves = tree
+      .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done')
+      .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only, not already scheduled
+      .map(n => {
+        const m = meta[n.id] || {};
+        const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date) || syntheticPast;
+        const start = m.earliestStart || end;
+        return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
+      });
+    const capDoneItem = (item) => {
+      const node = nodeMap[item.id] || item;
+      const doneWindow = node?.status === 'done' ? completedWindows.get(item.id) : null;
+      const doneEnd = toDate(
+        doneWindow?.end
+        || node?.completedEnd
+        || node?.completedAt
+        || node?.completedStart,
+      );
+      const doneStart = toDate(
+        doneWindow?.start
+        || node?.completedStart
+        || node?.completedAt
+        || node?.completedEnd,
+      );
+      const end = doneEnd || toDate(item.endD || item.startD);
+      if (node?.status !== 'done') return { ...item, clusterEndD: end };
+      if (!end) return { ...item, clusterEndD: end };
+      const cappedEnd = end > today ? new Date(today) : end;
+      const rawStart = doneStart || toDate(item.startD || cappedEnd);
+      const cappedStart = rawStart && rawStart > cappedEnd ? new Date(cappedEnd) : rawStart;
+      return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd, clusterEndD: cappedEnd };
+    };
+
+    // Combine scheduled + done leaves, sort by endD
+    const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
+      .map(capDoneItem)
+      .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
+
+    // ── What a stop IS ────────────────────────────────────────────────────
+    // A stop is a WORK PACKAGE, not a time window.
+    //
+    // It used to be a window: leaves whose end dates fell within N days of
+    // each other became one station. That works on a small plan and falls
+    // apart on a real one, in both directions at once. Widen the window and a
+    // station swallows fifty unrelated tasks and means nothing; narrow it and
+    // one project puts forty touching circles on its line with the labels
+    // overlapping into a band. Neither is a metro map, and neither answers
+    // the question the map is for.
+    //
+    // The tree already says how the work is grouped, so the stop is that
+    // grouping: every leaf under "Belegstruktur und Buchungslogik" is one
+    // station, named after it. The count follows the plan's own structure
+    // instead of a heuristic, and the name is one somebody wrote.
+    //
+    // The only thing left to choose is the DEPTH, and the canvas chooses it:
+    // start at the root's direct children and go deeper while the stations
+    // still fit the route (~1280 units wide, ~80 per label). The deepest
+    // level that fits wins, because that is the most detail the map can
+    // actually carry. A plan with one flat level gets its leaves as stops; a
+    // deeply nested one gets its top packages.
+    const MAX_STATIONS = 14;
+    const rootDepth = depthOf(root.id);
+    const ancestorAt = (id, depth) => id.split('.').slice(0, depth).join('.');
+    const stopDepth = (() => {
+      const deepest = sorted.reduce((max, item) => Math.max(max, depthOf(item.id)), rootDepth);
+      let chosen = rootDepth + 1;
+      for (let d = rootDepth + 1; d <= deepest; d++) {
+        const count = new Set(sorted.map(item => ancestorAt(item.id, d))).size;
+        if (count > MAX_STATIONS) break;
+        chosen = d;
+      }
+      return chosen;
+    })();
+
+    // Group by that ancestor, keeping the time order the sort established —
+    // a line still reads left to right by when the work lands.
+    const byStop = new Map();
+    sorted.forEach(item => {
+      const key = ancestorAt(item.id, stopDepth) || item.id;
+      if (!byStop.has(key)) byStop.set(key, []);
+      byStop.get(key).push(item);
+    });
+    const clusters = [...byStop.entries()].map(([key, items]) => {
+      // The package's own node carries the name a person wrote. A leaf that
+      // IS the stop (a flat project, or an item hanging directly off the
+      // root) names itself.
+      const node = nodeMap[key];
+      items.stopNode = node && node.id !== items[0]?.id ? node : null;
+      return items;
+    });
+
+    // Build stations from clusters
+    const majorStations = clusters.map(cluster => {
+      // The stop is named after its package, because that is the name
+      // somebody wrote for exactly this group of work. Only when the stop IS
+      // a single item does it fall back to naming itself.
+      const representative = cluster.stopNode
+        || cluster.reduce((best, item) => ((item.name || '').length > (best.name || '').length ? item : best), cluster[0]);
+      const earliestStart = cluster.reduce((min, item) => {
+        const d = toDate(item.startD);
+        return d && (!min || d < min) ? d : min;
+      }, null);
+      const latestEnd = cluster.reduce((max, item) => {
+        const d = toDate(item.endD);
+        return d && (!max || d > max) ? d : max;
+      }, null);
+      const progressStats = cluster.reduce((acc, item) => {
+        const node = nodeMap[item.id] || item;
+        const weight = scheduleEffort(node) || item.effort || 1;
+        const prog = leafProgress(node) / 100;
+        acc.weight += weight;
+        acc.progress += weight * prog;
+        if (node.status === 'done') acc.done += 1;
+        return acc;
+      }, { done: 0, weight: 0, progress: 0 });
+      const done = progressStats.done;
+      const total = cluster.length;
+      const prog = progressStats.weight > 0 ? progressStats.progress / progressStats.weight : (total > 0 ? done / total : 0);
+
+      return {
+        id: representative.id,
+        name: representative.name,
+        abbrev: makeAbbrev(representative.name),
+        clusterSize: cluster.length,
+        clusterItems: cluster.map(c => ({ id: c.id, name: c.name })),
+        kind: 'major',
+        anchorDate: earliestStart || latestEnd,
+        milestoneDate: latestEnd || earliestStart,
+        endDate: latestEnd || earliestStart,
+        prog,
+        done,
+        total,
+        effort: progressStats.weight || total || 1,
+        allDone: total > 0 && cluster.every(item => (nodeMap[item.id] || item).status === 'done'),
+        depth: 1,
+      };
+    });
+
+    const minorStations = [];
+
+    const timeline = [...majorStations].sort(compareByTime);
+
+    // De-duplicate abbreviations within this line
+    deduplicateAbbrevs(majorStations);
+
+    const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => !max || s.endDate > max ? s.endDate : max, null);
+    const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => !min || s.anchorDate < min ? s.anchorDate : min, null);
+    const rootStats = stats?.[root.id];
+    // "At risk" is a forecast — once every scoped leaf is done there is nothing
+    // left to miss, so the line drops the red GEFÄHRDET badge (deadlineStatus
+    // in utils/timeline.js is the shared state machine).
+    const rootState = root.type === 'deadline' ? deadlineStatus(tree, scheduled, root) : null;
+    const allDoneUnderRoot = root.type !== 'deadline'
+      && (() => {
+        const leaves = resolveToLeafIds(tree, root.id).map(id => tree.find(r => r.id === id)).filter(Boolean);
+        return leaves.length > 0 && leaves.every(l => l.status === 'done');
+      })();
+    const atRisk = root.type === 'deadline'
+      ? !!rootState?.isLate
+      : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
+
+    // A line nobody is working any more: every leaf done, or the project
+    // dropped. Both are still ON the map on purpose — a finished project is
+    // part of the picture, and a dropped one has to stay visible so the
+    // decision can be seen and taken back — but neither competes for
+    // attention with work that is live.
+    const rootDropped = !!(nodeMap[root.id] || root)?.dropped;
+    const rootRetired = rootDropped || allDoneUnderRoot;
+
+    // Duration in days for route-length matching
+    const durationDays = rootEarliest && rootLatest
+      ? Math.max(1, (+rootLatest - +rootEarliest) / DAY)
+      : 1;
+
+    return {
+      root,
+      progress: rootInfo.prog || 0,
+      totalEffort: rootInfo.effort || 0,
+      atRisk,
+      retired: rootRetired,
+      dropped: rootDropped,
+      allDoneUnderRoot,
+      hiddenMinorCount: 0,
+      timeline,
+      majorStations,
+      minorStations,
+      earliestDate: rootEarliest,
+      latestDate: rootLatest,
+      durationDays,
+    };
+  }).filter(line => line.timeline.length > 0 || line.majorStations.length === 0);
+
+  if (!rawLines.length) return null;
+
+  // ── Route assignment ──────────────────────────────────────────────────────
+  // Sort routes by pixel length (longest first).
+  const routesWithLen = buildRoutes(rawLines.length).map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
+    .sort((a, b) => b.len - a.len);
+
+  // Sort projects by duration (longest first). Ties broken by hash of root.id for stability.
+  const sortedLines = [...rawLines].sort((a, b) => {
+    if (b.durationDays !== a.durationDays) return b.durationDays - a.durationDays;
+    return hashStr(a.root.id) - hashStr(b.root.id);
+  });
+
+  // Assign route and palette color by rank.
+  // Per-route deterministic micro-offset breaks up segments where two routes
+  // share long stretches of identical waypoints (e.g. a vertical line riding
+  // on top of a horizontal one for hundreds of pixels). Up to ±6 px in each
+  // axis based on the route's original index in ROUTES — stations move with
+  // the route so positioning stays consistent.
+  // Color + route assignment. Two modes:
+  //   1. Stored mapping (`args.assignment = {rootId: {routeIdx, colorIdx}}`)
+  //      wins — gives the user stable visuals across data edits.
+  //   2. Anything unmapped falls back to rank-based assignment (longest
+  //      project gets palette 0, etc.), but picks the next FREE slot so
+  //      a stored mapping never gets overwritten by a fallback.
+  // Caller can read the assignment back via the model's `_assignment`
+  // map and persist it (App.jsx auto-init on first render).
+  const stored = (assignment && typeof assignment === 'object') ? assignment : {};
+  const usedRoute = new Set();
+  const usedColor = new Set();
+  // Pre-claim every stored slot first so fallbacks can't collide with them.
+  //
+  // A stored slot is only honoured once. Plans saved by the old eight-lane
+  // board carry duplicates — past eight projects it wrapped to route 0 and
+  // wrote that down — and honouring both put two lines on one lane, which
+  // the spacing pass then shoved apart: one of them off the top of the map
+  // with its title gone, another past the left edge. The first line (longest
+  // first, the same order as everything below) keeps the slot; the second is
+  // treated as unmapped and gets a free one. Colours likewise, as long as the
+  // palette has one left — past that, sharing a colour is unavoidable.
+  const staleRoute = new Set();
+  const staleColor = new Set();
+  sortedLines.forEach(line => {
+    const st = stored[line.root.id];
+    if (st && Number.isFinite(st.routeIdx)) {
+      if (usedRoute.has(st.routeIdx)) staleRoute.add(line.root.id);
+      else usedRoute.add(st.routeIdx);
+    }
+    if (st && Number.isFinite(st.colorIdx)) {
+      if (usedColor.has(st.colorIdx)) staleColor.add(line.root.id);
+      else usedColor.add(st.colorIdx);
+    }
+  });
+  const nextFreeRoute = () => {
+    for (let i = 0; i < routesWithLen.length; i++) {
+      if (!usedRoute.has(routesWithLen[i].idx)) return i;
+    }
+    return 0; // all consumed — wrap, two lines will share a route
+  };
+  const nextFreeColor = () => {
+    for (let i = 0; i < PALETTE.length; i++) if (!usedColor.has(i)) return i;
+    return 0;
+  };
+  const assignmentOut = {};
+  const baseAssigned = sortedLines.map((line, rank) => {
+    const st = stored[line.root.id];
+    let routeRank, colorIdx;
+    if (st && Number.isFinite(st.routeIdx) && !staleRoute.has(line.root.id)
+      && routesWithLen.some(r => r.idx === st.routeIdx)) {
+      // routesWithLen is sorted by length, find the entry by original idx.
+      routeRank = routesWithLen.findIndex(r => r.idx === st.routeIdx);
+    } else {
+      // Fallback prefers the rank-th routesWithLen slot, but skips any slot
+      // already claimed by a stored assignment.
+      let pick = rank;
+      while (pick < routesWithLen.length && usedRoute.has(routesWithLen[pick].idx)) pick++;
+      if (pick >= routesWithLen.length) pick = nextFreeRoute();
+      routeRank = pick;
+      usedRoute.add(routesWithLen[pick].idx);
+    }
+    if (st && Number.isFinite(st.colorIdx)
+      && !(staleColor.has(line.root.id) && usedColor.size < PALETTE.length)) {
+      colorIdx = st.colorIdx;
+    } else {
+      let pick = rank;
+      while (pick < PALETTE.length && usedColor.has(pick)) pick++;
+      if (pick >= PALETTE.length) pick = nextFreeColor();
+      colorIdx = pick;
+      usedColor.add(pick);
+    }
+    const routeEntry = routesWithLen[routeRank];
+    const color = PALETTE[colorIdx % PALETTE.length];
+    assignmentOut[line.root.id] = { routeIdx: routeEntry.idx, colorIdx };
+    return { ...line, color, route: routeEntry.wp.map(p => ({ x: p.x, y: p.y })), routeLen: routeEntry.len };
+  });
+
+  // ── Parallel-rail spacing pass ───────────────────────────────────────────
+  // Hard "minimum distance" constraint between parallel route segments:
+  // whenever two horizontal-or-vertical segments of DIFFERENT routes overlap
+  // on the shared axis and sit closer than MIN_DIST on the perpendicular
+  // axis, both routes get pushed apart by half the deficit each. Two-sided
+  // symmetric push avoids the "one route runs over another" bug we hit
+  // before. Iterates a few passes; convergence is fast because the push
+  // size is exactly the missing gap, not a fixed step.
+  const MIN_DIST = 50;     // px — segments closer than this are visually glued
+  const EPSILON = 0.001;   // px — guard for exactly-overlapping segments
+  const PARALLEL_TOL = 2;  // px — slope tolerance for axis-aligned segments
+  const SHARE_TOL = 4;     // px — span overlap must exceed this to count
+  const DIAG_ANGLE_TOL = 0.45; // ~26° — diagonal pairs within this slope diff count as parallel
+  const horiz = (a, b) => Math.abs(a.y - b.y) <= PARALLEL_TOL && Math.abs(b.x - a.x) > 8;
+  const vert  = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
+  const overlap1D = (lo1, hi1, lo2, hi2) =>
+    Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
+  // For a diagonal segment, return its angle in radians and the perpendicular
+  // unit vector. Used to detect close-parallel diagonals between routes.
+  const segAngle = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+  const perpFrom = (a, b) => {
+    const ang = segAngle(a, b);
+    return { px: -Math.sin(ang), py: Math.cos(ang) };
+  };
+  // Point-to-line distance for two parallel-ish segments (use midpoint of b
+  // projected onto a's perpendicular).
+  const perpDist = (a1, a2, b1, b2) => {
+    const ang = segAngle(a1, a2);
+    const nx = -Math.sin(ang), ny = Math.cos(ang);
+    const bmx = (b1.x + b2.x) / 2, bmy = (b1.y + b2.y) / 2;
+    return (bmx - a1.x) * nx + (bmy - a1.y) * ny;
+  };
+
+  for (let pass = 0; pass < 10; pass++) {
+    const adjust = baseAssigned.map(() => ({ dx: 0, dy: 0 }));
+    let collisionCount = 0;
+    for (let i = 0; i < baseAssigned.length; i++) {
+      const ri = baseAssigned[i].route;
+      for (let j = i + 1; j < baseAssigned.length; j++) {
+        const rj = baseAssigned[j].route;
+        for (let si = 1; si < ri.length; si++) {
+          const a1 = ri[si - 1], a2 = ri[si];
+          const aH = horiz(a1, a2), aV = vert(a1, a2);
+          if (!aH && !aV) continue;
+          for (let sj = 1; sj < rj.length; sj++) {
+            const b1 = rj[sj - 1], b2 = rj[sj];
+            if (aH && horiz(b1, b2)) {
+              const sx = overlap1D(a1.x, a2.x, b1.x, b2.x);
+              if (sx <= SHARE_TOL) continue;
+              const dy = a1.y - b1.y;
+              if (Math.abs(dy) >= MIN_DIST) continue;
+              const sign = dy === 0 ? 1 : Math.sign(dy);
+              const push = (MIN_DIST - Math.abs(dy) + EPSILON) / 2;
+              adjust[i].dy += sign * push;
+              adjust[j].dy -= sign * push;
+              collisionCount++;
+              break;
+            } else if (aV && vert(b1, b2)) {
+              const sy = overlap1D(a1.y, a2.y, b1.y, b2.y);
+              if (sy <= SHARE_TOL) continue;
+              const dx = a1.x - b1.x;
+              if (Math.abs(dx) >= MIN_DIST) continue;
+              const sign = dx === 0 ? 1 : Math.sign(dx);
+              const push = (MIN_DIST - Math.abs(dx) + EPSILON) / 2;
+              adjust[i].dx += sign * push;
+              adjust[j].dx -= sign * push;
+              collisionCount++;
+              break;
+            } else if (!aH && !aV) {
+              // Diagonal vs diagonal. Compare angles, fall through if too
+              // different. Otherwise use perpendicular signed distance.
+              const angA = segAngle(a1, a2);
+              const angB = segAngle(b1, b2);
+              // Normalize to [-π/2, π/2] so opposite-direction same line counts.
+              const da = ((angA - angB + Math.PI * 1.5) % Math.PI) - Math.PI / 2;
+              if (Math.abs(da) > DIAG_ANGLE_TOL) continue;
+              const dist = perpDist(a1, a2, b1, b2);
+              if (Math.abs(dist) >= MIN_DIST) continue;
+              // Need at least some overlap along the segment direction.
+              const along = (px, py) => (px - a1.x) * Math.cos(angA) + (py - a1.y) * Math.sin(angA);
+              const aLen = Math.hypot(a2.x - a1.x, a2.y - a1.y);
+              const tA0 = along(b1.x, b1.y), tA1 = along(b2.x, b2.y);
+              const tLo = Math.min(tA0, tA1), tHi = Math.max(tA0, tA1);
+              const proj = Math.min(tHi, aLen) - Math.max(tLo, 0);
+              if (proj <= SHARE_TOL) continue;
+              const sign = dist === 0 ? 1 : Math.sign(dist);
+              const push = (MIN_DIST - Math.abs(dist) + EPSILON) / 2;
+              const { px, py } = perpFrom(a1, a2);
+              // a's side of the line gets pushed by -sign*push*perp, b by +sign*push*perp.
+              // Wait: dist > 0 means b is on the +perp side of a. To push apart,
+              // move a by -sign*push along perp, b by +sign*push.
+              adjust[i].dx += -sign * push * px;
+              adjust[i].dy += -sign * push * py;
+              adjust[j].dx +=  sign * push * px;
+              adjust[j].dy +=  sign * push * py;
+              collisionCount++;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (collisionCount === 0) break;
+    adjust.forEach((d, li) => {
+      if (!d.dx && !d.dy) return;
+      baseAssigned[li].route = baseAssigned[li].route.map(p => ({ x: p.x + d.dx, y: p.y + d.dy }));
+    });
+  }
+  const assignedLines = baseAssigned;
+
+  // ── Station placement on routes ───────────────────────────────────────────
+  // Effort-proportional spacing: the subway line is a percent-of-scope loading
+  // bar, not a calendar timeline. The train is the real effort progress.
+  // Stations are milestone thresholds: reached stations must sit behind the
+  // train, unfinished stations must sit ahead of it. Dates define order within
+  // those two bands, not whether the train has passed a milestone.
+  const positionedLines = assignedLines.map(line => {
+    const { route } = line;
+
+    // Two halves of one line, ordered by two different things, because they
+    // are two different kinds of statement.
+    //
+    // BEHIND the train is history: those packages were finished, in an order
+    // that actually happened, and the date is the record of it. Re-sorting
+    // completed work by the plan would show a sequence that never occurred.
+    //
+    // AHEAD of the train is intent, and the only statement anybody has made
+    // about that is the tree — the same rank the scheduler plans by
+    // (utils/displayOrder.js, `treeOrderRank`). It used to be the end date
+    // here too, which is a CONSEQUENCE of the order rather than the order
+    // itself: one long package finishing after a later short one swapped two
+    // stations, and the map disagreed with the tree, the work order and the
+    // Gantt about what comes next. The date stays as the tiebreak, for the
+    // stops the tree does not separate.
+    const byEnd = (a, b) => (+(a.milestoneDate || a.endDate) || Infinity) - (+(b.milestoneDate || b.endDate) || Infinity)
+      || a.id.localeCompare(b.id, undefined, { numeric: true });
+    const byPlan = (a, b) => {
+      const ar = planRank.has(a.id) ? planRank.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const br = planRank.has(b.id) ? planRank.get(b.id) : Number.MAX_SAFE_INTEGER;
+      return ar - br || byEnd(a, b);
+    };
+    const allStations = [...line.majorStations, ...line.minorStations].sort(byEnd);
+    const doneOrdered = allStations.filter(station => station.allDone).sort(byEnd);
+    const activeOrdered = allStations.filter(station => !station.allDone).sort(byPlan);
+
+    // Project span is retained only for the "today on calendar" ghost marker
+    // and as fallback if a line has no effort data.
+    const dates = allStations.map(s => +(s.milestoneDate || s.endDate)).filter(Number.isFinite);
+    const firstD = dates.length ? Math.min(...dates) : null;
+    const lastD = dates.length ? Math.max(...dates) : null;
+    const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
+    const totalStationEffort = allStations.reduce((sum, station) => sum + Math.max(0, station.effort || 0), 0);
+    const totalRouteEffort = Math.max(totalStationEffort, line.totalEffort || 0);
+
+    // Raw effort progress: how much of the total effort has actually been
+    // completed. `line.progress` comes from treeStats._progress, so a 1d leaf
+    // weighs less than a 10d leaf.
+    const effortTrainT = progressToRouteT(line.progress);
+    // Today-on-timeline marker — kept as `ghostT` so a Soll/Ist gap can be
+    // rendered later (effort progress vs calendar position).
+    const nowMs = +new Date(now);
+    const ghostT = (span > 0 && firstD != null && lastD != null)
+      ? ROUTE_T_LO + clamp((nowMs - firstD) / span, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO)
+      : effortTrainT;
+
+    const positionBand = (stations, rawTs, minT, maxT, anchorLast = false) => {
+      if (!stations.length) return [];
+      const lo = clamp(minT, ROUTE_T_LO, ROUTE_T_HI);
+      const hi = clamp(Math.max(maxT, lo), ROUTE_T_LO, ROUTE_T_HI);
+      const desiredSpacing = 0.035;
+      const available = Math.max(0, hi - lo);
+      const spacing = stations.length > 1
+        ? Math.min(desiredSpacing, available / (stations.length - 1 || 1))
+        : 0;
+
+      let positionedBand = stations.map((station, idx) => {
+        const rawT = Number.isFinite(rawTs[idx]) ? rawTs[idx] : lo + available * ((idx + 1) / (stations.length + 1));
+        return { ...station, t: clamp(rawT, lo, hi) };
+      });
+
+      positionedBand.sort((a, b) => a.t - b.t || byEnd(a, b));
+      for (let i = 1; i < positionedBand.length; i++) {
+        if (positionedBand[i].t - positionedBand[i - 1].t < spacing) {
+          positionedBand[i] = { ...positionedBand[i], t: positionedBand[i - 1].t + spacing };
+        }
+      }
+      if (positionedBand.length && positionedBand[positionedBand.length - 1].t > hi) {
+        const n = positionedBand.length;
+        positionedBand = positionedBand.map((station, idx) => {
+          const t = n === 1
+            ? (anchorLast ? hi : lo + available / 2)
+            : lo + (available * idx) / (n - 1);
+          return { ...station, t };
+        });
+      } else if (anchorLast && positionedBand.length === 1) {
+        positionedBand[0] = { ...positionedBand[0], t: hi };
+      }
+
+      return positionedBand.map(station => {
+        const pt = pointAtFraction(route, station.t);
+        return { ...station, x: pt.x, y: pt.y };
+      });
+    };
+
+    let doneEffort = 0;
+    const doneRawTs = doneOrdered.map(station => {
+      doneEffort += Math.max(0, station.effort || 0);
+      if (totalRouteEffort > 0) return progressToRouteT(doneEffort / totalRouteEffort);
+      const milestoneDate = station.milestoneDate || station.endDate;
+      if (span > 0 && Number.isFinite(+milestoneDate)) {
+        return ROUTE_T_LO + ((+milestoneDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      }
+      return NaN;
+    });
+    let activeEffort = doneEffort;
+    const activeRawTs = activeOrdered.map(station => {
+      activeEffort += Math.max(0, station.effort || 0);
+      if (totalRouteEffort > 0) return progressToRouteT(activeEffort / totalRouteEffort);
+      const milestoneDate = station.milestoneDate || station.endDate;
+      if (span > 0 && Number.isFinite(+milestoneDate)) {
+        return ROUTE_T_LO + ((+milestoneDate - firstD) / span) * (ROUTE_T_HI - ROUTE_T_LO);
+      }
+      return NaN;
+    });
+
+    const trainT = clamp(effortTrainT, ROUTE_T_LO, ROUTE_T_HI);
+    const activeStartT = Math.min(ROUTE_T_HI, trainT + (activeOrdered.length ? 0.018 : 0));
+    // On a finished line the train stands at the terminus and the last station
+    // is anchored to the same point, so the car covered the stop it had just
+    // reached. The done band stops short of the train by the width of one, so
+    // the two sit side by side.
+    const arrivedHere = (line.progress || 0) >= 1 && !activeOrdered.length;
+    const doneBandHi = arrivedHere ? Math.max(ROUTE_T_LO, trainT - 0.035) : trainT;
+    const positioned = [
+      ...positionBand(doneOrdered, doneRawTs, ROUTE_T_LO, doneBandHi, true),
+      ...positionBand(activeOrdered, activeRawTs, activeStartT, ROUTE_T_HI, false),
+    ].sort((a, b) => a.t - b.t || byEnd(a, b));
+
+    const majors = positioned.filter(s => s.kind === 'major');
+    const minors = positioned.filter(s => s.kind === 'minor');
+
+    // Current station: first not-done station (the one being approached).
+    // The train may advance between the last done station and this station
+    // according to the station's own partial progress, but it must never pass
+    // the station until every clustered item is actually done.
+    const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
+      || positioned.find(s => !s.allDone);
+    const currentId = currentStation?.id || null;
+
+    // Train rides between ROUTE_T_LO and ROUTE_T_HI (0.04..0.96) so badges
+    // at the route endpoints stay visually clear. When a line is 100% done
+    // there is no train glyph to clear, and the user expects the colored
+    // route to reach the very end badge — not stop at the last station's
+    // route-T (0.96). Extend reachedT to 1.0 in that case so the traveled
+    // path covers the route from badge to badge.
+    const reachedT = line.progress >= 1 ? 1 : trainT;
+    const trainPt = pointAtFraction(route, trainT);
+    const ghostPt = pointAtFraction(route, ghostT);
+
+    return {
+      ...line,
+      majorStations: majors,
+      minorStations: minors,
+      currentId,
+      reachedT,
+      trainT,
+      trainPt,
+      ghostT,
+      ghostPt,
+    };
+  });
+
+  // ── Cross-line station separation ────────────────────────────────────────
+  // The parallel-rail pass above keeps whole ROUTES apart, but routes still
+  // cross — and where they cross, a station of one line can land on top of a
+  // station of another. Two unrelated milestones sharing one dot is the least
+  // intuitive thing this map can do.
+  //
+  // A station cannot simply be moved in 2D: it has to stay on its own line. So
+  // nudge it ALONG its route instead, by shifting its `t`. Two constraints
+  // make that safe:
+  //   * a station stays between its neighbours on the same line, so the
+  //     chronological order along a line never changes,
+  //   * a station stays on its own side of the train — done stations behind
+  //     it, unfinished ones ahead — because that is what the map means.
+  // Anything that cannot move far enough keeps its position; a slightly close
+  // pair is much better than a reordered line.
+  separateStationsAcrossLines(positionedLines);
+
+  return {
+    lines: positionedLines,
+    nodeMap,
+    _assignment: assignmentOut,
+  };
+}
+
+const STATION_MIN_GAP = 21;   // px — two dots closer than this read as one
+const STATION_T_EPS = 0.004;  // keep a hair of daylight between same-line stops
+
+function separateStationsAcrossLines(lines) {
+  if (!lines || lines.length < 2) return;
+
+  // Flat view of every station, with the bounds it may move within.
+  const entries = [];
+  lines.forEach((line, lineIdx) => {
+    const ordered = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
+    const routeLen = Math.max(1, routeLength(line.route));
+    ordered.forEach((station, idx) => {
+      const prev = ordered[idx - 1];
+      const next = ordered[idx + 1];
+      // Own side of the train: a done station must not slide past it, and an
+      // unfinished one must not slide behind it.
+      const bandLo = station.allDone ? ROUTE_T_LO : Math.max(ROUTE_T_LO, line.trainT);
+      const bandHi = station.allDone ? Math.min(ROUTE_T_HI, line.trainT) : ROUTE_T_HI;
+      entries.push({
+        station,
+        lineIdx,
+        route: line.route,
+        routeLen,
+        lo: Math.max(bandLo, prev ? prev.t + STATION_T_EPS : bandLo),
+        hi: Math.min(bandHi, next ? next.t - STATION_T_EPS : bandHi),
+      });
+    });
+  });
+  if (entries.length < 2) return;
+
+  const tangentAt = (route, t) => {
+    const h = 0.004;
+    const a = pointAtFraction(route, clamp(t - h, 0, 1));
+    const b = pointAtFraction(route, clamp(t + h, 0, 1));
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { tx: (b.x - a.x) / len, ty: (b.y - a.y) / len };
+  };
+
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = 0;
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const a = entries[i];
+        const b = entries[j];
+        if (a.lineIdx === b.lineIdx) continue;
+        const dx = b.station.x - a.station.x;
+        const dy = b.station.y - a.station.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= STATION_MIN_GAP) continue;
+
+        // Split the deficit between the two, each along its own route.
+        const need = (STATION_MIN_GAP - dist) / 2 + 0.5;
+        const ux = dist > 0.001 ? dx / dist : 1;
+        const uy = dist > 0.001 ? dy / dist : 0;
+        [[a, -1], [b, 1]].forEach(([entry, sign]) => {
+          const { tx, ty } = tangentAt(entry.route, entry.station.t);
+          // How much of the push direction actually runs along this route?
+          const along = sign * (ux * tx + uy * ty);
+          if (Math.abs(along) < 0.15) return;   // route runs across the push — cannot help
+          const deltaT = (need * Math.sign(along)) / entry.routeLen;
+          const nextT = clamp(entry.station.t + deltaT, entry.lo, entry.hi);
+          if (Math.abs(nextT - entry.station.t) < 1e-6) return;
+          entry.station.t = nextT;
+          const pt = pointAtFraction(entry.route, nextT);
+          entry.station.x = pt.x;
+          entry.station.y = pt.y;
+          moved++;
+        });
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+// ─── Station label placement ──────────────────────────────────────────────
+// Every station used to print its abbreviation at a fixed (+8, -8) offset.
+// With 60+ stations on one canvas that guarantees collisions: two labels of
+// different lines print over each other ("PRI2PRI1UPP"), or a label lands on
+// another line's dot. The label is the only thing on the map that names a
+// station without hovering, so an unreadable one is worse than none.
+//
+// So place them globally instead: try a handful of offsets per station, take
+// the first that hits neither another label nor any station dot, and drop the
+// label entirely if none fits — the tooltip still carries the full name.
+// Important stations are placed first so they get the prime slot.
+const LABEL_CH_W = 6.4;   // px per character at 10.5px JetBrains Mono
+const LABEL_H = 12;
+const DOT_KEEPOUT = 9;    // px — biggest station glyph plus a little air
+const LABEL_SLOTS = [
+  { dx: 8, dy: -8, anchor: 'start' },
+  { dx: -8, dy: -8, anchor: 'end' },
+  { dx: 8, dy: 15, anchor: 'start' },
+  { dx: -8, dy: 15, anchor: 'end' },
+  { dx: 0, dy: -19, anchor: 'middle' },
+  { dx: 0, dy: 24, anchor: 'middle' },
+];
+
+const boxesOverlap = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+function labelBox(x, y, width, anchor) {
+  const x0 = anchor === 'start' ? x : anchor === 'end' ? x - width : x - width / 2;
+  return { x0: x0 - 2, x1: x0 + width + 2, y0: y - LABEL_H + 2, y1: y + 3 };
+}
+
+export function placeStationLabels(lines, isVisible = () => true) {
+  const placement = new Map();
+  const occupied = [];
+  const candidates = [];
+  // How far down labels may be placed. Follows the lanes actually in use —
+  // a fixed board height would have silently dropped every label on the
+  // lanes a plan with more than eight projects grew.
+  const allYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
+  const labelFloor = Math.max(SVG_H, allYs.length ? Math.max(...allYs) + 60 : 0);
+
+  lines.forEach((line, lineIdx) => {
+    // The project's name, drawn above the start of its own line, is an
+    // obstacle like any dot. It was not, so a station near the start of a
+    // line had its abbreviation placed straight through the name — reported
+    // on the real plan, where nearly every line has an early stop.
+    // Measured the way labelBox does it: ~8px per character at 16px, plus the
+    // line's own height above the route.
+    const nameW = Math.min(String(line.root?.name || '').length, 42) * 8.2;
+    const nameX = (line.route?.[0]?.x ?? 0) - 30;
+    const nameY = (line.route?.[0]?.y ?? 0) - 15;
+    if (nameW > 0) {
+      occupied.push({
+        owner: `__name_${line.root?.id ?? lineIdx}`,
+        x0: nameX - 4, x1: nameX + nameW + 4,
+        y0: nameY - 16, y1: nameY + 5,
+      });
+    }
+
+    [...line.majorStations, ...line.minorStations].forEach(station => {
+      // Dots are obstacles whether or not they carry a label — except for the
+      // station's OWN dot. A label always sits next to its dot, so counting
+      // that as a collision would push every label into the same far slot and
+      // break the association it exists to make.
+      occupied.push({
+        owner: station.id,
+        x0: station.x - DOT_KEEPOUT, x1: station.x + DOT_KEEPOUT,
+        y0: station.y - DOT_KEEPOUT, y1: station.y + DOT_KEEPOUT,
+      });
+      if (!isVisible(line, station)) return;
+      const isCurrent = station.id === line.currentId && !station.allDone;
+      candidates.push({
+        station, lineIdx,
+        // 0 = the station the train is approaching, 1 = a real milestone,
+        // 2 = a minor stop. Ties break by position for stable output.
+        priority: isCurrent ? 0 : station.kind === 'major' ? 1 : 2,
+      });
+    });
+  });
+
+  candidates.sort((a, b) => a.priority - b.priority || a.lineIdx - b.lineIdx || a.station.t - b.station.t);
+
+  candidates.forEach(({ station }) => {
+    const width = String(station.abbrev || '').length * LABEL_CH_W + 4;
+    const slot = LABEL_SLOTS
+      .map(({ dx, dy, anchor }) => ({ x: station.x + dx, y: station.y + dy, anchor }))
+      .filter(pos => pos.x > 6 && pos.x < SVG_W - 6 && pos.y > 12 && pos.y < labelFloor - 6)
+      .find(pos => {
+        const box = labelBox(pos.x, pos.y, width, pos.anchor);
+        return !occupied.some(other => other.owner !== station.id && boxesOverlap(box, other));
+      });
+    if (!slot) return;   // no room — the tooltip is the fallback
+    occupied.push({ owner: station.id, ...labelBox(slot.x, slot.y, width, slot.anchor) });
+    placement.set(station.id, slot);
+  });
+
+  return placement;
+}
+
+/**
+ * Split `renderRoadmapSvg`'s output into the drawing and the legend.
+ *
+ * The renderer returns two documents in one string: an `<svg>` map, and then
+ * an HTML legend as its sibling. Anything that hands the whole string to an
+ * SVG parser gets a map-shaped nothing — XML accepts one root element and
+ * reads the rest as extra content at the end of the document.
+ *
+ * Not the first `</svg>`: the legend embeds status icons that are SVGs of
+ * their own, so the tag that ends the drawing is the one that brings the
+ * nesting back to zero.
+ */
+export function splitSvgMarkup(markup) {
+  const text = String(markup || '');
+  const tag = /<svg\b|<\/svg\s*>/g;
+  let depth = 0;
+  let match;
+  while ((match = tag.exec(text))) {
+    depth += match[0][1] === '/' ? -1 : 1;
+    if (depth === 0) return [text.slice(0, tag.lastIndex), text.slice(tag.lastIndex)];
+  }
+  return [text, ''];
+}
+
+// ─── renderRoadmapSvg ─────────────────────────────────────────────────────────
+
+// A tooltip payload, for the `data-tip` attribute. JSON rather than HTML: the
+// hover layer parses it and renders components, so no string is ever handed to
+// innerHTML — see components/shared/Roadmap.jsx and utils/tipText.js.
+function tipData(payload) {
+  return JSON.stringify(payload);
+}
+
+export function renderRoadmapSvg(args) {
+  const model = computeRoadmapModel(args);
+  const labels = args.labels || {};
+  if (!model?.lines.length) return '';
+
+  const { lines, nodeMap } = model;
+  // Optional diff overlay. Fields:
+  //   pastProgressByRootId — past line progress per root id (0..1)
+  //   newRootIds           — roots whose subtree had no leaf at the cutoff
+  //   doneInWindowIds      — leaves that transitioned to done (badge "✓ +N")
+  //   changedInWindowIds   — leaves with ANY movement (done OR progress-only),
+  //                          drives the legend/station "moved in window" mark
+  const diff = args.diff || null;
+  const diffMode = !!diff;
+  // Ids of tasks a scenario moves (a Set, or a Map keyed by id).
+  const scenarioIds = args.scenarioIds && typeof args.scenarioIds.has === 'function' && args.scenarioIds.size ? args.scenarioIds : null;
+  const pastProgress = diff?.pastProgressByRootId || {};
+  const newSet = new Set(diff?.newRootIds || []);
+  const doneInWindow = new Set(diff?.doneInWindowIds || []);
+  const changedInWindow = new Set(diff?.changedInWindowIds || doneInWindow);
+  // Planning-horizon overlay. When `horizonIds` is set, items/stations whose
+  // ids aren't in the set get a muted treatment so the map still tells the
+  // full story but the eye locks onto what's planned in the window.
+  const horizonIdSet = args.horizonIds instanceof Set ? args.horizonIds
+    : Array.isArray(args.horizonIds) ? new Set(args.horizonIds) : null;
+  const horizonOn = !!horizonIdSet;
+  // Forward-looking projection per root: where would the train sit at the
+  // horizon end? Drawn as a blue segment + ghost-train AHEAD of the live one
+  // so the map tells the Diff/Ist/Plan story in one glance.
+  const futureProgress = args.futureProgressByRootId || {};
+  const hasFuture = Object.keys(futureProgress).length > 0;
+  const expandedLegendIds = args.expandedLegendIds instanceof Set ? args.expandedLegendIds
+    : Array.isArray(args.expandedLegendIds) ? new Set(args.expandedLegendIds) : new Set();
+  // Mirrors the per-station label conditions in the render loops below, so the
+  // placement pass reserves space for exactly the labels that get drawn.
+  const stationLabelPlacement = placeStationLabels(lines, (line, station) => {
+    const isDone = station.allDone;
+    const isCurrent = station.id === line.currentId && !isDone;
+    if (station.kind !== 'major') return isCurrent;
+    const reachedInWindow = changedInWindow.size > 0
+      && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+    return !diffMode || isDone || isCurrent || reachedInWindow;
+  });
+  const out = [];
+
+  const renderLaneDeltaLabel = (route, fromT, toT, label, fill) => {
+    if (!label || label === '0%' || !Number.isFinite(fromT) || !Number.isFinite(toT)) return;
+    const midT = clamp((fromT + toT) / 2, ROUTE_T_LO, ROUTE_T_HI);
+    const pt = pointAtFraction(route, midT);
+    const w = Math.max(34, 14 + label.length * 7);
+    const x = clamp(pt.x - w / 2, 4, SVG_W - w - 4);
+    const yRaw = pt.y - 24;
+    const y = yRaw < 4 ? pt.y + 12 : yRaw;
+    out.push(`<g class="rm-diff-label" pointer-events="none">`);
+    out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w}" height="16" rx="8" fill="${fill}" opacity="0.96" stroke="rgba(17,19,24,.65)" stroke-width="1"/>`);
+    out.push(`<text x="${(x + w / 2).toFixed(1)}" y="${(y + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${contrastText(fill)}" font-size="10" font-weight="800">${esc(label)}</text>`);
+    out.push(`</g>`);
+  };
+
+  // Crop the canvas to the routes actually in use. The network is fixed
+  // geometry on a 1400x800 board, so a plan with four projects left roughly a
+  // quarter of the map as empty margin — measured on a 676px-wide pane: 65
+  // units of nothing above the first line and 120 below the last, about 90px
+  // of dead height directly under a headline that is competing for the same
+  // space. The padding covers what is drawn AROUND a route: station labels
+  // above, the line badge and the end marker below.
+  const ROUTE_PAD_TOP = 58;
+  const ROUTE_PAD_BOTTOM = 46;
+  const usedYs = lines.flatMap(line => (line.route || []).map(pt => pt.y)).filter(Number.isFinite);
+  // The board is as tall as the lanes in use, which is more than the eight
+  // lanes' worth once a plan has more projects than that. Clamping to a fixed
+  // 800 here would have cropped the very lines the board grew for.
+  const boardH = Math.max(SVG_H, usedYs.length ? Math.max(...usedYs) + ROUTE_PAD_BOTTOM : 0);
+  const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, boardH) : 0;
+  const viewH = usedYs.length
+    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, boardH - viewY)
+    : boardH;
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+
+  // ── Styles ──────────────────────────────────────────────────────────────────
+  // Construction-tape pattern for the diff trails — base colour stays amber
+  // (past) / blue (future) so the semantic colour story is intact, but the
+  // diagonal dark stripes make the trail readable on top of any line colour
+  // the project palette might happen to use.
+  // `paint-order: stroke fill` on the station abbrev so the text gets a dark
+  // outline that survives whichever route colour sits underneath it.
+  // Construction-tape stripes — simple alternating bands at 22° so they are
+  // never parallel to any common route segment (0°, 45°, 90°, 135°). Single
+  // direction, no cross-hatch giraffe, but always crosses the line.
+  out.push(`<defs>
+    <pattern id="rm-past-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
+      <rect width="12" height="12" fill="#f59e0b"/>
+      <rect x="6" width="6" height="12" fill="#fde68a"/>
+    </pattern>
+    <pattern id="rm-plan-stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(22)">
+      <rect width="12" height="12" fill="#3b82f6"/>
+      <rect x="6" width="6" height="12" fill="#bfdbfe"/>
+    </pattern>
+  </defs>`);
+  out.push(`<style>
+    .rm-badge{font:800 13px/1 'JetBrains Mono',monospace;fill:#fff;letter-spacing:.04em}
+    .rm-line-name{font:600 16px/1 var(--font);letter-spacing:.005em}
+    .rm-line-retired{opacity:.4}
+    .rm-line-retired .rm-line-name{font-weight:500}
+    .rm-abbrev{font:600 12px/1 var(--mono);fill:var(--tx2);paint-order:stroke fill;stroke:var(--bg2);stroke-width:3.6;stroke-linejoin:round}
+    /* No fill override for active / done — the inline fill attribute
+       (project colour) drives readability. The previous .rm-abbrev-active
+       white-fill rule cascaded over the inline colour and made the label
+       white-on-white over the bg-coloured halo. */
+    .rm-abbrev-done{opacity:.65}
+    .rm-risk-tri{fill:var(--st-risk,#e08276)}
+    g[style*=cursor]{pointer-events:all}
+  </style>`);
+
+  // ── Route lines ─────────────────────────────────────────────────────────────
+  lines.forEach((line, lineIdx) => {
+    const { route, color, reachedT } = line;
+    const pathD = waypointsToPath(route);
+    const progressD = reachedT > 0 ? partialPath(route, reachedT) : null;
+    const gId = `rm-line-${lineIdx}`;
+
+    // A finished or dropped project stays on the map — a finished one is part
+    // of the picture, a dropped one has to stay visible so the decision can be
+    // seen and taken back — but it stops competing with live work for
+    // attention. One group-level opacity, so every part of the line dims
+    // together and nothing has to know about it individually.
+    const retiredG = line.retired ? ' class="rm-line-retired"' : '';
+
+    out.push(`<g id="${gId}"${retiredG}>`);
+
+    // Build the line-level tooltip so hovering anywhere on the route reveals
+    // project id + name + progress, not just when the user finds the train.
+    const lTrainHover = labels.train || 'Train';
+    const linePct = formatPercentNumber(line.progress);
+    const lineCurrentPos = (labels.currentPos || 'Effort-weighted progress: {0}%').replace('{0}', linePct);
+    // The tooltip travels as data, not as markup: Roadmap.jsx renders it with
+    // the same components as the rest of the app, and nothing hands an HTML
+    // string to a live node. See components/shared/Roadmap.jsx.
+    const lineTooltip = tipData({
+      kind: 'line', id: line.root.id, name: line.root.name, color,
+      badge: lTrainHover, note: lineCurrentPos, atRisk: line.atRisk ? (labels.atRisk || 'AT RISK') : null,
+    });
+
+    // Invisible fat hit area so hovering anywhere along the route surfaces
+    // the line tooltip — not only when the cursor lands on the train glyph.
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-tip="${esc(lineTooltip)}" data-item-id="${esc(line.root.id)}" style="cursor:pointer"/>`);
+
+    // Full route (faded) — drawn first so progress overlays it
+    // The route not yet travelled. It sat at 0.22, which made a project that
+    // has barely started almost invisible — the map showed loudest what is
+    // already done and whispered what is still ahead, which is the wrong way
+    // round for a portfolio review. The track is now legible on its own, and
+    // the travelled part is what stands out (full weight, on top of it) plus
+    // the train marker. 0.42 is where the pale track still reads as a line
+    // on the card surface without competing with the travelled portion.
+    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.42" pointer-events="none"/>`);
+
+    // Traveled portion (full color)
+    if (progressD) {
+      out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`);
+    }
+
+    // Diff / Plan overlays moved out of this per-line loop — they're drawn
+    // in a dedicated pass after all routes + stations so subsequent lines
+    // can't paint over them. `isNewLine` still needed below for the
+    // start-badge "⊕ NEU" sub-tag.
+    const isNewLine = newSet.has(line.root.id);
+
+    // ── Line badges at start and end ─────────────────────────────────────────
+    const startPt = route[0];
+    const endPt = route[route.length - 1];
+    const badgeLabel = esc(line.root.id);
+    const badgeRx = 5;
+    const badgeH = 20;
+    // Measure label width approximately (13px mono ≈ 8.5px per char)
+    const labelLen = String(line.root.id).length;
+    const badgeW = Math.max(28, labelLen * 9 + 12);
+
+    // The project's NAME, above its own line. It used to live only in the
+    // legend below the map as a two-letter badge you had to look up — so
+    // reading the map meant looking down, matching a code, and looking back.
+    // A metro map names its lines on the map.
+    out.push(`<text x="${startPt.x - 30}" y="${startPt.y - 15}" class="rm-line-name" fill="var(--tx)">${esc(truncate(line.root.name, 42))}</text>`);
+
+    // Start badge (left-anchored from the start point)
+    const sbx = startPt.x - badgeW - 8;
+    const sby = startPt.y - badgeH / 2;
+    out.push(`<rect x="${sbx}" y="${sby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
+    out.push(`<text x="${sbx + badgeW / 2}" y="${sby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+    // "NEU" sub-badge for lines that didn't exist at the cutoff
+    if (isNewLine) {
+      const nby = sby + badgeH + 2;
+      out.push(`<rect x="${sbx}" y="${nby}" width="${badgeW}" height="14" rx="3" fill="#f59e0b"/>`);
+      out.push(`<text x="${sbx + badgeW / 2}" y="${nby + 10.5}" text-anchor="middle" font="700 9px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="9" font-weight="700">⊕ NEU</text>`);
+    }
+
+    // End badge (right of end point, unless near edge — then left)
+    const ebx = endPt.x + 10;
+    const eby = endPt.y - badgeH / 2;
+    // The at-risk marker sits beside the badge, so the pair is clamped
+    // together. It used to be clamped alone and the marker drawn at a fixed
+    // offset past it, which put the triangle's left corner three pixels ON
+    // the badge — over the line's own name.
+    const riskW = line.atRisk ? badgeH + 8 : 0;
+    const ebxClamped = Math.min(ebx, SVG_W - badgeW - riskW - 4);
+    out.push(`<rect x="${ebxClamped}" y="${eby}" width="${badgeW}" height="${badgeH}" rx="${badgeRx}" fill="${color}"/>`);
+    out.push(`<text x="${ebxClamped + badgeW / 2}" y="${eby + 14}" text-anchor="middle" class="rm-badge">${badgeLabel}</text>`);
+    // A finished line says so at its terminus, in the same mark its reached
+    // stations and its parked train wear. Dimming the whole line was the only
+    // signal before, and dim reads as "inactive" rather than "done" — a
+    // dropped project is dim too.
+    if (line.allDoneUnderRoot) {
+      const cx = ebxClamped + badgeW + 12;
+      const cy = endPt.y;
+      out.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/>`);
+      out.push(`<path d="M${(cx - 3.6).toFixed(1)} ${(cy + 0.2).toFixed(1)} l 2.6 2.7 l 4.6 -5.2" fill="none" stroke="${contrastText(color)}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+
+    // ── AT RISK marker at the end ──────────────────────────────────────────
+    // A rounded square the same height and radius as the ID badge it follows,
+    // so the two read as one pair rather than a badge with a sticker on it.
+    // It was a bare polygon with a 6px "!" typed into it, sized and positioned
+    // by itself — which is what made it look stuck on.
+    if (line.atRisk) {
+      const rx0 = ebxClamped + badgeW + 8;
+      const ry0 = endPt.y - badgeH / 2;
+      const rcx = rx0 + badgeH / 2;
+      out.push(`<rect x="${rx0.toFixed(1)}" y="${ry0.toFixed(1)}" width="${badgeH}" height="${badgeH}" rx="${badgeRx}" class="rm-risk-tri"/>`);
+      // A drawn warning mark: a stem and a dot, at the weight of the badge
+      // letters next to it.
+      out.push(`<path d="M${rcx.toFixed(1)} ${(endPt.y - 5.5).toFixed(1)} v 6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>`);
+      out.push(`<circle cx="${rcx.toFixed(1)}" cy="${(endPt.y + 4.6).toFixed(1)}" r="1.3" fill="#fff"/>`);
+    }
+
+    out.push(`</g>`);
+  });
+
+  // ── Stations ── drawn after all routes so dots sit on top ─────────────────
+  lines.forEach((line, lineIdx) => {
+    const { color, majorStations, currentId } = line;
+
+    out.push(`<g id="rm-stations-${lineIdx}">`);
+
+    // Major stations (r=6 white circle with colored border)
+    majorStations.forEach(station => {
+      const isDone = station.allDone;
+      const isCurrent = station.id === currentId && !isDone;
+      const stProg = Math.max(0, Math.min(1, station.prog || 0));
+      const stStatus = isDone ? 'done' : stProg > 0 ? 'wip' : 'open';
+      const tooltip = tipData({
+        kind: 'station', color,
+        abbrev: station.abbrev, name: station.name,
+        status: stStatus, prog: stProg,
+        count: isDone ? '✓' : stProg > 0 ? `${Math.round(stProg * 100)}%` : `${station.done}/${station.total}`,
+        items: (station.clusterItems || []).map(c => {
+          const node = nodeMap[c.id];
+          return {
+            name: c.name || c.id,
+            status: node?.status === 'done' ? 'done' : node?.status === 'wip' ? 'wip' : 'open',
+            prog: leafProgress(node || c) / 100,
+          };
+        }),
+      });
+      const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
+
+      // Did this station gain any movement in the diff window — either a
+      // completion or a progress jump on a still-open task?
+      const reachedInWindow = changedInWindow.size > 0
+        && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+      // Horizon mute: station has no items inside the planning window. Lets
+      // forward-looking presentations point at what's "in the next N months".
+      const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
+      // `data-item-id` is what makes the pointer cursor honest: the click
+      // handler in Roadmap.jsx looks for it, the legend rows underneath
+      // carried it and the stations did not, so a station said it was
+      // clickable and then swallowed the click. For a cluster this is the
+      // station's own item — the same one its legend row opens.
+      // `data-cluster-size` is the difference between "this is a task" and
+      // "this is five tasks that finish in the same fortnight", which decides
+      // which tooltip can honestly answer what is under the cursor.
+      out.push(`<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-item-id="${esc(station.id)}" data-cluster-size="${(station.clusterItems || []).length || 1}" data-tip="${esc(tooltip)}">`);
+      // Invisible larger hit area for tooltip
+      out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
+      // Amber halo for stations reached in the diff window. Drawn before the
+      // station glyph so it sits behind it.
+      if (reachedInWindow) {
+        out.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="#f59e0b" stroke-width="1.8" opacity="0.78"/>`);
+      }
+      // A scenario is on screen and it moves work at this station: the same
+      // halo in the scenario's colour. A CSS variable on purpose — this mark
+      // exists on screen only (the PDF path never passes `scenarioIds`), and
+      // it has to follow the theme like the bar and the frame do.
+      if (scenarioIds && (station.clusterItems || []).some(c => scenarioIds.has(c.id))) {
+        out.push(`<circle class="rm-scenario-halo" cx="${cx}" cy="${cy}" r="10" fill="none" stroke="var(--sc)" stroke-width="2" stroke-dasharray="3 2"/>`);
+      }
+      out.push(stationGlyph(cx, cy, color, { done: isDone, current: isCurrent }));
+      out.push(`</g>`);
+
+      // Abbreviation label
+      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
+      const showLabel = !diffMode || isDone || isCurrent || reachedInWindow;
+      const place = stationLabelPlacement.get(station.id);
+      if (showLabel && place) {
+        out.push(`<text x="${place.x.toFixed(1)}" y="${place.y.toFixed(1)}" text-anchor="${place.anchor}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+      }
+    });
+
+    // There is no second kind of station any more. Stops became work packages
+    // (see "What a stop IS" above) and `minorStations` has been empty ever
+    // since; the branch that drew them at r=6.5/7 was the other half of the
+    // two-sizes problem and is gone with it. The field stays as an empty
+    // array because the label placer and the collision pass both take the two
+    // lists together.
+
+    out.push(`</g>`);
+  });
+
+  // ── Progress overlays — drawn AFTER every base route + station so they
+  // can never be covered by a later route's faded backbone. Striped past
+  // trail, striped plan trail, animated dots — all on top.
+  lines.forEach((line) => {
+    const { route, trainT } = line;
+    const isNewLine = newSet.has(line.root.id);
+    if (isNewLine) {
+      const trailD = trainT > ROUTE_T_LO ? partialPath(route, trainT) : null;
+      if (trailD) {
+        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        if (diffMode && (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
+          renderLaneDeltaLabel(route, ROUTE_T_LO, trainT, formatProgressDelta(line.progress || 0), '#f59e0b');
+        }
+      }
+      return;
+    }
+    let pastT = null;
+    let deltaProgressForTrail = 0;
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id)) {
+      const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
+      deltaProgressForTrail = Math.max(0, (line.progress || 0) - pastPct);
+      pastT = Math.min(progressToRouteT(pastPct), line.trainT);
+    }
+    if (pastT != null) {
+      let trailStartT = pastT;
+      // If the train is station-gated and the raw progress still moved, the
+      // true old/new train positions can collapse to the same pixel. Keep a
+      // small striped segment immediately behind the train so the diff is not
+      // reduced to a floating number with no visible rail movement.
+      if (line.trainT - trailStartT <= MIN_VISIBLE_PROGRESS_DELTA && deltaProgressForTrail > 0.005) {
+        const minVisualTrail = Math.min(0.05, Math.max(0.018, deltaProgressForTrail * (ROUTE_T_HI - ROUTE_T_LO)));
+        trailStartT = Math.max(ROUTE_T_LO, line.trainT - minVisualTrail);
+      }
+      const trailD = line.trainT - trailStartT > MIN_VISIBLE_PROGRESS_DELTA
+        ? partialPath(route, trainT, trailStartT)
+        : null;
+      if (trailD) {
+        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
+        out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
+        out.push(`</circle>`);
+        if (diffMode && deltaProgressForTrail > MIN_VISIBLE_PROGRESS_DELTA) {
+          renderLaneDeltaLabel(route, trailStartT, trainT, formatProgressDelta(deltaProgressForTrail), '#f59e0b');
+        }
+      }
+    }
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
+      const fT = progressToRouteT(futurePct);
+      if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
+        const planD = partialPath(route, fT, trainT);
+        if (planD) {
+          out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
+          out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
+          out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
+          out.push(`</circle>`);
+          renderLaneDeltaLabel(route, trainT, fT, formatProgressDelta(futurePct - (line.progress || 0)), '#3b82f6');
+        }
+      }
+    }
+  });
+
+  // ── Trains ── drawn last so they appear on top of everything ───────────────
+  lines.forEach((line, lineIdx) => {
+    const { color, trainT, trainPt, progress } = line;
+    // A finished line used to lose its train, which is the one thing that made
+    // finished hard to see: an empty line reads the same whether the work is
+    // all done or has not started, and the only difference left was a slightly
+    // dimmer colour. The train stays and stands at the terminus — which is
+    // what "arrived" looks like on a map with trains on it. It does stop
+    // pulsing: a project that is finished is not asking for attention.
+    const arrived = progress >= 1;
+    if (trainT <= 0 && !arrived) return;
+
+    const pct = formatPercentNumber(progress);
+    const lTrain = labels.train || 'Train';
+    const lCurrentPos = (labels.currentPos || 'Current position: {0}% of route').replace('{0}', pct);
+    const lArrived = labels.arrived || 'Arrived — every work package done';
+    const lAtRisk = labels.atRisk || 'AT RISK';
+    const trainTip = tipData({
+      kind: 'line', id: line.root.id, name: line.root.name, color, glyph: '🚆',
+      badge: lTrain, note: arrived ? lArrived : lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
+    });
+    const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
+    const halfW = TRAIN_W / 2, halfH = TRAIN_H / 2;
+    // The train stands for the project's position, so clicking it opens the
+    // project — same reason as the stations above: it offers a pointer.
+    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-item-id="${esc(line.root.id)}" data-tip="${esc(trainTip)}">`);
+    if (!arrived) {
+      // Halo / pulse glow
+      out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
+      out.push(`<animate attributeName="r" values="13;18;13" dur="2.4s" repeatCount="indefinite"/>`);
+      out.push(`<animate attributeName="opacity" values="0.22;0.06;0.22" dur="2.4s" repeatCount="indefinite"/>`);
+      out.push(`</circle>`);
+    }
+    // A rounded rectangle rather than a circle, so the train is never mistaken
+    // for a station — and bigger than one, because it is the thing you look
+    // for first on a line.
+    out.push(`<rect x="${(+tx - halfW).toFixed(1)}" y="${(+ty - halfH).toFixed(1)}" width="${TRAIN_W}" height="${TRAIN_H}" rx="4.5" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`);
+    // Window slits — two small rectangles like train windows. An arrived train
+    // keeps them: replacing them with a tick made the car unrecognisable as a
+    // train, which is the one thing it has to stay. The tick is a badge ON it
+    // instead, the way a station wears one.
+    out.push(`<rect x="${(+tx - 8).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
+    out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
+    if (arrived) {
+      const bx = +tx + halfW - 2, by = +ty - halfH + 1;
+      out.push(`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="6.4" fill="var(--st-done,#6fbf8a)" stroke="var(--bg,#111318)" stroke-width="1.6"/>`);
+      out.push(`<path d="M${(bx - 2.9).toFixed(1)} ${(by + 0.1).toFixed(1)} l 2 2.1 l 3.7 -4.2" fill="none" stroke="var(--bg,#111318)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+    out.push(`</g>`);
+    // Ghost train marker at the past position — only when there's a real gap
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
+      const pastPct = Math.max(0, Math.min(pastProgress[line.root.id] || 0, line.progress || 0));
+      const pastT = Math.min(progressToRouteT(pastPct), line.trainT);
+      if (line.trainT - pastT > MIN_VISIBLE_PROGRESS_DELTA) {
+        const gp = pointAtFraction(line.route, pastT);
+        const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
+        out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
+        out.push(`<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`);
+        out.push(`</g>`);
+      }
+    }
+    // Planned ghost-train ahead of the live train. Blue colour
+    // intentionally mirrors the ▶ Plan filter chip so the Diff/Ist/Plan
+    // story reads as a coherent palette.
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const futurePct = Math.max(0, Math.min(0.99, futureProgress[line.root.id] || 0));
+      const fT = progressToRouteT(futurePct);
+      if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
+        const fp = pointAtFraction(line.route, fT);
+        const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
+        out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
+        out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
+        out.push(`</g>`);
+      }
+    }
+  });
+
+  out.push(`</svg>`);
+
+  // ── Legend (HTML below SVG) ────────────────────────────────────────────────
+  // Custom bin-packing instead of CSS multi-column: we know each block's
+  // approximate height up-front, so we run First-Fit-Decreasing across a
+  // fixed column count. Yields a tightly packed layout where short blocks
+  // slot into the leftover vertical space of every column, not just the
+  // last one. Falls back to a single column on narrow screens via media
+  // wrapping at the flex layer.
+  const ROW_H = 22, EXTRA_H = 14, HEADER_H = 28, BLOCK_MARGIN = 14;
+  const estimateBlockHeight = (line) => {
+    const stations = [...line.majorStations, ...line.minorStations];
+    let h = HEADER_H;
+    for (const st of stations) {
+      h += ROW_H;
+      if (st.clusterSize > 1) {
+        const extras = (st.clusterItems || []).filter(c => c.id !== st.id);
+        h += extras.length * EXTRA_H;
+      }
+    }
+    return h + BLOCK_MARGIN;
+  };
+
+  // Render each line's HTML once, paired with its estimated height + a
+  // stable sort key (line index in `lines`) so column order within a bin
+  // matches the natural project order.
+  const blockHtmlByIdx = new Map();
+  const blockHeights = new Map();
+  const linesForLegend = lines
+    .map((line, idx) => ({ line, idx }))
+    .filter(({ line }) => (line.majorStations.length + line.minorStations.length) > 0);
+  linesForLegend.forEach(({ line, idx }) => {
+    blockHeights.set(idx, estimateBlockHeight(line));
+  });
+
+  // FFD bin-pack: tallest block goes into the currently-shortest column.
+  // Target 3 columns on wide screens — fits SVG_W of 1200 with ~200–300px
+  // per legend column. Bins are returned as ordered arrays of line indices.
+  const COLS = 3;
+  const bins = Array.from({ length: COLS }, () => ({ items: [], h: 0 }));
+  const packOrder = [...linesForLegend].sort((a, b) => blockHeights.get(b.idx) - blockHeights.get(a.idx));
+  for (const { idx } of packOrder) {
+    let best = bins[0];
+    for (let i = 1; i < bins.length; i++) if (bins[i].h < best.h) best = bins[i];
+    best.items.push(idx);
+    best.h += blockHeights.get(idx);
+  }
+  // Inside each bin: re-sort by natural line index so projects appear in
+  // their original creation order top-to-bottom.
+  bins.forEach(b => b.items.sort((a, b2) => a - b2));
+
+  out.push(`<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:20px;padding:0 4px;align-items:flex-start">`);
+
+  bins.forEach((bin) => {
+    if (!bin.items.length) return;
+    out.push(`<div style="flex:1 1 220px;min-width:200px;max-width:340px">`);
+    bin.items.forEach((lineIdx) => {
+      const line = lines[lineIdx];
+      out.push(renderLegendBlock(line));
+    });
+    out.push(`</div>`);
+  });
+
+  out.push(`</div>`);
+  return out.join('');
+
+  // Helper: render one project's legend block as an HTML string. Closes over
+  // every piece of state the inline rendering needs (labels, sets, nodeMap).
+  function renderLineProgressPills(line) {
+    const currentProgress = clamp(line.progress || 0, 0, 1);
+    const currentPct = formatPercentNumber(currentProgress);
+    const textParts = [`${currentPct}%`];
+    const titleParts = [`Jetzt ${currentPct}%`];
+    if (Object.prototype.hasOwnProperty.call(pastProgress, line.root.id) && !newSet.has(line.root.id)) {
+      const pastProgressValue = clamp(pastProgress[line.root.id] || 0, 0, 1);
+      const pastPct = formatPercentNumber(pastProgressValue);
+      const deltaProgress = currentProgress - pastProgressValue;
+      const deltaLabel = formatProgressDelta(deltaProgress);
+      if (deltaLabel !== '0%') textParts.push(deltaLabel);
+      titleParts.push(`Vorher ${pastPct}%`, `Differenz: ${deltaLabel}`);
+    }
+    if (hasFuture && Object.prototype.hasOwnProperty.call(futureProgress, line.root.id)) {
+      const futureProgressValue = clamp(futureProgress[line.root.id] || 0, 0, 1);
+      const futurePct = formatPercentNumber(futureProgressValue);
+      const deltaProgress = futureProgressValue - currentProgress;
+      const deltaLabel = formatProgressDelta(deltaProgress);
+      textParts.push(`→${futurePct}%`);
+      titleParts.push(`Plan ${futurePct}%`);
+      if (deltaLabel !== '0%') titleParts.push(`Plan-Differenz: ${deltaLabel}`);
+    }
+    return `<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:${line.color};color:${contrastText(line.color)};border-radius:3px;padding:2px 5px;white-space:nowrap;flex-shrink:0">${esc(textParts.join(' '))}</span>`;
+  }
+
+  function renderLegendBlock(line) {
+    const block = [];
+    const allStations = [...line.majorStations, ...line.minorStations]
+      .sort((a, b) => a.t - b.t);
+    if (!allStations.length) return '';
+    const stationMoved = station => (station.clusterItems || [])
+      .some(c => doneInWindow.has(c.id) || changedInWindow.has(c.id));
+    const stationCurrent = station => station.id === line.currentId && !station.allDone;
+    const compactStations = diffMode
+      ? allStations.filter(station => station.allDone || stationCurrent(station) || stationMoved(station))
+      : allStations;
+    const isLegendExpanded = expandedLegendIds.has(line.root.id);
+    const visibleStations = diffMode && !isLegendExpanded ? compactStations : allStations;
+    const extrasOf = station => station.clusterSize > 1
+      ? (station.clusterItems || []).filter(c => c.id !== station.id)
+      : [];
+    const movedOrLive = c => {
+      const n = nodeMap[c.id];
+      return doneInWindow.has(c.id) || changedInWindow.has(c.id)
+        || n?.status === 'done' || n?.status === 'wip';
+    };
+    // A station names a stop; what sits under it is a drill-down. Collapsed,
+    // a line lists its stations and nothing else — otherwise a line with two
+    // hundred leaves buries the map under its own legend. Diff mode keeps
+    // whatever moved in the window visible even while collapsed.
+    const visibleExtrasOf = station => isLegendExpanded
+      ? extrasOf(station)
+      : diffMode ? extrasOf(station).filter(movedOrLive) : [];
+    const rowsExpanded = allStations.reduce((n, st) => n + 1 + extrasOf(st).length, 0);
+    const rowsNow = visibleStations.reduce((n, st) => n + 1 + visibleExtrasOf(st).length, 0);
+    const hiddenRowCount = rowsExpanded - rowsNow;
+    // Line-level diff: two pills in the header — completions (✓) and
+    // progress-only movements (▲). Either can be zero; the row stays quiet
+    // when both are.
+    const lineDoneCount = doneInWindow.size > 0
+      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => doneInWindow.has(c.id)).length), 0)
+      : 0;
+    const lineProgCount = changedInWindow.size > 0
+      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)).length), 0)
+      : 0;
+    block.push(`<div style="margin-bottom:14px">`);
+    // Line header
+    block.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
+    block.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
+    block.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
+    block.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1 1 auto">${esc(truncate(line.root.name, 22))}</span>`);
+    block.push(renderLineProgressPills(line));
+    if (lineDoneCount > 0 || lineProgCount > 0) {
+      const statusParts = [];
+      const titleParts = [];
+      if (lineDoneCount > 0) {
+        statusParts.push(`<span style="color:#10b981">✓ ${lineDoneCount}</span>`);
+        titleParts.push(`${labels.tipDone || 'Done in window'}: ${lineDoneCount}`);
+      }
+      if (lineProgCount > 0) {
+        statusParts.push(`<span style="color:#f59e0b">▲ ${lineProgCount}</span>`);
+        titleParts.push(`${labels.tipProgress || 'Progress in window'}: ${lineProgCount}`);
+      }
+      block.push(`<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:var(--bg3,#232830);border:1px solid var(--b2,#364456);border-radius:3px;padding:1px 5px;display:inline-flex;gap:5px;white-space:nowrap;flex-shrink:0">${statusParts.join('')}</span>`);
+    }
+    block.push(`</div>`);
+
+    // Station rows
+    visibleStations.forEach(station => {
+      const stProg = Math.max(0, Math.min(1, station.prog || 0));
+      const stStatus = station.allDone ? 'done' : stProg > 0 ? 'wip' : 'open';
+      const stIcon = statusIcon(stStatus, line.color, stProg, 13);
+      const doneStyle = station.allDone ? 'text-decoration:line-through;opacity:.5' : '';
+      const statusBadge = station.allDone ? '' : stProg > 0 ? ` ${Math.round(stProg * 100)}%` : ` ${station.done}/${station.total}`;
+      // Same split per station: ✓-pill for done-in-window, ▲-pill for
+      // progress-only edits. Row background lights up when either is non-zero.
+      const stDoneItems = doneInWindow.size > 0
+        ? (station.clusterItems || []).filter(c => doneInWindow.has(c.id))
+        : [];
+      const stProgItems = changedInWindow.size > 0
+        ? (station.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id))
+        : [];
+      const stationDeltaPill = (stDoneItems.length || stProgItems.length)
+        ? `<span style="margin-left:auto;display:inline-flex;gap:3px">${
+            stDoneItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:1px 4px">✓ ${stDoneItems.length}</span>` : ''
+          }${
+            stProgItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">▲ ${stProgItems.length}</span>` : ''
+          }</span>`
+        : '';
+      const rowBg = (stDoneItems.length || stProgItems.length) ? ';background:rgba(245,158,11,.10)' : '';
+
+      const stInHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
+      const horizonDim = !stInHorizon ? ';opacity:.32' : '';
+      block.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}${horizonDim}">`);
+      block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
+      block.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
+      block.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
+      block.push(stationDeltaPill);
+      block.push(`</div>`);
+
+      // Cluster details — indented rows below, each with own icon+text centered, clickable
+      if (station.clusterSize > 1) {
+        const visibleExtras = visibleExtrasOf(station);
+        visibleExtras.forEach(c => {
+          const itemNode = nodeMap[c.id];
+          const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
+          const itemProg = leafProgress(itemNode || c) / 100;
+          const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
+          const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
+            : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
+          const wentDone = doneInWindow.has(c.id);
+          const wentProg = !wentDone && changedInWindow.has(c.id);
+          const itemDiffPill = wentDone
+            ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:2px;padding:1px 3px">✓</span>`
+            : wentProg
+              ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">▲</span>`
+              : '';
+          const itemRowBg = (wentDone || wentProg) ? ';background:rgba(245,158,11,.10)' : '';
+          const itemHorizonDim = horizonOn && !horizonIdSet.has(c.id) ? ';opacity:.32' : '';
+          block.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}${itemHorizonDim}">`);
+          block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
+          block.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
+          block.push(itemDiffPill);
+          block.push(`</div>`);
+        });
+      }
+    });
+
+    if (hiddenRowCount > 0 || isLegendExpanded) {
+      const toggleLabel = isLegendExpanded
+        ? (labels.showLess || 'Show fewer')
+        : (labels.showMore || '+{0} more').replace('{0}', hiddenRowCount);
+      block.push(`<button type="button" data-rm-toggle="${esc(line.root.id)}" style="margin-top:6px;padding:2px 5px;font:700 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#cbd5e1);background:transparent;border:1px solid var(--b2,#364456);border-radius:4px;cursor:pointer">${esc(toggleLabel)}</button>`);
+    }
+
+    block.push(`</div>`);
+    return block.join('');
+  }
+}

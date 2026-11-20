@@ -1,0 +1,449 @@
+# Architecture
+
+Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript. The design goals are: understandable in one sitting, hackable without ceremony, deployable as static files.
+
+## Tech stack
+
+| Aspect | Detail |
+|---|---|
+| Framework | Vite 6 + React 18 |
+| Language | JavaScript (ES modules) — no TypeScript, no PropTypes |
+| Styling | CSS with theme variables (`--bg`, `--tx`, `--ac`, etc.); dark + light palettes; switched via `data-theme` on `<html>` |
+| i18n | Lightweight, ~350 keys in `src/i18n.jsx`; React context + `useT()` hook; Auto/EN/DE |
+| Persistence | `localStorage` + File System Access API |
+| Deployment | GitHub Pages via `gh-pages` branch (`peaceiris/actions-gh-pages` workflow) |
+| Routing | None — everything is one page with tabs |
+| State | Plain React `useState` + one top-level `data` object in `App.jsx` |
+
+`vite.config.js` sets `base: '/planr/'` for GitHub Pages deployment.
+
+## Directory layout
+
+```
+src/
+  App.jsx                  — top-level shell, state, import/export, tabs
+  App.css                  — global styles, theme variables
+  main.jsx                 — Vite entry point
+  constants.js             — WPX, MDE, GT, etc.
+  components/
+    views/
+      TreeView.jsx         — hierarchical editor (primary authoring view)
+      GanttView.jsx        — Gantt chart — see docs/gantt.md
+      NetGraph.jsx         — network graph — see docs/network-graph.md
+      ResView.jsx          — resources: teams + members
+      HolView.jsx          — holidays editor
+      DLView.jsx           — deadlines / goals summary
+      SumView.jsx          — per-goal progress summary
+      QuickEdit.jsx        — sidebar editor (primary interaction)
+      PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked)
+      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
+      Onboard.jsx          — first-launch onboarding
+      ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
+    modals/
+      NodeModal.jsx        — full editor modal (⊞ button opens this)
+      AddModal.jsx         — add a new tree item
+      EstimationWizard.jsx — PERT 3-point wizard
+      SettingsModal.jsx    — theme, file handle, etc.
+      DLModal.jsx          — deadline editor
+      NewProjModal.jsx     — new-project wizard
+      ExportModal.jsx      — Export dialog chrome around ExportCards.jsx (still reachable from `/`)
+    shared/
+      SearchSelect.jsx     — searchable dropdown (used everywhere >5 items)
+      LazyInput.jsx        — debounced text input for perf in long lists
+      Tooltip.jsx          — shared tooltip component
+      Badges.jsx           — status/severity/priority badges
+      CommandPalette.jsx   — `/` / ⌘K palette — see "Views and the command palette" below
+      ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
+  utils/
+    modes.js                — the views the shell knows about, in bar order (TAB_IDS, initialTab)
+    palette.js               — pure command-palette filter/rank logic (filterCommands)
+    scheduler.js           — auto-scheduling engine + computeConfidence() + the tree index
+    treeEdit.js             — pure logic for TreeView's keyboard model (row order, Tab/⌥ moves,
+                              field shortcuts, paste parsing) — see "Tree editor keyboard model" below
+    archive.js             — which roots / members are long-finished ("old news"); display filter only
+    exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
+    projectRoadmap.js      — single-project roadmap: calendar rows instead of a metro line
+    jiraSync.js            — Jira table parsing + plan-vs-board reconciliation (consumed inline by
+                             Run mode's drift section now — no more standalone Jira dialog)
+    attention.js            — Run mode's ranked "what needs a look" feed (overdue/drift/at-risk/
+                             blocked/unestimated), built off scheduler.js's memoised tree index
+    cpm.js                 — critical path method, global + per-goal
+    date.js                — date arithmetic helpers (addD, iso, etc.)
+    holidays.js            — NRW holiday algorithm + week grid builder
+    fileHandleStore.js     — File System Access API persistence layer (the Obsidian build
+                             swaps this module — see docs/obsidian-plugin.md)
+    embedHost.js           — what an embedding host may influence: what "Auto" theme
+                             resolves to (global), and the container this app instance's
+                             modals/popups portal into (PortalRootContext — per view,
+                             because two Planr panes can be open at once)
+    tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
+                             replaced the HTML-in-a-string tooltips that needed innerHTML
+    exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
+    markdown.js            — Markdown writer (buildMarkdownText)
+    markdownParse.js       — Markdown reader (parseMdToProject) — out of App.jsx so a plan can
+                             be read without mounting one
+    scenario.js            — scenarios as patches: diffPlan / applyPatch, the list of changes,
+                             and the name tokens that carry a patch through a Markdown file
+    scenarioCompare.js     — plan against scenario: schedules both, reports what moves
+    report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
+    pdfExports.js          — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when)
+    progress.js            — single source of truth for aggregate progress % / PT + formatting
+                             (aggregateProgressPct is THE percentage for any multi-task scope;
+                              scheduler.treeStats imports it back — a deliberate call-time cycle)
+    timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
+  i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
+obsidian/                  — the Obsidian plugin: one FileView per open plan
+  src/main.jsx             — Plugin + FileView, plan-note redirect, ribbon icon, command, file menu
+  src/vaultFs.js           — File System Access API reimplemented on app.vault
+  src/fileHandleStore.js   — build-time replacement for utils/fileHandleStore.js
+  src/obsidian.css         — plugin-only styles (not scoped — appended verbatim)
+  scope-css.mjs            — confines App.css to .planr-view
+  esbuild.config.mjs       — the second build: one CJS bundle for Obsidian
+docs/                      — this directory
+data/                      — gitignored private project data
+```
+
+See [obsidian-plugin.md](obsidian-plugin.md) for what the plugin has to do to
+the app's two host assumptions ("I own the page", "files come from the File
+System Access API") and why `src/` stays otherwise untouched.
+
+## State flow
+
+Top-level in `App.jsx`:
+
+```
+data (one object in useState)
+  ├── meta
+  ├── teams
+  ├── members
+  ├── tree
+  ├── vacations
+  └── holidays
+```
+
+Derived values via `useMemo`:
+
+- `goals` — tree roots with a `type`
+- `scheduled` — scheduler output
+- `stats` — `treeStats(tree) + enrichParentSchedules`
+- `cpSet` — global CPM critical set
+- `goalPaths` — per-goal CPM
+- `leaves` — `leafNodes(tree)`
+- `shortNamesMap` — member short-name lookup
+- `weeks` — week grid from the scheduler
+- `confidenceMap` — per-item confidence (auto-derived via `computeConfidence()`, with manual overrides)
+- `archive` — `scanArchive({tree, members, days})`: long-finished roots + long-offboarded members
+- `activeTree` / `activeScheduled` / `activeMembers` — the archive-filtered copies the views render
+
+### The plan and its scenarios
+
+`data` is whatever is on screen. Normally that is the plan. While a scenario is
+open (`scn` in `App.jsx`) it is the scenario — the plan with the scenario's
+patch applied — and the plan waits in `scn.base`. Everything below `data` is
+unaware of the difference, which is the point: no view, mutator or export has a
+scenario branch. What does know is the persistence layer, through `fileData`:
+the plan plus each scenario as a patch, which is what the file, the local cache
+and the snapshot ring receive. See [scenarios.md](scenarios.md).
+
+### Mutations and undo
+
+Every write to `data` falls into one of two buckets, and the difference is load-bearing — mixing them up either pollutes the undo stack or lets ⌘Z corrupt derived state:
+
+- **User-initiated** — the user asked for this change (edited a field, deleted a node, dragged a slider, reconciled with Jira…). These route through one helper, `mutate(updater)`: it pushes the current `data` onto the undo history, then calls `setData(updater)`, then `setSaved(false)`. `setD(key, value)`, `updateNode`, `addDep`/`removeDep`, `reorderSibling`, and the rest of the per-field/per-entity mutators all call `mutate` instead of `setData` directly.
+- **Automatic** — the app derived this change from something else the user did, and it always runs unprompted from a `useEffect`: parent-status derivation (`deriveParentStatuses`), the completion-metadata sync (stamping `completedStart`/`completedEnd` when a leaf's status/progress imply it), the Subway-Map's `roadmapAssignment` merge, holiday/deadline migrations, and the autosave history-event append. These stay on plain `setData` (no `setSaved(false)` pairing where the write is purely derivable, or the pairing exists but skips `mutate`). If these pushed onto the undo stack, a single ⌘Z after an unrelated edit could "undo" a derivation the tree still needs — e.g. reverting a status without reverting the progress that implied it — landing the plan in a state that could never have been reached by editing it. Effects are also comparatively chatty (they re-run on every relevant dependency change), which would flood the stack with entries the user never asked for.
+
+The undo history itself (`src/utils/undo.js`) is a small, pure `{ past, future }` model — `push`/`undo`/`redo`/`canUndo`/`canRedo` — with no dependency on React. Snapshots are the previous `data` object *references*, never deep clones: because every mutator already does `{ ...d, changedPart }` instead of touching `d` in place, two adjacent snapshots share every branch that didn't change, so keeping 100 of them costs little more than keeping one. `push` coalesces calls that land within 300 ms of each other into a single entry, so a progress-slider drag or a burst of status clicks costs the user one ⌘Z, not one per event; any *new* push clears the redo branch, same as every other editor.
+
+Loading a different document — opening a file, starting a new project, restoring a JSON snapshot — calls `resetHistory()` alongside `setData(...)`. The old undo stack describes edits to a document that's no longer on screen; keeping it around would let ⌘Z reach back into a plan you already closed.
+
+### Tree editor keyboard model
+
+Phase 4 (docs/principles.md principle 5, "Fast means reversible") adds the keyboard editing path in `TreeView.jsx` — it does not add a new write surface. Every keyboard action still resolves to one of App.jsx's existing `mutate()`-backed callbacks (`onTaskUpdate`, `onReorder`, `onDelete`, plus a handful of small new ones described below); `TreeView.jsx` never calls `setData` itself.
+
+**Where the cursor lives.** There is one keyboard cursor, and it is the existing `selected` prop (App.jsx state, already used by the sidebar and the contextual reorder/delete toolbar) — not a second, invisible concept. `↑`/`↓` compute the next row from the already-memoized `filt` array (the exact rows on screen — search/team/root/person/diff/horizon filters and collapse already applied) and call the existing `onSelect` prop with a synthesized event (`{shiftKey}`), the same callback mouse clicks use (`App.jsx`'s `onTreeSelect`) — so plain vs. shift-extend reuses its existing anchor/range logic instead of duplicating it. The one genuinely new piece of state is `editing` (`{ id, draft, isNew } | null`), local to `TreeView`: which row's name cell is currently a real `<input>` instead of a `<span>`, its in-progress text, and whether this row was created by this same keyboard session (so an empty commit deletes it instead of leaving a nameless row — see `commitEdit`/`cancelEdit` in `TreeView.jsx`). A `shiftCursorRef` (a ref, not state) tracks where a `⇧↑`/`⇇↓` run has reached, because `onTreeSelect`'s shift-extend keeps the anchor (`selected`) fixed for the whole run — without it, a second `⇧↓` would recompute "one past the anchor" instead of extending one row further.
+
+**Where the pure logic lives.** [`src/utils/treeEdit.js`](../src/utils/treeEdit.js) holds everything that doesn't need React or App.jsx state, unit-tested in [`src/utils/__tests__/treeEdit.test.js`](../src/utils/__tests__/treeEdit.test.js):
+
+- `sortTree(tree)` / `filterCollapsedRows(rows, collapsedIds)` — the parent-then-children, displayOrder-aware sort and the "hide rows under a collapsed ancestor" filter TreeView's `sorted`/`filt` memos already did inline; lifted out so the row order is one tested function instead of logic embedded in a component.
+- `nextStatus`, `resolveSize`, `fieldPatchForKey` — the field-shortcut table (`1`–`4`, `S`/`M`/`L`/`X`, `Space`), resolving a project's `sizes` (falling back to `utils/sizes.js` `DEFAULT_SIZES`) case-insensitively and returning `null` (no-op) rather than inventing a size the project doesn't define.
+- The structural commands live next door in [`src/utils/treeMove.js`](../src/utils/treeMove.js) (tests: [`src/__tests__/treeMove.test.js`](../src/__tests__/treeMove.test.js)): `planTreeCommand(visibleIds, id, command)` for `moveUp`/`moveDown`/`moveFirst`/`moveLast`/`indent`/`outdent` — `null` when it cannot run, which is also the toolbar's disabled state — and `applyTreeCommand(tree, id, command, visibleIds)`, which runs it as one transformation built from two primitives, `moveSubtree` (re-parent + renumber + dependency remap) and `placeAmongSiblings` (write `displayOrder`). App.jsx's `moveNode` and `reorderSibling` are thin wrappers over the same two primitives.
+- `parsePastedRows(text)` / `buildPasteNodes(tree, parentId, rows)` — pasted text → `{name, depth}` rows (bullet-stripped, indentation clamped to at most one level deeper than the previous line) → full node objects with collision-free ids, computed against a local working copy of the tree so a whole pasted block gets correct ids in one pass.
+
+**The small new App.jsx callbacks.** Structure/creation needs a few thin wrappers alongside the existing ones, each still exactly one `mutate()`-shaped write:
+
+- `onTreeCommand(id, command, visibleIds)` — the one path for move up/down, indent and outdent, from the toolbar and the keyboard alike: `applyTreeCommand` inside a single functional `mutate()` (one undo step), then `selected` follows the row to its new id, and the id map goes back to `TreeView` so the fold state of a moved branch follows too.
+- `onTreeMove(id, newParentId)` — wraps `moveNode` for the item dialog's parent picker; since re-parenting renumbers the moved node's id, it also updates `selected` to follow the new id.
+- `onTreeInsertAfter(afterId)` / `onTreeInsertChild(parentId)` — create one **empty-named** node (`addNode` +, for "after", a `reorderSibling` to place it directly below `afterId`) and return its id synchronously so `TreeView` can start editing it immediately. Empty on purpose: `TreeView`'s `commitEdit` deletes an empty-named row it just created instead of committing it, so a rapid Enter-Enter session never litters the tree with nameless rows.
+- `onTreeBulkDelete(ids)` — the one genuinely new *batched* callback. `deleteNode` (and `addNode`) compute their next tree from the render-closure `tree`, not from the functional `setData` argument, which is safe for one call per keypress but would silently drop all-but-the-last deletion if looped synchronously over a multi-selection. `onTreeBulkDelete` does the whole selection in one **functional** `mutate(d => ...)` instead — correct regardless of loop order, and (like every `mutate()` call) one undo step.
+- `onTreePasteRows(afterId, rows)` — same shape: `buildPasteNodes` runs once against `d.tree` inside a single functional `mutate()`, so a ten-line paste is one undo step, not ten.
+
+Applying a field (`1`–`4`, size, `Space`) to a multi-selection reuses the pattern the selection bar's own status buttons already use in `TreeView.jsx`: loop `onTaskUpdate` once per selected node. This is safe (unlike the delete case above) because `updateNode` — what `onTaskUpdate` ultimately calls — reads the tree from `mutate`'s functional updater argument, and safe *for undo* because `push()`'s 300 ms coalescing window (see above) collapses same-tick `mutate()` calls into the one entry that was on top when the burst started — the same reason a dragged slider or a burst of clicks already costs one ⌘Z, not one per event.
+
+### Hidden panes do no work
+
+Every tab you visit stays mounted behind the active one (`visitedTabs` in
+`App.jsx`) so switching back is instant and scroll position, zoom and sub-tab
+state survive. The cost was hidden in plain sight: each pane takes `tree` as a
+prop, so one keystroke in the tree re-rendered the Gantt, the roadmap and the
+network graph as well — all of them invisible.
+
+Measured at 1000 tasks, per keystroke:
+
+| | tree only | after visiting 4 more tabs |
+|---|---|---|
+| before | 525 ms | 1287 ms |
+| after | 483 ms | 542 ms |
+
+[`Frozen`](../src/components/shared/Frozen.jsx) wraps each pane. React cannot
+pause a subtree, but it can be told there is nothing new: an element it has
+already rendered, handed back **by identity**, makes it bail out of that branch.
+So while a pane is hidden it returns the last children it was given — the same
+object, not a copy — and keeps its DOM, its state and its scroll while doing no
+work. The moment it is shown again it takes the current children, so what
+appears is never stale.
+
+**A hidden pane still hears the window.** Frozen stops rendering, not
+effects: a view that binds keys on `window` keeps them bound after the user
+has left it, because it stays mounted. The Gantt did exactly that — once
+visited, its `⌘A` selected bars on every other tab, `↑/↓` stopped scrolling
+the Overview, and `⌥↑`/`E` in the tree also reordered or opened the Gantt's
+old cursor row. A window-level key handler asks
+[`isOnScreen`](../src/utils/onScreen.js) about its own element first (it
+walks the inline `display: none` of the panes, which happy-dom answers the
+same way a browser does). Guarded by `ganttKeysOffScreen.app.test.jsx`.
+
+**Except the tree pane**, which was written without it and stayed that way —
+the most expensive pane in the app, and the only one re-rendering unseen. A
+React `Profiler` around it, on a real 404-item plan in Chromium, put every tab
+switch at ~40 ms of TreeView reconciliation for pixels nobody was looking at.
+It is wrapped now like the rest.
+
+That measurement also settled the question it was taken to answer. On a real
+plan in a real browser — 404 items, 298 visible rows — **no interaction
+produced a single long task**: typing in the search box costs under 5 ms of
+synchronous work (`useDeferredValue` carries the rest), twenty real `↓`
+keypresses in a row produced none at all, and a tab switch produced none once
+the tree stopped re-rendering. Virtualising the tree would buy nothing. The
+happy-dom numbers that suggested otherwise (~0.5 s per cursor move at 500
+items) are a property of happy-dom, which is an order of magnitude slower than
+Chromium at exactly the work a table does, and should not be read as the
+app's behaviour.
+
+### Views and the command palette
+
+`tab` is a small piece of App-level state (`useState`, persisted in
+`localStorage['planr_tab']`). The views themselves are data, not state:
+[`src/utils/modes.js`](../src/utils/modes.js) exports `TAB_IDS` — every view
+in bar order — plus `DEFAULT_TAB`, `isValidTab` and `initialTab`. `App.jsx`
+re-exports `TAB_IDS`, and `src/utils/__tests__/tabs.test.js` asserts the two
+have not drifted apart.
+
+Which view a load starts on is one decision, taken in one place:
+`initialShell()` in `App.jsx`. The saved tab wins if it still exists;
+otherwise `DEFAULT_TAB` (`tree` — a plan has to be authored before it can be
+planned, run, reviewed or reported on).
+
+There were five **modes** here until September 2026 — Build, Plan, Run,
+Review, Report — each owning a subset of the tabs, switched from a segmented
+control in the top bar, with `TAB_OWNER`, `modeForTab`, `switchMode`,
+`visibleTabs` and a guard test that no tab became unreachable. The premise
+(docs/principles.md, principle 1) was that a planner does one thing at a time.
+A real loop turned out to be: look at the roadmap, restructure the tree, set
+the order, update progress, reconcile Jira — four modes deep, several times an
+hour. The mode did not remove a decision, it added one, and `visibleTabs`
+existed only to undo the hiding the modes had just done. One flat row replaced
+all of it.
+
+The `/` command palette (`src/components/shared/CommandPalette.jsx`) is a
+self-contained component: it owns its own open/closed state, listens for `/`
+(only when focus isn't already in an editable element) and `⌘K`/`Ctrl+K` on
+`window`, and additionally listens for a `PALETTE_OPEN_EVENT` custom event so
+the topbar's `/` button can open it without App.jsx having to lift the open
+state. `App.jsx` builds one flat `paletteCommands` array
+(`{id, labelKey, group, groupLabel, run}`) covering everything that used to
+be a topbar button (Load, Snapshots, Save as, Export…, New project,
+Help/Tour) plus a jump to every mode and every `TAB_IDS` entry, and hands it
+to `<CommandPalette commands={paletteCommands} />`. The filter/rank logic
+itself is pure and lives in [`src/utils/palette.js`](../src/utils/palette.js)
+(`filterCommands(commands, query)` — substring match first, then an in-order
+fuzzy subsequence fallback) so it is unit-testable without mounting React.
+
+Report mode's only tab (`report`) renders `ReportView.jsx`, which is the old
+Export-modal card grid (`ExportCards.jsx`, shared with `ExportModal.jsx` so
+neither duplicates the export handler wiring) rendered as a normal view
+instead of a modal.
+
+### Display filters vs. facts
+
+`tree`, `stats`, `scheduled` and `goals` always describe the **whole** plan. The
+filters (`hideDone`, the archive filter, root/team/person) produce *separate*
+derived copies (`activeTree` → `visibleTree` → `visibleTreeForViews`) that only
+the views consume. Aggregates therefore never move when the user changes what
+is on screen — archiving a finished project must not make the project look less
+finished. The one deliberate exception is `viewStats`, which re-aggregates for
+the hide-done tree so a filtered view can still show sub-totals for what it
+renders.
+
+Every mutation goes through `setData(d => ...)` with a functional updater. Functions like `updateNode`, `removeDep`, `addDep` always read the latest tree state from the functional updater argument — no stale-closure overwrites.
+
+## Auto-save loop
+
+```
+user edits tree
+  → setData(...)
+  → useEffect on `data`
+  → if file handle exists: write to disk (debounced)
+  → setSaved(true)
+```
+
+External file change detection runs on a 5 s `setInterval`:
+
+```
+every 5s:
+  stat(mounted file).lastModified
+  if newer than lastSavedAt:
+    read file, parse, setData
+    setLastSavedAt = file.lastModified
+```
+
+## Tree index (why the app stays responsive)
+
+`isLeafNode`, `hasChildren`, `directChildren`, `leafNodes` and
+`resolveToLeafIds` in [scheduler.js](../src/utils/scheduler.js) are called from
+inside loops all over the app. Each one used to re-scan the whole tree array,
+so the callers multiplied out badly — `treeStats` rebuilt the entire leaf list
+once per parent node, making it **O(n³)**, and the roadmap model resolved leaves
+per node the same way. On a 250-item plan one recompute cost ~2.3 s, and every
+edit triggered two of them (the derive memos plus the `deriveParentStatuses`
+effect). That is what "the whole app hangs" was.
+
+`treeIndex(tree)` derives the structure once — `byId`, `childIds`, the leaf
+list, and a memoized descendant-leaf list per node — and caches it in a
+`WeakMap` keyed by the **array identity**. Every mutation here produces a new
+array (functional `setData` + `map`/`filter`), so a changed tree can never hit a
+stale entry, and old trees stay collectable. Same public signatures, same
+results, same ordering; the helpers just consult the index.
+
+Measured on a 248-node plan (`src/utils/__tests__/treeIndex.test.js` guards it):
+
+| | before | after |
+|---|---|---|
+| `treeStats` | 673 ms | 0.8 ms |
+| `computeRoadmapModel` | 783 ms | 4.2 ms |
+| `rootCpm` | 123 ms | 1.0 ms |
+| `computeConfidence` | 27 ms | 0.3 ms |
+| `scanArchive` | 14 ms | 0.1 ms |
+| whole chain | **~2.3 s** | **~7 ms** |
+
+Two rules follow from this:
+
+- **Never mutate a tree array in place** once it is (or is about to become)
+  state. The parser in `App.jsx` pushes into a local array, which is fine
+  because nothing reads an index off a half-built tree.
+- **Do not mutate what these helpers return.** `leafNodes` and
+  `descendantLeaves` hand back the cached arrays; copy before sorting.
+
+## Export scope
+
+Views render filtered copies of the tree; exports must not. The guarantee is
+structural, in [exportCtx.js](../src/utils/exportCtx.js):
+
+- `buildExportCtx({ data, scheduled, … })` derives `tree`, `members`, `teams`,
+  `vacations`, `meta` and `roadmapAssignment` **from `data`**. `App._exportCtx`
+  deliberately does not pass them, so `activeTree` / `visibleTree` cannot reach
+  an export by accident.
+- `projectScopedCtx(ctx, label)` runs at the entry of all four PDFs and of
+  `buildReportModel` (which the HTML report and the DOCX export both route
+  through). A hand-built ctx carrying a filtered tree is repaired, not
+  rejected — the user asked for a document, and the correct document is the
+  complete one — and the repair is logged.
+- `scheduled` / `stats` / `cpSet` / `goalPaths` cannot be re-derived here (they
+  need the scheduler, holidays and work days). They are computed from the full
+  tree in `App.jsx`, and [exportScope.test.jsx](../src/__tests__/exportScope.test.jsx)
+  pins the result: with filters active, every surface still prints the
+  full-plan figure, and each PDF is byte-identical when handed a filtered ctx.
+- The two newest ways screen and export could drift are the per-person **work
+  order** (`personQueues`, which changes *when* things happen) and **dropped**
+  work (which changes *what counts*). Both are pinned end-to-end through the
+  real App in
+  [exportQueueParity.app.test.jsx](../src/__tests__/exportQueueParity.app.test.jsx):
+  a work order visibly reorders the "what comes when" PDF, and the Management
+  Summary's headline equals the Overview's to the digit with dropped work and a
+  queue both in play. The module-level equivalents live in
+  [exportParity.test.jsx](../src/__tests__/exportParity.test.jsx).
+
+## Critical path
+
+[cpm.js](../src/utils/cpm.js) runs twice:
+
+- **Global** — over all leaves, treating the whole tree as one DAG. Result: `cpSet` — Set of IDs on the critical path.
+- **Per-goal** — for each tree root, CPM restricted to leaves under that root. Result: `goalPaths` — `{ rootId: Set<id> }`.
+
+Both use earliest-start / latest-finish forward/backward passes. Slack is zero on the critical path, positive everywhere else.
+
+## Confidence model
+
+Three levels: **committed**, **estimated**, **exploratory**. Computed automatically by `computeConfidence()` in `scheduler.js` based on whether a task has an assignee, an estimate, and low risk indicators. Can be overridden manually via the `confidence` field on any item. Parents inherit the worst confidence from their children (exploratory > estimated > committed). The confidence map feeds into the Gantt (bar styling, horizon lines, legend) and the Planning Review tab.
+
+## Internationalization (i18n)
+
+`src/i18n.jsx` provides a lightweight translation system with ~500 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys —
+[`src/__tests__/i18n.test.js`](../src/__tests__/i18n.test.js) enforces it:
+the two dictionaries must carry identical key sets, and the surfaces reworked
+during the rebuild must carry no hardcoded display text at all. A key present
+in only one language is invisible while you work (`t()` falls back to English
+and then to the key) and shows up as raw dotted text for everyone else.
+
+## Theme system
+
+Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `localStorage`. CSS switches via the `data-theme` attribute on `<html>` (`"light"` or `"dark"`). "Auto" follows `prefers-color-scheme`. All color values use CSS custom properties (`--bg`, `--tx`, `--ac`, etc.). The full token system (spacing scale, type scale, surfaces, accent, and the five fixed-meaning state colors) is documented in `docs/design-tokens.md`.
+
+## Code split (exports)
+
+Export-related logic has been extracted from `App.jsx` into dedicated modules:
+
+- `src/utils/exports.js` — CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions
+- `src/utils/markdown.js` — Markdown parsing (`parseMdToProject`) and writing (`buildMarkdownText`)
+- `src/utils/report.js` — HTML report generation (bilingual, opens in new tab, auto-triggers print)
+
+## Design decisions (non-obvious)
+
+- **Plain JS, not TypeScript** — keeps the file count and mental load low. The field names in [data-model.md](data-model.md) are the contract.
+- **No Redux / no Zustand** — state is small and rarely contended. One `data` object + `setData` is enough.
+- **No PropTypes** — prop shapes are self-documenting through destructuring at the top of each component.
+- **Functional `setData` updaters everywhere** — avoids stale-closure bugs in mutation callbacks that fire in rapid succession (e.g. deleting two Gantt arrows in the same tick).
+- **Targeted mutation helpers (`removeDep`, `addDep`)** — touch only the fields they own. Never overwrite an entire node object based on a stale snapshot.
+- **Vitest, not a test pyramid** — pure logic (`src/utils/__tests__/`) is tested directly; views get happy-dom smoke and behaviour tests (`src/__tests__/`) for the invariants that keep breaking silently — progress/export parity, filter scoping. Everything else is manual QA in the browser. `npm test` runs the suite.
+- **Module size target: &lt; 400 LOC** — not strictly enforced. `App.jsx` and `NetGraph.jsx` are currently larger; splits are on the backlog.
+
+## Known issues / backlog
+
+The structural direction — five modes, one editing surface, subtractive
+feature policy — lives in [principles.md](principles.md); the phase-by-phase
+rebuild order is its last section, and [ui-inventory.md](ui-inventory.md) is
+the control-by-control basis for it. Items below are independent of that.
+
+See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items. Other open items:
+
+- **App.jsx and NetGraph.jsx are &gt; 400 LOC** — should be split
+- **Dark-mode palette needs a proper WCAG-AA pass** — currently iterated into shape, not designed
+- **No per-team capacity** — a member can be in several teams (`member.teams`), but deliberately without a fixed split: the scheduled tasks decide how their one capacity divides. A planned "50 % Frontend" quota cannot be expressed (see [scheduler.md](scheduler.md#multi-team-members))
+- **Day-level scheduler granularity** — currently weekly
+
+## Deployment
+
+`npm run build` outputs to `dist/`. The `gh-pages` workflow in `.github/workflows/` publishes it to the `gh-pages` branch. The site is served at `/planr/` (match `vite.config.js`).
+
+Public hosted app: **https://codingsteve01.github.io/planr**
+
+For a dev loop: `npm run dev`. Note: we leave the dev server management to the user — don't start a second Vite instance.
+
+### Obsidian plugin
+
+A second output from the same `src/`: `npm run build:obsidian` produces
+`dist-obsidian/{main.js,manifest.json,styles.css}` via esbuild. Releasing is a
+version bump — `npm run version:set 1.1.0` writes `package.json`,
+`manifest.json` and `versions.json` together, and merging that to main makes
+`.github/workflows/obsidian-plugin.yml` test, build, tag and publish the three
+files. Tags in this repository are plugin releases; the tag name is the
+version, no `v` prefix. Full story in [obsidian-plugin.md](obsidian-plugin.md).
