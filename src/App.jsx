@@ -8,7 +8,7 @@ import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
-import { TOUR_DONE_KEY, useTour } from './app/useTour.js';
+import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
@@ -41,25 +41,15 @@ import { SettingsModals } from './components/app/SettingsModals.jsx';
 import { ProjectFileModals } from './components/app/ProjectFileModals.jsx';
 import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
-import { initialShell, loadLocalProject, isValidProjectData, NEW_BADGE_TAB_IDS, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
-import { Icon } from './components/shared/Icon.jsx';
+import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
+import { buildExportHandlerProps } from './app/exportHandlerProps.js';
+import { initialShell, loadLocalProject, isValidProjectData, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
 import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { normalizeLoadedData } from './utils/loadedData.js';
-import {
-  exportJSON,
-  exportNetworkPNG,
-  exportGanttPNG,
-  exportSprintMarkdown,
-  exportMermaid,
-  exportReportDocx,
-  exportSummaryPDF,
-  exportGanttPDF,
-  exportTodoPDF,
-  exportWhatWhenPDF,
-} from './utils/exports.js';
+import { exportSprintMarkdown } from './utils/exports.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
@@ -82,28 +72,21 @@ import { CapacityProvider } from './utils/capacityLens.js';
 import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { isLeafNode, derivePhaseStatus } from './utils/scheduler.js';
+import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
-import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
-import { instantiateTemplatePhases } from './utils/phases.js';
-import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
+import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { requestHandlePermission } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
-import { Onboard } from './components/views/Onboard.jsx';
-import { NewProjModal } from './components/modals/NewProjModal.jsx';
-import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
-import { buildImportedProject } from './utils/jiraImport.js';
-import { SearchSelect } from './components/shared/SearchSelect.jsx';
-import { LazyInput } from './components/shared/LazyInput.jsx';
+import { BootScreen, RestoreMountScreen } from './components/app/BootScreen.jsx';
+import { EmptyState } from './components/app/EmptyState.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette } from './components/shared/CommandPalette.jsx';
 import { KeyboardMap } from './components/shared/KeyboardMap.jsx';
 import { useScenarioReport } from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
-import { teamForAssignment } from './utils/memberTeams.js';
 
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
 export { buildMemberShortMap };
@@ -412,7 +395,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // we don't emit fake "added" events for the whole tree.
   const lastSavedLeavesRef = useRef(null);
   const leafBaselineStaleRef = useRef(true);
-  const { editorDock, setEditorDock, appRef, editorAsDialog, uiScale, setUiScale, showTreeIds, setShowTreeIds } = useUiPrefs(portalRoot);
+  const { appRef, ...uiPrefs } = useUiPrefs(portalRoot);
   const fileSession = useFileSession({
     data,
     hosted,
@@ -465,25 +448,24 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedPlanRef.current = data;
     leafBaselineStaleRef.current = false;
   }, [data]);
-  const { saving, saveCountdown, externalChangeAvailable, setExternalChangeAvailable, reloadFromFile, saveToFile, loadFromFile } =
-    useFileSync({
-      data,
-      saved,
-      setSaved,
-      setData,
-      setSel,
-      resetHistory,
-      session: fileSession,
-      fRef,
-      fileDataRef,
-      pastRef,
-      scnRef,
-      lastSavedPlanRef,
-      lastSavedLeavesRef,
-      leafBaselineStaleRef,
-      composeFileForSave,
-      commitSaveSideEffects,
-    });
+  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync({
+    data,
+    saved,
+    setSaved,
+    setData,
+    setSel,
+    resetHistory,
+    session: fileSession,
+    fRef,
+    fileDataRef,
+    pastRef,
+    scnRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+    leafBaselineStaleRef,
+    composeFileForSave,
+    commitSaveSideEffects,
+  });
 
   // Global keyboard shortcuts. The file ones are the platform conventions
   // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
@@ -574,29 +556,24 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
+  const { reschedule, ...planModel } = usePlanModel({ data, members, vacations, meta, past });
   const {
     tree,
-    goals,
     hm,
     planStart,
     planEnd,
     workDays,
     capacityAt,
-    personQueues,
     scheduled,
     weeks,
-    reschedule,
     projectWaitsOf,
     stats,
     cpData,
     cpSet,
-    cpLabels,
     goalPaths,
     leaves,
-    droppedCount,
     confidence,
-    confReasons,
-  } = usePlanModel({ data, members, vacations, meta, past });
+  } = planModel;
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => (selId ? tree.find(r => r.id === selId) || null : null), [tree, selId]);
   const { overbookedTaskIds } = useResourceLoad({ data, members, teams, vacations, scheduled, weeks, capacityAt });
@@ -612,19 +589,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setHorizonOnlyPlanned,
     persistHorizonOnly,
   } = useReviewWindow();
-  const {
-    sinceDate,
-    horizonEnd,
-    horizonIds,
-    futureProgressByRootId,
-    diff,
-    diffDoneSet,
-    diffChangedSet,
-    diffProgressedSet,
-    horizonFilterSet,
-    diffFilterSet,
-    diffVisibleSet,
-  } = useReviewDiff({
+  const reviewDiff = useReviewDiff({
     data,
     scn,
     tree,
@@ -638,19 +603,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     horizonOnlyPlanned,
     diffOnlyChanged,
   });
-  const {
-    archive,
-    activeTree,
-    activeMembers,
-    activeScheduled,
-    rootItems,
-    netRootOptions,
-    visibleTreeForViews,
-    visibleViewIdSet,
-    viewScheduled,
-    viewGoals,
-    viewStats,
-  } = useVisibleTree({
+  const { sinceDate, horizonEnd, horizonIds, futureProgressByRootId, diff, diffChangedSet } = reviewDiff;
+  const visible = useVisibleTree({
     tree,
     members,
     scheduled,
@@ -669,7 +623,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     sinceDate,
     diffChangedSet,
   });
-  const { quickFilters, activeQuickFilters, scopeFields, activeScopeChips } = useFilterChips({
+  const { archive, activeMembers, rootItems, netRootOptions, visibleViewIdSet } = visible;
+  const filterChips = useFilterChips({
     _t,
     teams,
     archive,
@@ -696,7 +651,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setPersonFilter,
     setSearchIdx,
   });
-  const { scnComparison, scnBaseline, scnShifts, scnChangedIds } = useScenarioView({ scn, data, scheduled, scnChanges });
+  const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
+  const { scnComparison } = scenarioView;
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -753,7 +709,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const [effDate, setEffDate] = useState('');
-  const { resLens, effDates, effCount } = useResourceLens({ data, effDate });
+  const { resLens, ...lensDates } = useResourceLens({ data, effDate });
   // A day before today is a look at the plan as it was (and a place to
   // correct it from then on); a day after today is where capacity changes.
   // The same plan, whatever a save added to its logs in between.
@@ -1027,7 +983,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setModal,
     setTab,
   });
-  const { setD } = act;
   const treeEditor = useTreeEditorActions({
     tree,
     selected,
@@ -1333,710 +1288,40 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onNetAddNode = useStableCallback(() => setModal('add'));
   const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
 
-  if (!bootstrapped)
-    return (
-      <div className="onboard">
-        <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
-          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
-            Planr<span style={{ color: 'var(--ac)' }}>.</span>
-          </div>
-          <div className="onboard-sub" style={{ marginBottom: 0 }}>
-            Restoring project context...
-          </div>
-        </div>
-      </div>
-    );
+  if (!bootstrapped) return <BootScreen />;
 
   if (!data && fileName && fileHandleRef.current)
-    return (
-      <div className="onboard">
-        <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
-          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
-            Planr<span style={{ color: 'var(--ac)' }}>.</span>
-          </div>
-          <div className="onboard-sub" style={{ marginBottom: 22 }}>
-            Restore mounted project
-          </div>
-          <div
-            style={{
-              background: 'var(--bg3)',
-              border: '1px solid var(--b2)',
-              borderRadius: 'var(--r)',
-              padding: 12,
-              marginBottom: 18,
-              fontSize: 12,
-              fontFamily: 'var(--mono)',
-              color: 'var(--tx2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-            }}
-          >
-            <Icon name="doc" size={14} />
-            {fileName}
-          </div>
-          <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>
-            Browser security requires you to grant file access again after a page reload.
-          </p>
-          <div className="ob-actions">
-            <button className="ob-btn ob-pri" onClick={restoreMountedFile}>
-              Reactivate file access
-            </button>
-            <button
-              className="ob-btn ob-sec"
-              onClick={async () => {
-                await forgetHandle();
-              }}
-            >
-              Discard mount
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <RestoreMountScreen fileName={fileName} onRestore={restoreMountedFile} onForget={forgetHandle} />;
 
   if (!data)
     return (
-      <>
-        <Onboard
-          onCreate={() => setModal('new')}
-          onLoad={loadFromFile}
-          fRef={fRef}
-          onJiraImport={() => setModal('jiraImport')}
-          onLoadDemo={() => {
-            import('./utils/demoProject.js').then(m => {
-              const demo = m.buildDemoProject(_t);
-              setData(demo);
-              resetHistory();
-              setSaved(false);
-              setTab('summary');
-              setSel(demo.tree?.[0] || null);
-            });
-          }}
-        />
-        {modal === 'new' && (
-          <NewProjModal
-            onClose={() => setModal(null)}
-            onCreate={d => {
-              setData(d);
-              resetHistory();
-              setSaved(false);
-              setModal(null);
-              setTab('tree');
-              setSel(d.tree?.[0] || null);
-              // Auto-start tour for first-time users (tour not yet dismissed)
-              try {
-                if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0);
-              } catch {}
-            }}
-          />
-        )}
-        {/* The other way to start: the work is already in Jira. Same shell the
-        wizard builds — standard template, NRW holidays, two teams — with the
-        tree coming from the paste instead of from an empty form. */}
-        {modal === 'jiraImport' && (
-          <JiraImportModal
-            onClose={() => setModal(null)}
-            onImport={({ nodes, newMembers, projectName }) => {
-              const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
-              setData(d);
-              resetHistory();
-              setSaved(false);
-              setModal(null);
-              setTab('tree');
-              setSel(d.tree?.[0] || null);
-            }}
-          />
-        )}
-        <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
-      </>
+      <EmptyState
+        t={_t}
+        modal={modal}
+        setModal={setModal}
+        fRef={fRef}
+        onLoadFile={loadFromFile}
+        onFileInput={loadFile}
+        session={{ setData, resetHistory, setSaved }}
+        setTab={setTab}
+        setSel={setSel}
+        setTourStep={setTourStep}
+      />
     );
 
   // removed: topDownReady guide bubble (was blocking tree view)
 
-  // "New!" badge: shown on tabs until the user dismisses the new-feature popover
-  const showNewBadge = showNewFeat;
-  const TABS = TAB_IDS.map(id => ({
-    id,
-    label: _t(`tab.${id}`),
-    isNew: showNewBadge && NEW_BADGE_TAB_IDS.has(id),
-  }));
-
-  // ── Tour steps (resolved at render time so they pick up the active language) ──
-  const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
-    icon: _t(`tour.s${i}.icon`),
-    title: _t(`tour.s${i}.title`),
-    body: _t(`tour.s${i}.body`),
-  }));
-
-  // ── New-feature list (shown once to existing users) ──
-  const NEW_FEATURES = [
-    _t('new.roadmap'),
-    _t('new.dayZoom'),
-    _t('new.confidence'),
-    _t('new.dragLink'),
-    _t('new.planReview'),
-    _t('new.archive'),
-    _t('new.jiraSync'),
-    // TODO: add Network Graph improvements once documented
-  ];
-
-  // Bulk-edit body — same content rendered into the Tree sidebar AND the
-  // standalone bulk-edit modal. Closure captures the App's state + setters.
-  const renderBulkEditBody = () => {
-    if (multiSel.size === 0) return null;
-    const selItems = tree.filter(r => multiSel.has(r.id));
-    const commonOf = (key, getter = r => r[key]) => {
-      const vals = selItems.map(getter);
-      const first = vals[0];
-      return vals.every(v => v === first) ? first : null;
-    };
-    const commonTeam = commonOf('team');
-    const commonStatus = commonOf('status');
-    const commonPrio = commonOf('prio');
-    const commonBest = commonOf('best');
-    const commonFactor = commonOf('factor');
-    const commonPinnedStart = commonOf('pinnedStart', r => r.pinnedStart || '');
-    const commonCompletedStart = commonOf('completedStart', r => r.completedStart || '');
-    const commonCompletedEnd = commonOf('completedEnd', r => r.completedEnd || '');
-    const commonCompletedAt = commonOf('completedAt', r => r.completedAt || '');
-    const commonConfidence = commonOf('confidence', r => r.confidence || '');
-    const commonNote = commonOf('note');
-    const commonParallel = commonOf('parallel', r => !!r.parallel);
-    const commonTeamLock = commonOf('teamLock', r => !!r.teamLock);
-    const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
-    const allDeadlineScoped =
-      selItems.length > 0 &&
-      selItems.every(item => {
-        const rootId = deadlineRootIdForNode(tree, item.id);
-        return !!rootId && item.id !== rootId;
-      });
-    const deadlineParentExcluded =
-      allDeadlineScoped &&
-      selItems.some(item => {
-        const rootId = deadlineRootIdForNode(tree, item.id);
-        const pid = item.id.split('.').slice(0, -1).join('.');
-        return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
-      });
-    const commonDeadlineRelevant = allDeadlineScoped ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false) : null;
-    const anyNonRoot = selItems.some(r => r.id.includes('.'));
-    const batchTabs = [
-      { id: 'overview', label: _t('qe.tab.overview') },
-      { id: 'workflow', label: _t('qe.tab.workflow') },
-      ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
-      ...(allLeaf || allDeadlineScoped ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
-    ];
-    const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
-    return (
-      <div className="side-body">
-        <p className="helper" style={{ marginBottom: 10 }}>
-          {_t('bulk.hint')}
-        </p>
-        <div className="qe-tabs" role="tablist">
-          {batchTabs.map(bt => (
-            <button
-              key={bt.id}
-              role="tab"
-              aria-selected={bTab === bt.id}
-              className={`qe-tab${bTab === bt.id ? ' active' : ''}`}
-              onClick={() => setSideTab(bt.id)}
-            >
-              {bt.label}
-            </button>
-          ))}
-        </div>
-        {bTab === 'overview' && (
-          <>
-            {allLeaf && (
-              <div className="field">
-                <label>
-                  {_t('qe.status')}
-                  {commonStatus == null ? ` (${_t('bulk.mixed')})` : ''}
-                </label>
-                <SearchSelect
-                  value={commonStatus || ''}
-                  options={[
-                    { id: 'open', label: _t('open') },
-                    { id: 'wip', label: _t('wip') },
-                    { id: 'done', label: _t('done') },
-                  ]}
-                  onSelect={v =>
-                    setD(
-                      'tree',
-                      tree.map(r => {
-                        // The single editors' rules, not a bare status write: done stamps
-                        // the completion dates and 100 %, open resets progress, wip seeds
-                        // the start. A task with phases has no status of its own to set —
-                        // its phases decide it — so it is left alone, as the single
-                        // editors do by hiding the field.
-                        if (!multiSel.has(r.id) || r.phases?.length) return r;
-                        return { ...r, ...statusChangePatch(r, v) };
-                      }),
-                    )
-                  }
-                  placeholder={_t('bulk.chooseStatus')}
-                />
-              </div>
-            )}
-            <div className="field">
-              <label>
-                {_t('qe.notes')}
-                {commonNote == null ? ` (${_t('bulk.mixed')})` : ''}
-              </label>
-              <LazyInput
-                value={commonNote ?? ''}
-                onCommit={v =>
-                  setD(
-                    'tree',
-                    tree.map(r => (multiSel.has(r.id) ? { ...r, note: v } : r)),
-                  )
-                }
-                placeholder={_t('bulk.notePlaceholder')}
-              />
-            </div>
-            {anyNonRoot && (
-              <>
-                {(data.taskTemplates || []).length > 0 && (
-                  <div className="field">
-                    <label>{_t('ph.applyTemplate')}</label>
-                    <SearchSelect
-                      options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
-                      onSelect={tplId => {
-                        const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
-                        if (!tpl) return;
-                        setD(
-                          'tree',
-                          tree.map(r => {
-                            if (!multiSel.has(r.id)) return r;
-                            const phases = instantiateTemplatePhases(tpl.phases);
-                            return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
-                          }),
-                        );
-                      }}
-                      placeholder={_t('ph.applyTemplate')}
-                    />
-                  </div>
-                )}
-                {(() => {
-                  const withPhases = selItems.filter(r => r.phases?.length);
-                  if (!withPhases.length) return null;
-                  const refPhases = withPhases[0].phases;
-                  const allSameStructure =
-                    withPhases.length === selItems.length &&
-                    withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
-                  if (!allSameStructure) return null;
-                  return (
-                    <div className="field">
-                      <label>{_t('ph.phases')}</label>
-                      {refPhases.map((ph, i) => {
-                        const statuses = withPhases.map(r => r.phases[i].status);
-                        const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                        // One geometric triple — filled / half / ring — rather than a dingbat
-                        // check that renders as an emoji on some platforms.
-                        const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
-                        const dotColor = common === 'done' ? 'var(--st-done)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
-                        return (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                            <span
-                              style={{
-                                cursor: 'pointer',
-                                fontSize: 13,
-                                color: dotColor,
-                                width: 18,
-                                textAlign: 'center',
-                                flexShrink: 0,
-                                userSelect: 'none',
-                              }}
-                              onClick={() => {
-                                const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
-                                setD(
-                                  'tree',
-                                  tree.map(r => {
-                                    if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
-                                    const newPhases = r.phases.map((p, j) => (j === i ? { ...p, status: next } : p));
-                                    // Same derivation as the single editors: a wip phase
-                                    // counts for its share, not for nothing, so one click
-                                    // gives one progress figure wherever it is made.
-                                    const derived = derivePhaseStatus(newPhases);
-                                    return {
-                                      ...r,
-                                      phases: newPhases,
-                                      ...(derived ? { status: derived.status, progress: derived.progress } : {}),
-                                    };
-                                  }),
-                                );
-                              }}
-                            >
-                              {dot}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: common === 'done' ? 'var(--tx3)' : 'var(--tx)',
-                                textDecoration: common === 'done' ? 'line-through' : 'none',
-                              }}
-                            >
-                              {ph.name}
-                            </span>
-                            {common == null && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </>
-        )}
-        {bTab === 'workflow' && (
-          <>
-            <div className="field">
-              <label>
-                {_t('qe.team')}
-                {commonTeam == null ? ` (${_t('bulk.mixed')})` : ''}
-              </label>
-              <SearchSelect
-                value={commonTeam || ''}
-                options={teams.map(t => ({ id: t.id, label: t.name }))}
-                onSelect={v =>
-                  setD(
-                    'tree',
-                    tree.map(r => (multiSel.has(r.id) ? { ...r, team: v } : r)),
-                  )
-                }
-                placeholder={_t('bulk.chooseTeam')}
-                allowEmpty
-              />
-            </div>
-            <div className="field">
-              <label>{_t('qe.assignee')}</label>
-              {(() => {
-                const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
-                return (
-                  <>
-                    {commonAssigns.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                        {commonAssigns.map(a => {
-                          const m = members.find(x => x.id === a);
-                          return (
-                            <span key={a} className="tag">
-                              {m?.name || a}
-                              <span
-                                className="tag-x"
-                                data-htip={_t('bulk.removeFromSelected')}
-                                onClick={() =>
-                                  setD(
-                                    'tree',
-                                    tree.map(r => (multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r)),
-                                  )
-                                }
-                              >
-                                <Icon name="x" size={9} />
-                              </span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <SearchSelect
-                      options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))}
-                      onSelect={v => {
-                        const m = members.find(x => x.id === v);
-                        setD(
-                          'tree',
-                          tree.map(r =>
-                            multiSel.has(r.id)
-                              ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: teamForAssignment(m, r.team) }
-                              : r,
-                          ),
-                        );
-                      }}
-                      placeholder={_t('qe.assignPerson')}
-                    />
-                  </>
-                );
-              })()}
-            </div>
-            {allLeaf && (
-              <div className="field">
-                <label>
-                  {_t('qe.parallel') || 'Parallel'}
-                  {commonParallel == null ? ` (${_t('bulk.mixed')})` : ''}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={commonParallel === true}
-                      onChange={e =>
-                        setD(
-                          'tree',
-                          tree.map(r => (multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r)),
-                        )
-                      }
-                    />
-                    <span className="slider" />
-                  </label>
-                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
-                </div>
-              </div>
-            )}
-            {allLeaf && (
-              <div className="field">
-                <label>
-                  {_t('qe.teamLock')}
-                  {commonTeamLock == null ? ` (${_t('bulk.mixed')})` : ''}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={commonTeamLock === true}
-                      onChange={e =>
-                        setD(
-                          'tree',
-                          tree.map(r => (multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r)),
-                        )
-                      }
-                    />
-                    <span className="slider" />
-                  </label>
-                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        {bTab === 'effort' && (
-          <>
-            {allLeaf && (
-              <div className="frow">
-                <div className="field">
-                  <label>
-                    {_t('qe.bestDays')}
-                    {commonBest == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={commonBest ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, best: +v } : r)),
-                      )
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>
-                    {_t('qe.factor')}
-                    {commonFactor == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="number"
-                    step="0.1"
-                    min="1"
-                    value={commonFactor ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, factor: +v } : r)),
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            )}
-            <div className="field">
-              <label>
-                {_t('qe.priority')}
-                {commonPrio == null ? ` (${_t('bulk.mixed')})` : ''}
-              </label>
-              <SearchSelect
-                value={commonPrio ? String(commonPrio) : ''}
-                options={[
-                  { id: '1', label: `1 ${_t('critical')}` },
-                  { id: '2', label: `2 ${_t('high')}` },
-                  { id: '3', label: `3 ${_t('medium')}` },
-                  { id: '4', label: `4 ${_t('low')}` },
-                ]}
-                onSelect={v =>
-                  setD(
-                    'tree',
-                    tree.map(r => (multiSel.has(r.id) ? { ...r, prio: +v } : r)),
-                  )
-                }
-                placeholder={_t('bulk.choosePriority')}
-              />
-            </div>
-            <div className="field">
-              <label>{_t('qe.confidence')}</label>
-              <div style={{ display: 'flex', gap: 3 }}>
-                {[
-                  ['', _t('auto')],
-                  ['committed', '●'],
-                  ['estimated', '◐'],
-                  ['exploratory', '○'],
-                ].map(([v, l]) => (
-                  <button
-                    key={v}
-                    className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`}
-                    style={{ flex: 1, fontSize: 11 }}
-                    onClick={() =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, confidence: v } : r)),
-                      )
-                    }
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-        {bTab === 'timing' && (
-          <>
-            {allLeaf && (
-              <div className="frow">
-                <div className="field">
-                  <label>
-                    {_t('qe.pinnedStart')}
-                    {commonPinnedStart == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="date"
-                    value={commonPinnedStart ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, pinnedStart: v } : r)),
-                      )
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>
-                    {_t('qe.completedStart')}
-                    {commonCompletedStart == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="date"
-                    value={commonCompletedStart ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedStart: v } : r)),
-                      )
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>
-                    {_t('qe.completedEnd')}
-                    {commonCompletedEnd == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="date"
-                    value={commonCompletedEnd ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r)),
-                      )
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>
-                    {_t('qe.completedAt')}
-                    {commonCompletedAt == null ? ` (${_t('bulk.mixed')})` : ''}
-                  </label>
-                  <LazyInput
-                    type="date"
-                    value={commonCompletedAt ?? ''}
-                    onCommit={v =>
-                      setD(
-                        'tree',
-                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r)),
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            )}
-            {allDeadlineScoped && (
-              <div className="field">
-                <label>
-                  {_t('qe.affectsDeadline')}
-                  {commonDeadlineRelevant == null ? ` (${_t('bulk.mixed')})` : ''}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={commonDeadlineRelevant !== false}
-                      disabled={deadlineParentExcluded}
-                      onChange={e =>
-                        setD(
-                          'tree',
-                          tree.map(r => (multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r)),
-                        )
-                      }
-                    />
-                    <span className="slider" />
-                  </label>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: deadlineParentExcluded ? 'var(--tx3)' : commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)',
-                    }}
-                  >
-                    {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
-                  </span>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        <hr className="divider" />
-        <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>
-          {_t('bulk.clearSelection')}
-        </button>
-      </div>
-    );
-  };
-
-  // Shared between the Export dialog and Report mode (ReportView.jsx) — both
-  // render the same ExportCards grid with the same handlers, so this object
-  // is built once and spread into whichever one is mounted.
-  const exportHandlerProps = {
+  const TABS = buildTabs(_t, showNewFeat);
+  const TOUR_STEPS = buildTourSteps(_t);
+  const NEW_FEATURES = buildNewFeatures(_t);
+  const exportHandlerProps = buildExportHandlerProps({
     tab,
-    onOpenJira: () => setModal('jira'),
-    onSummaryPDF: opts => exportSummaryPDF(_exportCtx(), opts),
+    setModal,
+    exportCtx: _exportCtx,
     onScenarioPDF: exportScenarioPDFOrThrow,
-    onGanttPDF: () => exportGanttPDF(_exportCtx()),
-    onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
-    onTodoPDF: horizonDays => exportTodoPDF(_exportCtx(), horizonDays),
-    onReportDocx: () => exportReportDocx(_exportCtx()),
-    onSprintMarkdown: horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }),
-    onMermaid: () => exportMermaid(_exportCtx()),
-    onNetworkPNG: () => exportNetworkPNG(_exportCtx()),
-    onGanttPNG: () => exportGanttPNG(_exportCtx()),
-    // The JSON export is the file in another format: the plan and its
-    // scenarios, whichever of them happens to be on screen.
-    onJSON: () => exportJSON({ ..._exportCtx(), data: withoutPendingDates(fileDataRef.current || data) }),
-    // The two picture exports are taken from a live view, so from anywhere
-    // else their card can only say no. Given the way there, it stops being a
-    // dead card and becomes one click of setup.
-  };
+    fileDataRef,
+    data,
+  });
 
   const paletteCommands = buildPaletteCommands({
     _t,
@@ -2054,82 +1339,38 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     exportScenarioPDF,
   });
 
-  // What the render layer reads, in three bundles. They are rebuilt every render on
+  // What the render layer reads, in three bundles. Each is merged by name, so
+  // two sources carrying the same name is an error on the first render. They are rebuilt every render on
   // purpose: the components below hold no state and are not memoised, so a stable
   // identity would buy nothing, and the inner views get their members one by one.
-  const plan = {
+  const plan = mergeNamed(planModel, reviewDiff, visible, scenarioView, lensDates, {
     activeScenario,
-    activeScheduled,
-    activeTree,
-    archive,
-    confReasons,
-    confidence,
-    cpData,
-    cpLabels,
-    cpSet,
     data,
-    diff,
-    diffDoneSet,
-    diffFilterSet,
-    diffProgressedSet,
-    diffVisibleSet,
-    droppedCount,
     effContext,
-    effCount,
     effDate,
-    effDates,
     effDropDate,
-    futureProgressByRootId,
-    goalPaths,
-    goals,
-    hm,
     horizonDays,
-    horizonEnd,
-    horizonFilterSet,
-    horizonIds,
-    leaves,
     members,
     meta,
     past,
     pastStart,
-    personQueues,
-    planStart,
-    projectWaitsOf,
     scenarioList,
-    scheduled,
     scn,
-    scnBaseline,
-    scnChangedIds,
     scnChanges,
     scnCompareMemory,
-    scnComparison,
-    scnShifts,
     searchIdx,
-    sinceDate,
-    stats,
     teams,
-    tree,
     vacations,
     viewCpEdges,
     viewCpSet,
-    viewGoals,
-    viewScheduled,
-    viewStats,
-    visibleTreeForViews,
-    weeks,
-    workDays,
-  };
-  const view = {
-    activeQuickFilters,
-    activeScopeChips,
+  });
+
+  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, {
     archiveDays,
     autoSave,
     bulkEditModalOpen,
     deferredSearch,
     diffOnlyChanged,
-    editorAsDialog,
-    editorDock,
-    externalChangeAvailable,
     fileName,
     fileSynced,
     fileWriteOk,
@@ -2142,21 +1383,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     modalNode,
     multiSel,
     personFilter,
-    quickFilters,
     resLens,
     rootFilter,
-    saveCountdown,
     saved,
-    saving,
     scnNotice,
-    scopeFields,
     search,
     selected,
     setArchiveDays,
     setAutoSave,
     setBulkEditModalOpen,
-    setEditorDock,
-    setExternalChangeAvailable,
     setGanttRoadmapFocus,
     setMN,
     setModal,
@@ -2168,22 +1403,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setSearchIdx,
     setSel,
     setShowArchived,
-    setShowTreeIds,
     setSideTab,
     setTab,
     setTourStep,
-    setUiScale,
     showArchived,
     showNewFeat,
-    showTreeIds,
     sideTab,
     sinceDays,
     tab,
     tabFades,
     teamFilter,
     tourStep,
-    uiScale,
-  };
+  });
   // The two raw writes a component may ask for, by name. `mutate`, `setData`
   // and `setSaved` themselves stay in here: a component that held them could
   // write past undo without anybody noticing.
@@ -2258,7 +1489,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
                 <Frozen active={tab === 'tree'}>
                   <TreeList plan={plan} view={view} handlers={handlers} />
-                  <TreeSide plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
+                  <TreeSide plan={plan} view={view} handlers={handlers} _t={_t} />
                 </Frozen>
               </div>
             )}
@@ -2282,7 +1513,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               </div>
             )}
           </div>
-          <ItemModals plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
+          <ItemModals plan={plan} view={view} handlers={handlers} _t={_t} />
           <ScenarioModals plan={plan} view={view} handlers={handlers} />
           <SettingsModals plan={plan} view={view} handlers={handlers} />
           <ProjectFileModals plan={plan} view={view} handlers={handlers} exportHandlerProps={exportHandlerProps} />

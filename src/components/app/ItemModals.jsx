@@ -1,10 +1,11 @@
 import { Icon } from '../shared/Icon.jsx';
+import { BulkEditBody } from './BulkEditBody.jsx';
 import { AddModal } from '../modals/AddModal.jsx';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { EstimationWizard } from '../modals/EstimationWizard.jsx';
 import { NodeModal } from '../modals/NodeModal.jsx';
 
-function BulkEditModal({ view, _t, renderBulkEditBody }) {
+function BulkEditModal({ plan, view, handlers, _t }) {
   const { bulkEditModalOpen, multiSel, setBulkEditModalOpen } = view;
   if (!bulkEditModalOpen || multiSel.size === 0) return null;
   return (
@@ -16,7 +17,7 @@ function BulkEditModal({ view, _t, renderBulkEditBody }) {
             <Icon name="x" size={11} />
           </button>
         </div>
-        {renderBulkEditBody()}
+        <BulkEditBody plan={plan} view={view} handlers={handlers} _t={_t} />
       </div>
     </div>
   );
@@ -47,7 +48,7 @@ function EstimateModal({ plan, view, handlers }) {
   );
 }
 
-export function ItemModals({ plan, view, handlers, _t, renderBulkEditBody }) {
+export function ItemModals({ plan, view, handlers, _t }) {
   const { confReasons, confidence, cpLabels, cpSet, data, members, past, scheduled, stats, teams, tree } = plan;
   const { editorAsDialog, modal, modalFocus, modalNode, selected, setEditorDock, setMN, setModal, setModalFocus, setSel } = view;
   const { addNode, deleteNode, duplicateNode, moveNode, setHistoryEvents, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
@@ -139,7 +140,7 @@ export function ItemModals({ plan, view, handlers, _t, renderBulkEditBody }) {
           onClose={() => setModal(null)}
         />
       )}
-      <BulkEditModal view={view} _t={_t} renderBulkEditBody={renderBulkEditBody} />
+      <BulkEditModal plan={plan} view={view} handlers={handlers} _t={_t} />
       <EstimateModal plan={plan} view={view} handlers={handlers} />
     </>
   );

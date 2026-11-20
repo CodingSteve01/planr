@@ -1,13 +1,13 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 6
+      "count": 5
     },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     }
   },
   "src/__tests__/archive.roadmap.test.jsx": {
