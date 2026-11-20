@@ -30,7 +30,13 @@ import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 const CONF_LABEL = { committed: 'Committed', estimated: 'Estimated', exploratory: 'Exploratory' };
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, historyEvents = [], onHistoryChange, viewDay = '', tab: tabProp, onTabChange }) {
+// The side panel's editor for one item. The check for "no item" sits out here
+// so that the component below calls its hooks on every render.
+export function QuickEdit(props) {
+  return props.node ? <QuickEditBody {...props} /> : null;
+}
+
+function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, historyEvents = [], onHistoryChange, viewDay = '', tab: tabProp, onTabChange }) {
   const { t } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -99,7 +105,6 @@ export function QuickEdit({ node, tree, members, teams, taskTemplates, sizes: pr
 
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
-  if (!node) return null;
 
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');

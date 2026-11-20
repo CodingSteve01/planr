@@ -35,7 +35,7 @@ with the longest entry is the one to split next.
 | Function length | 80 lines (`.js`), 200 (`.jsx`) | a component carries its markup, a utility does not |
 | File length | 800 lines | beyond that a file has more than one job |
 | Duplicated code | 1.5 % of lines | measured by jscpd, clones of 8 lines or more |
-| Coverage | lines 74 %, statements 69 %, functions 63 %, branches 60 % | a floor just under where the suite stood, not a target |
+| Coverage | lines 74 %, statements 69 %, functions 63 %, branches 60 % | a floor under the totals: it catches the suite sliding, not one untested change |
 
 Correctness rules (ESLint's recommended set, `eqeqeq`, `no-unused-vars`,
 `react-hooks/rules-of-hooks`, no duplicate imports or dictionary keys) apply to

@@ -2285,6 +2285,7 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     return () => window.removeEventListener('mouseup', finishLinkDrag, true);
   }, [linkDrag]);
 
+  const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
   if (!allItems.length) return <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center', color: 'var(--tx3)' }}><div style={{ fontSize: 32, marginBottom: 12 }}></div>
       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('g.noItems')}</div>
@@ -2292,7 +2293,6 @@ function GanttViewImpl({ scheduled, weeks, goals, teams, members = [], vacations
     </div>
   </div>;
 
-  const unestimatedCount = useMemo(() => displayItems.filter(s => s._unestimated).length, [displayItems]);
 
   return <div className="gantt" onMouseMove={onMM} onMouseUp={onMU}
     onClickCapture={e => {

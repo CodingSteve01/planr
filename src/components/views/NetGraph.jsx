@@ -105,7 +105,6 @@ function layoutSubtree(node, childMap) {
   }
 
   let maxRowW = 0;
-  const totalH = 0;
   const rowMeta = rows.map(row => {
     const rowW = row.reduce((s, l) => s + l.w + TREE_GAP, -TREE_GAP);
     const rowH = Math.max(...row.map(l => l.h));

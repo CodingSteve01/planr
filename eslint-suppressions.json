@@ -83,9 +83,6 @@
     },
     "no-unused-vars": {
       "count": 1
-    },
-    "react-hooks/rules-of-hooks": {
-      "count": 5
     }
   },
   "src/components/modals/SettingsModal.jsx": {
@@ -216,9 +213,6 @@
     },
     "no-unused-vars": {
       "count": 11
-    },
-    "react-hooks/rules-of-hooks": {
-      "count": 1
     }
   },
   "src/components/views/NetGraph.jsx": {
@@ -229,7 +223,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 5
+      "count": 4
     }
   },
   "src/components/views/Onboard.jsx": {
@@ -265,9 +259,6 @@
     },
     "no-unused-vars": {
       "count": 1
-    },
-    "react-hooks/rules-of-hooks": {
-      "count": 6
     }
   },
   "src/components/views/ResView.jsx": {

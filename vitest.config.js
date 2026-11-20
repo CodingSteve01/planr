@@ -38,9 +38,9 @@ export default defineConfig({
     testTimeout: 20000,
     hookTimeout: 20000,
     // Coverage is a floor, not a target: the thresholds sit just under what
-    // the suite reached when they were set, so a change that leaves a lot of
-    // new code untested fails, and nobody is paid for chasing a number. Raise
-    // them when the suite has moved up (docs/quality.md).
+    // the whole suite reached when they were set. They are totals, so they
+    // catch the suite sliding, not one untested change; that is what review
+    // is for. Raise them when the suite has moved up (docs/quality.md).
     coverage: {
       provider: 'v8',
       include: ['src/**', 'obsidian/src/**'],
