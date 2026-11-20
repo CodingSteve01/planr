@@ -4,6 +4,8 @@ import { isOnScreen } from '../../utils/onScreen.js';
 import { PersonChip } from '../shared/PersonChip.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { GanttFooter } from './gantt/GanttFooter.jsx';
+import { LinkDragOverlay } from './gantt/LinkDragOverlay.jsx';
+import { GanttSelectionBar } from './gantt/GanttSelectionBar.jsx';
 import { computeRowLayout } from '../../utils/gantt/rowLayout.js';
 import {
   reorderSelectionInTime as reorderSelection,
@@ -29,7 +31,7 @@ import {
   weekHeaderLabel as weekHeaderLabelOf,
 } from '../../utils/gantt/geometry.js';
 import { tipLines } from '../../utils/tipText.js';
-import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
+import { usePortalRoot } from '../../utils/embedHost.js';
 import { MDE } from '../../constants.js';
 import { iso, addD, localDate } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode, fixedDurationDays, leafProgress } from '../../utils/scheduler.js';
@@ -42,8 +44,6 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
-import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
-import { AssignModal } from '../modals/AssignModal.jsx';
 import { useT } from '../../i18n.jsx';
 import {
   NO_TEAM,
@@ -3514,179 +3514,23 @@ function GanttViewImpl({
         confidence={confidence}
         linkDrag={linkDrag}
       />
-      <SelectionActionBar count={selectedTaskIds.length} onClear={() => setSelectedIds(new Set())} testId="gantt-selection-actionbar">
-        {selectedTaskIds.length > 1 && (
-          <button
-            data-testid="gantt-link-selected"
-            className="btn btn-pri"
-            onClick={linkSelectedInOrder}
-            data-htip={t('g.linkSelectedTip')}
-          >
-            {t('g.linkSelected')}
-          </button>
-        )}
-        {/* Z-order style reorder: shifts the whole selection in the scheduler
-          processing order (writes seq). Mirrors media-player jump controls. */}
-        <span style={{ display: 'inline-flex', gap: 2 }}>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('first')}
-            data-htip={t('g.reorderFirstTip')}
-            aria-label={t('g.reorderFirstTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="skipBack" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('up')}
-            data-htip={t('g.reorderUpTip')}
-            aria-label={t('g.reorderUpTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="chevronLeft" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('down')}
-            data-htip={t('g.reorderDownTip')}
-            aria-label={t('g.reorderDownTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="chevronRight" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('last')}
-            data-htip={t('g.reorderLastTip')}
-            aria-label={t('g.reorderLastTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="skipForward" size={13} />
-          </button>
-        </span>
-        <span style={{ display: 'inline-flex', gap: 2 }}>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => adjustSelectionPrio(-1)}
-            data-htip={t('g.prioUpTip')}
-            aria-label={t('g.prioUpTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
-            Prio
-            <Icon name="chevronUp" size={12} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => adjustSelectionPrio(1)}
-            data-htip={t('g.prioDownTip')}
-            aria-label={t('g.prioDownTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
-            Prio
-            <Icon name="chevronDown" size={12} />
-          </button>
-        </span>
-        <button
-          type="button"
-          className="sab-assign-trigger"
-          onClick={() => onOpenBulkEdit?.(selectedTaskIds)}
-          data-htip={t('g.bulkEditTip')}
-          data-testid="gantt-bulk-edit-trigger"
-        >
-          <span className="sab-icon">
-            <Icon name="checkSquare" size={13} />
-          </span>
-          <span>{t('g.bulkEdit')}</span>
-        </button>
-        <span className="sab-divider" />
-        <button
-          data-testid="gantt-clear-selected-links"
-          className="btn btn-sec"
-          onClick={() => clearSelectedLinks('all')}
-          data-htip={t('g.clearSelectedLinksTip')}
-        >
-          {t('g.clearSelectedLinks')}
-        </button>
-      </SelectionActionBar>
-      {showAssignModal && (
-        <AssignModal
-          count={selectedTaskIds.length}
-          teams={teams}
-          members={members}
-          onClose={() => setShowAssignModal(false)}
-          onApply={({ team, persons }) => {
-            const sel = new Set(selectedTaskIds);
-            (tree || []).forEach(node => {
-              if (!sel.has(node.id) || !onTaskUpdate) return;
-              const patch = { ...node };
-              let changed = false;
-              if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
-                patch.team = team || '';
-                changed = true;
-              }
-              if (Array.isArray(persons)) {
-                const cur = (node.assign || []).slice().sort().join(',');
-                const nxt = persons.slice().sort().join(',');
-                if (cur !== nxt) {
-                  patch.assign = persons.slice();
-                  changed = true;
-                }
-              }
-              if (changed) onTaskUpdate(patch);
-            });
-          }}
-        />
-      )}
-      {/* Viewport overlay for the live drag-to-link line */}
-      {linkDrag && (
-        <svg className="layer-drag" style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}>
-          <defs>
-            <marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" />
-            </marker>
-          </defs>
-          {(() => {
-            const el = document.querySelector(`[data-link-from="${linkDrag.fromId}"]`);
-            const rect = el?.getBoundingClientRect();
-            // Everything here is in viewport coordinates; the overlay is fixed and
-            // spans its containing block, which is the viewport only when nothing
-            // is embedding us. See utils/embedHost.js.
-            const frame = fixedFrame(portalRoot);
-            const from = toFixedPoint(rect ? rect.right : linkDrag.mouseX, rect ? rect.top + rect.height / 2 : linkDrag.mouseY, frame);
-            const to = toFixedPoint(linkDrag.mouseX, linkDrag.mouseY, frame);
-            const x1 = from.x,
-              y1 = from.y;
-            const x2 = to.x,
-              y2 = to.y;
-            const stub = 10;
-            const sx = x1 + stub;
-            const tx = x2 - stub;
-            const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
-            const c1x = sx + dx,
-              c2x = tx - dx;
-            const d = `M${x1},${y1} L${sx},${y1} C${c1x},${y1} ${c2x},${y2} ${tx},${y2} L${x2 - 1},${y2}`;
-            return (
-              <path
-                d={d}
-                stroke="var(--ac)"
-                strokeWidth={2}
-                fill="none"
-                strokeDasharray="4 3"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                markerEnd="url(#ldArr)"
-              />
-            );
-          })()}
-        </svg>
-      )}
+      <GanttSelectionBar
+        selectedTaskIds={selectedTaskIds}
+        setSelectedIds={setSelectedIds}
+        linkSelectedInOrder={linkSelectedInOrder}
+        t={t}
+        reorderSelectionInTime={reorderSelectionInTime}
+        adjustSelectionPrio={adjustSelectionPrio}
+        onOpenBulkEdit={onOpenBulkEdit}
+        clearSelectedLinks={clearSelectedLinks}
+        showAssignModal={showAssignModal}
+        teams={teams}
+        members={members}
+        setShowAssignModal={setShowAssignModal}
+        tree={tree}
+        onTaskUpdate={onTaskUpdate}
+      />
+      <LinkDragOverlay linkDrag={linkDrag} portalRoot={portalRoot} />
       {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
       {tip && (
         <Tip
