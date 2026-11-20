@@ -14,6 +14,7 @@ import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
+import { useGlobalKeys } from './app/useGlobalKeys.js';
 import { buildLogWriters } from './app/logWriters.js';
 import { useEarlierDay } from './app/useEarlierDay.js';
 import { fileLoaders } from './app/fileLoaders.js';
@@ -48,7 +49,7 @@ import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
-import { initialShell, loadLocalProject, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
+import { initialShell, loadLocalProject } from './app/shell.js';
 import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
@@ -293,93 +294,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     commitSaveSideEffects,
   });
 
-  // Global keyboard shortcuts. The file ones are the platform conventions
-  // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
-  // ⌘E export, ⌘, settings — declared in utils/shortcuts.js so the keymap
-  // and the menus name exactly what is bound here.
-  //
-  // ⌘N (new) is deliberately NOT bound: browsers keep it for "new window"
-  // and never deliver it to the page, so binding it would look like a
-  // feature and do nothing. New project lives in the File menu and the
-  // palette instead.
-  useEffect(() => {
-    const h = e => {
-      const mod = e.ctrlKey || e.metaKey;
-      const key = (e.key || '').toLowerCase();
-      // Never steal a file shortcut from a text field the user is typing in
-      // — except Save, which people expect to work from anywhere.
-      const active = document.activeElement;
-      const tag = active?.tagName;
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-
-      if (mod && key === 's' && e.shiftKey) {
-        e.preventDefault();
-        saveToFile(true);
-        return;
-      }
-      if (mod && key === 'o' && !typing) {
-        e.preventDefault();
-        loadFromFile();
-        return;
-      }
-      if (mod && key === 'e' && !typing) {
-        e.preventDefault();
-        setTab('report');
-        return;
-      }
-      if (mod && e.key === ',' && !typing) {
-        e.preventDefault();
-        setModal('settings');
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveToFile();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        // Only intercept when a searchable view is active
-        if (SEARCH_TABS.has(tab)) {
-          e.preventDefault();
-          searchRef.current?.focus();
-          searchRef.current?.select();
-        }
-      }
-      // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
-      // ⇧ is not ours: ⌘⇧↑/↓ moves a row in the tree.
-      // Not from a text field: the search box steps on its own (this used to
-      // step a second time, so each press skipped a match), and anywhere else
-      // ⌘↑/⌘↓ is the caret's jump to the start or end of the text.
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.shiftKey &&
-        !typing &&
-        search &&
-        MATCH_STEP_TABS.has(tab) &&
-        (e.key === 'ArrowDown' || e.key === 'ArrowUp')
-      ) {
-        e.preventDefault();
-        setSearchIdx(i => (e.key === 'ArrowDown' ? i + 1 : i - 1));
-      }
-      // Undo/redo — never while focus is in a text-editing control, so
-      // native text-field undo wins there instead of ours.
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
-        const active = document.activeElement;
-        const tag = active?.tagName;
-        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-        // No structure command can be issued from inside a field any more, so
-        // there is never plan history hiding behind a text field's ⌘Z.
-        if (!isEditable) {
-          const isRedo = e.key === 'y' || e.key === 'Y' || e.shiftKey;
-          e.preventDefault();
-          if (isRedo) handleRedo();
-          else handleUndo();
-        }
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  });
+  useGlobalKeys({ saveToFile, loadFromFile, setTab, setModal, tab, searchRef, search, setSearchIdx, handleUndo, handleRedo });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
   const { reschedule, ...planModel } = usePlanModel({ data, members, vacations, meta, past });
