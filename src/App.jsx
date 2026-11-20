@@ -10,8 +10,8 @@ import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
-import { applyPastEdit, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
-import { applyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
+import { applyPastEdit, inIdsOf, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
+import { applyPatch, isEmptyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { addDays, changeDates, compileMembers, dayOf, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from './utils/effective.js';
@@ -72,7 +72,6 @@ import { buildImportedProject } from './utils/jiraImport.js';
 import { detectJiraFieldId } from './utils/jiraSync.js';
 import { ExportModal } from './components/modals/ExportModal.jsx';
 import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
-import { BackdateModal } from './components/modals/BackdateModal.jsx';
 import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
@@ -315,17 +314,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [selId, _setSelId] = useState(null);
   const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
-  // Backdating: while set, every history event this session writes counts as
-  // of that day rather than today. Restructuring a package — splitting it,
-  // re-parenting it — is bookkeeping about work that was already there, and
-  // dating it today makes the next review read as if the work appeared out of
-  // nowhere (utils/history.js, `diffSnapshots`).
-  //
-  // Deliberately NOT persisted. A backdate you forgot about falsifies every
-  // review after it, silently and forever, and the cost of switching it on
-  // again after a reload is one keystroke. It is also loud while it is on:
-  // see the chip in the top bar.
-  const [backdate, setBackdate] = useState('');
   const [modal, setModal] = useState(null);
   const [modalNode, setMN] = useState(null);
   const [modalFocus, setModalFocus] = useState(null);
@@ -364,7 +352,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
-  function resetHistory() { setEffDate(''); setPast(null); lastSavedPlanRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
+  function resetHistory() { setEffDate(''); setPast(null); lastSavedPlanRef.current = null; dayUndoRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
   // ── Scenarios ────────────────────────────────────────────────────────────
   // While a scenario is on screen, `data` IS the scenario — the plan with the
   // scenario's changes applied — and every view, edit, undo and export works
@@ -387,6 +375,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // The plan as the last save (or the load) left it: what today's log entry
   // is measured against.
   const lastSavedPlanRef = useRef(null);
+  // The plan's undo stack, set aside while an earlier day is on screen. It
+  // comes back when the visit changed nothing; a visit that did change the
+  // plan starts a new stack, because the old snapshots no longer lead to it.
+  const dayUndoRef = useRef(null); // { history, real }
   // The plan's undo stack, set aside while a scenario is on screen, so that a
   // look at a what-if does not cost the plan its history.
   const planHistoryRef = useRef(null); // { history, ids }
@@ -863,8 +855,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const isMd = file.name.endsWith('.md');
       const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
       if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
+        // What changed outside Planr belongs to the day it was picked up.
+        // The plan as it was last saved here stays what the next save measures
+        // against (in the ids this load handed out), and the status baseline
+        // stays too, so the difference is recorded as a change of today.
+        // What was edited here and not saved is gone with the reload and is
+        // not part of that.
+        const before = pastRef.current || scnRef.current ? null : lastSavedPlanRef.current;
         setData(d);
         resetHistory(); // reloaded from disk — treat as a fresh document
+        if (before && lastSavedLeavesRef.current) {
+          lastSavedPlanRef.current = inIdsOf(before, d);
+          leafBaselineStaleRef.current = false;
+        }
         setLastSavedAt(new Date(file.lastModified));
         lastModRef.current = file.lastModified;
         setSaved(true);
@@ -1244,6 +1247,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const effCount = effDates.find(d => d.from === effDate)?.count || 0;
   // A day before today is a look at the plan as it was (and a place to
   // correct it from then on); a day after today is where capacity changes.
+  // The same plan, whatever a save added to its logs in between.
+  const sameDocument = (a, b) => a === b || isEmptyPatch(diffPlan(a, b));
   const pickEffDate = day => {
     const wanted = day || '';
     const goPast = !!wanted && wanted < localDay() && !scnRef.current;
@@ -1258,7 +1263,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (!from && lastSavedLeavesRef.current) {
         const snapshot = leafSnapshot(sortTree(real.tree || []));
         const ts = new Date().toISOString();
-        const events = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, backdate || null), real.asOfPending, snapshot, ts);
+        const events = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), real.asOfPending, snapshot, ts);
         lastSavedLeavesRef.current = snapshot;
         real = recordSavedEvents(real, events, real.asOfPending || null);
       }
@@ -1272,8 +1277,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         setData(real);
       }
       // Snapshots of one day are not edits of another.
-      setHistory(createHistory({ limit: 100 }));
-      if (from) setSaved(false);
+      if (!from) dayUndoRef.current = { history, real };
+      const kept = dayUndoRef.current;
+      const untouched = !goPast && kept && sameDocument(kept.real, real);
+      if (!goPast) dayUndoRef.current = null;
+      setHistory(untouched ? kept.history : createHistory({ limit: 100 }));
+      if (from && !untouched) setSaved(false);
     }
     setEffDate(wanted);
     if (wanted && !goPast) setTab('resources');
@@ -1288,7 +1297,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     changes: data?.changes || [],
     onGo: day => pickEffDate(day || ''),
     onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
-  }), [effDate, data?.changes, past?.day, scn?.id, backdate]);
+  }), [effDate, data?.changes, past?.day, scn?.id]);
   // A person's own order of work, when they have one. The plan's order is the
   // tree's; this is the single override, and it only permutes the slots that
   // person's work already holds (utils/personQueue.js).
@@ -2354,7 +2363,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const currSnapshot = leafSnapshot(realTree);
     let newEvents = [];
     if (lastSavedLeavesRef.current) {
-      newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : (backdate || null)), real?.asOfPending, currSnapshot, ts);
+      newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : null), real?.asOfPending, currSnapshot, ts);
     }
     // A backdated entry supersedes the later ones it contradicts, or the
     // replay walks done → wip → done and every review in between reports the
@@ -2379,7 +2388,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!lastSavedLeavesRef.current) { lastSavedLeavesRef.current = snapshot; return; }
     const pendingRead = data?.asOfPending || null;
     const ts = new Date().toISOString();
-    const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, backdate || null), pendingRead, snapshot, ts);
+    const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), pendingRead, snapshot, ts);
     lastSavedLeavesRef.current = snapshot;
     const savedPlan = recordToday(lastSavedPlanRef.current, data);
     lastSavedPlanRef.current = savedPlan;
@@ -2886,7 +2895,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   if (!data) return <>
     <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
       onJiraImport={() => setModal('jiraImport')}
-      onBackdate={() => setModal('backdate')}
       onLoadDemo={() => {
         import('./utils/demoProject.js').then(m => {
           const demo = m.buildDemoProject(_t);
@@ -3202,7 +3210,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', keywords: ['backdate', 'rückdatieren', 'nachtragen', 'sprint', 'review'], group: 'file', groupLabel: fileGroup, run: () => setModal('backdate') },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
@@ -3210,7 +3217,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // Scenarios: one entry to start one, one per scenario to go there, and
     // while one is on screen the three things you do with it.
     { id: 'effective.pick', icon: 'calendar', labelKey: 'eff.cmd', group: 'scenario', groupLabel: _t('palette.group.scenario'),
-      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit'],
+      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit', 'backdate', 'rückdatieren', 'nachtragen', 'früher', 'earlier', 'zeitreise'],
       run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)) },
     { id: 'scenario.new', icon: 'branch', labelKey: 'scn.cmd.new', group: 'scenario', groupLabel: _t('palette.group.scenario'),
       keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
@@ -3335,22 +3342,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <span className="topbar-count" style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
           data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done{droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}</span>
       </>}
-      {backdate && <span
-        data-testid="backdate-chip"
-        className="chip on"
-        data-htip={_t('bd.chipTip', backdate)}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-      >
-        <Icon name="undo" size={12} />
-        <span style={{ fontFamily: 'var(--mono)' }}>{backdate}</span>
-        <button
-          type="button"
-          data-testid="backdate-clear"
-          aria-label={_t('bd.clear')}
-          onClick={() => setBackdate('')}
-          style={{ appearance: 'none', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}
-        ><Icon name="x" size={11} /></button>
-      </span>}
       <div className="sp" />
       {/* File operations have a visible home again. Phase 3 moved them all
           into the palette; opening and saving a file is not a command you go
@@ -3365,7 +3356,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         onExport={() => setTab('report')}
         onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
         onJiraImport={() => setModal('jiraImport')}
-        onBackdate={() => setModal('backdate')}
+        onBackdate={() => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT))}
       />
       <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
         onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
@@ -3642,7 +3633,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><Frozen active={tab === 'holidays'}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></Frozen></div>}
       {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><Frozen active={tab === 'report'}><ReportView {...exportHandlerProps} /></Frozen></div>}
     </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} backdate={past ? '' : backdate} viewDay={past?.day || ''} focusRequest={modalFocus}
+    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} viewDay={past?.day || ''} focusRequest={modalFocus}
       onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
       onDockSide={editorAsDialog ? () => { setEditorDock('side'); setModal(null); setMN(null); setModalFocus(null); } : undefined}
       onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
@@ -3660,10 +3651,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         setSel(target);
       }} />}
     {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
-    {modal === 'backdate' && <BackdateModal
-      value={backdate}
-      onApply={date => { setBackdate(date); setModal(null); }}
-      onClose={() => setModal(null)} />}
     {modal === 'scenario' && scn && <ScenarioCompare
       scenario={activeScenario}
       base={scn.base}

@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { monthAgo } from '../effective.js';
+import { inIdsOf } from '../dayLog.js';
 import { recordToday, planAtEndOf, planOn, statusAsOf, applyPastEdit, formatDayLogBlock, parseDayLogBlock, logStart } from '../dayLog.js';
 
 const node = (id, extra = {}) => ({ id, name: id, status: 'open', progress: 0, best: 1, factor: 1, deps: [], assign: [], ...extra });
@@ -142,5 +143,42 @@ describe('a month ago', () => {
     expect(monthAgo(new Date(2026, 10, 20))).toBe('2026-10-20');
     expect(monthAgo(new Date(2026, 2, 31))).toBe('2026-02-28');
     expect(monthAgo(new Date(2026, 0, 15))).toBe('2025-12-15');
+  });
+});
+
+describe('a plan loaded again', () => {
+  test('is compared with what was here before by name, not by the ids a load hands out', () => {
+    const before = { meta: { name: 'P' }, teams: [{ id: 'T1', name: 'Dev' }], meetingPlans: [{ id: 'mp-old', name: 'Standup', meetings: [] }],
+      members: [{ id: 'm-old', name: 'Anna Noor', team: 'T1', cap: 1, meetingPlanIds: ['mp-old'] }],
+      tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'Old name', team: 'T1', assign: ['m-old'], best: 2 }],
+      vacations: [{ person: 'm-old', from: '2026-12-01', to: '2026-12-05' }], personQueues: { 'm-old': ['P1.1'] },
+      dayLog: [{ day: '2026-11-10', back: { tree: { set: { 'P1.1': { best: 1 } } } } }] };
+    const loaded = { ...before, teams: [{ id: 'T9', name: 'Dev' }], meetingPlans: [{ id: 'mp-new', name: 'Standup', meetings: [] }],
+      members: [{ id: 'm-new', name: 'Anna Noor', team: 'T9', cap: 1, meetingPlanIds: ['mp-new'] }],
+      tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'New name', team: 'T9', assign: ['m-new'], best: 2 }],
+      vacations: [{ person: 'm-new', from: '2026-12-01', to: '2026-12-05' }], personQueues: { 'm-new': ['P1.1'] } };
+    const saved = recordToday(inIdsOf(before, loaded), loaded, '2026-11-20');
+    // Only the rename is what changed outside; the people are the same people.
+    expect(saved.dayLog.map(e => e.day)).toEqual(['2026-11-10', '2026-11-20']);
+    expect(saved.dayLog[1].back).toEqual({ tree: { set: { 'P1.1': { name: 'Old name' } } } });
+    expect(planAtEndOf(saved, '2026-11-19').tree[1].name).toBe('Old name');
+    expect(planAtEndOf(saved, '2026-11-19').tree[1].assign).toEqual(['m-new']);
+  });
+
+  test('an entry for today that was saved before the reload stays in the ids of this load', () => {
+    const people = id => [{ id, name: 'Anna Noor', team: 'T1', cap: 1 }];
+    const base = { meta: { name: 'P' }, teams: [{ id: 'T1', name: 'Dev' }], vacations: [] };
+    // Saved here earlier today: Anna was assigned.
+    const morning = { ...base, members: people('m-old'), tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'Task', best: 2 }] };
+    const saved = recordToday(morning, { ...morning, tree: [morning.tree[0], { ...morning.tree[1], assign: ['m-old'] }] }, '2026-11-20');
+    expect(saved.dayLog).toHaveLength(1);
+    // The file comes back from outside, renamed, with new ids and its log read in them.
+    const loaded = { ...base, members: people('m-new'), tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'Task renamed', best: 2, assign: ['m-new'] }],
+      dayLog: [{ day: '2026-11-20', back: { tree: { unset: { 'P1.1': ['assign'] } } } }] };
+    const next = recordToday(inIdsOf(saved, loaded), loaded, '2026-11-20');
+    const yesterday = planAtEndOf(next, '2026-11-19');
+    expect(yesterday.tree[1].name).toBe('Task');
+    expect(yesterday.tree[1].assign).toBeUndefined();
+    expect(JSON.stringify(next.dayLog)).not.toContain('m-old');
   });
 });

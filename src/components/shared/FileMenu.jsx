@@ -68,7 +68,7 @@ export function FileMenu({ onLoad, onSaveAs, onSnapshots, onExport, onNew, onJir
     { id: 'snapshots', icon: 'undo', label: t('palette.snapshots'), run: onSnapshots },
     // Catching up at the end of a sprint on work that finished at its start is
     // an ordinary thing to need, and this sat behind the command palette only.
-    ...(onBackdate ? [{ id: 'backdate', icon: 'restart', label: t('bd.command'), run: onBackdate }] : []),
+    ...(onBackdate ? [{ id: 'backdate', icon: 'calendar', label: t('eff.cmdEarlier'), run: onBackdate }] : []),
     { id: 'export', icon: 'upload', label: t('palette.export'), run: onExport, key: 'export' },
     ...(onJiraImport ? [{ id: 'jiraImport', icon: 'download', label: t('ji.title'), run: onJiraImport }] : []),
     { id: 'new', icon: 'sparkle', label: t('palette.newProject'), run: onNew, separated: true },

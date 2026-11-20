@@ -78,7 +78,7 @@ somebody makes them join on that day.
 
 The colour is the accent, not the scenario's violet: a scenario is another
 truth, this is the same truth further along. The date is not persisted —
-like backdating, a date you forgot about would quietly send every later edit
+like an earlier day, a date you forgot about would quietly send every later edit
 to the wrong place.
 
 Inside a scenario it works the same: the scenario's dated changes are part of
