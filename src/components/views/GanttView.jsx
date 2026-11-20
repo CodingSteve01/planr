@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, memo } from 'react';
+import { useState, useRef, useMemo, memo } from 'react';
 import { useCapacityAt } from '../../utils/capacityLens.js';
 import { GanttFooter } from './gantt/GanttFooter.jsx';
 import { LinkDragOverlay } from './gantt/LinkDragOverlay.jsx';
@@ -21,8 +21,8 @@ import { useGanttVisibleRows } from './gantt/useGanttVisibleRows.js';
 import { useGanttLoad } from './gantt/useGanttLoad.js';
 import { useGanttLines } from './gantt/useGanttLines.js';
 import { useGanttSearch } from './gantt/useGanttSearch.js';
-import { GanttTaskBarRow } from './gantt/GanttTaskBarRow.jsx';
-import { GanttGroupBarRow } from './gantt/GanttGroupBarRow.jsx';
+import { GanttRows } from './gantt/GanttRows.jsx';
+import { GanttSelectionRect } from './gantt/GanttSelectionRect.jsx';
 import { computeRowLayout } from '../../utils/gantt/rowLayout.js';
 import {
   reorderSelectionInTime as reorderSelection,
@@ -604,30 +604,7 @@ function GanttViewImpl({
               h2Weeks={h2Weeks}
               dlL={dlL}
             />
-            {selectRect &&
-              (() => {
-                const x = Math.min(selectRect.x1, selectRect.x2);
-                const y = Math.min(selectRect.y1, selectRect.y2);
-                const w = Math.abs(selectRect.x2 - selectRect.x1);
-                const h = Math.abs(selectRect.y2 - selectRect.y1);
-                return (
-                  <div
-                    data-testid="gantt-selection-rect"
-                    style={{
-                      position: 'absolute',
-                      left: x,
-                      top: y,
-                      width: w,
-                      height: h,
-                      border: '1px solid var(--ac)',
-                      background: 'rgba(59,130,246,.14)',
-                      boxShadow: '0 0 0 1px rgba(255,255,255,.16) inset',
-                      zIndex: 7,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                );
-              })()}
+            {selectRect && <GanttSelectionRect selectRect={selectRect} />}
             <GanttFlagStrip
               FLAG_ROW_H={FLAG_ROW_H}
               showLoadHeatmap={showLoadHeatmap}
@@ -637,118 +614,68 @@ function GanttViewImpl({
               dlL={dlL}
               t={t}
             />
-            {visibleRows.map((row, _ri) => {
-              // Compact stacks several rows onto one lane, so a row cannot sit
-              // in normal flow any more — it is placed at the top its lane was
-              // given. Everything inside a row is already positioned relative to
-              // it, so the bars, the arrows and the hit areas are untouched.
-              if (rowHidden(_ri)) return null;
-              // FLAG_ROW_H, because that is where the rows begin: in classic they
-              // sit in normal flow after the deadline-flag strip, and `rowTop` is
-              // measured from the first row, not from the top of the box. Without
-              // it every bar in compact sat 18px above where the arrows, the
-              // label column and `rowCenterY` all agree it is — which is exactly
-              // what "the connecting lines are not where they belong" looks like.
-              const _pos = compact ? { position: 'absolute', top: FLAG_ROW_H + rowTop(_ri), left: 0, right: 0, minWidth: tw } : null;
-              const _el = (() => {
-                if (row.type === 'group') {
-                  return (
-                    <GanttGroupBarRow
-                      key={row.key}
-                      row={row}
-                      style={{
-                        height: RH,
-                        position: 'relative',
-                        background: 'rgba(127,127,127,.035)',
-                        borderBottom: '1px solid var(--b2)',
-                      }}
-                      dateToX={dateToX}
-                      DPX={DPX}
-                      WPX={WPX}
-                      tw={tw}
-                      t={t}
-                      rowIsCp={rowIsCp}
-                      cpOnly={cpOnly}
-                      rowRelevantToCp={rowRelevantToCp}
-                      showLoadHeatmap={showLoadHeatmap}
-                      groupBy={groupBy}
-                      resourceLoadByWeek={resourceLoadByWeek}
-                      vacByPerson={vacByPerson}
-                      holidayDays={holidayDays}
-                    />
-                  );
-                }
-                const s = row.s;
-                const rowKey = rowKeyOf(row);
-                if (s._unestimated)
-                  return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
-                if (s._completed && (!s.startD || !s.endD))
-                  return <div key={rowKey} style={{ height: RH, position: 'relative', borderBottom: '1px solid var(--b)' }} />;
-                return (
-                  <GanttTaskBarRow
-                    key={rowKey}
-                    row={row}
-                    rowColor={rowColor}
-                    rowIsCp={rowIsCp}
-                    drag={drag}
-                    dateToX={dateToX}
-                    DPX={DPX}
-                    WPX={WPX}
-                    dDelta={dDelta}
-                    showDays={showDays}
-                    resizePxPerDay={resizePxPerDay}
-                    cpOnly={cpOnly}
-                    rowRelevantToCp={rowRelevantToCp}
-                    hoverDepId={hoverDepId}
-                    hoverLines={hoverLines}
-                    searchMatches={searchMatches}
-                    iMap={iMap}
-                    selectedIds={selectedIds}
-                    scheduledWorkDaysOf={scheduledWorkDaysOf}
-                    taskLoadCells={taskLoadCells}
-                    tw={tw}
-                    confidence={confidence}
-                    now={now}
-                    RH={RH}
-                    weeks={weeks}
-                    scheduled={scheduled}
-                    t={t}
-                    baseline={baseline}
-                    sinceDate={sinceDate}
-                    _diffDoneSet={_diffDoneSet}
-                    _diffProgSet={_diffProgSet}
-                    activeMatchId={activeMatchId}
-                    linkDrag={linkDrag}
-                    groupBy={groupBy}
-                    dragRef={dragRef}
-                    hoverLineKey={hoverLineKey}
-                    showRowTip={showRowTip}
-                    hideRowTip={hideRowTip}
-                    dismissTooltip={dismissTooltip}
-                    onReorderSibling={onReorderSibling}
-                    onBMD={onBMD}
-                    onLinkDrop={onLinkDrop}
-                    justDraggedRef={justDraggedRef}
-                    onBarClick={onBarClick}
-                    handleSelectClick={handleSelectClick}
-                    _diffActive={_diffActive}
-                    diffPastLeafState={diffPastLeafState}
-                    vacBandsByTaskId={vacBandsByTaskId}
-                    onTaskUpdate={onTaskUpdate}
-                    onResizeStartDoneMD={onResizeStartDoneMD}
-                    onResizeEndMD={onResizeEndMD}
-                    onLinkStart={onLinkStart}
-                  />
-                );
-              })();
-              if (!React.isValidElement(_el)) return _el;
-              return React.cloneElement(_el, {
-                'data-row-type': row.type,
-                ...(_pos
-                  ? { style: { ..._el.props.style, ..._pos, borderBottom: row.type === 'task' ? 'none' : _el.props.style?.borderBottom } }
-                  : {}),
-              });
-            })}
+            <GanttRows
+              visibleRows={visibleRows}
+              rowHidden={rowHidden}
+              compact={compact}
+              rowTop={rowTop}
+              FLAG_ROW_H={FLAG_ROW_H}
+              tw={tw}
+              RH={RH}
+              dateToX={dateToX}
+              DPX={DPX}
+              WPX={WPX}
+              t={t}
+              rowIsCp={rowIsCp}
+              cpOnly={cpOnly}
+              rowRelevantToCp={rowRelevantToCp}
+              showLoadHeatmap={showLoadHeatmap}
+              groupBy={groupBy}
+              resourceLoadByWeek={resourceLoadByWeek}
+              vacByPerson={vacByPerson}
+              holidayDays={holidayDays}
+              rowKeyOf={rowKeyOf}
+              rowColor={rowColor}
+              drag={drag}
+              dDelta={dDelta}
+              showDays={showDays}
+              resizePxPerDay={resizePxPerDay}
+              hoverDepId={hoverDepId}
+              hoverLines={hoverLines}
+              searchMatches={searchMatches}
+              iMap={iMap}
+              selectedIds={selectedIds}
+              scheduledWorkDaysOf={scheduledWorkDaysOf}
+              taskLoadCells={taskLoadCells}
+              confidence={confidence}
+              now={now}
+              weeks={weeks}
+              scheduled={scheduled}
+              baseline={baseline}
+              sinceDate={sinceDate}
+              _diffDoneSet={_diffDoneSet}
+              _diffProgSet={_diffProgSet}
+              activeMatchId={activeMatchId}
+              linkDrag={linkDrag}
+              dragRef={dragRef}
+              hoverLineKey={hoverLineKey}
+              showRowTip={showRowTip}
+              hideRowTip={hideRowTip}
+              dismissTooltip={dismissTooltip}
+              onReorderSibling={onReorderSibling}
+              onBMD={onBMD}
+              onLinkDrop={onLinkDrop}
+              justDraggedRef={justDraggedRef}
+              onBarClick={onBarClick}
+              handleSelectClick={handleSelectClick}
+              _diffActive={_diffActive}
+              diffPastLeafState={diffPastLeafState}
+              vacBandsByTaskId={vacBandsByTaskId}
+              onTaskUpdate={onTaskUpdate}
+              onResizeStartDoneMD={onResizeStartDoneMD}
+              onResizeEndMD={onResizeEndMD}
+              onLinkStart={onLinkStart}
+            />
             <DepLinesSvg
               renderedDepLines={renderedDepLines}
               tw={tw}
