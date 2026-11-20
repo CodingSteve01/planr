@@ -13,6 +13,14 @@ import { useGanttSelection } from './gantt/useGanttSelection.js';
 import { useGanttScrollTo } from './gantt/useGanttScrollTo.js';
 import { useGanttDrag } from './gantt/useGanttDrag.js';
 import { useGanttZoom } from './gantt/useGanttZoom.js';
+import { useGanttItems } from './gantt/useGanttItems.js';
+import { useGanttTree } from './gantt/useGanttTree.js';
+import { useGanttStructure } from './gantt/useGanttStructure.js';
+import { useGanttRows } from './gantt/useGanttRows.js';
+import { useGanttVisibleRows } from './gantt/useGanttVisibleRows.js';
+import { useGanttLoad } from './gantt/useGanttLoad.js';
+import { useGanttLines } from './gantt/useGanttLines.js';
+import { useGanttSearch } from './gantt/useGanttSearch.js';
 import { GanttTaskBarRow } from './gantt/GanttTaskBarRow.jsx';
 import { GanttGroupBarRow } from './gantt/GanttGroupBarRow.jsx';
 import { computeRowLayout } from '../../utils/gantt/rowLayout.js';
@@ -22,17 +30,7 @@ import {
   linkSelectedInOrder as linkSelected,
   clearSelectedLinks as clearLinks,
 } from '../../utils/gantt/selectionEdits.js';
-import { buildDepLines, buildHoverLines } from '../../utils/gantt/depLines.js';
-import {
-  buildHolidayDays,
-  buildVacBands,
-  buildResourceLoad,
-  buildLoadRiskSummary,
-  buildLoadWeekSummary,
-  taskLoadCells as computeTaskLoadCells,
-} from '../../utils/gantt/loadModel.js';
-import { buildStructure } from '../../utils/gantt/structure.js';
-import { buildAllItems, buildSearchTextById, filterDisplayItems, buildChildrenByParent } from '../../utils/gantt/items.js';
+import { taskLoadCells as computeTaskLoadCells } from '../../utils/gantt/loadModel.js';
 import {
   createGeometry,
   buildMonths,
@@ -42,14 +40,12 @@ import {
 import { usePortalRoot } from '../../utils/embedHost.js';
 import { iso, localDate } from '../../utils/date.js';
 import { resolveToLeafIds, isLeafNode } from '../../utils/scheduler.js';
-import { treeOrderRank } from '../../utils/displayOrder.js';
-import { buildThreadStructure } from '../../utils/threads.js';
 import { deadlineStatus } from '../../utils/timeline.js';
 import { chainShorts } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
 import { useT } from '../../i18n.jsx';
-import { NO_TEAM, NO_TEAM_COLOR, EMPTY_ARR, rowDrawsBar } from '../../utils/gantt/helpers.js';
+import { NO_TEAM, NO_TEAM_COLOR, EMPTY_ARR } from '../../utils/gantt/helpers.js';
 
 function GanttViewImpl({
   scheduled,
@@ -197,240 +193,61 @@ function GanttViewImpl({
   const monthHeaderLabel = m => monthHeaderLabelOf(m, { WPX, zoomMode });
   const weekHeaderLabel = (w, i, isYB, isNow) => weekHeaderLabelOf(w, i, isYB, isNow, { WPX });
 
-  // Build the fact base for this Gantt scope: scheduled items + unscheduled leaves,
-  // filtered by root/team/person, but NOT by hideDone. Summary rows derive from this
-  // full scoped set so their aggregates stay factually correct.
-  const allItems = useMemo(
-    () =>
-      buildAllItems({
-        scheduled,
-        tree,
-        leafIdSet,
-        memberById,
-        rootFilter,
-        teamFilter,
-        personFilter,
-        workDays,
-        UNASSIGNED_LABEL,
-        weekIndexOfDate,
-      }),
-    // `weeks` because the week index of a date depends on the window, and
-    // the label because it changes with the language.
-    [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays, weeks, UNASSIGNED_LABEL],
-  );
-  // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
-  const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
-  const searchNeedle = useMemo(() => (search || '').trim().toLowerCase(), [search]);
-  const searchTextById = useMemo(() => buildSearchTextById({ tree, iMap, teamById, memberById }), [tree, iMap, teamById, memberById]);
-  const displayItems = useMemo(
-    () =>
-      filterDisplayItems({ allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById }),
-    [allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById],
-  );
-  const ordMap = useMemo(() => {
-    const m = {};
-    (tree || []).forEach((r, idx) => {
-      m[r.id] = { idx, ord: typeof r.displayOrder === 'number' ? r.displayOrder : null };
-    });
-    return m;
-  }, [tree]);
-  // Earliest scheduled startWi per node — primary sort key so siblings cascade
-  // top-to-bottom by time, minimizing edge crossings ("spider web" → top-down flow).
-  // For a parent: min startWi across all leaves in its subtree.
-  const earliestStartByNode = useMemo(() => {
-    const sMap = {};
-    for (const s of scheduled || []) {
-      if (typeof s.startWi === 'number' && s.startWi >= 0) {
-        if (sMap[s.id] == null || s.startWi < sMap[s.id]) sMap[s.id] = s.startWi;
-      }
-    }
-    const out = {};
-    for (const r of tree || []) {
-      const own = sMap[r.id];
-      if (own != null) out[r.id] = own;
-    }
-    // Propagate min from descendants up to ancestors (id prefix relationship).
-    const ids = (tree || []).map(r => r.id);
-    for (const id of ids) {
-      const own = sMap[id];
-      if (own == null) continue;
-      const parts = id.split('.');
-      while (parts.length > 1) {
-        parts.pop();
-        const p = parts.join('.');
-        if (out[p] == null || own < out[p]) out[p] = own;
-      }
-    }
-    return out;
-  }, [tree, scheduled]);
-  const childrenByParent = useMemo(() => buildChildrenByParent({ tree, ordMap }), [tree, ordMap]);
-  // treeOrder = flattened depth-first traversal so cross-parent ordering also follows displayOrder.
-  const treeOrder = useMemo(() => {
-    const out = {};
-    let i = 0;
-    const walk = pid => {
-      const kids = childrenByParent[pid] || [];
-      for (const id of kids) {
-        out[id] = i++;
-        walk(id);
-      }
-    };
-    walk('');
-    return out;
-  }, [childrenByParent]);
-  const rootIds = useMemo(() => childrenByParent[''] || EMPTY_ARR, [childrenByParent]);
-
-  const threadStructure = useMemo(() => {
-    return buildThreadStructure({ groupBy, allItems, tree, iMap, scheduled });
-  }, [groupBy, allItems, tree, iMap, scheduled]);
-  const treeRank = useMemo(() => treeOrderRank(tree), [tree]);
-  const structure = useMemo(
-    () =>
-      buildStructure({
-        treeRank,
-        iMap,
-        childrenByParent,
-        rootIds,
-        tree,
-        teams,
-        memberById,
-        teamById,
-        confidence,
-        t,
-        threadStructure,
-        allItems,
-        displayItems,
-        groupBy,
-        weekIndexOfDate,
-        UNASSIGNED_LABEL,
-      }),
-    [
-      allItems,
-      displayItems,
-      groupBy,
-      iMap,
-      childrenByParent,
-      rootIds,
-      tree,
-      teams,
-      memberById,
-      teamById,
-      confidence,
-      t,
-      threadStructure,
-      weeks,
-    ],
-  );
-
-  const collapsed = useMemo(
-    () => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed),
-    [collapsedByMode, groupBy, structure.defaultCollapsed],
-  );
-  const updateCollapsed = updater => {
-    setCollapsedByMode(prev => {
-      const base = new Set(prev[groupBy] || structure.defaultCollapsed);
-      const next = updater(base) || base;
-      return { ...prev, [groupBy]: [...next] };
-    });
-  };
-  const allCollapseKeys = useMemo(() => {
-    const keys = new Set();
-    const visit = row => {
-      if (row?.collapseKey && row.children?.length) keys.add(row.collapseKey);
-      row?.children?.forEach(visit);
-    };
-    structure.nodes.forEach(visit);
-    return [...keys];
-  }, [structure.nodes]);
-  const toggleCollapse = key =>
-    updateCollapsed(set => {
-      const next = new Set(set);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  const collapseAll = () => {
-    setTip(null);
-    setCollapsedByMode(prev => ({ ...prev, [groupBy]: allCollapseKeys }));
-  };
-  const expandAll = () => {
-    setTip(null);
-    setCollapsedByMode(prev => ({ ...prev, [groupBy]: [] }));
-  };
-  // Each row also carries how deep it sits in the grouping, because compact
-  // needs to know which rows ARE the grouping: there a row is a lane, and the
-  // only things that still own one are the outermost containers — the project,
-  // the team, the person, the thread, whichever the pills chose.
-  const { rows, rowDepth } = useMemo(() => {
-    const out = [];
-    const depth = new Map();
-    const visit = (row, d) => {
-      out.push(row);
-      depth.set(row, d);
-      if (!row.children?.length) return;
-      const collapseKey = row.collapseKey || row.key;
-      if (collapsed.has(collapseKey)) return;
-      row.children.forEach(child => visit(child, d + 1));
-    };
-    structure.nodes.forEach(node => visit(node, 0));
-    return { rows: out, rowDepth: depth };
-  }, [structure, collapsed]);
-  const cpNodeSet = useMemo(() => new Set(cpSet || []), [cpSet]);
-  const cpRowMeta = useMemo(() => {
-    const containsMemo = new Map();
-    const containsCritical = row => {
-      if (!row) return false;
-      if (containsMemo.has(row.key)) return containsMemo.get(row.key);
-      const result = row.type === 'task' ? cpNodeSet.has(row.s.id) : (row.children || EMPTY_ARR).some(child => containsCritical(child));
-      containsMemo.set(row.key, result);
-      return result;
-    };
-    const highlightMemo = new Map();
-    const highlightCritical = row => {
-      if (!row) return false;
-      if (highlightMemo.has(row.key)) return highlightMemo.get(row.key);
-      const result =
-        row.type === 'task' ? cpNodeSet.has(row.s.id) : !!row.collapseKey && collapsed.has(row.collapseKey) && containsCritical(row);
-      highlightMemo.set(row.key, result);
-      return result;
-    };
-    return { containsCritical, highlightCritical };
-  }, [cpNodeSet, collapsed]);
-  const rowIsCp = row => cpRowMeta.highlightCritical(row);
-  const rowRelevantToCp = row => cpRowMeta.containsCritical(row);
-  // Optional "only changed" filter: drops every row whose task didn't move
-  // in the diff window. Summary rows survive when any of their descendants
-  // moved (so the tree shape stays legible during a sprint review).
-  const rowRelevantToDiff = row => {
-    if (!_diffActive || !onlyChanged || _diffChangedSet.size === 0) return true;
-    if (row?.type === 'task') return _diffChangedSet.has(row.s?.id);
-    const walk = r => {
-      if (r?.type === 'task') return _diffChangedSet.has(r.s?.id);
-      return (r?.children || []).some(walk);
-    };
-    return walk(row);
-  };
-  // Planning-horizon filter: when active, only keep rows whose task id (or
-  // any descendant for summary rows) sits inside the horizon set. Lets the
-  // user drop weeks of background noise from the chart in one click.
-  const rowRelevantToHorizon = row => {
-    if (!horizonIds) return true;
-    if (row?.type === 'task') return horizonIds.has(row.s?.id);
-    const walk = r => {
-      if (r?.type === 'task') return horizonIds.has(r.s?.id);
-      return (r?.children || []).some(walk);
-    };
-    return walk(row);
-  };
-  const visibleRows = useMemo(() => {
-    let out = cpOnly ? rows.filter(row => rowRelevantToCp(row)) : rows;
-    if (_diffActive && onlyChanged && _diffChangedSet.size > 0) {
-      out = out.filter(rowRelevantToDiff);
-    }
-    if (horizonIds && horizonOnlyPlanned) {
-      out = out.filter(rowRelevantToHorizon);
-    }
-    return out;
-  }, [rows, cpOnly, cpRowMeta, _diffActive, onlyChanged, _diffChangedSet, horizonIds, horizonOnlyPlanned]);
+  const { allItems, iMap, searchNeedle, displayItems } = useGanttItems({
+    scheduled,
+    tree,
+    leafIdSet,
+    memberById,
+    teamById,
+    rootFilter,
+    teamFilter,
+    personFilter,
+    workDays,
+    UNASSIGNED_LABEL,
+    weekIndexOfDate,
+    weeks,
+    hideDone,
+    _diffActive,
+    _diffChangedSet,
+    search,
+  });
+  const { childrenByParent, rootIds } = useGanttTree({ tree, scheduled });
+  const { structure } = useGanttStructure({
+    groupBy,
+    allItems,
+    tree,
+    iMap,
+    scheduled,
+    displayItems,
+    childrenByParent,
+    rootIds,
+    teams,
+    memberById,
+    teamById,
+    confidence,
+    t,
+    weekIndexOfDate,
+    UNASSIGNED_LABEL,
+    weeks,
+  });
+  const { collapsed, allCollapseKeys, toggleCollapse, collapseAll, expandAll, rows, rowDepth } = useGanttRows({
+    collapsedByMode,
+    setCollapsedByMode,
+    groupBy,
+    structure,
+    setTip,
+  });
+  const { rowIsCp, rowRelevantToCp, visibleRows } = useGanttVisibleRows({
+    cpSet,
+    collapsed,
+    rows,
+    cpOnly,
+    _diffActive,
+    onlyChanged,
+    _diffChangedSet,
+    horizonIds,
+    horizonOnlyPlanned,
+  });
 
   const RH = 28,
     HH = 28,
@@ -498,30 +315,6 @@ function GanttViewImpl({
     return base + dragOffsetFor(s, 'start');
   }
 
-  // rowIdx maps task ID → array of ALL visible row indices (a multi-assigned task appears
-  // in multiple person/team groups, so we need every occurrence for dep-line drawing).
-  //
-  // Only rows that actually DRAW a bar. A dependency line is an arrow between
-  // two bars, so a row with nothing on it cannot be one of its ends — and the
-  // row renderer bails out on two cases, not one: an unestimated task and a
-  // finished one with no dates. This map excluded only the first, so a line
-  // ran to a blank row in the middle of a group and looked like it had come
-  // adrift. In compact it is worse: a row with no bar takes no lane, so the
-  // line landed on a lane belonging to other work entirely.
-  const rowIdx = useMemo(() => {
-    const m = {};
-    visibleRows.forEach((r, i) => {
-      if (!rowDrawsBar(r)) return;
-      if (compact && rowLayout.lanes?.[i] === -1) return;
-      if (!m[r.s.id]) m[r.s.id] = [];
-      m[r.s.id].push(i);
-    });
-    return m;
-  }, [visibleRows, compact, rowLayout]);
-  const sMap = useMemo(
-    () => Object.fromEntries(allItems.filter(s => !s._unestimated && s.startWi >= 0 && s.endWi >= 0).map(s => [s.id, s])),
-    [allItems],
-  );
   function taskBarRectForRow(row, index) {
     if (row?.type !== 'task' || !row.s || row.s._unestimated) return null;
     if (row.s._completed && (!row.s.startD || !row.s.endD)) return null;
@@ -554,67 +347,51 @@ function GanttViewImpl({
   const adjustSelectionPrio = step => adjustPrio({ selectedTaskIds, iMap, onTaskUpdate }, step);
   const linkSelectedInOrder = () => linkSelected({ selectedTaskIds, onAddDep });
   const clearSelectedLinks = (kind = 'all') => clearLinks({ selectedTaskIds, iMap, tree, onTaskUpdate, onRemoveDep }, kind);
-  const cpEdgeSet = useMemo(() => (cpEdges instanceof Set ? cpEdges : new Set(cpEdges || [])), [cpEdges]);
-  // Per-person vacation blocks: Map<personId, [{from, to}]>
-  const vacByPerson = useMemo(() => {
-    const m = {};
-    (vacations || []).forEach(v => {
-      if (!v.person || !v.from || !v.to) return;
-      if (!m[v.person]) m[v.person] = [];
-      m[v.person].push(v);
-    });
-    return m;
-  }, [vacations]);
-  // Every public holiday in the visible window, as a day column. The grid
-  // tints them only at day zoom; a person's own row shows them at every zoom,
-  // next to that person's vacation, because together they are the days that
-  // person is not there.
-  const holidayDays = useMemo(() => buildHolidayDays({ weeks, wdSet, WPX, DPX }), [weeks, wdSet, WPX, DPX]);
-  const vacBandsByTaskId = useMemo(
-    () => buildVacBands({ allItems, vacByPerson, memberById, tw, DPX, dateToX }),
-    [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX],
-  );
-  const resourceLoadByWeek = useMemo(
-    () =>
-      buildResourceLoad({
-        allItems,
-        iMap,
-        memberById,
-        members,
-        vacByPerson,
-        weeks,
-        meetingPlans,
-        teams,
-        todayIso,
-        capacityAt,
-        scheduledWorkDaysOf,
-      }),
-    [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso, capacityAt],
-  );
-  const loadRiskSummary = useMemo(() => buildLoadRiskSummary({ resourceLoadByWeek, memberById, t }), [resourceLoadByWeek, memberById, t]);
-  const loadWeekSummary = useMemo(
-    () => buildLoadWeekSummary({ weeks, resourceLoadByWeek, memberById, t }),
-    [weeks, resourceLoadByWeek, memberById, t],
-  );
+  const { vacByPerson, holidayDays, vacBandsByTaskId, resourceLoadByWeek, loadRiskSummary, loadWeekSummary } = useGanttLoad({
+    vacations,
+    wdSet,
+    WPX,
+    DPX,
+    weeks,
+    allItems,
+    memberById,
+    tw,
+    dateToX,
+    iMap,
+    members,
+    meetingPlans,
+    teams,
+    todayIso,
+    capacityAt,
+    scheduledWorkDaysOf,
+    t,
+  });
 
   const taskLoadCells = (s, barLeft, barWidth) =>
     computeTaskLoadCells({ showLoadHeatmap, resourceLoadByWeek, weeks, WPX }, s, barLeft, barWidth);
-  const searchableItems = useMemo(
-    () => displayItems.map(item => ({ id: item.id, text: `${item.id} ${item.name || ''}`.toLowerCase() })),
-    [displayItems],
-  );
   function resD(id) {
     return resolveToLeafIds(tree || [], id);
   }
-  const allDepLines = useMemo(
-    () => buildDepLines({ tree, allItems, sMap, iMap, rowIdx, cpEdgeSet, resD, depX1, depX2, rowCenterY }),
-    [allItems, sMap, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag],
-  );
-
-  const hoverLines = useMemo(
-    () => buildHoverLines({ hoverDepId, tree, allItems, sMap, iMap, rowIdx, resD, depX1, depX2, rowCenterY }),
-    [hoverDepId, tree, allItems, sMap, visibleRows, WPX, showDays, dDelta, drag],
-  );
+  const { rowIdx, hoverLines, renderedDepLines } = useGanttLines({
+    visibleRows,
+    compact,
+    rowLayout,
+    allItems,
+    tree,
+    iMap,
+    cpEdges,
+    cpOnly,
+    hoverDepId,
+    groupBy,
+    WPX,
+    showDays,
+    dDelta,
+    drag,
+    resD,
+    depX1,
+    depX2,
+    rowCenterY,
+  });
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
@@ -622,7 +399,6 @@ function GanttViewImpl({
     if (!cpSet?.size) return 0;
     return new Set(rows.filter(row => row.type === 'task' && cpSet.has(row.s.id)).map(row => row.s.id)).size;
   }, [rows, cpSet]);
-  const renderedDepLines = useMemo(() => (cpOnly ? allDepLines.filter(line => line.isCp) : allDepLines), [allDepLines, cpOnly]);
   const rowTooltipItem = row => (row.type === 'group' ? null : { ...row.node, ...row.s, isCp: rowIsCp(row) });
   const dismissTooltip = (clearDepHover = false) => {
     setTip(null);
@@ -644,20 +420,7 @@ function GanttViewImpl({
     onBarClick?.(row.s, focusRequest);
   };
 
-  // Search acts as a real Gantt filter. Matching uses each task plus its
-  // ancestor path so searching a work-package name keeps its leaf bars visible.
-  const searchMatches = useMemo(() => {
-    if (!searchNeedle) return null;
-    return new Set(searchableItems.map(item => item.id));
-  }, [searchNeedle, searchableItems]);
-  // Visible matches in row order — only tasks currently shown (not inside collapsed groups).
-  const searchMatchList = useMemo(() => {
-    if (!searchMatches?.size) return [];
-    return visibleRows.filter(r => r.type === 'task' && searchMatches.has(r.s.id)).map(r => r.s.id);
-  }, [searchMatches, visibleRows]);
-  const activeMatchId = searchMatchList.length
-    ? searchMatchList[((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length]
-    : null;
+  const { searchMatches, searchMatchList, activeMatchId } = useGanttSearch({ displayItems, searchNeedle, visibleRows, searchIdx });
 
   const { bodyScrollbarH, scrollToToday } = useGanttScrollTo({ bR, visibleRows, tw, showDays, WPX, RH, dateToX, todayX, activeMatchId });
 
