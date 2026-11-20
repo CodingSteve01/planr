@@ -9,8 +9,9 @@ import * as planEdits from '../actions/planEdits.js';
 import * as treeEditorEdits from '../actions/treeEditorEdits.js';
 import * as queueEdits from '../actions/queueEdits.js';
 import * as resourceEdits from '../actions/resourceEdits.js';
+import * as openEdits from '../actions/openEdits.js';
 
-const modules = { nodeEdits, splitEdits, planEdits, treeEditorEdits, queueEdits, resourceEdits };
+const modules = { nodeEdits, splitEdits, planEdits, treeEditorEdits, queueEdits, resourceEdits, openEdits };
 
 describe('the action modules', () => {
   it('export every name once across all of them', () => {

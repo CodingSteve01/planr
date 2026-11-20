@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { useStableCallback } from './app/useStableCallback.js';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
+import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
 import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
@@ -50,11 +50,9 @@ import { buildPaletteCommands } from './app/paletteCommands.js';
 import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
 import { initialShell, loadLocalProject } from './app/shell.js';
-import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { exportSprintMarkdown } from './utils/exports.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
@@ -767,63 +765,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     fileHandleRef,
     ensureHandlePermission,
   });
-  function onBarClick(s, focusRequest = null) {
-    const node = tree.find(r => r.id === (s.treeId || s.id));
-    if (!node) return;
-    let effectiveFocus = focusRequest;
-    let modalNodeValue;
-    if (s.isHandoff && typeof s.segmentIdx === 'number') {
-      // Handoff-shadow click: open the PRIMARY's modal (not the shadow), jump
-      // the user straight into the handoff editor on the right stage. We do
-      // NOT spread the shadow over the node — that would put `#N` in the
-      // title and make the top-level Team/Assign fields look like they edit
-      // the shadow (they don't; they edit the primary tree item).
-      effectiveFocus = {
-        ...(focusRequest || {}),
-        section: 'handoff',
-        handoffStage: s.segmentIdx - 1,
-        handoffShadowId: s.id,
-      };
-      modalNodeValue = node;
-    } else {
-      modalNodeValue = { ...node, ...s };
-    }
-    flushSync(() => {
-      setModalFocus(effectiveFocus);
-      setMN(modalNodeValue);
-      setModal('node');
-    });
-  }
-  const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
-  const onNetNodeClick = useStableCallback(r => onBarClick(r));
-  // Clicking an item — anywhere — opens that item's own edit dialog. The same
-  // one a Gantt bar and a graph node open, because it is the same question:
-  // what is this, and can I change it without leaving what I was reading.
-  //
-  // There were three of these. #27 gave the Roadmap tab this behaviour and
-  // said why: routing a click through "set the root filter and jump to the
-  // Tree" is navigation, not editing — you lose the map you were reading to
-  // get a dialog you could have had in place. The Overview's subway map kept
-  // the old handler, which is the map that gets looked at most, and Planning
-  // had a third one that opened the bare tree node without the schedule's half
-  // of the answer. One handler now (principle 7).
-  //
-  // Navigating to a row in the tree is still a thing you can want, and it is
-  // still here — as `onNavigate`, a separate gesture with its own name, rather
-  // than as what a click silently did to a work package but not to a leaf.
-  const onOpenItemDialog = useStableCallback(id => {
-    // A leaf has a scheduled row — dates, effort, assignment — and the dialog
-    // wants it merged in; a work package has none and opens as the tree node.
-    const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
-    onBarClick(row || { id });
-  });
-  const onSumNavigate = useStableCallback((id, target) => {
-    const node = tree.find(r => r.id === id);
-    if (node) setSel(node);
-    setTab(target || 'tree');
-  });
-  const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
+  const openActions = useOpenActions({ tree, scheduled, setModalFocus, setMN, setModal, setSel, setTab, exportCtx: _exportCtx });
 
   if (!bootstrapped) return <BootScreen />;
 
@@ -964,7 +906,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   };
   // One object for the components, built so that the same name twice is an
   // error on the first render instead of one action silently replacing another.
-  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, {
+  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, openActions, {
     closeTour,
     dismissNewFeat,
     exportScenarioPDF,
@@ -973,12 +915,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     loadFile,
     loadFromFile,
     newProject,
-    onGanttBarClick,
-    onNetAddNode,
-    onNetNodeClick,
-    onOpenItemDialog,
-    onSumExportTodo,
-    onSumNavigate,
     persistDiffOnlyChanged,
     persistHorizon,
     persistHorizonOnly,
