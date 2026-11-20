@@ -1,6 +1,8 @@
 import { activateOnPress } from '../../app/shell.js';
 
-export function TabBar({ TABS, _t, activeTabRef, setTab, syncTabFades, tab, tabBarRef, tabFades }) {
+export function TabBar({ view, handlers, TABS, _t, activeTabRef, tabBarRef }) {
+  const { setTab, tab, tabFades } = view;
+  const { syncTabFades } = handlers;
   return (
     <div className="tab-bar-wrap">
       <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>

@@ -1,5 +1,10 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { useStableCallback } from './app/useStableCallback.js';
+import { useNodeActions } from './app/actions/useNodeActions.js';
+import { mergeNamed } from './app/actions/bindActions.js';
+import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
+import { useQueueActions } from './app/actions/useQueueActions.js';
+import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
@@ -25,10 +30,10 @@ import { RoadmapPane } from './components/app/RoadmapPane.jsx';
 import { NetPane } from './components/app/NetPane.jsx';
 import { OrderPane } from './components/app/OrderPane.jsx';
 import { ResourcesPane } from './components/app/ResourcesPane.jsx';
-import { EditModals } from './components/app/EditModals.jsx';
+import { ItemModals } from './components/app/ItemModals.jsx';
 import { ScenarioModals } from './components/app/ScenarioModals.jsx';
-import { ConfigModals } from './components/app/ConfigModals.jsx';
-import { ProjectModals } from './components/app/ProjectModals.jsx';
+import { SettingsModals } from './components/app/SettingsModals.jsx';
+import { ProjectFileModals } from './components/app/ProjectFileModals.jsx';
 import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import {
@@ -59,7 +64,6 @@ import {
   exportTodoPDF,
   exportWhatWhenPDF,
 } from './utils/exports.js';
-import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
@@ -79,11 +83,9 @@ import {
 } from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { addDays, changeDates, compileMembers, dropChange, foldEdit, pruneChanges, resourcesAsOf } from './utils/effective.js';
+import { changeDates, compileMembers, dropChange, resourcesAsOf } from './utils/effective.js';
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
-import { leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
-import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
-import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
+import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
 import { buildHMap } from './utils/holidays.js';
@@ -92,20 +94,16 @@ import { inferGanttViewStart } from './utils/viewWindow.js';
 import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { projectWaits } from './utils/projectWaits.js';
-import { applyRootOrder } from './utils/orderSearch.js';
 import {
   schedule,
   treeStats,
   enrichParentSchedules,
-  nextChildId,
   leafNodes,
   isLeafNode,
-  parentId,
   computeConfidence,
   derivePhaseStatus,
 } from './utils/scheduler.js';
-import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
-import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
+import { sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { instantiateTemplatePhases } from './utils/phases.js';
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
@@ -134,7 +132,7 @@ import { CommandPalette } from './components/shared/CommandPalette.jsx';
 import { KeyboardMap } from './components/shared/KeyboardMap.jsx';
 import { useScenarioReport } from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
-import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
+import { teamForAssignment } from './utils/memberTeams.js';
 
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
 export { buildMemberShortMap };
@@ -1652,438 +1650,43 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setData(d => withDerivedTeamsAndStatuses(d, members));
   }, [stats, members]);
 
-  function setD(k, v) {
-    mutate(d => ({ ...d, [k]: v }));
-  }
-  // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
-  // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
-  // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
-  // `opts.asOf` dates a status or progress change to an earlier day. The date
-  // is kept in the document (`asOfPending`) until the next save reads it, so
-  // an undo takes it back together with the change, a later edit of the item
-  // from anywhere voids it, and the save's diff stays
-  // the one place that writes history (utils/history.js `stampPendingDates`).
-  function updateNode(u, opts = {}) {
-    const pending = opts.asOf && !scnRef.current ? pendingDate(opts.asOf, u) : null;
-    const dated = d => (pending ? { ...d, asOfPending: { ...(d.asOfPending || {}), [u.id]: pending } } : d);
-    // Auto-extend viewStart if the user pins a task before the current visual horizon.
-    if (u.pinnedStart) {
-      const vs = meta.viewStart || meta.planStart;
-      if (vs && u.pinnedStart < vs) {
-        // Extend viewStart 2 weeks before the pin so the bar isn't flush at the left edge.
-        const pinD = new Date(u.pinnedStart);
-        const extended = new Date(pinD);
-        extended.setDate(extended.getDate() - 14);
-        const extStr = extended.toISOString().slice(0, 10);
-        mutate(d =>
-          dated({
-            ...d,
-            meta: { ...d.meta, viewStart: extStr },
-            tree: (d.tree || []).map(r => (r.id === u.id ? u : r)),
-          }),
-        );
-        return;
-      }
-    }
-    mutate(d => dated({ ...d, tree: (d.tree || []).map(r => (r.id === u.id ? u : r)) }));
-  }
-  // Bulk status write from Run mode's Jira drift rows (BriefingView.jsx).
-  // Patches carry whole nodes (see utils/jiraSync.js statusPatches); parent
-  // statuses and the done-window metadata are filled in by the effects that
-  // already watch the tree, exactly as with a hand edit.
-  const onJiraApplyStatus = useStableCallback(patches => {
-    if (!patches?.length) return;
-    const byId = new Map(patches.map(patch => [patch.id, patch]));
-    mutate(d => ({ ...d, tree: (d.tree || []).map(r => byId.get(r.id) || r) }));
+  // The edits: nodes and the tree, the tree editor, queues, resources. The hooks
+  // run before any early return, so React sees the same hook order whether
+  // `data` is null (the onboarding splash) or loaded.
+  const act = useNodeActions({
+    mutate,
+    setData,
+    setHistory,
+    setSaved,
+    dataRef,
+    scnRef,
+    meta,
+    tree,
+    scheduled,
+    t: _t,
+    setSel,
+    setModal,
+    setTab,
   });
-  // First-start import (JiraImportModal.jsx): the tickets already exist in
-  // Jira and nobody types two hundred of them again. The nodes arrive fully
-  // formed and already numbered past whatever the plan has, so this appends
-  // rather than merges — and it goes through `mutate`, so ⌘Z takes the whole
-  // import back in one press, which is the only thing that makes trying it
-  // safe.
-  const applyJiraImport = useStableCallback(({ nodes = [], newMembers = [] }) => {
-    if (!nodes.length) return;
-    mutate(d => ({
-      ...d,
-      tree: [...(d.tree || []), ...nodes],
-      members: newMembers.length ? [...(d.members || []), ...newMembers] : d.members,
-    }));
-    setModal(null);
-    setTab('tree');
-    setSel(nodes[0]);
+  const { setD } = act;
+  const treeEditor = useTreeEditorActions({
+    tree,
+    selected,
+    mutate,
+    setSel,
+    setMultiSel,
+    setRootFilter,
+    setTeamFilter,
+    setPersonFilter,
+    setSearch,
+    setHideDone,
+    setDiffOnlyChanged,
+    setHorizonOnlyPlanned,
+    act,
   });
-  // Targeted dep mutations: read current tree state and touch ONLY the deps field.
-  // Avoids the stale-closure overwrite pattern where `{...oldNode, deps: newDeps}` wipes
-  // out unrelated field changes that happened after the callback was created.
-  // Remove a dep edge — checks both hard and soft buckets so the caller
-  // can stay agnostic ("delete this connection") without knowing the
-  // kind. Returns the node to either bucket if it lives there.
-  function removeDep(fromId, depId) {
-    mutate(d => {
-      const tree = d.tree || [];
-      const mutated = tree.map(r => {
-        if (r.id !== fromId) return r;
-        const next = { ...r, deps: (r.deps || []).filter(x => x !== depId) };
-        // Strip any lingering softDeps too — legacy field that's no longer
-        // emitted, but old plans might still carry it on the in-memory node.
-        if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
-        return next;
-      });
-      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
-    });
-  }
-  // Add a hard dep edge. Soft deps were removed — every link is a hard
-  // dependency now ("X must finish before Y"). Drag-link, NodeModal picker,
-  // and selection "Reihenfolge linken" all go through this single path.
-  function addDep(fromId, depId) {
-    if (fromId === depId) return;
-    mutate(d => {
-      const mutated = (d.tree || []).map(r => {
-        if (r.id !== fromId) return r;
-        const merged = new Set([...(r.deps || []), ...(r.softDeps || [])]);
-        if (merged.has(depId)) {
-          // Already linked (possibly as legacy soft); ensure it lives in deps
-          // and drop any stale softDeps reference.
-          const next = { ...r, deps: [...new Set([...(r.deps || []), depId])] };
-          if (r.softDeps?.length) next.softDeps = r.softDeps.filter(x => x !== depId);
-          return next;
-        }
-        return { ...r, deps: [...(r.deps || []), depId] };
-      });
-      return { ...d, tree: applyDisplayOrder(mutated, computeDisplayOrder(mutated)) };
-    });
-  }
-  // Functional, and prefix-safe. Two bugs lived in the one-liner this
-  // replaces, both harmless while deleting was a mouse trip behind a confirm
-  // and both reachable now that ⌫ deletes in one keystroke:
-  //   * it read `tree` from the render closure, so a delete chained after
-  //     another edit in the same tick overwrote that edit,
-  //   * `startsWith(id)` is not a subtree test — deleting "P1" also deleted
-  //     "P10" and "P12". Only `id` itself and `id + '.'` are descendants.
-  function deleteNode(id) {
-    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => r.id !== id && !r.id.startsWith(id + '.')) }));
-    setSel(null);
-  }
-  // Materialize handoff segments as standalone tree tasks, chained by deps.
-  // The primary task stays in place but is trimmed to its own consumed
-  // effort (so the schedule no longer includes the handoff portion in its
-  // best estimate). Each cascade leg becomes a sibling with the next
-  // assignee, the segment's remaining effort, and a dep on the previous
-  // leg. Drops the source task's handoffPlan so the scheduler doesn't
-  // re-cascade into the freshly created tasks.
-  function splitHandoff(nodeId) {
-    const sc = scheduled.find(s => s.id === nodeId);
-    const node = tree.find(r => r.id === nodeId);
-    if (!node || !sc?.segments || sc.segments.length <= 1) return;
-    const handoffSegs = sc.segments.slice(1).filter(s => !s.unscheduled);
-    if (!handoffSegs.length) return;
-
-    const factor = node.factor || 1.5;
-    const primaryEff = sc.segments[0]?.effort || 0;
-    // Round (not ceil) so the trimmed primary fits inside the consumed
-    // portion. ceil gave a 0.5–1d slop that pushed the primary past the
-    // offboard date and re-triggered a cascade — exactly the synthetic
-    // `#N` row the split was supposed to eliminate.
-    const newPrimaryBest = Math.max(1, Math.round(primaryEff / factor));
-
-    // noCascade: the scheduler still re-cascades on offboard even after we
-    // dropped handoffPlan, because cascading is triggered by the assignee's
-    // end-date alone. Mark the trimmed primary as opt-out so the synthetic
-    // `#N` row doesn't reappear after the split — the new sibling tasks own
-    // that work now.
-    const updatedPrimary = { ...node, best: newPrimaryBest, noCascade: true };
-    delete updatedPrimary.handoffPlan;
-
-    // Find next free sibling slot under the same parent.
-    const parent = nodeId.split('.').slice(0, -1).join('.');
-    const sibIds = tree
-      .filter(r => {
-        const p = r.id.split('.').slice(0, -1).join('.');
-        return p === parent;
-      })
-      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
-    let nextNum = sibIds.length ? Math.max(...sibIds) : 0;
-
-    let prevId = node.id;
-    const newTasks = handoffSegs.map(seg => {
-      nextNum += 1;
-      const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
-      const remBest = Math.max(1, Math.ceil((seg.effort || 0) / factor));
-      const t = {
-        id: newId,
-        name: `${node.name} → ${seg.personName || '?'}`,
-        status: 'open',
-        team: seg.team || node.team || '',
-        best: remBest,
-        factor,
-        prio: node.prio || 2,
-        deps: [prevId],
-        note: _t('split.handoff.note', node.id),
-        assign: seg.personId ? [seg.personId] : [],
-      };
-      if (node.confidence) t.confidence = node.confidence;
-      prevId = newId;
-      return t;
-    });
-
-    // Insert new tasks right after the primary's tree slot so the order
-    // matches the Gantt's left-to-right reading.
-    const next = [];
-    for (const r of tree) {
-      if (r.id === nodeId) {
-        next.push(updatedPrimary);
-      } else {
-        next.push(r);
-      }
-    }
-    // Splice new tasks in after the primary's last descendant (same logic
-    // as addNode for nested IDs).
-    let insertAt = next.length;
-    for (let i = next.length - 1; i >= 0; i--) {
-      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
-        insertAt = i + 1;
-        break;
-      }
-    }
-    next.splice(insertAt, 0, ...newTasks);
-    setD('tree', next);
-  }
-  // Split an interrupted task. The original is closed at its current
-  // progress (clamped `best`, status=done) and a new sibling carries the
-  // remaining effort with a dep on the original. Useful when work paused
-  // mid-task and the rest will be picked up later — possibly by someone
-  // else, possibly after blocking work resolves. progressPct overrides
-  // node.progress for explicit control.
-  function splitTaskAtProgress(nodeId, progressPct) {
-    const node = tree.find(r => r.id === nodeId);
-    if (!node || !node.best) return;
-    const factor = node.factor || 1.5;
-    const totalEff = node.best * factor;
-    const prog = Number.isFinite(progressPct) ? progressPct : (node.progress ?? 0);
-    if (prog <= 0 || prog >= 100) return; // nothing to split
-    const consumedEff = totalEff * (prog / 100);
-    const remEff = totalEff - consumedEff;
-    if (remEff <= 0) return;
-
-    const today = iso(new Date());
-    const newDoneBest = Math.max(1, Math.round(consumedEff / factor));
-    const newRemBest = Math.max(1, Math.round(remEff / factor));
-
-    const updated = {
-      ...node,
-      best: newDoneBest,
-      status: 'done',
-      progress: 100,
-      completedAt: node.completedAt || today,
-      completedEnd: node.completedEnd || today,
-    };
-    delete updated.handoffPlan;
-
-    const parent = nodeId.split('.').slice(0, -1).join('.');
-    const sibIds = tree
-      .filter(r => {
-        const p = r.id.split('.').slice(0, -1).join('.');
-        return p === parent;
-      })
-      .map(r => parseInt(r.id.split('.').pop().replace(/\D/g, ''), 10) || 0);
-    const nextNum = (sibIds.length ? Math.max(...sibIds) : 0) + 1;
-    const newId = parent ? `${parent}.${nextNum}` : `P${nextNum}`;
-
-    const newTask = {
-      id: newId,
-      name: `${node.name} ${_t('split.task.suffix')}`,
-      status: 'open',
-      team: node.team || '',
-      best: newRemBest,
-      factor,
-      prio: node.prio || 2,
-      deps: [nodeId],
-      note: _t('split.task.note', node.id),
-      assign: node.assign || [],
-    };
-    if (node.confidence) newTask.confidence = node.confidence;
-
-    const next = tree.map(r => (r.id === nodeId ? updated : r));
-    let insertAt = next.length;
-    for (let i = next.length - 1; i >= 0; i--) {
-      if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
-        insertAt = i + 1;
-        break;
-      }
-    }
-    next.splice(insertAt, 0, newTask);
-    setD('tree', next);
-  }
-  // Functional for the same reason as every other mutator here: the tree
-  // editor commits a rename and inserts the next row inside ONE keypress, and
-  // reading `tree` from the render closure made the insert write back a
-  // snapshot taken before the rename — silently throwing the typed name away.
-  // That is the exact failure the comments on updateNode and removeDep warn
-  // about; it just took a single-keystroke workflow to make it reachable.
-  function addNode(node) {
-    const pid = node.id.split('.').slice(0, -1).join('.');
-    mutate(d => {
-      const nt = [...(d.tree || [])];
-      if (!pid) {
-        nt.push(node);
-        return { ...d, tree: nt };
-      }
-      let ins = -1;
-      for (let i = nt.length - 1; i >= 0; i--) {
-        if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) {
-          ins = i + 1;
-          break;
-        }
-      }
-      if (ins >= 0) nt.splice(ins, 0, node);
-      else nt.push(node);
-      return { ...d, tree: nt };
-    });
-  }
-
-  // Compute an ID map for moving/duplicating a subtree rooted at `nodeId` under `newParentId`.
-  // Returns: { [oldId]: newId } for the node and every descendant.
-  function computeIdMap(tree, nodeId, newParentId) {
-    const subtreeIds = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)];
-    const newBase = nextChildId(tree, newParentId);
-    const map = { [nodeId]: newBase };
-    subtreeIds.slice(1).forEach(old => {
-      map[old] = newBase + old.slice(nodeId.length);
-    });
-    return map;
-  }
-
-  // Duplicate a node + its entire subtree. Deps pointing INSIDE the subtree are remapped;
-  // deps pointing OUTSIDE are preserved. Returns the new root node id.
-  function duplicateNode(nodeId) {
-    const node = tree.find(r => r.id === nodeId);
-    if (!node) return null;
-    const parentOfNode = nodeId.split('.').slice(0, -1).join('.'); // stays under same parent
-    const idMap = computeIdMap(tree, nodeId, parentOfNode);
-    const copies = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)].map(oldId => {
-      const orig = tree.find(r => r.id === oldId);
-      const copy = { ...orig, id: idMap[oldId] };
-      // Remap deps that point within the subtree, keep deps pointing outside
-      copy.deps = (orig.deps || []).map(d => idMap[d] || d);
-      // Preserve _depLabels but remap keys
-      if (orig._depLabels) {
-        copy._depLabels = {};
-        Object.entries(orig._depLabels).forEach(([k, v]) => {
-          copy._depLabels[idMap[k] || k] = v;
-        });
-      }
-      // Reset progress/status for fresh copy (user decides)
-      delete copy.pinnedStart;
-      if (copy.phases) {
-        copy.phases = copy.phases.map(p => ({
-          ...p,
-          id: 'ph' + Date.now() + Math.random().toString(36).slice(2, 6),
-          status: 'open',
-          assign: [],
-        }));
-      }
-      return copy;
-    });
-    setD('tree', [...tree, ...copies]);
-    return idMap[nodeId];
-  }
-
-  // Move a node (and its subtree) under a new parent ('' for top-level).
-  // Updates IDs, dep references everywhere, and re-sorts so siblings are grouped.
-  function moveNode(nodeId, newParentId) {
-    if (nodeId === newParentId) return;
-    // Prevent moving into own descendant (would create a cycle)
-    if (newParentId && (newParentId === nodeId || newParentId.startsWith(nodeId + '.'))) {
-      alert('Cannot move an item under itself or one of its descendants.');
-      return;
-    }
-    // The id map depends on STRUCTURE only, so computing it from the render
-    // closure is sound — but applying it must be functional, or a name
-    // written in the same tick (Tab straight out of the inline editor) is
-    // overwritten by this snapshot. That is exactly the bug addNode had.
-    const planned = moveSubtree(tree, nodeId, newParentId);
-    if (!planned) return; // no-op
-    mutate(d => ({ ...d, tree: moveSubtree(d.tree || [], nodeId, newParentId)?.tree || d.tree }));
-    return planned.id;
-  }
-
-  // The work tree's four structural commands — move up/down, indent,
-  // outdent (utils/treeMove.js). One command, one state update, one undo
-  // step: outdent used to be a re-parent followed by a separate reorder.
-  // Returns { id, idMap } — where the row lives now — or null when the
-  // command cannot run from here.
-  function runTreeCommand(id, command, visibleIds) {
-    const planned = applyTreeCommand(tree, id, command, visibleIds);
-    if (!planned) return null;
-    mutate(d => ({ ...d, tree: applyTreeCommand(d.tree || [], id, command, visibleIds)?.tree || d.tree }));
-    return { id: planned.id, idMap: planned.idMap };
-  }
-  // Reorder a node within its sibling list by writing persistent displayOrder
-  // values. IDs and dependencies stay stable; the order round-trips as `ord:`.
-  // Direction: 'up'|'down'|'first'|'last' or { targetId, position:'before'|'after' }.
-  function reorderSibling(nodeId, direction) {
-    let changed = false;
-    // The snapshot undo will return to must be the state that is CURRENT, not
-    // the one this render closed over — see mutate() above.
-    const before = dataRef.current;
-    setData(d => {
-      const nextTree = placeAmongSiblings(d.tree || [], nodeId, direction);
-      if (!nextTree) return d;
-      changed = true;
-      return { ...d, tree: nextTree };
-    });
-    if (changed) {
-      setHistory(h => pushHistory(h, before, { coalesceMs: 300 }));
-      setSaved(false);
-    }
-  }
-
-  // "Move P10 behind P8" from a project's waits block: each cause goes
-  // directly after the project it holds back, in the order they are named.
-  // "Apply" on an order from the planning review's search: one undo step.
-  const onApplyOrder = useStableCallback(order => {
-    const before = dataRef.current;
-    setData(d => ({ ...d, tree: applyRootOrder(d.tree || [], order) }));
-    setHistory(h => pushHistory(h, before, { coalesceMs: 0 }));
-    setSaved(false);
-  });
-  const onMoveBehind = useStableCallback((ids, rootId) => {
-    let anchor = rootId;
-    for (const id of ids) {
-      reorderSibling(id, { targetId: anchor, position: 'after' });
-      anchor = id;
-    }
-  });
-  function addMember(teamId) {
-    const id = 'm' + Date.now();
-    setD('members', [
-      ...members,
-      { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart },
-    ]);
-  }
-  function cloneMember(src) {
-    const id = 'm' + Date.now();
-    const { teams: _teams, ...rest } = src;
-    setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]);
-  }
-  // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
-  function onSeqUpdate(taskId, patch) {
-    const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
-    setD(
-      'tree',
-      tree.map(r => (r.id === taskId ? { ...r, ...update } : r)),
-    );
-  }
-  // Extend the plan start date backward so partially-done tasks that began before the
-  // current horizon fit naturally. Scheduler re-computes with the wider window; existing
-  // positions shift right by the added weeks.
-  // Extend the VISUAL start (viewStart) without touching the scheduling start (planStart).
-  // Pre-planStart weeks exist for display only — the scheduler still begins at planStart.
-  function extendViewStart(newStart) {
-    if (!newStart || newStart >= (meta.viewStart || meta.planStart || '9999')) return;
-    mutate(d => ({ ...d, meta: { ...d.meta, viewStart: newStart } }));
-  }
+  const queueActions = useQueueActions({ tree, leaves, mutate });
+  const resActions = useResourceActions({ members, teams, planStart, effDate, effFold, resLens, mutate, act });
+  const { onHolUpdate } = resActions;
 
   // Export context — shared data bag for all export functions in utils/exports.js.
   // diff / horizonIds / horizonEnd / futureProgressByRootId / roadmapAssignment
@@ -2353,261 +1956,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }
   }
 
-  // Stable callback wrappers for memo'd children. MUST run unconditionally
-  // every render — placed BEFORE any early-return so React sees the same
-  // hook order whether `data` is null (Onboard splash) or loaded.
-  // Each callback's body resolves identifiers at invocation time, so the
-  // closures still see fresh `tree`, `selected`, etc. via the latest-closure
-  // ref pattern inside useStableCallback.
-  // Standard list-selection (Finder / Explorer / VS Code):
-  //   plain         → single select, clear multi, anchor = clicked
-  //   shift         → replace the previous shift-range with [anchor..click];
-  //                   manually pinned items (added via cmd+click) survive
-  //   cmd|ctrl      → toggle clicked, anchor moves, previous range forgotten
-  //   cmd|ctrl+shift→ unconditional add of [anchor..click] to selection
-  const lastShiftRangeRef = useRef(null);
-  const onTreeSelect = useStableCallback((node, e, visibleIds) => {
-    const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
-    if (e?.shiftKey && selected && visibleIds) {
-      const ai = visibleIds.indexOf(selected.id),
-        bi = visibleIds.indexOf(node.id);
-      if (ai >= 0 && bi >= 0) {
-        const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
-        const newRange = new Set(range);
-        setMultiSel(prev => {
-          const next = new Set(prev);
-          if (!ctrlLike && lastShiftRangeRef.current) {
-            lastShiftRangeRef.current.forEach(x => next.delete(x));
-          }
-          newRange.forEach(x => next.add(x));
-          return next;
-        });
-        lastShiftRangeRef.current = newRange;
-      }
-    } else if (ctrlLike) {
-      // The first ⌘-click starts a selection FROM the row the cursor is on:
-      // click A, ⌘-click B is A and B — the rule every file list has, and
-      // the one the Work order view already had. It used to be B alone, so
-      // a move then took one row while two looked meant.
-      setMultiSel(s => {
-        const n = new Set(s.size ? s : selected?.id && selected.id !== node.id ? [selected.id] : []);
-        n.has(node.id) ? n.delete(node.id) : n.add(node.id);
-        return n;
-      });
-      if (!selected) setSel(node);
-      lastShiftRangeRef.current = null;
-    } else {
-      setSel(node);
-      setMultiSel(new Set());
-      lastShiftRangeRef.current = null;
-    }
-  });
-  const onTreeDelete = useStableCallback((...a) => deleteNode(...a));
-  // The same two, for a multi-selection: it moves as a block (utils/
-  // treeMove.js). One mutate, so one ⌘Z undoes the whole move, and the
-  // selection follows the rows to their new ids.
-  const onTreeCommandMany = useStableCallback((ids, command, visibleIds) => {
-    const planned = applyTreeCommandMany(tree, [...ids], command, visibleIds);
-    if (!planned) return null;
-    mutate(d => ({ ...d, tree: applyTreeCommandMany(d.tree || [], [...ids], command, visibleIds)?.tree || d.tree }));
-    setMultiSel(new Set(planned.ids));
-    if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
-    return planned;
-  });
-  // A drop in the tree: next to any row, or into a package — across parents
-  // too (utils/treeMove.js `dropRows`). One mutate, so one ⌘Z; the dragged
-  // rows stay selected at their new ids, and the cursor goes with them.
-  const onTreeDropRows = useStableCallback((ids, target, visibleIds) => {
-    const planned = dropRows(tree, [...ids], target, visibleIds);
-    if (!planned) return null;
-    mutate(d => ({ ...d, tree: dropRows(d.tree || [], [...ids], target, visibleIds)?.tree || d.tree }));
-    if (planned.ids.length > 1) {
-      setMultiSel(new Set(planned.ids));
-      if (selected?.id && planned.idMap[selected.id]) setSel({ id: planned.idMap[selected.id] });
-    } else {
-      setMultiSel(new Set());
-      setSel({ id: planned.ids[0] });
-    }
-    return planned;
-  });
-  // ⌘A in the tree: every row on screen, which is what the filters left.
-  const onTreeSelectAll = useStableCallback(ids => {
-    if (!ids?.length) return;
-    setMultiSel(new Set(ids));
-    if (!selected || !ids.includes(selected.id)) setSel({ id: ids[0] });
-  });
-  // ── Tree editor (Phase 4) — keyboard-only structure/creation paths ──────
-  // Every one of these is a thin wrapper around the SAME mutate()-backed
-  // primitives the mouse-driven controls already use (moveNode, addNode,
-  // reorderSibling) — see docs/principles.md principle 2. Nothing here is a
-  // new write path; it's the existing ones, reachable without a modal.
-
-  // Tab / ⇧Tab re-parent — moveNode renumbers the moved subtree and every
-  // dependency reference to it, then hands back the node's new id (it
-  // changes on every re-parent); the cursor (selected) follows it so the
-  // next keypress still targets the right row.
-  const onTreeMove = useStableCallback((id, newParentId) => {
-    const newId = moveNode(id, newParentId);
-    if (newId) setSel({ id: newId });
-    return newId; // the inline editor follows the row to its new id
-  });
-  // Toolbar buttons and structural shortcuts both land here — the one path
-  // for move up/down, indent and outdent. The cursor follows the row: a
-  // re-parent renumbers it, and the next keypress has to find it again.
-  const onTreeCommand = useStableCallback((id, command, visibleIds) => {
-    const res = runTreeCommand(id, command, visibleIds);
-    if (res && res.id !== id) setSel({ id: res.id });
-    return res;
-  });
-  // The tree calls this when the row it just moved is not on screen any more.
-  //
-  // Re-parenting out a level renumbers the subtree into a project of its own
-  // — P1.1 becomes P4 — and every filter keyed on where a row USED to be then
-  // excludes it: the project filter above all, a search over ids, a review
-  // window it is no longer part of. The row is in the plan and nowhere on the
-  // screen, which reads as losing it.
-  //
-  // So the view widens to where the row went. Everything that narrows the
-  // tree comes off at once rather than guessing which one did it; the guard
-  // on the other side only fires when the row really has vanished, and the
-  // filter chips going quiet is itself the notice that they were dropped.
-  const onTreeRevealHidden = useStableCallback(() => {
-    setRootFilter('');
-    setTeamFilter('');
-    setPersonFilter('');
-    setSearch('');
-    setHideDone(false);
-    setDiffOnlyChanged(false);
-    setHorizonOnlyPlanned(false);
-  });
-  // Enter, mid-edit: create an empty sibling directly after `afterId` (same
-  // parent) and hand back its id so TreeView can immediately edit it. Empty
-  // on purpose — see onTreeBulkDelete's neighbour, commitEdit in
-  // TreeView.jsx, for why an empty commit on a still-new row deletes it
-  // again instead of littering the tree.
-  const onTreeInsertAfter = useStableCallback(afterId => {
-    const pid = parentId(afterId);
-    const id = nextChildId(tree, pid);
-    // No priority — see buildPasteNodes in utils/treeEdit.js. The team IS
-    // inherited from the sibling: adding a row next to a Backend item almost
-    // always means another Backend item, and that is a fact about where you
-    // are, not a guess about what you meant.
-    const sibling = tree.find(r => r.id === afterId);
-    addNode({
-      id,
-      name: '',
-      status: 'open',
-      team: sibling?.team || '',
-      best: 0,
-      factor: 1.5,
-      deps: [],
-      note: '',
-      assign: [],
-      lvl: pid ? pid.split('.').length + 1 : 1,
-    });
-    reorderSibling(id, { targetId: afterId, position: 'after' });
-    return id;
-  });
-  // ⇧Enter: create an empty child under `parentIdArg` (mirrors onTreeQuickAdd
-  // above, but with an empty name — see onTreeInsertAfter).
-  const onTreeInsertChild = useStableCallback(parentIdArg => {
-    const id = nextChildId(tree, parentIdArg);
-    const parentNode = tree.find(r => r.id === parentIdArg);
-    addNode({
-      id,
-      name: '',
-      status: 'open',
-      team: parentNode?.team || '',
-      best: 0,
-      factor: 1.5,
-      deps: [],
-      note: '',
-      assign: [],
-      lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1,
-    });
-    return id;
-  });
-  // ⌫/Delete on a multi-selection: deleteNode's `setD('tree', tree.filter(...))`
-  // reads `tree` from the render closure, so looping it per id inside one
-  // keypress would have each call overwrite the previous one's result — the
-  // "do not loop single updates" case principle 5's brief calls out. This is
-  // the one batched callback: a single functional mutate() over the whole
-  // id set, so it's correct AND one undo step.
-  const onTreeBulkDelete = useStableCallback(ids => {
-    if (!ids?.length) return;
-    // `startsWith(id)` alone is not a subtree test: it also matches P10 when
-    // deleting P1 (the bug just fixed in deleteNode). A node is in the set if
-    // it IS one of the ids, or sits strictly below one of them.
-    mutate(d => ({ ...d, tree: (d.tree || []).filter(r => !ids.some(id => r.id === id || r.id.startsWith(id + '.'))) }));
-    setSel(null);
-    setMultiSel(new Set());
-  });
-  // Paste a list: parse → build the whole batch of new nodes against a
-  // local working copy of the tree (utils/treeEdit.js buildPasteNodes, so
-  // ids don't collide within the pasted block itself) → splice them in with
-  // ONE mutate() call, right after the active row's own subtree.
-  const onTreePasteRows = useStableCallback((afterId, rows) => {
-    if (!rows?.length) return;
-    const pid = parentId(afterId);
-    mutate(d => {
-      const currentTree = d.tree || [];
-      const newNodes = buildPasteNodes(currentTree, pid, rows);
-      const next = currentTree.slice();
-      let insertAt = next.length;
-      for (let i = next.length - 1; i >= 0; i--) {
-        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) {
-          insertAt = i + 1;
-          break;
-        }
-      }
-      next.splice(insertAt, 0, ...newNodes);
-      return { ...d, tree: next };
-    });
-  });
   const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
-  const onGanttSeqUpdate = useStableCallback((...a) => onSeqUpdate(...a));
-  const onGanttExtendViewStart = useStableCallback((...a) => extendViewStart(...a));
-  const onGanttTaskUpdate = useStableCallback((...a) => updateNode(...a));
-  const onGanttRemoveDep = useStableCallback((...a) => removeDep(...a));
-  const onGanttAddDep = useStableCallback((...a) => addDep(...a));
-  const onGanttReorderSibling = useStableCallback((...a) => reorderSibling(...a));
-  // Move a task within its assignee's own queue. The plan's order is the
-  // tree's and this does not touch it: the queue permutes only the slots that
-  // person's work already holds (utils/personQueue.js). It is stored against
-  // the person for the same reason — a rank smeared over every task is what
-  // `seq` was, and what competed with the tree everywhere.
-  const onQueueReset = useStableCallback(personId => {
-    mutate(d => {
-      const queues = d.personQueues || {};
-      if (!queues[personId]) return d;
-      const { [personId]: _gone, ...rest } = queues;
-      return { ...d, personQueues: Object.keys(rest).length ? rest : undefined };
-    });
-  });
-  const onQueueReorder = useStableCallback((taskIds, direction) => {
-    // One id or a selection. The owner is taken from the first — a selection
-    // spanning two owners is not one move, and the rest is ignored rather than
-    // half-applied.
-    const ids = Array.isArray(taskIds) ? taskIds : [taskIds];
-    const node = tree.find(r => r.id === ids[0]);
-    const person = queueOwnerOf(node);
-    if (!person) return;
-    const mine = leaves.filter(l => queueOwnerOf(l) === person).map(l => l.id);
-    if (mine.length < 2) return;
-    const moving = ids.filter(id => mine.includes(id));
-    mutate(d => {
-      const queues = d.personQueues || {};
-      const current = reconcileQueue(queues[person], mine);
-      // `direction` is either a key's word — up/down/first/last — or the id a
-      // drag was dropped on.
-      const next =
-        typeof direction === 'object' && (direction?.before || direction?.after)
-          ? placeInQueue(current, moving, direction.before || direction.after, direction.after ? 'after' : 'before')
-          : moveInQueue(current, moving, direction);
-      if (next.join() === current.join() && queues[person]) return d;
-      return { ...d, personQueues: { ...queues, [person]: next } };
-    });
-  });
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   // Clicking an item — anywhere — opens that item's own edit dialog. The same
   // one a Gantt bar and a graph node open, because it is the same question:
@@ -2636,117 +1985,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setTab(target || 'tree');
   });
   const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onNetDeleteNode = useStableCallback(id => deleteNode(id));
-  const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
-  // Row-level status change from Run mode (attention list + per-person
-  // queues) — same updateNode() → mutate() path every other status control
-  // uses (TreeView's Space key, the bulk-status buttons, QuickEdit), so one
-  // undo step either way.
-  const onBriefingUpdate = useStableCallback((...a) => updateNode(...a));
-  // Reorganize tree layout: per-parent topological sort of children by
-  // their dep + softDep edges so paths render top-to-bottom in the Gantt.
-  // Manually-triggered so live edits don't shuffle the tree on the user.
-  const onReorganizeLayout = useStableCallback(() => {
-    const order = computeDisplayOrder(tree);
-    mutate(d => ({ ...d, tree: applyDisplayOrder(d.tree || [], order) }));
-  });
-  // Persistent Subway-Map assignment: Roadmap.jsx fires this when its
-  // computed {rootId → routeIdx, colorIdx} differs from what's stored
-  // (first render of a fresh plan, or a new root entered). Locks the
-  // layout so projects keep their colour + lane across data edits.
-  const onRoadmapAssignmentChange = useStableCallback(computed => {
-    // Merge, never replace — see mergeRoadmapAssignment.
-    setData(d => {
-      const prev = d.roadmapAssignment || {};
-      const rootIds = new Set((d.tree || []).filter(r => !r.id.includes('.')).map(r => r.id));
-      const merged = mergeRoadmapAssignment(prev, computed, rootIds);
-      const unchanged =
-        Object.keys(merged).length === Object.keys(prev).length &&
-        Object.keys(merged).every(id => prev[id] && prev[id].routeIdx === merged[id].routeIdx && prev[id].colorIdx === merged[id].colorIdx);
-      return unchanged ? d : { ...d, roadmapAssignment: merged };
-    });
-  });
   const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
-  // Everything the Resources view edits goes through the lens of the day you
-  // are working on (`effDate`, empty = today): `foldEdit` puts each field
-  // where it belongs — the change at that date, or the plan itself.
-  const onResMeetingPlansUpd = useStableCallback(list =>
-    mutate(d => {
-      const known = new Set((d.meetingPlans || []).map(p => p.id));
-      const kept = new Set((list || []).map(p => p.id));
-      // Plans that were removed or added are timeless; edited ones are folded.
-      let next = {
-        ...d,
-        meetingPlans: [...(d.meetingPlans || []).filter(p => kept.has(p.id)), ...(list || []).filter(p => !known.has(p.id))],
-      };
-      for (const plan of list || []) if (known.has(plan.id)) next = foldEdit(next, 'meetingPlans', plan, effFold);
-      return pruneChanges(next);
-    }),
-  );
-  const onResMemberUpd = useStableCallback(m => mutate(d => foldEdit(d, 'members', m, effFold)));
-  const onResMemberAdd = useStableCallback(teamId => {
-    // Somebody added while working on a date joins on that date.
-    if (!effDate) {
-      addMember(teamId);
-      return;
-    }
-    const id = 'm' + Date.now();
-    mutate(d => ({
-      ...d,
-      members: [
-        ...(d.members || []),
-        { id, name: 'New person', team: teamId || d.teams?.[0]?.id || '', role: '', cap: 1.0, vac: 25, start: effDate },
-      ],
-    }));
-  });
-  const onResMemberClone = useStableCallback((...a) => cloneMember(...a));
-  const onResMemberDel = useStableCallback(id => {
-    // Removed while working on a date: they leave the day before, and stay
-    // in the plan for everything up to then.
-    // Never LATER than they were already leaving; and somebody who would
-    // only join on or after that day was never there — they are deleted.
-    const target = members.find(m => m.id === id);
-    if (effDate && target && !(target.start && target.start >= effDate)) {
-      const last = addDays(effDate, -1);
-      mutate(d => ({ ...d, members: (d.members || []).map(m => (m.id === id ? { ...m, end: m.end && m.end < last ? m.end : last } : m)) }));
-      return;
-    }
-    mutate(d => pruneChanges({ ...d, members: (d.members || []).filter(m => m.id !== id) }));
-  });
-  const onResVacUpd = useStableCallback(v => setD('vacations', v));
-  const onResTeamUpd = useStableCallback((i, k, v) => {
-    const team = resLens.teams[i];
-    if (team) mutate(d => foldEdit(d, 'teams', { ...team, [k]: v }, effFold));
-  });
-  const onResTeamAdd = useStableCallback(() =>
-    setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]),
-  );
-  const onResTeamDel = useStableCallback(i => {
-    const deleted = teams[i];
-    if (!deleted) return;
-    mutate(d => {
-      const nextTeams = d.teams.filter((_, j) => j !== i);
-      const nextMembers = d.members.map(m => withoutTeam(m, deleted.id));
-      const nextTree = d.tree.map(r => {
-        let out = r;
-        if (r.team === deleted.id) out = { ...out, team: '' };
-        if (r.phases?.length) {
-          const phases = r.phases.map(p => {
-            const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
-            if (!hasMatch) return p;
-            const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
-            return { ...p, team: p.team === deleted.id ? teamsRest[0] || '' : p.team, teams: teamsRest };
-          });
-          if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
-        }
-        return out;
-      });
-      // A dated change for the team that is gone goes with it: team ids are
-      // reused, and an orphan would come back to life on the next new team.
-      return pruneChanges({ ...d, teams: nextTeams, members: nextMembers, tree: nextTree });
-    });
-  });
-  const onHolUpdate = useStableCallback(v => setD('holidays', v));
 
   if (!bootstrapped)
     return (
@@ -3469,6 +2708,183 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     exportScenarioPDF,
   });
 
+  // What the render layer reads, in three bundles. They are rebuilt every render on
+  // purpose: the components below hold no state and are not memoised, so a stable
+  // identity would buy nothing, and the inner views get their members one by one.
+  const plan = {
+    activeScenario,
+    activeScheduled,
+    activeTree,
+    archive,
+    confReasons,
+    confidence,
+    cpData,
+    cpLabels,
+    cpSet,
+    data,
+    diff,
+    diffDoneSet,
+    diffFilterSet,
+    diffProgressedSet,
+    diffVisibleSet,
+    droppedCount,
+    effContext,
+    effCount,
+    effDate,
+    effDates,
+    effDropDate,
+    futureProgressByRootId,
+    goalPaths,
+    goals,
+    hm,
+    horizonDays,
+    horizonEnd,
+    horizonFilterSet,
+    horizonIds,
+    leaves,
+    members,
+    meta,
+    past,
+    pastStart,
+    personQueues,
+    planStart,
+    projectWaitsOf,
+    scenarioList,
+    scheduled,
+    scn,
+    scnBaseline,
+    scnChangedIds,
+    scnChanges,
+    scnCompareMemory,
+    scnComparison,
+    scnShifts,
+    searchIdx,
+    sinceDate,
+    stats,
+    teams,
+    tree,
+    vacations,
+    viewCpEdges,
+    viewCpSet,
+    viewGoals,
+    viewScheduled,
+    viewStats,
+    visibleTreeForViews,
+    weeks,
+    workDays,
+  };
+  const view = {
+    activeQuickFilters,
+    activeScopeChips,
+    archiveDays,
+    autoSave,
+    bulkEditModalOpen,
+    deferredSearch,
+    diffOnlyChanged,
+    editorAsDialog,
+    editorDock,
+    externalChangeAvailable,
+    fileName,
+    fileSynced,
+    fileWriteOk,
+    ganttRoadmapFocus,
+    hideDone,
+    horizonOnlyPlanned,
+    lastSavedAt,
+    modal,
+    modalFocus,
+    modalNode,
+    multiSel,
+    personFilter,
+    quickFilters,
+    resLens,
+    rootFilter,
+    saveCountdown,
+    saved,
+    saving,
+    scnNotice,
+    scopeFields,
+    search,
+    selected,
+    setArchiveDays,
+    setAutoSave,
+    setBulkEditModalOpen,
+    setEditorDock,
+    setExternalChangeAvailable,
+    setGanttRoadmapFocus,
+    setMN,
+    setModal,
+    setModalFocus,
+    setMultiSel,
+    setRootFilter,
+    setScnNotice,
+    setSearch,
+    setSearchIdx,
+    setSel,
+    setShowArchived,
+    setShowTreeIds,
+    setSideTab,
+    setTab,
+    setTourStep,
+    setUiScale,
+    showArchived,
+    showNewFeat,
+    showTreeIds,
+    sideTab,
+    sinceDays,
+    tab,
+    tabFades,
+    teamFilter,
+    tourStep,
+    uiScale,
+  };
+  // The two raw writes a component may ask for, by name. `mutate`, `setData`
+  // and `setSaved` themselves stay in here: a component that held them could
+  // write past undo without anybody noticing.
+  const setHistoryEvents = events => mutate(d => ({ ...d, historyEvents: events }));
+  // Another document on screen: a new project, or a snapshot brought back.
+  const showLoadedDocument = d => {
+    setData(d);
+    resetHistory();
+    setSaved(false);
+  };
+  // One object for the components, built so that the same name twice is an
+  // error on the first render instead of one action silently replacing another.
+  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, {
+    closeTour,
+    dismissNewFeat,
+    exportScenarioPDF,
+    handleRedo,
+    handleUndo,
+    loadFile,
+    loadFromFile,
+    newProject,
+    onGanttBarClick,
+    onNetAddNode,
+    onNetNodeClick,
+    onOpenItemDialog,
+    onSumExportTodo,
+    onSumNavigate,
+    persistDiffOnlyChanged,
+    persistHorizon,
+    persistHorizonOnly,
+    persistSince,
+    pickEffDate,
+    reloadFromFile,
+    reschedule,
+    saveToFile,
+    scenarioApply,
+    scenarioCreate,
+    scenarioDelete,
+    scenarioRename,
+    scenarioRevertChange,
+    scenarioSwitch,
+    setHistoryEvents,
+    showLoadedDocument,
+    startTour,
+    syncTabFades,
+  });
+
   return (
     <>
       <CapacityProvider value={capacityAt}>
@@ -3477,223 +2893,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <KeyboardMap />
         <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
           <div className="topbar">
-            <TopBarFile
-              SAVE_DEBOUNCE_MS={SAVE_DEBOUNCE_MS}
-              _t={_t}
-              autoSave={autoSave}
-              fileName={fileName}
-              fileSynced={fileSynced}
-              fileWriteOk={fileWriteOk}
-              hosted={hosted}
-              lastSavedAt={lastSavedAt}
-              meta={meta}
-              saveCountdown={saveCountdown}
-              saveToFile={saveToFile}
-              saved={saved}
-              saving={saving}
-              setAutoSave={setAutoSave}
-            />
-            <ExternalChangeBanner
-              _t={_t}
-              externalChangeAvailable={externalChangeAvailable}
-              reloadFromFile={reloadFromFile}
-              setExternalChangeAvailable={setExternalChangeAvailable}
-            />
-            <TopBarState
-              _t={_t}
-              history={history}
-              droppedCount={droppedCount}
-              effDate={effDate}
-              effDates={effDates}
-              effDropDate={effDropDate}
-              fRef={fRef}
-              fileName={fileName}
-              handleRedo={handleRedo}
-              handleUndo={handleUndo}
-              leaves={leaves}
-              loadFile={loadFile}
-              loadFromFile={loadFromFile}
-              newProject={newProject}
-              past={past}
-              pickEffDate={pickEffDate}
-              saveToFile={saveToFile}
-              saved={saved}
-              scenarioCreate={scenarioCreate}
-              scenarioDelete={scenarioDelete}
-              scenarioList={scenarioList}
-              scenarioRename={scenarioRename}
-              scenarioSwitch={scenarioSwitch}
-              scheduled={scheduled}
-              scn={scn}
-              scnChanges={scnChanges}
-              setModal={setModal}
-              setTab={setTab}
-              tab={tab}
-            />
+            <TopBarFile plan={plan} view={view} handlers={handlers} SAVE_DEBOUNCE_MS={SAVE_DEBOUNCE_MS} _t={_t} hosted={hosted} />
+            <ExternalChangeBanner view={view} handlers={handlers} _t={_t} />
+            <TopBarState plan={plan} view={view} handlers={handlers} _t={_t} history={history} fRef={fRef} />
           </div>
-          <ScenarioStrip
-            activeScenario={activeScenario}
-            effCount={effCount}
-            effDate={effDate}
-            effDropDate={effDropDate}
-            handleUndo={handleUndo}
-            past={past}
-            pastStart={pastStart}
-            pickEffDate={pickEffDate}
-            scenarioApply={scenarioApply}
-            scenarioCreate={scenarioCreate}
-            scenarioDelete={scenarioDelete}
-            scenarioRename={scenarioRename}
-            scenarioSwitch={scenarioSwitch}
-            scn={scn}
-            scnChanges={scnChanges}
-            scnComparison={scnComparison}
-            scnNotice={scnNotice}
-            setModal={setModal}
-            setScnNotice={setScnNotice}
-            setTab={setTab}
-            tab={tab}
-          />
-          <TabBar
-            TABS={TABS}
-            _t={_t}
-            activeTabRef={activeTabRef}
-            setTab={setTab}
-            syncTabFades={syncTabFades}
-            tab={tab}
-            tabBarRef={tabBarRef}
-            tabFades={tabFades}
-          />
-          <FilterBar
-            _t={_t}
-            activeQuickFilters={activeQuickFilters}
-            activeScopeChips={activeScopeChips}
-            archive={archive}
-            archiveDays={archiveDays}
-            data={data}
-            diffOnlyChanged={diffOnlyChanged}
-            hideDone={hideDone}
-            horizonDays={horizonDays}
-            horizonEnd={horizonEnd}
-            horizonOnlyPlanned={horizonOnlyPlanned}
-            persistDiffOnlyChanged={persistDiffOnlyChanged}
-            persistHorizon={persistHorizon}
-            persistHorizonOnly={persistHorizonOnly}
-            persistSince={persistSince}
-            quickFilters={quickFilters}
-            scn={scn}
-            scopeFields={scopeFields}
-            search={search}
-            searchRef={searchRef}
-            setArchiveDays={setArchiveDays}
-            setModal={setModal}
-            setSearch={setSearch}
-            setSearchIdx={setSearchIdx}
-            setShowArchived={setShowArchived}
-            showArchived={showArchived}
-            sinceDate={sinceDate}
-            sinceDays={sinceDays}
-            tab={tab}
-          />
+          <ScenarioStrip plan={plan} view={view} handlers={handlers} />
+          <TabBar view={view} handlers={handlers} TABS={TABS} _t={_t} activeTabRef={activeTabRef} tabBarRef={tabBarRef} />
+          <FilterBar plan={plan} view={view} handlers={handlers} _t={_t} searchRef={searchRef} />
           <div className="main">
-            {visitedTabs.has('summary') && (
-              <SummaryPane
-                archive={archive}
-                archiveDays={archiveDays}
-                confidence={confidence}
-                cpSet={cpSet}
-                data={data}
-                diff={diff}
-                diffOnlyChanged={diffOnlyChanged}
-                futureProgressByRootId={futureProgressByRootId}
-                goalPaths={goalPaths}
-                goals={goals}
-                hm={hm}
-                horizonDays={horizonDays}
-                horizonEnd={horizonEnd}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onOpenItemDialog={onOpenItemDialog}
-                onRoadmapAssignmentChange={onRoadmapAssignmentChange}
-                onSumExportTodo={onSumExportTodo}
-                onSumNavigate={onSumNavigate}
-                persistDiffOnlyChanged={persistDiffOnlyChanged}
-                persistHorizon={persistHorizon}
-                persistHorizonOnly={persistHorizonOnly}
-                persistSince={persistSince}
-                projectWaitsOf={projectWaitsOf}
-                scheduled={scheduled}
-                scnShifts={scnShifts}
-                setArchiveDays={setArchiveDays}
-                setShowArchived={setShowArchived}
-                showArchived={showArchived}
-                sinceDate={sinceDate}
-                sinceDays={sinceDays}
-                stats={stats}
-                tab={tab}
-                teams={teams}
-                tree={tree}
-                workDays={workDays}
-              />
-            )}
-            {visitedTabs.has('briefing') && (
-              <BriefingPane
-                confidence={confidence}
-                cpLabels={cpLabels}
-                data={data}
-                diffFilterSet={diffFilterSet}
-                diffVisibleSet={diffVisibleSet}
-                hideDone={hideDone}
-                horizonFilterSet={horizonFilterSet}
-                members={members}
-                onBriefingUpdate={onBriefingUpdate}
-                onJiraApplyStatus={onJiraApplyStatus}
-                onOpenItemDialog={onOpenItemDialog}
-                onSumExportTodo={onSumExportTodo}
-                personFilter={personFilter}
-                rootFilter={rootFilter}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                tree={tree}
-                vacations={vacations}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-              />
-            )}
-            {visitedTabs.has('plan') && (
-              <PlanPane
-                confReasons={confReasons}
-                confidence={confidence}
-                cpData={cpData}
-                cpLabels={cpLabels}
-                data={data}
-                diffFilterSet={diffFilterSet}
-                diffVisibleSet={diffVisibleSet}
-                hideDone={hideDone}
-                horizonFilterSet={horizonFilterSet}
-                members={members}
-                onApplyOrder={onApplyOrder}
-                onOpenItemDialog={onOpenItemDialog}
-                onPlanReviewUpdate={onPlanReviewUpdate}
-                personFilter={personFilter}
-                reschedule={reschedule}
-                rootFilter={rootFilter}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                tree={tree}
-                vacations={vacations}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-                weeks={weeks}
-              />
-            )}
+            {visitedTabs.has('summary') && <SummaryPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('briefing') && <BriefingPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('plan') && <PlanPane plan={plan} view={view} handlers={handlers} />}
             {/* The tree pane was the one pane left outside Frozen. It is the most
           expensive of them all — 298 rows on a real plan — so it was the one
           re-rendering, unseen, on every switch to any other tab. Measured in
@@ -3701,232 +2911,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
             {visitedTabs.has('tree') && (
               <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
                 <Frozen active={tab === 'tree'}>
-                  <TreeList
-                    cpLabels={cpLabels}
-                    cpSet={cpSet}
-                    data={data}
-                    deferredSearch={deferredSearch}
-                    diff={diff}
-                    diffOnlyChanged={diffOnlyChanged}
-                    editorAsDialog={editorAsDialog}
-                    hideDone={hideDone}
-                    horizonEnd={horizonEnd}
-                    horizonIds={horizonIds}
-                    horizonOnlyPlanned={horizonOnlyPlanned}
-                    members={members}
-                    multiSel={multiSel}
-                    onGanttTaskUpdate={onGanttTaskUpdate}
-                    onTreeBulkDelete={onTreeBulkDelete}
-                    onTreeCommand={onTreeCommand}
-                    onTreeCommandMany={onTreeCommandMany}
-                    onTreeDelete={onTreeDelete}
-                    onTreeDropRows={onTreeDropRows}
-                    onTreeInsertAfter={onTreeInsertAfter}
-                    onTreeInsertChild={onTreeInsertChild}
-                    onTreeMove={onTreeMove}
-                    onTreePasteRows={onTreePasteRows}
-                    onTreeRevealHidden={onTreeRevealHidden}
-                    onTreeSelect={onTreeSelect}
-                    onTreeSelectAll={onTreeSelectAll}
-                    persistSince={persistSince}
-                    personFilter={personFilter}
-                    rootFilter={rootFilter}
-                    scheduled={scheduled}
-                    scnChangedIds={scnChangedIds}
-                    selected={selected}
-                    setBulkEditModalOpen={setBulkEditModalOpen}
-                    setMN={setMN}
-                    setModal={setModal}
-                    setMultiSel={setMultiSel}
-                    showTreeIds={showTreeIds}
-                    sinceDate={sinceDate}
-                    sinceDays={sinceDays}
-                    stats={stats}
-                    teamFilter={teamFilter}
-                    teams={teams}
-                    tree={tree}
-                    visibleTreeForViews={visibleTreeForViews}
-                  />
-                  <TreeSide
-                    _t={_t}
-                    addDep={addDep}
-                    confReasons={confReasons}
-                    confidence={confidence}
-                    cpLabels={cpLabels}
-                    cpSet={cpSet}
-                    data={data}
-                    deleteNode={deleteNode}
-                    duplicateNode={duplicateNode}
-                    editorAsDialog={editorAsDialog}
-                    hm={hm}
-                    members={members}
-                    multiSel={multiSel}
-                    mutate={mutate}
-                    past={past}
-                    removeDep={removeDep}
-                    renderBulkEditBody={renderBulkEditBody}
-                    scheduled={scheduled}
-                    selected={selected}
-                    setBulkEditModalOpen={setBulkEditModalOpen}
-                    setEditorDock={setEditorDock}
-                    setMN={setMN}
-                    setModal={setModal}
-                    setMultiSel={setMultiSel}
-                    setSel={setSel}
-                    setSideTab={setSideTab}
-                    sideTab={sideTab}
-                    splitHandoff={splitHandoff}
-                    splitTaskAtProgress={splitTaskAtProgress}
-                    stats={stats}
-                    teams={teams}
-                    tree={tree}
-                    updateNode={updateNode}
-                    workDays={workDays}
-                  />
+                  <TreeList plan={plan} view={view} handlers={handlers} />
+                  <TreeSide plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
                 </Frozen>
               </div>
             )}
-            {visitedTabs.has('gantt') && (
-              <GanttPane
-                activeScheduled={activeScheduled}
-                activeTree={activeTree}
-                confReasons={confReasons}
-                confidence={confidence}
-                cpLabels={cpLabels}
-                data={data}
-                deferredSearch={deferredSearch}
-                diff={diff}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                hideDone={hideDone}
-                horizonEnd={horizonEnd}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onGanttAddDep={onGanttAddDep}
-                onGanttBarClick={onGanttBarClick}
-                onGanttExtendViewStart={onGanttExtendViewStart}
-                onGanttRemoveDep={onGanttRemoveDep}
-                onGanttReorderSibling={onGanttReorderSibling}
-                onGanttSeqUpdate={onGanttSeqUpdate}
-                onGanttTaskUpdate={onGanttTaskUpdate}
-                personFilter={personFilter}
-                personQueues={personQueues}
-                planStart={planStart}
-                rootFilter={rootFilter}
-                scnBaseline={scnBaseline}
-                searchIdx={searchIdx}
-                setBulkEditModalOpen={setBulkEditModalOpen}
-                setMultiSel={setMultiSel}
-                sinceDate={sinceDate}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                vacations={vacations}
-                viewCpEdges={viewCpEdges}
-                viewCpSet={viewCpSet}
-                viewGoals={viewGoals}
-                weeks={weeks}
-                workDays={workDays}
-              />
-            )}
-            {visitedTabs.has('roadmap') && (
-              <RoadmapPane
-                activeScheduled={activeScheduled}
-                activeTree={activeTree}
-                cpLabels={cpLabels}
-                data={data}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                ganttRoadmapFocus={ganttRoadmapFocus}
-                members={members}
-                onMoveBehind={onMoveBehind}
-                onOpenItemDialog={onOpenItemDialog}
-                projectWaitsOf={projectWaitsOf}
-                setGanttRoadmapFocus={setGanttRoadmapFocus}
-                sinceDate={sinceDate}
-                stats={stats}
-                tab={tab}
-                teams={teams}
-                viewCpSet={viewCpSet}
-              />
-            )}
-            {visitedTabs.has('net') && (
-              <NetPane
-                archive={archive}
-                cpLabels={cpLabels}
-                deferredSearch={deferredSearch}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                hideDone={hideDone}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onNetAddNode={onNetAddNode}
-                onNetDeleteNode={onNetDeleteNode}
-                onNetNodeClick={onNetNodeClick}
-                personFilter={personFilter}
-                rootFilter={rootFilter}
-                searchIdx={searchIdx}
-                setRootFilter={setRootFilter}
-                setSearchIdx={setSearchIdx}
-                showArchived={showArchived}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-              />
-            )}
-            {visitedTabs.has('order') && (
-              <OrderPane
-                activeTree={activeTree}
-                data={data}
-                deferredSearch={deferredSearch}
-                members={members}
-                onGanttTaskUpdate={onGanttTaskUpdate}
-                onQueueReorder={onQueueReorder}
-                onQueueReset={onQueueReset}
-                personFilter={personFilter}
-                personQueues={personQueues}
-                rootFilter={rootFilter}
-                scheduled={scheduled}
-                setBulkEditModalOpen={setBulkEditModalOpen}
-                setMN={setMN}
-                setModal={setModal}
-                setMultiSel={setMultiSel}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-              />
-            )}
-            {visitedTabs.has('resources') && (
-              <ResourcesPane
-                effContext={effContext}
-                onResMeetingPlansUpd={onResMeetingPlansUpd}
-                onResMemberAdd={onResMemberAdd}
-                onResMemberClone={onResMemberClone}
-                onResMemberDel={onResMemberDel}
-                onResMemberUpd={onResMemberUpd}
-                onResTeamAdd={onResTeamAdd}
-                onResTeamDel={onResTeamDel}
-                onResTeamUpd={onResTeamUpd}
-                onResVacUpd={onResVacUpd}
-                personFilter={personFilter}
-                resLens={resLens}
-                scheduled={scheduled}
-                tab={tab}
-                teamFilter={teamFilter}
-                tree={tree}
-                vacations={vacations}
-                weeks={weeks}
-              />
-            )}
+            {visitedTabs.has('gantt') && <GanttPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('roadmap') && <RoadmapPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('net') && <NetPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('order') && <OrderPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('resources') && <ResourcesPane plan={plan} view={view} handlers={handlers} />}
             {visitedTabs.has('holidays') && (
               <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}>
                 <Frozen active={tab === 'holidays'}>
@@ -3942,107 +2936,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               </div>
             )}
           </div>
-          <EditModals
-            addNode={addNode}
-            confReasons={confReasons}
-            confidence={confidence}
-            cpLabels={cpLabels}
-            cpSet={cpSet}
-            data={data}
-            deleteNode={deleteNode}
-            duplicateNode={duplicateNode}
-            editorAsDialog={editorAsDialog}
-            members={members}
-            modal={modal}
-            modalFocus={modalFocus}
-            modalNode={modalNode}
-            moveNode={moveNode}
-            mutate={mutate}
-            past={past}
-            scheduled={scheduled}
-            selected={selected}
-            setEditorDock={setEditorDock}
-            setMN={setMN}
-            setModal={setModal}
-            setModalFocus={setModalFocus}
-            setSel={setSel}
-            splitHandoff={splitHandoff}
-            splitTaskAtProgress={splitTaskAtProgress}
-            stats={stats}
-            teams={teams}
-            tree={tree}
-            updateNode={updateNode}
-          />
-          <ScenarioModals
-            activeScenario={activeScenario}
-            data={data}
-            exportScenarioPDF={exportScenarioPDF}
-            modal={modal}
-            resetHistory={resetHistory}
-            scenarioApply={scenarioApply}
-            scenarioRevertChange={scenarioRevertChange}
-            scn={scn}
-            scnChanges={scnChanges}
-            scnCompareMemory={scnCompareMemory}
-            scnComparison={scnComparison}
-            setData={setData}
-            setModal={setModal}
-            setSaved={setSaved}
-            setSel={setSel}
-            setTab={setTab}
-            tree={tree}
-          />
-          <ConfigModals
-            _t={_t}
-            bulkEditModalOpen={bulkEditModalOpen}
-            data={data}
-            editorDock={editorDock}
-            meta={meta}
-            modal={modal}
-            multiSel={multiSel}
-            renderBulkEditBody={renderBulkEditBody}
-            setBulkEditModalOpen={setBulkEditModalOpen}
-            setD={setD}
-            setEditorDock={setEditorDock}
-            setModal={setModal}
-            setShowTreeIds={setShowTreeIds}
-            setUiScale={setUiScale}
-            showTreeIds={showTreeIds}
-            teams={teams}
-            uiScale={uiScale}
-          />
-          <ProjectModals
-            applyJiraImport={applyJiraImport}
-            data={data}
-            exportHandlerProps={exportHandlerProps}
-            members={members}
-            meta={meta}
-            modal={modal}
-            modalNode={modalNode}
-            resetHistory={resetHistory}
-            scheduled={scheduled}
-            setData={setData}
-            setMN={setMN}
-            setModal={setModal}
-            setSaved={setSaved}
-            setSel={setSel}
-            setTab={setTab}
-            teams={teams}
-            tree={tree}
-            updateNode={updateNode}
-          />
+          <ItemModals plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
+          <ScenarioModals plan={plan} view={view} handlers={handlers} />
+          <SettingsModals plan={plan} view={view} handlers={handlers} />
+          <ProjectFileModals plan={plan} view={view} handlers={handlers} exportHandlerProps={exportHandlerProps} />
 
-          <OnboardingModals
-            NEW_FEATURES={NEW_FEATURES}
-            TOUR_STEPS={TOUR_STEPS}
-            _t={_t}
-            closeTour={closeTour}
-            dismissNewFeat={dismissNewFeat}
-            setTourStep={setTourStep}
-            showNewFeat={showNewFeat}
-            startTour={startTour}
-            tourStep={tourStep}
-          />
+          <OnboardingModals view={view} handlers={handlers} NEW_FEATURES={NEW_FEATURES} TOUR_STEPS={TOUR_STEPS} _t={_t} />
         </div>
       </CapacityProvider>
     </>

@@ -12,6 +12,7 @@ import { buildMemberShortMap } from '../../App.jsx';
 import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
 import { useT } from '../../i18n.jsx';
 import { inTeam } from '../../utils/memberTeams.js';
+import { BRIEFING_JOB_EVENT } from '../../utils/events.js';
 
 // Geometric marks, not dingbats: ● from the dingbat block renders as an
 // emoji on some platforms, and these three have to read as one family.
@@ -110,8 +111,6 @@ function JiraSection({ title, tone, count, hint, children }) {
     </div>
   );
 }
-
-export const BRIEFING_JOB_EVENT = 'planr:briefing:job';
 
 function BriefingViewImpl({
   tree,

@@ -20,7 +20,7 @@ import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrol
 import { canTreeCommand, canTreeCommandMany, dropRows, remapIds } from '../../utils/treeMove.js';
 import { setDragBadge } from '../../utils/dragBadge.js';
 import { withKey, ariaChord } from '../../utils/shortcuts.js';
-import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
+import { KEYMAP_OPEN_EVENT } from '../../utils/events.js';
 
 function depth(id) {
   return id.split('.').length;

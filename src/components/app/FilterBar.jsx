@@ -5,37 +5,28 @@ import { SearchBox } from '../shared/SearchBox.jsx';
 import { TREE_FOCUS_EVENT } from '../views/TreeView.jsx';
 import { ViewFilters } from '../shared/ViewFilters.jsx';
 
-export function FilterBar({
-  _t,
-  activeQuickFilters,
-  activeScopeChips,
-  archive,
-  archiveDays,
-  data,
-  diffOnlyChanged,
-  hideDone,
-  horizonDays,
-  horizonEnd,
-  horizonOnlyPlanned,
-  persistDiffOnlyChanged,
-  persistHorizon,
-  persistHorizonOnly,
-  persistSince,
-  quickFilters,
-  scn,
-  scopeFields,
-  search,
-  searchRef,
-  setArchiveDays,
-  setModal,
-  setSearch,
-  setSearchIdx,
-  setShowArchived,
-  showArchived,
-  sinceDate,
-  sinceDays,
-  tab,
-}) {
+export function FilterBar({ plan, view, handlers, _t, searchRef }) {
+  const { archive, data, horizonDays, horizonEnd, scn, sinceDate } = plan;
+  const {
+    activeQuickFilters,
+    activeScopeChips,
+    archiveDays,
+    diffOnlyChanged,
+    hideDone,
+    horizonOnlyPlanned,
+    quickFilters,
+    scopeFields,
+    search,
+    setArchiveDays,
+    setModal,
+    setSearch,
+    setSearchIdx,
+    setShowArchived,
+    showArchived,
+    sinceDays,
+    tab,
+  } = view;
+  const { persistDiffOnlyChanged, persistHorizon, persistHorizonOnly, persistSince } = handlers;
   return (
     <>
       {/* The filter bar belongs on every view these filters actually change —

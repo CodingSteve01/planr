@@ -1,17 +1,9 @@
 import { Icon } from '../shared/Icon.jsx';
 import { Tour } from '../shared/Tour.jsx';
 
-export function OnboardingModals({
-  NEW_FEATURES,
-  TOUR_STEPS,
-  _t,
-  closeTour,
-  dismissNewFeat,
-  setTourStep,
-  showNewFeat,
-  startTour,
-  tourStep,
-}) {
+export function OnboardingModals({ view, handlers, NEW_FEATURES, TOUR_STEPS, _t }) {
+  const { setTourStep, showNewFeat, tourStep } = view;
+  const { closeTour, dismissNewFeat, startTour } = handlers;
   return (
     <>
       {/* ── Onboarding tour ── */}

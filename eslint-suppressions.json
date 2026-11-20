@@ -1,7 +1,7 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 9
+      "count": 8
     },
     "max-depth": {
       "count": 2
@@ -13,7 +13,7 @@
       "count": 2
     },
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     }
   },
   "src/__tests__/archive.roadmap.test.jsx": {
