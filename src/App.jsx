@@ -15,7 +15,7 @@ import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
 import { useLogWriters } from './app/useLogWriters.js';
-import { recordSavedEvents } from './app/dayLogWrite.js';
+import { useEarlierDay } from './app/useEarlierDay.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
 import { useVisibleTree } from './app/derived/useVisibleTree.js';
 import { useFilterChips } from './app/derived/useFilterChips.js';
@@ -57,13 +57,9 @@ import { exportSprintMarkdown } from './utils/exports.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
-import { localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
-import { isEmptyPatch, diffPlan } from './utils/scenario.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { dropChange } from './utils/effective.js';
 import { CapacityProvider } from './utils/capacityLens.js';
-import { leafSnapshot, diffSnapshots, stampPendingDates } from './utils/history.js';
-import { createHistory } from './utils/undo.js';
+import { leafSnapshot } from './utils/history.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
@@ -541,62 +537,27 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const { resLens, ...lensDates } = useResourceLens({ data, effDate });
-  // A day before today is a look at the plan as it was (and a place to
-  // correct it from then on); a day after today is where capacity changes.
-  // The same plan, whatever a save added to its logs in between.
-  const sameDocument = (a, b) => a === b || isEmptyPatch(diffPlan(a, b));
-  const pickEffDate = day => {
-    const wanted = day || '';
-    const goPast = !!wanted && wanted < localDay() && !scnRef.current;
-    const from = pastRef.current;
-    if (from || goPast) {
-      // Back to the real plan first, with whatever was edited on that day.
-      let real = from ? fileDataRef.current : recordToday(lastSavedPlanRef.current, dataRef.current);
-      if (!real) return;
-      // What was changed today and not saved yet is written to the history
-      // now, as of today: once the earlier day is on screen, every entry a
-      // save finds counts for that day.
-      if (!from && lastSavedLeavesRef.current) {
-        const snapshot = leafSnapshot(sortTree(real.tree || []));
-        const ts = new Date().toISOString();
-        const events = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), real.asOfPending, snapshot, ts);
-        lastSavedLeavesRef.current = snapshot;
-        real = recordSavedEvents(real, events, real.asOfPending || null);
-      }
-      lastSavedPlanRef.current = real;
-      if (goPast) {
-        const screen = planOn(real, wanted);
-        setPast({ day: wanted, base: real, baseScreen: screen });
-        setData(screen);
-      } else {
-        setPast(null);
-        setData(real);
-      }
-      // Snapshots of one day are not edits of another.
-      if (!from) dayUndoRef.current = { history, real };
-      const kept = dayUndoRef.current;
-      const untouched = !goPast && kept && sameDocument(kept.real, real);
-      if (!goPast) dayUndoRef.current = null;
-      setHistory(untouched ? kept.history : createHistory({ limit: 100 }));
-      if (from && !untouched) setSaved(false);
-    }
-    setEffDate(wanted);
-    if (wanted && !goPast) setTab('resources');
-  };
-  // On an earlier day the screen already is that day: an edit there is an
-  // ordinary edit, and the day log carries it forward.
-  const effFold = past ? null : effDate || null;
-  const pastStart = useMemo(() => (past ? logStart(past.base) : null), [past]);
-  const effDropDate = from => mutate(d => dropChange(d, from));
-  const effContext = useMemo(
-    () => ({
-      date: effDate,
-      changes: data?.changes || [],
-      onGo: day => pickEffDate(day || ''),
-      onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
-    }),
-    [effDate, data?.changes, past?.day, scn?.id],
-  );
+  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay({
+    data,
+    history,
+    setHistory,
+    setData,
+    setSaved,
+    setTab,
+    setPast,
+    setEffDate,
+    mutate,
+    scn,
+    past,
+    effDate,
+    scnRef,
+    pastRef,
+    dataRef,
+    fileDataRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+    dayUndoRef,
+  });
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
