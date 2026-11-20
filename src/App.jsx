@@ -8,7 +8,7 @@ import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
-import { TOUR_DONE_KEY, useTour } from './app/useTour.js';
+import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
@@ -92,10 +92,8 @@ import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
-import { Onboard } from './components/views/Onboard.jsx';
-import { NewProjModal } from './components/modals/NewProjModal.jsx';
-import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
-import { buildImportedProject } from './utils/jiraImport.js';
+import { BootScreen, RestoreMountScreen } from './components/app/BootScreen.jsx';
+import { EmptyState } from './components/app/EmptyState.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
@@ -1333,126 +1331,25 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onNetAddNode = useStableCallback(() => setModal('add'));
   const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
 
-  if (!bootstrapped)
-    return (
-      <div className="onboard">
-        <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
-          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
-            Planr<span style={{ color: 'var(--ac)' }}>.</span>
-          </div>
-          <div className="onboard-sub" style={{ marginBottom: 0 }}>
-            Restoring project context...
-          </div>
-        </div>
-      </div>
-    );
+  if (!bootstrapped) return <BootScreen />;
 
   if (!data && fileName && fileHandleRef.current)
-    return (
-      <div className="onboard">
-        <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
-          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
-            Planr<span style={{ color: 'var(--ac)' }}>.</span>
-          </div>
-          <div className="onboard-sub" style={{ marginBottom: 22 }}>
-            Restore mounted project
-          </div>
-          <div
-            style={{
-              background: 'var(--bg3)',
-              border: '1px solid var(--b2)',
-              borderRadius: 'var(--r)',
-              padding: 12,
-              marginBottom: 18,
-              fontSize: 12,
-              fontFamily: 'var(--mono)',
-              color: 'var(--tx2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-            }}
-          >
-            <Icon name="doc" size={14} />
-            {fileName}
-          </div>
-          <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>
-            Browser security requires you to grant file access again after a page reload.
-          </p>
-          <div className="ob-actions">
-            <button className="ob-btn ob-pri" onClick={restoreMountedFile}>
-              Reactivate file access
-            </button>
-            <button
-              className="ob-btn ob-sec"
-              onClick={async () => {
-                await forgetHandle();
-              }}
-            >
-              Discard mount
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <RestoreMountScreen fileName={fileName} onRestore={restoreMountedFile} onForget={forgetHandle} />;
 
   if (!data)
     return (
-      <>
-        <Onboard
-          onCreate={() => setModal('new')}
-          onLoad={loadFromFile}
-          fRef={fRef}
-          onJiraImport={() => setModal('jiraImport')}
-          onLoadDemo={() => {
-            import('./utils/demoProject.js').then(m => {
-              const demo = m.buildDemoProject(_t);
-              setData(demo);
-              resetHistory();
-              setSaved(false);
-              setTab('summary');
-              setSel(demo.tree?.[0] || null);
-            });
-          }}
-        />
-        {modal === 'new' && (
-          <NewProjModal
-            onClose={() => setModal(null)}
-            onCreate={d => {
-              setData(d);
-              resetHistory();
-              setSaved(false);
-              setModal(null);
-              setTab('tree');
-              setSel(d.tree?.[0] || null);
-              // Auto-start tour for first-time users (tour not yet dismissed)
-              try {
-                if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0);
-              } catch {}
-            }}
-          />
-        )}
-        {/* The other way to start: the work is already in Jira. Same shell the
-        wizard builds — standard template, NRW holidays, two teams — with the
-        tree coming from the paste instead of from an empty form. */}
-        {modal === 'jiraImport' && (
-          <JiraImportModal
-            onClose={() => setModal(null)}
-            onImport={({ nodes, newMembers, projectName }) => {
-              const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
-              setData(d);
-              resetHistory();
-              setSaved(false);
-              setModal(null);
-              setTab('tree');
-              setSel(d.tree?.[0] || null);
-            }}
-          />
-        )}
-        <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
-      </>
+      <EmptyState
+        t={_t}
+        modal={modal}
+        setModal={setModal}
+        fRef={fRef}
+        onLoadFile={loadFromFile}
+        onFileInput={loadFile}
+        session={{ setData, resetHistory, setSaved }}
+        setTab={setTab}
+        setSel={setSel}
+        setTourStep={setTourStep}
+      />
     );
 
   // removed: topDownReady guide bubble (was blocking tree view)
