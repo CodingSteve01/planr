@@ -26,7 +26,7 @@ import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
 // t() — see reasonTip below (the label reuses the global conf.* keys).
 const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
 
-export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], backdate = '', focusRequest = null, viewDay = '', onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress, onDockSide }) {
+export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, historyEvents = [], focusRequest = null, viewDay = '', onClose, onUpdate, onDelete, onEstimate, onDuplicate, onMove, onNavigate, onHistoryChange, onSplitHandoff, onSplitTaskAtProgress, onDockSide }) {
   const { t, lang } = useT();
   const REASON_TIP = {
     'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
@@ -208,24 +208,20 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
   // A change dated to an earlier day: the completion follows the date, and the
   // date goes along so the log files the change where it belongs.
   const today = iso(new Date());
-  // A global backdate already dates every change; the field then only shows it.
-  const asOfDay = !backdate && /^\d{4}-\d{2}-\d{2}$/.test(asOf) && asOf < today ? asOf : '';
+  // On an earlier day every change counts for that day; there is nothing to pick.
+  const asOfDay = !viewDay && /^\d{4}-\d{2}-\d{2}$/.test(asOf) && asOf < today ? asOf : '';
   const stateChanged = (f.status || 'open') !== (node.status || 'open') || (f.progress ?? 0) !== (node.progress ?? 0);
   const save = () => {
-    // The day the change counts for: the field's, or the global backdate's.
-    // A task finished as of a day is finished on that day, under either.
-    const day = asOfDay || (backdate && backdate < today ? backdate : '');
-    if (!day || !stateChanged) { onUpdate(f); return; }
+    if (!asOfDay || !stateChanged) { onUpdate(f); return; }
     const becameDone = f.status === 'done' && node.status !== 'done';
-    const saved = becameDone ? { ...f, completedAt: day, completedEnd: day, completedStart: f.completedStart && f.completedStart <= day ? f.completedStart : day } : f;
-    // The global backdate dates the save's whole diff itself.
-    if (asOfDay) onUpdate(saved, { asOf: asOfDay }); else onUpdate(saved);
+    const saved = becameDone ? { ...f, completedAt: asOfDay, completedEnd: asOfDay, completedStart: f.completedStart && f.completedStart <= asOfDay ? f.completedStart : asOfDay } : f;
+    onUpdate(saved, { asOf: asOfDay });
   };
   const asOfField = <div data-testid="nm-as-of-row" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-2px 0 12px', fontSize: 12, color: 'var(--tx2)', flexWrap: 'wrap' }}>
     <span>{t('nm.asOf')}</span>
-    <input type="date" data-testid="nm-as-of" value={backdate || asOf || today} max={today} disabled={!!backdate}
-      onChange={e => setAsOf(e.target.value)} data-htip={backdate ? t('nm.asOfGlobalTip') : t('nm.asOfTip')} style={{ width: 150 }} />
-    {(backdate || asOfDay) && <span data-testid="nm-as-of-note" style={{ fontSize: 11, color: 'var(--ac)' }}>{t('nm.asOfNote', backdate || asOfDay)}</span>}
+    <input type="date" data-testid="nm-as-of" value={asOf || today} max={today}
+      onChange={e => setAsOf(e.target.value)} data-htip={t('nm.asOfTip')} style={{ width: 150 }} />
+    {asOfDay && <span data-testid="nm-as-of-note" style={{ fontSize: 11, color: 'var(--ac)' }}>{t('nm.asOfNote', asOfDay)}</span>}
   </div>;
   const setCompletion = patch => setF(current => {
     const next = { ...current, ...patch };
@@ -586,7 +582,7 @@ export function NodeModal({ node, tree, members, teams, taskTemplates, sizes: pr
         </div>}
         {/* Only once there is a change to date: before that the field would
             read as a property of the task, and it is one of the save. */}
-        {isLeaf && stateChanged && asOfField}
+        {isLeaf && stateChanged && !viewDay && asOfField}
 
         {isLeaf && <div ref={focusRefs.phases}><PhaseList
           phases={f.phases}

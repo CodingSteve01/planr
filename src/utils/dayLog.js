@@ -70,6 +70,19 @@ export function planOn(real, day) {
   return tree === state.tree ? state : { ...state, tree };
 }
 
+// `prev` in the ids of `loaded`. A Markdown plan hands out new ids for people,
+// teams and meeting plans on every load, so two loads of the same plan cannot
+// be compared as they are. The whole of `prev` is written as a patch against
+// nothing, by name, and read back against `loaded` (the way a scenario
+// survives a reload).
+const NOTHING = { tree: [], members: [], teams: [], meetingPlans: [], vacations: [] };
+export function inIdsOf(prev, loaded) {
+  if (!prev || !loaded) return prev;
+  const { patch } = fromPortablePatch(toPortablePatch(diffPlan(NOTHING, plain(prev)), prev), loaded);
+  const out = isEmptyPatch(patch) ? NOTHING : back(NOTHING, patch);
+  return prev.dayLog ? { ...out, dayLog: prev.dayLog } : out;
+}
+
 // The first day the full log reaches back to; before it only status is known.
 export const logStart = data => sorted(data?.dayLog)[0]?.day || null;
 

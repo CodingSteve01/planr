@@ -161,4 +161,19 @@ describe('an earlier day', () => {
     expect(beta).toHaveLength(1);
     expect(beta[0]).toContain(`effectiveAt=${day(5)}`);
   }, 45000);
+
+  it('a look at an earlier day does not cost the undo stack', async () => {
+    const { handle } = hostFile(withLog());
+    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    fireEvent.click((await screen.findByText('Gamma Task', {}, { timeout: 10000 })).closest('tr'));
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    await waitFor(() => expect(names()).not.toContain('Gamma Task'));
+    await goTo(day(5));
+    await waitFor(() => expect(names()).toContain('Beta Old'));
+    await act(async () => { fireEvent.click(screen.getByTestId('effective-leave')); });
+    await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Task']));
+    expect(screen.getByTestId('undo-btn').disabled).toBe(false);
+    await act(async () => { fireEvent.click(screen.getByTestId('undo-btn')); });
+    await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Task', 'Gamma Task']));
+  }, 30000);
 });

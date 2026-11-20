@@ -149,23 +149,12 @@ describe('a status change can be dated, and an entry can be moved', () => {
     expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('with backdating on, the field shows that day and cannot say another', () => {
-    renderModal({ backdate: day(9) });
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '60' } });
-    expect(screen.getByTestId('nm-as-of').value).toBe(day(9));
-    expect(screen.getByTestId('nm-as-of').disabled).toBe(true);
-  });
-
-  it('with backdating on, a task finished in the dialog is finished on that day', () => {
+  it('on an earlier day there is no day to pick: every change counts for that day', () => {
     const onUpdate = vi.fn();
-    renderModal({ backdate: day(9), onUpdate });
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '100' } });
+    renderModal({ viewDay: day(9), onUpdate });
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '60' } });
+    expect(screen.queryByTestId('nm-as-of')).toBeNull();
     fireEvent.click(screen.getByTestId('nm-save'));
-    const saved = onUpdate.mock.calls[0][0];
-    expect(saved.status).toBe('done');
-    expect(saved.completedAt).toBe(day(9));
-    expect(saved.completedEnd).toBe(day(9));
-    // The save's own diff carries the global day; no second date goes along.
     expect(onUpdate.mock.calls[0][1]).toBeUndefined();
   });
 

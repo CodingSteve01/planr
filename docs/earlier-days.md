@@ -24,8 +24,9 @@ overridden by it. A status or progress change is written to the history on
 that day (later entries it contradicts are removed), and a task finished there
 is finished on that day. A task added there exists from that day on.
 
-Undo works as always while the day is on screen. Going to another day, or back
-to today, starts a new undo stack.
+Undo works as always while the day is on screen. A visit that changed nothing
+gives the plan its undo stack back on return; one that did change the plan
+starts a new stack, because the earlier snapshots no longer lead to it.
 
 ## How far back
 
@@ -34,7 +35,16 @@ The full record starts with the first save made by a version that writes it
 day then shows those as they were, and everything else as it stood on the
 first recorded day. The bar says so.
 
-Changes made to the file outside Planr are not recorded as belonging to a day.
+A change made to the file outside Planr (another device, an editor) belongs to
+the day Planr picks it up: when the changed file is reloaded, the plan as it
+was here stays what the next save measures against, so that save records the
+difference in today's entry. People, teams and meeting plans are matched by
+name for this (`inIdsOf`), since a Markdown plan hands out new ids on every
+load. A file that changed while Planr was closed is not compared with anything.
+
+"Go to an earlier day…" in the palette and the File menu opens the date switch.
+There is no separate backdating mode any more: an edit on an earlier day is
+what it did, with the plan of that day on screen while you make it.
 
 ## How it is stored
 
