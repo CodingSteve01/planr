@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { useStableCallback } from './app/useStableCallback.js';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
@@ -10,10 +10,15 @@ import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
 import { TOUR_DONE_KEY, useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
-import { migratedAutoHolidays, trimmedToHorizon, withDerivedTeamsAndStatuses } from './app/planRepairs.js';
-import { futureProgressByRoot } from './app/futureProgress.js';
-import { overbookedIds, scheduleFiltered, scopeFiltered, withReviewedDone, withoutDone } from './app/viewTree.js';
-import { pushSnapshot } from './app/snapshots.js';
+import { useFileSession } from './app/useFileSession.js';
+import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
+import { usePlanModel } from './app/derived/usePlanModel.js';
+import { useVisibleTree } from './app/derived/useVisibleTree.js';
+import { useFilterChips } from './app/derived/useFilterChips.js';
+import { useResourceLoad, useResourceLens } from './app/derived/useResourceLoad.js';
+import { useScenarioView } from './app/derived/useScenarioView.js';
+import { useReviewDiff } from './app/derived/useReviewDiff.js';
+import { migratedAutoHolidays, withDerivedTeamsAndStatuses } from './app/planRepairs.js';
 import { TopBarFile } from './components/app/TopBarFile.jsx';
 import { ExternalChangeBanner } from './components/app/ExternalChangeBanner.jsx';
 import { TopBarState } from './components/app/TopBarState.jsx';
@@ -36,19 +41,10 @@ import { SettingsModals } from './components/app/SettingsModals.jsx';
 import { ProjectFileModals } from './components/app/ProjectFileModals.jsx';
 import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
-import {
-  initialShell,
-  loadLocalProject,
-  isValidProjectData,
-  scheduleIdleWrite,
-  cancelIdleWrite,
-  NEW_BADGE_TAB_IDS,
-  SEARCH_TABS,
-  MATCH_STEP_TABS,
-} from './app/shell.js';
+import { initialShell, loadLocalProject, isValidProjectData, NEW_BADGE_TAB_IDS, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
 import { Icon } from './components/shared/Icon.jsx';
 import { flushSync } from 'react-dom';
-import { SK, GT_MARKS } from './constants.js';
+import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { normalizeLoadedData } from './utils/loadedData.js';
@@ -64,11 +60,10 @@ import {
   exportTodoPDF,
   exportWhatWhenPDF,
 } from './utils/exports.js';
-import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
+import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
-import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from './utils/fileWrite.js';
-import { applyPastEdit, inIdsOf, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
+import { applyPastEdit, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
 import {
   applyPatch,
   isEmptyPatch,
@@ -81,44 +76,20 @@ import {
   uniqueScenarioName,
   withScenarioPatch,
 } from './utils/scenario.js';
-import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { changeDates, compileMembers, dropChange, resourcesAsOf } from './utils/effective.js';
-import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
+import { dropChange } from './utils/effective.js';
+import { CapacityProvider } from './utils/capacityLens.js';
 import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
-import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
-import { buildHMap } from './utils/holidays.js';
-import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
-import { inferGanttViewStart } from './utils/viewWindow.js';
-import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { projectWaits } from './utils/projectWaits.js';
-import {
-  schedule,
-  treeStats,
-  enrichParentSchedules,
-  leafNodes,
-  isLeafNode,
-  computeConfidence,
-  derivePhaseStatus,
-} from './utils/scheduler.js';
+import { isLeafNode, derivePhaseStatus } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { instantiateTemplatePhases } from './utils/phases.js';
-import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
-import {
-  clearMountedFileHandle,
-  loadMountedFileHandle,
-  persistMountedFileHandle,
-  queryHandlePermission,
-  requestHandlePermission,
-} from './utils/fileHandleStore.js';
+import { requestHandlePermission } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
-import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
-import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
@@ -433,7 +404,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   }
   const fRef = useRef(null);
   const searchRef = useRef(null);
-  const fileHandleRef = useRef(null);
   const prevTreeRef = useRef([]);
   const prevScheduledRef = useRef([]);
   // Leaf-state snapshot at the moment of the last successful persist (load or
@@ -442,166 +412,40 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // we don't emit fake "added" events for the whole tree.
   const lastSavedLeavesRef = useRef(null);
   const leafBaselineStaleRef = useRef(true);
-  const [fileName, setFileName] = useState(null);
   const { editorDock, setEditorDock, appRef, editorAsDialog, uiScale, setUiScale, showTreeIds, setShowTreeIds } = useUiPrefs(portalRoot);
-  const [autoSave, setAutoSave] = useState(() => {
-    try {
-      const v = localStorage.getItem('planr_autosave');
-      return v === null ? true : v === 'true';
-    } catch {
-      return true;
-    }
+  const fileSession = useFileSession({
+    data,
+    hosted,
+    mount,
+    onFileChange,
+    setData,
+    setSel,
+    setSaved,
+    resetHistory,
+    fileDataRef,
+    scnRef,
+    recordHistoryForLocalSave,
   });
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_autosave', String(autoSave));
-    } catch {}
-  }, [autoSave]);
-  const [lastSavedAt, setLastSavedAt] = useState(null);
-  const [bootstrapped, setBootstrapped] = useState(false);
-
+  const {
+    fileHandleRef,
+    fileName,
+    setFileName,
+    autoSave,
+    setAutoSave,
+    lastSavedAt,
+    setLastSavedAt,
+    bootstrapped,
+    fileWriteOk,
+    setFileWriteOk,
+    fileSynced,
+    diskTextRef,
+    busyRoundsRef,
+    saveRetryTimerRef,
+    forgetHandle,
+    ensureHandlePermission,
+  } = fileSession;
   const { tourStep, setTourStep, showNewFeat, dismissNewFeat, startTour, closeTour } = useTour();
 
-  async function rememberHandle(handle) {
-    fileHandleRef.current = handle;
-    setFileName(handle?.name || null);
-    if (hosted) {
-      onFileChange(handle || null);
-      return;
-    }
-    try {
-      if (handle) await persistMountedFileHandle(handle);
-      else await clearMountedFileHandle();
-    } catch (e) {
-      console.error('Could not persist mounted file handle:', e);
-    }
-  }
-
-  async function forgetHandle() {
-    fileHandleRef.current = null;
-    setFileName(null);
-    if (hosted) {
-      onFileChange(null);
-      return;
-    }
-    try {
-      await clearMountedFileHandle();
-    } catch (e) {
-      console.error('Could not clear mounted file handle:', e);
-    }
-  }
-
-  async function ensureHandlePermission(handle, interactive = false) {
-    if (!handle) return false;
-    if (!interactive) {
-      // Non-interactive: only check existing permission, do not prompt
-      const permission = await queryHandlePermission(handle, 'readwrite');
-      return permission === 'granted';
-    }
-    // Interactive: try requestPermission directly (preserves Chrome user activation)
-    // requestPermission returns 'granted' if already granted, otherwise prompts the user
-    const permission = await requestHandlePermission(handle, 'readwrite');
-    return permission === 'granted';
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const handle = mount || (await loadMountedFileHandle());
-        if (!handle) return;
-        fileHandleRef.current = handle;
-        if (!cancelled) setFileName(handle.name || null);
-
-        const readPermission = await queryHandlePermission(handle, 'read');
-        // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
-        if (readPermission !== 'granted') {
-          if (!cancelled) setFileWriteOk(false);
-          return;
-        }
-
-        const file = await handle.getFile();
-        const text = await file.text();
-        const restored = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
-        if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
-
-        if (!cancelled) {
-          setData(restored);
-          resetHistory(); // different document — the old undo stack doesn't apply
-          setSel(null);
-          // Check if we have write permission (non-interactive)
-          const canWrite = await ensureHandlePermission(handle, false);
-          if (!cancelled) setFileWriteOk(canWrite);
-        }
-      } catch (e) {
-        console.error('Mounted file restore failed:', e);
-        fileHandleRef.current = null;
-        if (!cancelled) setFileName(null);
-        try {
-          if (!hosted) await clearMountedFileHandle();
-        } catch {}
-      } finally {
-        if (!cancelled) setBootstrapped(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Save to localStorage on every change (fast, in-memory) — separate from file save
-  const [fileWriteOk, setFileWriteOk] = useState(true);
-  const [fileSynced, setFileSynced] = useState(true); // whether the file on disk matches current data
-  const lastOwnWriteRef = useRef(0); // timestamp of our last file write (to ignore in poll)
-  const lastWrittenDataRef = useRef(null);
-  useEffect(() => {
-    if (!data) return;
-    // A hosted instance is one of several: its document is the file, and the
-    // shared snapshot key would just be whichever tab typed last. Nothing is
-    // cached, so nothing is claimed saved either — the file write says that.
-    if (hosted) return;
-    // Bail early if `data` is the exact same reference we last wrote — saves
-    // a JSON.stringify on the main thread for a project that may be ~100KB.
-    // Reference equality is enough because every mutating helper produces a
-    // fresh top-level object.
-    if (data === lastWrittenDataRef.current) return;
-    let idleId = null;
-    const t = setTimeout(() => {
-      idleId = scheduleIdleWrite(() => {
-        // Never the scenario on screen: what is cached is what a file would
-        // hold, so a reload opens on the plan with its scenarios intact.
-        localStorage.setItem(SK, JSON.stringify(fileDataRef.current));
-        lastWrittenDataRef.current = data;
-        // localStorage save is always successful → data is "saved" (just maybe not to file yet)
-        setSaved(true);
-        setLastSavedAt(new Date());
-        // Every history-recording path used to hang off a file handle, so with
-        // nothing mounted the log stayed empty for ever — which silently took
-        // the diff/review window and backdating with it: you could switch
-        // backdating on, record a sprint's worth of catching up, and nothing
-        // was written anywhere. This is the only persist that happens without
-        // a file, so it is where the log has to be written.
-        if (!fileHandleRef.current && !scnRef.current) recordHistoryForLocalSave();
-      }, 1200);
-    }, 800);
-    return () => {
-      clearTimeout(t);
-      if (idleId != null) cancelIdleWrite(idleId);
-    };
-  }, [data]);
-  // Mark file-out-of-sync whenever data changes
-  useEffect(() => {
-    if (data) setFileSynced(false);
-  }, [data]);
-
-  // Auto-save: debounced N seconds after the last change. Each new change
-  // resets the timer, so rapid edits coalesce into a single write.
-  // Manual force-save via the disk icon (saveToFile) bypasses this.
-  const SAVE_DEBOUNCE_MS = 5000;
-  const lastChangeTimeRef = useRef(Date.now());
-  useEffect(() => {
-    if (data) lastChangeTimeRef.current = Date.now();
-  }, [data]);
   // Reseed the leaf-state baseline whenever a different file is loaded so the
   // first save after load only emits real edits made in this session, not the
   // entire tree as "added".
@@ -621,285 +465,25 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedPlanRef.current = data;
     leafBaselineStaleRef.current = false;
   }, [data]);
-  const [saving, setSaving] = useState(false);
-  // Bumped to run the autosave again after a write that failed on a busy file.
-  const [saveRetry, setSaveRetry] = useState(0);
-  // What the file on disk says, as far as Planr knows: what it last wrote or
-  // read. A changed modification time with this same text is a sync service
-  // touching the file, not somebody changing it.
-  const diskTextRef = useRef(null);
-  // Rounds in a row a save found the file busy, and the timer for the next.
-  const busyRoundsRef = useRef(0);
-  const saveRetryTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(saveRetryTimerRef.current), []);
-  useEffect(() => {
-    if (!data || !autoSave || !fileHandleRef.current || fileSynced) return;
-    const t = setTimeout(async () => {
-      const handle = fileHandleRef.current;
-      if (!handle) return;
-      const canWrite = await ensureHandlePermission(handle, false);
-      if (!canWrite) {
-        setFileWriteOk(false);
-        return;
-      }
-      setSaving(true);
-      try {
-        const { content, ...composed } = composeFileForSave();
-        await writeWithRetry(handle, content);
-        diskTextRef.current = content;
-        busyRoundsRef.current = 0;
-        setFileWriteOk(true);
-        setFileSynced(true);
-        lastOwnWriteRef.current = Date.now();
-        setLastSavedAt(new Date());
-        // Snapshot ring tracks file-save events, throttled internally.
-        pushSnapshot(fileDataRef.current);
-        commitSaveSideEffects(composed);
-      } catch (e) {
-        console.error('Auto-save failed:', e);
-        // The file is busy (a sync service uploading it), not gone: keep the
-        // handle and try again shortly. Only a lost permission asks for the
-        // file to be picked again.
-        busyRoundsRef.current += 1;
-        if (isBusy(e) && busyRoundsRef.current <= MAX_BUSY_ROUNDS && (await stillWritable(handle))) {
-          clearTimeout(saveRetryTimerRef.current);
-          saveRetryTimerRef.current = setTimeout(() => setSaveRetry(n => n + 1), 15000);
-        } else setFileWriteOk(false);
-      } finally {
-        setSaving(false);
-      }
-    }, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [data, autoSave, fileSynced, saveRetry]);
-
-  // 1-second tick to drive the live countdown. Only ticks while there's something to wait for.
-  const [, setSaveTick] = useState(0);
-  useEffect(() => {
-    if (fileSynced || !autoSave || !fileHandleRef.current) return;
-    const i = setInterval(() => setSaveTick(t => t + 1), 1000);
-    return () => clearInterval(i);
-  }, [fileSynced, autoSave]);
-  const saveCountdown =
-    !fileSynced && autoSave && fileHandleRef.current
-      ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
-      : 0;
-
-  // Detect external file changes (poll every 5s). NEVER auto-load — only notify.
-  // Writing is one-way (app → file). When the file changes externally, show a prompt
-  // so the user decides whether to reload. Auto-loading was destructive: external edits
-  // (or file-system sync hiccups) silently overwrote in-memory state.
-  const lastModRef = useRef(null);
-  const [externalChangeAvailable, setExternalChangeAvailable] = useState(false);
-  useEffect(() => {
-    if (!fileHandleRef.current) return;
-    const poll = setInterval(async () => {
-      try {
-        const file = await fileHandleRef.current.getFile();
-        const mod = file.lastModified;
-        // Skip if this is our own write (within 3s window)
-        const isOwnWrite = Date.now() - lastOwnWriteRef.current < 3000;
-        if (diskTextRef.current == null) diskTextRef.current = await file.text();
-        else if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
-          // Only a different text is a change. A sync service bumps the time
-          // on its own.
-          if ((await file.text()) !== diskTextRef.current) setExternalChangeAvailable(true);
-        }
-        lastModRef.current = mod;
-      } catch {}
-    }, 5000);
-    return () => clearInterval(poll);
-  }, [fileName]);
-  async function reloadFromFile() {
-    try {
-      const file = await fileHandleRef.current.getFile();
-      const text = await file.text();
-      const isMd = file.name.endsWith('.md');
-      const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-      if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
-        // What changed outside Planr belongs to the day it was picked up.
-        // The plan as it was last saved here stays what the next save measures
-        // against (in the ids this load handed out), and the status baseline
-        // stays too, so the difference is recorded as a change of today.
-        // What was edited here and not saved is gone with the reload and is
-        // not part of that.
-        const before = pastRef.current || scnRef.current ? null : lastSavedPlanRef.current;
-        setData(d);
-        resetHistory(); // reloaded from disk — treat as a fresh document
-        if (before && lastSavedLeavesRef.current) {
-          lastSavedPlanRef.current = inIdsOf(before, d);
-          leafBaselineStaleRef.current = false;
-        }
-        // After resetHistory, which forgets what the previous document said.
-        diskTextRef.current = text;
-        setLastSavedAt(new Date(file.lastModified));
-        lastModRef.current = file.lastModified;
-        setSaved(true);
-        setFileSynced(true);
-      }
-    } catch (e) {
-      console.error('Reload failed:', e);
-    }
-    setExternalChangeAvailable(false);
-  }
-
-  // Guard: warn on browser close/reload with unsaved changes
-  useEffect(() => {
-    const h = e => {
-      if (!saved) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', h);
-    return () => window.removeEventListener('beforeunload', h);
-  }, [saved]);
-
-  // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
-  // Used as fallback when the existing handle's permission/write fails after a reload.
-  async function pickSaveHandle(suggestedFromName) {
-    if (!filePickerAvailable()) {
-      exportJSON();
-      return null;
-    }
-    const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
-    const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
-    const isMd = suggested.endsWith('.md');
-    return await pickFileToSave({
-      suggestedName: suggested,
-      types: isMd
-        ? [
-            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
-            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
-          ]
-        : [
-            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
-            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
-          ],
+  const { saving, saveCountdown, externalChangeAvailable, setExternalChangeAvailable, reloadFromFile, saveToFile, loadFromFile } =
+    useFileSync({
+      data,
+      saved,
+      setSaved,
+      setData,
+      setSel,
+      resetHistory,
+      session: fileSession,
+      fRef,
+      fileDataRef,
+      pastRef,
+      scnRef,
+      lastSavedPlanRef,
+      lastSavedLeavesRef,
+      leafBaselineStaleRef,
+      composeFileForSave,
+      commitSaveSideEffects,
     });
-  }
-
-  // Write content to a handle (caller already has write permission)
-  async function writeToHandle(handle, content) {
-    await writeWithRetry(handle, content);
-    diskTextRef.current = content;
-    busyRoundsRef.current = 0;
-  }
-
-  // Save to file (File System Access API). On failure, fall back to Save-As with previous filename.
-  async function saveToFile(saveAs) {
-    if (!data) return;
-    let handle = saveAs ? null : fileHandleRef.current;
-    const previousFileName = fileName; // remember for fallback suggestion
-    try {
-      // Path A: no handle yet → open Save-As picker right away
-      if (!handle) {
-        handle = await pickSaveHandle(previousFileName);
-        if (!handle) return; // exportJSON path or aborted
-      } else {
-        // Path B: have a handle → request permission interactively
-        const canWrite = await ensureHandlePermission(handle, true);
-        if (!canWrite) {
-          // Permission denied/failed → offer Save-As fallback so the user can re-mount
-          // (this is critical after page reload when permissions reset)
-          const ok = confirm(
-            'File access was not granted by the browser. Click OK to choose where to save (suggesting the original location), or Cancel to skip.',
-          );
-          if (!ok) {
-            setFileWriteOk(false);
-            return;
-          }
-          handle = await pickSaveHandle(previousFileName);
-          if (!handle) {
-            setFileWriteOk(false);
-            return;
-          }
-        }
-      }
-      const { content, ...composed } = composeFileForSave();
-      await writeToHandle(handle, content);
-      lastOwnWriteRef.current = Date.now();
-      await rememberHandle(handle);
-      setAutoSave(true);
-      setFileWriteOk(true);
-      setFileSynced(true);
-      setSaved(true);
-      setLastSavedAt(new Date());
-      // Persist a JSON snapshot tied to a real file write — recovery scenarios
-      // care about state that landed on disk, not every keystroke. Throttled
-      // internally to ≥60s so manual rapid saves don't churn the ring.
-      pushSnapshot(fileDataRef.current);
-      commitSaveSideEffects(composed);
-    } catch (e) {
-      if (e.name === 'AbortError') return; // user cancelled file picker
-      console.error('Save failed:', e);
-      // If write fails (handle invalid, file moved/deleted), offer Save-As fallback
-      const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError' || e.name === 'InvalidStateError';
-      if (isInvalidHandle) {
-        const retry = confirm(
-          `Save failed: ${e.message || e.name}\n\nThe file may have been moved or access was revoked. Click OK to choose where to save (suggesting the original location), or Cancel to skip.`,
-        );
-        if (retry) {
-          try {
-            const handle2 = await pickSaveHandle(previousFileName);
-            if (!handle2) return;
-            const { content, ...composed } = composeFileForSave();
-            await writeToHandle(handle2, content);
-            await rememberHandle(handle2);
-            setAutoSave(true);
-            setFileWriteOk(true);
-            setFileSynced(true);
-            setSaved(true);
-            setLastSavedAt(new Date());
-            commitSaveSideEffects(composed);
-            return;
-          } catch (e2) {
-            if (e2.name !== 'AbortError') alert('Save still failed: ' + (e2.message || e2.name));
-            return;
-          }
-        }
-      }
-      setFileWriteOk(false);
-      alert('Could not save: ' + (e.message || e.name || 'unknown error'));
-    }
-  }
-  async function loadFromFile() {
-    try {
-      if (filePickerAvailable()) {
-        const handle = await pickFileToOpen({
-          types: [
-            { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
-            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
-          ],
-        });
-        const file = await handle.getFile();
-        const text = await file.text();
-        const isMd = handle.name.endsWith('.md');
-        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
-          throw new Error(
-            isMd
-              ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.'
-              : 'Invalid JSON project file — no tree items found.',
-          );
-        // Apply data immediately — don't block on file write permission
-        await rememberHandle(handle);
-        setData(d);
-        resetHistory(); // different document — the old undo stack doesn't apply
-        setSel(null);
-        setSaved(true);
-        setLastSavedAt(new Date());
-        // Try to establish write permission (non-blocking for UI update)
-        const canWrite = await ensureHandlePermission(handle, true);
-        setFileWriteOk(canWrite);
-        setAutoSave(true);
-      } else {
-        fRef.current?.click();
-      }
-    } catch (e) {
-      if (e.name !== 'AbortError') alert('Could not load file: ' + e.message);
-    }
-  }
-  // Accept both .json and .md files
 
   // Global keyboard shortcuts. The file ones are the platform conventions
   // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
@@ -990,51 +574,129 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
-  // One order, everywhere.
-  //
-  // Reported after a long afternoon rearranging the tree: the work order
-  // queues showed something else entirely. They did — `displayOrder` is a
-  // number written onto the rows, and nothing ever reordered the ARRAY, so
-  // every surface that simply walked `data.tree` was reading the order the
-  // rows happened to be stored in. That was the tree's order once, before the
-  // first reorder; after an afternoon of them the two had nothing to do with
-  // each other (measured on the plan reported: 171 of 181 positions differed).
-  // Only the tree view and the Gantt sorted; the queues, the resource views,
-  // the report and every PDF did not, and each of them was presenting itself
-  // as the plan's order.
-  //
-  // So the array carries the order. Sorting once here rather than in nine
-  // places is also the only version that stays true — a new view cannot
-  // forget to do it. The tree view still sorts its own rows, which is now a
-  // no-op, and the scheduler still ranks by the same comparator.
-  const tree = useMemo(() => sortTree(data?.tree || []), [data?.tree]);
+  const {
+    tree,
+    goals,
+    hm,
+    planStart,
+    planEnd,
+    workDays,
+    capacityAt,
+    personQueues,
+    scheduled,
+    weeks,
+    reschedule,
+    projectWaitsOf,
+    stats,
+    cpData,
+    cpSet,
+    cpLabels,
+    goalPaths,
+    leaves,
+    droppedCount,
+    confidence,
+    confReasons,
+  } = usePlanModel({ data, members, vacations, meta, past });
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => (selId ? tree.find(r => r.id === selId) || null : null), [tree, selId]);
-  // ── Archive layer ────────────────────────────────────────────────────────
-  // Long-finished projects and long-gone people are dropped from what the
-  // views render, but NOT from `tree` / `stats` / `scheduled`. The headline
-  // percentage and PT totals keep counting them — archiving a finished
-  // project must never make the project look less finished.
-  const archive = useMemo(() => scanArchive({ tree, members, days: archiveDays }), [tree, members, archiveDays]);
-  const activeTree = useMemo(
-    () => (showArchived ? tree : stripArchivedRoots(tree, archive.rootIds)),
-    [tree, showArchived, archive.rootIds],
-  );
-  const activeMembers = useMemo(
-    () => (showArchived ? members : stripArchivedMembers(members, archive.memberIds)),
-    [members, showArchived, archive.memberIds],
-  );
-  const visibleTree = useMemo(() => {
-    // Archive first, then hide-done: both are display filters over the same
-    // tree, and the archive set is the coarser of the two.
-    return hideDone ? withoutDone(activeTree) : activeTree;
-  }, [activeTree, hideDone]);
-  const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
-  const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
-  const netTree = useMemo(
-    () => scopeFiltered(visibleTree, { rootFilter, teamFilter, personFilter, onlyUnestimated }),
-    [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated],
-  );
+  const { overbookedTaskIds } = useResourceLoad({ data, members, teams, vacations, scheduled, weeks, capacityAt });
+  const {
+    sinceDays,
+    persistSince,
+    diffOnlyChanged,
+    setDiffOnlyChanged,
+    persistDiffOnlyChanged,
+    horizonDays,
+    persistHorizon,
+    horizonOnlyPlanned,
+    setHorizonOnlyPlanned,
+    persistHorizonOnly,
+  } = useReviewWindow();
+  const {
+    sinceDate,
+    horizonEnd,
+    horizonIds,
+    futureProgressByRootId,
+    diff,
+    diffDoneSet,
+    diffChangedSet,
+    diffProgressedSet,
+    horizonFilterSet,
+    diffFilterSet,
+    diffVisibleSet,
+  } = useReviewDiff({
+    data,
+    scn,
+    tree,
+    scheduled,
+    members,
+    vacations,
+    hm,
+    workDays,
+    sinceDays,
+    horizonDays,
+    horizonOnlyPlanned,
+    diffOnlyChanged,
+  });
+  const {
+    archive,
+    activeTree,
+    activeMembers,
+    activeScheduled,
+    rootItems,
+    netRootOptions,
+    visibleTreeForViews,
+    visibleViewIdSet,
+    viewScheduled,
+    viewGoals,
+    viewStats,
+  } = useVisibleTree({
+    tree,
+    members,
+    scheduled,
+    stats,
+    archiveDays,
+    showArchived,
+    hideDone,
+    rootFilter,
+    teamFilter,
+    personFilter,
+    onlyUnestimated,
+    onlyAutoAssigned,
+    onlyOverdue,
+    onlyOverbooked,
+    overbookedTaskIds,
+    sinceDate,
+    diffChangedSet,
+  });
+  const { quickFilters, activeQuickFilters, scopeFields, activeScopeChips } = useFilterChips({
+    _t,
+    teams,
+    archive,
+    activeMembers,
+    netRootOptions,
+    overbookedTaskIds,
+    hideDone,
+    setHideDone,
+    showArchived,
+    setShowArchived,
+    onlyAutoAssigned,
+    setOnlyAutoAssigned,
+    onlyOverdue,
+    setOnlyOverdue,
+    onlyUnestimated,
+    setOnlyUnestimated,
+    onlyOverbooked,
+    setOnlyOverbooked,
+    rootFilter,
+    setRootFilter,
+    teamFilter,
+    setTeamFilter,
+    personFilter,
+    setPersonFilter,
+    setSearchIdx,
+  });
+  const { scnComparison, scnBaseline, scnShifts, scnChangedIds } = useScenarioView({ scn, data, scheduled, scnChanges });
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -1068,7 +730,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   useEffect(() => {
     if (!data?.deadlines?.length) return;
     const dl = data.deadlines;
-    const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
     const updated = [...tree];
     dl.forEach(g => {
       // Find matching root by name similarity
@@ -1085,35 +746,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return { ...rest, tree: updated };
     });
   }, []);
-  const goals = useMemo(() => tree.filter(r => !r.id.includes('.') && r.type), [tree]);
-  const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
-  const planStart = meta.planStart || iso(new Date());
-  // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
-  // planStart = scheduling start. New/unstarted tasks begin here.
-  const viewStart = useMemo(() => inferGanttViewStart(tree, planStart, meta.viewStart, 14), [tree, planStart, meta.viewStart]);
-  // Headroom horizon for the scheduler — +10 years so even long migrations
-  // fit. After scheduling we trim the resulting `weeks` array back to the
-  // latest scheduled endD + padding so the Gantt / Roadmap don't render
-  // empty decades. Plans with an explicit `End` in the Plan table honour
-  // that exactly.
-  const GANTT_WINDOW_PADDING_DAYS = 14;
-  const SCHEDULER_HEADROOM_END = iso(new Date(new Date().getFullYear() + 10, 11, 31));
-  const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
-  const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
-  // Enrich members with effective meetings (team-inherited plans + member
-  // plans + individual) so the scheduler's deriveCap() sees the same capacity
-  // picture as Gantt/Resource load.
-  //
-  // And over time: everything that changes on a date (utils/effective.js) is
-  // flattened per person here, with each meeting plan resolved, because the
-  // scheduler has no catalogue to look a plan up in.
-  const enrichedMembers = useMemo(
-    () => compileMembers({ members, teams: data?.teams || [], meetingPlans: data?.meetingPlans || [], changes: data?.changes || [] }),
-    [members, data?.meetingPlans, data?.teams, data?.changes],
-  );
-  // The one answer to "how much of this person is there on that day", for
-  // everything that draws availability (utils/capacityLens.js).
-  const capacityAt = useMemo(() => capacityLookup(enrichedMembers), [enrichedMembers]);
   // ── The day you are working on ───────────────────────────────────────────
   // Empty = today. Set, the Resources view shows people, teams and meeting
   // plans as they will be on that day, and what is edited there goes into the
@@ -1121,9 +753,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const [effDate, setEffDate] = useState('');
-  const resLens = useMemo(() => resourcesAsOf(data, effDate || new Date()), [data, effDate]);
-  const effDates = useMemo(() => changeDates(data), [data?.changes]);
-  const effCount = effDates.find(d => d.from === effDate)?.count || 0;
+  const { resLens, effDates, effCount } = useResourceLens({ data, effDate });
   // A day before today is a look at the plan as it was (and a place to
   // correct it from then on); a day after today is where capacity changes.
   // The same plan, whatever a save added to its logs in between.
@@ -1180,38 +810,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }),
     [effDate, data?.changes, past?.day, scn?.id],
   );
-  // A person's own order of work, when they have one. The plan's order is the
-  // tree's; this is the single override, and it only permutes the slots that
-  // person's work already holds (utils/personQueue.js).
-  const personQueues = data?.personQueues || null;
-  const { results: scheduled, weeks } = useMemo(() => {
-    if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
-      personQueues,
-      ...(past ? { now: past.day } : {}),
-    });
-    if (meta.planEnd) return out; // explicit user choice — leave alone
-    return trimmedToHorizon(out, GANTT_WINDOW_PADDING_DAYS);
-  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues, past?.day]);
-  // The same schedule for a different tree: what-if runs for "what is this
-  // project waiting on?" (utils/projectWaits.js). Answers are cached until
-  // the plan changes and computed only when a view asks for a project.
-  const reschedule = useCallback(
-    nextTree =>
-      schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
-        personQueues,
-        ...(past ? { now: past.day } : {}),
-      }).results,
-    [enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, personQueues, past?.day],
-  );
-  const projectWaitsOf = useMemo(() => {
-    const cache = new Map();
-    return rootId => {
-      if (!rootId) return null;
-      if (!cache.has(rootId)) cache.set(rootId, projectWaits({ tree, scheduled, rootId, reschedule, members: enrichedMembers }));
-      return cache.get(rootId);
-    };
-  }, [tree, scheduled, reschedule, enrichedMembers]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -1343,21 +941,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setSaved(false);
   }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
-  const stats = useMemo(() => {
-    const s = treeStats(tree);
-    enrichParentSchedules(s, tree, scheduled);
-    return s;
-  }, [tree, scheduled]);
-  // ── Scenario against plan ────────────────────────────────────────────────
-  // The plan is scheduled a second time, once per visit to a scenario, so the
-  // two can be laid side by side. Same scheduler, same day, same inputs but
-  // for the scenario's changes — which is what makes the difference theirs.
-  const baseScheduled = useMemo(() => (scn ? schedulePlanData(scn.base) : null), [scn]);
-  const scnComparison = useMemo(
-    () => (scn && data ? compareScenario({ base: scn.base, work: data, baseScheduled, workScheduled: scheduled }) : null),
-    [scn, data, baseScheduled, scheduled],
-  );
-  const scnBaseline = useMemo(() => (scnComparison ? baselineWindows(scnComparison) : null), [scnComparison]);
   // The comparison as a PDF. The model is built where the dialog is (one set
   // of figures and words for both); null while no scenario is on screen.
   const scnReport = useScenarioReport({
@@ -1384,208 +967,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         }
       }
     : null;
-  // What the scenario moves, per task, for the views that mark it: calendar
-  // days later (+) or earlier (−); `null` for a task that is new, gone or no
-  // longer scheduled — affected, with no shift to put a number on.
-  const scnShifts = useMemo(() => {
-    if (!scnComparison) return null;
-    const out = new Map();
-    for (const it of scnComparison.items) {
-      if (it.presence !== 'both') {
-        out.set(it.id, null);
-        continue;
-      }
-      const days = it.endShift || it.startShift;
-      if (days) out.set(it.id, days);
-    }
-    return out;
-  }, [scnComparison]);
-  // Rows the scenario itself changed (not the ones that merely moved because
-  // of it): marked in the tree, where they are edited.
-  const scnChangedIds = useMemo(
-    () => (scn ? new Set(scnChanges.filter(c => c.kind === 'item' && c.op !== 'remove').map(c => c.id)) : null),
-    [scn, scnChanges],
-  );
-  const {
-    sinceDays,
-    persistSince,
-    diffOnlyChanged,
-    setDiffOnlyChanged,
-    persistDiffOnlyChanged,
-    horizonDays,
-    persistHorizon,
-    horizonOnlyPlanned,
-    setHorizonOnlyPlanned,
-    persistHorizonOnly,
-  } = useReviewWindow();
-  // Paused while a scenario is on screen. Two overlays at once is how amber
-  // rows for "progressed since the 5th" came to be read as "moved by the
-  // scenario". The window is not forgotten — `sinceDays` stays as it is and
-  // the filter says it is paused — it just does not paint while the question
-  // on screen is a different one (principles.md: overlays belong to a
-  // moment, never two at once).
-  const sinceDate = useMemo(() => (scn ? null : parseSinceValue(sinceDays)), [sinceDays, scn]);
-  const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
-  const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
-  const futureProgressByRootId = useMemo(() => futureProgressByRoot(tree, scheduled, horizonEnd), [tree, scheduled, horizonEnd]);
-  const diff = useMemo(
-    () =>
-      computeDiff({
-        tree,
-        historyEvents: data?.historyEvents || [],
-        sinceDate,
-        members,
-        vacations,
-        holidays: hm,
-        workDays,
-      }),
-    [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays],
-  );
-  const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
-  const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
-  const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
-  // Effective filter sets: pass to views only when they actually carry
-  // entries. Critical: an empty Set is truthy, so consumers like Plan /
-  // Briefing / Queues would `if (diffChangedIds)` and filter EVERYTHING
-  // out the moment the toggle was on without a matching diff/horizon
-  // configured. Null when inactive → consumer skips the filter cleanly.
-  const horizonFilterSet = horizonOnlyPlanned && horizonIds && horizonIds.size > 0 ? horizonIds : null;
-  const diffFilterSet = diffOnlyChanged && diffChangedSet.size > 0 ? diffChangedSet : null;
-  const diffVisibleSet = sinceDate && diffChangedSet.size > 0 ? diffChangedSet : null;
-  const cpData = useMemo(() => rootCpm(tree), [tree]);
-  const cpSet = cpData.critical;
-  const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
-  const goalPaths = useMemo(() => goalCpm(tree), [tree]);
-  // Global resource-load + overbooked task ids — shared by the quick-filter
-  // chip and any view that wants to flag overbookings (vs each view rolling
-  // its own load matrix and drifting out of sync).
-  const resourceLoadByWeek = useMemo(
-    () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans: data?.meetingPlans || [], scheduled, weeks, capacityAt }),
-    [members, teams, vacations, data?.meetingPlans, scheduled, weeks],
-  );
-  const overbookedTaskIds = useMemo(() => overbookedIds(scheduled, weeks, resourceLoadByWeek), [scheduled, weeks, resourceLoadByWeek]);
-
-  // The quick filters as data, so the sub-toolbar and the filter popup show
-  // the same set without either of them owning it. Two of them only exist
-  // when they have something to filter: an archive toggle on a plan with
-  // nothing archived, or an overbooked toggle with nobody overbooked, is a
-  // control that can only disappoint.
-  const quickFilters = useMemo(
-    () =>
-      [
-        { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
-        archive.count > 0
-          ? {
-              id: 'archived',
-              label: _t('arch.pill', archive.count),
-              tip: _t('arch.chipTip'),
-              active: showArchived,
-              onToggle: () => setShowArchived(v => !v),
-            }
-          : null,
-        {
-          id: 'auto',
-          label: _t('chip.auto'),
-          tip: _t('chip.autoTip'),
-          active: onlyAutoAssigned,
-          onToggle: () => setOnlyAutoAssigned(v => !v),
-        },
-        {
-          id: 'overdue',
-          label: _t('chip.overdue'),
-          tip: _t('chip.overdueTip'),
-          active: onlyOverdue,
-          onToggle: () => setOnlyOverdue(v => !v),
-        },
-        {
-          id: 'unestimated',
-          label: _t('chip.unestimated'),
-          tip: _t('chip.unestimatedTip'),
-          active: onlyUnestimated,
-          onToggle: () => setOnlyUnestimated(v => !v),
-        },
-        overbookedTaskIds.size > 0
-          ? {
-              id: 'overbooked',
-              label: _t('chip.overbooked', overbookedTaskIds.size),
-              tip: _t('chip.overbookedTip'),
-              active: onlyOverbooked,
-              onToggle: () => setOnlyOverbooked(v => !v),
-            }
-          : null,
-      ].filter(Boolean),
-    [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked],
-  );
-  const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
-
-  // Scope lives in the filter popup and comes back out as a chip the moment
-  // one is set — a narrowed view has to say so (principles.md, "a view is
-  // never the truth"), an unnarrowed one has nothing to say. The chip clears
-  // the filter, which is the only thing you want from it once you see it.
-  const scopeFields = useMemo(
-    () => [
-      {
-        id: 'root',
-        value: rootFilter,
-        options: netRootOptions,
-        showIds: true,
-        placeholder: _t('tv.allRoots'),
-        onSelect: v => {
-          setRootFilter(v);
-          setSearchIdx(0);
-        },
-      },
-      {
-        id: 'team',
-        value: teamFilter,
-        options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
-        placeholder: _t('tv.allTeams'),
-        onSelect: v => {
-          setTeamFilter(v);
-          setSearchIdx(0);
-        },
-      },
-      {
-        id: 'person',
-        value: personFilter,
-        options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
-        placeholder: _t('tv.allPeople'),
-        onSelect: v => {
-          setPersonFilter(v);
-          setSearchIdx(0);
-        },
-      },
-    ],
-    [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t],
-  );
-
-  const activeScopeChips = useMemo(
-    () =>
-      scopeFields
-        .filter(f => f.value)
-        .map(f => ({
-          id: `scope-${f.id}`,
-          label: f.options.find(o => o.id === f.value)?.label || f.value,
-          onToggle: () => f.onSelect(''),
-        })),
-    [scopeFields],
-  );
-
-  // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
-  // their primary in scheduled[]. Match either id or treeId so all segments
-  // pass through view-filters together with their tree node.
-  // Quick-filter chips that depend on the scheduler output (auto-assigned,
-  // overdue, overbooked). Applied to netTree downstream so all views share
-  // the same view.
-  const quickFilteredNetTree = useMemo(
-    () => scheduleFiltered(netTree, scheduled, { onlyAutoAssigned, onlyOverdue, onlyOverbooked, overbookedTaskIds }),
-    [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds],
-  );
-  const visibleTreeForViews = useMemo(() => {
-    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
-    return withReviewedDone(quickFilteredNetTree, activeTree, diffChangedSet);
-  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
-  const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
   // Don't keep the cursor on a row nobody can see.
   //
   // This used to consult `visibleIdSet` — the hide-done list — while the tree
@@ -1603,30 +984,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return next.size === prev.size ? prev : next;
     });
   }, [hideDone, selId, visibleViewIdSet]);
-  const viewScheduled = useMemo(
-    () => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))),
-    [scheduled, visibleViewIdSet],
-  );
-  const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
-  const viewStats = useMemo(() => {
-    if (!hideDone) return stats;
-    const s = treeStats(visibleTreeForViews);
-    enrichParentSchedules(s, visibleTreeForViews, viewScheduled);
-    return s;
-  }, [hideDone, stats, visibleTreeForViews, viewScheduled]);
-  // Gantt reads `scheduled` directly (not the view tree), so it needs its own
-  // archive-filtered copy — same reason the tree gets one.
-  const activeScheduled = useMemo(
-    () => (showArchived || !archive.rootIds.size ? scheduled : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
-    [scheduled, showArchived, archive.rootIds],
-  );
   const viewCpSet = cpData.critical;
   const viewCpEdges = cpData.edges;
-  const leaves = useMemo(() => leafNodes(tree), [tree]);
-  // Dropped work leaves every count, which would make it invisible; say how
-  // much of it there is, so the denominator is explicable.
-  const droppedCount = useMemo(() => tree.filter(r => r.dropped).length, [tree]);
-  const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
 
   // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
   // so NRW dates landed a day early in the file. Detect that and rewrite them
@@ -1847,19 +1206,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (savedPlan) lastSavedPlanRef.current = savedPlan;
     if (scnRef.current) return;
     setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan?.dayLog));
-  }
-  function buildMarkdownText() {
-    const fd = fileDataRef.current || data;
-    if (fd !== data)
-      return _buildMd({
-        tree: sortTree(fd.tree || []),
-        members: fd.members || [],
-        teams: fd.teams || [],
-        vacations: fd.vacations || [],
-        data: fd,
-        meta: fd.meta || {},
-      });
-    return _buildMd({ tree, members, teams, vacations, data, meta });
   }
   function loadFile(e) {
     const f = e.target.files[0];

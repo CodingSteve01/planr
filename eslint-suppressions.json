@@ -1,18 +1,12 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 8
-    },
-    "max-depth": {
-      "count": 2
+      "count": 6
     },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
-    },
-    "no-unused-vars": {
       "count": 2
     }
   },
