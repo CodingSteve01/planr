@@ -1,5 +1,13 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { useStableCallback } from './app/useStableCallback.js';
+import { useTabBar } from './app/useTabBar.js';
+import { useViewFilters } from './app/useViewFilters.js';
+import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
+import { TOUR_DONE_KEY, useTour } from './app/useTour.js';
+import { useReviewWindow } from './app/useReviewWindow.js';
+import { migratedAutoHolidays, trimmedToHorizon, withDerivedTeamsAndStatuses } from './app/planRepairs.js';
+import { futureProgressByRoot } from './app/futureProgress.js';
+import { overbookedIds, scheduleFiltered, scopeFiltered, withReviewedDone, withoutDone } from './app/viewTree.js';
 import { pushSnapshot } from './app/snapshots.js';
 import {
   initialShell,
@@ -8,7 +16,6 @@ import {
   scheduleIdleWrite,
   cancelIdleWrite,
   activateOnPress,
-  SIDE_DOCK_MIN_WIDTH,
   TAB_ICONS,
   NEW_BADGE_TAB_IDS,
   FILTERED_TABS,
@@ -62,10 +69,10 @@ import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js'
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
-import { buildHMap, computeNRW } from './utils/holidays.js';
+import { buildHMap } from './utils/holidays.js';
 import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
 import { inferGanttViewStart } from './utils/viewWindow.js';
-import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, ARCHIVE_DEFAULT_DAYS } from './utils/archive.js';
+import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { projectWaits } from './utils/projectWaits.js';
 import { applyRootOrder } from './utils/orderSearch.js';
@@ -74,14 +81,10 @@ import {
   treeStats,
   enrichParentSchedules,
   nextChildId,
-  deriveParentStatuses,
   leafNodes,
   isLeafNode,
   parentId,
   computeConfidence,
-  leafProgress,
-  scheduleEffort,
-  isDropped,
   derivePhaseStatus,
 } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
@@ -174,60 +177,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     } catch {}
   };
 
-  // The tab row scrolls sideways instead of wrapping (see .tab-bar-wrap in
-  // App.css). Two things have to follow from that: the active tab is brought
-  // into view whenever it changes — it can be selected from the palette or a
-  // shortcut, not only by clicking it — and the edges say when there is more
-  // row than pane, because a tab you cannot see must not read as a tab that
-  // is not there.
-  const tabBarRef = useRef(null);
-  const activeTabRef = useRef(null);
-  const [tabFades, setTabFades] = useState({ l: false, r: false });
-  const syncTabFades = useStableCallback(() => {
-    const el = tabBarRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setTabFades(prev => {
-      const next = { l: el.scrollLeft > 2, r: max > 2 && el.scrollLeft < max - 2 };
-      return prev.l === next.l && prev.r === next.r ? prev : next;
-    });
-  });
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
-    syncTabFades();
-  }, [tab, syncTabFades]);
-  useEffect(() => {
-    const el = tabBarRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(syncTabFades);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [syncTabFades]);
-  // Keep every visited tab mounted (display:none for inactive) so switching
-  // back is instant. Each view is wrapped in React.memo and its callbacks
-  // are useCallback'd, so an App re-render that doesn't touch a view's data
-  // skips its reconciliation entirely — no input-lag cascade.
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
-  useEffect(() => {
-    setVisitedTabs(s => (s.has(tab) ? s : new Set([...s, tab])));
-  }, [tab]);
-  // Plan mode's project lens (RoadmapLens.jsx) — a calendar-style roadmap for
-  // one project, shown beside the Gantt. Both bits of state are local to the
-  // shell (not the plan file): which project is focused, and whether the
-  // panel is open at all. Persisted so the choice survives a reload.
-  const [ganttRoadmapFocus, _setGanttRoadmapFocus] = useState(() => {
-    try {
-      return localStorage.getItem('planr_gantt_roadmap_focus') || '';
-    } catch {
-      return '';
-    }
-  });
-  const setGanttRoadmapFocus = id => {
-    _setGanttRoadmapFocus(id);
-    try {
-      localStorage.setItem('planr_gantt_roadmap_focus', id || '');
-    } catch {}
-  };
+  const { tabBarRef, activeTabRef, tabFades, syncTabFades, visitedTabs } = useTabBar(tab);
+  const [ganttRoadmapFocus, setGanttRoadmapFocus] = useRoadmapFocus();
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -245,80 +196,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0);
   const deferredSearch = useDeferredValue(search);
-  const [teamFilter, setTeamFilter] = useState(() => {
-    try {
-      return localStorage.getItem('planr_team_filter') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [rootFilter, setRootFilter] = useState(() => {
-    try {
-      return localStorage.getItem('planr_root_filter') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [personFilter, setPersonFilter] = useState(() => {
-    try {
-      return localStorage.getItem('planr_person_filter') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [hideDone, setHideDone] = useState(() => {
-    try {
-      return localStorage.getItem('planr_hide_done') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  // Archive filter — see utils/archive.js. Default ON (i.e. archived hidden):
-  // a plan that has been running for a year should open on the work that is
-  // still live, not on last spring's finished projects.
-  const [showArchived, setShowArchived] = useState(() => {
-    try {
-      return localStorage.getItem('planr_show_archived') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [archiveDays, setArchiveDays] = useState(() => {
-    try {
-      const v = parseInt(localStorage.getItem('planr_archive_days'), 10);
-      return Number.isFinite(v) && v > 0 ? v : ARCHIVE_DEFAULT_DAYS;
-    } catch {
-      return ARCHIVE_DEFAULT_DAYS;
-    }
-  });
-  const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => {
-    try {
-      return localStorage.getItem('planr_only_auto') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [onlyOverdue, setOnlyOverdue] = useState(() => {
-    try {
-      return localStorage.getItem('planr_only_overdue') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [onlyUnestimated, setOnlyUnestimated] = useState(() => {
-    try {
-      return localStorage.getItem('planr_only_unest') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [onlyOverbooked, setOnlyOverbooked] = useState(() => {
-    try {
-      return localStorage.getItem('planr_only_overbooked') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const {
+    teamFilter,
+    setTeamFilter,
+    rootFilter,
+    setRootFilter,
+    personFilter,
+    setPersonFilter,
+    hideDone,
+    setHideDone,
+    showArchived,
+    setShowArchived,
+    archiveDays,
+    setArchiveDays,
+    onlyAutoAssigned,
+    setOnlyAutoAssigned,
+    onlyOverdue,
+    setOnlyOverdue,
+    onlyUnestimated,
+    setOnlyUnestimated,
+    onlyOverbooked,
+    setOnlyOverbooked,
+  } = useViewFilters();
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
   // ── Undo/redo ────────────────────────────────────────────────────────────
@@ -559,84 +458,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const lastSavedLeavesRef = useRef(null);
   const leafBaselineStaleRef = useRef(true);
   const [fileName, setFileName] = useState(null);
-  // Where the item editor lives. A 360px column beside the tree is a gift on
-  // a wide screen and a theft on a narrow one, so "auto" measures and picks —
-  // and it measures the app, not the window: inside Obsidian the leaf can be
-  // narrow while the window is wide.
-  const [editorDock, _setEditorDock] = useState(() => {
-    try {
-      return localStorage.getItem('planr_editor_dock') || 'auto';
-    } catch {
-      return 'auto';
-    }
-  });
-  const setEditorDock = v => {
-    _setEditorDock(v);
-    try {
-      localStorage.setItem('planr_editor_dock', v);
-    } catch {}
-  };
-  const [narrow, setNarrow] = useState(false);
-  const appRef = useRef(null);
-  useEffect(() => {
-    const el = appRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < SIDE_DOCK_MIN_WIDTH));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const editorAsDialog = editorDock === 'dialog' || (editorDock === 'auto' && narrow);
-  // UI scale. Planr's density is deliberate — 11px rows are canon — but a
-  // dense grid designed for a 27" screen is unreadable in a workspace pane,
-  // and Obsidian's own zoom would blow up Obsidian with it. `zoom` reflows
-  // rather than stretching, so a scaled Planr is still a crisp Planr.
-  //
-  // It goes on the element the popups are portalled into, not on .app: a
-  // portal that lands outside the zoomed subtree would render at 100% beside
-  // a 125% app. utils/embedHost.js measures the factor back out for anything
-  // that positions itself from mouse or rect coordinates.
-  // The default depends on where Planr is: 100% in a browser window, which is
-  // the width the density was drawn for, and 125% inside a host, where the app
-  // lives in a pane beside everything else. One number could not be right for
-  // both — 125% in a full browser window is enormous.
-  const [uiScale, _setUiScale] = useState(() => {
-    const fallback = isEmbedded() ? 110 : 100;
-    try {
-      return Number(localStorage.getItem('planr_ui_scale')) || fallback;
-    } catch {
-      return fallback;
-    }
-  });
-  const setUiScale = v => {
-    _setUiScale(v);
-    try {
-      localStorage.setItem('planr_ui_scale', String(v));
-    } catch {}
-  };
-  useEffect(() => {
-    const el = portalRoot;
-    if (!el) return;
-    el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
-    return () => {
-      el.style.zoom = '';
-    };
-  }, [uiScale, portalRoot]);
-  // Off by default. Everything that distracts is opt-in: the id is the
-  // tool's spine when you are wiring dependencies, and five dotted segments
-  // in front of every name the rest of the time.
-  const [showTreeIds, _setShowTreeIds] = useState(() => {
-    try {
-      return localStorage.getItem('planr_tree_ids') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const setShowTreeIds = v => {
-    _setShowTreeIds(v);
-    try {
-      localStorage.setItem('planr_tree_ids', String(v));
-    } catch {}
-  };
+  const { editorDock, setEditorDock, appRef, editorAsDialog, uiScale, setUiScale, showTreeIds, setShowTreeIds } = useUiPrefs(portalRoot);
   const [autoSave, setAutoSave] = useState(() => {
     try {
       const v = localStorage.getItem('planr_autosave');
@@ -650,87 +472,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       localStorage.setItem('planr_autosave', String(autoSave));
     } catch {}
   }, [autoSave]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_hide_done', String(hideDone));
-    } catch {}
-  }, [hideDone]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_show_archived', String(showArchived));
-    } catch {}
-  }, [showArchived]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_archive_days', String(archiveDays));
-    } catch {}
-  }, [archiveDays]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_team_filter', teamFilter);
-    } catch {}
-  }, [teamFilter]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_root_filter', rootFilter);
-    } catch {}
-  }, [rootFilter]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_person_filter', personFilter);
-    } catch {}
-  }, [personFilter]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_only_auto', String(onlyAutoAssigned));
-    } catch {}
-  }, [onlyAutoAssigned]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_only_overdue', String(onlyOverdue));
-    } catch {}
-  }, [onlyOverdue]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_only_unest', String(onlyUnestimated));
-    } catch {}
-  }, [onlyUnestimated]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('planr_only_overbooked', String(onlyOverbooked));
-    } catch {}
-  }, [onlyOverbooked]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
-  // ── Tour state ──
-  // tourStep === null → tour closed; 0..N → active step
-  const TOUR_DONE_KEY = 'planr_tour_done';
-  const NEW_SEEN_KEY = 'planr_new_seen_v1';
-  const [tourStep, setTourStep] = useState(null);
-  // Show new-feature popover once for existing users (has a project, hasn't seen v1 yet)
-  const [showNewFeat, setShowNewFeat] = useState(() => {
-    try {
-      const seen = localStorage.getItem(NEW_SEEN_KEY);
-      const hasProject = !!localStorage.getItem(SK);
-      return !seen && hasProject;
-    } catch {
-      return false;
-    }
-  });
-  const dismissNewFeat = () => {
-    setShowNewFeat(false);
-    try {
-      localStorage.setItem(NEW_SEEN_KEY, '1');
-    } catch {}
-  };
-  const startTour = () => setTourStep(0);
-  const closeTour = () => {
-    setTourStep(null);
-    try {
-      localStorage.setItem(TOUR_DONE_KEY, '1');
-    } catch {}
-  };
+  const { tourStep, setTourStep, showNewFeat, dismissNewFeat, startTour, closeTour } = useTour();
 
   async function rememberHandle(handle) {
     fileHandleRef.current = handle;
@@ -1297,76 +1042,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const visibleTree = useMemo(() => {
     // Archive first, then hide-done: both are display filters over the same
     // tree, and the archive set is the coarser of the two.
-    const source = activeTree;
-    if (!hideDone) return source;
-    const byId = Object.fromEntries(source.map(r => [r.id, r]));
-    const byParent = {};
-    source.forEach(r => {
-      const pid = r.id.split('.').slice(0, -1).join('.');
-      if (!byParent[pid]) byParent[pid] = [];
-      byParent[pid].push(r);
-    });
-    const keep = new Set();
-    const visit = id => {
-      const node = byId[id];
-      if (!node) return false;
-      const children = byParent[id] || [];
-      if (!children.length) {
-        // Dropped counts as finished here. "Hide done" is a request to see
-        // what is still to be done, and a task that was rejected has no work
-        // left in it either — it stayed on screen alongside the open ones,
-        // struck through, in a view whose whole point was that it is not.
-        const shouldShow = node.status !== 'done' && !isDropped(node);
-        if (shouldShow) keep.add(id);
-        return shouldShow;
-      }
-      // For non-leaf structure, derived parent statuses can be stale or intentionally
-      // aggregate child state. Hide/show should therefore be driven only by whether
-      // there is any non-done leaf left below this branch.
-      let hasVisibleChild = false;
-      children.forEach(child => {
-        if (visit(child.id)) hasVisibleChild = true;
-      });
-      if (hasVisibleChild) keep.add(id);
-      return hasVisibleChild;
-    };
-    (byParent[''] || []).forEach(root => visit(root.id));
-    return source.filter(r => keep.has(r.id));
+    return hideDone ? withoutDone(activeTree) : activeTree;
   }, [activeTree, hideDone]);
   const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
   const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
-  const netTree = useMemo(() => {
-    let items = visibleTree;
-    if (rootFilter) items = items.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
-    const ancestorVisible = (idSet, id) => {
-      idSet.add(id);
-      const parts = id.split('.');
-      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
-    };
-    if (teamFilter) {
-      const visibleIds = new Set();
-      items.forEach(r => {
-        if ((r.team || '').includes(teamFilter)) ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    if (personFilter) {
-      const visibleIds = new Set();
-      items.forEach(r => {
-        if ((r.assign || []).includes(personFilter)) ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    if (onlyUnestimated) {
-      const visibleIds = new Set();
-      items.forEach(r => {
-        const isLeaf = !items.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
-        if (isLeaf && !r.best && !r.fixedDurationDays && r.status !== 'done') ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    return items;
-  }, [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated]);
+  const netTree = useMemo(
+    () => scopeFiltered(visibleTree, { rootFilter, teamFilter, personFilter, onlyUnestimated }),
+    [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated],
+  );
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -1522,20 +1205,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       personQueues,
       ...(past ? { now: past.day } : {}),
     });
-    // Trim weeks to the actual horizon when planEnd wasn't user-set:
-    // latest scheduled endD + padding. Falls back to a 6-month
-    // window when nothing is scheduled so the Gantt isn't empty.
     if (meta.planEnd) return out; // explicit user choice — leave alone
-    let latest = null;
-    for (const s of out.results || []) {
-      const endD = s.endD instanceof Date ? s.endD : s.endD ? new Date(s.endD) : null;
-      if (endD && (!latest || endD > latest)) latest = endD;
-    }
-    const horizonEnd = latest
-      ? new Date(latest.getFullYear(), latest.getMonth(), latest.getDate() + GANTT_WINDOW_PADDING_DAYS)
-      : new Date(new Date().getFullYear(), new Date().getMonth() + 6, 1);
-    const trimmedWeeks = (out.weeks || []).filter(w => w.mon <= horizonEnd);
-    return { results: out.results, weeks: trimmedWeeks.length ? trimmedWeeks : out.weeks };
+    return trimmedToHorizon(out, GANTT_WINDOW_PADDING_DAYS);
   }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues, past?.day]);
   // The same schedule for a different tree: what-if runs for "what is this
   // project waiting on?" (utils/projectWaits.js). Answers are cached until
@@ -1750,25 +1421,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     () => (scn ? new Set(scnChanges.filter(c => c.kind === 'item' && c.op !== 'remove').map(c => c.id)) : null),
     [scn, scnChanges],
   );
-  // ── Diff overlay (project-wide "since" window) ─────────────────────────────
-  // Lives at app level so every view (Roadmap, TreeView, Timetable, Gantt,
-  // Network) reads the same cutoff and the same precomputed event-based diff
-  // bag. Persists in localStorage.
-  const [sinceDays, setSinceDays] = useState(() => {
-    try {
-      return localStorage.getItem('planr_diff_since') || '';
-    } catch {
-      return '';
-    }
-  });
-  const persistSince = val => {
-    setSinceDays(val);
-    try {
-      localStorage.setItem('planr_diff_since', val);
-    } catch {
-      /* noop */
-    }
-  };
+  const {
+    sinceDays,
+    persistSince,
+    diffOnlyChanged,
+    setDiffOnlyChanged,
+    persistDiffOnlyChanged,
+    horizonDays,
+    persistHorizon,
+    horizonOnlyPlanned,
+    setHorizonOnlyPlanned,
+    persistHorizonOnly,
+  } = useReviewWindow();
   // Paused while a scenario is on screen. Two overlays at once is how amber
   // rows for "progressed since the 5th" came to be read as "moved by the
   // scenario". The window is not forgotten — `sinceDays` stays as it is and
@@ -1776,136 +1440,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // on screen is a different one (principles.md: overlays belong to a
   // moment, never two at once).
   const sinceDate = useMemo(() => (scn ? null : parseSinceValue(sinceDays)), [sinceDays, scn]);
-  // "Only with changes" filter — currently consumed by TreeView. Lives at app
-  // level so the toggle inside the global ViewFilters popup stays the only
-  // place to flip it.
-  const [diffOnlyChanged, setDiffOnlyChanged] = useState(() => {
-    try {
-      return localStorage.getItem('planr_diff_only_changed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const persistDiffOnlyChanged = v => {
-    setDiffOnlyChanged(v);
-    try {
-      localStorage.setItem('planr_diff_only_changed', String(v));
-    } catch {
-      /* noop */
-    }
-  };
-  // ── Planning-horizon filter (project-wide) ─────────────────────────────────
-  // Mirrors the diff picker shape: presets in days (7/14/30) or an explicit
-  // date. When set, every view narrows to tasks scheduled within the window
-  // so the planner can focus on one horizon at a time.
-  const [horizonDays, setHorizonDays] = useState(() => {
-    try {
-      return localStorage.getItem('planr_horizon') || '';
-    } catch {
-      return '';
-    }
-  });
-  const persistHorizon = val => {
-    setHorizonDays(val);
-    try {
-      localStorage.setItem('planr_horizon', val);
-    } catch {
-      /* noop */
-    }
-  };
   const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
   const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
-  // "Only planned" — strict filter mode. Default on so the picker behaves
-  // like the diff "Only changed" toggle (filter is the obvious effect).
-  // When off, views fall back to soft hinting (dim/badge) without dropping
-  // rows, so the user can still see the full plan with the horizon marker.
-  const [horizonOnlyPlanned, setHorizonOnlyPlanned] = useState(() => {
-    try {
-      const v = localStorage.getItem('planr_horizon_only');
-      return v === null ? true : v === 'true';
-    } catch {
-      return true;
-    }
-  });
-  const persistHorizonOnly = v => {
-    setHorizonOnlyPlanned(v);
-    try {
-      localStorage.setItem('planr_horizon_only', String(v));
-    } catch {
-      /* noop */
-    }
-  };
-  // Forward-looking per-root progress: where would the train sit at horizonEnd
-  // if the current schedule plays out? Used by the Subway map to draw a "Plan"
-  // ghost-train ahead of the live one (Diff = past, Ist = now, Plan = future).
-  const futureProgressByRootId = useMemo(() => {
-    if (!horizonEnd) return null;
-    const sById = Object.fromEntries((scheduled || []).map(s => [s.id, s]));
-    const roots = tree.filter(r => !r.id.includes('.'));
-    // Live leaves only. Dropped work leaves BOTH sides of every fraction —
-    // the same rule progress.js applies to the "Ist" figure right next to
-    // this one. Counting it here made a finished project project as unfinished
-    // forever, on screen and in the Management Summary's Subway Map.
-    const liveLeaves = leafNodes(tree);
-    const out = {};
-    for (const root of roots) {
-      const leaves = liveLeaves.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'));
-      const today = new Date();
-      let total = 0,
-        doneByHorizon = 0;
-      for (const lf of leaves) {
-        const eff = scheduleEffort(lf) || 1;
-        total += eff;
-        // Floor by the leaf's CURRENT progress so the future projection never
-        // regresses below the live train.
-        const curFrac = leafProgress(lf) / 100;
-        const maxFutureFrac = lf.status === 'done' ? 1 : 0.99;
-        let projFrac = curFrac;
-        if (lf.status === 'done') {
-          projFrac = 1;
-        } else {
-          // Source 1: scheduled bar — partial credit prorated across the bar
-          // duration up to the horizon.
-          const s = sById[lf.id];
-          if (s?.endD) {
-            const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
-            const startD = s.startD instanceof Date ? s.startD : s.startD ? new Date(s.startD) : endD;
-            if (endD <= horizonEnd) projFrac = maxFutureFrac;
-            else if (startD < horizonEnd) {
-              const dur = +endD - +startD;
-              const elapsed = +horizonEnd - +startD;
-              const frac = dur > 0 ? Math.min(1, Math.max(0, elapsed / dur)) : 0;
-              projFrac = Math.max(projFrac, Math.min(maxFutureFrac, frac));
-            }
-          }
-          // Source 2: WIP + due date — linear interpolation from current
-          // progress toward 100% by `due`. Captures the user's plan: "I know
-          // I'll finish D1.1 by 2026-06-30 because I'm 58% there now". Even
-          // if the scheduler isn't routing the work into the horizon window
-          // (because another assignee's queue is full), the active task's
-          // own trajectory still counts.
-          if (lf.status === 'wip' && lf.due && projFrac < maxFutureFrac) {
-            const dueD = new Date(lf.due);
-            const horizonD = horizonEnd instanceof Date ? horizonEnd : new Date(horizonEnd);
-            if (dueD > today) {
-              if (horizonD >= dueD) projFrac = Math.max(projFrac, maxFutureFrac);
-              else {
-                const span = +dueD - +today;
-                const elapsed = +horizonD - +today;
-                const frac = span > 0 ? Math.min(1, Math.max(0, elapsed / span)) : 0;
-                projFrac = Math.max(projFrac, curFrac + (maxFutureFrac - curFrac) * frac);
-              }
-            }
-          }
-        }
-        doneByHorizon += eff * Math.min(projFrac, maxFutureFrac);
-      }
-      const allDone = leaves.length > 0 && leaves.every(lf => lf.status === 'done');
-      const projected = total > 0 ? doneByHorizon / total : 0;
-      out[root.id] = allDone ? projected : Math.min(0.99, projected);
-    }
-    return out;
-  }, [tree, scheduled, horizonEnd]);
+  const futureProgressByRootId = useMemo(() => futureProgressByRoot(tree, scheduled, horizonEnd), [tree, scheduled, horizonEnd]);
   const diff = useMemo(
     () =>
       computeDiff({
@@ -1941,29 +1478,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans: data?.meetingPlans || [], scheduled, weeks, capacityAt }),
     [members, teams, vacations, data?.meetingPlans, scheduled, weeks],
   );
-  const overbookedTaskIds = useMemo(() => {
-    const out = new Set();
-    if (!Object.keys(resourceLoadByWeek || {}).length) return out;
-    (scheduled || []).forEach(s => {
-      if (!s || !s.startD || !s.endD) return;
-      const ids = [...new Set([s.personId, ...(s.assign || [])].filter(Boolean))];
-      if (!ids.length) return;
-      const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
-      const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
-      for (let wi = 0; wi < weeks.length; wi++) {
-        const w = weeks[wi];
-        if (!w?.mon) continue;
-        const wkEnd = new Date(w.mon);
-        wkEnd.setDate(wkEnd.getDate() + 6);
-        if (wkEnd < start || w.mon > end) continue;
-        if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
-          out.add(s.treeId || s.id);
-          break;
-        }
-      }
-    });
-    return out;
-  }, [scheduled, weeks, resourceLoadByWeek]);
+  const overbookedTaskIds = useMemo(() => overbookedIds(scheduled, weeks, resourceLoadByWeek), [scheduled, weeks, resourceLoadByWeek]);
 
   // The quick filters as data, so the sub-toolbar and the filter popup show
   // the same set without either of them owning it. Two of them only exist
@@ -2077,58 +1592,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // Quick-filter chips that depend on the scheduler output (auto-assigned,
   // overdue, overbooked). Applied to netTree downstream so all views share
   // the same view.
-  const quickFilteredNetTree = useMemo(() => {
-    if (!onlyAutoAssigned && !onlyOverdue) return netTree;
-    let items = netTree;
-    const ancestorVisible = (idSet, id) => {
-      idSet.add(id);
-      const parts = id.split('.');
-      for (let i = 1; i < parts.length; i++) idSet.add(parts.slice(0, i).join('.'));
-    };
-    if (onlyAutoAssigned) {
-      const autoIds = new Set((scheduled || []).filter(s => s.autoAssigned).map(s => s.treeId || s.id));
-      const visibleIds = new Set();
-      items.forEach(r => {
-        if (autoIds.has(r.id)) ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    if (onlyOverdue) {
-      const overdueIds = new Set(
-        (scheduled || [])
-          .filter(s => s.dueOverdue || (s.due && s.endD && new Date(s.endD) > new Date(s.due) && s.status !== 'done'))
-          .map(s => s.treeId || s.id),
-      );
-      const visibleIds = new Set();
-      items.forEach(r => {
-        if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    if (onlyOverbooked && overbookedTaskIds.size > 0) {
-      const visibleIds = new Set();
-      items.forEach(r => {
-        if (overbookedTaskIds.has(r.id)) ancestorVisible(visibleIds, r.id);
-      });
-      items = items.filter(r => visibleIds.has(r.id));
-    }
-    return items;
-  }, [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds]);
+  const quickFilteredNetTree = useMemo(
+    () => scheduleFiltered(netTree, scheduled, { onlyAutoAssigned, onlyOverdue, onlyOverbooked, overbookedTaskIds }),
+    [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds],
+  );
   const visibleTreeForViews = useMemo(() => {
     if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
-    const keep = new Set(quickFilteredNetTree.map(r => r.id));
-    // Re-add done items that moved inside the review window. Sourced from
-    // activeTree, so a diff window can't drag an archived project back onto
-    // the screen.
-    const byId = Object.fromEntries(activeTree.map(r => [r.id, r]));
-    diffChangedSet.forEach(id => {
-      const node = byId[id];
-      if (!node || node.status !== 'done') return;
-      keep.add(id);
-      const parts = id.split('.');
-      for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
-    });
-    return activeTree.filter(r => keep.has(r.id));
+    return withReviewedDone(quickFilteredNetTree, activeTree, diffChangedSet);
   }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
   const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
   // Don't keep the cursor on a row nobody can see.
@@ -2179,24 +1649,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // no state update fires.
   useEffect(() => {
     if (!data?.holidays?.length || !meta.planStart || !meta.planEnd) return;
-    const ys = new Date(meta.planStart).getFullYear(),
-      ye = new Date(meta.planEnd).getFullYear();
-    const years = [];
-    for (let y = ys; y <= ye; y++) years.push(y);
-    const fresh = computeNRW(years);
-    const freshByKey = new Map(fresh.map(h => [`${h.name}|${h.date.slice(0, 4)}`, h.date]));
-    let changed = false;
-    const migrated = data.holidays.map(h => {
-      if (!h.auto) return h;
-      const key = `${h.name}|${h.date.slice(0, 4)}`;
-      const expected = freshByKey.get(key);
-      if (expected && expected !== h.date) {
-        changed = true;
-        return { ...h, date: expected };
-      }
-      return h;
-    });
-    if (changed) setData(d => ({ ...d, holidays: migrated }));
+    const migrated = migratedAutoHolidays(data.holidays, meta.planStart, meta.planEnd);
+    if (migrated) setData(d => ({ ...d, holidays: migrated }));
   }, [data?.holidays?.length, meta.planStart, meta.planEnd]);
 
   // Auto-fix tree: derive parent statuses + reconcile team with assigned person.
@@ -2208,41 +1662,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // Use a functional updater so we always operate on the LATEST tree from
     // state, not the closure-captured snapshot (which may be stale if another
     // effect already queued an update).
-    setData(d => {
-      let t = d.tree || [];
-      let changed = false;
-      // 1. Reconcile teams with the first assignee, by the same rule the
-      //    editors assign with (teamForAssignment): the task keeps its team
-      //    when the person works in it, and otherwise takes the person's
-      //    primary team. This said "the person's team always wins", which
-      //    quietly relabelled a Frontend task as Backend the moment a
-      //    full-stack member was put on it — undoing, one render later, the
-      //    choice every editor had just made.
-      if (members.length) {
-        t = t.map(r => {
-          if (!r.assign?.length) return r;
-          const firstAssignee = members.find(m => m.id === r.assign[0]);
-          if (!firstAssignee?.team) return r;
-          const team = teamForAssignment(firstAssignee, r.team);
-          if (r.team !== team) {
-            changed = true;
-            return { ...r, team };
-          }
-          return r;
-        });
-      }
-      // 2. Derive parent statuses — must run on the (possibly team-fixed) tree
-      // Only treeStats is needed here (for _autoStatus); enrichParentSchedules
-      // is display-only and already runs in the useMemo above.
-      const st = treeStats(t);
-      const t2 = deriveParentStatuses(t, st);
-      if (t2.some((r, i) => r.status !== t[i].status)) {
-        changed = true;
-        t = t2;
-      }
-      if (!changed) return d; // no-op: same reference = React skips re-render
-      return { ...d, tree: t };
-    });
+    setData(d => withDerivedTeamsAndStatuses(d, members));
   }, [stats, members]);
 
   function setD(k, v) {
