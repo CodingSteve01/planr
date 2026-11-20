@@ -14,7 +14,8 @@ import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
-import { withDayLog, recordSavedEvents } from './app/dayLogWrite.js';
+import { useLogWriters } from './app/useLogWriters.js';
+import { recordSavedEvents } from './app/dayLogWrite.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
 import { useVisibleTree } from './app/derived/useVisibleTree.js';
 import { useFilterChips } from './app/derived/useFilterChips.js';
@@ -61,7 +62,7 @@ import { isEmptyPatch, diffPlan } from './utils/scenario.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { dropChange } from './utils/effective.js';
 import { CapacityProvider } from './utils/capacityLens.js';
-import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
+import { leafSnapshot, diffSnapshots, stampPendingDates } from './utils/history.js';
 import { createHistory } from './utils/undo.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { isLeafNode } from './utils/scheduler.js';
@@ -219,6 +220,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const searchRef = useRef(null);
   const prevTreeRef = useRef([]);
   const prevScheduledRef = useRef([]);
+  // The three functions that write the history log are defined further down,
+  // where `tree` and `isMdFile` exist. The file layer is set up before that, so
+  // it gets these wrappers, which call whatever the latest render defined.
+  const logWritersRef = useRef(null);
+  const composeFileForSave = () => logWritersRef.current.composeFileForSave();
+  const recordHistoryForLocalSave = () => logWritersRef.current.recordHistoryForLocalSave();
+  const commitSaveSideEffects = args => logWritersRef.current.commitSaveSideEffects(args);
   const { appRef, ...uiPrefs } = useUiPrefs(portalRoot);
   const fileSession = useFileSession({
     data,
@@ -857,115 +865,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       projectWaitsOf,
     });
   const isMdFile = fileName?.endsWith('.md');
-  // Build the file content together with any new history events. The events
-  // capture the delta between the leaf state at the last successful persist
-  // (`lastSavedLeavesRef`) and the current tree. Returns { content, newEvents,
-  // snapshot } so the caller can commit the ref+state after a successful write.
-  function composeFileForSave() {
-    // A scenario on screen: the file gets the plan it rests on plus the
-    // scenario's patch, and no history — nothing in a what-if has happened.
-    if (scnRef.current) {
-      const fd = fileDataRef.current;
-      const content = isMdFile
-        ? _buildMd({
-            tree: sortTree(fd.tree || []),
-            members: fd.members || [],
-            teams: fd.teams || [],
-            vacations: fd.vacations || [],
-            data: fd,
-            meta: fd.meta || {},
-          })
-        : JSON.stringify(fd, null, 2);
-      return { content, newEvents: [], snapshot: lastSavedLeavesRef.current };
-    }
-    // An earlier day on screen: the file gets the real plan, with what was
-    // edited here applied from that day on. Its history entries count for
-    // that day, and the day log was rebuilt with the edit (utils/dayLog.js).
-    const visit = pastRef.current;
-    const real = visit ? fileDataRef.current : recordToday(lastSavedPlanRef.current, data);
-    const realTree = visit ? sortTree(real.tree || []) : tree;
-    const ts = new Date().toISOString();
-    const currSnapshot = leafSnapshot(realTree);
-    let newEvents = [];
-    if (lastSavedLeavesRef.current) {
-      newEvents = stampPendingDates(
-        diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : null),
-        real?.asOfPending,
-        currSnapshot,
-        ts,
-      );
-    }
-    // A backdated entry supersedes the later ones it contradicts, or the
-    // replay walks done → wip → done and every review in between reports the
-    // wrong state (utils/history.js).
-    const { kept } = supersededByBackdate(real?.historyEvents || [], newEvents);
-    const eventsForFile = newEvents.length ? [...kept, ...newEvents] : kept;
-    const plain = withoutPendingDates(real);
-    const dataForFile = eventsForFile.length ? { ...plain, historyEvents: eventsForFile } : plain;
-    const content = isMdFile
-      ? _buildMd({
-          tree: realTree,
-          members: real.members || [],
-          teams: real.teams || [],
-          vacations: real.vacations || [],
-          data: dataForFile,
-          meta: real.meta || {},
-        })
-      : JSON.stringify(dataForFile, null, 2);
-    return {
-      content,
-      newEvents,
-      snapshot: currSnapshot,
-      pendingRead: real?.asOfPending || null,
-      savedPlan: real,
-      visit: visit ? { day: visit.day, screen: data } : null,
-    };
-  }
-  // The same diff the file-save path takes, for when there is no file. Kept
-  // separate because composeFileForSave also serialises the whole project,
-  // which this does not need.
-  function recordHistoryForLocalSave() {
-    // An earlier day on screen: recorded once the visit is over, from the
-    // real plan (its dated entries wait in `asOfPending`).
-    if (!Array.isArray(tree) || scnRef.current || pastRef.current) return;
-    const snapshot = leafSnapshot(tree);
-    if (!lastSavedLeavesRef.current) {
-      lastSavedLeavesRef.current = snapshot;
-      return;
-    }
-    const pendingRead = data?.asOfPending || null;
-    const ts = new Date().toISOString();
-    const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), pendingRead, snapshot, ts);
-    lastSavedLeavesRef.current = snapshot;
-    const savedPlan = recordToday(lastSavedPlanRef.current, data);
-    lastSavedPlanRef.current = savedPlan;
-    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan.dayLog));
-  }
-  function commitSaveSideEffects({ newEvents, snapshot, pendingRead, savedPlan, visit }) {
-    lastSavedLeavesRef.current = snapshot;
-    if (visit) {
-      // The visit goes on from what was just written: the real plan with its
-      // new entries, and the screen as it was when the save read it.
-      const base = recordSavedEvents(savedPlan, newEvents, pendingRead);
-      if (pastRef.current?.day !== visit.day) {
-        // The day was left while the file was being written: what the save
-        // recorded goes to wherever the real plan is now. What today's log
-        // entry is measured against was set on leaving, and includes edits
-        // made after this save read the screen.
-        if (pastRef.current) setPast(p => (p ? { ...p, base: recordSavedEvents(p.base, newEvents, pendingRead) } : p));
-        else if (!scnRef.current) setData(d => recordSavedEvents(d, newEvents, pendingRead));
-        return;
-      }
-      lastSavedPlanRef.current = base;
-      const baseScreen = { ...visit.screen, historyEvents: base.historyEvents };
-      setPast({ day: visit.day, base, baseScreen });
-      setData(d => (d === visit.screen ? baseScreen : { ...d, historyEvents: base.historyEvents }));
-      return;
-    }
-    if (savedPlan) lastSavedPlanRef.current = savedPlan;
-    if (scnRef.current) return;
-    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan?.dayLog));
-  }
+  const logWriters = useLogWriters({
+    data,
+    tree,
+    isMdFile,
+    setData,
+    setPast,
+    scnRef,
+    pastRef,
+    fileDataRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+  });
+  logWritersRef.current = logWriters;
   function loadFile(e) {
     const f = e.target.files[0];
     if (!f) return;

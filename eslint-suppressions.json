@@ -1,7 +1,7 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 5
+      "count": 4
     },
     "max-lines": {
       "count": 1
@@ -27,6 +27,11 @@
   },
   "src/__tests__/treeEditor.app.test.jsx": {
     "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/app/useLogWriters.js": {
+    "complexity": {
       "count": 1
     }
   },
