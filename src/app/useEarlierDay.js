@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { localDay, logStart, planOn, recordToday } from '../utils/dayLog.js';
 import { dropChange } from '../utils/effective.js';
 import { leafSnapshot, diffSnapshots, stampPendingDates } from '../utils/history.js';
@@ -69,6 +69,11 @@ function pickEffDate(c, day) {
 // Looking at, and correcting, the plan on another day than today.
 export function useEarlierDay(ctx) {
   const { data, mutate, past, scn, effDate } = ctx;
+  // The context of the latest render. The jump from the list of planned
+  // changes is built once per date and must not set aside the undo stack as
+  // it was back then: edits made since would be lost on the way back.
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
   // On an earlier day the screen already is that day: an edit there is an
   // ordinary edit, and the day log carries it forward.
   const effFold = past ? null : effDate || null;
@@ -78,7 +83,7 @@ export function useEarlierDay(ctx) {
     () => ({
       date: effDate,
       changes: data?.changes || [],
-      onGo: day => pickEffDate(ctx, day || ''),
+      onGo: day => pickEffDate(ctxRef.current, day || ''),
       onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
     }),
     [effDate, data?.changes, past?.day, scn?.id],

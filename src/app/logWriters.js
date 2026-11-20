@@ -120,7 +120,7 @@ function commitSaveSideEffects(c, { newEvents, snapshot, pendingRead, savedPlan,
 // What a save writes, and what it leaves behind in the document. They read
 // `tree` and `isMdFile`, which `App` has only after the file layer is set up;
 // `App` hands that layer thin wrappers that call the latest of these.
-export function useLogWriters(ctx) {
+export function buildLogWriters(ctx) {
   return {
     composeFileForSave: () => composeFileForSave(ctx),
     recordHistoryForLocalSave: () => recordHistoryForLocalSave(ctx),

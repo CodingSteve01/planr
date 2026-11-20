@@ -190,7 +190,7 @@ describe('the seams between document, undo, scenarios and earlier days', () => {
     expect(screen.getByTestId('undo-btn').disabled).toBe(true);
     // The date is gone too: the next pick starts from today, not from day(5).
     fireEvent.click(screen.getByTestId('effective-switch'));
-    expect(screen.getByTestId('effective-date-input').value).not.toBe(day(5));
+    expect(screen.getByTestId('effective-date-input').value).toBe('');
   }, 45000);
 
   it('a notice about an applied scenario does not follow the user into another file', async () => {

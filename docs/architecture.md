@@ -463,12 +463,13 @@ it:
 - `src/app/useScenarios.js`: the file-shaped document (`fileData`), putting a
   scenario or the plan on screen (`showDocument`) and the `scenario*` actions.
 - `src/app/useEarlierDay.js`: picking another day (`pickEffDate`), and the
-  context the Resources view reads. `effContext` keeps its dependency list on
-  purpose; a ref in its place would change what the undo stack set aside holds.
-- `src/app/useLogWriters.js`, `dayLogWrite.js`: what a save writes into the
+  context the Resources view reads. The jump from the list of planned changes
+  (`effContext.onGo`) reads the latest render's context through a ref, so the
+  undo stack it sets aside is the current one.
+- `src/app/logWriters.js`, `dayLogWrite.js`: what a save writes into the
   history log and the day log, and what it leaves behind in the document. The
   file layer is set up before `tree` and `isMdFile` exist, so `App` hands it
-  wrappers that call whatever the latest render of `useLogWriters` returned.
+  wrappers that call whatever the latest render of `buildLogWriters` returned.
 - `src/app/fileLoaders.js`: `loadFile`, `newProject`, `restoreMountedFile`.
   `restoreMountedFile` is not the same as `restoreMounted` in `useFileSession`.
 

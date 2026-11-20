@@ -30,12 +30,12 @@
       "count": 1
     }
   },
-  "src/app/useEarlierDay.js": {
+  "src/app/logWriters.js": {
     "complexity": {
       "count": 1
     }
   },
-  "src/app/useLogWriters.js": {
+  "src/app/useEarlierDay.js": {
     "complexity": {
       "count": 1
     }

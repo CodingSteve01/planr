@@ -14,7 +14,7 @@ import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
-import { useLogWriters } from './app/useLogWriters.js';
+import { buildLogWriters } from './app/logWriters.js';
 import { useEarlierDay } from './app/useEarlierDay.js';
 import { fileLoaders } from './app/fileLoaders.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
@@ -824,7 +824,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       projectWaitsOf,
     });
   const isMdFile = fileName?.endsWith('.md');
-  const logWriters = useLogWriters({
+  const logWriters = buildLogWriters({
     data,
     tree,
     isMdFile,
