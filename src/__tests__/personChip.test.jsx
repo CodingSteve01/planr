@@ -69,7 +69,7 @@ describe('the views', () => {
   it('draws people through the one component, in every view that shows them', () => {
     for (const file of [
       'src/components/views/TreeView.jsx',
-      'src/components/views/GanttView.jsx',
+      'src/components/views/gantt/GanttLabelColumn.jsx', // the Gantt's left column draws the people
       'src/components/views/PlanReview.jsx',
       'src/components/views/WorkOrderView.jsx',
     ]) {
