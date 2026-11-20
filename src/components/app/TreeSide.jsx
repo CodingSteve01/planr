@@ -2,42 +2,22 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { Icon } from '../shared/Icon.jsx';
 import { QuickEdit } from '../views/QuickEdit.jsx';
 
-export function TreeSide({
-  _t,
-  addDep,
-  confReasons,
-  confidence,
-  cpLabels,
-  cpSet,
-  data,
-  deleteNode,
-  duplicateNode,
-  editorAsDialog,
-  hm,
-  members,
-  multiSel,
-  mutate,
-  past,
-  removeDep,
-  renderBulkEditBody,
-  scheduled,
-  selected,
-  setBulkEditModalOpen,
-  setEditorDock,
-  setMN,
-  setModal,
-  setMultiSel,
-  setSel,
-  setSideTab,
-  sideTab,
-  splitHandoff,
-  splitTaskAtProgress,
-  stats,
-  teams,
-  tree,
-  updateNode,
-  workDays,
-}) {
+export function TreeSide({ plan, view, handlers, _t, renderBulkEditBody }) {
+  const { confReasons, confidence, cpLabels, cpSet, data, hm, members, past, scheduled, stats, teams, tree, workDays } = plan;
+  const {
+    editorAsDialog,
+    multiSel,
+    selected,
+    setBulkEditModalOpen,
+    setEditorDock,
+    setMN,
+    setModal,
+    setMultiSel,
+    setSel,
+    setSideTab,
+    sideTab,
+  } = view;
+  const { addDep, deleteNode, duplicateNode, mutate, removeDep, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
   return (
     <>
       {selected && !editorAsDialog && (

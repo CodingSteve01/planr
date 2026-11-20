@@ -1,29 +1,10 @@
 import { EffectiveBar } from '../shared/Effective.jsx';
 import { ScenarioBar, ScenarioNotice } from '../shared/Scenario.jsx';
 
-export function ScenarioStrip({
-  activeScenario,
-  effCount,
-  effDate,
-  effDropDate,
-  handleUndo,
-  past,
-  pastStart,
-  pickEffDate,
-  scenarioApply,
-  scenarioCreate,
-  scenarioDelete,
-  scenarioRename,
-  scenarioSwitch,
-  scn,
-  scnChanges,
-  scnComparison,
-  scnNotice,
-  setModal,
-  setScnNotice,
-  setTab,
-  tab,
-}) {
+export function ScenarioStrip({ plan, view, handlers }) {
+  const { activeScenario, effCount, effDate, effDropDate, past, pastStart, scn, scnChanges, scnComparison } = plan;
+  const { scnNotice, setModal, setScnNotice, setTab, tab } = view;
+  const { handleUndo, pickEffDate, scenarioApply, scenarioCreate, scenarioDelete, scenarioRename, scenarioSwitch } = handlers;
   return (
     <>
       {scn && (

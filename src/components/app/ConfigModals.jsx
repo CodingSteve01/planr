@@ -2,25 +2,22 @@ import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { Icon } from '../shared/Icon.jsx';
 import { SettingsModal } from '../modals/SettingsModal.jsx';
 
-export function ConfigModals({
-  _t,
-  bulkEditModalOpen,
-  data,
-  editorDock,
-  meta,
-  modal,
-  multiSel,
-  renderBulkEditBody,
-  setBulkEditModalOpen,
-  setD,
-  setEditorDock,
-  setModal,
-  setShowTreeIds,
-  setUiScale,
-  showTreeIds,
-  teams,
-  uiScale,
-}) {
+export function ConfigModals({ plan, view, handlers, _t, renderBulkEditBody }) {
+  const { data, meta, teams } = plan;
+  const {
+    bulkEditModalOpen,
+    editorDock,
+    modal,
+    multiSel,
+    setBulkEditModalOpen,
+    setEditorDock,
+    setModal,
+    setShowTreeIds,
+    setUiScale,
+    showTreeIds,
+    uiScale,
+  } = view;
+  const { setD } = handlers;
   return (
     <>
       {bulkEditModalOpen && multiSel.size > 0 && (

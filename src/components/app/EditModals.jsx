@@ -2,37 +2,10 @@ import { AddModal } from '../modals/AddModal.jsx';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { NodeModal } from '../modals/NodeModal.jsx';
 
-export function EditModals({
-  addNode,
-  confReasons,
-  confidence,
-  cpLabels,
-  cpSet,
-  data,
-  deleteNode,
-  duplicateNode,
-  editorAsDialog,
-  members,
-  modal,
-  modalFocus,
-  modalNode,
-  moveNode,
-  mutate,
-  past,
-  scheduled,
-  selected,
-  setEditorDock,
-  setMN,
-  setModal,
-  setModalFocus,
-  setSel,
-  splitHandoff,
-  splitTaskAtProgress,
-  stats,
-  teams,
-  tree,
-  updateNode,
-}) {
+export function EditModals({ plan, view, handlers }) {
+  const { confReasons, confidence, cpLabels, cpSet, data, members, past, scheduled, stats, teams, tree } = plan;
+  const { editorAsDialog, modal, modalFocus, modalNode, selected, setEditorDock, setMN, setModal, setModalFocus, setSel } = view;
+  const { addNode, deleteNode, duplicateNode, moveNode, mutate, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
   return (
     <>
       {modal === 'node' && modalNode && (

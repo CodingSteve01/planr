@@ -6,26 +6,10 @@ import { WorkOrderView } from '../views/WorkOrderView.jsx';
           schedule GAVE somebody before it can narrow to them; the pre-filtered
           tree matches on `assign`, so filtering to a person with nothing
           hand-assigned emptied the screen. */
-export function OrderPane({
-  activeTree,
-  data,
-  deferredSearch,
-  members,
-  onGanttTaskUpdate,
-  onQueueReorder,
-  onQueueReset,
-  personFilter,
-  personQueues,
-  rootFilter,
-  scheduled,
-  setBulkEditModalOpen,
-  setMN,
-  setModal,
-  setMultiSel,
-  tab,
-  teamFilter,
-  teams,
-}) {
+export function OrderPane({ plan, view, handlers }) {
+  const { activeTree, data, members, personQueues, scheduled, teams } = plan;
+  const { deferredSearch, personFilter, rootFilter, setBulkEditModalOpen, setMN, setModal, setMultiSel, tab, teamFilter } = view;
+  const { onGanttTaskUpdate, onQueueReorder, onQueueReset } = handlers;
   return (
     <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}>
       <Frozen active={tab === 'order'}>

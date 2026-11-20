@@ -1,34 +1,35 @@
 import { Frozen } from '../shared/Frozen.jsx';
 import { NetGraph } from '../views/NetGraph.jsx';
 
-export function NetPane({
-  archive,
-  cpLabels,
-  deferredSearch,
-  diffDoneSet,
-  diffOnlyChanged,
-  diffProgressedSet,
-  hideDone,
-  horizonIds,
-  horizonOnlyPlanned,
-  members,
-  onNetAddNode,
-  onNetDeleteNode,
-  onNetNodeClick,
-  personFilter,
-  rootFilter,
-  searchIdx,
-  setRootFilter,
-  setSearchIdx,
-  showArchived,
-  tab,
-  teamFilter,
-  teams,
-  viewCpSet,
-  viewScheduled,
-  viewStats,
-  visibleTreeForViews,
-}) {
+export function NetPane({ plan, view, handlers }) {
+  const {
+    archive,
+    cpLabels,
+    diffDoneSet,
+    diffProgressedSet,
+    horizonIds,
+    members,
+    searchIdx,
+    teams,
+    viewCpSet,
+    viewScheduled,
+    viewStats,
+    visibleTreeForViews,
+  } = plan;
+  const {
+    deferredSearch,
+    diffOnlyChanged,
+    hideDone,
+    horizonOnlyPlanned,
+    personFilter,
+    rootFilter,
+    setRootFilter,
+    setSearchIdx,
+    showArchived,
+    tab,
+    teamFilter,
+  } = view;
+  const { onNetAddNode, onNetDeleteNode, onNetNodeClick } = handlers;
   return (
     <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}>
       <Frozen active={tab === 'net'}>

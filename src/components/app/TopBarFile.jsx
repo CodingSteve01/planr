@@ -2,22 +2,10 @@ import { Icon } from '../shared/Icon.jsx';
 import { isEmbedded } from '../../utils/embedHost.js';
 import { withKey } from '../../utils/shortcuts.js';
 
-export function TopBarFile({
-  SAVE_DEBOUNCE_MS,
-  _t,
-  autoSave,
-  fileName,
-  fileSynced,
-  fileWriteOk,
-  hosted,
-  lastSavedAt,
-  meta,
-  saveCountdown,
-  saveToFile,
-  saved,
-  saving,
-  setAutoSave,
-}) {
+export function TopBarFile({ plan, view, handlers, SAVE_DEBOUNCE_MS, _t, hosted }) {
+  const { meta } = plan;
+  const { autoSave, fileName, fileSynced, fileWriteOk, lastSavedAt, saveCountdown, saved, saving, setAutoSave } = view;
+  const { saveToFile } = handlers;
   return (
     <>
       {/* Not a button. It was "New project" — the same command the / palette

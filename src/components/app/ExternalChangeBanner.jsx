@@ -1,6 +1,8 @@
 import { Icon } from '../shared/Icon.jsx';
 
-export function ExternalChangeBanner({ _t, externalChangeAvailable, reloadFromFile, setExternalChangeAvailable }) {
+export function ExternalChangeBanner({ view, handlers, _t }) {
+  const { externalChangeAvailable, setExternalChangeAvailable } = view;
+  const { reloadFromFile } = handlers;
   return (
     <>
       {/* The file changed on disk. Outside the group above on purpose: that

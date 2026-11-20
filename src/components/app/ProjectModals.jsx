@@ -6,26 +6,10 @@ import { JiraImportModal } from '../modals/JiraImportModal.jsx';
 import { NewProjModal } from '../modals/NewProjModal.jsx';
 import { detectJiraFieldId } from '../../utils/jiraSync.js';
 
-export function ProjectModals({
-  applyJiraImport,
-  data,
-  exportHandlerProps,
-  members,
-  meta,
-  modal,
-  modalNode,
-  resetHistory,
-  scheduled,
-  setData,
-  setMN,
-  setModal,
-  setSaved,
-  setSel,
-  setTab,
-  teams,
-  tree,
-  updateNode,
-}) {
+export function ProjectModals({ plan, view, handlers, exportHandlerProps }) {
+  const { data, members, meta, scheduled, teams, tree } = plan;
+  const { modal, modalNode, setMN, setModal, setSel, setTab } = view;
+  const { applyJiraImport, resetHistory, setData, setSaved, updateNode } = handlers;
   return (
     <>
       {modal === 'new' && (

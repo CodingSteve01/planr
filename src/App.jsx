@@ -1667,32 +1667,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setModal,
     setTab,
   });
-  const {
-    setD,
-    updateNode,
-    removeDep,
-    addDep,
-    deleteNode,
-    splitHandoff,
-    splitTaskAtProgress,
-    addNode,
-    duplicateNode,
-    moveNode,
-    onJiraApplyStatus,
-    applyJiraImport,
-    onApplyOrder,
-    onMoveBehind,
-    onRoadmapAssignmentChange,
-    onGanttSeqUpdate,
-    onGanttExtendViewStart,
-    onGanttTaskUpdate,
-    onGanttRemoveDep,
-    onGanttAddDep,
-    onGanttReorderSibling,
-    onNetDeleteNode,
-    onPlanReviewUpdate,
-    onBriefingUpdate,
-  } = act;
+  const { setD } = act;
   const treeEditor = useTreeEditorActions({
     tree,
     selected,
@@ -1708,33 +1683,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setHorizonOnlyPlanned,
     act,
   });
-  const {
-    onTreeSelect,
-    onTreeDelete,
-    onTreeCommandMany,
-    onTreeDropRows,
-    onTreeSelectAll,
-    onTreeMove,
-    onTreeCommand,
-    onTreeRevealHidden,
-    onTreeInsertAfter,
-    onTreeInsertChild,
-    onTreeBulkDelete,
-    onTreePasteRows,
-  } = treeEditor;
-  const { onQueueReset, onQueueReorder } = useQueueActions({ tree, leaves, mutate });
-  const {
-    onResMeetingPlansUpd,
-    onResMemberUpd,
-    onResMemberAdd,
-    onResMemberClone,
-    onResMemberDel,
-    onResVacUpd,
-    onResTeamUpd,
-    onResTeamAdd,
-    onResTeamDel,
-    onHolUpdate,
-  } = useResourceActions({ members, teams, planStart, effDate, effFold, resLens, mutate, act });
+  const queueActions = useQueueActions({ tree, leaves, mutate });
+  const resActions = useResourceActions({ members, teams, planStart, effDate, effFold, resLens, mutate, act });
+  const { onHolUpdate } = resActions;
 
   // Export context — shared data bag for all export functions in utils/exports.js.
   // diff / horizonIds / horizonEnd / futureProgressByRootId / roadmapAssignment
@@ -2756,6 +2707,177 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     exportScenarioPDF,
   });
 
+  // What the render layer reads, in three bundles. They are rebuilt every render on
+  // purpose: the components below hold no state and are not memoised, so a stable
+  // identity would buy nothing, and the inner views get their members one by one.
+  const plan = {
+    activeScenario,
+    activeScheduled,
+    activeTree,
+    archive,
+    confReasons,
+    confidence,
+    cpData,
+    cpLabels,
+    cpSet,
+    data,
+    diff,
+    diffDoneSet,
+    diffFilterSet,
+    diffProgressedSet,
+    diffVisibleSet,
+    droppedCount,
+    effContext,
+    effCount,
+    effDate,
+    effDates,
+    effDropDate,
+    futureProgressByRootId,
+    goalPaths,
+    goals,
+    hm,
+    horizonDays,
+    horizonEnd,
+    horizonFilterSet,
+    horizonIds,
+    leaves,
+    members,
+    meta,
+    past,
+    pastStart,
+    personQueues,
+    planStart,
+    projectWaitsOf,
+    scenarioList,
+    scheduled,
+    scn,
+    scnBaseline,
+    scnChangedIds,
+    scnChanges,
+    scnCompareMemory,
+    scnComparison,
+    scnShifts,
+    searchIdx,
+    sinceDate,
+    stats,
+    teams,
+    tree,
+    vacations,
+    viewCpEdges,
+    viewCpSet,
+    viewGoals,
+    viewScheduled,
+    viewStats,
+    visibleTreeForViews,
+    weeks,
+    workDays,
+  };
+  const view = {
+    activeQuickFilters,
+    activeScopeChips,
+    archiveDays,
+    autoSave,
+    bulkEditModalOpen,
+    deferredSearch,
+    diffOnlyChanged,
+    editorAsDialog,
+    editorDock,
+    externalChangeAvailable,
+    fileName,
+    fileSynced,
+    fileWriteOk,
+    ganttRoadmapFocus,
+    hideDone,
+    horizonOnlyPlanned,
+    lastSavedAt,
+    modal,
+    modalFocus,
+    modalNode,
+    multiSel,
+    personFilter,
+    quickFilters,
+    resLens,
+    rootFilter,
+    saveCountdown,
+    saved,
+    saving,
+    scnNotice,
+    scopeFields,
+    search,
+    selected,
+    setArchiveDays,
+    setAutoSave,
+    setBulkEditModalOpen,
+    setEditorDock,
+    setExternalChangeAvailable,
+    setGanttRoadmapFocus,
+    setMN,
+    setModal,
+    setModalFocus,
+    setMultiSel,
+    setRootFilter,
+    setScnNotice,
+    setSearch,
+    setSearchIdx,
+    setSel,
+    setShowArchived,
+    setShowTreeIds,
+    setSideTab,
+    setTab,
+    setTourStep,
+    setUiScale,
+    showArchived,
+    showNewFeat,
+    showTreeIds,
+    sideTab,
+    sinceDays,
+    tab,
+    tabFades,
+    teamFilter,
+    tourStep,
+    uiScale,
+  };
+  const handlers = {
+    ...act,
+    ...treeEditor,
+    ...queueActions,
+    ...resActions,
+    closeTour,
+    dismissNewFeat,
+    exportScenarioPDF,
+    handleRedo,
+    handleUndo,
+    loadFile,
+    loadFromFile,
+    mutate,
+    newProject,
+    onGanttBarClick,
+    onNetAddNode,
+    onNetNodeClick,
+    onOpenItemDialog,
+    onSumExportTodo,
+    onSumNavigate,
+    persistDiffOnlyChanged,
+    persistHorizon,
+    persistHorizonOnly,
+    persistSince,
+    pickEffDate,
+    reloadFromFile,
+    reschedule,
+    resetHistory,
+    saveToFile,
+    scenarioApply,
+    scenarioCreate,
+    scenarioDelete,
+    scenarioRename,
+    scenarioRevertChange,
+    scenarioSwitch,
+    setData,
+    setSaved,
+    startTour,
+    syncTabFades,
+  };
+
   return (
     <>
       <CapacityProvider value={capacityAt}>
@@ -2764,223 +2886,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <KeyboardMap />
         <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
           <div className="topbar">
-            <TopBarFile
-              SAVE_DEBOUNCE_MS={SAVE_DEBOUNCE_MS}
-              _t={_t}
-              autoSave={autoSave}
-              fileName={fileName}
-              fileSynced={fileSynced}
-              fileWriteOk={fileWriteOk}
-              hosted={hosted}
-              lastSavedAt={lastSavedAt}
-              meta={meta}
-              saveCountdown={saveCountdown}
-              saveToFile={saveToFile}
-              saved={saved}
-              saving={saving}
-              setAutoSave={setAutoSave}
-            />
-            <ExternalChangeBanner
-              _t={_t}
-              externalChangeAvailable={externalChangeAvailable}
-              reloadFromFile={reloadFromFile}
-              setExternalChangeAvailable={setExternalChangeAvailable}
-            />
-            <TopBarState
-              _t={_t}
-              history={history}
-              droppedCount={droppedCount}
-              effDate={effDate}
-              effDates={effDates}
-              effDropDate={effDropDate}
-              fRef={fRef}
-              fileName={fileName}
-              handleRedo={handleRedo}
-              handleUndo={handleUndo}
-              leaves={leaves}
-              loadFile={loadFile}
-              loadFromFile={loadFromFile}
-              newProject={newProject}
-              past={past}
-              pickEffDate={pickEffDate}
-              saveToFile={saveToFile}
-              saved={saved}
-              scenarioCreate={scenarioCreate}
-              scenarioDelete={scenarioDelete}
-              scenarioList={scenarioList}
-              scenarioRename={scenarioRename}
-              scenarioSwitch={scenarioSwitch}
-              scheduled={scheduled}
-              scn={scn}
-              scnChanges={scnChanges}
-              setModal={setModal}
-              setTab={setTab}
-              tab={tab}
-            />
+            <TopBarFile plan={plan} view={view} handlers={handlers} SAVE_DEBOUNCE_MS={SAVE_DEBOUNCE_MS} _t={_t} hosted={hosted} />
+            <ExternalChangeBanner view={view} handlers={handlers} _t={_t} />
+            <TopBarState plan={plan} view={view} handlers={handlers} _t={_t} history={history} fRef={fRef} />
           </div>
-          <ScenarioStrip
-            activeScenario={activeScenario}
-            effCount={effCount}
-            effDate={effDate}
-            effDropDate={effDropDate}
-            handleUndo={handleUndo}
-            past={past}
-            pastStart={pastStart}
-            pickEffDate={pickEffDate}
-            scenarioApply={scenarioApply}
-            scenarioCreate={scenarioCreate}
-            scenarioDelete={scenarioDelete}
-            scenarioRename={scenarioRename}
-            scenarioSwitch={scenarioSwitch}
-            scn={scn}
-            scnChanges={scnChanges}
-            scnComparison={scnComparison}
-            scnNotice={scnNotice}
-            setModal={setModal}
-            setScnNotice={setScnNotice}
-            setTab={setTab}
-            tab={tab}
-          />
-          <TabBar
-            TABS={TABS}
-            _t={_t}
-            activeTabRef={activeTabRef}
-            setTab={setTab}
-            syncTabFades={syncTabFades}
-            tab={tab}
-            tabBarRef={tabBarRef}
-            tabFades={tabFades}
-          />
-          <FilterBar
-            _t={_t}
-            activeQuickFilters={activeQuickFilters}
-            activeScopeChips={activeScopeChips}
-            archive={archive}
-            archiveDays={archiveDays}
-            data={data}
-            diffOnlyChanged={diffOnlyChanged}
-            hideDone={hideDone}
-            horizonDays={horizonDays}
-            horizonEnd={horizonEnd}
-            horizonOnlyPlanned={horizonOnlyPlanned}
-            persistDiffOnlyChanged={persistDiffOnlyChanged}
-            persistHorizon={persistHorizon}
-            persistHorizonOnly={persistHorizonOnly}
-            persistSince={persistSince}
-            quickFilters={quickFilters}
-            scn={scn}
-            scopeFields={scopeFields}
-            search={search}
-            searchRef={searchRef}
-            setArchiveDays={setArchiveDays}
-            setModal={setModal}
-            setSearch={setSearch}
-            setSearchIdx={setSearchIdx}
-            setShowArchived={setShowArchived}
-            showArchived={showArchived}
-            sinceDate={sinceDate}
-            sinceDays={sinceDays}
-            tab={tab}
-          />
+          <ScenarioStrip plan={plan} view={view} handlers={handlers} />
+          <TabBar view={view} handlers={handlers} TABS={TABS} _t={_t} activeTabRef={activeTabRef} tabBarRef={tabBarRef} />
+          <FilterBar plan={plan} view={view} handlers={handlers} _t={_t} searchRef={searchRef} />
           <div className="main">
-            {visitedTabs.has('summary') && (
-              <SummaryPane
-                archive={archive}
-                archiveDays={archiveDays}
-                confidence={confidence}
-                cpSet={cpSet}
-                data={data}
-                diff={diff}
-                diffOnlyChanged={diffOnlyChanged}
-                futureProgressByRootId={futureProgressByRootId}
-                goalPaths={goalPaths}
-                goals={goals}
-                hm={hm}
-                horizonDays={horizonDays}
-                horizonEnd={horizonEnd}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onOpenItemDialog={onOpenItemDialog}
-                onRoadmapAssignmentChange={onRoadmapAssignmentChange}
-                onSumExportTodo={onSumExportTodo}
-                onSumNavigate={onSumNavigate}
-                persistDiffOnlyChanged={persistDiffOnlyChanged}
-                persistHorizon={persistHorizon}
-                persistHorizonOnly={persistHorizonOnly}
-                persistSince={persistSince}
-                projectWaitsOf={projectWaitsOf}
-                scheduled={scheduled}
-                scnShifts={scnShifts}
-                setArchiveDays={setArchiveDays}
-                setShowArchived={setShowArchived}
-                showArchived={showArchived}
-                sinceDate={sinceDate}
-                sinceDays={sinceDays}
-                stats={stats}
-                tab={tab}
-                teams={teams}
-                tree={tree}
-                workDays={workDays}
-              />
-            )}
-            {visitedTabs.has('briefing') && (
-              <BriefingPane
-                confidence={confidence}
-                cpLabels={cpLabels}
-                data={data}
-                diffFilterSet={diffFilterSet}
-                diffVisibleSet={diffVisibleSet}
-                hideDone={hideDone}
-                horizonFilterSet={horizonFilterSet}
-                members={members}
-                onBriefingUpdate={onBriefingUpdate}
-                onJiraApplyStatus={onJiraApplyStatus}
-                onOpenItemDialog={onOpenItemDialog}
-                onSumExportTodo={onSumExportTodo}
-                personFilter={personFilter}
-                rootFilter={rootFilter}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                tree={tree}
-                vacations={vacations}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-              />
-            )}
-            {visitedTabs.has('plan') && (
-              <PlanPane
-                confReasons={confReasons}
-                confidence={confidence}
-                cpData={cpData}
-                cpLabels={cpLabels}
-                data={data}
-                diffFilterSet={diffFilterSet}
-                diffVisibleSet={diffVisibleSet}
-                hideDone={hideDone}
-                horizonFilterSet={horizonFilterSet}
-                members={members}
-                onApplyOrder={onApplyOrder}
-                onOpenItemDialog={onOpenItemDialog}
-                onPlanReviewUpdate={onPlanReviewUpdate}
-                personFilter={personFilter}
-                reschedule={reschedule}
-                rootFilter={rootFilter}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                tree={tree}
-                vacations={vacations}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-                weeks={weeks}
-              />
-            )}
+            {visitedTabs.has('summary') && <SummaryPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('briefing') && <BriefingPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('plan') && <PlanPane plan={plan} view={view} handlers={handlers} />}
             {/* The tree pane was the one pane left outside Frozen. It is the most
           expensive of them all — 298 rows on a real plan — so it was the one
           re-rendering, unseen, on every switch to any other tab. Measured in
@@ -2988,232 +2904,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
             {visitedTabs.has('tree') && (
               <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
                 <Frozen active={tab === 'tree'}>
-                  <TreeList
-                    cpLabels={cpLabels}
-                    cpSet={cpSet}
-                    data={data}
-                    deferredSearch={deferredSearch}
-                    diff={diff}
-                    diffOnlyChanged={diffOnlyChanged}
-                    editorAsDialog={editorAsDialog}
-                    hideDone={hideDone}
-                    horizonEnd={horizonEnd}
-                    horizonIds={horizonIds}
-                    horizonOnlyPlanned={horizonOnlyPlanned}
-                    members={members}
-                    multiSel={multiSel}
-                    onGanttTaskUpdate={onGanttTaskUpdate}
-                    onTreeBulkDelete={onTreeBulkDelete}
-                    onTreeCommand={onTreeCommand}
-                    onTreeCommandMany={onTreeCommandMany}
-                    onTreeDelete={onTreeDelete}
-                    onTreeDropRows={onTreeDropRows}
-                    onTreeInsertAfter={onTreeInsertAfter}
-                    onTreeInsertChild={onTreeInsertChild}
-                    onTreeMove={onTreeMove}
-                    onTreePasteRows={onTreePasteRows}
-                    onTreeRevealHidden={onTreeRevealHidden}
-                    onTreeSelect={onTreeSelect}
-                    onTreeSelectAll={onTreeSelectAll}
-                    persistSince={persistSince}
-                    personFilter={personFilter}
-                    rootFilter={rootFilter}
-                    scheduled={scheduled}
-                    scnChangedIds={scnChangedIds}
-                    selected={selected}
-                    setBulkEditModalOpen={setBulkEditModalOpen}
-                    setMN={setMN}
-                    setModal={setModal}
-                    setMultiSel={setMultiSel}
-                    showTreeIds={showTreeIds}
-                    sinceDate={sinceDate}
-                    sinceDays={sinceDays}
-                    stats={stats}
-                    teamFilter={teamFilter}
-                    teams={teams}
-                    tree={tree}
-                    visibleTreeForViews={visibleTreeForViews}
-                  />
-                  <TreeSide
-                    _t={_t}
-                    addDep={addDep}
-                    confReasons={confReasons}
-                    confidence={confidence}
-                    cpLabels={cpLabels}
-                    cpSet={cpSet}
-                    data={data}
-                    deleteNode={deleteNode}
-                    duplicateNode={duplicateNode}
-                    editorAsDialog={editorAsDialog}
-                    hm={hm}
-                    members={members}
-                    multiSel={multiSel}
-                    mutate={mutate}
-                    past={past}
-                    removeDep={removeDep}
-                    renderBulkEditBody={renderBulkEditBody}
-                    scheduled={scheduled}
-                    selected={selected}
-                    setBulkEditModalOpen={setBulkEditModalOpen}
-                    setEditorDock={setEditorDock}
-                    setMN={setMN}
-                    setModal={setModal}
-                    setMultiSel={setMultiSel}
-                    setSel={setSel}
-                    setSideTab={setSideTab}
-                    sideTab={sideTab}
-                    splitHandoff={splitHandoff}
-                    splitTaskAtProgress={splitTaskAtProgress}
-                    stats={stats}
-                    teams={teams}
-                    tree={tree}
-                    updateNode={updateNode}
-                    workDays={workDays}
-                  />
+                  <TreeList plan={plan} view={view} handlers={handlers} />
+                  <TreeSide plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
                 </Frozen>
               </div>
             )}
-            {visitedTabs.has('gantt') && (
-              <GanttPane
-                activeScheduled={activeScheduled}
-                activeTree={activeTree}
-                confReasons={confReasons}
-                confidence={confidence}
-                cpLabels={cpLabels}
-                data={data}
-                deferredSearch={deferredSearch}
-                diff={diff}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                hideDone={hideDone}
-                horizonEnd={horizonEnd}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onGanttAddDep={onGanttAddDep}
-                onGanttBarClick={onGanttBarClick}
-                onGanttExtendViewStart={onGanttExtendViewStart}
-                onGanttRemoveDep={onGanttRemoveDep}
-                onGanttReorderSibling={onGanttReorderSibling}
-                onGanttSeqUpdate={onGanttSeqUpdate}
-                onGanttTaskUpdate={onGanttTaskUpdate}
-                personFilter={personFilter}
-                personQueues={personQueues}
-                planStart={planStart}
-                rootFilter={rootFilter}
-                scnBaseline={scnBaseline}
-                searchIdx={searchIdx}
-                setBulkEditModalOpen={setBulkEditModalOpen}
-                setMultiSel={setMultiSel}
-                sinceDate={sinceDate}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                vacations={vacations}
-                viewCpEdges={viewCpEdges}
-                viewCpSet={viewCpSet}
-                viewGoals={viewGoals}
-                weeks={weeks}
-                workDays={workDays}
-              />
-            )}
-            {visitedTabs.has('roadmap') && (
-              <RoadmapPane
-                activeScheduled={activeScheduled}
-                activeTree={activeTree}
-                cpLabels={cpLabels}
-                data={data}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                ganttRoadmapFocus={ganttRoadmapFocus}
-                members={members}
-                onMoveBehind={onMoveBehind}
-                onOpenItemDialog={onOpenItemDialog}
-                projectWaitsOf={projectWaitsOf}
-                setGanttRoadmapFocus={setGanttRoadmapFocus}
-                sinceDate={sinceDate}
-                stats={stats}
-                tab={tab}
-                teams={teams}
-                viewCpSet={viewCpSet}
-              />
-            )}
-            {visitedTabs.has('net') && (
-              <NetPane
-                archive={archive}
-                cpLabels={cpLabels}
-                deferredSearch={deferredSearch}
-                diffDoneSet={diffDoneSet}
-                diffOnlyChanged={diffOnlyChanged}
-                diffProgressedSet={diffProgressedSet}
-                hideDone={hideDone}
-                horizonIds={horizonIds}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                members={members}
-                onNetAddNode={onNetAddNode}
-                onNetDeleteNode={onNetDeleteNode}
-                onNetNodeClick={onNetNodeClick}
-                personFilter={personFilter}
-                rootFilter={rootFilter}
-                searchIdx={searchIdx}
-                setRootFilter={setRootFilter}
-                setSearchIdx={setSearchIdx}
-                showArchived={showArchived}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-                viewCpSet={viewCpSet}
-                viewScheduled={viewScheduled}
-                viewStats={viewStats}
-                visibleTreeForViews={visibleTreeForViews}
-              />
-            )}
-            {visitedTabs.has('order') && (
-              <OrderPane
-                activeTree={activeTree}
-                data={data}
-                deferredSearch={deferredSearch}
-                members={members}
-                onGanttTaskUpdate={onGanttTaskUpdate}
-                onQueueReorder={onQueueReorder}
-                onQueueReset={onQueueReset}
-                personFilter={personFilter}
-                personQueues={personQueues}
-                rootFilter={rootFilter}
-                scheduled={scheduled}
-                setBulkEditModalOpen={setBulkEditModalOpen}
-                setMN={setMN}
-                setModal={setModal}
-                setMultiSel={setMultiSel}
-                tab={tab}
-                teamFilter={teamFilter}
-                teams={teams}
-              />
-            )}
-            {visitedTabs.has('resources') && (
-              <ResourcesPane
-                effContext={effContext}
-                onResMeetingPlansUpd={onResMeetingPlansUpd}
-                onResMemberAdd={onResMemberAdd}
-                onResMemberClone={onResMemberClone}
-                onResMemberDel={onResMemberDel}
-                onResMemberUpd={onResMemberUpd}
-                onResTeamAdd={onResTeamAdd}
-                onResTeamDel={onResTeamDel}
-                onResTeamUpd={onResTeamUpd}
-                onResVacUpd={onResVacUpd}
-                personFilter={personFilter}
-                resLens={resLens}
-                scheduled={scheduled}
-                tab={tab}
-                teamFilter={teamFilter}
-                tree={tree}
-                vacations={vacations}
-                weeks={weeks}
-              />
-            )}
+            {visitedTabs.has('gantt') && <GanttPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('roadmap') && <RoadmapPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('net') && <NetPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('order') && <OrderPane plan={plan} view={view} handlers={handlers} />}
+            {visitedTabs.has('resources') && <ResourcesPane plan={plan} view={view} handlers={handlers} />}
             {visitedTabs.has('holidays') && (
               <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}>
                 <Frozen active={tab === 'holidays'}>
@@ -3229,107 +2929,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               </div>
             )}
           </div>
-          <EditModals
-            addNode={addNode}
-            confReasons={confReasons}
-            confidence={confidence}
-            cpLabels={cpLabels}
-            cpSet={cpSet}
-            data={data}
-            deleteNode={deleteNode}
-            duplicateNode={duplicateNode}
-            editorAsDialog={editorAsDialog}
-            members={members}
-            modal={modal}
-            modalFocus={modalFocus}
-            modalNode={modalNode}
-            moveNode={moveNode}
-            mutate={mutate}
-            past={past}
-            scheduled={scheduled}
-            selected={selected}
-            setEditorDock={setEditorDock}
-            setMN={setMN}
-            setModal={setModal}
-            setModalFocus={setModalFocus}
-            setSel={setSel}
-            splitHandoff={splitHandoff}
-            splitTaskAtProgress={splitTaskAtProgress}
-            stats={stats}
-            teams={teams}
-            tree={tree}
-            updateNode={updateNode}
-          />
-          <ScenarioModals
-            activeScenario={activeScenario}
-            data={data}
-            exportScenarioPDF={exportScenarioPDF}
-            modal={modal}
-            resetHistory={resetHistory}
-            scenarioApply={scenarioApply}
-            scenarioRevertChange={scenarioRevertChange}
-            scn={scn}
-            scnChanges={scnChanges}
-            scnCompareMemory={scnCompareMemory}
-            scnComparison={scnComparison}
-            setData={setData}
-            setModal={setModal}
-            setSaved={setSaved}
-            setSel={setSel}
-            setTab={setTab}
-            tree={tree}
-          />
-          <ConfigModals
-            _t={_t}
-            bulkEditModalOpen={bulkEditModalOpen}
-            data={data}
-            editorDock={editorDock}
-            meta={meta}
-            modal={modal}
-            multiSel={multiSel}
-            renderBulkEditBody={renderBulkEditBody}
-            setBulkEditModalOpen={setBulkEditModalOpen}
-            setD={setD}
-            setEditorDock={setEditorDock}
-            setModal={setModal}
-            setShowTreeIds={setShowTreeIds}
-            setUiScale={setUiScale}
-            showTreeIds={showTreeIds}
-            teams={teams}
-            uiScale={uiScale}
-          />
-          <ProjectModals
-            applyJiraImport={applyJiraImport}
-            data={data}
-            exportHandlerProps={exportHandlerProps}
-            members={members}
-            meta={meta}
-            modal={modal}
-            modalNode={modalNode}
-            resetHistory={resetHistory}
-            scheduled={scheduled}
-            setData={setData}
-            setMN={setMN}
-            setModal={setModal}
-            setSaved={setSaved}
-            setSel={setSel}
-            setTab={setTab}
-            teams={teams}
-            tree={tree}
-            updateNode={updateNode}
-          />
+          <EditModals plan={plan} view={view} handlers={handlers} />
+          <ScenarioModals plan={plan} view={view} handlers={handlers} />
+          <ConfigModals plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
+          <ProjectModals plan={plan} view={view} handlers={handlers} exportHandlerProps={exportHandlerProps} />
 
-          <OnboardingModals
-            NEW_FEATURES={NEW_FEATURES}
-            TOUR_STEPS={TOUR_STEPS}
-            _t={_t}
-            closeTour={closeTour}
-            dismissNewFeat={dismissNewFeat}
-            setTourStep={setTourStep}
-            showNewFeat={showNewFeat}
-            startTour={startTour}
-            tourStep={tourStep}
-          />
+          <OnboardingModals view={view} handlers={handlers} NEW_FEATURES={NEW_FEATURES} TOUR_STEPS={TOUR_STEPS} _t={_t} />
         </div>
       </CapacityProvider>
     </>

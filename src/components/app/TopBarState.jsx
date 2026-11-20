@@ -6,37 +6,22 @@ import { ScenarioSwitch } from '../shared/Scenario.jsx';
 import { canRedo, canUndo } from '../../utils/undo.js';
 import { withKey } from '../../utils/shortcuts.js';
 
-export function TopBarState({
-  _t,
-  history,
-  droppedCount,
-  effDate,
-  effDates,
-  effDropDate,
-  fRef,
-  fileName,
-  handleRedo,
-  handleUndo,
-  leaves,
-  loadFile,
-  loadFromFile,
-  newProject,
-  past,
-  pickEffDate,
-  saveToFile,
-  saved,
-  scenarioCreate,
-  scenarioDelete,
-  scenarioList,
-  scenarioRename,
-  scenarioSwitch,
-  scheduled,
-  scn,
-  scnChanges,
-  setModal,
-  setTab,
-  tab,
-}) {
+export function TopBarState({ plan, view, handlers, _t, history, fRef }) {
+  const { droppedCount, effDate, effDates, effDropDate, leaves, past, scenarioList, scheduled, scn, scnChanges } = plan;
+  const { fileName, saved, setModal, setTab, tab } = view;
+  const {
+    handleRedo,
+    handleUndo,
+    loadFile,
+    loadFromFile,
+    newProject,
+    pickEffDate,
+    saveToFile,
+    scenarioCreate,
+    scenarioDelete,
+    scenarioRename,
+    scenarioSwitch,
+  } = handlers;
   return (
     <>
       {/* Which truth is on screen. Quiet while it is the plan, in the

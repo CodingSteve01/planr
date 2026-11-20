@@ -1,34 +1,28 @@
 import { Frozen } from '../shared/Frozen.jsx';
 import { PlanReview } from '../views/PlanReview.jsx';
 
-export function PlanPane({
-  confReasons,
-  confidence,
-  cpData,
-  cpLabels,
-  data,
-  diffFilterSet,
-  diffVisibleSet,
-  hideDone,
-  horizonFilterSet,
-  members,
-  onApplyOrder,
-  onOpenItemDialog,
-  onPlanReviewUpdate,
-  personFilter,
-  reschedule,
-  rootFilter,
-  tab,
-  teamFilter,
-  teams,
-  tree,
-  vacations,
-  viewCpSet,
-  viewScheduled,
-  viewStats,
-  visibleTreeForViews,
-  weeks,
-}) {
+export function PlanPane({ plan, view, handlers }) {
+  const {
+    confReasons,
+    confidence,
+    cpData,
+    cpLabels,
+    data,
+    diffFilterSet,
+    diffVisibleSet,
+    horizonFilterSet,
+    members,
+    teams,
+    tree,
+    vacations,
+    viewCpSet,
+    viewScheduled,
+    viewStats,
+    visibleTreeForViews,
+    weeks,
+  } = plan;
+  const { hideDone, personFilter, rootFilter, tab, teamFilter } = view;
+  const { onApplyOrder, onOpenItemDialog, onPlanReviewUpdate, reschedule } = handlers;
   return (
     <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}>
       <Frozen active={tab === 'plan'}>

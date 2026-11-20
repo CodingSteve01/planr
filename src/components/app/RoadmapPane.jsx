@@ -7,26 +7,23 @@ import { RoadmapLens } from '../shared/RoadmapLens.jsx';
           ask was for a roadmap *next to* the Gantt, in the same style. Same
           data scope as the chart it sits beside (activeTree/activeScheduled:
           rootFilter/team/person + archive applied). */
-export function RoadmapPane({
-  activeScheduled,
-  activeTree,
-  cpLabels,
-  data,
-  diffDoneSet,
-  diffOnlyChanged,
-  diffProgressedSet,
-  ganttRoadmapFocus,
-  members,
-  onMoveBehind,
-  onOpenItemDialog,
-  projectWaitsOf,
-  setGanttRoadmapFocus,
-  sinceDate,
-  stats,
-  tab,
-  teams,
-  viewCpSet,
-}) {
+export function RoadmapPane({ plan, view, handlers }) {
+  const {
+    activeScheduled,
+    activeTree,
+    cpLabels,
+    data,
+    diffDoneSet,
+    diffProgressedSet,
+    members,
+    projectWaitsOf,
+    sinceDate,
+    stats,
+    teams,
+    viewCpSet,
+  } = plan;
+  const { diffOnlyChanged, ganttRoadmapFocus, setGanttRoadmapFocus, tab } = view;
+  const { onMoveBehind, onOpenItemDialog } = handlers;
   return (
     <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
       <RoadmapLens

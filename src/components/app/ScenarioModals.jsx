@@ -2,25 +2,10 @@ import { ScenarioCompare } from '../shared/Scenario.jsx';
 import { SnapshotModal } from '../modals/SnapshotModal.jsx';
 import { pushSnapshot } from '../../app/snapshots.js';
 
-export function ScenarioModals({
-  activeScenario,
-  data,
-  exportScenarioPDF,
-  modal,
-  resetHistory,
-  scenarioApply,
-  scenarioRevertChange,
-  scn,
-  scnChanges,
-  scnCompareMemory,
-  scnComparison,
-  setData,
-  setModal,
-  setSaved,
-  setSel,
-  setTab,
-  tree,
-}) {
+export function ScenarioModals({ plan, view, handlers }) {
+  const { activeScenario, data, scn, scnChanges, scnCompareMemory, scnComparison, tree } = plan;
+  const { modal, setModal, setSel, setTab } = view;
+  const { exportScenarioPDF, resetHistory, scenarioApply, scenarioRevertChange, setData, setSaved } = handlers;
   return (
     <>
       {modal === 'scenario' && scn && (
