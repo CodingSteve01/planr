@@ -66,10 +66,18 @@ and reported. `git commit --no-verify` skips them; CI does not.
   [contributing.md](contributing.md#nothing-from-a-real-plan). It needs the
   owner's word list and checks nothing without it, so it is not part of CI.
 - **Audit**: `npm audit --omit=dev --audit-level=high` on what ships.
-- **Security** (`npm run security`, semgrep's default rules): over the code
-  that ships, the scripts and the workflows, with no finding allowed. Tests
-  are left out (`.semgrepignore` says why). A finding that is not one gets a
-  `nosemgrep` comment with the rule id and the reason on the line above.
+- **Security** (`npm run security`, semgrep): the repository's own rules in
+  `.semgrep/planr.yml`, with no finding allowed. They say what Planr promises:
+  nothing from a plan becomes code (`eval`, `new Function`), plan text reaches
+  the page as text (no raw HTML), the app loads no code and sends nothing over
+  a network, and a workflow pastes no contributor-controlled value into a
+  shell and uses no action by a movable tag. The rules live in the repository
+  so that the same commit is judged the same way tomorrow. A place that is
+  not a violation gets a `nosemgrep: <rule id>` comment with the reason above
+  it. Where semgrep is not installed the local check is skipped with a line
+  saying so; CI installs a pinned version and fails without it.
+- **Security, as advice** (`npm run security:advice`): semgrep's registry
+  rules. They change upstream, so they run in CI without blocking.
 - **Workflows**: every action is pinned to a commit, because a tag can be
   moved; `hooks.test.js` holds them to it and Dependabot keeps the pins fresh,
   a week behind publication. Values a contributor controls (a branch name)

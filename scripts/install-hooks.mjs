@@ -14,16 +14,17 @@
 // (a post-merge that installs the plugin, say) keep working. A hook of the
 // same name that this script did not write is left alone and reported.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const quiet = process.argv.includes('--quiet');
 const say = msg => { if (!quiet) console.log(msg); };
 const MARK = '# planr: installed by scripts/install-hooks.mjs';
 
 export const HOOKS = {
-  'pre-commit': `files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs')
-if [ -n "$files" ]; then npx --no-install eslint --no-warn-ignored $files || exit 1; fi
+  // The files as they are on disk: a partly staged file is linted whole.
+  'pre-commit': `git diff --cached --name-only -z --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs' | xargs -0 npx --no-install eslint --no-warn-ignored || exit 1
 node scripts/check-private.mjs --staged || exit 1`,
   'commit-msg': 'node scripts/check-private.mjs --message "$1" || exit 1',
   'pre-push': 'npm run --silent quality || exit 1',
@@ -50,4 +51,7 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+// Compared as real paths: a URL is percent-encoded and a path is not, and a
+// checkout may sit behind a symlink.
+const invoked = process.argv[1] ? realpathSync(process.argv[1]) : '';
+if (invoked === realpathSync(fileURLToPath(import.meta.url))) main();

@@ -13,7 +13,8 @@
 //
 // Exit 0 when the list is missing (nothing to check against) or nothing is
 // found, 1 on a find. A find names the file and line, never the term in full.
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -25,7 +26,6 @@ export function loadTerms(file = termsFile()) {
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return readFileSync(file, 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
     // The patterns come from the owner's own file on this machine, not from input.
-    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     .map(l => (l.startsWith('re:') ? new RegExp(l.slice(3), 'i') : new RegExp(`(?<![\\p{L}\\p{N}])${esc(l)}(?![\\p{L}\\p{N}])`, 'iu')));
 }
 
@@ -56,7 +56,8 @@ export function scanTracked(terms, staged = false) {
   return finds;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const invoked = process.argv[1] ? realpathSync(process.argv[1]) : '';
+if (invoked === realpathSync(fileURLToPath(import.meta.url))) {
   const terms = loadTerms();
   if (!terms) { console.log(`check-private: no list at ${termsFile()}, nothing checked`); process.exit(0); }
   const at = process.argv.indexOf('--message');

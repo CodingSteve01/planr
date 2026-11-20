@@ -21,9 +21,10 @@
     "deadcode:exports": "knip --no-progress --include exports,types",
     "private": "node scripts/check-private.mjs",
     "quality": "npm run lint && npm run dup && npm run deadcode && npm run version:check && npm run security && npm run private",
-    "security": "semgrep scan --config p/default --metrics off --error --quiet src obsidian scripts tools .github",
+    "security": "node scripts/security.mjs",
     "hooks": "node scripts/install-hooks.mjs",
-    "prepare": "node scripts/install-hooks.mjs --quiet"
+    "prepare": "node scripts/install-hooks.mjs --quiet",
+    "security:advice": "node scripts/security.mjs --advice"
   },
   "dependencies": {
     "@turbodocx/html-to-docx": "^1.20.1",
