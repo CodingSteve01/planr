@@ -29,8 +29,10 @@ export const HOOKS = {
   // The files as they are on disk: a partly staged file is linted whole.
   // Nothing staged that lints: nothing to run. (GNU xargs would otherwise start
   // eslint without a file, which lints everything.)
-  'pre-commit': `if ! git diff --cached --quiet --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs'; then
-  git diff --cached --name-only -z --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs' | xargs -0 npx --no-install prettier --check --ignore-unknown || { echo 'Run: npm run format'; exit 1; }
+  'pre-commit': `if ! git diff --cached --quiet --diff-filter=ACMR; then
+  git diff --cached --name-only -z --diff-filter=ACMR | xargs -0 npx --no-install prettier --check --ignore-unknown || { echo 'Run: npm run format'; exit 1; }
+fi
+if ! git diff --cached --quiet --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs'; then
   git diff --cached --name-only -z --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs' | xargs -0 npx --no-install eslint --no-warn-ignored || exit 1
 fi
 node scripts/check-private.mjs --staged || exit 1`,

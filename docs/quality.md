@@ -22,6 +22,12 @@ fonts; and the semgrep fixtures.
 
 Nobody argues about layout in a review, and a diff shows what changed.
 
+The day the code was first formatted, the baseline was taken again: breaking
+long lines made 35 functions and files longer than their limit that were under
+it before (343 findings instead of 308, all of the difference in the two
+length rules). That is the one time the baseline went up, and it went up
+without a rule or a limit changing. Since then it only goes down.
+
 ## The baseline, and why the numbers only go down
 
 The rules were switched on over an existing codebase. Fixing everything first
