@@ -484,6 +484,16 @@ log. What does not depend on those sits beside it:
   pane's content and the modals are components that take explicit props. They
   hold no state of their own. A prop named like a browser global (`history`)
   must be passed, not read bare: `no-undef` does not catch the shadowing.
+  The screens before a plan exists (`BootScreen`, `RestoreMountScreen`,
+  `EmptyState`) are components too; `App` keeps the `if`s that choose them.
+  `BulkEditBody` is the bulk-edit form shared by the side pane and the modal; it
+  reads the `plan`, `view` and `handlers` bundles, and `src/app/bulkFacts.js`
+  derives what the selection has in common.
+- `src/app/shellContent.js` (tabs, tour steps, new-feature list) and
+  `src/app/exportHandlerProps.js` (the export handlers) hold the render-only
+  helpers. The `plan` and `view` bundles spread the hook results
+  (`...planModel`, `...uiPrefs`) instead of listing each member again; a new
+  member of such a hook reaches the panes without a second edit in `App`.
 - `src/utils/loadedData.js`: what a loaded document is normalised to.
 - `src/utils/gantt/helpers.js`: the Gantt's constants and pure helpers.
 

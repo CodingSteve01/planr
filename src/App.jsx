@@ -41,24 +41,15 @@ import { SettingsModals } from './components/app/SettingsModals.jsx';
 import { ProjectFileModals } from './components/app/ProjectFileModals.jsx';
 import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
-import { initialShell, loadLocalProject, isValidProjectData, NEW_BADGE_TAB_IDS, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
+import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
+import { buildExportHandlerProps } from './app/exportHandlerProps.js';
+import { initialShell, loadLocalProject, isValidProjectData, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
 import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
 import { normalizeLoadedData } from './utils/loadedData.js';
-import {
-  exportJSON,
-  exportNetworkPNG,
-  exportGanttPNG,
-  exportSprintMarkdown,
-  exportMermaid,
-  exportReportDocx,
-  exportSummaryPDF,
-  exportGanttPDF,
-  exportTodoPDF,
-  exportWhatWhenPDF,
-} from './utils/exports.js';
+import { exportSprintMarkdown } from './utils/exports.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
@@ -404,7 +395,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // we don't emit fake "added" events for the whole tree.
   const lastSavedLeavesRef = useRef(null);
   const leafBaselineStaleRef = useRef(true);
-  const { editorDock, setEditorDock, appRef, editorAsDialog, uiScale, setUiScale, showTreeIds, setShowTreeIds } = useUiPrefs(portalRoot);
+  const { appRef, ...uiPrefs } = useUiPrefs(portalRoot);
   const fileSession = useFileSession({
     data,
     hosted,
@@ -457,25 +448,24 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedPlanRef.current = data;
     leafBaselineStaleRef.current = false;
   }, [data]);
-  const { saving, saveCountdown, externalChangeAvailable, setExternalChangeAvailable, reloadFromFile, saveToFile, loadFromFile } =
-    useFileSync({
-      data,
-      saved,
-      setSaved,
-      setData,
-      setSel,
-      resetHistory,
-      session: fileSession,
-      fRef,
-      fileDataRef,
-      pastRef,
-      scnRef,
-      lastSavedPlanRef,
-      lastSavedLeavesRef,
-      leafBaselineStaleRef,
-      composeFileForSave,
-      commitSaveSideEffects,
-    });
+  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync({
+    data,
+    saved,
+    setSaved,
+    setData,
+    setSel,
+    resetHistory,
+    session: fileSession,
+    fRef,
+    fileDataRef,
+    pastRef,
+    scnRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+    leafBaselineStaleRef,
+    composeFileForSave,
+    commitSaveSideEffects,
+  });
 
   // Global keyboard shortcuts. The file ones are the platform conventions
   // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
@@ -566,29 +556,24 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
+  const { reschedule, ...planModel } = usePlanModel({ data, members, vacations, meta, past });
   const {
     tree,
-    goals,
     hm,
     planStart,
     planEnd,
     workDays,
     capacityAt,
-    personQueues,
     scheduled,
     weeks,
-    reschedule,
     projectWaitsOf,
     stats,
     cpData,
     cpSet,
-    cpLabels,
     goalPaths,
     leaves,
-    droppedCount,
     confidence,
-    confReasons,
-  } = usePlanModel({ data, members, vacations, meta, past });
+  } = planModel;
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => (selId ? tree.find(r => r.id === selId) || null : null), [tree, selId]);
   const { overbookedTaskIds } = useResourceLoad({ data, members, teams, vacations, scheduled, weeks, capacityAt });
@@ -604,19 +589,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setHorizonOnlyPlanned,
     persistHorizonOnly,
   } = useReviewWindow();
-  const {
-    sinceDate,
-    horizonEnd,
-    horizonIds,
-    futureProgressByRootId,
-    diff,
-    diffDoneSet,
-    diffChangedSet,
-    diffProgressedSet,
-    horizonFilterSet,
-    diffFilterSet,
-    diffVisibleSet,
-  } = useReviewDiff({
+  const reviewDiff = useReviewDiff({
     data,
     scn,
     tree,
@@ -630,19 +603,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     horizonOnlyPlanned,
     diffOnlyChanged,
   });
-  const {
-    archive,
-    activeTree,
-    activeMembers,
-    activeScheduled,
-    rootItems,
-    netRootOptions,
-    visibleTreeForViews,
-    visibleViewIdSet,
-    viewScheduled,
-    viewGoals,
-    viewStats,
-  } = useVisibleTree({
+  const { sinceDate, horizonEnd, horizonIds, futureProgressByRootId, diff, diffChangedSet } = reviewDiff;
+  const visible = useVisibleTree({
     tree,
     members,
     scheduled,
@@ -661,7 +623,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     sinceDate,
     diffChangedSet,
   });
-  const { quickFilters, activeQuickFilters, scopeFields, activeScopeChips } = useFilterChips({
+  const { archive, activeMembers, rootItems, netRootOptions, visibleViewIdSet } = visible;
+  const filterChips = useFilterChips({
     _t,
     teams,
     archive,
@@ -688,7 +651,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setPersonFilter,
     setSearchIdx,
   });
-  const { scnComparison, scnBaseline, scnShifts, scnChangedIds } = useScenarioView({ scn, data, scheduled, scnChanges });
+  const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
+  const { scnComparison } = scenarioView;
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -745,7 +709,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const [effDate, setEffDate] = useState('');
-  const { resLens, effDates, effCount } = useResourceLens({ data, effDate });
+  const { resLens, ...lensDates } = useResourceLens({ data, effDate });
   // A day before today is a look at the plan as it was (and a place to
   // correct it from then on); a day after today is where capacity changes.
   // The same plan, whatever a save added to its logs in between.
@@ -1347,56 +1311,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   // removed: topDownReady guide bubble (was blocking tree view)
 
-  // "New!" badge: shown on tabs until the user dismisses the new-feature popover
-  const showNewBadge = showNewFeat;
-  const TABS = TAB_IDS.map(id => ({
-    id,
-    label: _t(`tab.${id}`),
-    isNew: showNewBadge && NEW_BADGE_TAB_IDS.has(id),
-  }));
-
-  // ── Tour steps (resolved at render time so they pick up the active language) ──
-  const TOUR_STEPS = [0, 1, 2, 3].map(i => ({
-    icon: _t(`tour.s${i}.icon`),
-    title: _t(`tour.s${i}.title`),
-    body: _t(`tour.s${i}.body`),
-  }));
-
-  // ── New-feature list (shown once to existing users) ──
-  const NEW_FEATURES = [
-    _t('new.roadmap'),
-    _t('new.dayZoom'),
-    _t('new.confidence'),
-    _t('new.dragLink'),
-    _t('new.planReview'),
-    _t('new.archive'),
-    _t('new.jiraSync'),
-    // TODO: add Network Graph improvements once documented
-  ];
-
-  // Shared between the Export dialog and Report mode (ReportView.jsx) — both
-  // render the same ExportCards grid with the same handlers, so this object
-  // is built once and spread into whichever one is mounted.
-  const exportHandlerProps = {
+  const TABS = buildTabs(_t, showNewFeat);
+  const TOUR_STEPS = buildTourSteps(_t);
+  const NEW_FEATURES = buildNewFeatures(_t);
+  const exportHandlerProps = buildExportHandlerProps({
     tab,
-    onOpenJira: () => setModal('jira'),
-    onSummaryPDF: opts => exportSummaryPDF(_exportCtx(), opts),
+    setModal,
+    exportCtx: _exportCtx,
     onScenarioPDF: exportScenarioPDFOrThrow,
-    onGanttPDF: () => exportGanttPDF(_exportCtx()),
-    onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
-    onTodoPDF: horizonDays => exportTodoPDF(_exportCtx(), horizonDays),
-    onReportDocx: () => exportReportDocx(_exportCtx()),
-    onSprintMarkdown: horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }),
-    onMermaid: () => exportMermaid(_exportCtx()),
-    onNetworkPNG: () => exportNetworkPNG(_exportCtx()),
-    onGanttPNG: () => exportGanttPNG(_exportCtx()),
-    // The JSON export is the file in another format: the plan and its
-    // scenarios, whichever of them happens to be on screen.
-    onJSON: () => exportJSON({ ..._exportCtx(), data: withoutPendingDates(fileDataRef.current || data) }),
-    // The two picture exports are taken from a live view, so from anywhere
-    // else their card can only say no. Given the way there, it stops being a
-    // dead card and becomes one click of setup.
-  };
+    fileDataRef,
+    data,
+  });
 
   const paletteCommands = buildPaletteCommands({
     _t,
@@ -1418,78 +1343,41 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // purpose: the components below hold no state and are not memoised, so a stable
   // identity would buy nothing, and the inner views get their members one by one.
   const plan = {
+    ...planModel,
+    ...reviewDiff,
+    ...visible,
+    ...scenarioView,
+    ...lensDates,
     activeScenario,
-    activeScheduled,
-    activeTree,
-    archive,
-    confReasons,
-    confidence,
-    cpData,
-    cpLabels,
-    cpSet,
     data,
-    diff,
-    diffDoneSet,
-    diffFilterSet,
-    diffProgressedSet,
-    diffVisibleSet,
-    droppedCount,
     effContext,
-    effCount,
     effDate,
-    effDates,
     effDropDate,
-    futureProgressByRootId,
-    goalPaths,
-    goals,
-    hm,
     horizonDays,
-    horizonEnd,
-    horizonFilterSet,
-    horizonIds,
-    leaves,
     members,
     meta,
     past,
     pastStart,
-    personQueues,
-    planStart,
-    projectWaitsOf,
     scenarioList,
-    scheduled,
     scn,
-    scnBaseline,
-    scnChangedIds,
     scnChanges,
     scnCompareMemory,
-    scnComparison,
-    scnShifts,
     searchIdx,
-    sinceDate,
-    stats,
     teams,
-    tree,
     vacations,
     viewCpEdges,
     viewCpSet,
-    viewGoals,
-    viewScheduled,
-    viewStats,
-    visibleTreeForViews,
-    weeks,
-    workDays,
   };
+
   const view = {
-    activeQuickFilters,
-    activeScopeChips,
+    ...uiPrefs,
+    ...fileSyncState,
+    ...filterChips,
     archiveDays,
     autoSave,
     bulkEditModalOpen,
     deferredSearch,
     diffOnlyChanged,
-    editorAsDialog,
-    editorDock,
-    externalChangeAvailable,
     fileName,
     fileSynced,
     fileWriteOk,
@@ -1502,21 +1390,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     modalNode,
     multiSel,
     personFilter,
-    quickFilters,
     resLens,
     rootFilter,
-    saveCountdown,
     saved,
-    saving,
     scnNotice,
-    scopeFields,
     search,
     selected,
     setArchiveDays,
     setAutoSave,
     setBulkEditModalOpen,
-    setEditorDock,
-    setExternalChangeAvailable,
     setGanttRoadmapFocus,
     setMN,
     setModal,
@@ -1528,21 +1410,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setSearchIdx,
     setSel,
     setShowArchived,
-    setShowTreeIds,
     setSideTab,
     setTab,
     setTourStep,
-    setUiScale,
     showArchived,
     showNewFeat,
-    showTreeIds,
     sideTab,
     sinceDays,
     tab,
     tabFades,
     teamFilter,
     tourStep,
-    uiScale,
   };
   // The two raw writes a component may ask for, by name. `mutate`, `setData`
   // and `setSaved` themselves stay in here: a component that held them could
