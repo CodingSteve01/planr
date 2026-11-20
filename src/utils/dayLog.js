@@ -80,7 +80,8 @@ export function inIdsOf(prev, loaded) {
   if (!prev || !loaded) return prev;
   const { patch } = fromPortablePatch(toPortablePatch(diffPlan(NOTHING, plain(prev)), prev), loaded);
   const out = isEmptyPatch(patch) ? NOTHING : back(NOTHING, patch);
-  return prev.dayLog ? { ...out, dayLog: prev.dayLog } : out;
+  // The log comes from `loaded`: it is the same log, already in these ids.
+  return loaded.dayLog ? { ...out, dayLog: loaded.dayLog } : out;
 }
 
 // The first day the full log reaches back to; before it only status is known.

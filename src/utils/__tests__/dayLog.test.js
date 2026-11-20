@@ -164,4 +164,21 @@ describe('a plan loaded again', () => {
     expect(planAtEndOf(saved, '2026-11-19').tree[1].name).toBe('Old name');
     expect(planAtEndOf(saved, '2026-11-19').tree[1].assign).toEqual(['m-new']);
   });
+
+  test('an entry for today that was saved before the reload stays in the ids of this load', () => {
+    const people = id => [{ id, name: 'Anna Noor', team: 'T1', cap: 1 }];
+    const base = { meta: { name: 'P' }, teams: [{ id: 'T1', name: 'Dev' }], vacations: [] };
+    // Saved here earlier today: Anna was assigned.
+    const morning = { ...base, members: people('m-old'), tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'Task', best: 2 }] };
+    const saved = recordToday(morning, { ...morning, tree: [morning.tree[0], { ...morning.tree[1], assign: ['m-old'] }] }, '2026-11-20');
+    expect(saved.dayLog).toHaveLength(1);
+    // The file comes back from outside, renamed, with new ids and its log read in them.
+    const loaded = { ...base, members: people('m-new'), tree: [{ id: 'P1', name: 'Project' }, { id: 'P1.1', name: 'Task renamed', best: 2, assign: ['m-new'] }],
+      dayLog: [{ day: '2026-11-20', back: { tree: { unset: { 'P1.1': ['assign'] } } } }] };
+    const next = recordToday(inIdsOf(saved, loaded), loaded, '2026-11-20');
+    const yesterday = planAtEndOf(next, '2026-11-19');
+    expect(yesterday.tree[1].name).toBe('Task');
+    expect(yesterday.tree[1].assign).toBeUndefined();
+    expect(JSON.stringify(next.dayLog)).not.toContain('m-old');
+  });
 });

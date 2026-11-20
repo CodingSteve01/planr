@@ -856,10 +856,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
       if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
         // What changed outside Planr belongs to the day it was picked up.
-        // The plan as it was here stays what the next save measures against
-        // (in the ids this load handed out), and the status baseline stays
-        // too, so the difference is recorded as a change of today.
-        const before = pastRef.current || scnRef.current ? null : dataRef.current;
+        // The plan as it was last saved here stays what the next save measures
+        // against (in the ids this load handed out), and the status baseline
+        // stays too, so the difference is recorded as a change of today.
+        // What was edited here and not saved is gone with the reload and is
+        // not part of that.
+        const before = pastRef.current || scnRef.current ? null : lastSavedPlanRef.current;
         setData(d);
         resetHistory(); // reloaded from disk — treat as a fresh document
         if (before && lastSavedLeavesRef.current) {
@@ -2893,7 +2895,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   if (!data) return <>
     <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
       onJiraImport={() => setModal('jiraImport')}
-      onBackdate={() => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT))}
       onLoadDemo={() => {
         import('./utils/demoProject.js').then(m => {
           const demo = m.buildDemoProject(_t);
@@ -3209,7 +3210,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
     { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
     { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
-    { id: 'backdate', icon: 'restart', labelKey: 'bd.command', keywords: ['backdate', 'rückdatieren', 'nachtragen', 'sprint', 'review'], group: 'file', groupLabel: fileGroup, run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)) },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
@@ -3217,7 +3217,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // Scenarios: one entry to start one, one per scenario to go there, and
     // while one is on screen the three things you do with it.
     { id: 'effective.pick', icon: 'calendar', labelKey: 'eff.cmd', group: 'scenario', groupLabel: _t('palette.group.scenario'),
-      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit'],
+      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit', 'backdate', 'rückdatieren', 'nachtragen', 'früher', 'earlier', 'zeitreise'],
       run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)) },
     { id: 'scenario.new', icon: 'branch', labelKey: 'scn.cmd.new', group: 'scenario', groupLabel: _t('palette.group.scenario'),
       keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
