@@ -9,16 +9,35 @@ import { migratedAutoHolidays, trimmedToHorizon, withDerivedTeamsAndStatuses } f
 import { futureProgressByRoot } from './app/futureProgress.js';
 import { overbookedIds, scheduleFiltered, scopeFiltered, withReviewedDone, withoutDone } from './app/viewTree.js';
 import { pushSnapshot } from './app/snapshots.js';
+import { TopBarFile } from './components/app/TopBarFile.jsx';
+import { ExternalChangeBanner } from './components/app/ExternalChangeBanner.jsx';
+import { TopBarState } from './components/app/TopBarState.jsx';
+import { ScenarioStrip } from './components/app/ScenarioStrip.jsx';
+import { TabBar } from './components/app/TabBar.jsx';
+import { FilterBar } from './components/app/FilterBar.jsx';
+import { SummaryPane } from './components/app/SummaryPane.jsx';
+import { BriefingPane } from './components/app/BriefingPane.jsx';
+import { PlanPane } from './components/app/PlanPane.jsx';
+import { TreeList } from './components/app/TreeList.jsx';
+import { TreeSide } from './components/app/TreeSide.jsx';
+import { GanttPane } from './components/app/GanttPane.jsx';
+import { RoadmapPane } from './components/app/RoadmapPane.jsx';
+import { NetPane } from './components/app/NetPane.jsx';
+import { OrderPane } from './components/app/OrderPane.jsx';
+import { ResourcesPane } from './components/app/ResourcesPane.jsx';
+import { EditModals } from './components/app/EditModals.jsx';
+import { ScenarioModals } from './components/app/ScenarioModals.jsx';
+import { ConfigModals } from './components/app/ConfigModals.jsx';
+import { ProjectModals } from './components/app/ProjectModals.jsx';
+import { OnboardingModals } from './components/app/OnboardingModals.jsx';
+import { buildPaletteCommands } from './app/paletteCommands.js';
 import {
   initialShell,
   loadLocalProject,
   isValidProjectData,
   scheduleIdleWrite,
   cancelIdleWrite,
-  activateOnPress,
-  TAB_ICONS,
   NEW_BADGE_TAB_IDS,
-  FILTERED_TABS,
   SEARCH_TABS,
   MATCH_STEP_TABS,
 } from './app/shell.js';
@@ -40,7 +59,6 @@ import {
   exportTodoPDF,
   exportWhatWhenPDF,
 } from './utils/exports.js';
-import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
@@ -62,7 +80,6 @@ import {
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { addDays, changeDates, compileMembers, dropChange, foldEdit, pruneChanges, resourcesAsOf } from './utils/effective.js';
-import { EffectiveBar, EffectiveProvider, EffectiveSwitch, EFFECTIVE_OPEN_EVENT } from './components/shared/Effective.jsx';
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
 import { leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
@@ -101,52 +118,22 @@ import {
   requestHandlePermission,
 } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
-import { withKey } from './utils/shortcuts.js';
-import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
+import { usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
-import { Tour } from './components/shared/Tour.jsx';
-import { ViewFilters } from './components/shared/ViewFilters.jsx';
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
-import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
-import { QuickEdit } from './components/views/QuickEdit.jsx';
-import { GanttView } from './components/views/GanttView.jsx';
-import { NetGraph } from './components/views/NetGraph.jsx';
-import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
-import { WorkOrderView, QUEUE_FOCUS_EVENT } from './components/views/WorkOrderView.jsx';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
-import { SumView } from './components/views/SumView.jsx';
-import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
-import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
-import { NodeModal } from './components/modals/NodeModal.jsx';
-import { AddModal } from './components/modals/AddModal.jsx';
-import { SettingsModal } from './components/modals/SettingsModal.jsx';
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
-import { EstimationWizard } from './components/modals/EstimationWizard.jsx';
-import { JiraExportModal } from './components/modals/JiraExportModal.jsx';
 import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
 import { buildImportedProject } from './utils/jiraImport.js';
-import { detectJiraFieldId } from './utils/jiraSync.js';
-import { ExportModal } from './components/modals/ExportModal.jsx';
-import { SnapshotModal } from './components/modals/SnapshotModal.jsx';
-import { SearchBox } from './components/shared/SearchBox.jsx';
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
-import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
-import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
-import { FileMenu } from './components/shared/FileMenu.jsx';
-import {
-  ScenarioBar,
-  ScenarioCompare,
-  ScenarioNotice,
-  ScenarioSwitch,
-  SCENARIO_NEW_EVENT,
-  useScenarioReport,
-} from './components/shared/Scenario.jsx';
+import { CommandPalette } from './components/shared/CommandPalette.jsx';
+import { KeyboardMap } from './components/shared/KeyboardMap.jsx';
+import { useScenarioReport } from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
-import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
 
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
@@ -3466,226 +3453,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // dead card and becomes one click of setup.
   };
 
-  // `/` command palette — every control displaced from the topbar (principle
-  // 4, tier 2), plus a jump to each mode and each view. One flat list; the
-  // palette itself groups by `group`/`groupLabel` and fuzzy-filters
-  // (src/utils/palette.js).
-  const fileGroup = _t('palette.group.file');
-  const jobGroup = _t('palette.group.jobs');
-  const viewGroup = _t('palette.group.views');
-  // `keywords` are the words you reach for when the label is in the other
-  // language, or is a sentence where your head holds one noun.
-  const JOBS = [
-    {
-      id: 'jira',
-      icon: 'swap',
-      labelKey: 'job.jira',
-      tab: 'briefing',
-      event: BRIEFING_JOB_EVENT,
-      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'],
-    },
-    {
-      id: 'vacation',
-      icon: 'beach',
-      labelKey: 'job.vacation',
-      tab: 'resources',
-      event: RES_JOB_EVENT,
-      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'],
-    },
-    {
-      id: 'onboard',
-      icon: 'plus',
-      labelKey: 'job.onboard',
-      tab: 'resources',
-      event: RES_JOB_EVENT,
-      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'],
-    },
-  ];
-  // `icon` and `key` are what make this list scannable rather than twenty
-  // rows of identical text; `key` is a shortcuts.js id, so the palette
-  // teaches the keystroke instead of hiding it.
-  const paletteCommands = [
-    { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
-    {
-      id: 'snapshots',
-      icon: 'undo',
-      labelKey: 'palette.snapshots',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => setModal('snapshots'),
-    },
-    {
-      id: 'saveAs',
-      icon: 'save',
-      labelKey: 'palette.saveAs',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'saveAs',
-      run: () => saveToFile(true),
-    },
-    // Export… means "go look at the Report view" — the export cards rendered
-    // as a normal view (ReportView.jsx). The old dialog stays one entry below
-    // so nothing that worked before stops working.
-    {
-      id: 'export',
-      icon: 'upload',
-      labelKey: 'palette.export',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'export',
-      run: () => setTab('report'),
-    },
-    {
-      id: 'exportDialog',
-      icon: 'doc',
-      labelKey: 'palette.exportDialog',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => setModal('export'),
-    },
-    {
-      id: 'jiraImport',
-      icon: 'download',
-      labelKey: 'ji.title',
-      group: 'file',
-      groupLabel: fileGroup,
-      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'],
-      run: () => setModal('jiraImport'),
-    },
-    {
-      id: 'newProject',
-      icon: 'sparkle',
-      labelKey: 'palette.newProject',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => {
-        if (!saved && !confirm(_t('app.newConfirm'))) return;
-        newProject();
-      },
-    },
-    { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    {
-      id: 'keymap',
-      icon: 'keyboard',
-      labelKey: 'km.title',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'keymap',
-      run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)),
-    },
-    // The jobs that come back every week. Each lands on the surface with the
-    // work already started — the paste box focused, the row created — rather
-    // than on the tab that contains it. A command that only changed tabs would
-    // duplicate the view jumps below it.
-    // Scenarios: one entry to start one, one per scenario to go there, and
-    // while one is on screen the three things you do with it.
-    {
-      id: 'effective.pick',
-      icon: 'calendar',
-      labelKey: 'eff.cmd',
-      group: 'scenario',
-      groupLabel: _t('palette.group.scenario'),
-      keywords: [
-        'stichtag',
-        'datum',
-        'ab',
-        'kapazität',
-        'capacity',
-        'effective',
-        'date',
-        'meeting',
-        'teilzeit',
-        'backdate',
-        'rückdatieren',
-        'nachtragen',
-        'früher',
-        'earlier',
-        'zeitreise',
-      ],
-      run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)),
-    },
-    {
-      id: 'scenario.new',
-      icon: 'branch',
-      labelKey: 'scn.cmd.new',
-      group: 'scenario',
-      groupLabel: _t('palette.group.scenario'),
-      keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
-      run: () => window.dispatchEvent(new Event(SCENARIO_NEW_EVENT)),
-    },
-    ...(scn
-      ? [
-          {
-            id: 'scenario.leave',
-            icon: 'undo',
-            labelKey: 'scn.cmd.leave',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['plan', 'verlassen', 'leave'],
-            run: () => scenarioSwitch(null),
-          },
-          {
-            id: 'scenario.compare',
-            icon: 'swap',
-            labelKey: 'scn.cmd.compare',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['vergleich', 'compare', 'diff'],
-            run: () => setModal('scenario'),
-          },
-          {
-            id: 'scenario.pdf',
-            icon: 'doc',
-            labelKey: 'scn.cmd.pdf',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['pdf', 'report', 'bericht', 'export', 'vergleich'],
-            run: () => exportScenarioPDF?.(),
-          },
-          {
-            id: 'scenario.apply',
-            icon: 'check',
-            labelKey: 'scn.cmd.apply',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['übernehmen', 'apply', 'merge'],
-            run: () => scenarioApply(),
-          },
-        ]
-      : []),
-    ...scenarioList
-      .filter(sc => sc.id !== scn?.id)
-      .map(sc => ({
-        id: `scenario.go.${sc.id}`,
-        icon: 'branch',
-        label: _t('scn.cmd.switch', sc.name),
-        labelKey: 'scn.cmd.switch',
-        group: 'scenario',
-        groupLabel: _t('palette.group.scenario'),
-        keywords: ['scenario', 'szenario'],
-        run: () => scenarioSwitch(sc.id),
-      })),
-    ...JOBS.map(j => ({
-      id: `job.${j.id}`,
-      icon: j.icon,
-      labelKey: j.labelKey,
-      keywords: j.keywords,
-      group: 'job',
-      groupLabel: jobGroup,
-      run: () => {
-        setTab(j.tab);
-        window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0);
-      },
-    })),
-    ...TAB_IDS.map(id => ({
-      id: `view.${id}`,
-      icon: TAB_ICONS[id] || 'chevronRight',
-      labelKey: `tab.${id}`,
-      group: 'view',
-      groupLabel: viewGroup,
-      run: () => setTab(id),
-    })),
-  ];
+  const paletteCommands = buildPaletteCommands({
+    _t,
+    saved,
+    scn,
+    scenarioList,
+    loadFromFile,
+    saveToFile,
+    setModal,
+    setTab,
+    newProject,
+    startTour,
+    scenarioSwitch,
+    scenarioApply,
+    exportScenarioPDF,
+  });
 
   return (
     <>
@@ -3695,511 +3477,222 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         <KeyboardMap />
         <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
           <div className="topbar">
-            {/* Not a button. It was "New project" — the same command the / palette
-          carries, on a target nobody aims at deliberately, discarding the
-          whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
-            {/* A host already says where you are — the Obsidian tab is labelled
-          with the plan's name. A wordmark on top of that is decoration. */}
-            {!isEmbedded() && (
-              <>
-                <span className="logo">
-                  Planr<span className="logo-dot">.</span>
-                </span>
-                <div className="vsep" />
-              </>
-            )}
-            {/* One shrinkable group for everything file/save related. The bar used
-          to wrap, and the save status changes its own text constantly
-          ("saving…" → "all saved · 14:32" → "unsaved · saving in 3s"), so on
-          a narrow window the whole header kept re-sorting itself while you
-          worked. Now this group absorbs the width instead: it truncates, the
-          controls on the right never move. */}
-            <span className="topbar-file">
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: 'var(--tx2)',
-                    maxWidth: 200,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {meta.name || 'Untitled'}
-                </span>
-                <span
-                  className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`}
-                  data-htip={
-                    !saved ? _t('app.save.dotUnsaved') : fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved')
-                  }
-                />
-              </span>
-              {fileName && (
-                <span
-                  style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {/* A host names the tab after the file already. Repeating it here
-            spends the narrowest part of the bar saying the same thing twice. */}
-                  {!hosted && fileName}
-                  {(!saved || !fileWriteOk || !fileSynced) && (
-                    <button
-                      className="btn btn-ghost btn-xs"
-                      onClick={() => saveToFile()}
-                      data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')}
-                      style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <Icon name="save" size={13} />
-                    </button>
-                  )}
-                </span>
-              )}
-              <label
-                data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')}
-                className="toggle"
-              >
-                <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
-                <span className="slider" />
-              </label>
-              {(() => {
-                // One status pill that summarises everything: file mounted? auto on? changes pending? countdown?
-                let text,
-                  color,
-                  tip,
-                  clickable = false;
-                if (!fileName) {
-                  text = 'no file mounted';
-                  color = 'var(--tx3)';
-                  tip = _t('app.save.pillNoFile');
-                } else if (!fileWriteOk) {
-                  text = 'click to re-mount';
-                  color = 'var(--am)';
-                  clickable = true;
-                  tip = _t('app.save.pillPermissionLost');
-                } else if (!autoSave) {
-                  text = lastSavedAt
-                    ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-                    : 'auto-save off';
-                  color = 'var(--tx3)';
-                  tip = _t('app.save.pillAutoOff');
-                } else if (saving) {
-                  text = 'saving…';
-                  color = 'var(--ac)';
-                  tip = _t('app.save.pillSaving');
-                } else if (fileSynced) {
-                  text = lastSavedAt
-                    ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
-                    : 'all saved';
-                  color = 'var(--gr)';
-                  tip = _t('app.save.pillAllSaved');
-                } else {
-                  text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
-                  color = 'var(--am)';
-                  tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
-                }
-                return (
-                  <span
-                    className="topbar-status"
-                    style={{
-                      fontSize: 11,
-                      color,
-                      cursor: clickable ? 'pointer' : 'default',
-                      userSelect: 'none',
-                      fontFamily: 'var(--mono)',
-                    }}
-                    data-htip={tip}
-                    onClick={() => {
-                      if (clickable) saveToFile(true);
-                    }}
-                  >
-                    {text}
-                  </span>
-                );
-              })()}
-            </span>
-            {/* The file changed on disk. Outside the group above on purpose: that
-          group gives up its width first and cuts off what does not fit, and
-          this is the one thing in the bar that asks for a decision. */}
-            {externalChangeAvailable && (
-              <span data-testid="external-change" className="topbar-external">
-                <button
-                  className="btn btn-xs"
-                  data-testid="external-reload"
-                  onClick={() => reloadFromFile()}
-                  data-htip={_t('app.save.reloadTip')}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                >
-                  <Icon name="restart" size={11} />
-                  {_t('app.save.externalChanged')}
-                </button>
-                <button
-                  className="btn btn-ghost btn-icon sm"
-                  data-testid="external-dismiss"
-                  onClick={() => setExternalChangeAvailable(false)}
-                  aria-label={_t('app.save.dismissExternalTip')}
-                  data-htip={_t('app.save.dismissExternalTip')}
-                >
-                  <Icon name="x" size={10} />
-                </button>
-              </span>
-            )}
-            {/* Which truth is on screen. Quiet while it is the plan, in the
-          scenario's colour the moment it is not. */}
-            {/* An earlier day is the real plan's past; a scenario has none. */}
-            {!past && (
-              <ScenarioSwitch
-                scenarios={scenarioList}
-                activeId={scn?.id || null}
-                activeChanges={scnChanges.length}
-                onSwitch={scenarioSwitch}
-                onCreate={name => scenarioCreate(name)}
-                onDuplicate={id => scenarioCreate('', { copyOf: id })}
-                onRename={scenarioRename}
-                onDelete={scenarioDelete}
-              />
-            )}
-            {/* Which day you are working on. Quiet while it is today. */}
-            <EffectiveSwitch
-              date={effDate}
-              dates={effDates}
-              onPick={pickEffDate}
-              onDropDate={effDropDate}
-              travel={!!past}
-              canTravel={!scn}
-            />
-            <button
-              className="btn btn-sec btn-xs"
-              data-testid="undo-btn"
-              onClick={handleUndo}
-              disabled={!canUndo(history)}
-              data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}
-            >
-              <Icon name="undo" size={13} />
-            </button>
-            <button
-              className="btn btn-sec btn-xs"
-              data-testid="redo-btn"
-              onClick={handleRedo}
-              disabled={!canRedo(history)}
-              data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}
-            >
-              <Icon name="redo" size={13} />
-            </button>
-            {/* "How far along is this?" is the question the Overview and the Report
-          are for. Anywhere else the same two numbers are a readout nobody
-          asked for, in the one row every view has to look at. */}
-            {(tab === 'summary' || tab === 'report') && (
-              <>
-                <div className="vsep" />
-                <span
-                  className="topbar-count"
-                  style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
-                  data-htip={_t('app.countTip')}
-                >
-                  {scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done
-                  {droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}
-                </span>
-              </>
-            )}
-            <div className="sp" />
-            {/* File operations have a visible home again. Phase 3 moved them all
-          into the palette; opening and saving a file is not a command you go
-          hunting for. The palette keeps every one of these entries — this is
-          a way in, not a replacement. */}
-            <FileMenu
+            <TopBarFile
+              SAVE_DEBOUNCE_MS={SAVE_DEBOUNCE_MS}
+              _t={_t}
+              autoSave={autoSave}
               fileName={fileName}
-              dirty={!saved}
-              onLoad={() => loadFromFile()}
-              onSaveAs={() => saveToFile(true)}
-              onSnapshots={() => setModal('snapshots')}
-              onExport={() => setTab('report')}
-              onNew={() => {
-                if (!saved && !confirm(_t('app.newConfirm'))) return;
-                newProject();
-              }}
-              onJiraImport={() => setModal('jiraImport')}
-              onBackdate={() => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT))}
+              fileSynced={fileSynced}
+              fileWriteOk={fileWriteOk}
+              hosted={hosted}
+              lastSavedAt={lastSavedAt}
+              meta={meta}
+              saveCountdown={saveCountdown}
+              saveToFile={saveToFile}
+              saved={saved}
+              saving={saving}
+              setAutoSave={setAutoSave}
             />
-            <button
-              className="btn btn-sec btn-sm"
-              data-htip={_t('palette.openTip')}
-              onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}
-            >
-              /
-            </button>
-            <button
-              className="btn btn-sec btn-sm"
-              onClick={() => setModal('settings')}
-              aria-label={_t('set.title')}
-              data-htip={withKey(_t('set.title'), 'settings')}
-            >
-              <Icon name="gear" size={14} />
-            </button>
-            <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
+            <ExternalChangeBanner
+              _t={_t}
+              externalChangeAvailable={externalChangeAvailable}
+              reloadFromFile={reloadFromFile}
+              setExternalChangeAvailable={setExternalChangeAvailable}
+            />
+            <TopBarState
+              _t={_t}
+              history={history}
+              droppedCount={droppedCount}
+              effDate={effDate}
+              effDates={effDates}
+              effDropDate={effDropDate}
+              fRef={fRef}
+              fileName={fileName}
+              handleRedo={handleRedo}
+              handleUndo={handleUndo}
+              leaves={leaves}
+              loadFile={loadFile}
+              loadFromFile={loadFromFile}
+              newProject={newProject}
+              past={past}
+              pickEffDate={pickEffDate}
+              saveToFile={saveToFile}
+              saved={saved}
+              scenarioCreate={scenarioCreate}
+              scenarioDelete={scenarioDelete}
+              scenarioList={scenarioList}
+              scenarioRename={scenarioRename}
+              scenarioSwitch={scenarioSwitch}
+              scheduled={scheduled}
+              scn={scn}
+              scnChanges={scnChanges}
+              setModal={setModal}
+              setTab={setTab}
+              tab={tab}
+            />
           </div>
-          {scn && (
-            <ScenarioBar
-              scenario={activeScenario}
-              changeCount={scnChanges.length}
-              comparison={scnComparison}
-              conflicts={scn.conflicts || 0}
-              onRename={scenarioRename}
-              onDuplicate={id => scenarioCreate('', { copyOf: id })}
-              onCompare={() => setModal('scenario')}
-              onApply={scenarioApply}
-              onDelete={scenarioDelete}
-              onLeave={() => scenarioSwitch(null)}
-            />
-          )}
-          <EffectiveBar
-            date={effDate}
-            count={effCount}
-            showResources={tab !== 'resources'}
-            onResources={() => setTab('resources')}
-            travel={!!past}
-            logStart={pastStart}
-            onDropDate={effDropDate}
-            onLeave={() => pickEffDate('')}
+          <ScenarioStrip
+            activeScenario={activeScenario}
+            effCount={effCount}
+            effDate={effDate}
+            effDropDate={effDropDate}
+            handleUndo={handleUndo}
+            past={past}
+            pastStart={pastStart}
+            pickEffDate={pickEffDate}
+            scenarioApply={scenarioApply}
+            scenarioCreate={scenarioCreate}
+            scenarioDelete={scenarioDelete}
+            scenarioRename={scenarioRename}
+            scenarioSwitch={scenarioSwitch}
+            scn={scn}
+            scnChanges={scnChanges}
+            scnComparison={scnComparison}
+            scnNotice={scnNotice}
+            setModal={setModal}
+            setScnNotice={setScnNotice}
+            setTab={setTab}
+            tab={tab}
           />
-          {!scn && <ScenarioNotice notice={scnNotice} onUndo={handleUndo} onClose={() => setScnNotice(null)} />}
-          <div className="tab-bar-wrap">
-            <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
-              {TABS.map(t => (
-                <div
-                  key={t.id}
-                  role="tab"
-                  aria-selected={tab === t.id}
-                  ref={tab === t.id ? activeTabRef : undefined}
-                  className={`tab${tab === t.id ? ' on' : ''}`}
-                  onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
-                  onClick={e => {
-                    if (e.detail === 0) setTab(t.id);
-                  }}
-                >
-                  {t.label}
-                  {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
-                </div>
-              ))}
-              <div style={{ flex: 1, minWidth: 16 }} />
-            </div>
-            <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
-            <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
-          </div>
-          {/* The filter bar belongs on every view these filters actually change —
-        it used to skip the Overview and the Roadmap, which both answer to the
-        archive filter and the Review/Plan window, so on those two a narrowed
-        view had no way to say so and no way to be widened again. Left out
-        only where nothing here has an effect: Resources, Holidays, Report. */}
-          {FILTERED_TABS.has(tab) && (
-            <div className="subtoolbar">
-              {/* Scope (project / team / person) moved into the filter popup, the
-          same move the quick filters made and for the same reason: as three
-          always-visible pickers they were ~380px of toolbar reading "Alle
-          Pakete / Alle Teams / Alle Personen" — three empty fields waiting
-          to be filled in, which is the opposite of what they are. Setting one
-          is rare; seeing that one is SET has to be unmissable, and that is
-          what the chips below do. */}
-              {/* The quick filters used to sit here as a row of six toggles, five of
-          them off at any given moment — a permanent bar of switched-off
-          switches, which is what a toolbar looks like when nobody asks what
-          it costs at rest. They live in the filter popup now, and come back
-          out here as chips the moment one is on: a filtered view has to say
-          so (principles.md, "a view is never the truth"), an unfiltered one
-          has nothing to say. */}
-              {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
-                <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
-                  {activeScopeChips.map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      className="chip on"
-                      data-testid={f.id}
-                      onClick={() => f.onToggle()}
-                      data-htip={_t('chip.clearTip', f.label)}
-                    >
-                      {f.label}
-                      <span aria-hidden="true" style={{ marginLeft: 5, opacity: 0.65 }}>
-                        <Icon name="x" size={9} />
-                      </span>
-                    </button>
-                  ))}
-                  {activeQuickFilters.map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      className="chip on"
-                      onClick={() => f.onToggle()}
-                      data-htip={_t('chip.clearTip', f.label)}
-                    >
-                      {f.label}
-                      <span aria-hidden="true" style={{ marginLeft: 5, opacity: 0.65 }}>
-                        <Icon name="x" size={9} />
-                      </span>
-                    </button>
-                  ))}
-                </span>
-              )}
-              {/* Review/Plan picker — sprint-review diff window + planning horizon.
-          Not a generic filter; it overlays the data with a time window. */}
-              <ViewFilters
-                quickFilters={quickFilters}
-                scope={{ label: _t('vf.scope'), fields: scopeFields }}
-                sinceDays={sinceDays}
-                persistSince={persistSince}
-                sinceDate={sinceDate}
-                reviewPaused={!!scn && !!sinceDays}
-                diffOnlyChanged={diffOnlyChanged}
-                persistDiffOnlyChanged={persistDiffOnlyChanged}
-                hasHistory={(data?.historyEvents || []).length > 0}
-                horizonDays={horizonDays}
-                persistHorizon={persistHorizon}
-                horizonEnd={horizonEnd}
-                horizonOnlyPlanned={horizonOnlyPlanned}
-                persistHorizonOnly={persistHorizonOnly}
-                hideDone={hideDone}
-                archive={archive}
-                showArchived={showArchived}
-                setShowArchived={setShowArchived}
-                archiveDays={archiveDays}
-                setArchiveDays={setArchiveDays}
-              />
-              <div style={{ flex: 1 }} />
-              {SEARCH_TABS.has(tab) && (
-                <SearchBox
-                  searchRef={searchRef}
-                  onCommit={v => setSearch(v)}
-                  onResetIdx={() => setSearchIdx(0)}
-                  onPrev={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i - 1) : undefined}
-                  onNext={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i + 1) : undefined}
-                  // Carries the committed query so the tree can wait for ITS rows to be
-                  // that query's before moving the cursor — dispatching a bare event
-                  // would land on the first row of the previous result.
-                  onGoToResults={
-                    tab === 'tree' || tab === 'order'
-                      ? q =>
-                          window.dispatchEvent(
-                            new CustomEvent(tab === 'tree' ? TREE_FOCUS_EVENT : QUEUE_FOCUS_EVENT, { detail: { query: q } }),
-                          )
-                      : undefined
-                  }
-                  committedSearch={search}
-                />
-              )}
-              {tab === 'tree' && (
-                <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>
-                  {_t('tv.addItem')}
-                </button>
-              )}
-            </div>
-          )}
+          <TabBar
+            TABS={TABS}
+            _t={_t}
+            activeTabRef={activeTabRef}
+            setTab={setTab}
+            syncTabFades={syncTabFades}
+            tab={tab}
+            tabBarRef={tabBarRef}
+            tabFades={tabFades}
+          />
+          <FilterBar
+            _t={_t}
+            activeQuickFilters={activeQuickFilters}
+            activeScopeChips={activeScopeChips}
+            archive={archive}
+            archiveDays={archiveDays}
+            data={data}
+            diffOnlyChanged={diffOnlyChanged}
+            hideDone={hideDone}
+            horizonDays={horizonDays}
+            horizonEnd={horizonEnd}
+            horizonOnlyPlanned={horizonOnlyPlanned}
+            persistDiffOnlyChanged={persistDiffOnlyChanged}
+            persistHorizon={persistHorizon}
+            persistHorizonOnly={persistHorizonOnly}
+            persistSince={persistSince}
+            quickFilters={quickFilters}
+            scn={scn}
+            scopeFields={scopeFields}
+            search={search}
+            searchRef={searchRef}
+            setArchiveDays={setArchiveDays}
+            setModal={setModal}
+            setSearch={setSearch}
+            setSearchIdx={setSearchIdx}
+            setShowArchived={setShowArchived}
+            showArchived={showArchived}
+            sinceDate={sinceDate}
+            sinceDays={sinceDays}
+            tab={tab}
+          />
           <div className="main">
             {visitedTabs.has('summary') && (
-              <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}>
-                <Frozen active={tab === 'summary'}>
-                  <SumView
-                    projectWaitsOf={projectWaitsOf}
-                    tree={tree}
-                    scheduled={scheduled}
-                    goals={goals}
-                    members={members}
-                    teams={teams}
-                    cpSet={cpSet}
-                    goalPaths={goalPaths}
-                    stats={stats}
-                    confidence={confidence}
-                    historyEvents={data?.historyEvents || []}
-                    sinceDays={sinceDays}
-                    persistSince={persistSince}
-                    sinceDate={sinceDate}
-                    diff={diff}
-                    scenarioShifts={scnShifts}
-                    diffOnlyChanged={diffOnlyChanged}
-                    persistDiffOnlyChanged={persistDiffOnlyChanged}
-                    horizonDays={horizonDays}
-                    persistHorizon={persistHorizon}
-                    horizonEnd={horizonEnd}
-                    horizonIds={horizonIds}
-                    horizonOnlyPlanned={horizonOnlyPlanned}
-                    persistHorizonOnly={persistHorizonOnly}
-                    futureProgressByRootId={futureProgressByRootId}
-                    workDays={workDays}
-                    holidayIso={new Set(Object.keys(hm || {}))}
-                    roadmapAssignment={data?.roadmapAssignment || null}
-                    onAssignmentChange={onRoadmapAssignmentChange}
-                    archive={archive}
-                    showArchived={showArchived}
-                    setShowArchived={setShowArchived}
-                    archiveDays={archiveDays}
-                    setArchiveDays={setArchiveDays}
-                    onNavigate={onSumNavigate}
-                    onOpenItem={onOpenItemDialog}
-                    onExportTodo={onSumExportTodo}
-                  />
-                </Frozen>
-              </div>
+              <SummaryPane
+                archive={archive}
+                archiveDays={archiveDays}
+                confidence={confidence}
+                cpSet={cpSet}
+                data={data}
+                diff={diff}
+                diffOnlyChanged={diffOnlyChanged}
+                futureProgressByRootId={futureProgressByRootId}
+                goalPaths={goalPaths}
+                goals={goals}
+                hm={hm}
+                horizonDays={horizonDays}
+                horizonEnd={horizonEnd}
+                horizonIds={horizonIds}
+                horizonOnlyPlanned={horizonOnlyPlanned}
+                members={members}
+                onOpenItemDialog={onOpenItemDialog}
+                onRoadmapAssignmentChange={onRoadmapAssignmentChange}
+                onSumExportTodo={onSumExportTodo}
+                onSumNavigate={onSumNavigate}
+                persistDiffOnlyChanged={persistDiffOnlyChanged}
+                persistHorizon={persistHorizon}
+                persistHorizonOnly={persistHorizonOnly}
+                persistSince={persistSince}
+                projectWaitsOf={projectWaitsOf}
+                scheduled={scheduled}
+                scnShifts={scnShifts}
+                setArchiveDays={setArchiveDays}
+                setShowArchived={setShowArchived}
+                showArchived={showArchived}
+                sinceDate={sinceDate}
+                sinceDays={sinceDays}
+                stats={stats}
+                tab={tab}
+                teams={teams}
+                tree={tree}
+                workDays={workDays}
+              />
             )}
             {visitedTabs.has('briefing') && (
-              <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}>
-                <Frozen active={tab === 'briefing'}>
-                  <BriefingView
-                    tree={visibleTreeForViews}
-                    scheduled={viewScheduled}
-                    vacations={vacations}
-                    members={members}
-                    teams={teams}
-                    stats={viewStats}
-                    confidence={confidence}
-                    cpSet={viewCpSet}
-                    cpLabels={cpLabels}
-                    rootFilter={rootFilter}
-                    teamFilter={teamFilter}
-                    personFilter={personFilter}
-                    hideDone={hideDone}
-                    planTree={tree}
-                    horizonIds={horizonFilterSet}
-                    diffChangedIds={diffFilterSet}
-                    diffVisibleIds={diffVisibleSet}
-                    customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-                    onOpenItem={onOpenItemDialog}
-                    onUpdate={onBriefingUpdate}
-                    onApplyStatus={onJiraApplyStatus}
-                    onExportTodo={onSumExportTodo}
-                  />
-                </Frozen>
-              </div>
+              <BriefingPane
+                confidence={confidence}
+                cpLabels={cpLabels}
+                data={data}
+                diffFilterSet={diffFilterSet}
+                diffVisibleSet={diffVisibleSet}
+                hideDone={hideDone}
+                horizonFilterSet={horizonFilterSet}
+                members={members}
+                onBriefingUpdate={onBriefingUpdate}
+                onJiraApplyStatus={onJiraApplyStatus}
+                onOpenItemDialog={onOpenItemDialog}
+                onSumExportTodo={onSumExportTodo}
+                personFilter={personFilter}
+                rootFilter={rootFilter}
+                tab={tab}
+                teamFilter={teamFilter}
+                teams={teams}
+                tree={tree}
+                vacations={vacations}
+                viewCpSet={viewCpSet}
+                viewScheduled={viewScheduled}
+                viewStats={viewStats}
+                visibleTreeForViews={visibleTreeForViews}
+              />
             )}
             {visitedTabs.has('plan') && (
-              <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}>
-                <Frozen active={tab === 'plan'}>
-                  <PlanReview
-                    tree={visibleTreeForViews}
-                    scheduled={viewScheduled}
-                    members={members}
-                    teams={teams}
-                    weeks={weeks}
-                    vacations={vacations}
-                    meetingPlans={data?.meetingPlans || []}
-                    confidence={confidence}
-                    confReasons={confReasons}
-                    cpSet={viewCpSet}
-                    cpLabels={cpLabels}
-                    cpPaths={cpData.rootPaths}
-                    stats={viewStats}
-                    rootFilter={rootFilter}
-                    teamFilter={teamFilter}
-                    personFilter={personFilter}
-                    hideDone={hideDone}
-                    horizonIds={horizonFilterSet}
-                    diffChangedIds={diffFilterSet}
-                    diffVisibleIds={diffVisibleSet}
-                    onOpenItem={onOpenItemDialog}
-                    onUpdate={onPlanReviewUpdate}
-                    planTree={tree}
-                    reschedule={reschedule}
-                    onApplyOrder={onApplyOrder}
-                  />
-                </Frozen>
-              </div>
+              <PlanPane
+                confReasons={confReasons}
+                confidence={confidence}
+                cpData={cpData}
+                cpLabels={cpLabels}
+                data={data}
+                diffFilterSet={diffFilterSet}
+                diffVisibleSet={diffVisibleSet}
+                hideDone={hideDone}
+                horizonFilterSet={horizonFilterSet}
+                members={members}
+                onApplyOrder={onApplyOrder}
+                onOpenItemDialog={onOpenItemDialog}
+                onPlanReviewUpdate={onPlanReviewUpdate}
+                personFilter={personFilter}
+                reschedule={reschedule}
+                rootFilter={rootFilter}
+                tab={tab}
+                teamFilter={teamFilter}
+                teams={teams}
+                tree={tree}
+                vacations={vacations}
+                viewCpSet={viewCpSet}
+                viewScheduled={viewScheduled}
+                viewStats={viewStats}
+                visibleTreeForViews={visibleTreeForViews}
+                weeks={weeks}
+              />
             )}
             {/* The tree pane was the one pane left outside Frozen. It is the most
           expensive of them all — 298 rows on a real plan — so it was the one
@@ -4208,357 +3701,231 @@ export default function App({ mount = null, onFileChange = null } = {}) {
             {visitedTabs.has('tree') && (
               <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
                 <Frozen active={tab === 'tree'}>
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    {!visibleTreeForViews.length ? (
-                      <div className="empty" style={{ marginTop: 60 }}>
-                        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}>
-                          <Icon name="list" size={32} strokeWidth={1.4} />
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>
-                          {hideDone && tree.length ? 'No visible open items' : 'No items yet'}
-                        </div>
-                        <button className="btn btn-pri" onClick={() => setModal('add')}>
-                          + Add first item
-                        </button>
-                      </div>
-                    ) : (
-                      <TreeView
-                        changedIds={scnChangedIds}
-                        tree={visibleTreeForViews}
-                        selected={selected}
-                        multiSel={multiSel}
-                        onSelect={onTreeSelect}
-                        showIds={showTreeIds}
-                        onFullEdit={node => {
-                          setMN(node);
-                          setModal('node');
-                        }}
-                        editorInDialog={editorAsDialog}
-                        search={deferredSearch}
-                        teamFilter={teamFilter}
-                        rootFilter={rootFilter}
-                        personFilter={personFilter}
-                        stats={stats}
-                        teams={teams}
-                        members={members}
-                        scheduled={scheduled}
-                        cpSet={cpSet}
-                        cpLabels={cpLabels}
-                        customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-                        sizes={data.sizes || []}
-                        historyEvents={data?.historyEvents || []}
-                        sinceDays={sinceDays}
-                        persistSince={persistSince}
-                        sinceDate={sinceDate}
-                        diff={diff}
-                        onlyChanged={diffOnlyChanged}
-                        horizonIds={horizonIds}
-                        horizonEnd={horizonEnd}
-                        horizonOnlyPlanned={horizonOnlyPlanned}
-                        roadmapAssignment={data?.roadmapAssignment || null}
-                        onDelete={onTreeDelete}
-                        onTaskUpdate={onGanttTaskUpdate}
-                        onClearSelection={() => setMultiSel(new Set())}
-                        onOpenBulkEdit={() => setBulkEditModalOpen(true)}
-                        onMove={onTreeMove}
-                        onCommand={onTreeCommand}
-                        onCommandMany={onTreeCommandMany}
-                        onDropRows={onTreeDropRows}
-                        onSelectAll={onTreeSelectAll}
-                        onRevealHidden={onTreeRevealHidden}
-                        onInsertAfter={onTreeInsertAfter}
-                        onInsertChild={onTreeInsertChild}
-                        onBulkDelete={onTreeBulkDelete}
-                        onPasteRows={onTreePasteRows}
-                      />
-                    )}
-                  </div>
-                  {selected && !editorAsDialog && (
-                    <div className="side fade">
-                      {multiSel.size > 0 ? (
-                        <>
-                          <div className="side-hdr">
-                            <h3>{multiSel.size} items selected</h3>
-                            <button
-                              className="btn btn-sec btn-xs"
-                              onClick={() => setBulkEditModalOpen(true)}
-                              data-htip={_t('bulk.openModalTip')}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                            >
-                              <Icon name="maximize" size={11} />
-                              {_t('bulk.openModal')}
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-icon sm"
-                              onClick={() => {
-                                setSel(null);
-                                setMultiSel(new Set());
-                              }}
-                            >
-                              <Icon name="x" size={13} />
-                            </button>
-                          </div>
-                          {renderBulkEditBody()}
-                        </>
-                      ) : (
-                        <>
-                          <div className="side-hdr">
-                            <h3>{selected.id}</h3>
-                            <button
-                              className="btn btn-ghost btn-icon sm"
-                              data-htip={_t('nm.fullEditTip')}
-                              onClick={() => {
-                                setMN(selected);
-                                setModal('node');
-                              }}
-                            >
-                              <Icon name="maximize" size={13} />
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-icon sm"
-                              data-htip={_t('set.dockDialogTip')}
-                              data-testid="editor-dock-dialog"
-                              onClick={() => {
-                                setEditorDock('dialog');
-                                setMN(selected);
-                                setModal('node');
-                              }}
-                            >
-                              <Icon name="panelLeft" size={13} />
-                            </button>
-                            <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>
-                              <Icon name="x" size={13} />
-                            </button>
-                          </div>
-                          <div className="side-body">
-                            <QuickEdit
-                              node={selected}
-                              tree={tree}
-                              members={members}
-                              teams={teams}
-                              taskTemplates={data.taskTemplates || []}
-                              sizes={data.sizes || []}
-                              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-                              scheduled={scheduled}
-                              cpSet={cpSet}
-                              cpLabels={cpLabels}
-                              stats={stats}
-                              confidence={confidence}
-                              confReasons={confReasons}
-                              workDays={workDays}
-                              holidayIso={new Set(Object.keys(hm || {}))}
-                              onUpdate={updateNode}
-                              onDelete={id => {
-                                deleteNode(id);
-                                setSel(null);
-                              }}
-                              onEstimate={n => {
-                                setMN(n);
-                                setModal('estimate');
-                              }}
-                              tab={sideTab}
-                              onTabChange={setSideTab}
-                              onDuplicate={id => {
-                                const newId = duplicateNode(id);
-                                if (newId)
-                                  setTimeout(() => {
-                                    const n = tree.find(r => r.id === newId);
-                                    if (n) setSel(n);
-                                  }, 50);
-                              }}
-                              onAddDep={addDep}
-                              onRemoveDep={removeDep}
-                              onOpenItem={id => {
-                                const n = tree.find(r => r.id === id);
-                                if (n) setSel(n);
-                              }}
-                              historyEvents={data?.historyEvents || []}
-                              viewDay={past?.day || ''}
-                              onHistoryChange={events => mutate(d => ({ ...d, historyEvents: events }))}
-                              onSplitHandoff={splitHandoff}
-                              onSplitTaskAtProgress={splitTaskAtProgress}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <TreeList
+                    cpLabels={cpLabels}
+                    cpSet={cpSet}
+                    data={data}
+                    deferredSearch={deferredSearch}
+                    diff={diff}
+                    diffOnlyChanged={diffOnlyChanged}
+                    editorAsDialog={editorAsDialog}
+                    hideDone={hideDone}
+                    horizonEnd={horizonEnd}
+                    horizonIds={horizonIds}
+                    horizonOnlyPlanned={horizonOnlyPlanned}
+                    members={members}
+                    multiSel={multiSel}
+                    onGanttTaskUpdate={onGanttTaskUpdate}
+                    onTreeBulkDelete={onTreeBulkDelete}
+                    onTreeCommand={onTreeCommand}
+                    onTreeCommandMany={onTreeCommandMany}
+                    onTreeDelete={onTreeDelete}
+                    onTreeDropRows={onTreeDropRows}
+                    onTreeInsertAfter={onTreeInsertAfter}
+                    onTreeInsertChild={onTreeInsertChild}
+                    onTreeMove={onTreeMove}
+                    onTreePasteRows={onTreePasteRows}
+                    onTreeRevealHidden={onTreeRevealHidden}
+                    onTreeSelect={onTreeSelect}
+                    onTreeSelectAll={onTreeSelectAll}
+                    persistSince={persistSince}
+                    personFilter={personFilter}
+                    rootFilter={rootFilter}
+                    scheduled={scheduled}
+                    scnChangedIds={scnChangedIds}
+                    selected={selected}
+                    setBulkEditModalOpen={setBulkEditModalOpen}
+                    setMN={setMN}
+                    setModal={setModal}
+                    setMultiSel={setMultiSel}
+                    showTreeIds={showTreeIds}
+                    sinceDate={sinceDate}
+                    sinceDays={sinceDays}
+                    stats={stats}
+                    teamFilter={teamFilter}
+                    teams={teams}
+                    tree={tree}
+                    visibleTreeForViews={visibleTreeForViews}
+                  />
+                  <TreeSide
+                    _t={_t}
+                    addDep={addDep}
+                    confReasons={confReasons}
+                    confidence={confidence}
+                    cpLabels={cpLabels}
+                    cpSet={cpSet}
+                    data={data}
+                    deleteNode={deleteNode}
+                    duplicateNode={duplicateNode}
+                    editorAsDialog={editorAsDialog}
+                    hm={hm}
+                    members={members}
+                    multiSel={multiSel}
+                    mutate={mutate}
+                    past={past}
+                    removeDep={removeDep}
+                    renderBulkEditBody={renderBulkEditBody}
+                    scheduled={scheduled}
+                    selected={selected}
+                    setBulkEditModalOpen={setBulkEditModalOpen}
+                    setEditorDock={setEditorDock}
+                    setMN={setMN}
+                    setModal={setModal}
+                    setMultiSel={setMultiSel}
+                    setSel={setSel}
+                    setSideTab={setSideTab}
+                    sideTab={sideTab}
+                    splitHandoff={splitHandoff}
+                    splitTaskAtProgress={splitTaskAtProgress}
+                    stats={stats}
+                    teams={teams}
+                    tree={tree}
+                    updateNode={updateNode}
+                    workDays={workDays}
+                  />
                 </Frozen>
               </div>
             )}
             {visitedTabs.has('gantt') && (
-              <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
-                <Frozen active={tab === 'gantt'}>
-                  <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
-                    <GanttView
-                      baseline={scnBaseline}
-                      scheduled={activeScheduled}
-                      weeks={weeks}
-                      goals={viewGoals}
-                      teams={teams}
-                      members={members}
-                      vacations={vacations}
-                      meetingPlans={data.meetingPlans || []}
-                      cpSet={viewCpSet}
-                      cpLabels={cpLabels}
-                      cpEdges={viewCpEdges}
-                      tree={activeTree}
-                      hideDone={hideDone}
-                      search={deferredSearch}
-                      searchIdx={searchIdx}
-                      workDays={workDays}
-                      planStart={planStart}
-                      confidence={confidence}
-                      confReasons={confReasons}
-                      rootFilter={rootFilter}
-                      teamFilter={teamFilter}
-                      personFilter={personFilter}
-                      diffDoneIds={diffDoneSet}
-                      diffProgressedIds={diffProgressedSet}
-                      diffPastLeafState={diff?.pastLeafState}
-                      sinceDate={sinceDate}
-                      onlyChanged={diffOnlyChanged}
-                      horizonIds={horizonIds}
-                      horizonEnd={horizonEnd}
-                      horizonOnlyPlanned={horizonOnlyPlanned}
-                      onBarClick={onGanttBarClick}
-                      onSeqUpdate={onGanttSeqUpdate}
-                      onExtendViewStart={onGanttExtendViewStart}
-                      onTaskUpdate={onGanttTaskUpdate}
-                      onRemoveDep={onGanttRemoveDep}
-                      onAddDep={onGanttAddDep}
-                      onReorderSibling={onGanttReorderSibling}
-                      personQueues={personQueues}
-                      onOpenBulkEdit={ids => {
-                        if (ids) setMultiSel(new Set(ids));
-                        setBulkEditModalOpen(true);
-                      }}
-                    />
-                  </div>
-                </Frozen>
-              </div>
+              <GanttPane
+                activeScheduled={activeScheduled}
+                activeTree={activeTree}
+                confReasons={confReasons}
+                confidence={confidence}
+                cpLabels={cpLabels}
+                data={data}
+                deferredSearch={deferredSearch}
+                diff={diff}
+                diffDoneSet={diffDoneSet}
+                diffOnlyChanged={diffOnlyChanged}
+                diffProgressedSet={diffProgressedSet}
+                hideDone={hideDone}
+                horizonEnd={horizonEnd}
+                horizonIds={horizonIds}
+                horizonOnlyPlanned={horizonOnlyPlanned}
+                members={members}
+                onGanttAddDep={onGanttAddDep}
+                onGanttBarClick={onGanttBarClick}
+                onGanttExtendViewStart={onGanttExtendViewStart}
+                onGanttRemoveDep={onGanttRemoveDep}
+                onGanttReorderSibling={onGanttReorderSibling}
+                onGanttSeqUpdate={onGanttSeqUpdate}
+                onGanttTaskUpdate={onGanttTaskUpdate}
+                personFilter={personFilter}
+                personQueues={personQueues}
+                planStart={planStart}
+                rootFilter={rootFilter}
+                scnBaseline={scnBaseline}
+                searchIdx={searchIdx}
+                setBulkEditModalOpen={setBulkEditModalOpen}
+                setMultiSel={setMultiSel}
+                sinceDate={sinceDate}
+                tab={tab}
+                teamFilter={teamFilter}
+                teams={teams}
+                vacations={vacations}
+                viewCpEdges={viewCpEdges}
+                viewCpSet={viewCpSet}
+                viewGoals={viewGoals}
+                weeks={weeks}
+                workDays={workDays}
+              />
             )}
-            {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
-          per-project roadmap, a TAB of its own beside the Gantt rather than a
-          panel hanging off it. It was a chip in the filter row opening a
-          380px sidebar, and nobody found it: a view is not a filter, and the
-          ask was for a roadmap *next to* the Gantt, in the same style. Same
-          data scope as the chart it sits beside (activeTree/activeScheduled:
-          rootFilter/team/person + archive applied). */}
             {visitedTabs.has('roadmap') && (
-              <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
-                <RoadmapLens
-                  tree={activeTree}
-                  scheduled={activeScheduled}
-                  stats={stats}
-                  roadmapAssignment={data?.roadmapAssignment || null}
-                  teams={teams}
-                  members={members}
-                  cpSet={viewCpSet}
-                  cpLabels={cpLabels}
-                  focusId={ganttRoadmapFocus}
-                  onFocusChange={setGanttRoadmapFocus}
-                  diffDoneIds={diffDoneSet}
-                  diffProgressedIds={diffProgressedSet}
-                  sinceDate={sinceDate}
-                  onlyChanged={diffOnlyChanged}
-                  onOpenItem={onOpenItemDialog}
-                  projectWaitsOf={projectWaitsOf}
-                  onMoveBehind={onMoveBehind}
-                />
-              </div>
+              <RoadmapPane
+                activeScheduled={activeScheduled}
+                activeTree={activeTree}
+                cpLabels={cpLabels}
+                data={data}
+                diffDoneSet={diffDoneSet}
+                diffOnlyChanged={diffOnlyChanged}
+                diffProgressedSet={diffProgressedSet}
+                ganttRoadmapFocus={ganttRoadmapFocus}
+                members={members}
+                onMoveBehind={onMoveBehind}
+                onOpenItemDialog={onOpenItemDialog}
+                projectWaitsOf={projectWaitsOf}
+                setGanttRoadmapFocus={setGanttRoadmapFocus}
+                sinceDate={sinceDate}
+                stats={stats}
+                tab={tab}
+                teams={teams}
+                viewCpSet={viewCpSet}
+              />
             )}
             {visitedTabs.has('net') && (
-              <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}>
-                <Frozen active={tab === 'net'}>
-                  <NetGraph
-                    tree={visibleTreeForViews}
-                    scheduled={viewScheduled}
-                    teams={teams}
-                    members={members}
-                    cpSet={viewCpSet}
-                    cpLabels={cpLabels}
-                    stats={viewStats}
-                    search={deferredSearch}
-                    searchIdx={searchIdx}
-                    isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
-                    diffDoneIds={diffDoneSet}
-                    diffProgressedIds={diffProgressedSet}
-                    onlyChanged={diffOnlyChanged}
-                    horizonIds={horizonIds}
-                    horizonOnlyPlanned={horizonOnlyPlanned}
-                    onNodeClick={onNetNodeClick}
-                    onPickRoot={id => {
-                      setRootFilter(id);
-                      setSearchIdx(0);
-                    }}
-                    onAddNode={onNetAddNode}
-                    onDeleteNode={onNetDeleteNode}
-                  />
-                </Frozen>
-              </div>
+              <NetPane
+                archive={archive}
+                cpLabels={cpLabels}
+                deferredSearch={deferredSearch}
+                diffDoneSet={diffDoneSet}
+                diffOnlyChanged={diffOnlyChanged}
+                diffProgressedSet={diffProgressedSet}
+                hideDone={hideDone}
+                horizonIds={horizonIds}
+                horizonOnlyPlanned={horizonOnlyPlanned}
+                members={members}
+                onNetAddNode={onNetAddNode}
+                onNetDeleteNode={onNetDeleteNode}
+                onNetNodeClick={onNetNodeClick}
+                personFilter={personFilter}
+                rootFilter={rootFilter}
+                searchIdx={searchIdx}
+                setRootFilter={setRootFilter}
+                setSearchIdx={setSearchIdx}
+                showArchived={showArchived}
+                tab={tab}
+                teamFilter={teamFilter}
+                teams={teams}
+                viewCpSet={viewCpSet}
+                viewScheduled={viewScheduled}
+                viewStats={viewStats}
+                visibleTreeForViews={visibleTreeForViews}
+              />
             )}
-            {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
-          This view runs its own three filters, and it has to see the work the
-          schedule GAVE somebody before it can narrow to them; the pre-filtered
-          tree matches on `assign`, so filtering to a person with nothing
-          hand-assigned emptied the screen. */}
             {visitedTabs.has('order') && (
-              <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}>
-                <Frozen active={tab === 'order'}>
-                  <WorkOrderView
-                    tree={activeTree}
-                    members={members}
-                    teams={teams}
-                    scheduled={scheduled}
-                    sizes={data?.sizes || []}
-                    rootFilter={rootFilter}
-                    teamFilter={teamFilter}
-                    personFilter={personFilter}
-                    search={deferredSearch}
-                    personQueues={personQueues}
-                    onQueueReorder={onQueueReorder}
-                    onQueueReset={onQueueReset}
-                    onTaskUpdate={onGanttTaskUpdate}
-                    onFullEdit={node => {
-                      setMN(node);
-                      setModal('node');
-                    }}
-                    onOpenBulkEdit={ids => {
-                      setMultiSel(new Set(ids));
-                      setBulkEditModalOpen(true);
-                    }}
-                  />
-                </Frozen>
-              </div>
+              <OrderPane
+                activeTree={activeTree}
+                data={data}
+                deferredSearch={deferredSearch}
+                members={members}
+                onGanttTaskUpdate={onGanttTaskUpdate}
+                onQueueReorder={onQueueReorder}
+                onQueueReset={onQueueReset}
+                personFilter={personFilter}
+                personQueues={personQueues}
+                rootFilter={rootFilter}
+                scheduled={scheduled}
+                setBulkEditModalOpen={setBulkEditModalOpen}
+                setMN={setMN}
+                setModal={setModal}
+                setMultiSel={setMultiSel}
+                tab={tab}
+                teamFilter={teamFilter}
+                teams={teams}
+              />
             )}
             {visitedTabs.has('resources') && (
-              <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}>
-                <Frozen active={tab === 'resources'}>
-                  <EffectiveProvider value={effContext}>
-                    <ResView
-                      members={resLens.members}
-                      teams={resLens.teams}
-                      vacations={vacations}
-                      meetingPlans={resLens.meetingPlans}
-                      tree={tree}
-                      scheduled={scheduled}
-                      weeks={weeks}
-                      teamFilter={teamFilter}
-                      personFilter={personFilter}
-                      onMeetingPlansUpd={onResMeetingPlansUpd}
-                      onUpd={onResMemberUpd}
-                      onAdd={onResMemberAdd}
-                      onClone={onResMemberClone}
-                      onDel={onResMemberDel}
-                      onVac={onResVacUpd}
-                      onTeamUpd={onResTeamUpd}
-                      onTeamAdd={onResTeamAdd}
-                      onTeamDel={onResTeamDel}
-                    />
-                  </EffectiveProvider>
-                </Frozen>
-              </div>
+              <ResourcesPane
+                effContext={effContext}
+                onResMeetingPlansUpd={onResMeetingPlansUpd}
+                onResMemberAdd={onResMemberAdd}
+                onResMemberClone={onResMemberClone}
+                onResMemberDel={onResMemberDel}
+                onResMemberUpd={onResMemberUpd}
+                onResTeamAdd={onResTeamAdd}
+                onResTeamDel={onResTeamDel}
+                onResTeamUpd={onResTeamUpd}
+                onResVacUpd={onResVacUpd}
+                personFilter={personFilter}
+                resLens={resLens}
+                scheduled={scheduled}
+                tab={tab}
+                teamFilter={teamFilter}
+                tree={tree}
+                vacations={vacations}
+                weeks={weeks}
+              />
             )}
             {visitedTabs.has('holidays') && (
               <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}>
@@ -4575,270 +3942,107 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               </div>
             )}
           </div>
-          {modal === 'node' && modalNode && (
-            <NodeModal
-              node={tree.find(r => r.id === modalNode.id) || modalNode}
-              tree={tree}
-              members={members}
-              teams={teams}
-              taskTemplates={data.taskTemplates || []}
-              sizes={data.sizes || []}
-              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-              scheduled={scheduled}
-              cpSet={cpSet}
-              cpLabels={cpLabels}
-              stats={stats}
-              confidence={confidence}
-              confReasons={confReasons}
-              historyEvents={data?.historyEvents || []}
-              viewDay={past?.day || ''}
-              focusRequest={modalFocus}
-              onClose={() => {
-                setModal(null);
-                setMN(null);
-                setModalFocus(null);
-              }}
-              onUpdate={updateNode}
-              onDelete={deleteNode}
-              onEstimate={n => {
-                setMN(n);
-                setModal('estimate');
-              }}
-              onDockSide={
-                editorAsDialog
-                  ? () => {
-                      setEditorDock('side');
-                      setModal(null);
-                      setMN(null);
-                      setModalFocus(null);
-                    }
-                  : undefined
-              }
-              onDuplicate={id => {
-                const newId = duplicateNode(id);
-                if (newId) {
-                  setModal(null);
-                  setMN(null);
-                  setModalFocus(null);
-                  setTimeout(() => {
-                    const n = tree.find(r => r.id === newId) || { id: newId };
-                    setSel(n);
-                  }, 50);
-                }
-              }}
-              onMove={(id, newParentId) => {
-                const newId = moveNode(id, newParentId);
-                if (newId) {
-                  setMN({ id: newId });
-                  setModalFocus(null);
-                  setTimeout(() => {
-                    const n = { ...modalNode, id: newId };
-                    setSel(n);
-                  }, 50);
-                }
-              }}
-              onSplitHandoff={splitHandoff}
-              onSplitTaskAtProgress={splitTaskAtProgress}
-              onHistoryChange={events => {
-                mutate(d => ({ ...d, historyEvents: events }));
-              }}
-              onNavigate={id => {
-                const target = tree.find(r => r.id === id);
-                if (!target) return;
-                setModalFocus(null);
-                setMN(target);
-                setSel(target);
-              }}
-            />
-          )}
-          {modal === 'add' && (
-            <AddModal
-              tree={tree}
-              teams={teams}
-              members={members}
-              taskTemplates={data.taskTemplates || []}
-              sizes={data.sizes || []}
-              selected={selected}
-              onAdd={addNode}
-              onClose={() => setModal(null)}
-            />
-          )}
-          {modal === 'scenario' && scn && (
-            <ScenarioCompare
-              scenario={activeScenario}
-              base={scn.base}
-              work={data}
-              comparison={scnComparison}
-              changes={scnChanges}
-              conflicts={scn.conflicts || 0}
-              memory={scnCompareMemory.current}
-              onExport={exportScenarioPDF}
-              onClose={() => setModal(null)}
-              onApply={scenarioApply}
-              onRevert={scenarioRevertChange}
-              onOpenItem={id => {
-                if (!tree.some(r => r.id === id)) return;
-                setModal(null);
-                setTab('tree');
-                setSel(id);
-              }}
-            />
-          )}
-          {modal === 'snapshots' && (
-            <SnapshotModal
-              onClose={() => setModal(null)}
-              onRestore={snap => {
-                if (
-                  !confirm(
-                    `Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`,
-                  )
-                )
-                  return;
-                // Take a defensive snapshot of current state before restoring.
-                if (data) pushSnapshot(data);
-                setData(snap.data);
-                resetHistory();
-                setSaved(false);
-                setModal(null);
-              }}
-              onExportJson={snap => {
-                const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
-                a.click();
-              }}
-            />
-          )}
-          {bulkEditModalOpen && multiSel.size > 0 && (
-            <div className="overlay" onClick={() => setBulkEditModalOpen(false)}>
-              <div
-                className="modal"
-                style={{ width: 'min(640px, 96vw)', maxHeight: '88vh', overflow: 'auto' }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <h2 style={{ margin: 0, fontSize: 15 }}>{_t('bulk.title') || `Massenänderung — ${multiSel.size} Items`}</h2>
-                  <button className="btn btn-ghost btn-icon sm" onClick={() => setBulkEditModalOpen(false)} aria-label={_t('close')}>
-                    <Icon name="x" size={11} />
-                  </button>
-                </div>
-                {renderBulkEditBody()}
-              </div>
-            </div>
-          )}
-          {modal === 'settings' && (
-            <SettingsModal
-              meta={meta}
-              editorDock={editorDock}
-              setEditorDock={setEditorDock}
-              showTreeIds={showTreeIds}
-              setShowTreeIds={setShowTreeIds}
-              uiScale={uiScale}
-              setUiScale={setUiScale}
-              taskTemplates={data.taskTemplates || []}
-              risks={data.risks || []}
-              sizes={data.sizes || []}
-              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-              teams={teams}
-              onSave={m => setD('meta', m)}
-              onSaveTemplates={tpls => setD('taskTemplates', tpls)}
-              onSaveRisks={r => setD('risks', r)}
-              onSaveSizes={s => setD('sizes', s)}
-              onSaveCustomFields={cf => setD('customFields', cf)}
-              onClose={() => setModal(null)}
-            />
-          )}
-          {modal === 'new' && (
-            <NewProjModal
-              onClose={() => setModal(null)}
-              onCreate={d => {
-                setData(d);
-                resetHistory();
-                setSaved(false);
-                setModal(null);
-                setTab('tree');
-                setSel(d.tree?.[0] || null);
-              }}
-            />
-          )}
-          {modal === 'estimate' && modalNode && (
-            <EstimationWizard
-              node={tree.find(r => r.id === modalNode.id) || modalNode}
-              tree={tree}
-              teams={teams}
-              taskTemplates={data.taskTemplates || []}
-              risks={data.risks || []}
-              sizes={data.sizes || []}
-              onSave={est => {
-                const node = tree.find(r => r.id === modalNode.id);
-                if (node) updateNode({ ...node, ...est });
-              }}
-              onClose={() => {
-                setModal(null);
-                setMN(null);
-              }}
-            />
-          )}
-          {modal === 'jira' && (
-            <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />
-          )}
-          {modal === 'jiraImport' && (
-            <JiraImportModal
-              tree={tree}
-              members={members}
-              jiraFieldId={detectJiraFieldId(data?.customFields || DEFAULT_CUSTOM_FIELDS, tree) || 'jira'}
-              hasProject
-              onClose={() => setModal(null)}
-              onImport={applyJiraImport}
-            />
-          )}
-          {modal === 'export' && <ExportModal onClose={() => setModal(null)} {...exportHandlerProps} />}
+          <EditModals
+            addNode={addNode}
+            confReasons={confReasons}
+            confidence={confidence}
+            cpLabels={cpLabels}
+            cpSet={cpSet}
+            data={data}
+            deleteNode={deleteNode}
+            duplicateNode={duplicateNode}
+            editorAsDialog={editorAsDialog}
+            members={members}
+            modal={modal}
+            modalFocus={modalFocus}
+            modalNode={modalNode}
+            moveNode={moveNode}
+            mutate={mutate}
+            past={past}
+            scheduled={scheduled}
+            selected={selected}
+            setEditorDock={setEditorDock}
+            setMN={setMN}
+            setModal={setModal}
+            setModalFocus={setModalFocus}
+            setSel={setSel}
+            splitHandoff={splitHandoff}
+            splitTaskAtProgress={splitTaskAtProgress}
+            stats={stats}
+            teams={teams}
+            tree={tree}
+            updateNode={updateNode}
+          />
+          <ScenarioModals
+            activeScenario={activeScenario}
+            data={data}
+            exportScenarioPDF={exportScenarioPDF}
+            modal={modal}
+            resetHistory={resetHistory}
+            scenarioApply={scenarioApply}
+            scenarioRevertChange={scenarioRevertChange}
+            scn={scn}
+            scnChanges={scnChanges}
+            scnCompareMemory={scnCompareMemory}
+            scnComparison={scnComparison}
+            setData={setData}
+            setModal={setModal}
+            setSaved={setSaved}
+            setSel={setSel}
+            setTab={setTab}
+            tree={tree}
+          />
+          <ConfigModals
+            _t={_t}
+            bulkEditModalOpen={bulkEditModalOpen}
+            data={data}
+            editorDock={editorDock}
+            meta={meta}
+            modal={modal}
+            multiSel={multiSel}
+            renderBulkEditBody={renderBulkEditBody}
+            setBulkEditModalOpen={setBulkEditModalOpen}
+            setD={setD}
+            setEditorDock={setEditorDock}
+            setModal={setModal}
+            setShowTreeIds={setShowTreeIds}
+            setUiScale={setUiScale}
+            showTreeIds={showTreeIds}
+            teams={teams}
+            uiScale={uiScale}
+          />
+          <ProjectModals
+            applyJiraImport={applyJiraImport}
+            data={data}
+            exportHandlerProps={exportHandlerProps}
+            members={members}
+            meta={meta}
+            modal={modal}
+            modalNode={modalNode}
+            resetHistory={resetHistory}
+            scheduled={scheduled}
+            setData={setData}
+            setMN={setMN}
+            setModal={setModal}
+            setSaved={setSaved}
+            setSel={setSel}
+            setTab={setTab}
+            teams={teams}
+            tree={tree}
+            updateNode={updateNode}
+          />
 
-          {/* ── Onboarding tour ── */}
-          {tourStep !== null && (
-            <Tour
-              steps={TOUR_STEPS}
-              step={tourStep}
-              onNext={() => setTourStep(s => Math.min(s + 1, TOUR_STEPS.length - 1))}
-              onPrev={() => setTourStep(s => Math.max(s - 1, 0))}
-              onSkip={closeTour}
-            />
-          )}
-
-          {/* ── New-feature popover (one-time, existing users) ── */}
-          {showNewFeat && tourStep === null && (
-            <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
-              <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
-                <div className="new-feat-title">
-                  <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}>
-                    <Icon name="sparkle" size={16} />
-                  </span>
-                  {_t('new.title')}
-                </div>
-                <ul className="new-feat-list">
-                  {NEW_FEATURES.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-                <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ fontSize: 12, color: 'var(--tx3)' }}
-                    onClick={() => {
-                      dismissNewFeat();
-                      startTour();
-                    }}
-                  >
-                    {_t('tour.restartTour')} →
-                  </button>
-                  <button className="btn btn-pri btn-sm" onClick={dismissNewFeat}>
-                    {_t('new.dismiss')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <OnboardingModals
+            NEW_FEATURES={NEW_FEATURES}
+            TOUR_STEPS={TOUR_STEPS}
+            _t={_t}
+            closeTour={closeTour}
+            dismissNewFeat={dismissNewFeat}
+            setTourStep={setTourStep}
+            showNewFeat={showNewFeat}
+            startTour={startTour}
+            tourStep={tourStep}
+          />
         </div>
       </CapacityProvider>
     </>

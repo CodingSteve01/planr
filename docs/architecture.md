@@ -458,6 +458,13 @@ log. What does not depend on those sits beside it:
   `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component
   calls from its memos (`viewTree.js`, `futureProgress.js`, `planRepairs.js`),
   and the shell helpers (`shell.js`, `storage.js`, `snapshots.js`).
+- `src/app/paletteCommands.js`: builds the command-palette list from the
+  handlers, flags and translator `App` passes in.
+- `src/components/app/`: the render layer. `App` still decides what is shown
+  (`visitedTabs`, `<Frozen>`, `modal`); the top bar, tab bar, filter bar, each
+  pane's content and the modals are components that take explicit props. They
+  hold no state of their own. A prop named like a browser global (`history`)
+  must be passed, not read bare: `no-undef` does not catch the shadowing.
 - `src/utils/loadedData.js`: what a loaded document is normalised to.
 - `src/utils/gantt/helpers.js`: the Gantt's constants and pure helpers.
 
