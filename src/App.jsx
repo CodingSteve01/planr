@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
@@ -8,6 +8,9 @@ import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
+import { useSelection } from './app/useSelection.js';
+import { useModalState } from './app/useModalState.js';
+import { useSearch } from './app/useSearch.js';
 import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
@@ -103,23 +106,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   const { tabBarRef, activeTabRef, tabFades, syncTabFades, visitedTabs } = useTabBar(tab);
   const [ganttRoadmapFocus, setGanttRoadmapFocus] = useRoadmapFocus();
-  // Store only the selected node's ID; derive the actual node from the tree.
-  // This ensures `selected` always reflects the latest tree state — fixes a bug
-  // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
-  // because the old code held a stale node object in state.
-  const [sideTab, setSideTab] = useState('insights');
-  const [selId, _setSelId] = useState(null);
-  const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
-  const [multiSel, setMultiSel] = useState(new Set());
-  const [modal, setModal] = useState(null);
-  const [modalNode, setMN] = useState(null);
-  const [modalFocus, setModalFocus] = useState(null);
-  // Committed, debounced search only — the raw input state lives inside
-  // <SearchBox> so keystrokes don't trigger an App-level render and cascade
-  // through every mounted tab pane.
-  const [search, setSearch] = useState('');
-  const [searchIdx, setSearchIdx] = useState(0);
-  const deferredSearch = useDeferredValue(search);
+  const selection = useSelection();
+  const { selId, setSel, setMultiSel } = selection;
+  const modalState = useModalState();
+  const { modal, setModal, setMN, setModalFocus } = modalState;
+  const searchState = useSearch();
+  const { search, setSearch, searchIdx, setSearchIdx } = searchState;
   const {
     teamFilter,
     setTeamFilter,
@@ -637,7 +629,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // One list now — the one that decides what is drawn.
   useEffect(() => {
     if (!hideDone) return;
-    if (selId && !visibleViewIdSet.has(selId)) _setSelId(null);
+    if (selId && !visibleViewIdSet.has(selId)) setSel(null);
     setMultiSel(prev => {
       const next = new Set([...prev].filter(id => visibleViewIdSet.has(id)));
       return next.size === prev.size ? prev : next;
@@ -844,11 +836,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     viewCpSet,
   });
 
-  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, {
+  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, selection, modalState, searchState, {
     archiveDays,
     autoSave,
     bulkEditModalOpen,
-    deferredSearch,
     diffOnlyChanged,
     fileName,
     fileSynced,
@@ -857,37 +848,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     hideDone,
     horizonOnlyPlanned,
     lastSavedAt,
-    modal,
-    modalFocus,
-    modalNode,
-    multiSel,
     personFilter,
     resLens,
     rootFilter,
     saved,
     scnNotice,
-    search,
     selected,
     setArchiveDays,
     setAutoSave,
     setBulkEditModalOpen,
     setGanttRoadmapFocus,
-    setMN,
-    setModal,
-    setModalFocus,
-    setMultiSel,
     setRootFilter,
     setScnNotice,
-    setSearch,
-    setSearchIdx,
-    setSel,
     setShowArchived,
-    setSideTab,
     setTab,
     setTourStep,
     showArchived,
     showNewFeat,
-    sideTab,
     sinceDays,
     tab,
     tabFades,
