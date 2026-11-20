@@ -13,17 +13,29 @@ const holidays = [
 ];
 
 function wrap(ui) {
-  return render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+  return render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 }
 
 describe('HolView year filter', () => {
   beforeEach(() => {
     cleanup();
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('filters to the persisted year on load', () => {
-    try { localStorage.setItem('planr_hol_year', '2025'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_hol_year', '2025');
+    } catch {
+      /* ignore */
+    }
     wrap(<HolView holidays={holidays} planStart="2025-01-01" planEnd="2027-01-01" onUpdate={() => {}} />);
     expect(screen.queryByText('Weihnachten 2025')).toBeTruthy();
     expect(screen.queryByText('Neujahr 2026')).toBeNull();
@@ -31,7 +43,11 @@ describe('HolView year filter', () => {
   });
 
   it('shows every year when filter is empty', () => {
-    try { localStorage.setItem('planr_hol_year', ''); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_hol_year', '');
+    } catch {
+      /* ignore */
+    }
     wrap(<HolView holidays={holidays} planStart="2025-01-01" planEnd="2027-01-01" onUpdate={() => {}} />);
     expect(screen.queryByText('Weihnachten 2025')).toBeTruthy();
     expect(screen.queryByText('Neujahr 2026')).toBeTruthy();

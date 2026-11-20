@@ -12,7 +12,9 @@ export function ReportView(props) {
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <div style={{ marginBottom: 12 }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: 'var(--tx)' }}>{t('report.title')}</h2>
-        <p className="helper" style={{ margin: 0 }}>{t('report.desc')}</p>
+        <p className="helper" style={{ margin: 0 }}>
+          {t('report.desc')}
+        </p>
       </div>
       <ExportCards {...props} />
     </div>

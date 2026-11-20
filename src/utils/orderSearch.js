@@ -30,15 +30,22 @@ function rootsInOrder(tree) {
 }
 
 function openRoots(tree) {
-  return rootsInOrder(tree).filter(root => root.status !== 'done' && !root.dropped
-    && tree.some(n => n.id !== root.id && under(n.id, root.id) && n.status !== 'done' && !n.dropped && n.best > 0))
+  return rootsInOrder(tree)
+    .filter(
+      root =>
+        root.status !== 'done' &&
+        !root.dropped &&
+        tree.some(n => n.id !== root.id && under(n.id, root.id) && n.status !== 'done' && !n.dropped && n.best > 0),
+    )
     .map(root => root.id);
 }
 
 // Writes `order` (open projects) into the tree as displayOrder. Projects not
 // in it (finished, dropped) keep their relative order in front.
 export function applyRootOrder(tree, order) {
-  const rest = rootsInOrder(tree).map(r => r.id).filter(id => !order.includes(id));
+  const rest = rootsInOrder(tree)
+    .map(r => r.id)
+    .filter(id => !order.includes(id));
   const rank = new Map([...rest, ...order].map((id, i) => [id, i + 1]));
   return tree.map(n => (rank.has(n.id) && n.displayOrder !== rank.get(n.id) ? { ...n, displayOrder: rank.get(n.id) } : n));
 }
@@ -47,11 +54,20 @@ export function applyRootOrder(tree, order) {
 // longest common run stays, the rest is named where it lands.
 export function movesBetween(from, to) {
   const pos = to.map(id => from.indexOf(id));
-  const tails = [], tailIdx = [], prev = new Array(pos.length).fill(-1);
+  const tails = [],
+    tailIdx = [],
+    prev = new Array(pos.length).fill(-1);
   pos.forEach((p, i) => {
-    let lo = 0, hi = tails.length;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (tails[mid] < p) lo = mid + 1; else hi = mid; }
-    tails[lo] = p; tailIdx[lo] = i; prev[i] = lo > 0 ? tailIdx[lo - 1] : -1;
+    let lo = 0,
+      hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tails[mid] < p) lo = mid + 1;
+      else hi = mid;
+    }
+    tails[lo] = p;
+    tailIdx[lo] = i;
+    prev[i] = lo > 0 ? tailIdx[lo - 1] : -1;
   });
   const keep = new Set();
   for (let i = tailIdx[tails.length - 1]; i >= 0; i = prev[i]) keep.add(to[i]);
@@ -61,13 +77,16 @@ export function movesBetween(from, to) {
     if (keep.has(id)) return [];
     const next = to.slice(i + 1).find(x => keep.has(x));
     if (next) return [{ id, before: next }];
-    const prevKept = to.slice(0, i).reverse().find(x => keep.has(x));
+    const prevKept = to
+      .slice(0, i)
+      .reverse()
+      .find(x => keep.has(x));
     return [{ id, after: prevKept }];
   });
 }
 
 function compare(a, b) {
-  return (a.missed - b.missed) || (a.lateness - b.lateness) || (a.ends - b.ends) || (a.moves - b.moves);
+  return a.missed - b.missed || a.lateness - b.lateness || a.ends - b.ends || a.moves - b.moves;
 }
 
 export async function* searchOrders({ tree, reschedule, maxRuns = 60, today = new Date() }) {
@@ -90,7 +109,9 @@ export async function* searchOrders({ tree, reschedule, maxRuns = 60, today = ne
       const e = new Date(r.endD);
       if (!ends[root] || e > ends[root]) ends[root] = e;
     }
-    let missed = 0, lateness = 0, endSum = 0;
+    let missed = 0,
+      lateness = 0,
+      endSum = 0;
     for (const id of base) {
       const end = ends[id];
       if (!end) continue;
@@ -118,7 +139,9 @@ export async function* searchOrders({ tree, reschedule, maxRuns = 60, today = ne
 
   const outcome = r => base.map(id => +(r.ends[id] || 0)).join('|');
   const snapshot = done => ({
-    done, runs, maxRuns,
+    done,
+    runs,
+    maxRuns,
     alternatives: [...seen.values()]
       .filter(r => r !== baseline && better(r, baseline))
       .sort((a, b) => compare(a.score, b.score))
@@ -131,16 +154,24 @@ export async function* searchOrders({ tree, reschedule, maxRuns = 60, today = ne
         moves: movesBetween(base, r.order),
         missedBefore: baseline.missed,
         missedAfter: r.missed,
-        ends: Object.fromEntries(base.map(id => [id, {
-          before: baseline.ends[id] || null,
-          after: r.ends[id] || null,
-          deltaDays: baseline.ends[id] && r.ends[id] ? Math.round((r.ends[id] - baseline.ends[id]) / DAY) : 0,
-        }])),
+        ends: Object.fromEntries(
+          base.map(id => [
+            id,
+            {
+              before: baseline.ends[id] || null,
+              after: r.ends[id] || null,
+              deltaDays: baseline.ends[id] && r.ends[id] ? Math.round((r.ends[id] - baseline.ends[id]) / DAY) : 0,
+            },
+          ]),
+        ),
       })),
   });
 
   let current = baseline;
-  if (base.length < 2) { yield snapshot(true); return; }
+  if (base.length < 2) {
+    yield snapshot(true);
+    return;
+  }
   for (;;) {
     let bestNext = null;
     for (let i = 0; i < base.length && runs < maxRuns; i++) {
@@ -159,7 +190,10 @@ export async function* searchOrders({ tree, reschedule, maxRuns = 60, today = ne
         if (better(cand, current) && (!bestNext || compare(cand.score, bestNext.score) < 0)) bestNext = cand;
       }
     }
-    if (!bestNext || runs >= maxRuns) { if (bestNext) current = bestNext; break; }
+    if (!bestNext || runs >= maxRuns) {
+      if (bestNext) current = bestNext;
+      break;
+    }
     current = bestNext;
   }
   yield snapshot(true);

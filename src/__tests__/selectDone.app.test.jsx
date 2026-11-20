@@ -13,28 +13,55 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject(extra = {}) {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'done', progress: 100, completedAt: '2026-09-18', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      { id: 'P1.3', name: 'Invoices', status: 'done', progress: 100, completedAt: '2026-09-19', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Select done', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    ...extra,
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        {
+          id: 'P1.1',
+          name: 'Prices',
+          status: 'done',
+          progress: 100,
+          completedAt: '2026-09-18',
+          team: 'T1',
+          best: 5,
+          factor: 1,
+          assign: ['M1'],
+        },
+        { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        {
+          id: 'P1.3',
+          name: 'Invoices',
+          status: 'done',
+          progress: 100,
+          completedAt: '2026-09-19',
+          team: 'T1',
+          best: 5,
+          factor: 1,
+          assign: ['M1'],
+        },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Select done', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      ...extra,
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
-const rowOf = id => [...document.querySelectorAll('tr')]
-  .find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
-const selectedIds = () => [...document.querySelectorAll('tr.sel')]
-  .map(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, ''));
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+const rowOf = id => [...document.querySelectorAll('tr')].find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
+const selectedIds = () => [...document.querySelectorAll('tr.sel')].map(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, ''));
 
 const base = () => {
   cleanup();
@@ -46,14 +73,22 @@ const base = () => {
 };
 
 describe('clicking a finished item in the tree', () => {
-  beforeEach(() => { base(); seedProject(); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    base();
+    seedProject();
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('selects the one that was clicked', async () => {
     renderApp();
     await screen.findByText('P1.3');
 
-    await act(async () => { fireEvent.click(rowOf('P1.3')); });
+    await act(async () => {
+      fireEvent.click(rowOf('P1.3'));
+    });
     expect(selectedIds()).toEqual(['P1.3']);
   });
 
@@ -63,8 +98,12 @@ describe('clicking a finished item in the tree', () => {
     renderApp();
     await screen.findByText('P1.1');
 
-    await act(async () => { fireEvent.click(rowOf('P1.1')); });
-    await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+    await act(async () => {
+      fireEvent.click(rowOf('P1.1'));
+    });
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 60));
+    });
     expect(selectedIds()).toEqual(['P1.1']);
   });
 
@@ -77,8 +116,12 @@ describe('clicking a finished item in the tree', () => {
     // this bug. What must not happen is a click landing on someone else.
     const row = rowOf('P1.3');
     if (!row) return;
-    await act(async () => { fireEvent.click(row); });
-    await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 60));
+    });
     expect(selectedIds()).toEqual(['P1.3']);
   });
 });
@@ -98,7 +141,10 @@ describe('clicking a finished item during a review', () => {
       ],
     });
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('selects the finished row that was clicked, and keeps it', async () => {
     renderApp();
@@ -107,8 +153,12 @@ describe('clicking a finished item during a review', () => {
     for (const id of ['P1.1', 'P1.3']) {
       const row = rowOf(id);
       if (!row) continue;
-      await act(async () => { fireEvent.click(row); });
-      await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+      await act(async () => {
+        fireEvent.click(row);
+      });
+      await act(async () => {
+        await new Promise(r => setTimeout(r, 60));
+      });
       expect(selectedIds(), `after clicking ${id}`).toEqual([id]);
     }
   });

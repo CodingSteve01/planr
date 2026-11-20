@@ -34,20 +34,28 @@ export function HoverTipProvider() {
     if (el) {
       const text = el.getAttribute('data-htip');
       if (text) {
-        if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+        if (hideTimer.current) {
+          clearTimeout(hideTimer.current);
+          hideTimer.current = null;
+        }
         setTip({ text, x: e.clientX, y: e.clientY });
         return;
       }
     }
     if (!hideTimer.current) {
-      hideTimer.current = setTimeout(() => { setTip(null); hideTimer.current = null; }, 80);
+      hideTimer.current = setTimeout(() => {
+        setTip(null);
+        hideTimer.current = null;
+      }, 80);
     }
   }, []);
 
   useEffect(() => {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseleave', () => setTip(null));
-    return () => { document.removeEventListener('mousemove', onMove); };
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+    };
   }, [onMove]);
 
   // Near the right or bottom edge the tooltip flips to the other side of the
@@ -78,18 +86,20 @@ export function HoverTipProvider() {
   // DOM, and against a popover of the same z-index the later one wins — the
   // tooltip of a filter chip then opened underneath the filter panel.
   return createPortal(
-    <div
-      ref={tipRef}
-      className="htip-pop"
-      style={{ position: 'fixed', left, top, pointerEvents: 'none' }}
-    >
+    <div ref={tipRef} className="htip-pop" style={{ position: 'fixed', left, top, pointerEvents: 'none' }}>
       {parseTip(tip.text).map((line, li) => (
         <div key={li} className={line.indent ? 'htip-line htip-detail' : 'htip-line'}>
-          {line.parts.map((part, pi) => (
-            part.tone === 'bold' ? <b key={pi}>{part.text}</b>
-              : part.tone === 'muted' ? <span key={pi} className="htip-muted">{part.text}</span>
-                : <span key={pi}>{part.text}</span>
-          ))}
+          {line.parts.map((part, pi) =>
+            part.tone === 'bold' ? (
+              <b key={pi}>{part.text}</b>
+            ) : part.tone === 'muted' ? (
+              <span key={pi} className="htip-muted">
+                {part.text}
+              </span>
+            ) : (
+              <span key={pi}>{part.text}</span>
+            ),
+          )}
         </div>
       ))}
     </div>,

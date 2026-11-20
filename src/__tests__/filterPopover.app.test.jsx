@@ -18,32 +18,50 @@ const seed = () => {
   localStorage.setItem('planr_lang', 'en');
   localStorage.setItem('planr_tab', 'tree');
   localStorage.setItem('planr_tour_done', '1');
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'A', name: 'Projekt Alpha', status: 'wip', team: 'T1' },
-      { id: 'A.1', name: 'Alpha eins', status: 'open', team: 'T1', best: 10, factor: 1 },
-      { id: 'B', name: 'Projekt Beta', status: 'open', team: 'T1' },
-      { id: 'B.1', name: 'Beta eins', status: 'open', team: 'T1', best: 5, factor: 1 },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Filters', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt Alpha', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'Alpha eins', status: 'open', team: 'T1', best: 10, factor: 1 },
+        { id: 'B', name: 'Projekt Beta', status: 'open', team: 'T1' },
+        { id: 'B.1', name: 'Beta eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Filters', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 };
 
 const openPanel = async () => {
-  render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
   const trigger = await screen.findByTestId('view-filters-trigger');
-  await act(async () => { fireEvent.click(trigger); });
+  await act(async () => {
+    fireEvent.click(trigger);
+  });
   await waitFor(() => {
     if (!document.querySelector('[data-testid="view-filters-panel"]')) throw new Error('panel did not open');
   });
 };
 
 describe('the filter panel', () => {
-  beforeEach(() => { cleanup(); seed(); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    seed();
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('holds the scope pickers, which used to sit in the toolbar', async () => {
     await openPanel();
@@ -55,28 +73,39 @@ describe('the filter panel', () => {
   it('stays open while you use a picker inside it', async () => {
     await openPanel();
     const input = screen.getByTestId('scope-field-root').querySelector('input');
-    await act(async () => { fireEvent.focus(input); fireEvent.click(input); });
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.click(input);
+    });
     await waitFor(() => {
       if (!document.querySelector('[data-searchselect-popup]')) throw new Error('option list did not open');
     });
     // The click that selects an option lands in the select's own portal.
     const popup = document.querySelector('[data-searchselect-popup]');
-    await act(async () => { fireEvent.mouseDown(popup); });
-    expect(document.querySelector('[data-testid="view-filters-panel"]'),
-      'the panel closed the moment the option list was touched').toBeTruthy();
+    await act(async () => {
+      fireEvent.mouseDown(popup);
+    });
+    expect(
+      document.querySelector('[data-testid="view-filters-panel"]'),
+      'the panel closed the moment the option list was touched',
+    ).toBeTruthy();
   });
 
   it('actually applies the pick, and says so with a chip', async () => {
     await openPanel();
     const input = screen.getByTestId('scope-field-root').querySelector('input');
-    await act(async () => { fireEvent.focus(input); fireEvent.click(input); });
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.click(input);
+    });
     const option = await waitFor(() => {
-      const el = [...document.querySelectorAll('[data-searchselect-popup] [data-ss-idx]')]
-        .find(n => /Projekt Beta/.test(n.textContent));
+      const el = [...document.querySelectorAll('[data-searchselect-popup] [data-ss-idx]')].find(n => /Projekt Beta/.test(n.textContent));
       if (!el) throw new Error('option not listed');
       return el;
     });
-    await act(async () => { fireEvent.click(option); });
+    await act(async () => {
+      fireEvent.click(option);
+    });
 
     await waitFor(() => {
       const chip = document.querySelector('[data-testid="scope-root"]');
@@ -88,16 +117,22 @@ describe('the filter panel', () => {
   it('clears the filter from its own chip', async () => {
     await openPanel();
     const input = screen.getByTestId('scope-field-root').querySelector('input');
-    await act(async () => { fireEvent.focus(input); fireEvent.click(input); });
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.click(input);
+    });
     const option = await waitFor(() => {
-      const el = [...document.querySelectorAll('[data-searchselect-popup] [data-ss-idx]')]
-        .find(n => /Projekt Beta/.test(n.textContent));
+      const el = [...document.querySelectorAll('[data-searchselect-popup] [data-ss-idx]')].find(n => /Projekt Beta/.test(n.textContent));
       if (!el) throw new Error('option not listed');
       return el;
     });
-    await act(async () => { fireEvent.click(option); });
+    await act(async () => {
+      fireEvent.click(option);
+    });
     const chip = await screen.findByTestId('scope-root');
-    await act(async () => { fireEvent.click(chip); });
+    await act(async () => {
+      fireEvent.click(chip);
+    });
     await waitFor(() => {
       if (document.querySelector('[data-testid="scope-root"]')) throw new Error('chip still there');
     });
@@ -111,11 +146,23 @@ describe('the filter panel', () => {
 // Overview had its own second copy of the control inside the view instead,
 // which is one copy too many on one screen.
 describe('the filter bar', () => {
-  beforeEach(() => { cleanup(); seed(); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    seed();
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const tabIndexOf = async name => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     return waitFor(() => {
       const el = [...document.querySelectorAll('.tab')].find(t => t.textContent.trim().startsWith(name));
       if (!el) throw new Error(`no ${name} tab`);
@@ -127,7 +174,9 @@ describe('the filter bar', () => {
     'is on %s, which these filters change',
     async name => {
       const tab = await tabIndexOf(name);
-      await act(async () => { fireEvent.mouseDown(tab, { button: 0 }); });
+      await act(async () => {
+        fireEvent.mouseDown(tab, { button: 0 });
+      });
       await waitFor(() => {
         if (!document.querySelector('[data-testid="view-filters-trigger"]')) {
           throw new Error(`no filter control on ${name}`);
@@ -138,14 +187,17 @@ describe('the filter bar', () => {
 
   it.each(['Resources', 'Holidays', 'Report'])('is not on %s, where nothing here reaches', async name => {
     const tab = await tabIndexOf(name);
-    await act(async () => { fireEvent.mouseDown(tab, { button: 0 }); });
-    expect(document.querySelector('[data-testid="view-filters-trigger"]'),
-      `a filter control on ${name} would do nothing`).toBeNull();
+    await act(async () => {
+      fireEvent.mouseDown(tab, { button: 0 });
+    });
+    expect(document.querySelector('[data-testid="view-filters-trigger"]'), `a filter control on ${name} would do nothing`).toBeNull();
   });
 
   it('shows exactly one of them, never two on the same screen', async () => {
     const tab = await tabIndexOf('Overview');
-    await act(async () => { fireEvent.mouseDown(tab, { button: 0 }); });
+    await act(async () => {
+      fireEvent.mouseDown(tab, { button: 0 });
+    });
     await waitFor(() => {
       if (!document.querySelector('[data-testid="view-filters-trigger"]')) throw new Error('none yet');
     });

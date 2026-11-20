@@ -19,23 +19,31 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Website Relaunch', type: 'goal', status: 'wip' },
-      { id: 'P1.1', name: 'Design', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-      { id: 'P2', name: 'Mobile App', type: 'goal', status: 'open' },
-      { id: 'P2.1', name: 'Onboarding', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Roadmap lens', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Website Relaunch', type: 'goal', status: 'wip' },
+        { id: 'P1.1', name: 'Design', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+        { id: 'P2', name: 'Mobile App', type: 'goal', status: 'open' },
+        { id: 'P2.1', name: 'Onboarding', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Roadmap lens', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
 function renderApp() {
   return render(
-    <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
   );
 }
 
@@ -44,12 +52,13 @@ function renderApp() {
 // isn't in the DOM yet on the first tick.
 // A tab's textContent can carry a trailing "New!" badge, so match the label
 // node rather than the whole row.
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 const goToTab = async name => {
   // Poll the tab bar rather than the text: every view's name now appears in
   // the bar AND inside the views themselves, so a text lookup finds several.
-  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
+  await waitFor(() => {
+    if (!tabNamed(name)) throw new Error(`no tab: ${name}`);
+  });
   fireEvent.mouseDown(tabNamed(name));
 };
 const goToPlanMode = () => goToTab('Schedule');
@@ -74,7 +83,9 @@ describe('the project lens beside the Gantt', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('is a tab next to the Gantt, defaulting to the first project', async () => {
     renderApp();
@@ -172,8 +183,7 @@ describe('the project lens beside the Gantt', () => {
     await goToPlanMode();
     await goToRoadmapTab();
 
-    const label = [...document.querySelectorAll('.pr-label')]
-      .find(el => el.textContent.includes('Design'));
+    const label = [...document.querySelectorAll('.pr-label')].find(el => el.textContent.includes('Design'));
     expect(label, 'no row to click').toBeTruthy();
     fireEvent.click(label);
 
@@ -193,23 +203,26 @@ describe('the project lens beside the Gantt', () => {
     // The reported behaviour: the only thing the roadmap said was "AB.1
     // öffnen", and the click filtered the tree and switched tabs. A parent
     // is an item too, and it has a dialog.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'P1', name: 'Website Relaunch', type: 'goal', status: 'wip' },
-        { id: 'P1.1', name: 'Discovery', status: 'open' },
-        { id: 'P1.1.1', name: 'Interviews', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Roadmap lens', planStart: '2026-01-01', planEnd: '2027-01-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'P1', name: 'Website Relaunch', type: 'goal', status: 'wip' },
+          { id: 'P1.1', name: 'Discovery', status: 'open' },
+          { id: 'P1.1.1', name: 'Interviews', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Roadmap lens', planStart: '2026-01-01', planEnd: '2027-01-01' },
+      }),
+    );
     renderApp();
     await goToPlanMode();
     await goToRoadmapTab();
 
-    const label = [...document.querySelectorAll('.pr-label')]
-      .find(el => el.textContent.includes('Discovery'));
+    const label = [...document.querySelectorAll('.pr-label')].find(el => el.textContent.includes('Discovery'));
     expect(label, 'no work-package row to click').toBeTruthy();
     fireEvent.click(label);
 
@@ -227,8 +240,7 @@ describe('the project lens beside the Gantt', () => {
     await goToPlanMode();
     await goToRoadmapTab();
 
-    const label = [...document.querySelectorAll('.pr-label')]
-      .find(el => el.textContent.includes('Design'));
+    const label = [...document.querySelectorAll('.pr-label')].find(el => el.textContent.includes('Design'));
     // The old surface put the whole tooltip in a data-htip attribute that
     // said nothing about the item. The Tip card is the one the graph and the
     // Gantt show.
@@ -258,20 +270,30 @@ describe('the project lens beside the Gantt', () => {
     // Reported: a project starting mid-year had no year anywhere on the
     // axis — it used to print one only on a January tick, and a roadmap
     // that opens on "Jul Aug Sep Oct Nov" with no year is not orientable.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'P1', name: 'Autumn Launch', type: 'goal', status: 'open' },
-        {
-          id: 'P1.1', name: 'Build', status: 'open', team: 'T1',
-          best: 20, factor: 1.5, assign: [], deps: [],
-          pinnedStart: '2026-09-01',
-        },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Autumn axis', planStart: '2026-01-01', planEnd: '2027-06-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'P1', name: 'Autumn Launch', type: 'goal', status: 'open' },
+          {
+            id: 'P1.1',
+            name: 'Build',
+            status: 'open',
+            team: 'T1',
+            best: 20,
+            factor: 1.5,
+            assign: [],
+            deps: [],
+            pinnedStart: '2026-09-01',
+          },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Autumn axis', planStart: '2026-01-01', planEnd: '2027-06-01' },
+      }),
+    );
     renderApp();
     await goToPlanMode();
     await goToRoadmapTab();
@@ -293,7 +315,9 @@ describe('the portfolio lens has no per-project picker', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('never renders the project-lens picker', async () => {
     renderApp();

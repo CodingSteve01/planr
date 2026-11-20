@@ -6,11 +6,18 @@ export function buildMemberShortMap(members) {
   const bases = members.map(m => {
     const words = (m.name || '').trim().split(/\s+/).filter(Boolean);
     if (!words.length) return '?';
-    return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : words.map(w => w[0]).join('').toUpperCase();
+    return words.length === 1
+      ? words[0].slice(0, 2).toUpperCase()
+      : words
+          .map(w => w[0])
+          .join('')
+          .toUpperCase();
   });
   // Pass 2: count occurrences
   const counts = {};
-  bases.forEach(b => { counts[b] = (counts[b] || 0) + 1; });
+  bases.forEach(b => {
+    counts[b] = (counts[b] || 0) + 1;
+  });
   // Pass 3: assign — append index suffix when there's any collision
   const seen = {};
   members.forEach((m, i) => {

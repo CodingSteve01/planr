@@ -16,12 +16,12 @@ const states = list => list.map(p => p.status);
 describe('advancePhases walks the list one press at a time', () => {
   it('takes the first phase open → wip → done, then moves on', () => {
     let list = [ph('a'), ph('b'), ph('c')];
-    expect(states(list = advancePhases(list))).toEqual(['wip', 'open', 'open']);
-    expect(states(list = advancePhases(list))).toEqual(['done', 'open', 'open']);
-    expect(states(list = advancePhases(list))).toEqual(['done', 'wip', 'open']);
-    expect(states(list = advancePhases(list))).toEqual(['done', 'done', 'open']);
-    expect(states(list = advancePhases(list))).toEqual(['done', 'done', 'wip']);
-    expect(states(list = advancePhases(list))).toEqual(['done', 'done', 'done']);
+    expect(states((list = advancePhases(list)))).toEqual(['wip', 'open', 'open']);
+    expect(states((list = advancePhases(list)))).toEqual(['done', 'open', 'open']);
+    expect(states((list = advancePhases(list)))).toEqual(['done', 'wip', 'open']);
+    expect(states((list = advancePhases(list)))).toEqual(['done', 'done', 'open']);
+    expect(states((list = advancePhases(list)))).toEqual(['done', 'done', 'wip']);
+    expect(states((list = advancePhases(list)))).toEqual(['done', 'done', 'done']);
   });
 
   it('wraps from all-done back to all-open, like the status cycle does', () => {
@@ -31,9 +31,9 @@ describe('advancePhases walks the list one press at a time', () => {
 
   it('walks back the way it came', () => {
     let list = [ph('a', 'done'), ph('b', 'wip'), ph('c')];
-    expect(states(list = advancePhases(list, true))).toEqual(['done', 'open', 'open']);
-    expect(states(list = advancePhases(list, true))).toEqual(['wip', 'open', 'open']);
-    expect(states(list = advancePhases(list, true))).toEqual(['open', 'open', 'open']);
+    expect(states((list = advancePhases(list, true)))).toEqual(['done', 'open', 'open']);
+    expect(states((list = advancePhases(list, true)))).toEqual(['wip', 'open', 'open']);
+    expect(states((list = advancePhases(list, true)))).toEqual(['open', 'open', 'open']);
     // At the very start there is nothing left to undo.
     expect(advancePhases(list, true)).toBeNull();
   });

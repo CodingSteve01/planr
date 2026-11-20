@@ -16,22 +16,51 @@ import { useState } from 'react';
 
 const tree = [
   { id: 'P1', name: 'Project', status: 'wip', deps: [], assign: [] },
-  { id: 'P1.1', name: 'Selected task', status: 'open', best: 3, factor: 1.3, team: 'T1', assign: ['m1'], deps: ['P1.2'], due: '2026-11-17' },
+  {
+    id: 'P1.1',
+    name: 'Selected task',
+    status: 'open',
+    best: 3,
+    factor: 1.3,
+    team: 'T1',
+    assign: ['m1'],
+    deps: ['P1.2'],
+    due: '2026-11-17',
+  },
   { id: 'P1.2', name: 'Other task', status: 'open', best: 1, factor: 1, deps: [], assign: [] },
 ];
 const members = [{ id: 'm1', name: 'Noah Berg', team: 'T1', cap: 1 }];
 const teams = [{ id: 'T1', name: 'Backend', color: '#2563eb' }];
 const common = {
-  tree, members, teams, taskTemplates: [], sizes: [], customFields: [], scheduled: [],
-  cpSet: new Set(), stats: {}, confidence: {}, confReasons: {}, onUpdate: () => {},
+  tree,
+  members,
+  teams,
+  taskTemplates: [],
+  sizes: [],
+  customFields: [],
+  scheduled: [],
+  cpSet: new Set(),
+  stats: {},
+  confidence: {},
+  confReasons: {},
+  onUpdate: () => {},
 };
 
-const wrap = ui => render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+const wrap = ui =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 const selectedTab = () => document.querySelector('[role="tab"][aria-selected="true"]');
 const clickSection = label => fireEvent.click(screen.getByText(label, { selector: 'span' }));
 
 describe('Insights section jumps', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+  });
 
   it('People opens Details in the item dialog, with the assignee picker focused', () => {
     wrap(<NodeModal node={tree[1]} {...common} onClose={() => {}} />);
@@ -65,7 +94,7 @@ describe('Insights section jumps', () => {
     expect(document.activeElement?.getAttribute('placeholder')).toBe('Assign person...');
   });
 
-  it('falls back to Details when the section\'s tab is not shown for this item', () => {
+  it("falls back to Details when the section's tab is not shown for this item", () => {
     const packageTabs = [{ id: 'insights' }, { id: 'overview' }, { id: 'workflow' }, { id: 'timing' }];
     expect(insightTarget('effort', packageTabs)).toEqual({ tab: 'overview', focus: null });
     expect(insightTarget('people', packageTabs)).toEqual({ tab: 'overview', focus: 'assign' });

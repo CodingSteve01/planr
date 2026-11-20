@@ -30,7 +30,7 @@ describe('filterCommands', () => {
     // one label and a fuzzy subsequence of another to prove ordering.
     const cmds = [
       { id: 'fuzzyOnly', label: 'Sandbox History' }, // "sh" as subsequence (S...H)
-      { id: 'substr', label: 'shell' },               // "sh" as substring
+      { id: 'substr', label: 'shell' }, // "sh" as substring
     ];
     const result = filterCommands(cmds, 'sh');
     expect(result.map(c => c.id)).toEqual(['substr', 'fuzzyOnly']);

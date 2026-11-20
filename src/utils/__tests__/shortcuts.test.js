@@ -97,14 +97,13 @@ describe('the table and the app agree', () => {
     // single-argument `keyHint(cmd.key)` it kept scanning forward through
     // unrelated code until it found some other `, 'string')` and reported
     // that as a shortcut id.
-    const calls = [...ALL_SOURCE.matchAll(/\b(?:withKey|keyHint)\(((?:[^()']|'[^']*')*(?:\((?:[^()']|'[^']*')*\)(?:[^()']|'[^']*')*)*)\)/g)]
-      .map(m => m[1]);
+    const calls = [
+      ...ALL_SOURCE.matchAll(/\b(?:withKey|keyHint)\(((?:[^()']|'[^']*')*(?:\((?:[^()']|'[^']*')*\)(?:[^()']|'[^']*')*)*)\)/g),
+    ].map(m => m[1]);
     // The id is the last quoted literal in the argument list; a call that
     // passes a variable (`keyHint(item.key)`) has none and is skipped — it
     // cannot be checked statically.
-    const used = calls
-      .map(args => [...args.matchAll(/'([^']+)'/g)].pop()?.[1])
-      .filter(Boolean);
+    const used = calls.map(args => [...args.matchAll(/'([^']+)'/g)].pop()?.[1]).filter(Boolean);
     expect(used.length, 'no withKey call found — has the helper been renamed?').toBeGreaterThan(5);
     const unknown = [...new Set(used)].filter(id => !shortcut(id));
     expect(unknown).toEqual([]);

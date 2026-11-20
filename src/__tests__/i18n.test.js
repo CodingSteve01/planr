@@ -79,10 +79,9 @@ const PROSE_NODE = />\s*([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-Za-zÄÖÜäöüß][^
 describe('the reworked surfaces have no hardcoded display text', () => {
   it.each(TRANSLATED_FILES)('%s', file => {
     const src = readFileSync(join(SRC, file), 'utf8');
-    const found = [
-      ...[...src.matchAll(PROSE_ATTR)].map(m => m[1]),
-      ...[...src.matchAll(PROSE_NODE)].map(m => m[1]),
-    ].filter(text => !/^https?:/.test(text));
+    const found = [...[...src.matchAll(PROSE_ATTR)].map(m => m[1]), ...[...src.matchAll(PROSE_NODE)].map(m => m[1])].filter(
+      text => !/^https?:/.test(text),
+    );
 
     expect(found).toEqual([]);
   });
@@ -126,14 +125,13 @@ const TOOLTIP_TRANSLATED_FILES = [
 // won't catch every possible form (a hardcoded template literal or ternary
 // branch slips through, same limitation PROSE_ATTR already has above), but
 // it catches the common case cheaply.
-const PROSE_TOOLTIP_ATTR = /(?:data-htip|title|placeholder)=(?:"([A-Za-zÄÖÜäöüß][^"{}]*\s[^"{}]*)"|\{'([A-Za-zÄÖÜäöüß][^'{}]*\s[^'{}]*)'\})/g;
+const PROSE_TOOLTIP_ATTR =
+  /(?:data-htip|title|placeholder)=(?:"([A-Za-zÄÖÜäöüß][^"{}]*\s[^"{}]*)"|\{'([A-Za-zÄÖÜäöüß][^'{}]*\s[^'{}]*)'\})/g;
 
 describe('the translated tooltips have no hardcoded display text', () => {
   it.each(TOOLTIP_TRANSLATED_FILES)('%s', file => {
     const src = readFileSync(join(SRC, file), 'utf8');
-    const found = [...src.matchAll(PROSE_TOOLTIP_ATTR)]
-      .map(m => m[1] || m[2])
-      .filter(text => !/^https?:/.test(text));
+    const found = [...src.matchAll(PROSE_TOOLTIP_ATTR)].map(m => m[1] || m[2]).filter(text => !/^https?:/.test(text));
 
     expect(found).toEqual([]);
   });
@@ -154,7 +152,8 @@ describe('German is not leaking into English keys', () => {
   it('has no obviously German word in an English value', () => {
     // Not a language detector — just the words that actually slipped through
     // before (UI labels quoted from the German locale).
-    const GERMAN = /\b(Kennzahlen|Terminübersicht|Aufgaben je|reimportierbar|verfügbar|Vollständiges|Nahfristige|Hochauflösendes|Konfigurierbarer|übernehmen|einfügen|ausblenden|erledigt|Projekte|Personen)\b/;
+    const GERMAN =
+      /\b(Kennzahlen|Terminübersicht|Aufgaben je|reimportierbar|verfügbar|Vollständiges|Nahfristige|Hochauflösendes|Konfigurierbarer|übernehmen|einfügen|ausblenden|erledigt|Projekte|Personen)\b/;
     expect(values.filter(v => GERMAN.test(v))).toEqual([]);
   });
 });

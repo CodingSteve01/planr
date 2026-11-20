@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  parseJiraTable, mapJiraStatus, detectJiraFieldId, linkHealth, reconcile, statusPatches,
-} from '../jiraSync.js';
+import { parseJiraTable, mapJiraStatus, detectJiraFieldId, linkHealth, reconcile, statusPatches } from '../jiraSync.js';
 
 const tree = [
   { id: 'D1', name: 'E-Rechnungspflicht', status: 'wip' },
@@ -57,7 +55,10 @@ describe('parseJiraTable', () => {
     expect(error).toBe(null);
     expect(skipped).toBe(0);
     expect(rows[0]).toMatchObject({
-      key: 'PRJ-385', summary: 'Export anpassen, inkl. PDF', status: 'Done', mapped: 'done',
+      key: 'PRJ-385',
+      summary: 'Export anpassen, inkl. PDF',
+      status: 'Done',
+      mapped: 'done',
       assignee: 'Mara Lind',
     });
     expect(rows[1].mapped).toBe('wip');
@@ -82,7 +83,10 @@ describe('parseJiraTable', () => {
     const { rows, error } = parseJiraTable('PRJ-385\tDone\nPRJ-266\tIn Progress');
 
     expect(error).toBe(null);
-    expect(rows.map(r => [r.key, r.mapped])).toEqual([['PRJ-385', 'done'], ['PRJ-266', 'wip']]);
+    expect(rows.map(r => [r.key, r.mapped])).toEqual([
+      ['PRJ-385', 'done'],
+      ['PRJ-266', 'wip'],
+    ]);
   });
 
   test('skips junk lines and duplicate keys instead of failing', () => {
@@ -120,12 +124,14 @@ describe('linkHealth', () => {
 });
 
 describe('reconcile', () => {
-  const { rows } = parseJiraTable([
-    'Issue key,Summary,Status',
-    'PRJ-385,DMS für PDF-Rechnung anpassen,Done',
-    'PRJ-266,Format 2.5 – Format,In Progress',
-    'PRJ-999,Ganz neues Ticket,To Do',
-  ].join('\n'));
+  const { rows } = parseJiraTable(
+    [
+      'Issue key,Summary,Status',
+      'PRJ-385,DMS für PDF-Rechnung anpassen,Done',
+      'PRJ-266,Format 2.5 – Format,In Progress',
+      'PRJ-999,Ganz neues Ticket,To Do',
+    ].join('\n'),
+  );
 
   test('flags status drift with the target Planr status', () => {
     const result = reconcile({ tree, rows, jiraFieldId: 'jira' });
@@ -154,15 +160,16 @@ describe('reconcile', () => {
     expect(result.missingInJira).toEqual([]);
 
     const partial = parseJiraTable('Issue key,Status\nPRJ-385,Done').rows;
-    expect(reconcile({ tree, rows: partial, jiraFieldId: 'jira' }).missingInJira.map(r => r.id))
-      .toEqual(['D1.2', 'D1.4']);
+    expect(reconcile({ tree, rows: partial, jiraFieldId: 'jira' }).missingInJira.map(r => r.id)).toEqual(['D1.2', 'D1.4']);
   });
 
   test('marks a Jira row that names a known Planr id', () => {
     const withId = parseJiraTable('Issue key,Status,Planr ID\nPRJ-777,Done,D1.3').rows;
 
-    expect(reconcile({ tree, rows: withId, jiraFieldId: 'jira' }).missingInPlanr[0])
-      .toMatchObject({ key: 'PRJ-777', knownPlanrId: 'D1.3' });
+    expect(reconcile({ tree, rows: withId, jiraFieldId: 'jira' }).missingInPlanr[0]).toMatchObject({
+      key: 'PRJ-777',
+      knownPlanrId: 'D1.3',
+    });
   });
 });
 
@@ -174,10 +181,7 @@ describe('statusPatches', () => {
   ];
 
   test('moves progress with the status', () => {
-    const patches = statusPatches(diffs, null, [
-      ...tree,
-      { id: 'D1.2', name: 'Format 2.5', status: 'open', progress: 0 },
-    ]);
+    const patches = statusPatches(diffs, null, [...tree, { id: 'D1.2', name: 'Format 2.5', status: 'open', progress: 0 }]);
 
     expect(patches.find(p => p.id === 'D1.1')).toMatchObject({ status: 'done', progress: 100 });
     expect(patches.find(p => p.id === 'D1.2')).toMatchObject({ status: 'wip', progress: 50 });

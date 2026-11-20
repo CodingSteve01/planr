@@ -20,8 +20,8 @@ import { useT } from '../../i18n.jsx';
 // One model, two renderers: `computeProjectRoadmap` is untouched and shared.
 // This file only draws.
 
-const ROW_H = 28;          // same as GanttView's RH — they sit side by side
-const AXIS_H = 28;         // and its FLAG_ROW_H
+const ROW_H = 28; // same as GanttView's RH — they sit side by side
+const AXIS_H = 28; // and its FLAG_ROW_H
 const LABEL_W = 230;
 const DAY = 864e5;
 // Zoom is a FACTOR on the fit, not an absolute px-per-day. A six-month
@@ -42,15 +42,29 @@ function clampZoom(value) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, num));
 }
 
-export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)',
-  teams = [], members = [], cpSet = null, cpLabels = {}, onOpenItem,
+export function PlanRoadmap({
+  tree,
+  scheduled,
+  stats,
+  rootId,
+  color = 'var(--ac)',
+  teams = [],
+  members = [],
+  cpSet = null,
+  cpLabels = {},
+  onOpenItem,
   // Review window. The Roadmap was the one working view with no diff support
   // at all — the filter bar offered a "since" window and this view ignored
   // it, so a sprint review had to be read somewhere else and come back.
   // Same vocabulary as the Gantt: what finished in the window, what moved,
   // and the option to show only those.
-  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false,
-  waits = null, onMoveBehind = null }) {
+  diffDoneIds = null,
+  diffProgressedIds = null,
+  sinceDate = null,
+  onlyChanged = false,
+  waits = null,
+  onMoveBehind = null,
+}) {
   const { t } = useT();
   // The same tooltip the graph and the Gantt show — one item, one card, the
   // whole story: status, window, effort, deps, phases, handoff chain. The
@@ -60,18 +74,23 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   const [tip, setTip] = useState(null); // { item, x, y }
   const scrollRef = useRef(null);
   const [zoom, setZoomState] = useState(() => {
-    try { return clampZoom(parseFloat(localStorage.getItem(ZOOM_KEY)) || MIN_ZOOM); } catch { return MIN_ZOOM; }
+    try {
+      return clampZoom(parseFloat(localStorage.getItem(ZOOM_KEY)) || MIN_ZOOM);
+    } catch {
+      return MIN_ZOOM;
+    }
   });
   const setZoom = next => {
     const clamped = clampZoom(typeof next === 'function' ? next(zoom) : next);
     setZoomState(clamped);
-    try { localStorage.setItem(ZOOM_KEY, String(clamped)); } catch { /* noop */ }
+    try {
+      localStorage.setItem(ZOOM_KEY, String(clamped));
+    } catch {
+      /* noop */
+    }
   };
 
-  const model = useMemo(
-    () => computeProjectRoadmap({ tree, scheduled, stats, rootId }),
-    [tree, scheduled, stats, rootId],
-  );
+  const model = useMemo(() => computeProjectRoadmap({ tree, scheduled, stats, rootId }), [tree, scheduled, stats, rootId]);
 
   const nodeById = useMemo(() => new Map((tree || []).map(node => [node.id, node])), [tree]);
   // Handoff shadows share a tree id with their primary and would otherwise
@@ -89,33 +108,45 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   // one; a work package does not (only leaves are scheduled), so it is
   // summarised over its own leaves the same way the Gantt summarises a group
   // row — `_summary` and the two counts, which the Tip already renders.
-  const tipItemFor = useCallback((id, row = null) => {
-    const node = nodeById.get(id);
-    if (!node) return null;
-    const sched = schedById.get(id);
-    if (sched) return { ...node, ...sched, isCp: !!cpSet?.has(sched.id) };
-    const leaves = (row?.milestones || []).map(m => schedById.get(m.id)).filter(Boolean);
-    return {
-      ...node,
-      status: row?.status || node.status,
-      startD: row?.start || null,
-      endD: row?.end || null,
-      best: leaves.reduce((sum, leaf) => sum + (leaf.best || 0), 0),
-      effort: leaves.reduce((sum, leaf) => sum + (leaf.effort || 0), 0),
-      _summary: true,
-      _summaryCount: row?.leafCount ?? 0,
-      _doneCount: row?.doneCount ?? 0,
-    };
-  }, [nodeById, schedById, cpSet]);
+  const tipItemFor = useCallback(
+    (id, row = null) => {
+      const node = nodeById.get(id);
+      if (!node) return null;
+      const sched = schedById.get(id);
+      if (sched) return { ...node, ...sched, isCp: !!cpSet?.has(sched.id) };
+      const leaves = (row?.milestones || []).map(m => schedById.get(m.id)).filter(Boolean);
+      return {
+        ...node,
+        status: row?.status || node.status,
+        startD: row?.start || null,
+        endD: row?.end || null,
+        best: leaves.reduce((sum, leaf) => sum + (leaf.best || 0), 0),
+        effort: leaves.reduce((sum, leaf) => sum + (leaf.effort || 0), 0),
+        _summary: true,
+        _summaryCount: row?.leafCount ?? 0,
+        _doneCount: row?.doneCount ?? 0,
+      };
+    },
+    [nodeById, schedById, cpSet],
+  );
 
-  const showTip = useCallback((id, row, event) => {
-    const item = tipItemFor(id, row);
-    if (item) setTip({ item, x: event.clientX, y: event.clientY });
-  }, [tipItemFor]);
+  const showTip = useCallback(
+    (id, row, event) => {
+      const item = tipItemFor(id, row);
+      if (item) setTip({ item, x: event.clientX, y: event.clientY });
+    },
+    [tipItemFor],
+  );
   const hideTip = useCallback(() => setTip(null), []);
   // A click opens the item; leaving the tooltip up over the dialog that just
   // covered the row is how you end up with two cards fighting for the screen.
-  const openItem = useCallback(id => { setTip(null); onOpenItem?.(id); }, [onOpenItem]);
+  const openItem = useCallback(
+    id => {
+      setTip(null);
+      onOpenItem?.(id);
+    },
+    [onOpenItem],
+  );
 
   // The pane's width, measured — the base every scale is derived from. This
   // is the reason the view is DOM and not a scaled image: it can ask how
@@ -176,142 +207,206 @@ export function PlanRoadmap({ tree, scheduled, stats, rootId, color = 'var(--ac)
   // year. Tying it to January instead failed whenever the labels skip
   // January (every second or third month), and the next year's first label
   // then read as the same year again.
-  const monthLabel = (date, prevTick) => date.toLocaleDateString(undefined, { month: 'short' })
-    + (!prevTick || prevTick.getFullYear() !== date.getFullYear() ? ` ’${String(date.getFullYear()).slice(2)}` : '');
+  const monthLabel = (date, prevTick) =>
+    date.toLocaleDateString(undefined, { month: 'short' }) +
+    (!prevTick || prevTick.getFullYear() !== date.getFullYear() ? ` ’${String(date.getFullYear()).slice(2)}` : '');
 
   // "Only changed" hides a package with nothing changed under it. The label
   // column, the plot and the figures are three stacks of rows side by side,
   // so all three take the same list or the bars drift onto other names.
-  const rowTouched = row => !!sinceDate && (row.milestones || []).some(m =>
-    diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
+  const rowTouched = row => !!sinceDate && (row.milestones || []).some(m => diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id));
   const rows = onlyChanged && sinceDate ? model.rows.filter(rowTouched) : model.rows;
 
-  return <div className="pr" data-testid="plan-roadmap">
-    {/* Header — the project, its figure, and the zoom. Mirrors the Gantt's
+  return (
+    <div className="pr" data-testid="plan-roadmap">
+      {/* Header — the project, its figure, and the zoom. Mirrors the Gantt's
         own footer controls so the two read as one family. */}
-    <div className="pr-head">
-      <span className="pr-head-bar" style={{ background: color }} />
-      <span className="pr-head-name">{model.root.id} · {model.root.name || ''}</span>
-      <span className="pr-head-meta">
-        {progressPctLabel(model.progress)}% · {model.doneCount}/{model.leafCount} {t('tv.items')}
-      </span>
-      <span style={{ flex: 1 }} />
-      <span className="pr-zoom">
-        <span className="pr-zoom-lbl">{t('g.zoom')}</span>
-        <span className="pr-zoom-val">{zoom === 1 ? t('pr.zoomFit') : `${zoom}×`}</span>
-        <button className="btn btn-sec btn-xs" data-testid="plan-roadmap-zoom-out"
-          disabled={zoom <= MIN_ZOOM}
-          onClick={() => setZoom(z => [...ZOOM_STEPS].reverse().find(step => step < z - 1e-6) ?? MIN_ZOOM)}
-          data-htip={t('rm.zoomOutTip')}>−</button>
-        <button className="btn btn-sec btn-xs" data-testid="plan-roadmap-zoom-in"
-          disabled={zoom >= MAX_ZOOM}
-          onClick={() => setZoom(z => ZOOM_STEPS.find(step => step > z + 1e-6) ?? MAX_ZOOM)}
-          data-htip={t('rm.zoomInTip')}>+</button>
-      </span>
-    </div>
-
-    <ProjectWaits waits={waits} onOpenItem={openItem} onMoveBehind={onMoveBehind} />
-
-    <div className="pr-body">
-      {/* Left column — sticky, exactly like the Gantt's row labels, so the
-          names stay readable however far right you scroll. */}
-      <div className="pr-labels" style={{ width: LABEL_W }}>
-        <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
-        {rows.map(row => (
-          <div key={row.id} className="pr-label" style={{ height: ROW_H }}
-            onClick={() => openItem(row.id)}
-            onMouseEnter={e => showTip(row.id, row, e)}
-            onMouseLeave={hideTip}>
-            <span className="pr-label-id">{row.id}</span>
-            <span className={`pr-label-name${row.allDone ? ' done' : ''}${row.dropped ? ' dropped' : ''}`}>{row.name}</span>
-          </div>
-        ))}
+      <div className="pr-head">
+        <span className="pr-head-bar" style={{ background: color }} />
+        <span className="pr-head-name">
+          {model.root.id} · {model.root.name || ''}
+        </span>
+        <span className="pr-head-meta">
+          {progressPctLabel(model.progress)}% · {model.doneCount}/{model.leafCount} {t('tv.items')}
+        </span>
+        <span style={{ flex: 1 }} />
+        <span className="pr-zoom">
+          <span className="pr-zoom-lbl">{t('g.zoom')}</span>
+          <span className="pr-zoom-val">{zoom === 1 ? t('pr.zoomFit') : `${zoom}×`}</span>
+          <button
+            className="btn btn-sec btn-xs"
+            data-testid="plan-roadmap-zoom-out"
+            disabled={zoom <= MIN_ZOOM}
+            onClick={() => setZoom(z => [...ZOOM_STEPS].reverse().find(step => step < z - 1e-6) ?? MIN_ZOOM)}
+            data-htip={t('rm.zoomOutTip')}
+          >
+            −
+          </button>
+          <button
+            className="btn btn-sec btn-xs"
+            data-testid="plan-roadmap-zoom-in"
+            disabled={zoom >= MAX_ZOOM}
+            onClick={() => setZoom(z => ZOOM_STEPS.find(step => step > z + 1e-6) ?? MAX_ZOOM)}
+            data-htip={t('rm.zoomInTip')}
+          >
+            +
+          </button>
+        </span>
       </div>
 
-      <div className="pr-scroll" ref={scrollRef}>
-        <div style={{ width: plotW, position: 'relative' }}>
-          {/* Month axis */}
-          <div className="pr-axis" style={{ height: AXIS_H }}>
-            {model.months.map((month, idx) => {
-              if (idx % tickEvery) return null;
-              return <span key={+month} className="pr-tick" style={{ left: xOf(month) }}>
-                <span className="pr-tick-lbl">{monthLabel(month, model.months[idx - tickEvery])}</span>
-              </span>;
-            })}
-          </div>
+      <ProjectWaits waits={waits} onOpenItem={openItem} onMoveBehind={onMoveBehind} />
 
-          {/* Rows */}
-          <div style={{ position: 'relative', minHeight: rows.length * ROW_H }}>
-            {model.months.map((month, idx) => (idx % tickEvery ? null : (
-              <span key={`g${+month}`} className="pr-grid" style={{ left: xOf(month), height: rows.length * ROW_H }} />
-            )))}
+      <div className="pr-body">
+        {/* Left column — sticky, exactly like the Gantt's row labels, so the
+          names stay readable however far right you scroll. */}
+        <div className="pr-labels" style={{ width: LABEL_W }}>
+          <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
+          {rows.map(row => (
+            <div
+              key={row.id}
+              className="pr-label"
+              style={{ height: ROW_H }}
+              onClick={() => openItem(row.id)}
+              onMouseEnter={e => showTip(row.id, row, e)}
+              onMouseLeave={hideTip}
+            >
+              <span className="pr-label-id">{row.id}</span>
+              <span className={`pr-label-name${row.allDone ? ' done' : ''}${row.dropped ? ' dropped' : ''}`}>{row.name}</span>
+            </div>
+          ))}
+        </div>
 
-            {rows.map((row, idx) => {
-              const hasSpan = row.start && row.end;
-              const left = hasSpan ? xOf(row.start) : 0;
-              const width = hasSpan ? Math.max(6, xOf(row.end) - left) : 0;
-              // A package counts as touched when anything under it is.
-              const touched = rowTouched(row);
-              return <div key={row.id} data-pr-changed={touched ? 'true' : undefined}
-                className={`pr-row${idx % 2 ? ' alt' : ''}${touched ? ' changed' : ''}`} style={{ height: ROW_H }}>
-                {hasSpan && <span
-                  className="pr-bar"
-                  style={{ left, width, background: color }}
-                  onClick={() => openItem(row.id)}
-                  onMouseEnter={e => showTip(row.id, row, e)}
-                  onMouseLeave={hideTip}>
-                  <span className="pr-bar-fill" style={{
-                    width: `${Math.max(0, Math.min(100, row.progress))}%`,
-                    background: color,
-                  }} />
-                </span>}
-                {row.milestones.map(m => (
-                  <span key={m.id}
-                    data-pr-changed={sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? 'true' : undefined}
-                    className={`pr-stop s-${m.status}${sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? ' changed' : ''}`}
-                    style={{ left: xOf(m.end), borderColor: color, background: m.status === 'done' ? color : 'var(--bg)' }}
-                    onClick={e => { e.stopPropagation(); openItem(m.id); }}
-                    onMouseEnter={e => { e.stopPropagation(); showTip(m.id, null, e); }}
-                    onMouseLeave={hideTip} />
-                ))}
-              </div>;
-            })}
+        <div className="pr-scroll" ref={scrollRef}>
+          <div style={{ width: plotW, position: 'relative' }}>
+            {/* Month axis */}
+            <div className="pr-axis" style={{ height: AXIS_H }}>
+              {model.months.map((month, idx) => {
+                if (idx % tickEvery) return null;
+                return (
+                  <span key={+month} className="pr-tick" style={{ left: xOf(month) }}>
+                    <span className="pr-tick-lbl">{monthLabel(month, model.months[idx - tickEvery])}</span>
+                  </span>
+                );
+              })}
+            </div>
 
-            {/* Today and the root's deadline — drawn last so they sit on top.
+            {/* Rows */}
+            <div style={{ position: 'relative', minHeight: rows.length * ROW_H }}>
+              {model.months.map((month, idx) =>
+                idx % tickEvery ? null : (
+                  <span key={`g${+month}`} className="pr-grid" style={{ left: xOf(month), height: rows.length * ROW_H }} />
+                ),
+              )}
+
+              {rows.map((row, idx) => {
+                const hasSpan = row.start && row.end;
+                const left = hasSpan ? xOf(row.start) : 0;
+                const width = hasSpan ? Math.max(6, xOf(row.end) - left) : 0;
+                // A package counts as touched when anything under it is.
+                const touched = rowTouched(row);
+                return (
+                  <div
+                    key={row.id}
+                    data-pr-changed={touched ? 'true' : undefined}
+                    className={`pr-row${idx % 2 ? ' alt' : ''}${touched ? ' changed' : ''}`}
+                    style={{ height: ROW_H }}
+                  >
+                    {hasSpan && (
+                      <span
+                        className="pr-bar"
+                        style={{ left, width, background: color }}
+                        onClick={() => openItem(row.id)}
+                        onMouseEnter={e => showTip(row.id, row, e)}
+                        onMouseLeave={hideTip}
+                      >
+                        <span
+                          className="pr-bar-fill"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, row.progress))}%`,
+                            background: color,
+                          }}
+                        />
+                      </span>
+                    )}
+                    {row.milestones.map(m => (
+                      <span
+                        key={m.id}
+                        data-pr-changed={sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? 'true' : undefined}
+                        className={`pr-stop s-${m.status}${sinceDate && (diffDoneIds?.has(m.id) || diffProgressedIds?.has(m.id)) ? ' changed' : ''}`}
+                        style={{ left: xOf(m.end), borderColor: color, background: m.status === 'done' ? color : 'var(--bg)' }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          openItem(m.id);
+                        }}
+                        onMouseEnter={e => {
+                          e.stopPropagation();
+                          showTip(m.id, null, e);
+                        }}
+                        onMouseLeave={hideTip}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+
+              {/* Today and the root's deadline — drawn last so they sit on top.
                 Today only draws when it actually falls on this project's own
                 axis; a finished or not-yet-started project has nothing to
                 mark. */}
-            {todayInRange && (
-              <span className="pr-today" style={{ left: xOf(model.today), height: rows.length * ROW_H }}
-                data-htip={`${t('rm.today')} · ${fmtDate(model.today)}`} />
-            )}
-            {model.deadline && (
-              <span className="pr-deadline" style={{ left: xOf(model.deadline), height: rows.length * ROW_H }}
-                data-htip={`${t('deadline')} · ${fmtDate(model.deadline)}`} />
-            )}
+              {todayInRange && (
+                <span
+                  className="pr-today"
+                  style={{ left: xOf(model.today), height: rows.length * ROW_H }}
+                  data-htip={`${t('rm.today')} · ${fmtDate(model.today)}`}
+                />
+              )}
+              {model.deadline && (
+                <span
+                  className="pr-deadline"
+                  style={{ left: xOf(model.deadline), height: rows.length * ROW_H }}
+                  data-htip={`${t('deadline')} · ${fmtDate(model.deadline)}`}
+                />
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Right column — the same two figures the Gantt puts at the end of a
+          row, so a wide window is not wasted on whitespace. */}
+        <div className="pr-figures">
+          <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
+          {rows.map(row => (
+            <div key={row.id} className="pr-figure" style={{ height: ROW_H }}>
+              {row.dropped ? (
+                <span className="pr-figure-count" data-pr-dropped="true">
+                  {t('rm.dropped')}
+                </span>
+              ) : (
+                <>
+                  <span className="pr-figure-count">
+                    {row.doneCount}/{row.leafCount}
+                  </span>
+                  <span className={`pr-figure-pct${row.allDone ? ' done' : ''}`}>{progressPctLabel(row.progress)}%</span>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Right column — the same two figures the Gantt puts at the end of a
-          row, so a wide window is not wasted on whitespace. */}
-      <div className="pr-figures">
-        <div className="pr-axis-spacer" style={{ height: AXIS_H }} />
-        {rows.map(row => (
-          <div key={row.id} className="pr-figure" style={{ height: ROW_H }}>
-            {row.dropped
-              ? <span className="pr-figure-count" data-pr-dropped="true">{t('rm.dropped')}</span>
-              : <>
-                <span className="pr-figure-count">{row.doneCount}/{row.leafCount}</span>
-                <span className={`pr-figure-pct${row.allDone ? ' done' : ''}`}>{progressPctLabel(row.progress)}%</span>
-              </>}
-          </div>
-        ))}
-      </div>
+      {tip && (
+        <Tip
+          item={tip.item}
+          x={tip.x + 14}
+          y={tip.y + 16}
+          teams={teams}
+          members={members}
+          tree={tree}
+          scheduled={scheduled}
+          cpLabels={cpLabels}
+          hint={t('tt.click')}
+        />
+      )}
     </div>
-
-    {tip && <Tip item={tip.item} x={tip.x + 14} y={tip.y + 16}
-      teams={teams} members={members} tree={tree} scheduled={scheduled}
-      cpLabels={cpLabels} hint={t('tt.click')} />}
-  </div>;
+  );
 }

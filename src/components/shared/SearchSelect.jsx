@@ -15,7 +15,20 @@ import { useT } from '../../i18n.jsx';
 // `'— None —'`. Every call that did not pass its own therefore printed English
 // into a German dialog, which is most of them: the empty option in Settings,
 // in the add dialog's team picker, everywhere `allowEmpty` appears alone.
-export function SearchSelect({ value, options, onSelect, placeholder, renderOption, allowEmpty = false, emptyLabel, showIds = false, compact = false, testId, inputRef, ariaLabel }) {
+export function SearchSelect({
+  value,
+  options,
+  onSelect,
+  placeholder,
+  renderOption,
+  allowEmpty = false,
+  emptyLabel,
+  showIds = false,
+  compact = false,
+  testId,
+  inputRef,
+  ariaLabel,
+}) {
   const { t } = useT();
   placeholder = placeholder ?? t('ss.add');
   emptyLabel = emptyLabel ?? t('none');
@@ -38,10 +51,13 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
 
   // Close on outside click, accounting for the portal-rendered popup
   useEffect(() => {
-    const h = (e) => {
+    const h = e => {
       const inWrapper = ref.current && ref.current.contains(e.target);
       const inPopup = popupRef.current && popupRef.current.contains(e.target);
-      if (!inWrapper && !inPopup) { setOpen(false); setQ(''); }
+      if (!inWrapper && !inPopup) {
+        setOpen(false);
+        setQ('');
+      }
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -88,15 +104,13 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
     };
   }, [open, portalRoot]);
 
-  const filtered = q
-    ? options.filter(o => (o.label || o.id || '').toLowerCase().includes(q.toLowerCase()))
-    : options;
+  const filtered = q ? options.filter(o => (o.label || o.id || '').toLowerCase().includes(q.toLowerCase())) : options;
 
   // Build navigable list: optional empty row + filtered options.
   const hasEmptyRow = isControlled && allowEmpty;
   const navItems = hasEmptyRow ? [{ id: '', _empty: true }, ...filtered] : filtered;
 
-  const select = (id) => {
+  const select = id => {
     onSelect(id);
     setOpen(false);
     setQ('');
@@ -110,7 +124,9 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
   }, [navItems.length, activeIdx]);
 
   // Reset to top on every re-open.
-  useEffect(() => { if (open) setActiveIdx(0); }, [open]);
+  useEffect(() => {
+    if (open) setActiveIdx(0);
+  }, [open]);
 
   // When the user is typing a query, jump the highlight past the "— None —"
   // row onto the first actual match — Enter should confirm a match, not clear.
@@ -128,10 +144,14 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
     }
   }, [activeIdx, open]);
 
-  const onKeyDown = (e) => {
+  const onKeyDown = e => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!open) { setOpen(true); setQ(''); return; }
+      if (!open) {
+        setOpen(true);
+        setQ('');
+        return;
+      }
       if (!navItems.length) return;
       setActiveIdx(i => (i + 1) % navItems.length);
     } else if (e.key === 'ArrowUp') {
@@ -144,7 +164,11 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
       const item = navItems[activeIdx];
       if (item) select(item._empty ? '' : item.id);
     } else if (e.key === 'Escape') {
-      if (open) { e.preventDefault(); setOpen(false); setQ(''); }
+      if (open) {
+        e.preventDefault();
+        setOpen(false);
+        setQ('');
+      }
     }
     // Home and End are deliberately not handled: this is a text field, and
     // jumping the caret to the start or the end of what you typed is what
@@ -167,74 +191,128 @@ export function SearchSelect({ value, options, onSelect, placeholder, renderOpti
     setQ('');
   };
 
-  return <div ref={ref} onBlur={onBlur} style={{ position: 'relative' }}>
-    <input
-      ref={inputRef}
-      data-testid={testId}
-      role="combobox"
-      aria-expanded={open}
-      aria-label={ariaLabel}
-      value={open ? q : currentLabel}
-      onChange={e => {
-        const next = e.target.value;
-        setQ(next);
-        if (!open) setOpen(true);
-        // With a query, highlight the first real match (past the "— None —"
-        // row); without one, start at the top.
-        setActiveIdx(next && hasEmptyRow ? 1 : 0);
-      }}
-      onKeyDown={onKeyDown}
-      onFocus={() => { setOpen(true); setQ(''); setActiveIdx(0); }}
-      onClick={() => { if (!open) { setOpen(true); setQ(''); setActiveIdx(0); } }}
-      placeholder={isControlled ? (currentLabel || placeholder) : placeholder}
-      readOnly={false}
-      style={{
-        width: '100%', background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)',
-        color: isControlled && !value && allowEmpty ? 'var(--tx3)' : 'var(--tx)',
-        fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer',
-        // `compact` is the in-table size — the panel padding is twice a
-        // table row's height and would push every row apart.
-        ...(compact ? { fontSize: 12, padding: '2px 5px', height: 21 } : { fontSize: 12, padding: '7px 10px' }),
-      }}
-    />
-    {open && createPortal(
-      <div ref={popupRef} data-searchselect-popup="" className="layer-dropdown" style={{
-        position: 'fixed',
-        top: popupPos.openUp ? 'auto' : popupPos.top,
-        bottom: popupPos.openUp ? popupPos.bottom : 'auto',
-        left: popupPos.left,
-        width: popupPos.width,
-        maxHeight: 220, overflowY: 'auto',
-        background: 'var(--bg2)', border: '1px solid var(--b2)', borderRadius: 'var(--r)',
-        boxShadow: 'var(--sh)',
-      }}>
-        {hasEmptyRow && <div
-          data-ss-idx={0}
-          onMouseEnter={() => setActiveIdx(0)}
-          style={{
-            padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--b)', color: 'var(--tx3)', fontStyle: 'italic',
-            background: activeIdx === 0 ? 'var(--bg4)' : '',
-          }} onClick={() => select('')}>{emptyLabel}</div>}
-        {filtered.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--tx3)' }}>No results</div>}
-        {filtered.map((o, i) => {
-          const idx = hasEmptyRow ? i + 1 : i;
-          const isActive = activeIdx === idx;
-          const isSelected = isControlled && o.id === value;
-          return <div
-            key={o.id}
-            data-ss-idx={idx}
-            onMouseEnter={() => setActiveIdx(idx)}
+  return (
+    <div ref={ref} onBlur={onBlur} style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        data-testid={testId}
+        role="combobox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        value={open ? q : currentLabel}
+        onChange={e => {
+          const next = e.target.value;
+          setQ(next);
+          if (!open) setOpen(true);
+          // With a query, highlight the first real match (past the "— None —"
+          // row); without one, start at the top.
+          setActiveIdx(next && hasEmptyRow ? 1 : 0);
+        }}
+        onKeyDown={onKeyDown}
+        onFocus={() => {
+          setOpen(true);
+          setQ('');
+          setActiveIdx(0);
+        }}
+        onClick={() => {
+          if (!open) {
+            setOpen(true);
+            setQ('');
+            setActiveIdx(0);
+          }
+        }}
+        placeholder={isControlled ? currentLabel || placeholder : placeholder}
+        readOnly={false}
+        style={{
+          width: '100%',
+          background: 'var(--bg3)',
+          border: '1px solid var(--b2)',
+          borderRadius: 'var(--r)',
+          color: isControlled && !value && allowEmpty ? 'var(--tx3)' : 'var(--tx)',
+          fontFamily: 'var(--font)',
+          outline: 'none',
+          cursor: 'pointer',
+          // `compact` is the in-table size — the panel padding is twice a
+          // table row's height and would push every row apart.
+          ...(compact ? { fontSize: 12, padding: '2px 5px', height: 21 } : { fontSize: 12, padding: '7px 10px' }),
+        }}
+      />
+      {open &&
+        createPortal(
+          <div
+            ref={popupRef}
+            data-searchselect-popup=""
+            className="layer-dropdown"
             style={{
-              padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              background: isActive ? 'var(--bg4)' : isSelected ? 'var(--bg3)' : '',
+              position: 'fixed',
+              top: popupPos.openUp ? 'auto' : popupPos.top,
+              bottom: popupPos.openUp ? popupPos.bottom : 'auto',
+              left: popupPos.left,
+              width: popupPos.width,
+              maxHeight: 220,
+              overflowY: 'auto',
+              background: 'var(--bg2)',
+              border: '1px solid var(--b2)',
+              borderRadius: 'var(--r)',
+              boxShadow: 'var(--sh)',
             }}
-            onClick={() => select(o.id)}
           >
-            {renderOption ? renderOption(o) : (showIds ? <><span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>{o.label}</> : o.label)}
-          </div>;
-        })}
-      </div>,
-      portalRoot,
-    )}
-  </div>;
+            {hasEmptyRow && (
+              <div
+                data-ss-idx={0}
+                onMouseEnter={() => setActiveIdx(0)}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  borderBottom: '1px solid var(--b)',
+                  color: 'var(--tx3)',
+                  fontStyle: 'italic',
+                  background: activeIdx === 0 ? 'var(--bg4)' : '',
+                }}
+                onClick={() => select('')}
+              >
+                {emptyLabel}
+              </div>
+            )}
+            {filtered.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--tx3)' }}>No results</div>}
+            {filtered.map((o, i) => {
+              const idx = hasEmptyRow ? i + 1 : i;
+              const isActive = activeIdx === idx;
+              const isSelected = isControlled && o.id === value;
+              return (
+                <div
+                  key={o.id}
+                  data-ss-idx={idx}
+                  onMouseEnter={() => setActiveIdx(idx)}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    borderBottom: '1px solid var(--b)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    background: isActive ? 'var(--bg4)' : isSelected ? 'var(--bg3)' : '',
+                  }}
+                  onClick={() => select(o.id)}
+                >
+                  {renderOption ? (
+                    renderOption(o)
+                  ) : showIds ? (
+                    <>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginRight: 6 }}>{o.id}</span>
+                      {o.label}
+                    </>
+                  ) : (
+                    o.label
+                  )}
+                </div>
+              );
+            })}
+          </div>,
+          portalRoot,
+        )}
+    </div>
+  );
 }

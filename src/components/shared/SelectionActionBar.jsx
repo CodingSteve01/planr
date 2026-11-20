@@ -11,7 +11,9 @@ export function SelectionActionBar({ count, onClear, children, testId = 'selecti
   return (
     <div className="gantt-selection-actionbar" data-testid={testId}>
       <span className="sab-count">
-        <span className="sab-count-pill" title={t('g.selectedTasks', count)}>{count}</span>
+        <span className="sab-count-pill" title={t('g.selectedTasks', count)}>
+          {count}
+        </span>
       </span>
       <span className="sab-divider" />
       {children}
@@ -21,7 +23,10 @@ export function SelectionActionBar({ count, onClear, children, testId = 'selecti
         onClick={onClear}
         data-testid={`${testId}-clear`}
         aria-label={t('g.clearSelectionTip')}
-        title={t('g.clearSelectionTip')}><Icon name="x" size={11} /></button>
+        title={t('g.clearSelectionTip')}
+      >
+        <Icon name="x" size={11} />
+      </button>
     </div>
   );
 }

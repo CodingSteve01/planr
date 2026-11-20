@@ -20,28 +20,43 @@ const CSV = [
 ].join('\n');
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [{ id: 'P1', name: 'Existing', status: 'open', team: 'T1' }],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Has a plan', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [{ id: 'P1', name: 'Existing', status: 'open', team: 'T1' }],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Has a plan', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 async function openImport() {
   const input = await openPalette();
-  await act(async () => { fireEvent.change(input, { target: { value: 'import from jira' } }); });
-  await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
+  await act(async () => {
+    fireEvent.change(input, { target: { value: 'import from jira' } });
+  });
+  await act(async () => {
+    fireEvent.keyDown(input, { key: 'Enter', bubbles: true });
+  });
   return screen.findByTestId('jira-import-paste');
 }
 
 async function paste(box, text) {
-  await act(async () => { fireEvent.change(box, { target: { value: text } }); });
+  await act(async () => {
+    fireEvent.change(box, { target: { value: text } });
+  });
 }
 
 describe('importing a Jira board', () => {
@@ -53,7 +68,10 @@ describe('importing a Jira board', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('shows what it will write before it writes anything', async () => {
     renderApp();
@@ -87,25 +105,29 @@ describe('importing a Jira board', () => {
     expect(screen.queryByTestId('jira-import-row-P1')).toBeNull();
   });
 
-// How many rows the plan holds, read off the grid.
-//
-// These assertions used to count `JSON.parse(localStorage.getItem('planr_v2'))`
-// — the autosave MIRROR, which is effect-driven and debounced. On an idle
-// machine it lands inside a `waitFor`; under load it does not, and the test
-// fails with the mirror's previous contents ("expected 1 to be 5", or the same
-// thing backwards after an undo). Twice today that read as a regression in
-// whatever had just been edited. treeEditor.app.test.jsx carries the warning
-// in its own header: the rendered row IS the app's answer, the mirror is a
-// copy of it that may not have been taken yet.
-const planRowCount = () => [...document.querySelectorAll('.tree-tbl tbody tr')]
-  .filter(r => r.hasAttribute('data-status') || r.querySelector('[data-testid="tree-row-name"]')).length;
+  // How many rows the plan holds, read off the grid.
+  //
+  // These assertions used to count `JSON.parse(localStorage.getItem('planr_v2'))`
+  // — the autosave MIRROR, which is effect-driven and debounced. On an idle
+  // machine it lands inside a `waitFor`; under load it does not, and the test
+  // fails with the mirror's previous contents ("expected 1 to be 5", or the same
+  // thing backwards after an undo). Twice today that read as a regression in
+  // whatever had just been edited. treeEditor.app.test.jsx carries the warning
+  // in its own header: the rendered row IS the app's answer, the mirror is a
+  // copy of it that may not have been taken yet.
+  const planRowCount = () =>
+    [...document.querySelectorAll('.tree-tbl tbody tr')].filter(
+      r => r.hasAttribute('data-status') || r.querySelector('[data-testid="tree-row-name"]'),
+    ).length;
 
   it('writes the tickets into the plan, key and all', async () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
     const box = await openImport();
     await paste(box, CSV);
-    await act(async () => { fireEvent.click(screen.getByTestId('jira-import-submit')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('jira-import-submit'));
+    });
 
     // the one that was there + wrapper + three tickets
     await waitFor(() => expect(planRowCount()).toBe(5));
@@ -129,10 +151,14 @@ const planRowCount = () => [...document.querySelectorAll('.tree-tbl tbody tr')]
     await screen.findByTestId('view-filters-trigger');
     const box = await openImport();
     await paste(box, CSV);
-    await act(async () => { fireEvent.click(screen.getByTestId('jira-import-submit')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('jira-import-submit'));
+    });
     await waitFor(() => expect(planRowCount()).toBe(5));
 
-    await act(async () => { fireEvent.click(screen.getByTestId('undo-btn')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('undo-btn'));
+    });
     await waitFor(() => expect(planRowCount()).toBe(1));
   });
 
@@ -144,8 +170,12 @@ const planRowCount = () => [...document.querySelectorAll('.tree-tbl tbody tr')]
 
     const toggle = screen.getByTestId('jira-import-members');
     expect(toggle.checked, 'people should not be created behind your back').toBe(false);
-    await act(async () => { fireEvent.click(toggle); });
-    await act(async () => { fireEvent.click(screen.getByTestId('jira-import-submit')); });
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('jira-import-submit'));
+    });
 
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem('planr_v2'));
@@ -158,7 +188,9 @@ const planRowCount = () => [...document.querySelectorAll('.tree-tbl tbody tr')]
     await screen.findByTestId('view-filters-trigger');
     const box = await openImport();
     await paste(box, CSV);
-    await act(async () => { fireEvent.click(screen.getByTestId('jira-import-group')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('jira-import-group'));
+    });
 
     // No wrapper: the epic is the project.
     expect(screen.getByTestId('jira-import-row-P2').textContent).toContain('Billing rebuild');

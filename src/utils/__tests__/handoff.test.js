@@ -57,24 +57,30 @@ describe('chainTooltip', () => {
     expect(chainTooltip({ segments: [{ personId: 'm1' }] })).toBe(null);
   });
   test('joins personNames with arrows', () => {
-    const s = { segments: [
-      { personId: 'm1', personName: 'Alex' },
-      { personId: 'm2', personName: 'Sam', handoff: true },
-    ]};
+    const s = {
+      segments: [
+        { personId: 'm1', personName: 'Alex' },
+        { personId: 'm2', personName: 'Sam', handoff: true },
+      ],
+    };
     expect(chainTooltip(s)).toBe('Alex → Sam (handoff)');
   });
   test('cross-team annotated', () => {
-    const s = { segments: [
-      { personId: 'm1', personName: 'Alex' },
-      { personId: 'm2', personName: 'Sam', handoff: true, crossTeam: true },
-    ]};
+    const s = {
+      segments: [
+        { personId: 'm1', personName: 'Alex' },
+        { personId: 'm2', personName: 'Sam', handoff: true, crossTeam: true },
+      ],
+    };
     expect(chainTooltip(s)).toBe('Alex → Sam (cross-team)');
   });
   test('unscheduled segments show effort', () => {
-    const s = { segments: [
-      { personId: 'm1', personName: 'Alex' },
-      { unscheduled: true, effort: 5.5 },
-    ]};
+    const s = {
+      segments: [
+        { personId: 'm1', personName: 'Alex' },
+        { unscheduled: true, effort: 5.5 },
+      ],
+    };
     expect(chainTooltip(s)).toBe('Alex → ! unassigned (5.5 PT)');
   });
 });

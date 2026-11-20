@@ -44,41 +44,82 @@ export function SearchBox({ searchRef, onCommit, onResetIdx, onPrev, onNext, onG
         value={v}
         onChange={e => setV(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Escape') { setV(''); lastSentRef.current = ''; onCommit(''); e.target.blur(); return; }
+          if (e.key === 'Escape') {
+            setV('');
+            lastSentRef.current = '';
+            onCommit('');
+            e.target.blur();
+            return;
+          }
           if (e.key === 'Enter') {
             e.preventDefault();
             // Flush immediately, skip debounce.
-            if (v !== lastSentRef.current) { lastSentRef.current = v; onCommit(v); }
+            if (v !== lastSentRef.current) {
+              lastSentRef.current = v;
+              onCommit(v);
+            }
             // ⇧Enter still steps through matches from here. A plain Enter
             // means "I'm done typing, take me to the results" — it hands the
             // keyboard to the view and puts the cursor on the first match,
             // instead of leaving you in the input where the arrow keys move
             // a text caret.
-            if (e.shiftKey) { onPrev?.(); return; }
-            if (onGoToResults) onGoToResults(v); else onNext?.();
+            if (e.shiftKey) {
+              onPrev?.();
+              return;
+            }
+            if (onGoToResults) onGoToResults(v);
+            else onNext?.();
           }
-          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); onNext?.(); }
-          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') { e.preventDefault(); onPrev?.(); }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
+            e.preventDefault();
+            onNext?.();
+          }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+            e.preventDefault();
+            onPrev?.();
+          }
         }}
       />
       {/* ▲/▼ only where a view steps through matches; the tree filters to
           them instead, and two buttons that do nothing are worse than none. */}
-      {v && <>
-        {onNext && <>
-        <button className="btn btn-ghost btn-xs" onClick={onPrev}
-          data-htip={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
-          aria-label={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
-          style={{ padding: '2px 5px' }}><Icon name="chevronUp" size={12} strokeWidth={2.2} /></button>
-        <button className="btn btn-ghost btn-xs" onClick={onNext}
-          data-htip={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
-          aria-label={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
-          style={{ padding: '2px 5px' }}><Icon name="chevronDown" size={12} strokeWidth={2.2} /></button>
-        </>}
-        <button className="btn btn-ghost btn-xs"
-          onClick={() => { setV(''); lastSentRef.current = ''; onCommit(''); }}
-          data-htip={withKey(t('sb.clearSearchLabel'), 'closeDialog')}
-          style={{ padding: '2px 7px', fontSize: 12 }}><Icon name="x" size={11} /></button>
-      </>}
+      {v && (
+        <>
+          {onNext && (
+            <>
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={onPrev}
+                data-htip={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
+                aria-label={t('sb.prevMatchTip', isMac ? '⌘' : 'Ctrl')}
+                style={{ padding: '2px 5px' }}
+              >
+                <Icon name="chevronUp" size={12} strokeWidth={2.2} />
+              </button>
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={onNext}
+                data-htip={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
+                aria-label={t('sb.nextMatchTip', isMac ? '⌘' : 'Ctrl')}
+                style={{ padding: '2px 5px' }}
+              >
+                <Icon name="chevronDown" size={12} strokeWidth={2.2} />
+              </button>
+            </>
+          )}
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={() => {
+              setV('');
+              lastSentRef.current = '';
+              onCommit('');
+            }}
+            data-htip={withKey(t('sb.clearSearchLabel'), 'closeDialog')}
+            style={{ padding: '2px 7px', fontSize: 12 }}
+          >
+            <Icon name="x" size={11} />
+          </button>
+        </>
+      )}
     </>
   );
 }

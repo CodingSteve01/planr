@@ -27,36 +27,66 @@ const PLAN = `# Baseline
   - **P1.2** Beta Task (S 5T ×1) — Dev [AN]
 `;
 
-
 // `onDisk`: a write lands in the file, as it does on a real disk. Off where a
 // test plays the outside writer itself and must not be overwritten.
 function changingFile(initial, { onDisk = false } = {}) {
   const state = { text: initial, mod: 1000, reads: 0 };
   const handle = {
-    name: 'baseline.planr.md', kind: 'file',
-    queryPermission: async () => 'granted', requestPermission: async () => 'granted',
-    getFile: async () => { state.reads++; return { name: 'baseline.planr.md', lastModified: state.mod, text: async () => state.text }; },
-    createWritable: async () => ({ write: async content => { state.out = String(content); if (onDisk) state.text = state.out; state.written = (state.written || 0) + 1; }, close: async () => {} }),
+    name: 'baseline.planr.md',
+    kind: 'file',
+    queryPermission: async () => 'granted',
+    requestPermission: async () => 'granted',
+    getFile: async () => {
+      state.reads++;
+      return { name: 'baseline.planr.md', lastModified: state.mod, text: async () => state.text };
+    },
+    createWritable: async () => ({
+      write: async content => {
+        state.out = String(content);
+        if (onDisk) state.text = state.out;
+        state.written = (state.written || 0) + 1;
+      },
+      close: async () => {},
+    }),
   };
   return { handle, state };
 }
 
 describe('the file-changed notice in the header', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tab', 'tree'); });
-  afterEach(() => { vi.useRealTimers(); cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+    localStorage.clear();
+  });
 
   it('sits outside the group that gets cut off, and reloads', async () => {
     const { handle, state } = changingFile(PLAN);
     // The poll runs every five seconds; the clock is driven by hand so the
     // test does not depend on how fast the machine is.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await screen.findByText('Beta Task', {}, { timeout: 10000 });
     // One poll sees the file as it is, then it changes on disk.
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     state.mod = 9000;
     state.text = PLAN.replace('Beta Task', 'Gamma Task');
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     const notice = await screen.findByTestId('external-change', {}, { timeout: 5000 });
     expect(notice.closest('.topbar-file')).toBeNull();
     expect(notice.closest('.topbar')).toBeTruthy();
@@ -66,38 +96,64 @@ describe('the file-changed notice in the header', () => {
     // A change right after the reload is measured against what was just read.
     state.mod = 20000;
     state.text = state.text.replace('Gamma Task', 'Delta Task');
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     expect(await screen.findByTestId('external-change', {}, { timeout: 5000 })).toBeTruthy();
   }, 45000);
 
   it('a file that was only touched, as a sync service does, is not a changed file', async () => {
     const { handle, state } = changingFile(PLAN, { onDisk: true });
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await screen.findByText('Beta Task', {}, { timeout: 10000 });
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     // Same text, newer time: twice, as it happens on every upload.
     state.mod = 9000;
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     state.mod = 12000;
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     expect(screen.queryByTestId('external-change')).toBeNull();
     // A real change after that is still seen.
     state.mod = 15000;
     state.text = state.text.replace('Beta Task', 'Gamma Task');
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     expect(await screen.findByTestId('external-change', {}, { timeout: 5000 })).toBeTruthy();
   }, 45000);
 
   it('what changed outside is recorded as a change of the day it was picked up', async () => {
     const { handle, state } = changingFile(PLAN);
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await screen.findByText('Beta Task', {}, { timeout: 10000 });
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     state.mod = 9000;
     state.text = PLAN.replace('Beta Task', 'Gamma Task');
-    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
     fireEvent.click(await screen.findByTestId('external-reload', {}, { timeout: 5000 }));
     await screen.findByText('Gamma Task', {}, { timeout: 10000 });
     vi.useRealTimers();
@@ -106,34 +162,62 @@ describe('the file-changed notice in the header', () => {
     fireEvent.click(screen.getByText('Alpha Task').closest('tr'));
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     await waitFor(() => expect(state.written || 0).toBeGreaterThan(before), { timeout: 15000, interval: 200 });
-    await waitFor(() => expect(parseMdToProject(state.out).tree.map(n => n.name)).toEqual(['Project', 'Gamma Task']), { timeout: 15000, interval: 200 });
+    await waitFor(() => expect(parseMdToProject(state.out).tree.map(n => n.name)).toEqual(['Project', 'Gamma Task']), {
+      timeout: 15000,
+      interval: 200,
+    });
     const real = parseMdToProject(state.out);
-    const d = new Date(); d.setDate(d.getDate() - 1);
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
     const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     expect(real.tree.map(n => n.name)).toEqual(['Project', 'Gamma Task']);
     // A task that comes back is appended; the views sort the tree themselves.
-    expect(planAtEndOf(real, yesterday).tree.map(n => n.name).sort()).toEqual(['Alpha Task', 'Beta Task', 'Project']);
+    expect(
+      planAtEndOf(real, yesterday)
+        .tree.map(n => n.name)
+        .sort(),
+    ).toEqual(['Alpha Task', 'Beta Task', 'Project']);
   }, 45000);
 
   it('a file that is busy for a moment is saved a moment later, without asking for it again', async () => {
     const { handle, state } = changingFile(PLAN, { onDisk: true });
     let busy = 0;
     const create = handle.createWritable;
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
     // From now on the first two writes find the file locked.
-    handle.createWritable = async () => { if (busy++ < 2) throw new DOMException('locked', 'NoModificationAllowedError'); return create(); };
+    handle.createWritable = async () => {
+      if (busy++ < 2) throw new DOMException('locked', 'NoModificationAllowedError');
+      return create();
+    };
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
-    await waitFor(() => expect(parseMdToProject(state.text).tree.map(n => n.name)).toEqual(['Project', 'Alpha Task']), { timeout: 25000, interval: 250 });
+    await waitFor(() => expect(parseMdToProject(state.text).tree.map(n => n.name)).toEqual(['Project', 'Alpha Task']), {
+      timeout: 25000,
+      interval: 250,
+    });
     expect(busy).toBeGreaterThanOrEqual(3);
     expect(document.querySelector('.topbar').textContent).not.toContain('re-mount');
   }, 40000);
 
   it('a file that is gone says so', async () => {
     const { handle } = changingFile(PLAN, { onDisk: true });
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
-    handle.createWritable = async () => { throw new DOMException('gone', 'NotFoundError'); };
+    handle.createWritable = async () => {
+      throw new DOMException('gone', 'NotFoundError');
+    };
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     await waitFor(() => expect(document.querySelector('.topbar').textContent).toContain('re-mount'), { timeout: 20000, interval: 250 });
   }, 30000);
@@ -145,14 +229,30 @@ describe('the file-changed notice in the header', () => {
     const create = handle.createWritable;
     const count = { busy: 0 };
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
-    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
-    handle.createWritable = async () => { if (count.busy++ < busyWrites) throw new DOMException('locked', 'NoModificationAllowedError'); return create(); };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+    handle.createWritable = async () => {
+      if (count.busy++ < busyWrites) throw new DOMException('locked', 'NoModificationAllowedError');
+      return create();
+    };
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     return { state, count };
   };
-  const rounds = async n => { for (let i = 0; i < n; i++) await act(async () => { await vi.advanceTimersByTimeAsync(26000); }); };
+  const rounds = async n => {
+    for (let i = 0; i < n; i++)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(26000);
+      });
+  };
 
   it('a file busy for longer than one save is tried again a quarter of a minute later', async () => {
     const { state, count } = await openAndDelete(4);

@@ -61,7 +61,12 @@ describe('moving a selection', () => {
     const nested = T('P1', 'P1.1', 'P1.1.1', 'P1.1.2', 'P1.2');
     const res = run(nested, ['P1.1.1', 'P1.1.2'], 'outdent');
     expect(names(res.tree)).toEqual(['P1', 'P1.1', 'P1.1.1', 'P1.1.2', 'P1.2']);
-    const parent = id => res.tree.find(r => r.name === id).id.split('.').slice(0, -1).join('.');
+    const parent = id =>
+      res.tree
+        .find(r => r.name === id)
+        .id.split('.')
+        .slice(0, -1)
+        .join('.');
     expect(parent('P1.1.1')).toBe('P1');
     expect(parent('P1.1.2')).toBe('P1');
   });

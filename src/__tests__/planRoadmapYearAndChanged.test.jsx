@@ -39,16 +39,22 @@ afterAll(() => {
 });
 afterEach(cleanup);
 
-const renderRoadmap = props => render(
-  <I18nProvider><PlanRoadmap tree={tree} scheduled={scheduled} stats={{}} rootId="P1" {...props} /></I18nProvider>,
-);
+const renderRoadmap = props =>
+  render(
+    <I18nProvider>
+      <PlanRoadmap tree={tree} scheduled={scheduled} stats={{}} rootId="P1" {...props} />
+    </I18nProvider>,
+  );
 
 describe('the one-project roadmap', () => {
   it('names the year again on the first tick of each new year', () => {
     const { container } = renderRoadmap();
     const labels = [...container.querySelectorAll('.pr-tick-lbl')].map(el => el.textContent);
     expect(labels.length).toBeGreaterThan(4);
-    expect(labels.some(label => /^Jan/.test(label)), 'test needs an axis that skips January').toBe(false);
+    expect(
+      labels.some(label => /^Jan/.test(label)),
+      'test needs an axis that skips January',
+    ).toBe(false);
     const withYear = labels.filter(label => /’\d\d$/.test(label));
     expect(withYear).toEqual([labels[0], labels.find(label => label.endsWith('’27'))]);
     expect(withYear[0]).toMatch(/’26$/);
@@ -56,8 +62,10 @@ describe('the one-project roadmap', () => {
 
   it('keeps each bar on its own row when only changed packages are shown', () => {
     const { container } = renderRoadmap({
-      sinceDate: new Date(2026, 8, 24), onlyChanged: true,
-      diffDoneIds: new Set(), diffProgressedIds: new Set(['P1.3']),
+      sinceDate: new Date(2026, 8, 24),
+      onlyChanged: true,
+      diffDoneIds: new Set(),
+      diffProgressedIds: new Set(['P1.3']),
     });
     const names = [...container.querySelectorAll('.pr-label-id')].map(el => el.textContent);
     const plotted = [...container.querySelectorAll('.pr-row')];

@@ -1,6 +1,6 @@
 # What a change has to pass before it is merged, and what main is held to.
 #
-#   lint      ESLint with the baseline (eslint-suppressions.json): no new
+#   lint      formatted as Prettier formats it; ESLint with the baseline (eslint-suppressions.json): no new
 #             finding, and no suppression left that is no longer needed
 #   quality   duplicated code under the ceiling, no unused file or dependency,
 #             the three version files in step
@@ -35,6 +35,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
 
   quality:

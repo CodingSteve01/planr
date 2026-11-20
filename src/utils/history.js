@@ -29,7 +29,7 @@ export function parseHistoryBlock(blockText) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    if (line === HISTORY_VERSION) continue;          // version header
+    if (line === HISTORY_VERSION) continue; // version header
     if (line.startsWith('#') || line.startsWith('//')) continue; // comments
     const parts = line.split(/\s+/);
     if (parts.length < 3) continue;
@@ -59,9 +59,7 @@ export function formatHistoryBlock(events) {
 
 export function formatEvent(ev) {
   const order = ['kind', 'status', 'progress', 'completedAt'];
-  const kvs = order
-    .filter(k => ev[k] !== undefined && ev[k] !== null && ev[k] !== '')
-    .map(k => `${k}=${ev[k]}`);
+  const kvs = order.filter(k => ev[k] !== undefined && ev[k] !== null && ev[k] !== '').map(k => `${k}=${ev[k]}`);
   for (const k of Object.keys(ev)) {
     if (k === 'ts' || k === 'id' || order.includes(k)) continue;
     if (ev[k] === undefined || ev[k] === null || ev[k] === '') continue;
@@ -86,9 +84,7 @@ export function leafSnapshot(tree) {
   for (const r of tree) {
     if (!r?.id) continue;
     const status = r.status || 'open';
-    const rawProgress = typeof r.progress === 'number'
-      ? r.progress
-      : status === 'done' ? 100 : status === 'wip' ? 50 : 0;
+    const rawProgress = typeof r.progress === 'number' ? r.progress : status === 'done' ? 100 : status === 'wip' ? 50 : 0;
     m.set(r.id, {
       status,
       progress: status === 'done' ? 100 : Math.max(0, Math.min(99, rawProgress)),
@@ -118,7 +114,15 @@ export function diffSnapshots(prev, curr, ts, effectiveAt = null) {
     seen.add(id);
     const p = prev.get(id);
     if (!p) {
-      events.push({ ts, id, kind: 'added', status: c.status, progress: c.progress, ...(c.completedAt ? { completedAt: c.completedAt } : {}), ...on });
+      events.push({
+        ts,
+        id,
+        kind: 'added',
+        status: c.status,
+        progress: c.progress,
+        ...(c.completedAt ? { completedAt: c.completedAt } : {}),
+        ...on,
+      });
       continue;
     }
     const delta = {};
@@ -148,7 +152,10 @@ export function stateAsOf(events, asOfDate) {
   });
   for (const ev of sorted) {
     if (new Date(eventReplayTimestamp(ev)) > cutoff) break;
-    if (ev.kind === 'removed') { m.delete(ev.id); continue; }
+    if (ev.kind === 'removed') {
+      m.delete(ev.id);
+      continue;
+    }
     const prev = m.get(ev.id) || { status: 'open', progress: 0, completedAt: null };
     const next = { ...prev };
     if (ev.status != null) next.status = ev.status;
@@ -209,7 +216,7 @@ export function replayToDate(tree, events, operatingDate) {
         delete next.completedEnd;
         delete next.completedStart;
         if (next.status === 'done') {
-          next.status = (s && s.status !== 'done') ? s.status : 'open';
+          next.status = s && s.status !== 'done' ? s.status : 'open';
           if (next.status !== 'done' && (next.progress ?? 100) === 100) next.progress = s?.progress ?? 0;
         }
       }
@@ -226,11 +233,16 @@ export function diffForUi(prev, curr) {
   for (const [id, c] of curr) {
     seen.add(id);
     const p = prev.get(id);
-    if (!p) { out.set(id, { isNew: true, nowStatus: c.status, nowProgress: c.progress }); continue; }
+    if (!p) {
+      out.set(id, { isNew: true, nowStatus: c.status, nowProgress: c.progress });
+      continue;
+    }
     if (p.status !== c.status || p.progress !== c.progress) {
       out.set(id, {
-        wasStatus: p.status, nowStatus: c.status,
-        wasProgress: p.progress, nowProgress: c.progress,
+        wasStatus: p.status,
+        nowStatus: c.status,
+        wasProgress: p.progress,
+        nowProgress: c.progress,
       });
     }
   }
@@ -270,13 +282,22 @@ export function supersededByBackdate(existing, newEvents) {
   const dropped = [];
   for (const ev of existing || []) {
     const rule = rules.get(ev?.id);
-    if (!rule) { kept.push(ev); continue; }
+    if (!rule) {
+      kept.push(ev);
+      continue;
+    }
     const on = eventEffectiveDate(ev);
     // Strictly after: an entry ON the backdated day is a peer, not a
     // contradiction, and ordering between the two is already decided by ts.
-    if (!on || on <= rule.from) { kept.push(ev); continue; }
+    if (!on || on <= rule.from) {
+      kept.push(ev);
+      continue;
+    }
     const claims = FIELDS.filter(f => ev[f] != null);
-    if (!claims.length || !claims.every(f => rule.fields.has(f))) { kept.push(ev); continue; }
+    if (!claims.length || !claims.every(f => rule.fields.has(f))) {
+      kept.push(ev);
+      continue;
+    }
     dropped.push(ev);
   }
   return { kept, dropped };
@@ -331,7 +352,14 @@ export function stampPendingDates(events, pending, snapshot, ts = null) {
     for (const [id, day] of dayOf) {
       if (seen.has(id)) continue;
       const now = snapshot.get(id);
-      out.push({ ts, id, status: now.status, progress: now.progress, ...(now.status === 'done' && now.completedAt ? { completedAt: now.completedAt } : {}), effectiveAt: day });
+      out.push({
+        ts,
+        id,
+        status: now.status,
+        progress: now.progress,
+        ...(now.status === 'done' && now.completedAt ? { completedAt: now.completedAt } : {}),
+        effectiveAt: day,
+      });
     }
   }
   return out;
@@ -372,23 +400,29 @@ export function withoutPendingDates(data, read = null) {
 // Order in the file is kept for everything that stays.
 const FLAP_WINDOW_MS = 3 * 24 * 3600 * 1000;
 function withinFlapWindow(removed, added) {
-  const a = Date.parse(removed?.ts || ''), b = Date.parse(added?.ts || '');
+  const a = Date.parse(removed?.ts || ''),
+    b = Date.parse(added?.ts || '');
   return Number.isFinite(a) && Number.isFinite(b) && Math.abs(b - a) <= FLAP_WINDOW_MS;
 }
 
 export function compactHistory(events) {
   if (!Array.isArray(events) || events.length < 2) return { events: events || [], dropped: 0 };
-  const order = events.map((ev, i) => ({ ev, i, at: eventReplayTimestamp(ev) }))
+  const order = events
+    .map((ev, i) => ({ ev, i, at: eventReplayTimestamp(ev) }))
     .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.i - b.i));
-  const same = (a, b) => !!a && !!b && a.status === b.status && a.progress === b.progress && (a.completedAt || null) === (b.completedAt || null);
-  const state = new Map();     // id → { status, progress, completedAt } while present
-  const pending = new Map();   // id → { index, before } for a "removed" that may turn out to be a flap
+  const same = (a, b) =>
+    !!a && !!b && a.status === b.status && a.progress === b.progress && (a.completedAt || null) === (b.completedAt || null);
+  const state = new Map(); // id → { status, progress, completedAt } while present
+  const pending = new Map(); // id → { index, before } for a "removed" that may turn out to be a flap
   const drop = new Set();
   for (const { ev, i } of order) {
     if (!ev || !ev.id) continue;
     const prev = state.get(ev.id);
     if (ev.kind === 'removed') {
-      if (!prev) { drop.add(i); continue; }           // removing what is not there
+      if (!prev) {
+        drop.add(i);
+        continue;
+      } // removing what is not there
       state.delete(ev.id);
       pending.set(ev.id, { index: i, before: prev });
       continue;
@@ -401,11 +435,15 @@ export function compactHistory(events) {
     const flap = pending.get(ev.id);
     pending.delete(ev.id);
     if (!prev && flap && ev.kind === 'added' && same(flap.before, next) && withinFlapWindow(events[flap.index], ev)) {
-      drop.add(flap.index); drop.add(i);              // gone and back, unchanged: never gone
+      drop.add(flap.index);
+      drop.add(i); // gone and back, unchanged: never gone
       state.set(ev.id, flap.before);
       continue;
     }
-    if (prev && same(prev, next)) { drop.add(i); continue; }
+    if (prev && same(prev, next)) {
+      drop.add(i);
+      continue;
+    }
     state.set(ev.id, next);
   }
   if (!drop.size) return { events, dropped: 0 };

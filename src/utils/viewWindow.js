@@ -7,9 +7,7 @@ function validDate(value) {
 }
 
 export function inferGanttViewStart(tree = [], planStart = '', metaViewStart = '', paddingDays = 14) {
-  const base = metaViewStart && (!planStart || metaViewStart < planStart)
-    ? metaViewStart
-    : planStart;
+  const base = metaViewStart && (!planStart || metaViewStart < planStart) ? metaViewStart : planStart;
 
   let earliest = null;
   for (const node of tree || []) {

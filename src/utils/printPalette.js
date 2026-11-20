@@ -13,37 +13,37 @@
 // them to the stylesheet, so the two cannot drift.
 export const PRINT = {
   // Ink
-  ink: '#1a1a18',        // --tx
-  ink2: '#4a4944',       // --tx2
-  muted: '#5c5a54',      // --tx3
+  ink: '#1a1a18', // --tx
+  ink2: '#4a4944', // --tx2
+  muted: '#5c5a54', // --tx3
 
   // Ground
-  paper: '#ffffff',      // --bg2
-  ground: '#fafaf8',     // --bg
-  band: '#f1efea',       // --bg3 — table header fill, zebra rows
-  rule: '#e6e4de',       // --b
-  rule2: '#d5d2ca',      // --b2
+  paper: '#ffffff', // --bg2
+  ground: '#fafaf8', // --bg
+  band: '#f1efea', // --bg3 — table header fill, zebra rows
+  rule: '#e6e4de', // --b
+  rule2: '#d5d2ca', // --b2
 
   // Accent
-  accent: '#2b5c8a',     // --ac
+  accent: '#2b5c8a', // --ac
   accentDeep: '#1e4467', // --ac2
   accentSoft: '#eaf0f6', // --ac-soft
 
   // State
-  done: '#357049',       // --st-done
-  wip: '#8a5a1a',        // --st-wip
-  risk: '#a8443a',       // --st-risk
-  doneSoft: '#e8f1ea',   // --st-done-soft
-  wipSoft: '#f7efe2',    // --st-wip-soft
-  riskSoft: '#f7eae8',   // --st-risk-soft
+  done: '#357049', // --st-done
+  wip: '#8a5a1a', // --st-wip
+  risk: '#a8443a', // --st-risk
+  doneSoft: '#e8f1ea', // --st-done-soft
+  wipSoft: '#f7efe2', // --st-wip-soft
+  riskSoft: '#f7eae8', // --st-risk-soft
 
   // Planning confidence — an ordinal ramp in one hue, not three status
   // colours. See the note beside --cf-hi in App.css.
-  confHi: '#1e4467',     // --cf-hi
-  confMid: '#5d87ad',    // --cf-mid
-  confLo: '#b6c9d9',     // --cf-lo
+  confHi: '#1e4467', // --cf-hi
+  confMid: '#5d87ad', // --cf-mid
+  confLo: '#b6c9d9', // --cf-lo
 
-  scenario: '#663f8f',     // --sc — "this is a scenario, not the plan"
+  scenario: '#663f8f', // --sc — "this is a scenario, not the plan"
   scenarioSoft: '#f2eaf9', // --sc-soft
 };
 

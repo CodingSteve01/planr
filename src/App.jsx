@@ -4,7 +4,18 @@ import { flushSync } from 'react-dom';
 import { SK, GT_MARKS } from './constants.js';
 import { iso, normalizeVacation } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { exportJSON, exportNetworkPNG, exportGanttPNG, exportSprintMarkdown, exportMermaid, exportReportDocx, exportSummaryPDF, exportGanttPDF, exportTodoPDF, exportWhatWhenPDF } from './utils/exports.js';
+import {
+  exportJSON,
+  exportNetworkPNG,
+  exportGanttPNG,
+  exportSprintMarkdown,
+  exportMermaid,
+  exportReportDocx,
+  exportSummaryPDF,
+  exportGanttPDF,
+  exportTodoPDF,
+  exportWhatWhenPDF,
+} from './utils/exports.js';
 import { DEFAULT_CUSTOM_FIELDS } from './utils/customFields.js';
 import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
@@ -12,13 +23,41 @@ import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
 import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from './utils/fileWrite.js';
 import { applyPastEdit, inIdsOf, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
-import { applyPatch, isEmptyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
+import {
+  applyPatch,
+  isEmptyPatch,
+  carryScenarioList,
+  deepEqual,
+  describeChanges,
+  diffPlan,
+  newScenarioId,
+  revertChange,
+  uniqueScenarioName,
+  withScenarioPatch,
+} from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { addDays, changeDates, compileMembers, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from './utils/effective.js';
+import {
+  addDays,
+  changeDates,
+  compileMembers,
+  dropChange,
+  foldEdit,
+  migrateLegacyChanges,
+  pruneChanges,
+  resourcesAsOf,
+} from './utils/effective.js';
 import { EffectiveBar, EffectiveProvider, EffectiveSwitch, EFFECTIVE_OPEN_EVENT } from './components/shared/Effective.jsx';
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
-import { compactHistory, leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
+import {
+  compactHistory,
+  leafSnapshot,
+  diffSnapshots,
+  supersededByBackdate,
+  pendingDate,
+  stampPendingDates,
+  withoutPendingDates,
+} from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -30,14 +69,34 @@ import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, AR
 import { buildExportCtx } from './utils/exportCtx.js';
 import { projectWaits } from './utils/projectWaits.js';
 import { applyRootOrder } from './utils/orderSearch.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
+import {
+  schedule,
+  treeStats,
+  enrichParentSchedules,
+  nextChildId,
+  deriveParentStatuses,
+  leafNodes,
+  isLeafNode,
+  parentId,
+  computeConfidence,
+  leafProgress,
+  scheduleEffort,
+  isDropped,
+  derivePhaseStatus,
+} from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
 import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { instantiateTemplatePhases } from './utils/phases.js';
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
-import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';
+import {
+  clearMountedFileHandle,
+  loadMountedFileHandle,
+  persistMountedFileHandle,
+  queryHandlePermission,
+  requestHandlePermission,
+} from './utils/fileHandleStore.js';
 import { TAB_IDS, initialTab } from './utils/modes.js';
 import { withKey } from './utils/shortcuts.js';
 import { isEmbedded, usePortalRoot } from './utils/embedHost.js';
@@ -79,7 +138,14 @@ import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
 import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
 import { FileMenu } from './components/shared/FileMenu.jsx';
-import { ScenarioBar, ScenarioCompare, ScenarioNotice, ScenarioSwitch, SCENARIO_NEW_EVENT, useScenarioReport } from './components/shared/Scenario.jsx';
+import {
+  ScenarioBar,
+  ScenarioCompare,
+  ScenarioNotice,
+  ScenarioSwitch,
+  SCENARIO_NEW_EVENT,
+  useScenarioReport,
+} from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
@@ -94,7 +160,11 @@ import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
 // one thing to decide now.
 function initialShell() {
   let savedTab = null;
-  try { savedTab = localStorage.getItem('planr_tab'); } catch { /* ignore */ }
+  try {
+    savedTab = localStorage.getItem('planr_tab');
+  } catch {
+    /* ignore */
+  }
   return { tab: initialTab(savedTab) };
 }
 
@@ -125,20 +195,26 @@ const SNAPSHOT_MAX = 20;
 // double-parse/double-stringify that used to dominate during typing.
 // Pushes are coalesced into a single idle task so a burst of edits
 // becomes one stringify-and-compare instead of one per change.
-let _snapCache = null;       // [{ ts, data }, …] | null = not yet loaded
-let _lastSnapHash = null;    // hash (= JSON.stringify) of the most recent push
-let _pendingData = null;     // data scheduled for next idle snapshot
-let _pendingHandle = null;   // outstanding requestIdleCallback id
+let _snapCache = null; // [{ ts, data }, …] | null = not yet loaded
+let _lastSnapHash = null; // hash (= JSON.stringify) of the most recent push
+let _pendingData = null; // data scheduled for next idle snapshot
+let _pendingHandle = null; // outstanding requestIdleCallback id
 function loadSnapshots() {
   if (_snapCache) return _snapCache;
   try {
     const arr = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
     _snapCache = Array.isArray(arr) ? arr : [];
-  } catch { _snapCache = []; }
+  } catch {
+    _snapCache = [];
+  }
   if (_snapCache.length) {
     // Seed hash from the most-recent stored snapshot so a fresh page load
     // doesn't push a duplicate as the first snapshot.
-    try { _lastSnapHash = JSON.stringify(_snapCache[0].data); } catch { /* ignore */ }
+    try {
+      _lastSnapHash = JSON.stringify(_snapCache[0].data);
+    } catch {
+      /* ignore */
+    }
   }
   return _snapCache;
 }
@@ -148,7 +224,11 @@ function _runSnapshot() {
   _pendingData = null;
   if (!data || !Array.isArray(data.tree)) return;
   let hash;
-  try { hash = JSON.stringify(data); } catch { return; }
+  try {
+    hash = JSON.stringify(data);
+  } catch {
+    return;
+  }
   // Dedup by content. Skip when nothing actually changed since the last
   // snapshot — that gives us a long, sparse history dominated by real
   // edits instead of one entry per auto-save.
@@ -158,16 +238,22 @@ function _runSnapshot() {
   if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
   _snapCache = arr;
   _lastSnapHash = hash;
-  try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr)); }
-  catch {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
+  } catch {
     // Quota fallback: halve the ring, retry once, wipe as last resort.
     try {
       const half = arr.slice(0, Math.max(1, Math.floor(SNAPSHOT_MAX / 2)));
       localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(half));
       _snapCache = half;
     } catch {
-      try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
-      _snapCache = []; _lastSnapHash = null;
+      try {
+        localStorage.removeItem(SNAPSHOT_KEY);
+      } catch {
+        /* ignore */
+      }
+      _snapCache = [];
+      _lastSnapHash = null;
     }
   }
 }
@@ -228,9 +314,17 @@ export { TAB_IDS };
 // obvious two-line change; an unlisted id falls back to a neutral marker
 // rather than leaving a ragged gap in the column.
 const TAB_ICONS = {
-  summary: 'target', briefing: 'sun', plan: 'pencil', tree: 'list', gantt: 'gantt',
-  order: 'grip', roadmap: 'map', net: 'network', resources: 'users',
-  holidays: 'beach', report: 'doc',
+  summary: 'target',
+  briefing: 'sun',
+  plan: 'pencil',
+  tree: 'list',
+  gantt: 'gantt',
+  order: 'grip',
+  roadmap: 'map',
+  net: 'network',
+  resources: 'users',
+  holidays: 'beach',
+  report: 'doc',
 };
 // Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
 const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
@@ -261,7 +355,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const portalRoot = usePortalRoot();
   const [data, setData] = useState(() => (hosted ? null : loadLocalProject()));
   const [tab, _setTab] = useState(() => initialShell().tab);
-  const setTab = t => { _setTab(t); try { localStorage.setItem('planr_tab', t); } catch {} };
+  const setTab = t => {
+    _setTab(t);
+    try {
+      localStorage.setItem('planr_tab', t);
+    } catch {}
+  };
 
   // The tab row scrolls sideways instead of wrapping (see .tab-bar-wrap in
   // App.css). Two things have to follow from that: the active tab is brought
@@ -297,15 +396,26 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // are useCallback'd, so an App re-render that doesn't touch a view's data
   // skips its reconciliation entirely — no input-lag cascade.
   const [visitedTabs, setVisitedTabs] = useState(() => new Set([tab]));
-  useEffect(() => { setVisitedTabs(s => s.has(tab) ? s : new Set([...s, tab])); }, [tab]);
+  useEffect(() => {
+    setVisitedTabs(s => (s.has(tab) ? s : new Set([...s, tab])));
+  }, [tab]);
   // Plan mode's project lens (RoadmapLens.jsx) — a calendar-style roadmap for
   // one project, shown beside the Gantt. Both bits of state are local to the
   // shell (not the plan file): which project is focused, and whether the
   // panel is open at all. Persisted so the choice survives a reload.
   const [ganttRoadmapFocus, _setGanttRoadmapFocus] = useState(() => {
-    try { return localStorage.getItem('planr_gantt_roadmap_focus') || ''; } catch { return ''; }
+    try {
+      return localStorage.getItem('planr_gantt_roadmap_focus') || '';
+    } catch {
+      return '';
+    }
   });
-  const setGanttRoadmapFocus = id => { _setGanttRoadmapFocus(id); try { localStorage.setItem('planr_gantt_roadmap_focus', id || ''); } catch {} };
+  const setGanttRoadmapFocus = id => {
+    _setGanttRoadmapFocus(id);
+    try {
+      localStorage.setItem('planr_gantt_roadmap_focus', id || '');
+    } catch {}
+  };
   // Store only the selected node's ID; derive the actual node from the tree.
   // This ensures `selected` always reflects the latest tree state — fixes a bug
   // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
@@ -323,22 +433,80 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0);
   const deferredSearch = useDeferredValue(search);
-  const [teamFilter, setTeamFilter] = useState(() => { try { return localStorage.getItem('planr_team_filter') || ''; } catch { return ''; } });
-  const [rootFilter, setRootFilter] = useState(() => { try { return localStorage.getItem('planr_root_filter') || ''; } catch { return ''; } });
-  const [personFilter, setPersonFilter] = useState(() => { try { return localStorage.getItem('planr_person_filter') || ''; } catch { return ''; } });
-  const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem('planr_hide_done') === 'true'; } catch { return false; } });
+  const [teamFilter, setTeamFilter] = useState(() => {
+    try {
+      return localStorage.getItem('planr_team_filter') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [rootFilter, setRootFilter] = useState(() => {
+    try {
+      return localStorage.getItem('planr_root_filter') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [personFilter, setPersonFilter] = useState(() => {
+    try {
+      return localStorage.getItem('planr_person_filter') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [hideDone, setHideDone] = useState(() => {
+    try {
+      return localStorage.getItem('planr_hide_done') === 'true';
+    } catch {
+      return false;
+    }
+  });
   // Archive filter — see utils/archive.js. Default ON (i.e. archived hidden):
   // a plan that has been running for a year should open on the work that is
   // still live, not on last spring's finished projects.
-  const [showArchived, setShowArchived] = useState(() => { try { return localStorage.getItem('planr_show_archived') === 'true'; } catch { return false; } });
-  const [archiveDays, setArchiveDays] = useState(() => {
-    try { const v = parseInt(localStorage.getItem('planr_archive_days'), 10); return Number.isFinite(v) && v > 0 ? v : ARCHIVE_DEFAULT_DAYS; }
-    catch { return ARCHIVE_DEFAULT_DAYS; }
+  const [showArchived, setShowArchived] = useState(() => {
+    try {
+      return localStorage.getItem('planr_show_archived') === 'true';
+    } catch {
+      return false;
+    }
   });
-  const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => { try { return localStorage.getItem('planr_only_auto') === 'true'; } catch { return false; } });
-  const [onlyOverdue, setOnlyOverdue] = useState(() => { try { return localStorage.getItem('planr_only_overdue') === 'true'; } catch { return false; } });
-  const [onlyUnestimated, setOnlyUnestimated] = useState(() => { try { return localStorage.getItem('planr_only_unest') === 'true'; } catch { return false; } });
-  const [onlyOverbooked, setOnlyOverbooked] = useState(() => { try { return localStorage.getItem('planr_only_overbooked') === 'true'; } catch { return false; } });
+  const [archiveDays, setArchiveDays] = useState(() => {
+    try {
+      const v = parseInt(localStorage.getItem('planr_archive_days'), 10);
+      return Number.isFinite(v) && v > 0 ? v : ARCHIVE_DEFAULT_DAYS;
+    } catch {
+      return ARCHIVE_DEFAULT_DAYS;
+    }
+  });
+  const [onlyAutoAssigned, setOnlyAutoAssigned] = useState(() => {
+    try {
+      return localStorage.getItem('planr_only_auto') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [onlyOverdue, setOnlyOverdue] = useState(() => {
+    try {
+      return localStorage.getItem('planr_only_overdue') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [onlyUnestimated, setOnlyUnestimated] = useState(() => {
+    try {
+      return localStorage.getItem('planr_only_unest') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [onlyOverbooked, setOnlyOverbooked] = useState(() => {
+    try {
+      return localStorage.getItem('planr_only_overbooked') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
   // ── Undo/redo ────────────────────────────────────────────────────────────
@@ -352,7 +520,20 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
-  function resetHistory() { diskTextRef.current = null; busyRoundsRef.current = 0; clearTimeout(saveRetryTimerRef.current); setEffDate(''); setPast(null); lastSavedPlanRef.current = null; dayUndoRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
+  function resetHistory() {
+    diskTextRef.current = null;
+    busyRoundsRef.current = 0;
+    clearTimeout(saveRetryTimerRef.current);
+    setEffDate('');
+    setPast(null);
+    lastSavedPlanRef.current = null;
+    dayUndoRef.current = null;
+    setHistory(createHistory({ limit: 100 }));
+    setScn(null);
+    planHistoryRef.current = null;
+    setScnNotice(null);
+    leafBaselineStaleRef.current = true;
+  }
   // ── Scenarios ────────────────────────────────────────────────────────────
   // While a scenario is on screen, `data` IS the scenario — the plan with the
   // scenario's changes applied — and every view, edit, undo and export works
@@ -476,7 +657,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (wasInPlan) next = history;
       else if (kept) {
         const list = (undoTo || fd).scenarios || [];
-        next = { ...kept.history, past: kept.history.past.map(snap => carryScenarioList(snap, list, kept.ids)), future: [], lastPushAt: null };
+        next = {
+          ...kept.history,
+          past: kept.history.past.map(snap => carryScenarioList(snap, list, kept.ids)),
+          future: [],
+          lastPushAt: null,
+        };
       }
       if (undoTo) next = pushHistory({ ...next, lastPushAt: null }, undoTo, { coalesceMs: 0 });
     }
@@ -499,7 +685,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const id = newScenarioId(list);
     const fallback = source ? _t('scn.copyName', source.name) : _t('scn.defaultName', list.length + 1);
     const entry = {
-      id, name: uniqueScenarioName((name || '').trim() || fallback, list),
+      id,
+      name: uniqueScenarioName((name || '').trim() || fallback, list),
       createdAt: new Date().toISOString(),
       patch: source?.patch || null,
     };
@@ -510,7 +697,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   function scenarioRename(id, name) {
     const clean = (name || '').trim();
     if (!clean) return;
-    mutate(d => ({ ...d, scenarios: (d.scenarios || []).map(s => (s.id === id ? { ...s, name: uniqueScenarioName(clean, d.scenarios || [], id) } : s)) }));
+    mutate(d => ({
+      ...d,
+      scenarios: (d.scenarios || []).map(s => (s.id === id ? { ...s, name: uniqueScenarioName(clean, d.scenarios || [], id) } : s)),
+    }));
   }
   // Deleting the scenario on screen leaves it for the plan; ⌘Z brings it back.
   function scenarioDelete(id) {
@@ -562,9 +752,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // and it measures the app, not the window: inside Obsidian the leaf can be
   // narrow while the window is wide.
   const [editorDock, _setEditorDock] = useState(() => {
-    try { return localStorage.getItem('planr_editor_dock') || 'auto'; } catch { return 'auto'; }
+    try {
+      return localStorage.getItem('planr_editor_dock') || 'auto';
+    } catch {
+      return 'auto';
+    }
   });
-  const setEditorDock = v => { _setEditorDock(v); try { localStorage.setItem('planr_editor_dock', v); } catch {} };
+  const setEditorDock = v => {
+    _setEditorDock(v);
+    try {
+      localStorage.setItem('planr_editor_dock', v);
+    } catch {}
+  };
   const [narrow, setNarrow] = useState(false);
   const appRef = useRef(null);
   useEffect(() => {
@@ -590,34 +789,105 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // both — 125% in a full browser window is enormous.
   const [uiScale, _setUiScale] = useState(() => {
     const fallback = isEmbedded() ? 110 : 100;
-    try { return Number(localStorage.getItem('planr_ui_scale')) || fallback; } catch { return fallback; }
+    try {
+      return Number(localStorage.getItem('planr_ui_scale')) || fallback;
+    } catch {
+      return fallback;
+    }
   });
-  const setUiScale = v => { _setUiScale(v); try { localStorage.setItem('planr_ui_scale', String(v)); } catch {} };
+  const setUiScale = v => {
+    _setUiScale(v);
+    try {
+      localStorage.setItem('planr_ui_scale', String(v));
+    } catch {}
+  };
   useEffect(() => {
     const el = portalRoot;
     if (!el) return;
     el.style.zoom = uiScale === 100 ? '' : String(uiScale / 100);
-    return () => { el.style.zoom = ''; };
+    return () => {
+      el.style.zoom = '';
+    };
   }, [uiScale, portalRoot]);
   // Off by default. Everything that distracts is opt-in: the id is the
   // tool's spine when you are wiring dependencies, and five dotted segments
   // in front of every name the rest of the time.
   const [showTreeIds, _setShowTreeIds] = useState(() => {
-    try { return localStorage.getItem('planr_tree_ids') === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem('planr_tree_ids') === 'true';
+    } catch {
+      return false;
+    }
   });
-  const setShowTreeIds = v => { _setShowTreeIds(v); try { localStorage.setItem('planr_tree_ids', String(v)); } catch {} };
-  const [autoSave, setAutoSave] = useState(() => { try { const v = localStorage.getItem('planr_autosave'); return v === null ? true : v === 'true'; } catch { return true; } });
-  useEffect(() => { try { localStorage.setItem('planr_autosave', String(autoSave)); } catch {} }, [autoSave]);
-  useEffect(() => { try { localStorage.setItem('planr_hide_done', String(hideDone)); } catch {} }, [hideDone]);
-  useEffect(() => { try { localStorage.setItem('planr_show_archived', String(showArchived)); } catch {} }, [showArchived]);
-  useEffect(() => { try { localStorage.setItem('planr_archive_days', String(archiveDays)); } catch {} }, [archiveDays]);
-  useEffect(() => { try { localStorage.setItem('planr_team_filter', teamFilter); } catch {} }, [teamFilter]);
-  useEffect(() => { try { localStorage.setItem('planr_root_filter', rootFilter); } catch {} }, [rootFilter]);
-  useEffect(() => { try { localStorage.setItem('planr_person_filter', personFilter); } catch {} }, [personFilter]);
-  useEffect(() => { try { localStorage.setItem('planr_only_auto', String(onlyAutoAssigned)); } catch {} }, [onlyAutoAssigned]);
-  useEffect(() => { try { localStorage.setItem('planr_only_overdue', String(onlyOverdue)); } catch {} }, [onlyOverdue]);
-  useEffect(() => { try { localStorage.setItem('planr_only_unest', String(onlyUnestimated)); } catch {} }, [onlyUnestimated]);
-  useEffect(() => { try { localStorage.setItem('planr_only_overbooked', String(onlyOverbooked)); } catch {} }, [onlyOverbooked]);
+  const setShowTreeIds = v => {
+    _setShowTreeIds(v);
+    try {
+      localStorage.setItem('planr_tree_ids', String(v));
+    } catch {}
+  };
+  const [autoSave, setAutoSave] = useState(() => {
+    try {
+      const v = localStorage.getItem('planr_autosave');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_autosave', String(autoSave));
+    } catch {}
+  }, [autoSave]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_hide_done', String(hideDone));
+    } catch {}
+  }, [hideDone]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_show_archived', String(showArchived));
+    } catch {}
+  }, [showArchived]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_archive_days', String(archiveDays));
+    } catch {}
+  }, [archiveDays]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_team_filter', teamFilter);
+    } catch {}
+  }, [teamFilter]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_root_filter', rootFilter);
+    } catch {}
+  }, [rootFilter]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_person_filter', personFilter);
+    } catch {}
+  }, [personFilter]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_only_auto', String(onlyAutoAssigned));
+    } catch {}
+  }, [onlyAutoAssigned]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_only_overdue', String(onlyOverdue));
+    } catch {}
+  }, [onlyOverdue]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_only_unest', String(onlyUnestimated));
+    } catch {}
+  }, [onlyUnestimated]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_only_overbooked', String(onlyOverbooked));
+    } catch {}
+  }, [onlyOverbooked]);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
@@ -632,22 +902,31 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const seen = localStorage.getItem(NEW_SEEN_KEY);
       const hasProject = !!localStorage.getItem(SK);
       return !seen && hasProject;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   });
   const dismissNewFeat = () => {
     setShowNewFeat(false);
-    try { localStorage.setItem(NEW_SEEN_KEY, '1'); } catch {}
+    try {
+      localStorage.setItem(NEW_SEEN_KEY, '1');
+    } catch {}
   };
   const startTour = () => setTourStep(0);
   const closeTour = () => {
     setTourStep(null);
-    try { localStorage.setItem(TOUR_DONE_KEY, '1'); } catch {}
+    try {
+      localStorage.setItem(TOUR_DONE_KEY, '1');
+    } catch {}
   };
 
   async function rememberHandle(handle) {
     fileHandleRef.current = handle;
     setFileName(handle?.name || null);
-    if (hosted) { onFileChange(handle || null); return; }
+    if (hosted) {
+      onFileChange(handle || null);
+      return;
+    }
     try {
       if (handle) await persistMountedFileHandle(handle);
       else await clearMountedFileHandle();
@@ -659,7 +938,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   async function forgetHandle() {
     fileHandleRef.current = null;
     setFileName(null);
-    if (hosted) { onFileChange(null); return; }
+    if (hosted) {
+      onFileChange(null);
+      return;
+    }
     try {
       await clearMountedFileHandle();
     } catch (e) {
@@ -684,14 +966,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     let cancelled = false;
     (async () => {
       try {
-        const handle = mount || await loadMountedFileHandle();
+        const handle = mount || (await loadMountedFileHandle());
         if (!handle) return;
         fileHandleRef.current = handle;
         if (!cancelled) setFileName(handle.name || null);
 
         const readPermission = await queryHandlePermission(handle, 'read');
         // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
-        if (readPermission !== 'granted') { if (!cancelled) setFileWriteOk(false); return; }
+        if (readPermission !== 'granted') {
+          if (!cancelled) setFileWriteOk(false);
+          return;
+        }
 
         const file = await handle.getFile();
         const text = await file.text();
@@ -717,7 +1002,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         if (!cancelled) setBootstrapped(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Save to localStorage on every change (fast, in-memory) — separate from file save
@@ -761,14 +1048,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     };
   }, [data]);
   // Mark file-out-of-sync whenever data changes
-  useEffect(() => { if (data) setFileSynced(false); }, [data]);
+  useEffect(() => {
+    if (data) setFileSynced(false);
+  }, [data]);
 
   // Auto-save: debounced N seconds after the last change. Each new change
   // resets the timer, so rapid edits coalesce into a single write.
   // Manual force-save via the disk icon (saveToFile) bypasses this.
   const SAVE_DEBOUNCE_MS = 5000;
   const lastChangeTimeRef = useRef(Date.now());
-  useEffect(() => { if (data) lastChangeTimeRef.current = Date.now(); }, [data]);
+  useEffect(() => {
+    if (data) lastChangeTimeRef.current = Date.now();
+  }, [data]);
   // Reseed the leaf-state baseline whenever a different file is loaded so the
   // first save after load only emits real edits made in this session, not the
   // entire tree as "added".
@@ -805,7 +1096,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const handle = fileHandleRef.current;
       if (!handle) return;
       const canWrite = await ensureHandlePermission(handle, false);
-      if (!canWrite) { setFileWriteOk(false); return; }
+      if (!canWrite) {
+        setFileWriteOk(false);
+        return;
+      }
       setSaving(true);
       try {
         const { content, ...composed } = composeFileForSave();
@@ -825,12 +1119,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         // handle and try again shortly. Only a lost permission asks for the
         // file to be picked again.
         busyRoundsRef.current += 1;
-        if (isBusy(e) && busyRoundsRef.current <= MAX_BUSY_ROUNDS && await stillWritable(handle)) {
+        if (isBusy(e) && busyRoundsRef.current <= MAX_BUSY_ROUNDS && (await stillWritable(handle))) {
           clearTimeout(saveRetryTimerRef.current);
           saveRetryTimerRef.current = setTimeout(() => setSaveRetry(n => n + 1), 15000);
         } else setFileWriteOk(false);
+      } finally {
+        setSaving(false);
       }
-      finally { setSaving(false); }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [data, autoSave, fileSynced, saveRetry]);
@@ -842,9 +1137,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const i = setInterval(() => setSaveTick(t => t + 1), 1000);
     return () => clearInterval(i);
   }, [fileSynced, autoSave]);
-  const saveCountdown = (!fileSynced && autoSave && fileHandleRef.current)
-    ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
-    : 0;
+  const saveCountdown =
+    !fileSynced && autoSave && fileHandleRef.current
+      ? Math.max(0, Math.ceil((lastChangeTimeRef.current + SAVE_DEBOUNCE_MS - Date.now()) / 1000))
+      : 0;
 
   // Detect external file changes (poll every 5s). NEVER auto-load — only notify.
   // Writing is one-way (app → file). When the file changes externally, show a prompt
@@ -859,7 +1155,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const file = await fileHandleRef.current.getFile();
         const mod = file.lastModified;
         // Skip if this is our own write (within 3s window)
-        const isOwnWrite = (Date.now() - lastOwnWriteRef.current) < 3000;
+        const isOwnWrite = Date.now() - lastOwnWriteRef.current < 3000;
         if (diskTextRef.current == null) diskTextRef.current = await file.text();
         else if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
           // Only a different text is a change. A sync service bumps the time
@@ -898,13 +1194,20 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         setSaved(true);
         setFileSynced(true);
       }
-    } catch (e) { console.error('Reload failed:', e); }
+    } catch (e) {
+      console.error('Reload failed:', e);
+    }
     setExternalChangeAvailable(false);
   }
 
   // Guard: warn on browser close/reload with unsaved changes
   useEffect(() => {
-    const h = (e) => { if (!saved) { e.preventDefault(); e.returnValue = ''; } };
+    const h = e => {
+      if (!saved) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, [saved]);
@@ -912,15 +1215,24 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // Pick a fresh file handle via Save-As dialog, suggesting the previous filename.
   // Used as fallback when the existing handle's permission/write fails after a reload.
   async function pickSaveHandle(suggestedFromName) {
-    if (!filePickerAvailable()) { exportJSON(); return null; }
+    if (!filePickerAvailable()) {
+      exportJSON();
+      return null;
+    }
     const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
     const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
     const isMd = suggested.endsWith('.md');
     return await pickFileToSave({
       suggestedName: suggested,
       types: isMd
-        ? [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }, { description: 'Planr JSON', accept: { 'application/json': ['.json'] } }]
-        : [{ description: 'Planr JSON', accept: { 'application/json': ['.json'] } }, { description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+        ? [
+            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
+          ]
+        : [
+            { description: 'Planr JSON', accept: { 'application/json': ['.json'] } },
+            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+          ],
     });
   }
 
@@ -947,10 +1259,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         if (!canWrite) {
           // Permission denied/failed → offer Save-As fallback so the user can re-mount
           // (this is critical after page reload when permissions reset)
-          const ok = confirm('File access was not granted by the browser. Click OK to choose where to save (suggesting the original location), or Cancel to skip.');
-          if (!ok) { setFileWriteOk(false); return; }
+          const ok = confirm(
+            'File access was not granted by the browser. Click OK to choose where to save (suggesting the original location), or Cancel to skip.',
+          );
+          if (!ok) {
+            setFileWriteOk(false);
+            return;
+          }
           handle = await pickSaveHandle(previousFileName);
-          if (!handle) { setFileWriteOk(false); return; }
+          if (!handle) {
+            setFileWriteOk(false);
+            return;
+          }
         }
       }
       const { content, ...composed } = composeFileForSave();
@@ -973,7 +1293,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // If write fails (handle invalid, file moved/deleted), offer Save-As fallback
       const isInvalidHandle = e.name === 'NotFoundError' || e.name === 'NotAllowedError' || e.name === 'InvalidStateError';
       if (isInvalidHandle) {
-        const retry = confirm(`Save failed: ${e.message || e.name}\n\nThe file may have been moved or access was revoked. Click OK to choose where to save (suggesting the original location), or Cancel to skip.`);
+        const retry = confirm(
+          `Save failed: ${e.message || e.name}\n\nThe file may have been moved or access was revoked. Click OK to choose where to save (suggesting the original location), or Cancel to skip.`,
+        );
         if (retry) {
           try {
             const handle2 = await pickSaveHandle(previousFileName);
@@ -1001,15 +1323,22 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   async function loadFromFile() {
     try {
       if (filePickerAvailable()) {
-        const handle = await pickFileToOpen({ types: [
-          { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
-          { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
-        ] });
+        const handle = await pickFileToOpen({
+          types: [
+            { description: 'Planr Project', accept: { 'application/json': ['.json'] } },
+            { description: 'Markdown', accept: { 'text/markdown': ['.md'] } },
+          ],
+        });
         const file = await handle.getFile();
         const text = await file.text();
         const isMd = handle.name.endsWith('.md');
         const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.' : 'Invalid JSON project file — no tree items found.');
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
+          throw new Error(
+            isMd
+              ? 'No work items found in this Markdown file. Expected format: bullet list with **ID** Name entries under a "## Work Tree" heading.'
+              : 'Invalid JSON project file — no tree items found.',
+          );
         // Apply data immediately — don't block on file write permission
         await rememberHandle(handle);
         setData(d);
@@ -1021,8 +1350,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const canWrite = await ensureHandlePermission(handle, true);
         setFileWriteOk(canWrite);
         setAutoSave(true);
-      } else { fRef.current?.click(); }
-    } catch (e) { if (e.name !== 'AbortError') alert('Could not load file: ' + e.message); }
+      } else {
+        fRef.current?.click();
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') alert('Could not load file: ' + e.message);
+    }
   }
   // Accept both .json and .md files
 
@@ -1036,7 +1369,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // feature and do nothing. New project lives in the File menu and the
   // palette instead.
   useEffect(() => {
-    const h = (e) => {
+    const h = e => {
       const mod = e.ctrlKey || e.metaKey;
       const key = (e.key || '').toLowerCase();
       // Never steal a file shortcut from a text field the user is typing in
@@ -1045,11 +1378,31 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const tag = active?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
 
-      if (mod && key === 's' && e.shiftKey) { e.preventDefault(); saveToFile(true); return; }
-      if (mod && key === 'o' && !typing) { e.preventDefault(); loadFromFile(); return; }
-      if (mod && key === 'e' && !typing) { e.preventDefault(); setTab('report'); return; }
-      if (mod && e.key === ',' && !typing) { e.preventDefault(); setModal('settings'); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); return; }
+      if (mod && key === 's' && e.shiftKey) {
+        e.preventDefault();
+        saveToFile(true);
+        return;
+      }
+      if (mod && key === 'o' && !typing) {
+        e.preventDefault();
+        loadFromFile();
+        return;
+      }
+      if (mod && key === 'e' && !typing) {
+        e.preventDefault();
+        setTab('report');
+        return;
+      }
+      if (mod && e.key === ',' && !typing) {
+        e.preventDefault();
+        setModal('settings');
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveToFile();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         // Only intercept when a searchable view is active
         if (SEARCH_TABS.has(tab)) {
@@ -1063,9 +1416,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Not from a text field: the search box steps on its own (this used to
       // step a second time, so each press skipped a match), and anywhere else
       // ⌘↑/⌘↓ is the caret's jump to the start or end of the text.
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !typing && search && MATCH_STEP_TABS.has(tab) && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !typing &&
+        search &&
+        MATCH_STEP_TABS.has(tab) &&
+        (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+      ) {
         e.preventDefault();
-        setSearchIdx(i => e.key === 'ArrowDown' ? i + 1 : i - 1);
+        setSearchIdx(i => (e.key === 'ArrowDown' ? i + 1 : i - 1));
       }
       // Undo/redo — never while focus is in a text-editing control, so
       // native text-field undo wins there instead of ours.
@@ -1076,9 +1436,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         // No structure command can be issued from inside a field any more, so
         // there is never plan history hiding behind a text field's ⌘Z.
         if (!isEditable) {
-          const isRedo = (e.key === 'y' || e.key === 'Y') || e.shiftKey;
+          const isRedo = e.key === 'y' || e.key === 'Y' || e.shiftKey;
           e.preventDefault();
-          if (isRedo) handleRedo(); else handleUndo();
+          if (isRedo) handleRedo();
+          else handleUndo();
         }
       }
     };
@@ -1106,16 +1467,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // no-op, and the scheduler still ranks by the same comparator.
   const tree = useMemo(() => sortTree(data?.tree || []), [data?.tree]);
   // Derive selected node from tree — always fresh after any tree mutation.
-  const selected = useMemo(() => selId ? tree.find(r => r.id === selId) || null : null, [tree, selId]);
+  const selected = useMemo(() => (selId ? tree.find(r => r.id === selId) || null : null), [tree, selId]);
   // ── Archive layer ────────────────────────────────────────────────────────
   // Long-finished projects and long-gone people are dropped from what the
   // views render, but NOT from `tree` / `stats` / `scheduled`. The headline
   // percentage and PT totals keep counting them — archiving a finished
   // project must never make the project look less finished.
-  const archive = useMemo(
-    () => scanArchive({ tree, members, days: archiveDays }),
-    [tree, members, archiveDays],
-  );
+  const archive = useMemo(() => scanArchive({ tree, members, days: archiveDays }), [tree, members, archiveDays]);
   const activeTree = useMemo(
     () => (showArchived ? tree : stripArchivedRoots(tree, archive.rootIds)),
     [tree, showArchived, archive.rootIds],
@@ -1175,12 +1533,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     };
     if (teamFilter) {
       const visibleIds = new Set();
-      items.forEach(r => { if ((r.team || '').includes(teamFilter)) ancestorVisible(visibleIds, r.id); });
+      items.forEach(r => {
+        if ((r.team || '').includes(teamFilter)) ancestorVisible(visibleIds, r.id);
+      });
       items = items.filter(r => visibleIds.has(r.id));
     }
     if (personFilter) {
       const visibleIds = new Set();
-      items.forEach(r => { if ((r.assign || []).includes(personFilter)) ancestorVisible(visibleIds, r.id); });
+      items.forEach(r => {
+        if ((r.assign || []).includes(personFilter)) ancestorVisible(visibleIds, r.id);
+      });
       items = items.filter(r => visibleIds.has(r.id));
     }
     if (onlyUnestimated) {
@@ -1209,26 +1571,39 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // disagreement already wrote into saved plans. Runs once, and only when
   // there is something to clear.
   useEffect(() => {
-    const MARKS = Object.values(GT_MARKS).flat().filter(mk => mk !== '!');
-    const clean = n => MARKS.reduce((acc, mk) => acc.split(mk).join(' '), String(n || ''))
-      .replace(/\s{2,}/g, ' ').trim();
+    const MARKS = Object.values(GT_MARKS)
+      .flat()
+      .filter(mk => mk !== '!');
+    const clean = n =>
+      MARKS.reduce((acc, mk) => acc.split(mk).join(' '), String(n || ''))
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     const dirty = tree.filter(r => !String(r.id).includes('.') && clean(r.name) !== r.name);
     if (!dirty.length) return;
     const ids = new Set(dirty.map(r => r.id));
-    setData(d => ({ ...d, tree: d.tree.map(r => ids.has(r.id) ? { ...r, name: clean(r.name) } : r) }));
+    setData(d => ({ ...d, tree: d.tree.map(r => (ids.has(r.id) ? { ...r, name: clean(r.name) } : r)) }));
   }, []);
 
   // Backward compat: migrate old deadlines[] into tree roots
   useEffect(() => {
     if (!data?.deadlines?.length) return;
-    const dl = data.deadlines; const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
+    const dl = data.deadlines;
+    const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
     const updated = [...tree];
     dl.forEach(g => {
       // Find matching root by name similarity
       const root = updated.find(r => !r.id.includes('.') && (r.name.includes(g.name) || g.name.includes(r.name.split(' ')[0])));
-      if (root && !root.type) { root.type = g.type || 'goal'; root.severity = g.severity || 'high'; if (g.date) root.date = g.date; if (g.description) root.description = g.description; }
+      if (root && !root.type) {
+        root.type = g.type || 'goal';
+        root.severity = g.severity || 'high';
+        if (g.date) root.date = g.date;
+        if (g.description) root.description = g.description;
+      }
     });
-    setData(d => { const { deadlines, ...rest } = d; return { ...rest, tree: updated }; });
+    setData(d => {
+      const { deadlines, ...rest } = d;
+      return { ...rest, tree: updated };
+    });
   }, []);
   const goals = useMemo(() => tree.filter(r => !r.id.includes('.') && r.type), [tree]);
   const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
@@ -1313,29 +1688,35 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   };
   // On an earlier day the screen already is that day: an edit there is an
   // ordinary edit, and the day log carries it forward.
-  const effFold = past ? null : (effDate || null);
+  const effFold = past ? null : effDate || null;
   const pastStart = useMemo(() => (past ? logStart(past.base) : null), [past]);
   const effDropDate = from => mutate(d => dropChange(d, from));
-  const effContext = useMemo(() => ({
-    date: effDate,
-    changes: data?.changes || [],
-    onGo: day => pickEffDate(day || ''),
-    onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
-  }), [effDate, data?.changes, past?.day, scn?.id]);
+  const effContext = useMemo(
+    () => ({
+      date: effDate,
+      changes: data?.changes || [],
+      onGo: day => pickEffDate(day || ''),
+      onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
+    }),
+    [effDate, data?.changes, past?.day, scn?.id],
+  );
   // A person's own order of work, when they have one. The plan's order is the
   // tree's; this is the single override, and it only permutes the slots that
   // person's work already holds (utils/personQueue.js).
   const personQueues = data?.personQueues || null;
   const { results: scheduled, weeks } = useMemo(() => {
     if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues, ...(past ? { now: past.day } : {}) });
+    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
+      personQueues,
+      ...(past ? { now: past.day } : {}),
+    });
     // Trim weeks to the actual horizon when planEnd wasn't user-set:
     // latest scheduled endD + padding. Falls back to a 6-month
     // window when nothing is scheduled so the Gantt isn't empty.
     if (meta.planEnd) return out; // explicit user choice — leave alone
     let latest = null;
     for (const s of out.results || []) {
-      const endD = s.endD instanceof Date ? s.endD : (s.endD ? new Date(s.endD) : null);
+      const endD = s.endD instanceof Date ? s.endD : s.endD ? new Date(s.endD) : null;
       if (endD && (!latest || endD > latest)) latest = endD;
     }
     const horizonEnd = latest
@@ -1348,7 +1729,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // project waiting on?" (utils/projectWaits.js). Answers are cached until
   // the plan changes and computed only when a view asks for a project.
   const reschedule = useCallback(
-    nextTree => schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, { personQueues, ...(past ? { now: past.day } : {}) }).results,
+    nextTree =>
+      schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
+        personQueues,
+        ...(past ? { now: past.day } : {}),
+      }).results,
     [enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, personQueues, past?.day],
   );
   const projectWaitsOf = useMemo(() => {
@@ -1372,15 +1757,36 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
     tree.forEach(r => {
       if (!isLeafNode(tree, r.id)) return;
-      const hasCompletionMeta = !!(r.completedAt || r.completedStart || r.completedEnd || r.completedPersonId || r.completedPerson || r.completedAutoAssigned || r.plannedStart || r.plannedEnd);
+      const hasCompletionMeta = !!(
+        r.completedAt ||
+        r.completedStart ||
+        r.completedEnd ||
+        r.completedPersonId ||
+        r.completedPerson ||
+        r.completedAutoAssigned ||
+        r.plannedStart ||
+        r.plannedEnd
+      );
       const prev = prevTreeMap.get(r.id);
       const snap = prevScheduledMap.get(r.id);
 
       if (r.status === 'done') {
         const completedPersonId = inferCompletedPersonId(r, members, snap);
-        const completedAt = (prev?.status !== 'done' && !r.completedAt)
-          ? todayIso
-          : inferCompletedAt({ item: r, tree, scheduledMap: currentScheduledMap, scheduledSnap: snap, workDays, planStart, completedPersonId, members, vacations, hm });
+        const completedAt =
+          prev?.status !== 'done' && !r.completedAt
+            ? todayIso
+            : inferCompletedAt({
+                item: r,
+                tree,
+                scheduledMap: currentScheduledMap,
+                scheduledSnap: snap,
+                workDays,
+                planStart,
+                completedPersonId,
+                members,
+                vacations,
+                hm,
+              });
         if (!completedAt) return;
         // Persisted done-window takes precedence over re-inference. The user
         // may reconstruct history by editing done-start/done-end directly, so
@@ -1391,14 +1797,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const windowWasEdited = !!prev && (prev.completedStart !== r.completedStart || prev.completedEnd !== r.completedEnd);
         const completedAtChanged = !!prev && prev.completedAt !== completedAt;
         const windowMatchesCompletedAt = hasExistingWindow && r.completedEnd === completedAt;
-        const shouldRefreshWindow = !hasExistingWindow
-          || (prev && prev.status !== 'done')
-          || (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt)
-          || (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
+        const shouldRefreshWindow =
+          !hasExistingWindow ||
+          (prev && prev.status !== 'done') ||
+          (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt) ||
+          (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
         const window = shouldRefreshWindow
           ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
           : { completedStart: r.completedStart, completedEnd: r.completedEnd };
-        const completedPerson = r.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : snap?.person || '');
+        const completedPerson =
+          r.completedPerson ||
+          (completedPersonId ? members.find(m => m.id === completedPersonId)?.name || completedPersonId : snap?.person || '');
         const plannedStart = r.plannedStart || (snap?.startD ? iso(snap.startD) : '');
         const plannedEnd = r.plannedEnd || (snap?.endD ? iso(snap.endD) : '');
         const patch = {
@@ -1431,8 +1840,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const patch = patches.get(r.id);
         if (!patch) return r;
         if (patch._clearCompletedWindow) {
-          const { completedAt, completedStart, completedEnd, completedPersonId, completedPerson, completedAutoAssigned, plannedStart, plannedEnd, ...rest } = r;
-          if (completedAt == null && completedStart == null && completedEnd == null && completedPersonId == null && completedPerson == null && completedAutoAssigned == null && plannedStart == null && plannedEnd == null) return r;
+          const {
+            completedAt,
+            completedStart,
+            completedEnd,
+            completedPersonId,
+            completedPerson,
+            completedAutoAssigned,
+            plannedStart,
+            plannedEnd,
+            ...rest
+          } = r;
+          if (
+            completedAt == null &&
+            completedStart == null &&
+            completedEnd == null &&
+            completedPersonId == null &&
+            completedPerson == null &&
+            completedAutoAssigned == null &&
+            plannedStart == null &&
+            plannedEnd == null
+          )
+            return r;
           didChange = true;
           return rest;
         }
@@ -1446,7 +1875,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setSaved(false);
   }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
-  const stats = useMemo(() => { const s = treeStats(tree); enrichParentSchedules(s, tree, scheduled); return s; }, [tree, scheduled]);
+  const stats = useMemo(() => {
+    const s = treeStats(tree);
+    enrichParentSchedules(s, tree, scheduled);
+    return s;
+  }, [tree, scheduled]);
   // ── Scenario against plan ────────────────────────────────────────────────
   // The plan is scheduled a second time, once per visit to a scenario, so the
   // two can be laid side by side. Same scheduler, same day, same inputs but
@@ -1460,18 +1893,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // The comparison as a PDF. The model is built where the dialog is (one set
   // of figures and words for both); null while no scenario is on screen.
   const scnReport = useScenarioReport({
-    scenario: activeScenario, planName: data?.meta?.name || '', base: scn?.base || null, work: scn ? data : null,
-    comparison: scnComparison, changes: scnChanges, conflicts: scn?.conflicts || 0,
+    scenario: activeScenario,
+    planName: data?.meta?.name || '',
+    base: scn?.base || null,
+    work: scn ? data : null,
+    comparison: scnComparison,
+    changes: scnChanges,
+    conflicts: scn?.conflicts || 0,
   });
   // A failed export is said out loud from every way in, and said once. The
   // report card has its own handling (ExportCards `run`: message, and no
   // success tick), so it gets the function that throws; the dialog and the
   // palette have none, so they get the one that reports.
   const exportScenarioPDFOrThrow = scnReport ? () => exportScenarioComparePDF(scnReport()) : null;
-  const exportScenarioPDF = exportScenarioPDFOrThrow ? async () => {
-    try { await exportScenarioPDFOrThrow(); }
-    catch (e) { console.error(e); alert('Export failed: ' + (e?.message || e)); }
-  } : null;
+  const exportScenarioPDF = exportScenarioPDFOrThrow
+    ? async () => {
+        try {
+          await exportScenarioPDFOrThrow();
+        } catch (e) {
+          console.error(e);
+          alert('Export failed: ' + (e?.message || e));
+        }
+      }
+    : null;
   // What the scenario moves, per task, for the views that mark it: calendar
   // days later (+) or earlier (−); `null` for a task that is new, gone or no
   // longer scheduled — affected, with no shift to put a number on.
@@ -1479,7 +1923,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!scnComparison) return null;
     const out = new Map();
     for (const it of scnComparison.items) {
-      if (it.presence !== 'both') { out.set(it.id, null); continue; }
+      if (it.presence !== 'both') {
+        out.set(it.id, null);
+        continue;
+      }
       const days = it.endShift || it.startShift;
       if (days) out.set(it.id, days);
     }
@@ -1495,8 +1942,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // Lives at app level so every view (Roadmap, TreeView, Timetable, Gantt,
   // Network) reads the same cutoff and the same precomputed event-based diff
   // bag. Persists in localStorage.
-  const [sinceDays, setSinceDays] = useState(() => { try { return localStorage.getItem('planr_diff_since') || ''; } catch { return ''; } });
-  const persistSince = (val) => { setSinceDays(val); try { localStorage.setItem('planr_diff_since', val); } catch { /* noop */ } };
+  const [sinceDays, setSinceDays] = useState(() => {
+    try {
+      return localStorage.getItem('planr_diff_since') || '';
+    } catch {
+      return '';
+    }
+  });
+  const persistSince = val => {
+    setSinceDays(val);
+    try {
+      localStorage.setItem('planr_diff_since', val);
+    } catch {
+      /* noop */
+    }
+  };
   // Paused while a scenario is on screen. Two overlays at once is how amber
   // rows for "progressed since the 5th" came to be read as "moved by the
   // scenario". The window is not forgotten — `sinceDays` stays as it is and
@@ -1508,15 +1968,39 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // level so the toggle inside the global ViewFilters popup stays the only
   // place to flip it.
   const [diffOnlyChanged, setDiffOnlyChanged] = useState(() => {
-    try { return localStorage.getItem('planr_diff_only_changed') === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem('planr_diff_only_changed') === 'true';
+    } catch {
+      return false;
+    }
   });
-  const persistDiffOnlyChanged = (v) => { setDiffOnlyChanged(v); try { localStorage.setItem('planr_diff_only_changed', String(v)); } catch { /* noop */ } };
+  const persistDiffOnlyChanged = v => {
+    setDiffOnlyChanged(v);
+    try {
+      localStorage.setItem('planr_diff_only_changed', String(v));
+    } catch {
+      /* noop */
+    }
+  };
   // ── Planning-horizon filter (project-wide) ─────────────────────────────────
   // Mirrors the diff picker shape: presets in days (7/14/30) or an explicit
   // date. When set, every view narrows to tasks scheduled within the window
   // so the planner can focus on one horizon at a time.
-  const [horizonDays, setHorizonDays] = useState(() => { try { return localStorage.getItem('planr_horizon') || ''; } catch { return ''; } });
-  const persistHorizon = (val) => { setHorizonDays(val); try { localStorage.setItem('planr_horizon', val); } catch { /* noop */ } };
+  const [horizonDays, setHorizonDays] = useState(() => {
+    try {
+      return localStorage.getItem('planr_horizon') || '';
+    } catch {
+      return '';
+    }
+  });
+  const persistHorizon = val => {
+    setHorizonDays(val);
+    try {
+      localStorage.setItem('planr_horizon', val);
+    } catch {
+      /* noop */
+    }
+  };
   const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
   const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
   // "Only planned" — strict filter mode. Default on so the picker behaves
@@ -1524,9 +2008,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // When off, views fall back to soft hinting (dim/badge) without dropping
   // rows, so the user can still see the full plan with the horizon marker.
   const [horizonOnlyPlanned, setHorizonOnlyPlanned] = useState(() => {
-    try { const v = localStorage.getItem('planr_horizon_only'); return v === null ? true : v === 'true'; } catch { return true; }
+    try {
+      const v = localStorage.getItem('planr_horizon_only');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
   });
-  const persistHorizonOnly = (v) => { setHorizonOnlyPlanned(v); try { localStorage.setItem('planr_horizon_only', String(v)); } catch { /* noop */ } };
+  const persistHorizonOnly = v => {
+    setHorizonOnlyPlanned(v);
+    try {
+      localStorage.setItem('planr_horizon_only', String(v));
+    } catch {
+      /* noop */
+    }
+  };
   // Forward-looking per-root progress: where would the train sit at horizonEnd
   // if the current schedule plays out? Used by the Subway map to draw a "Plan"
   // ghost-train ahead of the live one (Diff = past, Ist = now, Plan = future).
@@ -1543,7 +2039,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     for (const root of roots) {
       const leaves = liveLeaves.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'));
       const today = new Date();
-      let total = 0, doneByHorizon = 0;
+      let total = 0,
+        doneByHorizon = 0;
       for (const lf of leaves) {
         const eff = scheduleEffort(lf) || 1;
         total += eff;
@@ -1560,7 +2057,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           const s = sById[lf.id];
           if (s?.endD) {
             const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
-            const startD = s.startD instanceof Date ? s.startD : (s.startD ? new Date(s.startD) : endD);
+            const startD = s.startD instanceof Date ? s.startD : s.startD ? new Date(s.startD) : endD;
             if (endD <= horizonEnd) projFrac = maxFutureFrac;
             else if (startD < horizonEnd) {
               const dur = +endD - +startD;
@@ -1597,15 +2094,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }
     return out;
   }, [tree, scheduled, horizonEnd]);
-  const diff = useMemo(() => computeDiff({
-    tree,
-    historyEvents: data?.historyEvents || [],
-    sinceDate,
-    members,
-    vacations,
-    holidays: hm,
-    workDays,
-  }), [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays]);
+  const diff = useMemo(
+    () =>
+      computeDiff({
+        tree,
+        historyEvents: data?.historyEvents || [],
+        sinceDate,
+        members,
+        vacations,
+        holidays: hm,
+        workDays,
+      }),
+    [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays],
+  );
   const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
   const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
   const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
@@ -1638,8 +2139,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const start = s.startD instanceof Date ? s.startD : new Date(s.startD);
       const end = s.endD instanceof Date ? s.endD : new Date(s.endD);
       for (let wi = 0; wi < weeks.length; wi++) {
-        const w = weeks[wi]; if (!w?.mon) continue;
-        const wkEnd = new Date(w.mon); wkEnd.setDate(wkEnd.getDate() + 6);
+        const w = weeks[wi];
+        if (!w?.mon) continue;
+        const wkEnd = new Date(w.mon);
+        wkEnd.setDate(wkEnd.getDate() + 6);
         if (wkEnd < start || w.mon > end) continue;
         if (ids.some(id => (resourceLoadByWeek[id]?.[wi]?.percent || 0) > 110)) {
           out.add(s.treeId || s.id);
@@ -1655,49 +2158,106 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // when they have something to filter: an archive toggle on a plan with
   // nothing archived, or an overbooked toggle with nobody overbooked, is a
   // control that can only disappoint.
-  const quickFilters = useMemo(() => [
-    { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
-    archive.count > 0
-      ? { id: 'archived', label: _t('arch.pill', archive.count), tip: _t('arch.chipTip'), active: showArchived, onToggle: () => setShowArchived(v => !v) }
-      : null,
-    { id: 'auto', label: _t('chip.auto'), tip: _t('chip.autoTip'), active: onlyAutoAssigned, onToggle: () => setOnlyAutoAssigned(v => !v) },
-    { id: 'overdue', label: _t('chip.overdue'), tip: _t('chip.overdueTip'), active: onlyOverdue, onToggle: () => setOnlyOverdue(v => !v) },
-    { id: 'unestimated', label: _t('chip.unestimated'), tip: _t('chip.unestimatedTip'), active: onlyUnestimated, onToggle: () => setOnlyUnestimated(v => !v) },
-    overbookedTaskIds.size > 0
-      ? { id: 'overbooked', label: _t('chip.overbooked', overbookedTaskIds.size), tip: _t('chip.overbookedTip'), active: onlyOverbooked, onToggle: () => setOnlyOverbooked(v => !v) }
-      : null,
-  ].filter(Boolean), [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked]);
+  const quickFilters = useMemo(
+    () =>
+      [
+        { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
+        archive.count > 0
+          ? {
+              id: 'archived',
+              label: _t('arch.pill', archive.count),
+              tip: _t('arch.chipTip'),
+              active: showArchived,
+              onToggle: () => setShowArchived(v => !v),
+            }
+          : null,
+        {
+          id: 'auto',
+          label: _t('chip.auto'),
+          tip: _t('chip.autoTip'),
+          active: onlyAutoAssigned,
+          onToggle: () => setOnlyAutoAssigned(v => !v),
+        },
+        {
+          id: 'overdue',
+          label: _t('chip.overdue'),
+          tip: _t('chip.overdueTip'),
+          active: onlyOverdue,
+          onToggle: () => setOnlyOverdue(v => !v),
+        },
+        {
+          id: 'unestimated',
+          label: _t('chip.unestimated'),
+          tip: _t('chip.unestimatedTip'),
+          active: onlyUnestimated,
+          onToggle: () => setOnlyUnestimated(v => !v),
+        },
+        overbookedTaskIds.size > 0
+          ? {
+              id: 'overbooked',
+              label: _t('chip.overbooked', overbookedTaskIds.size),
+              tip: _t('chip.overbookedTip'),
+              active: onlyOverbooked,
+              onToggle: () => setOnlyOverbooked(v => !v),
+            }
+          : null,
+      ].filter(Boolean),
+    [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked],
+  );
   const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
 
   // Scope lives in the filter popup and comes back out as a chip the moment
   // one is set — a narrowed view has to say so (principles.md, "a view is
   // never the truth"), an unnarrowed one has nothing to say. The chip clears
   // the filter, which is the only thing you want from it once you see it.
-  const scopeFields = useMemo(() => [
-    {
-      id: 'root', value: rootFilter, options: netRootOptions, showIds: true,
-      placeholder: _t('tv.allRoots'),
-      onSelect: v => { setRootFilter(v); setSearchIdx(0); },
-    },
-    {
-      id: 'team', value: teamFilter, options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
-      placeholder: _t('tv.allTeams'),
-      onSelect: v => { setTeamFilter(v); setSearchIdx(0); },
-    },
-    {
-      id: 'person', value: personFilter, options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
-      placeholder: _t('tv.allPeople'),
-      onSelect: v => { setPersonFilter(v); setSearchIdx(0); },
-    },
-  ], [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t]);
+  const scopeFields = useMemo(
+    () => [
+      {
+        id: 'root',
+        value: rootFilter,
+        options: netRootOptions,
+        showIds: true,
+        placeholder: _t('tv.allRoots'),
+        onSelect: v => {
+          setRootFilter(v);
+          setSearchIdx(0);
+        },
+      },
+      {
+        id: 'team',
+        value: teamFilter,
+        options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
+        placeholder: _t('tv.allTeams'),
+        onSelect: v => {
+          setTeamFilter(v);
+          setSearchIdx(0);
+        },
+      },
+      {
+        id: 'person',
+        value: personFilter,
+        options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
+        placeholder: _t('tv.allPeople'),
+        onSelect: v => {
+          setPersonFilter(v);
+          setSearchIdx(0);
+        },
+      },
+    ],
+    [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t],
+  );
 
-  const activeScopeChips = useMemo(() => scopeFields
-    .filter(f => f.value)
-    .map(f => ({
-      id: `scope-${f.id}`,
-      label: f.options.find(o => o.id === f.value)?.label || f.value,
-      onToggle: () => f.onSelect(''),
-    })), [scopeFields]);
+  const activeScopeChips = useMemo(
+    () =>
+      scopeFields
+        .filter(f => f.value)
+        .map(f => ({
+          id: `scope-${f.id}`,
+          label: f.options.find(o => o.id === f.value)?.label || f.value,
+          onToggle: () => f.onSelect(''),
+        })),
+    [scopeFields],
+  );
 
   // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
   // their primary in scheduled[]. Match either id or treeId so all segments
@@ -1716,18 +2276,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (onlyAutoAssigned) {
       const autoIds = new Set((scheduled || []).filter(s => s.autoAssigned).map(s => s.treeId || s.id));
       const visibleIds = new Set();
-      items.forEach(r => { if (autoIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items.forEach(r => {
+        if (autoIds.has(r.id)) ancestorVisible(visibleIds, r.id);
+      });
       items = items.filter(r => visibleIds.has(r.id));
     }
     if (onlyOverdue) {
-      const overdueIds = new Set((scheduled || []).filter(s => s.dueOverdue || (s.due && s.endD && new Date(s.endD) > new Date(s.due) && s.status !== 'done')).map(s => s.treeId || s.id));
+      const overdueIds = new Set(
+        (scheduled || [])
+          .filter(s => s.dueOverdue || (s.due && s.endD && new Date(s.endD) > new Date(s.due) && s.status !== 'done'))
+          .map(s => s.treeId || s.id),
+      );
       const visibleIds = new Set();
-      items.forEach(r => { if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items.forEach(r => {
+        if (overdueIds.has(r.id)) ancestorVisible(visibleIds, r.id);
+      });
       items = items.filter(r => visibleIds.has(r.id));
     }
     if (onlyOverbooked && overbookedTaskIds.size > 0) {
       const visibleIds = new Set();
-      items.forEach(r => { if (overbookedTaskIds.has(r.id)) ancestorVisible(visibleIds, r.id); });
+      items.forEach(r => {
+        if (overbookedTaskIds.has(r.id)) ancestorVisible(visibleIds, r.id);
+      });
       items = items.filter(r => visibleIds.has(r.id));
     }
     return items;
@@ -1766,7 +2336,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return next.size === prev.size ? prev : next;
     });
   }, [hideDone, selId, visibleViewIdSet]);
-  const viewScheduled = useMemo(() => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))), [scheduled, visibleViewIdSet]);
+  const viewScheduled = useMemo(
+    () => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))),
+    [scheduled, visibleViewIdSet],
+  );
   const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
   const viewStats = useMemo(() => {
     if (!hideDone) return stats;
@@ -1777,9 +2350,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // Gantt reads `scheduled` directly (not the view tree), so it needs its own
   // archive-filtered copy — same reason the tree gets one.
   const activeScheduled = useMemo(
-    () => (showArchived || !archive.rootIds.size
-      ? scheduled
-      : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
+    () => (showArchived || !archive.rootIds.size ? scheduled : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
     [scheduled, showArchived, archive.rootIds],
   );
   const viewCpSet = cpData.critical;
@@ -1796,8 +2367,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // no state update fires.
   useEffect(() => {
     if (!data?.holidays?.length || !meta.planStart || !meta.planEnd) return;
-    const ys = new Date(meta.planStart).getFullYear(), ye = new Date(meta.planEnd).getFullYear();
-    const years = []; for (let y = ys; y <= ye; y++) years.push(y);
+    const ys = new Date(meta.planStart).getFullYear(),
+      ye = new Date(meta.planEnd).getFullYear();
+    const years = [];
+    for (let y = ys; y <= ye; y++) years.push(y);
     const fresh = computeNRW(years);
     const freshByKey = new Map(fresh.map(h => [`${h.name}|${h.date.slice(0, 4)}`, h.date]));
     let changed = false;
@@ -1805,7 +2378,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (!h.auto) return h;
       const key = `${h.name}|${h.date.slice(0, 4)}`;
       const expected = freshByKey.get(key);
-      if (expected && expected !== h.date) { changed = true; return { ...h, date: expected }; }
+      if (expected && expected !== h.date) {
+        changed = true;
+        return { ...h, date: expected };
+      }
       return h;
     });
     if (changed) setData(d => ({ ...d, holidays: migrated }));
@@ -1836,7 +2412,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           const firstAssignee = members.find(m => m.id === r.assign[0]);
           if (!firstAssignee?.team) return r;
           const team = teamForAssignment(firstAssignee, r.team);
-          if (r.team !== team) { changed = true; return { ...r, team }; }
+          if (r.team !== team) {
+            changed = true;
+            return { ...r, team };
+          }
           return r;
         });
       }
@@ -1845,7 +2424,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // is display-only and already runs in the useMemo above.
       const st = treeStats(t);
       const t2 = deriveParentStatuses(t, st);
-      if (t2.some((r, i) => r.status !== t[i].status)) { changed = true; t = t2; }
+      if (t2.some((r, i) => r.status !== t[i].status)) {
+        changed = true;
+        t = t2;
+      }
       if (!changed) return d; // no-op: same reference = React skips re-render
       return { ...d, tree: t };
     });
@@ -1869,10 +2451,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (!d) return d;
     const rawVacations = Array.isArray(d.vacations) ? d.vacations : [];
     const vacations = rawVacations.map(normalizeVacation);
-    const vacChanged = rawVacations.length !== vacations.length || rawVacations.some((vac, idx) => {
-      const norm = vacations[idx];
-      return vac?.person !== norm?.person || vac?.from !== norm?.from || vac?.to !== norm?.to || vac?.note !== norm?.note;
-    });
+    const vacChanged =
+      rawVacations.length !== vacations.length ||
+      rawVacations.some((vac, idx) => {
+        const norm = vacations[idx];
+        return vac?.person !== norm?.person || vac?.from !== norm?.from || vac?.to !== norm?.to || vac?.note !== norm?.note;
+      });
     if (!Array.isArray(d.tree) || !d.tree.length) {
       return vacChanged ? { ...d, vacations } : d;
     }
@@ -1912,11 +2496,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         hm,
         workDays,
       });
-      const completedStart = item.completedStart && item.completedStart <= completedAt
-        ? item.completedStart
-        : derivedWindow.completedStart;
+      const completedStart = item.completedStart && item.completedStart <= completedAt ? item.completedStart : derivedWindow.completedStart;
       const completedEnd = completedAt;
-      const completedPerson = item.completedPerson || (completedPersonId ? (members.find(m => m.id === completedPersonId)?.name || completedPersonId) : '');
+      const completedPerson =
+        item.completedPerson || (completedPersonId ? members.find(m => m.id === completedPersonId)?.name || completedPersonId : '');
       const plannedStart = item.plannedStart || item.pinnedStart || '';
       const next = {
         ...item,
@@ -1927,12 +2510,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (completedPersonId) next.completedPersonId = completedPersonId;
       if (completedPerson) next.completedPerson = completedPerson;
       if (plannedStart && !item.plannedStart) next.plannedStart = plannedStart;
-      if (next.completedAt !== item.completedAt
-        || next.completedStart !== item.completedStart
-        || next.completedEnd !== item.completedEnd
-        || next.completedPersonId !== item.completedPersonId
-        || next.completedPerson !== item.completedPerson
-        || next.plannedStart !== item.plannedStart) {
+      if (
+        next.completedAt !== item.completedAt ||
+        next.completedStart !== item.completedStart ||
+        next.completedEnd !== item.completedEnd ||
+        next.completedPersonId !== item.completedPersonId ||
+        next.completedPerson !== item.completedPerson ||
+        next.plannedStart !== item.plannedStart
+      ) {
         changed = true;
         return next;
       }
@@ -1941,7 +2526,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
     return changed ? { ...d, vacations, tree: nextTree } : d;
   }
-  function setD(k, v) { mutate(d => ({ ...d, [k]: v })); }
+  function setD(k, v) {
+    mutate(d => ({ ...d, [k]: v }));
+  }
   // Functional update so callbacks fired in rapid succession always see the LATEST tree state,
   // not a closure-captured snapshot. Prevents the second of two fast edits from overwriting the
   // first (e.g. deleting two dependency arrows in the Gantt within the same tick).
@@ -1959,17 +2546,20 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       if (vs && u.pinnedStart < vs) {
         // Extend viewStart 2 weeks before the pin so the bar isn't flush at the left edge.
         const pinD = new Date(u.pinnedStart);
-        const extended = new Date(pinD); extended.setDate(extended.getDate() - 14);
+        const extended = new Date(pinD);
+        extended.setDate(extended.getDate() - 14);
         const extStr = extended.toISOString().slice(0, 10);
-        mutate(d => dated({
-          ...d,
-          meta: { ...d.meta, viewStart: extStr },
-          tree: (d.tree || []).map(r => r.id === u.id ? u : r),
-        }));
+        mutate(d =>
+          dated({
+            ...d,
+            meta: { ...d.meta, viewStart: extStr },
+            tree: (d.tree || []).map(r => (r.id === u.id ? u : r)),
+          }),
+        );
         return;
       }
     }
-    mutate(d => dated({ ...d, tree: (d.tree || []).map(r => r.id === u.id ? u : r) }));
+    mutate(d => dated({ ...d, tree: (d.tree || []).map(r => (r.id === u.id ? u : r)) }));
   }
   // Bulk status write from Run mode's Jira drift rows (BriefingView.jsx).
   // Patches carry whole nodes (see utils/jiraSync.js statusPatches); parent
@@ -2126,7 +2716,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     let insertAt = next.length;
     for (let i = next.length - 1; i >= 0; i--) {
       if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
-        insertAt = i + 1; break;
+        insertAt = i + 1;
+        break;
       }
     }
     next.splice(insertAt, 0, ...newTasks);
@@ -2187,11 +2778,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     };
     if (node.confidence) newTask.confidence = node.confidence;
 
-    const next = tree.map(r => r.id === nodeId ? updated : r);
+    const next = tree.map(r => (r.id === nodeId ? updated : r));
     let insertAt = next.length;
     for (let i = next.length - 1; i >= 0; i--) {
       if (next[i].id === nodeId || next[i].id.startsWith(nodeId + '.')) {
-        insertAt = i + 1; break;
+        insertAt = i + 1;
+        break;
       }
     }
     next.splice(insertAt, 0, newTask);
@@ -2207,12 +2799,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const pid = node.id.split('.').slice(0, -1).join('.');
     mutate(d => {
       const nt = [...(d.tree || [])];
-      if (!pid) { nt.push(node); return { ...d, tree: nt }; }
+      if (!pid) {
+        nt.push(node);
+        return { ...d, tree: nt };
+      }
       let ins = -1;
       for (let i = nt.length - 1; i >= 0; i--) {
-        if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) { ins = i + 1; break; }
+        if (nt[i].id === pid || nt[i].id.startsWith(pid + '.')) {
+          ins = i + 1;
+          break;
+        }
       }
-      if (ins >= 0) nt.splice(ins, 0, node); else nt.push(node);
+      if (ins >= 0) nt.splice(ins, 0, node);
+      else nt.push(node);
       return { ...d, tree: nt };
     });
   }
@@ -2223,14 +2822,17 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const subtreeIds = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)];
     const newBase = nextChildId(tree, newParentId);
     const map = { [nodeId]: newBase };
-    subtreeIds.slice(1).forEach(old => { map[old] = newBase + old.slice(nodeId.length); });
+    subtreeIds.slice(1).forEach(old => {
+      map[old] = newBase + old.slice(nodeId.length);
+    });
     return map;
   }
 
   // Duplicate a node + its entire subtree. Deps pointing INSIDE the subtree are remapped;
   // deps pointing OUTSIDE are preserved. Returns the new root node id.
   function duplicateNode(nodeId) {
-    const node = tree.find(r => r.id === nodeId); if (!node) return null;
+    const node = tree.find(r => r.id === nodeId);
+    if (!node) return null;
     const parentOfNode = nodeId.split('.').slice(0, -1).join('.'); // stays under same parent
     const idMap = computeIdMap(tree, nodeId, parentOfNode);
     const copies = [nodeId, ...tree.filter(r => r.id.startsWith(nodeId + '.')).map(r => r.id)].map(oldId => {
@@ -2241,7 +2843,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // Preserve _depLabels but remap keys
       if (orig._depLabels) {
         copy._depLabels = {};
-        Object.entries(orig._depLabels).forEach(([k, v]) => { copy._depLabels[idMap[k] || k] = v; });
+        Object.entries(orig._depLabels).forEach(([k, v]) => {
+          copy._depLabels[idMap[k] || k] = v;
+        });
       }
       // Reset progress/status for fresh copy (user decides)
       delete copy.pinnedStart;
@@ -2320,14 +2924,30 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
   const onMoveBehind = useStableCallback((ids, rootId) => {
     let anchor = rootId;
-    for (const id of ids) { reorderSibling(id, { targetId: anchor, position: 'after' }); anchor = id; }
+    for (const id of ids) {
+      reorderSibling(id, { targetId: anchor, position: 'after' });
+      anchor = id;
+    }
   });
-  function addMember(teamId) { const id = 'm' + Date.now(); setD('members', [...members, { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart }]); }
-  function cloneMember(src) { const id = 'm' + Date.now(); const { teams: _teams, ...rest } = src; setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]); }
+  function addMember(teamId) {
+    const id = 'm' + Date.now();
+    setD('members', [
+      ...members,
+      { id, name: 'New person', team: teamId || teams[0]?.id || '', role: '', cap: 1.0, vac: 25, start: planStart },
+    ]);
+  }
+  function cloneMember(src) {
+    const id = 'm' + Date.now();
+    const { teams: _teams, ...rest } = src;
+    setD('members', [...members, { ...rest, id, team: '', cap: 0.5 }]);
+  }
   // Gantt drag callback. Accepts either a number (legacy seq update) or an object patch (e.g. {pinnedStart}).
   function onSeqUpdate(taskId, patch) {
     const update = typeof patch === 'object' && patch !== null ? patch : { seq: patch };
-    setD('tree', tree.map(r => r.id === taskId ? { ...r, ...update } : r));
+    setD(
+      'tree',
+      tree.map(r => (r.id === taskId ? { ...r, ...update } : r)),
+    );
   }
   // Extend the plan start date backward so partially-done tasks that began before the
   // current horizon fit naturally. Scheduler re-computes with the wider window; existing
@@ -2350,13 +2970,26 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // utils/exportCtx.js.
   // An export of a scenario says so in its title: a PDF travels without the
   // bar that marks the screen, and a what-if must never pass for the plan.
-  const exportData = activeScenario && data
-    ? { ...data, meta: { ...(data.meta || {}), name: _t('scn.exportSuffix', data.meta?.name || '', activeScenario.name) } }
-    : data;
-  const _exportCtx = () => buildExportCtx({
-    data: exportData, scheduled, weeks, cpSet, goalPaths, stats, confidence, lang: _lang,
-    diff, horizonIds, horizonEnd, futureProgressByRootId, projectWaitsOf,
-  });
+  const exportData =
+    activeScenario && data
+      ? { ...data, meta: { ...(data.meta || {}), name: _t('scn.exportSuffix', data.meta?.name || '', activeScenario.name) } }
+      : data;
+  const _exportCtx = () =>
+    buildExportCtx({
+      data: exportData,
+      scheduled,
+      weeks,
+      cpSet,
+      goalPaths,
+      stats,
+      confidence,
+      lang: _lang,
+      diff,
+      horizonIds,
+      horizonEnd,
+      futureProgressByRootId,
+      projectWaitsOf,
+    });
   const isMdFile = fileName?.endsWith('.md');
   // Build the file content together with any new history events. The events
   // capture the delta between the leaf state at the last successful persist
@@ -2368,7 +3001,14 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     if (scnRef.current) {
       const fd = fileDataRef.current;
       const content = isMdFile
-        ? _buildMd({ tree: sortTree(fd.tree || []), members: fd.members || [], teams: fd.teams || [], vacations: fd.vacations || [], data: fd, meta: fd.meta || {} })
+        ? _buildMd({
+            tree: sortTree(fd.tree || []),
+            members: fd.members || [],
+            teams: fd.teams || [],
+            vacations: fd.vacations || [],
+            data: fd,
+            meta: fd.meta || {},
+          })
         : JSON.stringify(fd, null, 2);
       return { content, newEvents: [], snapshot: lastSavedLeavesRef.current };
     }
@@ -2382,7 +3022,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const currSnapshot = leafSnapshot(realTree);
     let newEvents = [];
     if (lastSavedLeavesRef.current) {
-      newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : null), real?.asOfPending, currSnapshot, ts);
+      newEvents = stampPendingDates(
+        diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : null),
+        real?.asOfPending,
+        currSnapshot,
+        ts,
+      );
     }
     // A backdated entry supersedes the later ones it contradicts, or the
     // replay walks done → wip → done and every review in between reports the
@@ -2392,9 +3037,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const plain = withoutPendingDates(real);
     const dataForFile = eventsForFile.length ? { ...plain, historyEvents: eventsForFile } : plain;
     const content = isMdFile
-      ? _buildMd({ tree: realTree, members: real.members || [], teams: real.teams || [], vacations: real.vacations || [], data: dataForFile, meta: real.meta || {} })
+      ? _buildMd({
+          tree: realTree,
+          members: real.members || [],
+          teams: real.teams || [],
+          vacations: real.vacations || [],
+          data: dataForFile,
+          meta: real.meta || {},
+        })
       : JSON.stringify(dataForFile, null, 2);
-    return { content, newEvents, snapshot: currSnapshot, pendingRead: real?.asOfPending || null, savedPlan: real, visit: visit ? { day: visit.day, screen: data } : null };
+    return {
+      content,
+      newEvents,
+      snapshot: currSnapshot,
+      pendingRead: real?.asOfPending || null,
+      savedPlan: real,
+      visit: visit ? { day: visit.day, screen: data } : null,
+    };
   }
   // The same diff the file-save path takes, for when there is no file. Kept
   // separate because composeFileForSave also serialises the whole project,
@@ -2404,7 +3063,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // real plan (its dated entries wait in `asOfPending`).
     if (!Array.isArray(tree) || scnRef.current || pastRef.current) return;
     const snapshot = leafSnapshot(tree);
-    if (!lastSavedLeavesRef.current) { lastSavedLeavesRef.current = snapshot; return; }
+    if (!lastSavedLeavesRef.current) {
+      lastSavedLeavesRef.current = snapshot;
+      return;
+    }
     const pendingRead = data?.asOfPending || null;
     const ts = new Date().toISOString();
     const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), pendingRead, snapshot, ts);
@@ -2417,7 +3079,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // differs, so that a save which changed nothing does not start another.
   function withDayLog(next, log) {
     if (deepEqual(next.dayLog || [], log || [])) return next;
-    if (!log || !log.length) { const { dayLog, ...rest } = next; return rest; }
+    if (!log || !log.length) {
+      const { dayLog, ...rest } = next;
+      return rest;
+    }
     return { ...next, dayLog: log };
   }
   // What a finished save leaves in the document: its events, and none of the
@@ -2425,7 +3090,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // stays for the next save.
   function recordSavedEvents(d, newEvents, pendingRead) {
     const left = withoutPendingDates(d, pendingRead);
-    return newEvents && newEvents.length ? { ...left, historyEvents: [...supersededByBackdate(left?.historyEvents || [], newEvents).kept, ...newEvents] } : left;
+    return newEvents && newEvents.length
+      ? { ...left, historyEvents: [...supersededByBackdate(left?.historyEvents || [], newEvents).kept, ...newEvents] }
+      : left;
   }
   function commitSaveSideEffects({ newEvents, snapshot, pendingRead, savedPlan, visit }) {
     lastSavedLeavesRef.current = snapshot;
@@ -2454,18 +3121,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   }
   function buildMarkdownText() {
     const fd = fileDataRef.current || data;
-    if (fd !== data) return _buildMd({ tree: sortTree(fd.tree || []), members: fd.members || [], teams: fd.teams || [], vacations: fd.vacations || [], data: fd, meta: fd.meta || {} });
+    if (fd !== data)
+      return _buildMd({
+        tree: sortTree(fd.tree || []),
+        members: fd.members || [],
+        teams: fd.teams || [],
+        vacations: fd.vacations || [],
+        data: fd,
+        meta: fd.meta || {},
+      });
     return _buildMd({ tree, members, teams, vacations, data, meta });
   }
   function loadFile(e) {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0];
+    if (!f) return;
     const r = new FileReader();
     r.onload = async ev => {
       try {
         const text = ev.target.result;
         const isMd = f.name.endsWith('.md');
         const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0) throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
+        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
+          throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
         // Set data first, then clean up handle in background
         setData(d);
         resetHistory(); // different document — the old undo stack doesn't apply
@@ -2479,7 +3156,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         alert(e.message || 'Invalid project file.');
       }
     };
-    r.readAsText(f); e.target.value = '';
+    r.readAsText(f);
+    e.target.value = '';
   }
   function onBarClick(s, focusRequest = null) {
     const node = tree.find(r => r.id === (s.treeId || s.id));
@@ -2508,7 +3186,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       setModal('node');
     });
   }
-  async function newProject() { await forgetHandle(); setFileWriteOk(false); setAutoSave(true); setSaved(true); setLastSavedAt(null); setData(null); resetHistory(); setSel(null); setModal(null); setTab('summary'); }
+  async function newProject() {
+    await forgetHandle();
+    setFileWriteOk(false);
+    setAutoSave(true);
+    setSaved(true);
+    setLastSavedAt(null);
+    setData(null);
+    resetHistory();
+    setSel(null);
+    setModal(null);
+    setTab('summary');
+  }
 
   // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
   async function restoreMountedFile() {
@@ -2554,7 +3243,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onTreeSelect = useStableCallback((node, e, visibleIds) => {
     const ctrlLike = !!(e?.ctrlKey || e?.metaKey);
     if (e?.shiftKey && selected && visibleIds) {
-      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+      const ai = visibleIds.indexOf(selected.id),
+        bi = visibleIds.indexOf(node.id);
       if (ai >= 0 && bi >= 0) {
         const range = visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1);
         const newRange = new Set(range);
@@ -2574,14 +3264,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       // the one the Work order view already had. It used to be B alone, so
       // a move then took one row while two looked meant.
       setMultiSel(s => {
-        const n = new Set(s.size ? s : (selected?.id && selected.id !== node.id ? [selected.id] : []));
+        const n = new Set(s.size ? s : selected?.id && selected.id !== node.id ? [selected.id] : []);
         n.has(node.id) ? n.delete(node.id) : n.add(node.id);
         return n;
       });
       if (!selected) setSel(node);
       lastShiftRangeRef.current = null;
     } else {
-      setSel(node); setMultiSel(new Set());
+      setSel(node);
+      setMultiSel(new Set());
       lastShiftRangeRef.current = null;
     }
   });
@@ -2632,7 +3323,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onTreeMove = useStableCallback((id, newParentId) => {
     const newId = moveNode(id, newParentId);
     if (newId) setSel({ id: newId });
-    return newId;   // the inline editor follows the row to its new id
+    return newId; // the inline editor follows the row to its new id
   });
   // Toolbar buttons and structural shortcuts both land here — the one path
   // for move up/down, indent and outdent. The cursor follows the row: a
@@ -2676,7 +3367,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // always means another Backend item, and that is a fact about where you
     // are, not a guess about what you meant.
     const sibling = tree.find(r => r.id === afterId);
-    addNode({ id, name: '', status: 'open', team: sibling?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: pid ? pid.split('.').length + 1 : 1 });
+    addNode({
+      id,
+      name: '',
+      status: 'open',
+      team: sibling?.team || '',
+      best: 0,
+      factor: 1.5,
+      deps: [],
+      note: '',
+      assign: [],
+      lvl: pid ? pid.split('.').length + 1 : 1,
+    });
     reorderSibling(id, { targetId: afterId, position: 'after' });
     return id;
   });
@@ -2685,7 +3387,18 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const onTreeInsertChild = useStableCallback(parentIdArg => {
     const id = nextChildId(tree, parentIdArg);
     const parentNode = tree.find(r => r.id === parentIdArg);
-    addNode({ id, name: '', status: 'open', team: parentNode?.team || '', best: 0, factor: 1.5, deps: [], note: '', assign: [], lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1 });
+    addNode({
+      id,
+      name: '',
+      status: 'open',
+      team: parentNode?.team || '',
+      best: 0,
+      factor: 1.5,
+      deps: [],
+      note: '',
+      assign: [],
+      lvl: parentIdArg ? parentIdArg.split('.').length + 1 : 1,
+    });
     return id;
   });
   // ⌫/Delete on a multi-selection: deleteNode's `setD('tree', tree.filter(...))`
@@ -2700,7 +3413,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // deleting P1 (the bug just fixed in deleteNode). A node is in the set if
     // it IS one of the ids, or sits strictly below one of them.
     mutate(d => ({ ...d, tree: (d.tree || []).filter(r => !ids.some(id => r.id === id || r.id.startsWith(id + '.'))) }));
-    setSel(null); setMultiSel(new Set());
+    setSel(null);
+    setMultiSel(new Set());
   });
   // Paste a list: parse → build the whole batch of new nodes against a
   // local working copy of the tree (utils/treeEdit.js buildPasteNodes, so
@@ -2715,7 +3429,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const next = currentTree.slice();
       let insertAt = next.length;
       for (let i = next.length - 1; i >= 0; i--) {
-        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) { insertAt = i + 1; break; }
+        if (next[i].id === afterId || next[i].id.startsWith(afterId + '.')) {
+          insertAt = i + 1;
+          break;
+        }
       }
       next.splice(insertAt, 0, ...newNodes);
       return { ...d, tree: next };
@@ -2757,9 +3474,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const current = reconcileQueue(queues[person], mine);
       // `direction` is either a key's word — up/down/first/last — or the id a
       // drag was dropped on.
-      const next = typeof direction === 'object' && (direction?.before || direction?.after)
-        ? placeInQueue(current, moving, direction.before || direction.after, direction.after ? 'after' : 'before')
-        : moveInQueue(current, moving, direction);
+      const next =
+        typeof direction === 'object' && (direction?.before || direction?.after)
+          ? placeInQueue(current, moving, direction.before || direction.after, direction.after ? 'after' : 'before')
+          : moveInQueue(current, moving, direction);
       if (next.join() === current.join() && queues[person]) return d;
       return { ...d, personQueues: { ...queues, [person]: next } };
     });
@@ -2786,7 +3504,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
     onBarClick(row || { id });
   });
-  const onSumNavigate = useStableCallback((id, target) => { const node = tree.find(r => r.id === id); if (node) setSel(node); setTab(target || 'tree'); });
+  const onSumNavigate = useStableCallback((id, target) => {
+    const node = tree.find(r => r.id === id);
+    if (node) setSel(node);
+    setTab(target || 'tree');
+  });
   const onNetAddNode = useStableCallback(() => setModal('add'));
   const onNetDeleteNode = useStableCallback(id => deleteNode(id));
   const onPlanReviewUpdate = useStableCallback((...a) => updateNode(...a));
@@ -2812,10 +3534,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       const prev = d.roadmapAssignment || {};
       const rootIds = new Set((d.tree || []).filter(r => !r.id.includes('.')).map(r => r.id));
       const merged = mergeRoadmapAssignment(prev, computed, rootIds);
-      const unchanged = Object.keys(merged).length === Object.keys(prev).length
-        && Object.keys(merged).every(id => prev[id]
-          && prev[id].routeIdx === merged[id].routeIdx
-          && prev[id].colorIdx === merged[id].colorIdx);
+      const unchanged =
+        Object.keys(merged).length === Object.keys(prev).length &&
+        Object.keys(merged).every(id => prev[id] && prev[id].routeIdx === merged[id].routeIdx && prev[id].colorIdx === merged[id].colorIdx);
       return unchanged ? d : { ...d, roadmapAssignment: merged };
     });
   });
@@ -2823,20 +3544,34 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // Everything the Resources view edits goes through the lens of the day you
   // are working on (`effDate`, empty = today): `foldEdit` puts each field
   // where it belongs — the change at that date, or the plan itself.
-  const onResMeetingPlansUpd = useStableCallback(list => mutate(d => {
-    const known = new Set((d.meetingPlans || []).map(p => p.id));
-    const kept = new Set((list || []).map(p => p.id));
-    // Plans that were removed or added are timeless; edited ones are folded.
-    let next = { ...d, meetingPlans: [...(d.meetingPlans || []).filter(p => kept.has(p.id)), ...(list || []).filter(p => !known.has(p.id))] };
-    for (const plan of list || []) if (known.has(plan.id)) next = foldEdit(next, 'meetingPlans', plan, effFold);
-    return pruneChanges(next);
-  }));
+  const onResMeetingPlansUpd = useStableCallback(list =>
+    mutate(d => {
+      const known = new Set((d.meetingPlans || []).map(p => p.id));
+      const kept = new Set((list || []).map(p => p.id));
+      // Plans that were removed or added are timeless; edited ones are folded.
+      let next = {
+        ...d,
+        meetingPlans: [...(d.meetingPlans || []).filter(p => kept.has(p.id)), ...(list || []).filter(p => !known.has(p.id))],
+      };
+      for (const plan of list || []) if (known.has(plan.id)) next = foldEdit(next, 'meetingPlans', plan, effFold);
+      return pruneChanges(next);
+    }),
+  );
   const onResMemberUpd = useStableCallback(m => mutate(d => foldEdit(d, 'members', m, effFold)));
   const onResMemberAdd = useStableCallback(teamId => {
     // Somebody added while working on a date joins on that date.
-    if (!effDate) { addMember(teamId); return; }
+    if (!effDate) {
+      addMember(teamId);
+      return;
+    }
     const id = 'm' + Date.now();
-    mutate(d => ({ ...d, members: [...(d.members || []), { id, name: 'New person', team: teamId || d.teams?.[0]?.id || '', role: '', cap: 1.0, vac: 25, start: effDate }] }));
+    mutate(d => ({
+      ...d,
+      members: [
+        ...(d.members || []),
+        { id, name: 'New person', team: teamId || d.teams?.[0]?.id || '', role: '', cap: 1.0, vac: 25, start: effDate },
+      ],
+    }));
   });
   const onResMemberClone = useStableCallback((...a) => cloneMember(...a));
   const onResMemberDel = useStableCallback(id => {
@@ -2857,7 +3592,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const team = resLens.teams[i];
     if (team) mutate(d => foldEdit(d, 'teams', { ...team, [k]: v }, effFold));
   });
-  const onResTeamAdd = useStableCallback(() => setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]));
+  const onResTeamAdd = useStableCallback(() =>
+    setD('teams', [...teams, { id: `T${teams.length + 1}`, name: 'New Team', color: '#3b82f6' }]),
+  );
   const onResTeamDel = useStableCallback(i => {
     const deleted = teams[i];
     if (!deleted) return;
@@ -2872,7 +3609,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
             const hasMatch = p.team === deleted.id || (p.teams || []).includes(deleted.id);
             if (!hasMatch) return p;
             const teamsRest = (p.teams || []).filter(t => t !== deleted.id);
-            return { ...p, team: p.team === deleted.id ? (teamsRest[0] || '') : p.team, teams: teamsRest };
+            return { ...p, team: p.team === deleted.id ? teamsRest[0] || '' : p.team, teams: teamsRest };
           });
           if (phases.some((p, idx) => p !== r.phases[idx])) out = { ...out, phases };
         }
@@ -2885,51 +3622,127 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
   const onHolUpdate = useStableCallback(v => setD('holidays', v));
 
-  if (!bootstrapped) return <div className="onboard">
-    <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
-      <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
-      <div className="onboard-sub" style={{ marginBottom: 0 }}>Restoring project context...</div>
-    </div>
-  </div>;
-
-  if (!data && fileName && fileHandleRef.current) return <div className="onboard">
-    <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
-      <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>Planr<span style={{ color: 'var(--ac)' }}>.</span></div>
-      <div className="onboard-sub" style={{ marginBottom: 22 }}>Restore mounted project</div>
-      <div style={{ background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', padding: 12, marginBottom: 18, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="doc" size={14} />{fileName}</div>
-      <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>Browser security requires you to grant file access again after a page reload.</p>
-      <div className="ob-actions">
-        <button className="ob-btn ob-pri" onClick={restoreMountedFile}>Reactivate file access</button>
-        <button className="ob-btn ob-sec" onClick={async () => { await forgetHandle(); }}>Discard mount</button>
+  if (!bootstrapped)
+    return (
+      <div className="onboard">
+        <div className="onboard-card fade" style={{ padding: 32, width: 360 }}>
+          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
+            Planr<span style={{ color: 'var(--ac)' }}>.</span>
+          </div>
+          <div className="onboard-sub" style={{ marginBottom: 0 }}>
+            Restoring project context...
+          </div>
+        </div>
       </div>
-    </div>
-  </div>;
+    );
 
-  if (!data) return <>
-    <Onboard onCreate={() => setModal('new')} onLoad={loadFromFile} fRef={fRef}
-      onJiraImport={() => setModal('jiraImport')}
-      onLoadDemo={() => {
-        import('./utils/demoProject.js').then(m => {
-          const demo = m.buildDemoProject(_t);
-          setData(demo); resetHistory(); setSaved(false); setTab('summary'); setSel(demo.tree?.[0] || null);
-        });
-      }} />
-    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => {
-      setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
-      // Auto-start tour for first-time users (tour not yet dismissed)
-      try { if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0); } catch {}
-    }} />}
-    {/* The other way to start: the work is already in Jira. Same shell the
+  if (!data && fileName && fileHandleRef.current)
+    return (
+      <div className="onboard">
+        <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
+          <div className="onboard-logo" style={{ fontSize: 24, marginBottom: 10 }}>
+            Planr<span style={{ color: 'var(--ac)' }}>.</span>
+          </div>
+          <div className="onboard-sub" style={{ marginBottom: 22 }}>
+            Restore mounted project
+          </div>
+          <div
+            style={{
+              background: 'var(--bg3)',
+              border: '1px solid var(--b2)',
+              borderRadius: 'var(--r)',
+              padding: 12,
+              marginBottom: 18,
+              fontSize: 12,
+              fontFamily: 'var(--mono)',
+              color: 'var(--tx2)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+            }}
+          >
+            <Icon name="doc" size={14} />
+            {fileName}
+          </div>
+          <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>
+            Browser security requires you to grant file access again after a page reload.
+          </p>
+          <div className="ob-actions">
+            <button className="ob-btn ob-pri" onClick={restoreMountedFile}>
+              Reactivate file access
+            </button>
+            <button
+              className="ob-btn ob-sec"
+              onClick={async () => {
+                await forgetHandle();
+              }}
+            >
+              Discard mount
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+
+  if (!data)
+    return (
+      <>
+        <Onboard
+          onCreate={() => setModal('new')}
+          onLoad={loadFromFile}
+          fRef={fRef}
+          onJiraImport={() => setModal('jiraImport')}
+          onLoadDemo={() => {
+            import('./utils/demoProject.js').then(m => {
+              const demo = m.buildDemoProject(_t);
+              setData(demo);
+              resetHistory();
+              setSaved(false);
+              setTab('summary');
+              setSel(demo.tree?.[0] || null);
+            });
+          }}
+        />
+        {modal === 'new' && (
+          <NewProjModal
+            onClose={() => setModal(null)}
+            onCreate={d => {
+              setData(d);
+              resetHistory();
+              setSaved(false);
+              setModal(null);
+              setTab('tree');
+              setSel(d.tree?.[0] || null);
+              // Auto-start tour for first-time users (tour not yet dismissed)
+              try {
+                if (!localStorage.getItem(TOUR_DONE_KEY)) setTourStep(0);
+              } catch {}
+            }}
+          />
+        )}
+        {/* The other way to start: the work is already in Jira. Same shell the
         wizard builds — standard template, NRW holidays, two teams — with the
         tree coming from the paste instead of from an empty form. */}
-    {modal === 'jiraImport' && <JiraImportModal
-      onClose={() => setModal(null)}
-      onImport={({ nodes, newMembers, projectName }) => {
-        const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
-        setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null);
-      }} />}
-    <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
-  </>;
+        {modal === 'jiraImport' && (
+          <JiraImportModal
+            onClose={() => setModal(null)}
+            onImport={({ nodes, newMembers, projectName }) => {
+              const d = buildImportedProject({ nodes, members: newMembers, name: projectName, t: _t });
+              setData(d);
+              resetHistory();
+              setSaved(false);
+              setModal(null);
+              setTab('tree');
+              setSel(d.tree?.[0] || null);
+            }}
+          />
+        )}
+        <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
+      </>
+    );
 
   // removed: topDownReady guide bubble (was blocking tree view)
 
@@ -2965,7 +3778,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const renderBulkEditBody = () => {
     if (multiSel.size === 0) return null;
     const selItems = tree.filter(r => multiSel.has(r.id));
-    const commonOf = (key, getter = r => r[key]) => { const vals = selItems.map(getter); const first = vals[0]; return vals.every(v => v === first) ? first : null; };
+    const commonOf = (key, getter = r => r[key]) => {
+      const vals = selItems.map(getter);
+      const first = vals[0];
+      return vals.every(v => v === first) ? first : null;
+    };
     const commonTeam = commonOf('team');
     const commonStatus = commonOf('status');
     const commonPrio = commonOf('prio');
@@ -2980,189 +3797,510 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const commonParallel = commonOf('parallel', r => !!r.parallel);
     const commonTeamLock = commonOf('teamLock', r => !!r.teamLock);
     const allLeaf = selItems.every(r => isLeafNode(tree, r.id));
-    const allDeadlineScoped = selItems.length > 0 && selItems.every(item => {
-      const rootId = deadlineRootIdForNode(tree, item.id);
-      return !!rootId && item.id !== rootId;
-    });
-    const deadlineParentExcluded = allDeadlineScoped && selItems.some(item => {
-      const rootId = deadlineRootIdForNode(tree, item.id);
-      const pid = item.id.split('.').slice(0, -1).join('.');
-      return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
-    });
-    const commonDeadlineRelevant = allDeadlineScoped
-      ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false)
-      : null;
+    const allDeadlineScoped =
+      selItems.length > 0 &&
+      selItems.every(item => {
+        const rootId = deadlineRootIdForNode(tree, item.id);
+        return !!rootId && item.id !== rootId;
+      });
+    const deadlineParentExcluded =
+      allDeadlineScoped &&
+      selItems.some(item => {
+        const rootId = deadlineRootIdForNode(tree, item.id);
+        const pid = item.id.split('.').slice(0, -1).join('.');
+        return !!pid && !isDeadlineRelevantForRoot(tree, rootId, pid);
+      });
+    const commonDeadlineRelevant = allDeadlineScoped ? commonOf('deadlineRelevant', item => item.deadlineRelevant !== false) : null;
     const anyNonRoot = selItems.some(r => r.id.includes('.'));
     const batchTabs = [
       { id: 'overview', label: _t('qe.tab.overview') },
       { id: 'workflow', label: _t('qe.tab.workflow') },
       ...(allLeaf ? [{ id: 'effort', label: _t('qe.tab.effort') }] : []),
-      ...((allLeaf || allDeadlineScoped) ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
+      ...(allLeaf || allDeadlineScoped ? [{ id: 'timing', label: _t('qe.tab.timing') }] : []),
     ];
     const bTab = batchTabs.find(bt => bt.id === sideTab) ? sideTab : 'overview';
-    return <div className="side-body">
-      <p className="helper" style={{ marginBottom: 10 }}>{_t('bulk.hint')}</p>
-      <div className="qe-tabs" role="tablist">
-        {batchTabs.map(bt => <button key={bt.id} role="tab" aria-selected={bTab === bt.id} className={`qe-tab${bTab === bt.id ? ' active' : ''}`} onClick={() => setSideTab(bt.id)}>{bt.label}</button>)}
-      </div>
-      {bTab === 'overview' && <>
-        {allLeaf && <div className="field"><label>{_t('qe.status')}{commonStatus == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <SearchSelect value={commonStatus || ''} options={[{ id: 'open', label: _t('open') }, { id: 'wip', label: _t('wip') }, { id: 'done', label: _t('done') }]} onSelect={v => setD('tree', tree.map(r => {
-            // The single editors' rules, not a bare status write: done stamps
-            // the completion dates and 100 %, open resets progress, wip seeds
-            // the start. A task with phases has no status of its own to set —
-            // its phases decide it — so it is left alone, as the single
-            // editors do by hiding the field.
-            if (!multiSel.has(r.id) || r.phases?.length) return r;
-            return { ...r, ...statusChangePatch(r, v) };
-          }))} placeholder={_t('bulk.chooseStatus')} />
-        </div>}
-        <div className="field"><label>{_t('qe.notes')}{commonNote == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <LazyInput value={commonNote ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, note: v } : r))} placeholder={_t('bulk.notePlaceholder')} />
+    return (
+      <div className="side-body">
+        <p className="helper" style={{ marginBottom: 10 }}>
+          {_t('bulk.hint')}
+        </p>
+        <div className="qe-tabs" role="tablist">
+          {batchTabs.map(bt => (
+            <button
+              key={bt.id}
+              role="tab"
+              aria-selected={bTab === bt.id}
+              className={`qe-tab${bTab === bt.id ? ' active' : ''}`}
+              onClick={() => setSideTab(bt.id)}
+            >
+              {bt.label}
+            </button>
+          ))}
         </div>
-        {anyNonRoot && <>
-          {(data.taskTemplates || []).length > 0 && <div className="field"><label>{_t('ph.applyTemplate')}</label>
-            <SearchSelect options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
-              onSelect={tplId => {
-                const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
-                if (!tpl) return;
-                setD('tree', tree.map(r => {
-                  if (!multiSel.has(r.id)) return r;
-                  const phases = instantiateTemplatePhases(tpl.phases);
-                  return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
-                }));
-              }} placeholder={_t('ph.applyTemplate')} />
-          </div>}
-          {(() => {
-            const withPhases = selItems.filter(r => r.phases?.length);
-            if (!withPhases.length) return null;
-            const refPhases = withPhases[0].phases;
-            const allSameStructure = withPhases.length === selItems.length && withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
-            if (!allSameStructure) return null;
-            return <div className="field"><label>{_t('ph.phases')}</label>
-              {refPhases.map((ph, i) => {
-                const statuses = withPhases.map(r => r.phases[i].status);
-                const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
-                // One geometric triple — filled / half / ring — rather than a dingbat
-                // check that renders as an emoji on some platforms.
-                const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
-                const dotColor = common === 'done' ? 'var(--st-done)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
-                return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ cursor: 'pointer', fontSize: 13, color: dotColor, width: 18, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}
-                    onClick={() => {
-                      const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
-                      setD('tree', tree.map(r => {
-                        if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
-                        const newPhases = r.phases.map((p, j) => j === i ? { ...p, status: next } : p);
-                        // Same derivation as the single editors: a wip phase
-                        // counts for its share, not for nothing, so one click
-                        // gives one progress figure wherever it is made.
-                        const derived = derivePhaseStatus(newPhases);
-                        return { ...r, phases: newPhases, ...(derived ? { status: derived.status, progress: derived.progress } : {}) };
-                      }));
-                    }}>{dot}</span>
-                  <span style={{ fontSize: 12, color: common === 'done' ? 'var(--tx3)' : 'var(--tx)', textDecoration: common === 'done' ? 'line-through' : 'none' }}>{ph.name}</span>
-                  {common == null && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
-                </div>;
-              })}
-            </div>;
-          })()}
-        </>}
-      </>}
-      {bTab === 'workflow' && <>
-        <div className="field"><label>{_t('qe.team')}{commonTeam == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <SearchSelect value={commonTeam || ''} options={teams.map(t => ({ id: t.id, label: t.name }))} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, team: v } : r))} placeholder={_t('bulk.chooseTeam')} allowEmpty />
-        </div>
-        <div className="field"><label>{_t('qe.assignee')}</label>
-          {(() => {
-            const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
-            return <>
-              {commonAssigns.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                {commonAssigns.map(a => { const m = members.find(x => x.id === a); return <span key={a} className="tag">{m?.name || a}<span className="tag-x" data-htip={_t('bulk.removeFromSelected')} onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r))}><Icon name="x" size={9} /></span></span>; })}
-              </div>}
-              <SearchSelect options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))} onSelect={v => { const m = members.find(x => x.id === v); setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: teamForAssignment(m, r.team) } : r)); }} placeholder={_t('qe.assignPerson')} />
-            </>;
-          })()}
-        </div>
-        {allLeaf && (
-          <div className="field"><label>{_t('qe.parallel') || 'Parallel'}{commonParallel == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label className="toggle">
-                <input type="checkbox" checked={commonParallel === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r))} />
-                <span className="slider" />
+        {bTab === 'overview' && (
+          <>
+            {allLeaf && (
+              <div className="field">
+                <label>
+                  {_t('qe.status')}
+                  {commonStatus == null ? ` (${_t('bulk.mixed')})` : ''}
+                </label>
+                <SearchSelect
+                  value={commonStatus || ''}
+                  options={[
+                    { id: 'open', label: _t('open') },
+                    { id: 'wip', label: _t('wip') },
+                    { id: 'done', label: _t('done') },
+                  ]}
+                  onSelect={v =>
+                    setD(
+                      'tree',
+                      tree.map(r => {
+                        // The single editors' rules, not a bare status write: done stamps
+                        // the completion dates and 100 %, open resets progress, wip seeds
+                        // the start. A task with phases has no status of its own to set —
+                        // its phases decide it — so it is left alone, as the single
+                        // editors do by hiding the field.
+                        if (!multiSel.has(r.id) || r.phases?.length) return r;
+                        return { ...r, ...statusChangePatch(r, v) };
+                      }),
+                    )
+                  }
+                  placeholder={_t('bulk.chooseStatus')}
+                />
+              </div>
+            )}
+            <div className="field">
+              <label>
+                {_t('qe.notes')}
+                {commonNote == null ? ` (${_t('bulk.mixed')})` : ''}
               </label>
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
-            </div>
-          </div>
-        )}
-        {allLeaf && (
-          <div className="field"><label>{_t('qe.teamLock')}{commonTeamLock == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label className="toggle">
-                <input type="checkbox" checked={commonTeamLock === true} onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r))} />
-                <span className="slider" />
-              </label>
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
-            </div>
-          </div>
-        )}
-      </>}
-      {bTab === 'effort' && <>
-        {allLeaf && <div className="frow">
-          <div className="field"><label>{_t('qe.bestDays')}{commonBest == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="number" min="0" step="0.1" value={commonBest ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, best: +v } : r))} />
-          </div>
-          <div className="field"><label>{_t('qe.factor')}{commonFactor == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="number" step="0.1" min="1" value={commonFactor ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, factor: +v } : r))} />
-          </div>
-        </div>}
-        <div className="field"><label>{_t('qe.priority')}{commonPrio == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <SearchSelect value={commonPrio ? String(commonPrio) : ''} options={[{ id: '1', label: `1 ${_t('critical')}` }, { id: '2', label: `2 ${_t('high')}` }, { id: '3', label: `3 ${_t('medium')}` }, { id: '4', label: `4 ${_t('low')}` }]} onSelect={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, prio: +v } : r))} placeholder={_t('bulk.choosePriority')} />
-        </div>
-        <div className="field"><label>{_t('qe.confidence')}</label>
-          <div style={{ display: 'flex', gap: 3 }}>
-            {[['', _t('auto')], ['committed', '●'], ['estimated', '◐'], ['exploratory', '○']].map(([v, l]) =>
-              <button key={v} className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`} style={{ flex: 1, fontSize: 11 }}
-                onClick={() => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, confidence: v } : r))}>{l}</button>)}
-          </div>
-        </div>
-      </>}
-      {bTab === 'timing' && <>
-        {allLeaf && <div className="frow">
-          <div className="field"><label>{_t('qe.pinnedStart')}{commonPinnedStart == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="date" value={commonPinnedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, pinnedStart: v } : r))} />
-          </div>
-          <div className="field"><label>{_t('qe.completedStart')}{commonCompletedStart == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="date" value={commonCompletedStart ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedStart: v } : r))} />
-          </div>
-          <div className="field"><label>{_t('qe.completedEnd')}{commonCompletedEnd == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="date" value={commonCompletedEnd ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r))} />
-          </div>
-          <div className="field"><label>{_t('qe.completedAt')}{commonCompletedAt == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-            <LazyInput type="date" value={commonCompletedAt ?? ''} onCommit={v => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r))} />
-          </div>
-        </div>}
-        {allDeadlineScoped && <div className="field">
-          <label>{_t('qe.affectsDeadline')}{commonDeadlineRelevant == null ? ` (${_t('bulk.mixed')})` : ''}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={commonDeadlineRelevant !== false}
-                disabled={deadlineParentExcluded}
-                onChange={e => setD('tree', tree.map(r => multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r))}
+              <LazyInput
+                value={commonNote ?? ''}
+                onCommit={v =>
+                  setD(
+                    'tree',
+                    tree.map(r => (multiSel.has(r.id) ? { ...r, note: v } : r)),
+                  )
+                }
+                placeholder={_t('bulk.notePlaceholder')}
               />
-              <span className="slider" />
-            </label>
-            <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
-              {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
-            </span>
-          </div>
-        </div>}
-      </>}
-      <hr className="divider" />
-      <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>{_t('bulk.clearSelection')}</button>
-    </div>;
+            </div>
+            {anyNonRoot && (
+              <>
+                {(data.taskTemplates || []).length > 0 && (
+                  <div className="field">
+                    <label>{_t('ph.applyTemplate')}</label>
+                    <SearchSelect
+                      options={(data.taskTemplates || []).map(tp => ({ id: tp.id, label: tp.name }))}
+                      onSelect={tplId => {
+                        const tpl = (data.taskTemplates || []).find(tp => tp.id === tplId);
+                        if (!tpl) return;
+                        setD(
+                          'tree',
+                          tree.map(r => {
+                            if (!multiSel.has(r.id)) return r;
+                            const phases = instantiateTemplatePhases(tpl.phases);
+                            return { ...r, phases, templateId: tplId, status: 'open', progress: 0 };
+                          }),
+                        );
+                      }}
+                      placeholder={_t('ph.applyTemplate')}
+                    />
+                  </div>
+                )}
+                {(() => {
+                  const withPhases = selItems.filter(r => r.phases?.length);
+                  if (!withPhases.length) return null;
+                  const refPhases = withPhases[0].phases;
+                  const allSameStructure =
+                    withPhases.length === selItems.length &&
+                    withPhases.every(r => r.phases.length === refPhases.length && r.phases.every((p, i) => p.name === refPhases[i].name));
+                  if (!allSameStructure) return null;
+                  return (
+                    <div className="field">
+                      <label>{_t('ph.phases')}</label>
+                      {refPhases.map((ph, i) => {
+                        const statuses = withPhases.map(r => r.phases[i].status);
+                        const common = statuses.every(s => s === statuses[0]) ? statuses[0] : null;
+                        // One geometric triple — filled / half / ring — rather than a dingbat
+                        // check that renders as an emoji on some platforms.
+                        const dot = common === 'done' ? '●' : common === 'wip' ? '◐' : common === 'open' ? '○' : '?';
+                        const dotColor = common === 'done' ? 'var(--st-done)' : common === 'wip' ? 'var(--ac)' : 'var(--tx3)';
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                color: dotColor,
+                                width: 18,
+                                textAlign: 'center',
+                                flexShrink: 0,
+                                userSelect: 'none',
+                              }}
+                              onClick={() => {
+                                const next = common === 'open' ? 'wip' : common === 'wip' ? 'done' : 'open';
+                                setD(
+                                  'tree',
+                                  tree.map(r => {
+                                    if (!multiSel.has(r.id) || !r.phases?.[i]) return r;
+                                    const newPhases = r.phases.map((p, j) => (j === i ? { ...p, status: next } : p));
+                                    // Same derivation as the single editors: a wip phase
+                                    // counts for its share, not for nothing, so one click
+                                    // gives one progress figure wherever it is made.
+                                    const derived = derivePhaseStatus(newPhases);
+                                    return {
+                                      ...r,
+                                      phases: newPhases,
+                                      ...(derived ? { status: derived.status, progress: derived.progress } : {}),
+                                    };
+                                  }),
+                                );
+                              }}
+                            >
+                              {dot}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: common === 'done' ? 'var(--tx3)' : 'var(--tx)',
+                                textDecoration: common === 'done' ? 'line-through' : 'none',
+                              }}
+                            >
+                              {ph.name}
+                            </span>
+                            {common == null && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>({_t('bulk.mixed')})</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </>
+        )}
+        {bTab === 'workflow' && (
+          <>
+            <div className="field">
+              <label>
+                {_t('qe.team')}
+                {commonTeam == null ? ` (${_t('bulk.mixed')})` : ''}
+              </label>
+              <SearchSelect
+                value={commonTeam || ''}
+                options={teams.map(t => ({ id: t.id, label: t.name }))}
+                onSelect={v =>
+                  setD(
+                    'tree',
+                    tree.map(r => (multiSel.has(r.id) ? { ...r, team: v } : r)),
+                  )
+                }
+                placeholder={_t('bulk.chooseTeam')}
+                allowEmpty
+              />
+            </div>
+            <div className="field">
+              <label>{_t('qe.assignee')}</label>
+              {(() => {
+                const commonAssigns = selItems[0]?.assign?.filter(a => selItems.every(r => (r.assign || []).includes(a))) || [];
+                return (
+                  <>
+                    {commonAssigns.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                        {commonAssigns.map(a => {
+                          const m = members.find(x => x.id === a);
+                          return (
+                            <span key={a} className="tag">
+                              {m?.name || a}
+                              <span
+                                className="tag-x"
+                                data-htip={_t('bulk.removeFromSelected')}
+                                onClick={() =>
+                                  setD(
+                                    'tree',
+                                    tree.map(r => (multiSel.has(r.id) ? { ...r, assign: (r.assign || []).filter(x => x !== a) } : r)),
+                                  )
+                                }
+                              >
+                                <Icon name="x" size={9} />
+                              </span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <SearchSelect
+                      options={members.filter(m => !commonAssigns.includes(m.id)).map(m => ({ id: m.id, label: m.name || m.id }))}
+                      onSelect={v => {
+                        const m = members.find(x => x.id === v);
+                        setD(
+                          'tree',
+                          tree.map(r =>
+                            multiSel.has(r.id)
+                              ? { ...r, assign: [...new Set([...(r.assign || []), v])], team: teamForAssignment(m, r.team) }
+                              : r,
+                          ),
+                        );
+                      }}
+                      placeholder={_t('qe.assignPerson')}
+                    />
+                  </>
+                );
+              })()}
+            </div>
+            {allLeaf && (
+              <div className="field">
+                <label>
+                  {_t('qe.parallel') || 'Parallel'}
+                  {commonParallel == null ? ` (${_t('bulk.mixed')})` : ''}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={commonParallel === true}
+                      onChange={e =>
+                        setD(
+                          'tree',
+                          tree.map(r => (multiSel.has(r.id) ? { ...r, parallel: e.target.checked || undefined } : r)),
+                        )
+                      }
+                    />
+                    <span className="slider" />
+                  </label>
+                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.parallelTip')}</span>
+                </div>
+              </div>
+            )}
+            {allLeaf && (
+              <div className="field">
+                <label>
+                  {_t('qe.teamLock')}
+                  {commonTeamLock == null ? ` (${_t('bulk.mixed')})` : ''}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={commonTeamLock === true}
+                      onChange={e =>
+                        setD(
+                          'tree',
+                          tree.map(r => (multiSel.has(r.id) ? { ...r, teamLock: e.target.checked || undefined } : r)),
+                        )
+                      }
+                    />
+                    <span className="slider" />
+                  </label>
+                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{_t('qe.teamLockTip')}</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {bTab === 'effort' && (
+          <>
+            {allLeaf && (
+              <div className="frow">
+                <div className="field">
+                  <label>
+                    {_t('qe.bestDays')}
+                    {commonBest == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commonBest ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, best: +v } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>
+                    {_t('qe.factor')}
+                    {commonFactor == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    value={commonFactor ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, factor: +v } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            <div className="field">
+              <label>
+                {_t('qe.priority')}
+                {commonPrio == null ? ` (${_t('bulk.mixed')})` : ''}
+              </label>
+              <SearchSelect
+                value={commonPrio ? String(commonPrio) : ''}
+                options={[
+                  { id: '1', label: `1 ${_t('critical')}` },
+                  { id: '2', label: `2 ${_t('high')}` },
+                  { id: '3', label: `3 ${_t('medium')}` },
+                  { id: '4', label: `4 ${_t('low')}` },
+                ]}
+                onSelect={v =>
+                  setD(
+                    'tree',
+                    tree.map(r => (multiSel.has(r.id) ? { ...r, prio: +v } : r)),
+                  )
+                }
+                placeholder={_t('bulk.choosePriority')}
+              />
+            </div>
+            <div className="field">
+              <label>{_t('qe.confidence')}</label>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {[
+                  ['', _t('auto')],
+                  ['committed', '●'],
+                  ['estimated', '◐'],
+                  ['exploratory', '○'],
+                ].map(([v, l]) => (
+                  <button
+                    key={v}
+                    className={`btn btn-sec btn-xs${commonConfidence === v ? ' active' : ''}`}
+                    style={{ flex: 1, fontSize: 11 }}
+                    onClick={() =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, confidence: v } : r)),
+                      )
+                    }
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+        {bTab === 'timing' && (
+          <>
+            {allLeaf && (
+              <div className="frow">
+                <div className="field">
+                  <label>
+                    {_t('qe.pinnedStart')}
+                    {commonPinnedStart == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="date"
+                    value={commonPinnedStart ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, pinnedStart: v } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>
+                    {_t('qe.completedStart')}
+                    {commonCompletedStart == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="date"
+                    value={commonCompletedStart ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedStart: v } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>
+                    {_t('qe.completedEnd')}
+                    {commonCompletedEnd == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="date"
+                    value={commonCompletedEnd ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedEnd: v, completedAt: v || r.completedAt } : r)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label>
+                    {_t('qe.completedAt')}
+                    {commonCompletedAt == null ? ` (${_t('bulk.mixed')})` : ''}
+                  </label>
+                  <LazyInput
+                    type="date"
+                    value={commonCompletedAt ?? ''}
+                    onCommit={v =>
+                      setD(
+                        'tree',
+                        tree.map(r => (multiSel.has(r.id) ? { ...r, completedAt: v, completedEnd: v || r.completedEnd } : r)),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            {allDeadlineScoped && (
+              <div className="field">
+                <label>
+                  {_t('qe.affectsDeadline')}
+                  {commonDeadlineRelevant == null ? ` (${_t('bulk.mixed')})` : ''}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={commonDeadlineRelevant !== false}
+                      disabled={deadlineParentExcluded}
+                      onChange={e =>
+                        setD(
+                          'tree',
+                          tree.map(r => (multiSel.has(r.id) ? { ...r, deadlineRelevant: e.target.checked ? undefined : false } : r)),
+                        )
+                      }
+                    />
+                    <span className="slider" />
+                  </label>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: deadlineParentExcluded ? 'var(--tx3)' : commonDeadlineRelevant === false ? 'var(--am)' : 'var(--tx2)',
+                    }}
+                  >
+                    {commonDeadlineRelevant === false ? _t('no') : _t('yes')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        <hr className="divider" />
+        <button className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 6 }} onClick={() => setMultiSel(new Set())}>
+          {_t('bulk.clearSelection')}
+        </button>
+      </div>
+    );
   };
 
   // Shared between the Export dialog and Report mode (ReportView.jsx) — both
@@ -3171,7 +4309,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const exportHandlerProps = {
     tab,
     onOpenJira: () => setModal('jira'),
-    onSummaryPDF: (opts) => exportSummaryPDF(_exportCtx(), opts),
+    onSummaryPDF: opts => exportSummaryPDF(_exportCtx(), opts),
     onScenarioPDF: exportScenarioPDFOrThrow,
     onGanttPDF: () => exportGanttPDF(_exportCtx()),
     onWhatWhenPDF: () => exportWhatWhenPDF(_exportCtx()),
@@ -3199,564 +4337,1371 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // `keywords` are the words you reach for when the label is in the other
   // language, or is a sentence where your head holds one noun.
   const JOBS = [
-    { id: 'jira', icon: 'swap', labelKey: 'job.jira', tab: 'briefing', event: BRIEFING_JOB_EVENT,
-      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'] },
-    { id: 'vacation', icon: 'beach', labelKey: 'job.vacation', tab: 'resources', event: RES_JOB_EVENT,
-      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'] },
-    { id: 'onboard', icon: 'plus', labelKey: 'job.onboard', tab: 'resources', event: RES_JOB_EVENT,
-      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'] },
+    {
+      id: 'jira',
+      icon: 'swap',
+      labelKey: 'job.jira',
+      tab: 'briefing',
+      event: BRIEFING_JOB_EVENT,
+      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'],
+    },
+    {
+      id: 'vacation',
+      icon: 'beach',
+      labelKey: 'job.vacation',
+      tab: 'resources',
+      event: RES_JOB_EVENT,
+      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'],
+    },
+    {
+      id: 'onboard',
+      icon: 'plus',
+      labelKey: 'job.onboard',
+      tab: 'resources',
+      event: RES_JOB_EVENT,
+      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'],
+    },
   ];
   // `icon` and `key` are what make this list scannable rather than twenty
   // rows of identical text; `key` is a shortcuts.js id, so the palette
   // teaches the keystroke instead of hiding it.
   const paletteCommands = [
     { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
-    { id: 'snapshots', icon: 'undo', labelKey: 'palette.snapshots', group: 'file', groupLabel: fileGroup, run: () => setModal('snapshots') },
-    { id: 'saveAs', icon: 'save', labelKey: 'palette.saveAs', group: 'file', groupLabel: fileGroup, key: 'saveAs', run: () => saveToFile(true) },
+    {
+      id: 'snapshots',
+      icon: 'undo',
+      labelKey: 'palette.snapshots',
+      group: 'file',
+      groupLabel: fileGroup,
+      run: () => setModal('snapshots'),
+    },
+    {
+      id: 'saveAs',
+      icon: 'save',
+      labelKey: 'palette.saveAs',
+      group: 'file',
+      groupLabel: fileGroup,
+      key: 'saveAs',
+      run: () => saveToFile(true),
+    },
     // Export… means "go look at the Report view" — the export cards rendered
     // as a normal view (ReportView.jsx). The old dialog stays one entry below
     // so nothing that worked before stops working.
-    { id: 'export', icon: 'upload', labelKey: 'palette.export', group: 'file', groupLabel: fileGroup, key: 'export', run: () => setTab('report') },
-    { id: 'exportDialog', icon: 'doc', labelKey: 'palette.exportDialog', group: 'file', groupLabel: fileGroup, run: () => setModal('export') },
-    { id: 'jiraImport', icon: 'download', labelKey: 'ji.title', group: 'file', groupLabel: fileGroup,
-      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'], run: () => setModal('jiraImport') },
-    { id: 'newProject', icon: 'sparkle', labelKey: 'palette.newProject', group: 'file', groupLabel: fileGroup, run: () => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); } },
+    {
+      id: 'export',
+      icon: 'upload',
+      labelKey: 'palette.export',
+      group: 'file',
+      groupLabel: fileGroup,
+      key: 'export',
+      run: () => setTab('report'),
+    },
+    {
+      id: 'exportDialog',
+      icon: 'doc',
+      labelKey: 'palette.exportDialog',
+      group: 'file',
+      groupLabel: fileGroup,
+      run: () => setModal('export'),
+    },
+    {
+      id: 'jiraImport',
+      icon: 'download',
+      labelKey: 'ji.title',
+      group: 'file',
+      groupLabel: fileGroup,
+      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'],
+      run: () => setModal('jiraImport'),
+    },
+    {
+      id: 'newProject',
+      icon: 'sparkle',
+      labelKey: 'palette.newProject',
+      group: 'file',
+      groupLabel: fileGroup,
+      run: () => {
+        if (!saved && !confirm(_t('app.newConfirm'))) return;
+        newProject();
+      },
+    },
     { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    { id: 'keymap', icon: 'keyboard', labelKey: 'km.title', group: 'file', groupLabel: fileGroup, key: 'keymap', run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)) },
+    {
+      id: 'keymap',
+      icon: 'keyboard',
+      labelKey: 'km.title',
+      group: 'file',
+      groupLabel: fileGroup,
+      key: 'keymap',
+      run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)),
+    },
     // The jobs that come back every week. Each lands on the surface with the
     // work already started — the paste box focused, the row created — rather
     // than on the tab that contains it. A command that only changed tabs would
     // duplicate the view jumps below it.
     // Scenarios: one entry to start one, one per scenario to go there, and
     // while one is on screen the three things you do with it.
-    { id: 'effective.pick', icon: 'calendar', labelKey: 'eff.cmd', group: 'scenario', groupLabel: _t('palette.group.scenario'),
-      keywords: ['stichtag', 'datum', 'ab', 'kapazität', 'capacity', 'effective', 'date', 'meeting', 'teilzeit', 'backdate', 'rückdatieren', 'nachtragen', 'früher', 'earlier', 'zeitreise'],
-      run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)) },
-    { id: 'scenario.new', icon: 'branch', labelKey: 'scn.cmd.new', group: 'scenario', groupLabel: _t('palette.group.scenario'),
+    {
+      id: 'effective.pick',
+      icon: 'calendar',
+      labelKey: 'eff.cmd',
+      group: 'scenario',
+      groupLabel: _t('palette.group.scenario'),
+      keywords: [
+        'stichtag',
+        'datum',
+        'ab',
+        'kapazität',
+        'capacity',
+        'effective',
+        'date',
+        'meeting',
+        'teilzeit',
+        'backdate',
+        'rückdatieren',
+        'nachtragen',
+        'früher',
+        'earlier',
+        'zeitreise',
+      ],
+      run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)),
+    },
+    {
+      id: 'scenario.new',
+      icon: 'branch',
+      labelKey: 'scn.cmd.new',
+      group: 'scenario',
+      groupLabel: _t('palette.group.scenario'),
       keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
-      run: () => window.dispatchEvent(new Event(SCENARIO_NEW_EVENT)) },
-    ...(scn ? [
-      { id: 'scenario.leave', icon: 'undo', labelKey: 'scn.cmd.leave', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['plan', 'verlassen', 'leave'], run: () => scenarioSwitch(null) },
-      { id: 'scenario.compare', icon: 'swap', labelKey: 'scn.cmd.compare', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['vergleich', 'compare', 'diff'], run: () => setModal('scenario') },
-      { id: 'scenario.pdf', icon: 'doc', labelKey: 'scn.cmd.pdf', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['pdf', 'report', 'bericht', 'export', 'vergleich'], run: () => exportScenarioPDF?.() },
-      { id: 'scenario.apply', icon: 'check', labelKey: 'scn.cmd.apply', group: 'scenario', groupLabel: _t('palette.group.scenario'), keywords: ['übernehmen', 'apply', 'merge'], run: () => scenarioApply() },
-    ] : []),
-    ...scenarioList.filter(sc => sc.id !== scn?.id).map(sc => ({
-      id: `scenario.go.${sc.id}`, icon: 'branch', label: _t('scn.cmd.switch', sc.name), labelKey: 'scn.cmd.switch', group: 'scenario', groupLabel: _t('palette.group.scenario'),
-      keywords: ['scenario', 'szenario'], run: () => scenarioSwitch(sc.id),
-    })),
+      run: () => window.dispatchEvent(new Event(SCENARIO_NEW_EVENT)),
+    },
+    ...(scn
+      ? [
+          {
+            id: 'scenario.leave',
+            icon: 'undo',
+            labelKey: 'scn.cmd.leave',
+            group: 'scenario',
+            groupLabel: _t('palette.group.scenario'),
+            keywords: ['plan', 'verlassen', 'leave'],
+            run: () => scenarioSwitch(null),
+          },
+          {
+            id: 'scenario.compare',
+            icon: 'swap',
+            labelKey: 'scn.cmd.compare',
+            group: 'scenario',
+            groupLabel: _t('palette.group.scenario'),
+            keywords: ['vergleich', 'compare', 'diff'],
+            run: () => setModal('scenario'),
+          },
+          {
+            id: 'scenario.pdf',
+            icon: 'doc',
+            labelKey: 'scn.cmd.pdf',
+            group: 'scenario',
+            groupLabel: _t('palette.group.scenario'),
+            keywords: ['pdf', 'report', 'bericht', 'export', 'vergleich'],
+            run: () => exportScenarioPDF?.(),
+          },
+          {
+            id: 'scenario.apply',
+            icon: 'check',
+            labelKey: 'scn.cmd.apply',
+            group: 'scenario',
+            groupLabel: _t('palette.group.scenario'),
+            keywords: ['übernehmen', 'apply', 'merge'],
+            run: () => scenarioApply(),
+          },
+        ]
+      : []),
+    ...scenarioList
+      .filter(sc => sc.id !== scn?.id)
+      .map(sc => ({
+        id: `scenario.go.${sc.id}`,
+        icon: 'branch',
+        label: _t('scn.cmd.switch', sc.name),
+        labelKey: 'scn.cmd.switch',
+        group: 'scenario',
+        groupLabel: _t('palette.group.scenario'),
+        keywords: ['scenario', 'szenario'],
+        run: () => scenarioSwitch(sc.id),
+      })),
     ...JOBS.map(j => ({
-      id: `job.${j.id}`, icon: j.icon, labelKey: j.labelKey, keywords: j.keywords, group: 'job', groupLabel: jobGroup,
-      run: () => { setTab(j.tab); window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0); },
+      id: `job.${j.id}`,
+      icon: j.icon,
+      labelKey: j.labelKey,
+      keywords: j.keywords,
+      group: 'job',
+      groupLabel: jobGroup,
+      run: () => {
+        setTab(j.tab);
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0);
+      },
     })),
-    ...TAB_IDS.map(id => ({ id: `view.${id}`, icon: TAB_ICONS[id] || 'chevronRight', labelKey: `tab.${id}`, group: 'view', groupLabel: viewGroup, run: () => setTab(id) })),
+    ...TAB_IDS.map(id => ({
+      id: `view.${id}`,
+      icon: TAB_ICONS[id] || 'chevronRight',
+      labelKey: `tab.${id}`,
+      group: 'view',
+      groupLabel: viewGroup,
+      run: () => setTab(id),
+    })),
   ];
 
-  return <>
-    <CapacityProvider value={capacityAt}>
-    <HoverTipProvider />
-    <CommandPalette commands={paletteCommands} />
-    <KeyboardMap />
-    <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
-    <div className="topbar">
-      {/* Not a button. It was "New project" — the same command the / palette
+  return (
+    <>
+      <CapacityProvider value={capacityAt}>
+        <HoverTipProvider />
+        <CommandPalette commands={paletteCommands} />
+        <KeyboardMap />
+        <div className={`app${scn ? ' in-scenario' : ''}`} ref={appRef}>
+          <div className="topbar">
+            {/* Not a button. It was "New project" — the same command the / palette
           carries, on a target nobody aims at deliberately, discarding the
           whole plan behind one confirm. ↔ duplicate of palette.newProject. */}
-      {/* A host already says where you are — the Obsidian tab is labelled
+            {/* A host already says where you are — the Obsidian tab is labelled
           with the plan's name. A wordmark on top of that is decoration. */}
-      {!isEmbedded() && <>
-        <span className="logo">Planr<span className="logo-dot">.</span></span>
-        <div className="vsep" />
-      </>}
-      {/* One shrinkable group for everything file/save related. The bar used
+            {!isEmbedded() && (
+              <>
+                <span className="logo">
+                  Planr<span className="logo-dot">.</span>
+                </span>
+                <div className="vsep" />
+              </>
+            )}
+            {/* One shrinkable group for everything file/save related. The bar used
           to wrap, and the save status changes its own text constantly
           ("saving…" → "all saved · 14:32" → "unsaved · saving in 3s"), so on
           a narrow window the whole header kept re-sorting itself while you
           worked. Now this group absorbs the width instead: it truncates, the
           controls on the right never move. */}
-      <span className="topbar-file">
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        <span style={{ fontSize: 12, color: 'var(--tx2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.name || 'Untitled'}</span>
-        <span className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`} data-htip={!saved ? _t('app.save.dotUnsaved') : (fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved'))} />
-      </span>
-      {fileName && <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        {/* A host names the tab after the file already. Repeating it here
+            <span className="topbar-file">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--tx2)',
+                    maxWidth: 200,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {meta.name || 'Untitled'}
+                </span>
+                <span
+                  className={`save-dot ${fileName && !fileSynced ? 'dirty' : saved ? 'clean' : 'dirty'}`}
+                  data-htip={
+                    !saved ? _t('app.save.dotUnsaved') : fileName && !fileSynced ? _t('app.save.dotLocalOnly') : _t('app.save.dotAllSaved')
+                  }
+                />
+              </span>
+              {fileName && (
+                <span
+                  style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {/* A host names the tab after the file already. Repeating it here
             spends the narrowest part of the bar saying the same thing twice. */}
-        {!hosted && fileName}
-        {(!saved || !fileWriteOk || !fileSynced) && <button className="btn btn-ghost btn-xs" onClick={() => saveToFile()} data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')} style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}><Icon name="save" size={13} /></button>}
-      </span>}
-      <label data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')} className="toggle">
-        <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
-        <span className="slider" />
-      </label>
-      {(() => {
-        // One status pill that summarises everything: file mounted? auto on? changes pending? countdown?
-        let text, color, tip, clickable = false;
-        if (!fileName) {
-          text = 'no file mounted'; color = 'var(--tx3)';
-          tip = _t('app.save.pillNoFile');
-        } else if (!fileWriteOk) {
-          text = 'click to re-mount'; color = 'var(--am)'; clickable = true;
-          tip = _t('app.save.pillPermissionLost');
-        } else if (!autoSave) {
-          text = lastSavedAt ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'auto-save off';
-          color = 'var(--tx3)';
-          tip = _t('app.save.pillAutoOff');
-        } else if (saving) {
-          text = 'saving…'; color = 'var(--ac)';
-          tip = _t('app.save.pillSaving');
-        } else if (fileSynced) {
-          text = lastSavedAt ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'all saved';
-          color = 'var(--gr)';
-          tip = _t('app.save.pillAllSaved');
-        } else {
-          text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
-          color = 'var(--am)';
-          tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
-        }
-        return <span className="topbar-status" style={{ fontSize: 11, color, cursor: clickable ? 'pointer' : 'default', userSelect: 'none', fontFamily: 'var(--mono)' }}
-          data-htip={tip}
-          onClick={() => { if (clickable) saveToFile(true); }}>
-          {text}
-        </span>;
-      })()}
-      </span>
-      {/* The file changed on disk. Outside the group above on purpose: that
+                  {!hosted && fileName}
+                  {(!saved || !fileWriteOk || !fileSynced) && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => saveToFile()}
+                      data-htip={withKey(_t('app.save.saveNowTip', SAVE_DEBOUNCE_MS / 1000), 'save')}
+                      style={{ padding: '2px 5px', display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <Icon name="save" size={13} />
+                    </button>
+                  )}
+                </span>
+              )}
+              <label
+                data-htip={autoSave ? _t('app.save.autoToggleOn', SAVE_DEBOUNCE_MS / 1000) : _t('app.save.autoToggleOff')}
+                className="toggle"
+              >
+                <input type="checkbox" checked={autoSave} onChange={e => setAutoSave(e.target.checked)} />
+                <span className="slider" />
+              </label>
+              {(() => {
+                // One status pill that summarises everything: file mounted? auto on? changes pending? countdown?
+                let text,
+                  color,
+                  tip,
+                  clickable = false;
+                if (!fileName) {
+                  text = 'no file mounted';
+                  color = 'var(--tx3)';
+                  tip = _t('app.save.pillNoFile');
+                } else if (!fileWriteOk) {
+                  text = 'click to re-mount';
+                  color = 'var(--am)';
+                  clickable = true;
+                  tip = _t('app.save.pillPermissionLost');
+                } else if (!autoSave) {
+                  text = lastSavedAt
+                    ? `auto-save off · last saved ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+                    : 'auto-save off';
+                  color = 'var(--tx3)';
+                  tip = _t('app.save.pillAutoOff');
+                } else if (saving) {
+                  text = 'saving…';
+                  color = 'var(--ac)';
+                  tip = _t('app.save.pillSaving');
+                } else if (fileSynced) {
+                  text = lastSavedAt
+                    ? `all saved · ${lastSavedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+                    : 'all saved';
+                  color = 'var(--gr)';
+                  tip = _t('app.save.pillAllSaved');
+                } else {
+                  text = saveCountdown > 0 ? `unsaved · saving in ${saveCountdown}s` : 'saving…';
+                  color = 'var(--am)';
+                  tip = _t('app.save.pillPending', SAVE_DEBOUNCE_MS / 1000);
+                }
+                return (
+                  <span
+                    className="topbar-status"
+                    style={{
+                      fontSize: 11,
+                      color,
+                      cursor: clickable ? 'pointer' : 'default',
+                      userSelect: 'none',
+                      fontFamily: 'var(--mono)',
+                    }}
+                    data-htip={tip}
+                    onClick={() => {
+                      if (clickable) saveToFile(true);
+                    }}
+                  >
+                    {text}
+                  </span>
+                );
+              })()}
+            </span>
+            {/* The file changed on disk. Outside the group above on purpose: that
           group gives up its width first and cuts off what does not fit, and
           this is the one thing in the bar that asks for a decision. */}
-      {externalChangeAvailable && <span data-testid="external-change" className="topbar-external">
-        <button className="btn btn-xs" data-testid="external-reload" onClick={() => reloadFromFile()} data-htip={_t('app.save.reloadTip')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="restart" size={11} />{_t('app.save.externalChanged')}</button>
-        <button className="btn btn-ghost btn-icon sm" data-testid="external-dismiss" onClick={() => setExternalChangeAvailable(false)}
-          aria-label={_t('app.save.dismissExternalTip')} data-htip={_t('app.save.dismissExternalTip')}><Icon name="x" size={10} /></button>
-      </span>}
-      {/* Which truth is on screen. Quiet while it is the plan, in the
+            {externalChangeAvailable && (
+              <span data-testid="external-change" className="topbar-external">
+                <button
+                  className="btn btn-xs"
+                  data-testid="external-reload"
+                  onClick={() => reloadFromFile()}
+                  data-htip={_t('app.save.reloadTip')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                >
+                  <Icon name="restart" size={11} />
+                  {_t('app.save.externalChanged')}
+                </button>
+                <button
+                  className="btn btn-ghost btn-icon sm"
+                  data-testid="external-dismiss"
+                  onClick={() => setExternalChangeAvailable(false)}
+                  aria-label={_t('app.save.dismissExternalTip')}
+                  data-htip={_t('app.save.dismissExternalTip')}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )}
+            {/* Which truth is on screen. Quiet while it is the plan, in the
           scenario's colour the moment it is not. */}
-      {/* An earlier day is the real plan's past; a scenario has none. */}
-      {!past && <ScenarioSwitch
-        scenarios={scenarioList}
-        activeId={scn?.id || null}
-        activeChanges={scnChanges.length}
-        onSwitch={scenarioSwitch}
-        onCreate={name => scenarioCreate(name)}
-        onDuplicate={id => scenarioCreate('', { copyOf: id })}
-        onRename={scenarioRename}
-        onDelete={scenarioDelete}
-      />}
-      {/* Which day you are working on. Quiet while it is today. */}
-      <EffectiveSwitch date={effDate} dates={effDates} onPick={pickEffDate} onDropDate={effDropDate} travel={!!past} canTravel={!scn} />
-      <button className="btn btn-sec btn-xs" data-testid="undo-btn" onClick={handleUndo} disabled={!canUndo(history)} data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}><Icon name="undo" size={13} /></button>
-      <button className="btn btn-sec btn-xs" data-testid="redo-btn" onClick={handleRedo} disabled={!canRedo(history)} data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}><Icon name="redo" size={13} /></button>
-      {/* "How far along is this?" is the question the Overview and the Report
+            {/* An earlier day is the real plan's past; a scenario has none. */}
+            {!past && (
+              <ScenarioSwitch
+                scenarios={scenarioList}
+                activeId={scn?.id || null}
+                activeChanges={scnChanges.length}
+                onSwitch={scenarioSwitch}
+                onCreate={name => scenarioCreate(name)}
+                onDuplicate={id => scenarioCreate('', { copyOf: id })}
+                onRename={scenarioRename}
+                onDelete={scenarioDelete}
+              />
+            )}
+            {/* Which day you are working on. Quiet while it is today. */}
+            <EffectiveSwitch
+              date={effDate}
+              dates={effDates}
+              onPick={pickEffDate}
+              onDropDate={effDropDate}
+              travel={!!past}
+              canTravel={!scn}
+            />
+            <button
+              className="btn btn-sec btn-xs"
+              data-testid="undo-btn"
+              onClick={handleUndo}
+              disabled={!canUndo(history)}
+              data-htip={_t('undo.undo', navigator.platform.includes('Mac') ? '⌘Z' : 'Ctrl+Z')}
+            >
+              <Icon name="undo" size={13} />
+            </button>
+            <button
+              className="btn btn-sec btn-xs"
+              data-testid="redo-btn"
+              onClick={handleRedo}
+              disabled={!canRedo(history)}
+              data-htip={_t('undo.redo', navigator.platform.includes('Mac') ? '⇧⌘Z' : 'Ctrl+Y')}
+            >
+              <Icon name="redo" size={13} />
+            </button>
+            {/* "How far along is this?" is the question the Overview and the Report
           are for. Anywhere else the same two numbers are a readout nobody
           asked for, in the one row every view has to look at. */}
-      {(tab === 'summary' || tab === 'report') && <>
-        <div className="vsep" />
-        <span className="topbar-count" style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
-          data-htip={_t('app.countTip')}>{scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done{droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}</span>
-      </>}
-      <div className="sp" />
-      {/* File operations have a visible home again. Phase 3 moved them all
+            {(tab === 'summary' || tab === 'report') && (
+              <>
+                <div className="vsep" />
+                <span
+                  className="topbar-count"
+                  style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--tx3)' }}
+                  data-htip={_t('app.countTip')}
+                >
+                  {scheduled.length} scheduled · {leaves.filter(r => r.status === 'done').length}/{leaves.length} done
+                  {droppedCount > 0 && ` · ${_t('app.countDropped', droppedCount)}`}
+                </span>
+              </>
+            )}
+            <div className="sp" />
+            {/* File operations have a visible home again. Phase 3 moved them all
           into the palette; opening and saving a file is not a command you go
           hunting for. The palette keeps every one of these entries — this is
           a way in, not a replacement. */}
-      <FileMenu
-        fileName={fileName}
-        dirty={!saved}
-        onLoad={() => loadFromFile()}
-        onSaveAs={() => saveToFile(true)}
-        onSnapshots={() => setModal('snapshots')}
-        onExport={() => setTab('report')}
-        onNew={() => { if (!saved && !confirm(_t('app.newConfirm'))) return; newProject(); }}
-        onJiraImport={() => setModal('jiraImport')}
-        onBackdate={() => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT))}
-      />
-      <button className="btn btn-sec btn-sm" data-htip={_t('palette.openTip')}
-        onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}>/</button>
-      <button className="btn btn-sec btn-sm" onClick={() => setModal('settings')} aria-label={_t('set.title')}
-        data-htip={withKey(_t('set.title'), 'settings')}><Icon name="gear" size={14} /></button>
-      <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
-    </div>
-    {scn && <ScenarioBar
-      scenario={activeScenario}
-      changeCount={scnChanges.length}
-      comparison={scnComparison}
-      conflicts={scn.conflicts || 0}
-      onRename={scenarioRename}
-      onDuplicate={id => scenarioCreate('', { copyOf: id })}
-      onCompare={() => setModal('scenario')}
-      onApply={scenarioApply}
-      onDelete={scenarioDelete}
-      onLeave={() => scenarioSwitch(null)}
-    />}
-    <EffectiveBar date={effDate} count={effCount} showResources={tab !== 'resources'} onResources={() => setTab('resources')}
-      travel={!!past} logStart={pastStart}
-      onDropDate={effDropDate} onLeave={() => pickEffDate('')} />
-    {!scn && <ScenarioNotice notice={scnNotice} onUndo={handleUndo} onClose={() => setScnNotice(null)} />}
-    <div className="tab-bar-wrap">
-      <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
-        {TABS.map(t => (
-          <div
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            ref={tab === t.id ? activeTabRef : undefined}
-            className={`tab${tab === t.id ? ' on' : ''}`}
-            onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
-            onClick={e => { if (e.detail === 0) setTab(t.id); }}
-          >
-            {t.label}
-            {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+            <FileMenu
+              fileName={fileName}
+              dirty={!saved}
+              onLoad={() => loadFromFile()}
+              onSaveAs={() => saveToFile(true)}
+              onSnapshots={() => setModal('snapshots')}
+              onExport={() => setTab('report')}
+              onNew={() => {
+                if (!saved && !confirm(_t('app.newConfirm'))) return;
+                newProject();
+              }}
+              onJiraImport={() => setModal('jiraImport')}
+              onBackdate={() => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT))}
+            />
+            <button
+              className="btn btn-sec btn-sm"
+              data-htip={_t('palette.openTip')}
+              onClick={() => window.dispatchEvent(new Event(PALETTE_OPEN_EVENT))}
+            >
+              /
+            </button>
+            <button
+              className="btn btn-sec btn-sm"
+              onClick={() => setModal('settings')}
+              aria-label={_t('set.title')}
+              data-htip={withKey(_t('set.title'), 'settings')}
+            >
+              <Icon name="gear" size={14} />
+            </button>
+            <input ref={fRef} type="file" accept=".json,.md" style={{ display: 'none' }} onChange={loadFile} />
           </div>
-        ))}
-        <div style={{ flex: 1, minWidth: 16 }} />
-      </div>
-      <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
-      <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
-    </div>
-    {/* The filter bar belongs on every view these filters actually change —
+          {scn && (
+            <ScenarioBar
+              scenario={activeScenario}
+              changeCount={scnChanges.length}
+              comparison={scnComparison}
+              conflicts={scn.conflicts || 0}
+              onRename={scenarioRename}
+              onDuplicate={id => scenarioCreate('', { copyOf: id })}
+              onCompare={() => setModal('scenario')}
+              onApply={scenarioApply}
+              onDelete={scenarioDelete}
+              onLeave={() => scenarioSwitch(null)}
+            />
+          )}
+          <EffectiveBar
+            date={effDate}
+            count={effCount}
+            showResources={tab !== 'resources'}
+            onResources={() => setTab('resources')}
+            travel={!!past}
+            logStart={pastStart}
+            onDropDate={effDropDate}
+            onLeave={() => pickEffDate('')}
+          />
+          {!scn && <ScenarioNotice notice={scnNotice} onUndo={handleUndo} onClose={() => setScnNotice(null)} />}
+          <div className="tab-bar-wrap">
+            <div className="tab-bar" role="tablist" aria-label={_t('tab.barLabel')} ref={tabBarRef} onScroll={syncTabFades}>
+              {TABS.map(t => (
+                <div
+                  key={t.id}
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  ref={tab === t.id ? activeTabRef : undefined}
+                  className={`tab${tab === t.id ? ' on' : ''}`}
+                  onMouseDown={e => activateOnPress(e, () => setTab(t.id))}
+                  onClick={e => {
+                    if (e.detail === 0) setTab(t.id);
+                  }}
+                >
+                  {t.label}
+                  {t.isNew && <span className="badge-new">{_t('tour.newBadge')}</span>}
+                </div>
+              ))}
+              <div style={{ flex: 1, minWidth: 16 }} />
+            </div>
+            <div className={`tab-bar-fade l${tabFades.l ? ' on' : ''}`} />
+            <div className={`tab-bar-fade r${tabFades.r ? ' on' : ''}`} />
+          </div>
+          {/* The filter bar belongs on every view these filters actually change —
         it used to skip the Overview and the Roadmap, which both answer to the
         archive filter and the Review/Plan window, so on those two a narrowed
         view had no way to say so and no way to be widened again. Left out
         only where nothing here has an effect: Resources, Holidays, Report. */}
-    {FILTERED_TABS.has(tab) && <div className="subtoolbar">
-      {/* Scope (project / team / person) moved into the filter popup, the
+          {FILTERED_TABS.has(tab) && (
+            <div className="subtoolbar">
+              {/* Scope (project / team / person) moved into the filter popup, the
           same move the quick filters made and for the same reason: as three
           always-visible pickers they were ~380px of toolbar reading "Alle
           Pakete / Alle Teams / Alle Personen" — three empty fields waiting
           to be filled in, which is the opposite of what they are. Setting one
           is rare; seeing that one is SET has to be unmissable, and that is
           what the chips below do. */}
-      {/* The quick filters used to sit here as a row of six toggles, five of
+              {/* The quick filters used to sit here as a row of six toggles, five of
           them off at any given moment — a permanent bar of switched-off
           switches, which is what a toolbar looks like when nobody asks what
           it costs at rest. They live in the filter popup now, and come back
           out here as chips the moment one is on: a filtered view has to say
           so (principles.md, "a view is never the truth"), an unfiltered one
           has nothing to say. */}
-      {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
-        <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
-          {activeScopeChips.map(f => (
-            <button key={f.id} type="button" className="chip on" data-testid={f.id}
-              onClick={() => f.onToggle()} data-htip={_t('chip.clearTip', f.label)}>
-              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}><Icon name="x" size={9} /></span>
-            </button>
-          ))}
-          {activeQuickFilters.map(f => (
-            <button key={f.id} type="button" className="chip on" onClick={() => f.onToggle()}
-              data-htip={_t('chip.clearTip', f.label)}>
-              {f.label}<span aria-hidden="true" style={{ marginLeft: 5, opacity: .65 }}><Icon name="x" size={9} /></span>
-            </button>
-          ))}
-        </span>
-      )}
-      {/* Review/Plan picker — sprint-review diff window + planning horizon.
+              {(activeScopeChips.length > 0 || activeQuickFilters.length > 0) && (
+                <span data-testid="active-filters" style={{ display: 'inline-flex', gap: 4, marginLeft: 4 }}>
+                  {activeScopeChips.map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className="chip on"
+                      data-testid={f.id}
+                      onClick={() => f.onToggle()}
+                      data-htip={_t('chip.clearTip', f.label)}
+                    >
+                      {f.label}
+                      <span aria-hidden="true" style={{ marginLeft: 5, opacity: 0.65 }}>
+                        <Icon name="x" size={9} />
+                      </span>
+                    </button>
+                  ))}
+                  {activeQuickFilters.map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className="chip on"
+                      onClick={() => f.onToggle()}
+                      data-htip={_t('chip.clearTip', f.label)}
+                    >
+                      {f.label}
+                      <span aria-hidden="true" style={{ marginLeft: 5, opacity: 0.65 }}>
+                        <Icon name="x" size={9} />
+                      </span>
+                    </button>
+                  ))}
+                </span>
+              )}
+              {/* Review/Plan picker — sprint-review diff window + planning horizon.
           Not a generic filter; it overlays the data with a time window. */}
-      <ViewFilters
-        quickFilters={quickFilters}
-        scope={{ label: _t('vf.scope'), fields: scopeFields }}
-        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate}
-        reviewPaused={!!scn && !!sinceDays}
-        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
-        hasHistory={(data?.historyEvents || []).length > 0}
-        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd}
-        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
-        hideDone={hideDone}
-        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
-        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
-      />
-      <div style={{ flex: 1 }} />
-      {SEARCH_TABS.has(tab) && <SearchBox
-        searchRef={searchRef}
-        onCommit={v => setSearch(v)}
-        onResetIdx={() => setSearchIdx(0)}
-        onPrev={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i - 1) : undefined}
-        onNext={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i + 1) : undefined}
-        // Carries the committed query so the tree can wait for ITS rows to be
-        // that query's before moving the cursor — dispatching a bare event
-        // would land on the first row of the previous result.
-        onGoToResults={tab === 'tree' || tab === 'order'
-          ? q => window.dispatchEvent(new CustomEvent(tab === 'tree' ? TREE_FOCUS_EVENT : QUEUE_FOCUS_EVENT, { detail: { query: q } }))
-          : undefined}
-        committedSearch={search}
-      />}
-      {tab === 'tree' && <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>{_t('tv.addItem')}</button>}
-    </div>}
-    <div className="main">
-      {visitedTabs.has('summary') && <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}><Frozen active={tab === 'summary'}><SumView projectWaitsOf={projectWaitsOf} tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams} cpSet={cpSet} goalPaths={goalPaths} stats={stats} confidence={confidence}
-        historyEvents={data?.historyEvents || []}
-        sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
-        scenarioShifts={scnShifts}
-        diffOnlyChanged={diffOnlyChanged} persistDiffOnlyChanged={persistDiffOnlyChanged}
-        horizonDays={horizonDays} persistHorizon={persistHorizon} horizonEnd={horizonEnd} horizonIds={horizonIds}
-        horizonOnlyPlanned={horizonOnlyPlanned} persistHorizonOnly={persistHorizonOnly}
-        futureProgressByRootId={futureProgressByRootId}
-        workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))}
-        roadmapAssignment={data?.roadmapAssignment || null}
-        onAssignmentChange={onRoadmapAssignmentChange}
-        archive={archive} showArchived={showArchived} setShowArchived={setShowArchived}
-        archiveDays={archiveDays} setArchiveDays={setArchiveDays}
-        onNavigate={onSumNavigate}
-        onOpenItem={onOpenItemDialog}
-        onExportTodo={onSumExportTodo} /></Frozen></div>}
-      {visitedTabs.has('briefing') && <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}><Frozen active={tab === 'briefing'}><BriefingView
-        tree={visibleTreeForViews} scheduled={viewScheduled} vacations={vacations} members={members} teams={teams}
-        stats={viewStats} confidence={confidence} cpSet={viewCpSet} cpLabels={cpLabels}
-        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone} planTree={tree}
-        horizonIds={horizonFilterSet}
-        diffChangedIds={diffFilterSet}
-        diffVisibleIds={diffVisibleSet}
-        customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-        onOpenItem={onOpenItemDialog}
-        onUpdate={onBriefingUpdate}
-        onApplyStatus={onJiraApplyStatus}
-        onExportTodo={onSumExportTodo}
-      /></Frozen></div>}
-      {visitedTabs.has('plan') && <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}><Frozen active={tab === 'plan'}><PlanReview tree={visibleTreeForViews} scheduled={viewScheduled} members={members} teams={teams} weeks={weeks} vacations={vacations} meetingPlans={data?.meetingPlans || []} confidence={confidence} confReasons={confReasons} cpSet={viewCpSet} cpLabels={cpLabels} cpPaths={cpData.rootPaths} stats={viewStats} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} hideDone={hideDone}
-        horizonIds={horizonFilterSet}
-        diffChangedIds={diffFilterSet}
-        diffVisibleIds={diffVisibleSet}
-        onOpenItem={onOpenItemDialog}
-        onUpdate={onPlanReviewUpdate} planTree={tree} reschedule={reschedule} onApplyOrder={onApplyOrder} /></Frozen></div>}
-      {/* The tree pane was the one pane left outside Frozen. It is the most
+              <ViewFilters
+                quickFilters={quickFilters}
+                scope={{ label: _t('vf.scope'), fields: scopeFields }}
+                sinceDays={sinceDays}
+                persistSince={persistSince}
+                sinceDate={sinceDate}
+                reviewPaused={!!scn && !!sinceDays}
+                diffOnlyChanged={diffOnlyChanged}
+                persistDiffOnlyChanged={persistDiffOnlyChanged}
+                hasHistory={(data?.historyEvents || []).length > 0}
+                horizonDays={horizonDays}
+                persistHorizon={persistHorizon}
+                horizonEnd={horizonEnd}
+                horizonOnlyPlanned={horizonOnlyPlanned}
+                persistHorizonOnly={persistHorizonOnly}
+                hideDone={hideDone}
+                archive={archive}
+                showArchived={showArchived}
+                setShowArchived={setShowArchived}
+                archiveDays={archiveDays}
+                setArchiveDays={setArchiveDays}
+              />
+              <div style={{ flex: 1 }} />
+              {SEARCH_TABS.has(tab) && (
+                <SearchBox
+                  searchRef={searchRef}
+                  onCommit={v => setSearch(v)}
+                  onResetIdx={() => setSearchIdx(0)}
+                  onPrev={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i - 1) : undefined}
+                  onNext={MATCH_STEP_TABS.has(tab) ? () => setSearchIdx(i => i + 1) : undefined}
+                  // Carries the committed query so the tree can wait for ITS rows to be
+                  // that query's before moving the cursor — dispatching a bare event
+                  // would land on the first row of the previous result.
+                  onGoToResults={
+                    tab === 'tree' || tab === 'order'
+                      ? q =>
+                          window.dispatchEvent(
+                            new CustomEvent(tab === 'tree' ? TREE_FOCUS_EVENT : QUEUE_FOCUS_EVENT, { detail: { query: q } }),
+                          )
+                      : undefined
+                  }
+                  committedSearch={search}
+                />
+              )}
+              {tab === 'tree' && (
+                <button className="btn btn-sec btn-sm" onClick={() => setModal('add')} data-htip={_t('tv.addItemTip')}>
+                  {_t('tv.addItem')}
+                </button>
+              )}
+            </div>
+          )}
+          <div className="main">
+            {visitedTabs.has('summary') && (
+              <div className="pane" style={{ display: tab === 'summary' ? undefined : 'none' }}>
+                <Frozen active={tab === 'summary'}>
+                  <SumView
+                    projectWaitsOf={projectWaitsOf}
+                    tree={tree}
+                    scheduled={scheduled}
+                    goals={goals}
+                    members={members}
+                    teams={teams}
+                    cpSet={cpSet}
+                    goalPaths={goalPaths}
+                    stats={stats}
+                    confidence={confidence}
+                    historyEvents={data?.historyEvents || []}
+                    sinceDays={sinceDays}
+                    persistSince={persistSince}
+                    sinceDate={sinceDate}
+                    diff={diff}
+                    scenarioShifts={scnShifts}
+                    diffOnlyChanged={diffOnlyChanged}
+                    persistDiffOnlyChanged={persistDiffOnlyChanged}
+                    horizonDays={horizonDays}
+                    persistHorizon={persistHorizon}
+                    horizonEnd={horizonEnd}
+                    horizonIds={horizonIds}
+                    horizonOnlyPlanned={horizonOnlyPlanned}
+                    persistHorizonOnly={persistHorizonOnly}
+                    futureProgressByRootId={futureProgressByRootId}
+                    workDays={workDays}
+                    holidayIso={new Set(Object.keys(hm || {}))}
+                    roadmapAssignment={data?.roadmapAssignment || null}
+                    onAssignmentChange={onRoadmapAssignmentChange}
+                    archive={archive}
+                    showArchived={showArchived}
+                    setShowArchived={setShowArchived}
+                    archiveDays={archiveDays}
+                    setArchiveDays={setArchiveDays}
+                    onNavigate={onSumNavigate}
+                    onOpenItem={onOpenItemDialog}
+                    onExportTodo={onSumExportTodo}
+                  />
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('briefing') && (
+              <div className="pane" style={{ display: tab === 'briefing' ? undefined : 'none' }}>
+                <Frozen active={tab === 'briefing'}>
+                  <BriefingView
+                    tree={visibleTreeForViews}
+                    scheduled={viewScheduled}
+                    vacations={vacations}
+                    members={members}
+                    teams={teams}
+                    stats={viewStats}
+                    confidence={confidence}
+                    cpSet={viewCpSet}
+                    cpLabels={cpLabels}
+                    rootFilter={rootFilter}
+                    teamFilter={teamFilter}
+                    personFilter={personFilter}
+                    hideDone={hideDone}
+                    planTree={tree}
+                    horizonIds={horizonFilterSet}
+                    diffChangedIds={diffFilterSet}
+                    diffVisibleIds={diffVisibleSet}
+                    customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+                    onOpenItem={onOpenItemDialog}
+                    onUpdate={onBriefingUpdate}
+                    onApplyStatus={onJiraApplyStatus}
+                    onExportTodo={onSumExportTodo}
+                  />
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('plan') && (
+              <div className="pane" style={{ display: tab === 'plan' ? undefined : 'none' }}>
+                <Frozen active={tab === 'plan'}>
+                  <PlanReview
+                    tree={visibleTreeForViews}
+                    scheduled={viewScheduled}
+                    members={members}
+                    teams={teams}
+                    weeks={weeks}
+                    vacations={vacations}
+                    meetingPlans={data?.meetingPlans || []}
+                    confidence={confidence}
+                    confReasons={confReasons}
+                    cpSet={viewCpSet}
+                    cpLabels={cpLabels}
+                    cpPaths={cpData.rootPaths}
+                    stats={viewStats}
+                    rootFilter={rootFilter}
+                    teamFilter={teamFilter}
+                    personFilter={personFilter}
+                    hideDone={hideDone}
+                    horizonIds={horizonFilterSet}
+                    diffChangedIds={diffFilterSet}
+                    diffVisibleIds={diffVisibleSet}
+                    onOpenItem={onOpenItemDialog}
+                    onUpdate={onPlanReviewUpdate}
+                    planTree={tree}
+                    reschedule={reschedule}
+                    onApplyOrder={onApplyOrder}
+                  />
+                </Frozen>
+              </div>
+            )}
+            {/* The tree pane was the one pane left outside Frozen. It is the most
           expensive of them all — 298 rows on a real plan — so it was the one
           re-rendering, unseen, on every switch to any other tab. Measured in
           Chromium on a 404-item plan: ~40 ms per switch, gone. */}
-      {visitedTabs.has('tree') && <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}><Frozen active={tab === 'tree'}>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {!visibleTreeForViews.length
-            ? <div className="empty" style={{ marginTop: 60 }}><div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="list" size={32} strokeWidth={1.4} /></div><div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{hideDone && tree.length ? 'No visible open items' : 'No items yet'}</div><button className="btn btn-pri" onClick={() => setModal('add')}>+ Add first item</button></div>
-            : <TreeView changedIds={scnChangedIds} tree={visibleTreeForViews} selected={selected} multiSel={multiSel}
-              onSelect={onTreeSelect}
-              showIds={showTreeIds}
-              onFullEdit={node => { setMN(node); setModal('node'); }}
-              editorInDialog={editorAsDialog}
-              search={deferredSearch} teamFilter={teamFilter} rootFilter={rootFilter} personFilter={personFilter} stats={stats} teams={teams} members={members} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels}
-              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
-              sizes={data.sizes || []}
-              historyEvents={data?.historyEvents || []}
-              sinceDays={sinceDays} persistSince={persistSince} sinceDate={sinceDate} diff={diff}
-              onlyChanged={diffOnlyChanged}
-              horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned}
-              roadmapAssignment={data?.roadmapAssignment || null}
-              onDelete={onTreeDelete}
-              onTaskUpdate={onGanttTaskUpdate}
-              onClearSelection={() => setMultiSel(new Set())}
-              onOpenBulkEdit={() => setBulkEditModalOpen(true)}
-              onMove={onTreeMove}
-              onCommand={onTreeCommand}
-              onCommandMany={onTreeCommandMany}
-              onDropRows={onTreeDropRows}
-              onSelectAll={onTreeSelectAll}
-              onRevealHidden={onTreeRevealHidden}
-              onInsertAfter={onTreeInsertAfter}
-              onInsertChild={onTreeInsertChild}
-              onBulkDelete={onTreeBulkDelete}
-              onPasteRows={onTreePasteRows} />
-          }
-        </div>
-        {selected && !editorAsDialog && <div className="side fade">
-          {multiSel.size > 0 ? <>
-            <div className="side-hdr">
-              <h3>{multiSel.size} items selected</h3>
-              <button className="btn btn-sec btn-xs" onClick={() => setBulkEditModalOpen(true)} data-htip={_t('bulk.openModalTip')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="maximize" size={11} />{_t('bulk.openModal')}</button>
-              <button className="btn btn-ghost btn-icon sm" onClick={() => { setSel(null); setMultiSel(new Set()); }}><Icon name="x" size={13} /></button>
-            </div>
-            {renderBulkEditBody()}
-          </> : <>
-            <div className="side-hdr"><h3>{selected.id}</h3>
-              <button className="btn btn-ghost btn-icon sm" data-htip={_t('nm.fullEditTip')} onClick={() => { setMN(selected); setModal('node'); }}><Icon name="maximize" size={13} /></button>
-              <button className="btn btn-ghost btn-icon sm" data-htip={_t('set.dockDialogTip')} data-testid="editor-dock-dialog"
-                onClick={() => { setEditorDock('dialog'); setMN(selected); setModal('node'); }}><Icon name="panelLeft" size={13} /></button>
-              <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}><Icon name="x" size={13} /></button>
-            </div>
-            <div className="side-body"><QuickEdit node={selected} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} workDays={workDays} holidayIso={new Set(Object.keys(hm || {}))} onUpdate={updateNode} onDelete={id => { deleteNode(id); setSel(null); }} onEstimate={n => { setMN(n); setModal('estimate'); }} tab={sideTab} onTabChange={setSideTab}
-              onDuplicate={id => { const newId = duplicateNode(id); if (newId) setTimeout(() => { const n = tree.find(r => r.id === newId); if (n) setSel(n); }, 50); }}
-              onAddDep={addDep}
-              onRemoveDep={removeDep}
-              onOpenItem={id => { const n = tree.find(r => r.id === id); if (n) setSel(n); }}
-              historyEvents={data?.historyEvents || []}
-              viewDay={past?.day || ''}
-              onHistoryChange={events => mutate(d => ({ ...d, historyEvents: events }))}
-              onSplitHandoff={splitHandoff}
-              onSplitTaskAtProgress={splitTaskAtProgress} /></div>
-          </>}
-        </div>}
-      </Frozen></div>}
-      {visitedTabs.has('gantt') && <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}><Frozen active={tab === 'gantt'}>
-        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
-          <GanttView baseline={scnBaseline} scheduled={activeScheduled} weeks={weeks} goals={viewGoals} teams={teams} members={members} vacations={vacations} meetingPlans={data.meetingPlans || []} cpSet={viewCpSet} cpLabels={cpLabels} cpEdges={viewCpEdges} tree={activeTree} hideDone={hideDone} search={deferredSearch} searchIdx={searchIdx} workDays={workDays} planStart={planStart} confidence={confidence} confReasons={confReasons} rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} diffPastLeafState={diff?.pastLeafState} sinceDate={sinceDate} onlyChanged={diffOnlyChanged} horizonIds={horizonIds} horizonEnd={horizonEnd} horizonOnlyPlanned={horizonOnlyPlanned} onBarClick={onGanttBarClick} onSeqUpdate={onGanttSeqUpdate} onExtendViewStart={onGanttExtendViewStart} onTaskUpdate={onGanttTaskUpdate} onRemoveDep={onGanttRemoveDep} onAddDep={onGanttAddDep} onReorderSibling={onGanttReorderSibling} personQueues={personQueues} onOpenBulkEdit={(ids) => { if (ids) setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} />
-        </div>
-      </Frozen></div>}
-      {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
+            {visitedTabs.has('tree') && (
+              <div className="pane-full" style={{ display: tab === 'tree' ? 'flex' : 'none', flexDirection: 'row' }}>
+                <Frozen active={tab === 'tree'}>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    {!visibleTreeForViews.length ? (
+                      <div className="empty" style={{ marginTop: 60 }}>
+                        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}>
+                          <Icon name="list" size={32} strokeWidth={1.4} />
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>
+                          {hideDone && tree.length ? 'No visible open items' : 'No items yet'}
+                        </div>
+                        <button className="btn btn-pri" onClick={() => setModal('add')}>
+                          + Add first item
+                        </button>
+                      </div>
+                    ) : (
+                      <TreeView
+                        changedIds={scnChangedIds}
+                        tree={visibleTreeForViews}
+                        selected={selected}
+                        multiSel={multiSel}
+                        onSelect={onTreeSelect}
+                        showIds={showTreeIds}
+                        onFullEdit={node => {
+                          setMN(node);
+                          setModal('node');
+                        }}
+                        editorInDialog={editorAsDialog}
+                        search={deferredSearch}
+                        teamFilter={teamFilter}
+                        rootFilter={rootFilter}
+                        personFilter={personFilter}
+                        stats={stats}
+                        teams={teams}
+                        members={members}
+                        scheduled={scheduled}
+                        cpSet={cpSet}
+                        cpLabels={cpLabels}
+                        customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+                        sizes={data.sizes || []}
+                        historyEvents={data?.historyEvents || []}
+                        sinceDays={sinceDays}
+                        persistSince={persistSince}
+                        sinceDate={sinceDate}
+                        diff={diff}
+                        onlyChanged={diffOnlyChanged}
+                        horizonIds={horizonIds}
+                        horizonEnd={horizonEnd}
+                        horizonOnlyPlanned={horizonOnlyPlanned}
+                        roadmapAssignment={data?.roadmapAssignment || null}
+                        onDelete={onTreeDelete}
+                        onTaskUpdate={onGanttTaskUpdate}
+                        onClearSelection={() => setMultiSel(new Set())}
+                        onOpenBulkEdit={() => setBulkEditModalOpen(true)}
+                        onMove={onTreeMove}
+                        onCommand={onTreeCommand}
+                        onCommandMany={onTreeCommandMany}
+                        onDropRows={onTreeDropRows}
+                        onSelectAll={onTreeSelectAll}
+                        onRevealHidden={onTreeRevealHidden}
+                        onInsertAfter={onTreeInsertAfter}
+                        onInsertChild={onTreeInsertChild}
+                        onBulkDelete={onTreeBulkDelete}
+                        onPasteRows={onTreePasteRows}
+                      />
+                    )}
+                  </div>
+                  {selected && !editorAsDialog && (
+                    <div className="side fade">
+                      {multiSel.size > 0 ? (
+                        <>
+                          <div className="side-hdr">
+                            <h3>{multiSel.size} items selected</h3>
+                            <button
+                              className="btn btn-sec btn-xs"
+                              onClick={() => setBulkEditModalOpen(true)}
+                              data-htip={_t('bulk.openModalTip')}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                            >
+                              <Icon name="maximize" size={11} />
+                              {_t('bulk.openModal')}
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-icon sm"
+                              onClick={() => {
+                                setSel(null);
+                                setMultiSel(new Set());
+                              }}
+                            >
+                              <Icon name="x" size={13} />
+                            </button>
+                          </div>
+                          {renderBulkEditBody()}
+                        </>
+                      ) : (
+                        <>
+                          <div className="side-hdr">
+                            <h3>{selected.id}</h3>
+                            <button
+                              className="btn btn-ghost btn-icon sm"
+                              data-htip={_t('nm.fullEditTip')}
+                              onClick={() => {
+                                setMN(selected);
+                                setModal('node');
+                              }}
+                            >
+                              <Icon name="maximize" size={13} />
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-icon sm"
+                              data-htip={_t('set.dockDialogTip')}
+                              data-testid="editor-dock-dialog"
+                              onClick={() => {
+                                setEditorDock('dialog');
+                                setMN(selected);
+                                setModal('node');
+                              }}
+                            >
+                              <Icon name="panelLeft" size={13} />
+                            </button>
+                            <button className="btn btn-ghost btn-icon sm" onClick={() => setSel(null)}>
+                              <Icon name="x" size={13} />
+                            </button>
+                          </div>
+                          <div className="side-body">
+                            <QuickEdit
+                              node={selected}
+                              tree={tree}
+                              members={members}
+                              teams={teams}
+                              taskTemplates={data.taskTemplates || []}
+                              sizes={data.sizes || []}
+                              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+                              scheduled={scheduled}
+                              cpSet={cpSet}
+                              cpLabels={cpLabels}
+                              stats={stats}
+                              confidence={confidence}
+                              confReasons={confReasons}
+                              workDays={workDays}
+                              holidayIso={new Set(Object.keys(hm || {}))}
+                              onUpdate={updateNode}
+                              onDelete={id => {
+                                deleteNode(id);
+                                setSel(null);
+                              }}
+                              onEstimate={n => {
+                                setMN(n);
+                                setModal('estimate');
+                              }}
+                              tab={sideTab}
+                              onTabChange={setSideTab}
+                              onDuplicate={id => {
+                                const newId = duplicateNode(id);
+                                if (newId)
+                                  setTimeout(() => {
+                                    const n = tree.find(r => r.id === newId);
+                                    if (n) setSel(n);
+                                  }, 50);
+                              }}
+                              onAddDep={addDep}
+                              onRemoveDep={removeDep}
+                              onOpenItem={id => {
+                                const n = tree.find(r => r.id === id);
+                                if (n) setSel(n);
+                              }}
+                              historyEvents={data?.historyEvents || []}
+                              viewDay={past?.day || ''}
+                              onHistoryChange={events => mutate(d => ({ ...d, historyEvents: events }))}
+                              onSplitHandoff={splitHandoff}
+                              onSplitTaskAtProgress={splitTaskAtProgress}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('gantt') && (
+              <div className="pane-full" style={{ display: tab === 'gantt' ? 'flex' : 'none' }}>
+                <Frozen active={tab === 'gantt'}>
+                  <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+                    <GanttView
+                      baseline={scnBaseline}
+                      scheduled={activeScheduled}
+                      weeks={weeks}
+                      goals={viewGoals}
+                      teams={teams}
+                      members={members}
+                      vacations={vacations}
+                      meetingPlans={data.meetingPlans || []}
+                      cpSet={viewCpSet}
+                      cpLabels={cpLabels}
+                      cpEdges={viewCpEdges}
+                      tree={activeTree}
+                      hideDone={hideDone}
+                      search={deferredSearch}
+                      searchIdx={searchIdx}
+                      workDays={workDays}
+                      planStart={planStart}
+                      confidence={confidence}
+                      confReasons={confReasons}
+                      rootFilter={rootFilter}
+                      teamFilter={teamFilter}
+                      personFilter={personFilter}
+                      diffDoneIds={diffDoneSet}
+                      diffProgressedIds={diffProgressedSet}
+                      diffPastLeafState={diff?.pastLeafState}
+                      sinceDate={sinceDate}
+                      onlyChanged={diffOnlyChanged}
+                      horizonIds={horizonIds}
+                      horizonEnd={horizonEnd}
+                      horizonOnlyPlanned={horizonOnlyPlanned}
+                      onBarClick={onGanttBarClick}
+                      onSeqUpdate={onGanttSeqUpdate}
+                      onExtendViewStart={onGanttExtendViewStart}
+                      onTaskUpdate={onGanttTaskUpdate}
+                      onRemoveDep={onGanttRemoveDep}
+                      onAddDep={onGanttAddDep}
+                      onReorderSibling={onGanttReorderSibling}
+                      personQueues={personQueues}
+                      onOpenBulkEdit={ids => {
+                        if (ids) setMultiSel(new Set(ids));
+                        setBulkEditModalOpen(true);
+                      }}
+                    />
+                  </div>
+                </Frozen>
+              </div>
+            )}
+            {/* Project lens (docs/features.md, Roadmap lenses) — the calendar-style
           per-project roadmap, a TAB of its own beside the Gantt rather than a
           panel hanging off it. It was a chip in the filter row opening a
           380px sidebar, and nobody found it: a view is not a filter, and the
           ask was for a roadmap *next to* the Gantt, in the same style. Same
           data scope as the chart it sits beside (activeTree/activeScheduled:
           rootFilter/team/person + archive applied). */}
-      {visitedTabs.has('roadmap') && <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
-        <RoadmapLens
-          tree={activeTree}
-          scheduled={activeScheduled}
-          stats={stats}
-          roadmapAssignment={data?.roadmapAssignment || null}
-          teams={teams}
-          members={members}
-          cpSet={viewCpSet}
-          cpLabels={cpLabels}
-          focusId={ganttRoadmapFocus}
-          onFocusChange={setGanttRoadmapFocus}
-          diffDoneIds={diffDoneSet}
-          diffProgressedIds={diffProgressedSet}
-          sinceDate={sinceDate}
-          onlyChanged={diffOnlyChanged}
-          onOpenItem={onOpenItemDialog}
-          projectWaitsOf={projectWaitsOf}
-          onMoveBehind={onMoveBehind}
-        />
-      </div>}
-      {visitedTabs.has('net') && <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}><Frozen active={tab === 'net'}><NetGraph tree={visibleTreeForViews} scheduled={viewScheduled} teams={teams} members={members} cpSet={viewCpSet} cpLabels={cpLabels} stats={viewStats} search={deferredSearch} searchIdx={searchIdx} isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
-        diffDoneIds={diffDoneSet} diffProgressedIds={diffProgressedSet} onlyChanged={diffOnlyChanged}
-        horizonIds={horizonIds} horizonOnlyPlanned={horizonOnlyPlanned}
-        onNodeClick={onNetNodeClick}
-        onPickRoot={id => { setRootFilter(id); setSearchIdx(0); }}
-        onAddNode={onNetAddNode}
-        onDeleteNode={onNetDeleteNode} /></Frozen></div>}
-      {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
+            {visitedTabs.has('roadmap') && (
+              <div className="pane-full" style={{ display: tab === 'roadmap' ? 'flex' : 'none' }} data-testid="roadmap-pane">
+                <RoadmapLens
+                  tree={activeTree}
+                  scheduled={activeScheduled}
+                  stats={stats}
+                  roadmapAssignment={data?.roadmapAssignment || null}
+                  teams={teams}
+                  members={members}
+                  cpSet={viewCpSet}
+                  cpLabels={cpLabels}
+                  focusId={ganttRoadmapFocus}
+                  onFocusChange={setGanttRoadmapFocus}
+                  diffDoneIds={diffDoneSet}
+                  diffProgressedIds={diffProgressedSet}
+                  sinceDate={sinceDate}
+                  onlyChanged={diffOnlyChanged}
+                  onOpenItem={onOpenItemDialog}
+                  projectWaitsOf={projectWaitsOf}
+                  onMoveBehind={onMoveBehind}
+                />
+              </div>
+            )}
+            {visitedTabs.has('net') && (
+              <div className="pane-full" style={{ display: tab === 'net' ? 'flex' : 'none' }}>
+                <Frozen active={tab === 'net'}>
+                  <NetGraph
+                    tree={visibleTreeForViews}
+                    scheduled={viewScheduled}
+                    teams={teams}
+                    members={members}
+                    cpSet={viewCpSet}
+                    cpLabels={cpLabels}
+                    stats={viewStats}
+                    search={deferredSearch}
+                    searchIdx={searchIdx}
+                    isFiltered={!!rootFilter || !!teamFilter || !!personFilter || hideDone || (!showArchived && archive.rootIds.size > 0)}
+                    diffDoneIds={diffDoneSet}
+                    diffProgressedIds={diffProgressedSet}
+                    onlyChanged={diffOnlyChanged}
+                    horizonIds={horizonIds}
+                    horizonOnlyPlanned={horizonOnlyPlanned}
+                    onNodeClick={onNetNodeClick}
+                    onPickRoot={id => {
+                      setRootFilter(id);
+                      setSearchIdx(0);
+                    }}
+                    onAddNode={onNetAddNode}
+                    onDeleteNode={onNetDeleteNode}
+                  />
+                </Frozen>
+              </div>
+            )}
+            {/* `activeTree` — the archive-filtered tree, not the view-filtered one.
           This view runs its own three filters, and it has to see the work the
           schedule GAVE somebody before it can narrow to them; the pre-filtered
           tree matches on `assign`, so filtering to a person with nothing
           hand-assigned emptied the screen. */}
-      {visitedTabs.has('order') && <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}><Frozen active={tab === 'order'}><WorkOrderView
-        tree={activeTree} members={members} teams={teams} scheduled={scheduled} sizes={data?.sizes || []}
-        rootFilter={rootFilter} teamFilter={teamFilter} personFilter={personFilter} search={deferredSearch}
-        personQueues={personQueues} onQueueReorder={onQueueReorder} onQueueReset={onQueueReset}
-        onTaskUpdate={onGanttTaskUpdate} onFullEdit={node => { setMN(node); setModal('node'); }}
-        onOpenBulkEdit={ids => { setMultiSel(new Set(ids)); setBulkEditModalOpen(true); }} /></Frozen></div>}
-      {visitedTabs.has('resources') && <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}><Frozen active={tab === 'resources'}><EffectiveProvider value={effContext}><ResView members={resLens.members} teams={resLens.teams} vacations={vacations}
-        meetingPlans={resLens.meetingPlans}
-        tree={tree} scheduled={scheduled} weeks={weeks}
-        teamFilter={teamFilter} personFilter={personFilter}
-        onMeetingPlansUpd={onResMeetingPlansUpd}
-        onUpd={onResMemberUpd} onAdd={onResMemberAdd} onClone={onResMemberClone} onDel={onResMemberDel} onVac={onResVacUpd}
-        onTeamUpd={onResTeamUpd}
-        onTeamAdd={onResTeamAdd}
-        onTeamDel={onResTeamDel} /></EffectiveProvider></Frozen></div>}
-      {visitedTabs.has('holidays') && <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}><Frozen active={tab === 'holidays'}><HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} /></Frozen></div>}
-      {visitedTabs.has('report') && <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}><Frozen active={tab === 'report'}><ReportView {...exportHandlerProps} /></Frozen></div>}
-    </div>
-    {modal === 'node' && modalNode && <NodeModal node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} members={members} teams={teams} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} scheduled={scheduled} cpSet={cpSet} cpLabels={cpLabels} stats={stats} confidence={confidence} confReasons={confReasons} historyEvents={data?.historyEvents || []} viewDay={past?.day || ''} focusRequest={modalFocus}
-      onClose={() => { setModal(null); setMN(null); setModalFocus(null); }} onUpdate={updateNode} onDelete={deleteNode} onEstimate={n => { setMN(n); setModal('estimate'); }}
-      onDockSide={editorAsDialog ? () => { setEditorDock('side'); setModal(null); setMN(null); setModalFocus(null); } : undefined}
-      onDuplicate={id => { const newId = duplicateNode(id); if (newId) { setModal(null); setMN(null); setModalFocus(null); setTimeout(() => { const n = tree.find(r => r.id === newId) || { id: newId }; setSel(n); }, 50); } }}
-      onMove={(id, newParentId) => { const newId = moveNode(id, newParentId); if (newId) { setMN({ id: newId }); setModalFocus(null); setTimeout(() => { const n = { ...modalNode, id: newId }; setSel(n); }, 50); } }}
-      onSplitHandoff={splitHandoff}
-      onSplitTaskAtProgress={splitTaskAtProgress}
-      onHistoryChange={events => {
-        mutate(d => ({ ...d, historyEvents: events }));
-      }}
-      onNavigate={id => {
-        const target = tree.find(r => r.id === id);
-        if (!target) return;
-        setModalFocus(null);
-        setMN(target);
-        setSel(target);
-      }} />}
-    {modal === 'add' && <AddModal tree={tree} teams={teams} members={members} taskTemplates={data.taskTemplates || []} sizes={data.sizes || []} selected={selected} onAdd={addNode} onClose={() => setModal(null)} />}
-    {modal === 'scenario' && scn && <ScenarioCompare
-      scenario={activeScenario}
-      base={scn.base}
-      work={data}
-      comparison={scnComparison}
-      changes={scnChanges}
-      conflicts={scn.conflicts || 0}
-      memory={scnCompareMemory.current}
-      onExport={exportScenarioPDF}
-      onClose={() => setModal(null)}
-      onApply={scenarioApply}
-      onRevert={scenarioRevertChange}
-      onOpenItem={id => { if (!tree.some(r => r.id === id)) return; setModal(null); setTab('tree'); setSel(id); }}
-    />}
-    {modal === 'snapshots' && <SnapshotModal
-      onClose={() => setModal(null)}
-      onRestore={snap => {
-        if (!confirm(`Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`)) return;
-        // Take a defensive snapshot of current state before restoring.
-        if (data) pushSnapshot(data);
-        setData(snap.data); resetHistory(); setSaved(false); setModal(null);
-      }}
-      onExportJson={snap => {
-        const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
-        a.click();
-      }}
-    />}
-    {bulkEditModalOpen && multiSel.size > 0 && (
-      <div className="overlay" onClick={() => setBulkEditModalOpen(false)}>
-        <div className="modal" style={{ width: 'min(640px, 96vw)', maxHeight: '88vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 15 }}>{_t('bulk.title') || `Massenänderung — ${multiSel.size} Items`}</h2>
-            <button className="btn btn-ghost btn-icon sm" onClick={() => setBulkEditModalOpen(false)} aria-label={_t('close')}><Icon name="x" size={11} /></button>
+            {visitedTabs.has('order') && (
+              <div className="pane" style={{ display: tab === 'order' ? undefined : 'none' }}>
+                <Frozen active={tab === 'order'}>
+                  <WorkOrderView
+                    tree={activeTree}
+                    members={members}
+                    teams={teams}
+                    scheduled={scheduled}
+                    sizes={data?.sizes || []}
+                    rootFilter={rootFilter}
+                    teamFilter={teamFilter}
+                    personFilter={personFilter}
+                    search={deferredSearch}
+                    personQueues={personQueues}
+                    onQueueReorder={onQueueReorder}
+                    onQueueReset={onQueueReset}
+                    onTaskUpdate={onGanttTaskUpdate}
+                    onFullEdit={node => {
+                      setMN(node);
+                      setModal('node');
+                    }}
+                    onOpenBulkEdit={ids => {
+                      setMultiSel(new Set(ids));
+                      setBulkEditModalOpen(true);
+                    }}
+                  />
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('resources') && (
+              <div className="pane" style={{ display: tab === 'resources' ? undefined : 'none' }}>
+                <Frozen active={tab === 'resources'}>
+                  <EffectiveProvider value={effContext}>
+                    <ResView
+                      members={resLens.members}
+                      teams={resLens.teams}
+                      vacations={vacations}
+                      meetingPlans={resLens.meetingPlans}
+                      tree={tree}
+                      scheduled={scheduled}
+                      weeks={weeks}
+                      teamFilter={teamFilter}
+                      personFilter={personFilter}
+                      onMeetingPlansUpd={onResMeetingPlansUpd}
+                      onUpd={onResMemberUpd}
+                      onAdd={onResMemberAdd}
+                      onClone={onResMemberClone}
+                      onDel={onResMemberDel}
+                      onVac={onResVacUpd}
+                      onTeamUpd={onResTeamUpd}
+                      onTeamAdd={onResTeamAdd}
+                      onTeamDel={onResTeamDel}
+                    />
+                  </EffectiveProvider>
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('holidays') && (
+              <div className="pane" style={{ display: tab === 'holidays' ? undefined : 'none' }}>
+                <Frozen active={tab === 'holidays'}>
+                  <HolView holidays={data.holidays || []} planStart={planStart} planEnd={planEnd} onUpdate={onHolUpdate} />
+                </Frozen>
+              </div>
+            )}
+            {visitedTabs.has('report') && (
+              <div className="pane" style={{ display: tab === 'report' ? undefined : 'none' }}>
+                <Frozen active={tab === 'report'}>
+                  <ReportView {...exportHandlerProps} />
+                </Frozen>
+              </div>
+            )}
           </div>
-          {renderBulkEditBody()}
-        </div>
-      </div>
-    )}
-    {modal === 'settings' && <SettingsModal meta={meta} editorDock={editorDock} setEditorDock={setEditorDock} showTreeIds={showTreeIds} setShowTreeIds={setShowTreeIds} uiScale={uiScale} setUiScale={setUiScale} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []} customFields={data.customFields || DEFAULT_CUSTOM_FIELDS} teams={teams} onSave={m => setD('meta', m)} onSaveTemplates={tpls => setD('taskTemplates', tpls)} onSaveRisks={r => setD('risks', r)} onSaveSizes={s => setD('sizes', s)} onSaveCustomFields={cf => setD('customFields', cf)} onClose={() => setModal(null)} />}
-    {modal === 'new' && <NewProjModal onClose={() => setModal(null)} onCreate={d => { setData(d); resetHistory(); setSaved(false); setModal(null); setTab('tree'); setSel(d.tree?.[0] || null); }} />}
-    {modal === 'estimate' && modalNode && <EstimationWizard node={tree.find(r => r.id === modalNode.id) || modalNode} tree={tree} teams={teams} taskTemplates={data.taskTemplates || []} risks={data.risks || []} sizes={data.sizes || []}
-      onSave={est => { const node = tree.find(r => r.id === modalNode.id); if (node) updateNode({ ...node, ...est }); }}
-      onClose={() => { setModal(null); setMN(null); }} />}
-    {modal === 'jira' && <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />}
-    {modal === 'jiraImport' && <JiraImportModal
-      tree={tree} members={members}
-      jiraFieldId={detectJiraFieldId(data?.customFields || DEFAULT_CUSTOM_FIELDS, tree) || 'jira'}
-      hasProject
-      onClose={() => setModal(null)}
-      onImport={applyJiraImport} />}
-    {modal === 'export' && <ExportModal
-      onClose={() => setModal(null)}
-      {...exportHandlerProps}
-    />}
+          {modal === 'node' && modalNode && (
+            <NodeModal
+              node={tree.find(r => r.id === modalNode.id) || modalNode}
+              tree={tree}
+              members={members}
+              teams={teams}
+              taskTemplates={data.taskTemplates || []}
+              sizes={data.sizes || []}
+              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+              scheduled={scheduled}
+              cpSet={cpSet}
+              cpLabels={cpLabels}
+              stats={stats}
+              confidence={confidence}
+              confReasons={confReasons}
+              historyEvents={data?.historyEvents || []}
+              viewDay={past?.day || ''}
+              focusRequest={modalFocus}
+              onClose={() => {
+                setModal(null);
+                setMN(null);
+                setModalFocus(null);
+              }}
+              onUpdate={updateNode}
+              onDelete={deleteNode}
+              onEstimate={n => {
+                setMN(n);
+                setModal('estimate');
+              }}
+              onDockSide={
+                editorAsDialog
+                  ? () => {
+                      setEditorDock('side');
+                      setModal(null);
+                      setMN(null);
+                      setModalFocus(null);
+                    }
+                  : undefined
+              }
+              onDuplicate={id => {
+                const newId = duplicateNode(id);
+                if (newId) {
+                  setModal(null);
+                  setMN(null);
+                  setModalFocus(null);
+                  setTimeout(() => {
+                    const n = tree.find(r => r.id === newId) || { id: newId };
+                    setSel(n);
+                  }, 50);
+                }
+              }}
+              onMove={(id, newParentId) => {
+                const newId = moveNode(id, newParentId);
+                if (newId) {
+                  setMN({ id: newId });
+                  setModalFocus(null);
+                  setTimeout(() => {
+                    const n = { ...modalNode, id: newId };
+                    setSel(n);
+                  }, 50);
+                }
+              }}
+              onSplitHandoff={splitHandoff}
+              onSplitTaskAtProgress={splitTaskAtProgress}
+              onHistoryChange={events => {
+                mutate(d => ({ ...d, historyEvents: events }));
+              }}
+              onNavigate={id => {
+                const target = tree.find(r => r.id === id);
+                if (!target) return;
+                setModalFocus(null);
+                setMN(target);
+                setSel(target);
+              }}
+            />
+          )}
+          {modal === 'add' && (
+            <AddModal
+              tree={tree}
+              teams={teams}
+              members={members}
+              taskTemplates={data.taskTemplates || []}
+              sizes={data.sizes || []}
+              selected={selected}
+              onAdd={addNode}
+              onClose={() => setModal(null)}
+            />
+          )}
+          {modal === 'scenario' && scn && (
+            <ScenarioCompare
+              scenario={activeScenario}
+              base={scn.base}
+              work={data}
+              comparison={scnComparison}
+              changes={scnChanges}
+              conflicts={scn.conflicts || 0}
+              memory={scnCompareMemory.current}
+              onExport={exportScenarioPDF}
+              onClose={() => setModal(null)}
+              onApply={scenarioApply}
+              onRevert={scenarioRevertChange}
+              onOpenItem={id => {
+                if (!tree.some(r => r.id === id)) return;
+                setModal(null);
+                setTab('tree');
+                setSel(id);
+              }}
+            />
+          )}
+          {modal === 'snapshots' && (
+            <SnapshotModal
+              onClose={() => setModal(null)}
+              onRestore={snap => {
+                if (
+                  !confirm(
+                    `Restore project from snapshot of ${new Date(snap.ts).toLocaleString()}? Current state will be replaced (a fresh snapshot of it is taken first).`,
+                  )
+                )
+                  return;
+                // Take a defensive snapshot of current state before restoring.
+                if (data) pushSnapshot(data);
+                setData(snap.data);
+                resetHistory();
+                setSaved(false);
+                setModal(null);
+              }}
+              onExportJson={snap => {
+                const blob = new Blob([JSON.stringify(snap.data, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `planr-snapshot-${new Date(snap.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+                a.click();
+              }}
+            />
+          )}
+          {bulkEditModalOpen && multiSel.size > 0 && (
+            <div className="overlay" onClick={() => setBulkEditModalOpen(false)}>
+              <div
+                className="modal"
+                style={{ width: 'min(640px, 96vw)', maxHeight: '88vh', overflow: 'auto' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <h2 style={{ margin: 0, fontSize: 15 }}>{_t('bulk.title') || `Massenänderung — ${multiSel.size} Items`}</h2>
+                  <button className="btn btn-ghost btn-icon sm" onClick={() => setBulkEditModalOpen(false)} aria-label={_t('close')}>
+                    <Icon name="x" size={11} />
+                  </button>
+                </div>
+                {renderBulkEditBody()}
+              </div>
+            </div>
+          )}
+          {modal === 'settings' && (
+            <SettingsModal
+              meta={meta}
+              editorDock={editorDock}
+              setEditorDock={setEditorDock}
+              showTreeIds={showTreeIds}
+              setShowTreeIds={setShowTreeIds}
+              uiScale={uiScale}
+              setUiScale={setUiScale}
+              taskTemplates={data.taskTemplates || []}
+              risks={data.risks || []}
+              sizes={data.sizes || []}
+              customFields={data.customFields || DEFAULT_CUSTOM_FIELDS}
+              teams={teams}
+              onSave={m => setD('meta', m)}
+              onSaveTemplates={tpls => setD('taskTemplates', tpls)}
+              onSaveRisks={r => setD('risks', r)}
+              onSaveSizes={s => setD('sizes', s)}
+              onSaveCustomFields={cf => setD('customFields', cf)}
+              onClose={() => setModal(null)}
+            />
+          )}
+          {modal === 'new' && (
+            <NewProjModal
+              onClose={() => setModal(null)}
+              onCreate={d => {
+                setData(d);
+                resetHistory();
+                setSaved(false);
+                setModal(null);
+                setTab('tree');
+                setSel(d.tree?.[0] || null);
+              }}
+            />
+          )}
+          {modal === 'estimate' && modalNode && (
+            <EstimationWizard
+              node={tree.find(r => r.id === modalNode.id) || modalNode}
+              tree={tree}
+              teams={teams}
+              taskTemplates={data.taskTemplates || []}
+              risks={data.risks || []}
+              sizes={data.sizes || []}
+              onSave={est => {
+                const node = tree.find(r => r.id === modalNode.id);
+                if (node) updateNode({ ...node, ...est });
+              }}
+              onClose={() => {
+                setModal(null);
+                setMN(null);
+              }}
+            />
+          )}
+          {modal === 'jira' && (
+            <JiraExportModal tree={tree} scheduled={scheduled} members={members} teams={teams} meta={meta} onClose={() => setModal(null)} />
+          )}
+          {modal === 'jiraImport' && (
+            <JiraImportModal
+              tree={tree}
+              members={members}
+              jiraFieldId={detectJiraFieldId(data?.customFields || DEFAULT_CUSTOM_FIELDS, tree) || 'jira'}
+              hasProject
+              onClose={() => setModal(null)}
+              onImport={applyJiraImport}
+            />
+          )}
+          {modal === 'export' && <ExportModal onClose={() => setModal(null)} {...exportHandlerProps} />}
 
-    {/* ── Onboarding tour ── */}
-    {tourStep !== null && (
-      <Tour
-        steps={TOUR_STEPS}
-        step={tourStep}
-        onNext={() => setTourStep(s => Math.min(s + 1, TOUR_STEPS.length - 1))}
-        onPrev={() => setTourStep(s => Math.max(s - 1, 0))}
-        onSkip={closeTour}
-      />
-    )}
+          {/* ── Onboarding tour ── */}
+          {tourStep !== null && (
+            <Tour
+              steps={TOUR_STEPS}
+              step={tourStep}
+              onNext={() => setTourStep(s => Math.min(s + 1, TOUR_STEPS.length - 1))}
+              onPrev={() => setTourStep(s => Math.max(s - 1, 0))}
+              onSkip={closeTour}
+            />
+          )}
 
-    {/* ── New-feature popover (one-time, existing users) ── */}
-    {showNewFeat && tourStep === null && (
-      <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
-        <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
-          <div className="new-feat-title">
-            <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}><Icon name="sparkle" size={16} /></span>
-            {_t('new.title')}
-          </div>
-          <ul className="new-feat-list">
-            {NEW_FEATURES.map((f, i) => <li key={i}>{f}</li>)}
-          </ul>
-          <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--tx3)' }}
-              onClick={() => { dismissNewFeat(); startTour(); }}>
-              {_t('tour.restartTour')} →
-            </button>
-            <button className="btn btn-pri btn-sm" onClick={dismissNewFeat}>
-              {_t('new.dismiss')}
-            </button>
-          </div>
+          {/* ── New-feature popover (one-time, existing users) ── */}
+          {showNewFeat && tourStep === null && (
+            <div className="new-feat-backdrop fade" onClick={dismissNewFeat}>
+              <div className="new-feat-card fade" onClick={e => e.stopPropagation()}>
+                <div className="new-feat-title">
+                  <span style={{ display: 'inline-flex', color: 'var(--st-done)' }}>
+                    <Icon name="sparkle" size={16} />
+                  </span>
+                  {_t('new.title')}
+                </div>
+                <ul className="new-feat-list">
+                  {NEW_FEATURES.map((f, i) => (
+                    <li key={i}>{f}</li>
+                  ))}
+                </ul>
+                <div className="new-feat-foot" style={{ gap: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 12, color: 'var(--tx3)' }}
+                    onClick={() => {
+                      dismissNewFeat();
+                      startTour();
+                    }}
+                  >
+                    {_t('tour.restartTour')} →
+                  </button>
+                  <button className="btn btn-pri btn-sm" onClick={dismissNewFeat}>
+                    {_t('new.dismiss')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
-    )}
-  </div>
-    </CapacityProvider>
-  </>;
+      </CapacityProvider>
+    </>
+  );
 }

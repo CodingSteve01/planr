@@ -23,7 +23,9 @@ const PRIO_WORDS = [
 ];
 
 export function mapJiraPriority(value) {
-  const text = String(value ?? '').trim().toLowerCase();
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!text) return 3;
   for (const [prio, words] of PRIO_WORDS) {
     if (words.some(word => text.includes(word))) return prio;
@@ -38,7 +40,9 @@ export function mapJiraPriority(value) {
 const HOURS_PER_DAY = 8;
 
 export function mapJiraEstimate(value) {
-  const text = String(value ?? '').trim().toLowerCase();
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!text) return 0;
   // "3d 4h 30m" / "2w"
   const parts = [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*([wdhm])/g)];
@@ -57,7 +61,7 @@ export function mapJiraEstimate(value) {
   // A plain number is seconds in Jira's CSV (28800 = one day) and story points
   // anywhere a human typed it. Nothing distinguishes them but scale, so the
   // split is where a story-point count stops being plausible.
-  if (num >= 3600) return Math.round(num / 3600 / HOURS_PER_DAY * 10) / 10;
+  if (num >= 3600) return Math.round((num / 3600 / HOURS_PER_DAY) * 10) / 10;
   return Math.round(num * 10) / 10;
 }
 
@@ -67,11 +71,15 @@ const EPIC_WORDS = ['epic', 'epos', 'initiative', 'theme'];
 const SUBTASK_WORDS = ['sub-task', 'subtask', 'sub task', 'unteraufgabe', 'teilaufgabe'];
 
 export function isEpicType(type) {
-  const text = String(type ?? '').trim().toLowerCase();
+  const text = String(type ?? '')
+    .trim()
+    .toLowerCase();
   return EPIC_WORDS.some(word => text.includes(word));
 }
 export function isSubtaskType(type) {
-  const text = String(type ?? '').trim().toLowerCase();
+  const text = String(type ?? '')
+    .trim()
+    .toLowerCase();
   return SUBTASK_WORDS.some(word => text.includes(word));
 }
 
@@ -80,7 +88,11 @@ export function isSubtaskType(type) {
 // user typed. Compare on the normalised name and on the local part of an
 // email, and take no guess beyond that — a wrong assignee is worse than none,
 // because the scheduler will act on it.
-const norm = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const norm = text =>
+  String(text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 export function matchMember(assignee, members = []) {
   const wanted = norm(assignee);
@@ -123,7 +135,10 @@ function buildForest(rows) {
 
   rows.forEach(row => {
     const parent = parentKeyOf(row);
-    if (!parent) { roots.push(row); return; }
+    if (!parent) {
+      roots.push(row);
+      return;
+    }
     if (!childrenOf.has(parent)) childrenOf.set(parent, []);
     childrenOf.get(parent).push(row);
   });
@@ -185,8 +200,15 @@ export function buildTreeFromJira({ rows = [], members = [], jiraFieldId = 'jira
   if (groupUnder) {
     const rootId = `P${startAt}`;
     tree.push({
-      id: rootId, name: groupUnder, status: 'open', progress: 0,
-      prio: 2, best: 0, factor: 1.5, assign: [], deps: [],
+      id: rootId,
+      name: groupUnder,
+      status: 'open',
+      progress: 0,
+      prio: 2,
+      best: 0,
+      factor: 1.5,
+      assign: [],
+      deps: [],
     });
     roots.forEach((row, i) => walk(row, `${rootId}.${i + 1}`));
   } else {
@@ -196,7 +218,9 @@ export function buildTreeFromJira({ rows = [], members = [], jiraFieldId = 'jira
   // A parent's estimate comes from its children (docs/data-model.md, progress
   // cascade), so an epic that carried its own hours in Jira would double-count.
   const hasChildren = new Set(tree.filter(n => n.id.includes('.')).map(n => n.id.slice(0, n.id.lastIndexOf('.'))));
-  tree.forEach(node => { if (hasChildren.has(node.id)) node.best = 0; });
+  tree.forEach(node => {
+    if (hasChildren.has(node.id)) node.best = 0;
+  });
 
   return {
     tree,
@@ -214,10 +238,18 @@ export function membersForAssignees(names = [], existing = []) {
   const taken = new Set(existing.map(member => String(member?.id || '').toLowerCase()));
   return names.map(name => {
     const base = String(name).trim().split('@')[0];
-    const initials = base.split(/[\s.]+/).filter(Boolean).map(part => part[0].toUpperCase()).join('').slice(0, 3) || 'X';
+    const initials =
+      base
+        .split(/[\s.]+/)
+        .filter(Boolean)
+        .map(part => part[0].toUpperCase())
+        .join('')
+        .slice(0, 3) || 'X';
     let id = initials;
     let n = 2;
-    while (taken.has(id.toLowerCase())) { id = `${initials}${n++}`; }
+    while (taken.has(id.toLowerCase())) {
+      id = `${initials}${n++}`;
+    }
     taken.add(id.toLowerCase());
     return { id, name: base, team: '', cap: 1, vac: 25 };
   });

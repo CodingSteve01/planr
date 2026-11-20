@@ -37,7 +37,7 @@ export function sumMeetingHours(meetings) {
 // call-sites keep working.
 export function resolveMemberMeetings(member, ctxOrPlans) {
   if (!member) return [];
-  const ctx = Array.isArray(ctxOrPlans) ? { plans: ctxOrPlans, teams: [] } : (ctxOrPlans || {});
+  const ctx = Array.isArray(ctxOrPlans) ? { plans: ctxOrPlans, teams: [] } : ctxOrPlans || {};
   const plans = Array.isArray(ctx.plans) ? ctx.plans : [];
   const teams = Array.isArray(ctx.teams) ? ctx.teams : [];
   const planById = Object.fromEntries(plans.map(p => [p.id, p]));
@@ -126,9 +126,14 @@ export function memberAtDate(member, date) {
 
 export function deriveCap(member, ctxOrPlans) {
   if (!member) return 1;
-  const wh = member.capMode === 'derived'
-    ? (typeof member.weeklyHours === 'number' && member.weeklyHours >= 0 ? member.weeklyHours : FTE_HOURS)
-    : (typeof member.cap === 'number' ? Math.max(0, member.cap) * FTE_HOURS : FTE_HOURS);
+  const wh =
+    member.capMode === 'derived'
+      ? typeof member.weeklyHours === 'number' && member.weeklyHours >= 0
+        ? member.weeklyHours
+        : FTE_HOURS
+      : typeof member.cap === 'number'
+        ? Math.max(0, member.cap) * FTE_HOURS
+        : FTE_HOURS;
   const allMeetings = resolveMemberMeetings(member, ctxOrPlans);
   const meetingHours = sumMeetingHours(allMeetings);
   const avail = Math.max(0, wh - meetingHours);
@@ -152,7 +157,7 @@ export function capBreakdown(member, ctxOrPlans) {
     lines.push({ kind: 'meeting', text: `− ${weeklyH.toFixed(2)} h  ${m.name || 'Meeting'}${freqLabel}${src}` });
   }
   const avail = Math.max(0, wh - sumMeetingHours(all));
-  const pct = Math.round(avail / FTE_HOURS * 100);
+  const pct = Math.round((avail / FTE_HOURS) * 100);
   lines.push({ kind: 'result', text: `= ${avail.toFixed(2)} h  →  ${pct} % FTE` });
   return lines;
 }
@@ -184,8 +189,7 @@ export function membersWithoutCapacity(members, scheduled, ctxOrPlans) {
   const rows = (scheduled || []).filter(r => r.personId && !r.unscheduled && r.status !== 'done');
   return (members || []).flatMap(member => {
     const taskIds = rows
-      .filter(r => r.personId === member.id
-        && deriveCap(memberAtDate(member, r.startD || new Date()), ctxOrPlans) <= 0)
+      .filter(r => r.personId === member.id && deriveCap(memberAtDate(member, r.startD || new Date()), ctxOrPlans) <= 0)
       .map(r => r.treeId || r.id);
     return taskIds.length ? [{ member, taskIds: [...new Set(taskIds)] }] : [];
   });

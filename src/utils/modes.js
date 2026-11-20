@@ -20,19 +20,19 @@
 // Order follows the loop rather than the feature list: where you look first,
 // where you change things, where time is, then the inputs, then the output.
 export const TAB_IDS = [
-  'summary',    // the subway map — where a week starts
-  'tree',       // the one place the plan is changed
-  'order',      // …and in which order it gets done
-  'gantt',      // when it happens
-  'roadmap',    // one project, as a calendar — stays next to the Gantt, which
-                // is what it was asked for (roadmapLens.app.test.jsx pins it)
-  'briefing',   // …and what of all that is today. Opened daily, so it sits
-                // with the time views rather than behind the diagnostics.
-  'plan',       // planning review
-  'net',        // how it hangs together
-  'resources',  // who there is
-  'holidays',   // when nobody is there
-  'report',     // what leaves the building
+  'summary', // the subway map — where a week starts
+  'tree', // the one place the plan is changed
+  'order', // …and in which order it gets done
+  'gantt', // when it happens
+  'roadmap', // one project, as a calendar — stays next to the Gantt, which
+  // is what it was asked for (roadmapLens.app.test.jsx pins it)
+  'briefing', // …and what of all that is today. Opened daily, so it sits
+  // with the time views rather than behind the diagnostics.
+  'plan', // planning review
+  'net', // how it hangs together
+  'resources', // who there is
+  'holidays', // when nobody is there
+  'report', // what leaves the building
 ];
 
 // Where a fresh install lands. A returning user's own `planr_tab` wins.

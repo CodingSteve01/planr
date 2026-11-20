@@ -15,10 +15,12 @@ describe('demo project', () => {
     expect(doneLeaves.every(item => item.completedStart && item.completedAt)).toBe(true);
 
     const deadlines = demo.tree.filter(item => item.type === 'deadline');
-    expect(deadlines.every(item => {
-      const offset = diffDays(item.date, demo.meta.planStart);
-      return offset >= 0 && offset <= 120;
-    })).toBe(true);
+    expect(
+      deadlines.every(item => {
+        const offset = diffDays(item.date, demo.meta.planStart);
+        return offset >= 0 && offset <= 120;
+      }),
+    ).toBe(true);
 
     expect(demo.historyEvents.length).toBeGreaterThan(doneLeaves.length);
     const since = new Date();

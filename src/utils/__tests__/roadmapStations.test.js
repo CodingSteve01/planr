@@ -22,10 +22,37 @@ const d = iso => new Date(`${iso}T00:00:00`);
 // Two projects: one finished outright, one halfway.
 const TREE = [
   { id: 'P1', name: 'Finished project', status: 'done' },
-  { id: 'P1.1', name: 'First package', status: 'done', progress: 100, best: 4, factor: 1, completedStart: '2026-01-05', completedEnd: '2026-01-09' },
-  { id: 'P1.2', name: 'Second package', status: 'done', progress: 100, best: 4, factor: 1, completedStart: '2026-02-02', completedEnd: '2026-02-06' },
+  {
+    id: 'P1.1',
+    name: 'First package',
+    status: 'done',
+    progress: 100,
+    best: 4,
+    factor: 1,
+    completedStart: '2026-01-05',
+    completedEnd: '2026-01-09',
+  },
+  {
+    id: 'P1.2',
+    name: 'Second package',
+    status: 'done',
+    progress: 100,
+    best: 4,
+    factor: 1,
+    completedStart: '2026-02-02',
+    completedEnd: '2026-02-06',
+  },
   { id: 'P2', name: 'Live project', status: 'wip' },
-  { id: 'P2.1', name: 'Done bit', status: 'done', progress: 100, best: 5, factor: 1, completedStart: '2026-01-05', completedEnd: '2026-01-09' },
+  {
+    id: 'P2.1',
+    name: 'Done bit',
+    status: 'done',
+    progress: 100,
+    best: 5,
+    factor: 1,
+    completedStart: '2026-01-05',
+    completedEnd: '2026-01-09',
+  },
   { id: 'P2.2', name: 'Open bit', status: 'open', progress: 0, best: 5, factor: 1 },
 ];
 const SCHEDULED = [
@@ -46,7 +73,8 @@ const render = (tree = TREE, scheduled = SCHEDULED) => {
 function outerRadii(markup) {
   // Only the drawing. `renderRoadmapSvg` returns the map AND the legend below
   // it, and the legend has its own small status circles.
-  const svg = markup.slice(markup.indexOf('<svg'), markup.indexOf('</svg>') + 6)
+  const svg = markup
+    .slice(markup.indexOf('<svg'), markup.indexOf('</svg>') + 6)
     // The trains are not stations, and an arrived one wears a tick badge of
     // its own; this is about the stops.
     .replace(/<g id="rm-train-\d+"[\s\S]*?<\/g>/g, '');
@@ -54,8 +82,8 @@ function outerRadii(markup) {
   for (const m of svg.matchAll(/<circle\b([^>]*)>/g)) {
     const attrs = m[1];
     const r = parseFloat(/\br="([\d.]+)"/.exec(attrs)?.[1] ?? 'NaN');
-    if (!Number.isFinite(r) || r < 5) continue;         // the inner dot is not a stop
-    if (/fill="transparent"/.test(attrs)) continue;      // the hit area
+    if (!Number.isFinite(r) || r < 5) continue; // the inner dot is not a stop
+    if (/fill="transparent"/.test(attrs)) continue; // the hit area
     if (/<animate/.test(attrs)) continue;
     const sw = parseFloat(/stroke-width="([\d.]+)"/.exec(attrs)?.[1] ?? '0');
     found.add(+(r + sw / 2).toFixed(2));
@@ -144,8 +172,26 @@ describe('the order of the stops', () => {
     // a sequence that never occurred — see the sibling case in roadmap.test.js.
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip' },
-      { id: 'P1.1', name: 'First in the tree, finished later', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-03-01', completedEnd: '2026-03-01' },
-      { id: 'P1.2', name: 'Second in the tree, finished first', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-01-01', completedEnd: '2026-01-01' },
+      {
+        id: 'P1.1',
+        name: 'First in the tree, finished later',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-03-01',
+        completedEnd: '2026-03-01',
+      },
+      {
+        id: 'P1.2',
+        name: 'Second in the tree, finished first',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-01-01',
+        completedEnd: '2026-01-01',
+      },
       { id: 'P1.3', name: 'Still open', status: 'open', best: 8, factor: 1 },
     ];
     const scheduled = [
@@ -154,11 +200,9 @@ describe('the order of the stops', () => {
     ];
     const model = computeRoadmapModel({ tree, scheduled, stats: treeStats(tree), now: d('2026-03-15') });
     const line = model.lines[0];
-    expect(line.majorStations.find(s => s.id === 'P1.2').t)
-      .toBeLessThan(line.majorStations.find(s => s.id === 'P1.1').t);
+    expect(line.majorStations.find(s => s.id === 'P1.2').t).toBeLessThan(line.majorStations.find(s => s.id === 'P1.1').t);
   });
 });
-
 
 describe('the at-risk marker', () => {
   // Reported as overlapping the line's own name and looking "stuck on". Both
@@ -169,16 +213,24 @@ describe('the at-risk marker', () => {
     { id: 'P1', name: 'Late project', type: 'deadline', date: '2026-01-31', status: 'wip' },
     { id: 'P1.1', name: 'Slipping', status: 'open', best: 40, factor: 1 },
   ];
-  const riskScheduled = [
-    { id: 'P1.1', name: 'Slipping', status: 'open', effort: 40, startD: d('2026-02-01'), endD: d('2026-06-30') },
-  ];
+  const riskScheduled = [{ id: 'P1.1', name: 'Slipping', status: 'open', effort: 40, startD: d('2026-02-01'), endD: d('2026-06-30') }];
 
-  const markup = () => renderRoadmapSvg({
-    tree: riskTree, scheduled: riskScheduled, stats: treeStats(riskTree), now: d('2026-02-20'),
-  });
+  const markup = () =>
+    renderRoadmapSvg({
+      tree: riskTree,
+      scheduled: riskScheduled,
+      stats: treeStats(riskTree),
+      now: d('2026-02-20'),
+    });
 
-  const boxes = svg => [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*rx="5"[^>]*>/g)]
-    .map(m => ({ x: +m[1], y: +m[2], w: +m[3], h: +m[4], tag: m[0] }));
+  const boxes = svg =>
+    [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*rx="5"[^>]*>/g)].map(m => ({
+      x: +m[1],
+      y: +m[2],
+      w: +m[3],
+      h: +m[4],
+      tag: m[0],
+    }));
 
   it('never sits on the badge that carries the line name', () => {
     const svg = markup();

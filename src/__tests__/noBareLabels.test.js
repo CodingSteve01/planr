@@ -22,7 +22,10 @@ function sourceFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) { out.push(...sourceFiles(full)); continue; }
+    if (statSync(full).isDirectory()) {
+      out.push(...sourceFiles(full));
+      continue;
+    }
     if (/\.jsx?$/.test(entry) && !full.includes('__tests__')) out.push(full);
   }
   return out;
@@ -40,7 +43,7 @@ describe('every label the user reads comes from i18n', () => {
       for (const m of src.matchAll(/<th\b[^>]*>([^<]*)<\/th>/g)) {
         const text = m[1].trim();
         if (!text || LANGUAGE_FREE.test(text)) continue;
-        if (text.includes('{')) continue;   // an expression, e.g. {t('…')}
+        if (text.includes('{')) continue; // an expression, e.g. {t('…')}
         const line = src.slice(0, m.index).split('\n').length;
         offenders.push(`${path.relative(root, file)}:${line}  <th>${text}</th>`);
       }

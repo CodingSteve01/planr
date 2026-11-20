@@ -28,14 +28,21 @@ export function LazyInput({ value, onCommit, type = 'text', ...rest }) {
   // Flush any uncommitted edit when the input unmounts (e.g. modal close
   // button fires before blur, so the onBlur handler never runs). Without
   // this the user's last change is silently lost.
-  useEffect(() => () => {
-    const t = typeRef.current;
-    const raw = vRef.current;
-    const newV = t === 'number' ? (raw === '' ? 0 : +raw) : raw;
-    if (newV !== propValueRef.current) {
-      try { onCommitRef.current?.(newV); } catch { /* ignore */ }
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      const t = typeRef.current;
+      const raw = vRef.current;
+      const newV = t === 'number' ? (raw === '' ? 0 : +raw) : raw;
+      if (newV !== propValueRef.current) {
+        try {
+          onCommitRef.current?.(newV);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [],
+  );
 
   const commit = () => {
     const newV = type === 'number' ? (v === '' ? 0 : +v) : v;
@@ -45,12 +52,16 @@ export function LazyInput({ value, onCommit, type = 'text', ...rest }) {
     }
   };
 
-  return <input
-    type={type}
-    value={v}
-    onChange={e => setV(e.target.value)}
-    onBlur={commit}
-    onKeyDown={e => { if (e.key === 'Enter' && type !== 'textarea') e.target.blur(); }}
-    {...rest}
-  />;
+  return (
+    <input
+      type={type}
+      value={v}
+      onChange={e => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter' && type !== 'textarea') e.target.blur();
+      }}
+      {...rest}
+    />
+  );
 }

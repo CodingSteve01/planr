@@ -127,7 +127,11 @@ describe('the history reads the log in replay order', () => {
 
 describe('a status change can be dated, and an entry can be moved', () => {
   beforeEach(() => cleanup());
-  const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const day = n => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
 
   it('has no History tab: the history sits under the status it records', () => {
     renderModal();
@@ -140,7 +144,13 @@ describe('a status change can be dated, and an entry can be moved', () => {
     renderModal();
     expect(document.querySelector('[role="tab"][aria-selected="true"]').getAttribute('data-testid')).toBe('nm-tab-workflow');
     expect(screen.getByTestId('nm-title').textContent).toBe('Selected task');
-    expect([...document.querySelectorAll('[role="tab"]')].map(x => x.getAttribute('data-testid').replace('nm-tab-', ''))).toEqual(['insights', 'workflow', 'overview', 'timing', 'effort']);
+    expect([...document.querySelectorAll('[role="tab"]')].map(x => x.getAttribute('data-testid').replace('nm-tab-', ''))).toEqual([
+      'insights',
+      'workflow',
+      'overview',
+      'timing',
+      'effort',
+    ]);
     expect(screen.queryByTestId('nm-as-of')).toBeNull();
     fireEvent.change(screen.getByRole('slider'), { target: { value: '60' } });
     expect(screen.getByTestId('nm-as-of').value).toBe(day(0));

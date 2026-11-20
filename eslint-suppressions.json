@@ -10,7 +10,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
+      "count": 2
     },
     "no-unused-vars": {
       "count": 3
@@ -39,6 +39,9 @@
   "src/components/modals/AddModal.jsx": {
     "complexity": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/components/modals/AssignModal.jsx": {
@@ -57,11 +60,22 @@
   "src/components/modals/JiraExportModal.jsx": {
     "complexity": {
       "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/NewProjModal.jsx": {
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/components/modals/NodeModal.jsx": {
     "complexity": {
       "count": 2
+    },
+    "max-lines": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -126,8 +140,11 @@
     "complexity": {
       "count": 5
     },
-    "max-lines-per-function": {
+    "max-lines": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "src/components/shared/SearchBox.jsx": {
@@ -138,10 +155,16 @@
   "src/components/shared/SearchSelect.jsx": {
     "complexity": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/components/shared/TaskInsights.jsx": {
     "complexity": {
+      "count": 1
+    },
+    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -171,6 +194,9 @@
     "complexity": {
       "count": 3
     },
+    "max-lines": {
+      "count": 1
+    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -186,7 +212,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 3
+      "count": 4
     },
     "no-unused-vars": {
       "count": 6
@@ -196,8 +222,11 @@
     "complexity": {
       "count": 3
     },
-    "max-lines-per-function": {
+    "max-lines": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "src/components/views/Onboard.jsx": {
@@ -208,6 +237,9 @@
   "src/components/views/PlanReview.jsx": {
     "complexity": {
       "count": 2
+    },
+    "max-lines": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -227,6 +259,9 @@
   "src/components/views/QuickEdit.jsx": {
     "complexity": {
       "count": 2
+    },
+    "max-lines": {
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -250,8 +285,11 @@
     "complexity": {
       "count": 4
     },
-    "max-lines-per-function": {
+    "max-lines": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     },
     "no-unused-vars": {
       "count": 15
@@ -262,7 +300,7 @@
       "count": 2
     },
     "max-lines-per-function": {
-      "count": 1
+      "count": 2
     }
   },
   "src/components/views/TreeView.jsx": {
@@ -284,7 +322,7 @@
       "count": 4
     },
     "max-lines-per-function": {
-      "count": 1
+      "count": 3
     }
   },
   "src/utils/__tests__/phaseWalk.test.js": {
@@ -312,6 +350,11 @@
       "count": 2
     }
   },
+  "src/utils/demoProject.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/utils/diff.js": {
     "complexity": {
       "count": 3
@@ -337,8 +380,11 @@
     "complexity": {
       "count": 1
     },
+    "max-lines": {
+      "count": 1
+    },
     "max-lines-per-function": {
-      "count": 3
+      "count": 4
     },
     "no-unused-vars": {
       "count": 1
@@ -374,8 +420,11 @@
     "max-depth": {
       "count": 1
     },
+    "max-lines": {
+      "count": 1
+    },
     "max-lines-per-function": {
-      "count": 2
+      "count": 3
     }
   },
   "src/utils/orderSearch.js": {
@@ -402,7 +451,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 5
     }
   },
   "src/utils/planIntegrity.js": {
@@ -415,7 +464,7 @@
       "count": 4
     },
     "max-lines-per-function": {
-      "count": 1
+      "count": 2
     }
   },
   "src/utils/projectWaits.js": {
@@ -459,13 +508,18 @@
       "count": 9
     },
     "max-lines-per-function": {
-      "count": 1
+      "count": 3
     }
   },
   "src/utils/scenarioCompare.js": {
     "complexity": {
       "count": 3
     },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scenarioReport.js": {
     "max-lines-per-function": {
       "count": 1
     }
@@ -481,7 +535,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 4
     },
     "max-params": {
       "count": 1

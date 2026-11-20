@@ -21,7 +21,7 @@ describe('dropRows', () => {
   it('moves a row next to a row of another package', () => {
     const res = drop(tree, ['P1.2'], 'P2.1', 'after');
     expect(names(res.tree)).toEqual(['P1', 'P1.1', 'P1.3', 'P2', 'P2.1', 'P1.2', 'P2.2']);
-    expect(res.ids).toEqual(['P2.3']);   // renumbered under its new parent
+    expect(res.ids).toEqual(['P2.3']); // renumbered under its new parent
   });
 
   it('puts a row into a package, as its last child', () => {
@@ -36,10 +36,7 @@ describe('dropRows', () => {
   });
 
   it('takes the subtree along and remaps dependencies on it', () => {
-    const deep = [
-      ...T('P1', 'P1.1', 'P1.1.1', 'P2'),
-      { id: 'P2.1', name: 'P2.1', deps: ['P1.1.1'] },
-    ];
+    const deep = [...T('P1', 'P1.1', 'P1.1.1', 'P2'), { id: 'P2.1', name: 'P2.1', deps: ['P1.1.1'] }];
     const res = drop(deep, ['P1.1'], 'P2.1', 'before');
     const moved = res.tree.find(r => r.name === 'P1.1.1');
     expect(moved.id.startsWith(res.ids[0] + '.')).toBe(true);

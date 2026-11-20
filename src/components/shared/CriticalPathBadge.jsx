@@ -1,5 +1,5 @@
 export function CriticalPathBadge({ id, labels = {}, style = {}, compact = false }) {
-  const cpLabels = id ? (labels[id] || []) : [];
+  const cpLabels = id ? labels[id] || [] : [];
   if (!cpLabels.length) return null;
   const primary = cpLabels[0];
   const extra = cpLabels.length > 1 ? ` +${cpLabels.length - 1}` : '';

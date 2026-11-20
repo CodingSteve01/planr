@@ -22,22 +22,30 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-      { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Tree editor', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+        { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Tree editor', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
 function renderApp() {
   return render(
-    <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
   );
 }
 
@@ -58,8 +66,7 @@ function planTree() {
       id: entry.id,
       // The name cell also carries chips (team, assignee, badges); the name is
       // the text of its own span, so take the first non-numeric text run.
-      name: (entry.row.querySelector('[data-testid="tree-row-name"]')
-        || entry.row.children[1])?.textContent.trim() || '',
+      name: (entry.row.querySelector('[data-testid="tree-row-name"]') || entry.row.children[1])?.textContent.trim() || '',
       prio: entry.row.getAttribute('data-prio'),
       team: entry.row.getAttribute('data-team'),
       status: entry.row.getAttribute('data-status'),
@@ -94,22 +101,24 @@ async function commitAndClose(input) {
 async function selectRow(id) {
   let row = null;
   await waitFor(() => {
-    row = [...document.querySelectorAll('tr')]
-      .find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
+    row = [...document.querySelectorAll('tr')].find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
     if (!row) throw new Error(`no row ${id}`);
   });
-  await act(async () => { fireEvent.click(row); });
+  await act(async () => {
+    fireEvent.click(row);
+  });
 }
 
 /** Rows by their NAME, which is on screen whether or not ids are shown. */
 async function selectRowNamed(name) {
   let row = null;
   await waitFor(() => {
-    row = [...document.querySelectorAll('[data-testid="tree-row-name"]')]
-      .find(el => el.textContent.trim().startsWith(name))?.closest('tr');
+    row = [...document.querySelectorAll('[data-testid="tree-row-name"]')].find(el => el.textContent.trim().startsWith(name))?.closest('tr');
     if (!row) throw new Error(`no row named ${name}`);
   });
-  await act(async () => { fireEvent.click(row); });
+  await act(async () => {
+    fireEvent.click(row);
+  });
   return row;
 }
 
@@ -123,7 +132,10 @@ describe('the tree editor writes through to the plan', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('renames an existing row: Enter, type, Enter — and the plan really changed', async () => {
     renderApp();
@@ -133,7 +145,9 @@ describe('the tree editor writes through to the plan', () => {
     const input = screen.getByTestId('tree-name-input-P1.1');
     expect(input.value).toBe('Prices');
 
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices and conditions' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Prices and conditions' } });
+    });
     await press(input, 'Enter');
 
     await waitFor(() => expect(nameOf('P1.1')).toContain('Prices and conditions'));
@@ -145,7 +159,9 @@ describe('the tree editor writes through to the plan', () => {
 
     await press(grid(), 'Enter');
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks UI' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks UI' } });
+    });
     // Plain Enter on an existing row only saves it; ⌘↵ goes on to a new one.
     await press(input, 'Enter', { metaKey: true });
 
@@ -154,7 +170,9 @@ describe('the tree editor writes through to the plan', () => {
     for (const name of ['Evaluate usage data', 'Extend cancellations', 'Ledger export']) {
       const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
       expect(open, `no editor open before typing "${name}"`).toBeTruthy();
-      await act(async () => { fireEvent.change(open, { target: { value: name } }); });
+      await act(async () => {
+        fireEvent.change(open, { target: { value: name } });
+      });
       await press(open, 'Enter');
     }
     // Back out of the trailing empty row rather than leaving it behind.
@@ -162,8 +180,9 @@ describe('the tree editor writes through to the plan', () => {
     if (trailing) await press(trailing, 'Escape');
 
     await waitFor(() => {
-      ['Masks UI', 'Evaluate usage data', 'Extend cancellations', 'Ledger export']
-        .forEach(name => expect(hasName(name), `"${name}" not in the tree`).toBe(true));
+      ['Masks UI', 'Evaluate usage data', 'Extend cancellations', 'Ledger export'].forEach(name =>
+        expect(hasName(name), `"${name}" not in the tree`).toBe(true),
+      );
     });
   });
 
@@ -176,7 +195,9 @@ describe('the tree editor writes through to the plan', () => {
     await press(input, 'Enter', { shiftKey: true });
 
     const child = document.querySelector('tr input[data-testid^="tree-name-input-"]');
-    await act(async () => { fireEvent.change(child, { target: { value: 'Sub task' } }); });
+    await act(async () => {
+      fireEvent.change(child, { target: { value: 'Sub task' } });
+    });
     await press(child, 'Enter');
     const open = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     if (open) await press(open, 'Escape');
@@ -191,7 +212,7 @@ describe('the tree editor writes through to the plan', () => {
   it('a field shortcut on a multi-selection writes every row, and ⌘Z takes back all of them at once', async () => {
     renderApp();
     await selectRow('P1.1');
-    await press(grid(), 'ArrowDown', { shiftKey: true });   // extend to P1.2
+    await press(grid(), 'ArrowDown', { shiftKey: true }); // extend to P1.2
 
     // Priority is not rendered as text, so watch the undo button instead: it
     // is disabled until something is written, and one keypress on two rows
@@ -226,16 +247,20 @@ describe('the tree editor writes through to the plan', () => {
     // `startsWith(id)` is not a subtree test. With ten or more root items the
     // old one-liner deleted P10, P11, … along with P1 — invisible while
     // deleting meant a mouse trip behind a confirm, one keystroke away now.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'P1', name: 'First', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'P10', name: 'Tenth', status: 'open', team: 'T1', best: 1, factor: 1 },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Prefix', planStart: '2026-01-01', planEnd: '2027-01-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'P1', name: 'First', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'P10', name: 'Tenth', status: 'open', team: 'T1', best: 1, factor: 1 },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Prefix', planStart: '2026-01-01', planEnd: '2027-01-01' },
+      }),
+    );
     renderApp();
     await selectRow('P1');
 
@@ -253,16 +278,19 @@ describe('the tree editor writes through to the plan', () => {
 
   it('clicking the name of the already-selected row opens the editor', async () => {
     renderApp();
-    await selectRow('P1.1');                        // first click selects
+    await selectRow('P1.1'); // first click selects
 
-    const nameSpan = [...document.querySelectorAll('[data-testid="tree-row-name"]')]
-      .find(el => el.textContent.trim() === 'Prices');
+    const nameSpan = [...document.querySelectorAll('[data-testid="tree-row-name"]')].find(el => el.textContent.trim() === 'Prices');
     expect(nameSpan, 'name span not found').toBeTruthy();
-    await act(async () => { fireEvent.click(nameSpan); });   // second click renames
+    await act(async () => {
+      fireEvent.click(nameSpan);
+    }); // second click renames
 
     const input = screen.getByTestId('tree-name-input-P1.1');
     expect(input.value).toBe('Prices');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices by mouse' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Prices by mouse' } });
+    });
     await press(input, 'Enter');
 
     await waitFor(() => expect(hasName('Prices by mouse')).toBe(true));
@@ -273,10 +301,14 @@ describe('the tree editor writes through to the plan', () => {
     // The app paints a "restoring project context" screen first — wait for
     // the row itself, not just for render() to return.
     const btn = await screen.findByTestId('tree-row-rename-P1.2');
-    await act(async () => { fireEvent.click(btn); });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks reworked' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks reworked' } });
+    });
     await press(input, 'Enter');
 
     await waitFor(() => expect(hasName('Masks reworked')).toBe(true));
@@ -287,12 +319,16 @@ describe('the tree editor writes through to the plan', () => {
     // The app paints a "restoring project context" screen first — wait for
     // the row itself, not just for render() to return.
     const btn = await screen.findByTestId('tree-row-add-sibling-P1.1');
-    await act(async () => { fireEvent.click(btn); });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
 
     const input = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(input, 'no editor opened for the new row').toBeTruthy();
     expect(input.value, 'the new row should be empty, not a placeholder name').toBe('');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Added with the mouse' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Added with the mouse' } });
+    });
     await press(input, 'Enter');
     const trailing = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     if (trailing) await press(trailing, 'Escape');
@@ -309,11 +345,15 @@ describe('the tree editor writes through to the plan', () => {
     // The app paints a "restoring project context" screen first — wait for
     // the row itself, not just for render() to return.
     const btn = await screen.findByTestId('tree-row-add-child-P1.2');
-    await act(async () => { fireEvent.click(btn); });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
 
     const input = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(input, 'no editor opened for the new child').toBeTruthy();
-    await act(async () => { fireEvent.change(input, { target: { value: 'Child by mouse' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Child by mouse' } });
+    });
     await press(input, 'Enter');
     const trailing = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     if (trailing) await press(trailing, 'Escape');
@@ -330,14 +370,15 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.1');
 
     // P1.1 is the first child of P1 — nothing above it to become its parent.
-    const btn = glyph => [...document.querySelectorAll('button')]
-      .find(b => b.textContent.trim() === glyph);
+    const btn = glyph => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === glyph);
     await waitFor(() => expect(screen.queryByTestId('tv-indent'), 'indent button missing').toBeTruthy());
     expect(screen.getByTestId('tv-indent').disabled, 'indent should be a no-op on the first child').toBe(true);
 
     await selectRow('P1.2');
     await waitFor(() => expect(screen.getByTestId('tv-indent').disabled).toBe(false));
-    await act(async () => { fireEvent.click(screen.getByTestId('tv-indent')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tv-indent'));
+    });
 
     await waitFor(() => {
       const moved = planTree().find(n => n.name.includes('Masks'));
@@ -348,20 +389,24 @@ describe('the tree editor writes through to the plan', () => {
   it('deleting a multi-selection containing "P1" leaves "P10" alone', async () => {
     // onTreeBulkDelete carried the same `startsWith(id)` prefix bug deleteNode
     // did — and it is the path every ⌫ on a selection takes.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'P1', name: 'First', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'P2', name: 'Second', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'P10', name: 'Tenth', status: 'open', team: 'T1', best: 1, factor: 1 },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Prefix bulk', planStart: '2026-01-01', planEnd: '2027-01-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'P1', name: 'First', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'P2', name: 'Second', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'P10', name: 'Tenth', status: 'open', team: 'T1', best: 1, factor: 1 },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Prefix bulk', planStart: '2026-01-01', planEnd: '2027-01-01' },
+      }),
+    );
     renderApp();
     await selectRow('P1');
-    await press(grid(), 'ArrowDown', { shiftKey: true });   // extend to P2
+    await press(grid(), 'ArrowDown', { shiftKey: true }); // extend to P2
 
     await press(grid(), 'Delete');
 
@@ -381,7 +426,9 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.1');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices reworked' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Prices reworked' } });
+    });
     await press(input, 'ArrowDown');
 
     // The name landed AND the field moved on, seeded with the next row's name.
@@ -399,7 +446,9 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks urgent' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks urgent' } });
+    });
     // ⌥1 reports e.key "¡" on macOS — the handler reads e.code, so send that.
     await press(input, 'Dead', { altKey: true, code: 'Digit1' });
 
@@ -418,21 +467,35 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks by dropdown' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks by dropdown' } });
+    });
 
     // Find-as-you-type: the field filters, Enter takes the match. With a
     // dozen teams, hunting a native dropdown by eye is the slow path.
     const prio = screen.getByTestId('tree-edit-prio');
-    await act(async () => { fireEvent.focus(prio); });
-    await act(async () => { fireEvent.change(prio, { target: { value: 'crit' } }); });
-    await act(async () => { fireEvent.keyDown(prio, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.focus(prio);
+    });
+    await act(async () => {
+      fireEvent.change(prio, { target: { value: 'crit' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(prio, { key: 'Enter' });
+    });
     expect(screen.getByTestId('tree-name-input-P1.2'), 'the dropdown closed the editor').toBeTruthy();
     await waitFor(() => expect(nodeById('P1.2')?.prio).toBe('1'));
 
     const status = screen.getByTestId('tree-edit-status');
-    await act(async () => { fireEvent.focus(status); });
-    await act(async () => { fireEvent.change(status, { target: { value: 'progress' } }); });
-    await act(async () => { fireEvent.keyDown(status, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.focus(status);
+    });
+    await act(async () => {
+      fireEvent.change(status, { target: { value: 'progress' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(status, { key: 'Enter' });
+    });
     await waitFor(() => expect(nodeById('P1.2')?.status).toBe('wip'));
 
     await commitAndClose(screen.getByTestId('tree-name-input-P1.2'));
@@ -445,11 +508,19 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks with team' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks with team' } });
+    });
     const team = screen.getByTestId('tree-edit-team');
-    await act(async () => { fireEvent.focus(team); });
-    await act(async () => { fireEvent.change(team, { target: { value: 'Team A' } }); });
-    await act(async () => { fireEvent.keyDown(team, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.focus(team);
+    });
+    await act(async () => {
+      fireEvent.change(team, { target: { value: 'Team A' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(team, { key: 'Enter' });
+    });
 
     await waitFor(() => expect(nodeById('P1.2')?.team).toBe('T1'));
     await commitAndClose(screen.getByTestId('tree-name-input-P1.2'));
@@ -463,14 +534,14 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks tabbed' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks tabbed' } });
+    });
     // The controls sit in the row's own columns, in column order — which is
     // the Tab order.
     const row = input.closest('tr');
     const fields = [...row.querySelectorAll('input, select')].map(el => el.getAttribute('data-testid'));
-    expect(fields).toEqual([
-      'tree-name-input-P1.2', 'tree-edit-team', 'tree-edit-prio', 'tree-edit-size', 'tree-edit-status',
-    ]);
+    expect(fields).toEqual(['tree-name-input-P1.2', 'tree-edit-team', 'tree-edit-prio', 'tree-edit-size', 'tree-edit-status']);
 
     // Tab off the status field of the LAST row finishes it and opens a new one.
     await press(screen.getByTestId('tree-edit-status'), 'Tab');
@@ -488,7 +559,9 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.1');
     await press(grid(), 'Enter');
     const input = screen.getByTestId('tree-name-input-P1.1');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices tabbed' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Prices tabbed' } });
+    });
     await press(screen.getByTestId('tree-edit-status'), 'Tab');
     await waitFor(() => expect(hasName('Prices tabbed')).toBe(true));
     const next = await screen.findByTestId('tree-name-input-P1.2');
@@ -537,7 +610,9 @@ describe('the tree editor writes through to the plan', () => {
     // Save with Enter.
     await press(grid(), 'Enter');
     let input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks saved' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks saved' } });
+    });
     await press(input, 'Enter');
     await waitFor(() => expect(hasName('Masks saved')).toBe(true));
     expect(document.activeElement).toBe(grid());
@@ -546,7 +621,9 @@ describe('the tree editor writes through to the plan', () => {
     // Cancel with Escape: the name reverts, the row stays the cursor.
     await press(grid(), 'F2');
     input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'thrown away' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'thrown away' } });
+    });
     await press(input, 'Escape');
     expect(document.activeElement).toBe(grid());
     expect(document.querySelector('tr.sel [data-testid="tree-row-name"]').textContent).toContain('Masks saved');
@@ -561,14 +638,22 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.2');
     await press(grid(), 'Enter');
     let input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks by click' } }); });
-    await act(async () => { fireEvent.click(screen.getByTestId('tree-edit-save-P1.2')); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks by click' } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tree-edit-save-P1.2'));
+    });
     await waitFor(() => expect(hasName('Masks by click')).toBe(true));
 
     await press(grid(), 'Enter');
     input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'never' } }); });
-    await act(async () => { fireEvent.click(screen.getByTestId('tree-edit-cancel-P1.2')); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'never' } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tree-edit-cancel-P1.2'));
+    });
     expect(hasName('never')).toBe(false);
     expect(nameOf('P1.2')).toContain('Masks by click');
   });
@@ -579,7 +664,9 @@ describe('the tree editor writes through to the plan', () => {
     await press(grid(), 'Enter');
 
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Masks typing' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Masks typing' } });
+    });
     await press(input, 'ArrowRight', { altKey: true });
     await press(input, 'ArrowRight', { metaKey: true, shiftKey: true });
     await press(input, 'ArrowUp', { metaKey: true, shiftKey: true });
@@ -598,10 +685,10 @@ describe('the tree editor writes through to the plan', () => {
     renderApp();
     await selectRow('P1');
 
-    await press(grid(), 'ArrowRight');   // P1 is expanded → step to first child
+    await press(grid(), 'ArrowRight'); // P1 is expanded → step to first child
     await waitFor(() => expect(document.querySelector('tr.sel td')?.textContent).toContain('P1.1'));
 
-    await press(grid(), 'ArrowLeft');    // P1.1 is a leaf → step out to P1
+    await press(grid(), 'ArrowLeft'); // P1.1 is a leaf → step out to P1
     await waitFor(() => expect(document.querySelector('tr.sel td')?.textContent).toContain('P1'));
   });
 
@@ -628,7 +715,9 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.1');
     await press(grid(), 'Enter');
     const input = screen.getByTestId('tree-name-input-P1.1');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Prices, then clicked away' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Prices, then clicked away' } });
+    });
 
     await selectRow('P1.2');
 
@@ -639,7 +728,7 @@ describe('the tree editor writes through to the plan', () => {
   it('a brand-new row abandoned with Escape hands the cursor back to where it came from', async () => {
     renderApp();
     await selectRow('P1.2');
-    await press(grid(), 'Enter', { shiftKey: true });   // ⇧Enter — new child
+    await press(grid(), 'Enter', { shiftKey: true }); // ⇧Enter — new child
 
     const child = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     expect(child).toBeTruthy();
@@ -694,16 +783,20 @@ describe('the tree editor writes through to the plan', () => {
     // pass P2 and P3 but never "Pr1". The four reorder buttons were enabled (they
     // read the visible order, correctly), the press did nothing, and there
     // was nothing on screen to explain it.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'Pr1', name: 'Project Pr1', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'P4', name: 'Package One', status: 'open', team: 'T1', best: 1, factor: 1 },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Mixed roots', planStart: '2026-01-01', planEnd: '2027-01-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'Pr1', name: 'Project Pr1', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'P4', name: 'Package One', status: 'open', team: 'T1', best: 1, factor: 1 },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Mixed roots', planStart: '2026-01-01', planEnd: '2027-01-01' },
+      }),
+    );
     renderApp();
     await selectRow('P4');
     await waitFor(() => expect(planTree().map(n => n.id)).toEqual(['Pr1', 'P4']));
@@ -717,18 +810,22 @@ describe('the tree editor writes through to the plan', () => {
     // The reported plan, exactly: five roots that have never been reordered
     // (no displayOrder) and three that have. Two sort orders disagreed, so
     // "move P4 before Pr1" resolved to the index P4 already had.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'B1', name: 'Project B1', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'Pr1', name: 'Project Pr1', status: 'open', team: 'T1', best: 1, factor: 1 },
-        { id: 'P4', name: 'Package One', status: 'open', team: 'T1', best: 1, factor: 1, displayOrder: 1 },
-        { id: 'P2', name: 'Project P2', status: 'open', team: 'T1', best: 1, factor: 1, displayOrder: 2 },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Mixed order', planStart: '2026-01-01', planEnd: '2027-01-01' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'B1', name: 'Project B1', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'Pr1', name: 'Project Pr1', status: 'open', team: 'T1', best: 1, factor: 1 },
+          { id: 'P4', name: 'Package One', status: 'open', team: 'T1', best: 1, factor: 1, displayOrder: 1 },
+          { id: 'P2', name: 'Project P2', status: 'open', team: 'T1', best: 1, factor: 1, displayOrder: 2 },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Mixed order', planStart: '2026-01-01', planEnd: '2027-01-01' },
+      }),
+    );
     renderApp();
     await selectRow('P4');
     await waitFor(() => expect(planTree().map(n => n.id)).toEqual(['B1', 'Pr1', 'P4', 'P2']));
@@ -750,8 +847,12 @@ describe('the tree editor writes through to the plan', () => {
 
     const box = document.querySelector('input[placeholder^="Search"]');
     expect(box, 'search box not found').toBeTruthy();
-    await act(async () => { fireEvent.change(box, { target: { value: 'Masks' } }); });
-    await act(async () => { fireEvent.keyDown(box, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.change(box, { target: { value: 'Masks' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: 'Enter' });
+    });
 
     await waitFor(() => {
       const sel = document.querySelector('tr.sel');
@@ -804,7 +905,9 @@ describe('the tree editor writes through to the plan', () => {
 
     await press(grid(), 'Enter');
     const input = screen.getByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Repainted' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Repainted' } });
+    });
     await press(input, 'Enter');
     const trailing = document.querySelector('tr input[data-testid^="tree-name-input-"]');
     if (trailing) await press(trailing, 'Escape');
@@ -864,15 +967,15 @@ describe('the tree editor writes through to the plan', () => {
     });
 
     await waitFor(() => {
-      ['Supplier invoices', 'PO variant', 'Cancellation', 'Ledger mapping']
-        .forEach(name => expect(hasName(name), `"${name}" not pasted`).toBe(true));
+      ['Supplier invoices', 'PO variant', 'Cancellation', 'Ledger mapping'].forEach(name =>
+        expect(hasName(name), `"${name}" not pasted`).toBe(true),
+      );
     });
     const parent = planTree().find(n => n.name.includes('Supplier invoices'));
     const child = planTree().find(n => n.name.includes('PO variant'));
     expect(child.id.startsWith(parent.id + '.'), `${child.id} under ${parent.id}`).toBe(true);
   });
 });
-
 
 // ── Where Enter puts the next row ──────────────────────────────────────────
 // Reported: "with Enter I land in a sub-item and not in an item below the
@@ -887,7 +990,10 @@ describe('⌘↵ makes a sibling, ⇧↵ makes a child', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const depthOf = id => id.split('.').length;
 

@@ -26,22 +26,22 @@ function KVRow({ label, children, style }) {
 }
 
 function StatChip({ label, value, tone = 'default' }) {
-  const toneColor = tone === 'danger' ? 'var(--re)'
-    : tone === 'warn' ? 'var(--am)'
-    : 'var(--tx)';
+  const toneColor = tone === 'danger' ? 'var(--re)' : tone === 'warn' ? 'var(--am)' : 'var(--tx)';
   return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 5,
-      padding: '3px 8px',
-      borderRadius: 999,
-      background: 'var(--bg3)',
-      border: '1px solid var(--b)',
-      fontSize: 11,
-      lineHeight: 1.2,
-      whiteSpace: 'nowrap',
-    }}>
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '3px 8px',
+        borderRadius: 999,
+        background: 'var(--bg3)',
+        border: '1px solid var(--b)',
+        fontSize: 11,
+        lineHeight: 1.2,
+        whiteSpace: 'nowrap',
+      }}
+    >
       <span style={{ color: 'var(--tx3)' }}>{label}</span>
       <span style={{ color: toneColor, fontFamily: 'var(--mono)', fontWeight: 700 }}>{value}</span>
     </span>
@@ -55,10 +55,16 @@ function StatChip({ label, value, tone = 'default' }) {
 export function activatable(onActivate, role = 'button') {
   if (!onActivate) return {};
   return {
-    role, tabIndex: 0, className: 'ins-activatable',
+    role,
+    tabIndex: 0,
+    className: 'ins-activatable',
     onKeyDown: e => {
       if (e.target !== e.currentTarget) return;
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onActivate(e); }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        onActivate(e);
+      }
     },
   };
 }
@@ -78,23 +84,63 @@ function Section({ label, onClick, editLabel, children, extra }) {
         cursor: clickable ? 'pointer' : 'default',
         transition: 'background .12s',
       }}
-      onMouseEnter={clickable ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
-      onMouseLeave={clickable ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+      onMouseEnter={
+        clickable
+          ? e => {
+              e.currentTarget.style.background = 'rgba(108,160,255,.07)';
+            }
+          : undefined
+      }
+      onMouseLeave={
+        clickable
+          ? e => {
+              e.currentTarget.style.background = 'transparent';
+            }
+          : undefined
+      }
     >
-      <div style={{
-        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em',
-        color: clickable ? 'var(--tx2)' : 'var(--tx3)', marginBottom: 4,
-        borderBottom: '1px solid var(--b)', paddingBottom: 3, userSelect: 'none',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-      }}><span>{label}</span>{extra && <span onClick={e => e.stopPropagation()}>{extra}</span>}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '4px 8px' }}>
-        {children}
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '.08em',
+          color: clickable ? 'var(--tx2)' : 'var(--tx3)',
+          marginBottom: 4,
+          borderBottom: '1px solid var(--b)',
+          paddingBottom: 3,
+          userSelect: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 6,
+        }}
+      >
+        <span>{label}</span>
+        {extra && <span onClick={e => e.stopPropagation()}>{extra}</span>}
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '4px 8px' }}>{children}</div>
     </div>
   );
 }
 
-export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, stats, confidence = {}, confReasons = {}, customFields: projectCustomFields, onOpenItem, onEditSection, onPhaseToggle, onSplitHandoff, onSplitTaskAtProgress }) {
+export function TaskInsights({
+  node,
+  tree,
+  members,
+  teams,
+  scheduled,
+  cpSet,
+  stats,
+  confidence = {},
+  confReasons = {},
+  customFields: projectCustomFields,
+  onOpenItem,
+  onEditSection,
+  onPhaseToggle,
+  onSplitHandoff,
+  onSplitTaskAtProgress,
+}) {
   const { t } = useT();
   const editLabel = t('ins.editSection');
   const phaseToggleTip = t('ins.phaseToggle');
@@ -129,10 +175,8 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
 
   // Effort
   const effort = isLeaf ? re(node.best || 0, node.factor || 1.5) : stats?.[node.id]?._r;
-  const effortBest = isLeaf ? (node.best || 0) : stats?.[node.id]?._b;
-  const capacityPct = sc?.capPct != null ? sc.capPct
-    : sc?.capacityFraction != null ? Math.round(sc.capacityFraction * 100)
-    : null;
+  const effortBest = isLeaf ? node.best || 0 : stats?.[node.id]?._b;
+  const capacityPct = sc?.capPct != null ? sc.capPct : sc?.capacityFraction != null ? Math.round(sc.capacityFraction * 100) : null;
   const effortStats = [
     sc?.calDays > 0 ? { label: t('tt.durCal'), value: `${sc.calDays}d` } : null,
     sc?.workingDaysInWindow != null ? { label: t('tt.workingDays'), value: `${sc.workingDaysInWindow}d` } : null,
@@ -142,46 +186,60 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   ].filter(Boolean);
 
   // Schedule
-  const periodStartDate = timeline?.period?.start || (node.status === 'done'
-    ? null
-    : (sc?.startD || null));
-  const periodEndDate = timeline?.period?.end || (node.status === 'done'
-    ? null
-    : (sc?.endD || null));
-  const actualStartDate = timeline?.actual?.start || (node.status === 'done'
-    ? (node.completedStart ? localDate(node.completedStart) : (node.completedAt ? localDate(node.completedAt) : null))
-    : null);
-  const actualEndDate = timeline?.actual?.end || (node.status === 'done'
-    ? (node.completedAt ? localDate(node.completedAt) : (node.completedEnd ? localDate(node.completedEnd) : actualStartDate))
-    : null);
-  const plannedStartDate = actualStartDate ? (timeline?.planned?.start || null) : null;
-  const plannedEndDate = actualEndDate ? (timeline?.planned?.end || null) : null;
-  const hasDistinctPlanned = !!(actualStartDate && actualEndDate && plannedStartDate && plannedEndDate
-    && (plannedStartDate.getTime() !== actualStartDate.getTime() || plannedEndDate.getTime() !== actualEndDate.getTime()));
-  const calDays = (periodStartDate && periodEndDate) ? diffDays(periodStartDate, periodEndDate) : null;
+  const periodStartDate = timeline?.period?.start || (node.status === 'done' ? null : sc?.startD || null);
+  const periodEndDate = timeline?.period?.end || (node.status === 'done' ? null : sc?.endD || null);
+  const actualStartDate =
+    timeline?.actual?.start ||
+    (node.status === 'done'
+      ? node.completedStart
+        ? localDate(node.completedStart)
+        : node.completedAt
+          ? localDate(node.completedAt)
+          : null
+      : null);
+  const actualEndDate =
+    timeline?.actual?.end ||
+    (node.status === 'done'
+      ? node.completedAt
+        ? localDate(node.completedAt)
+        : node.completedEnd
+          ? localDate(node.completedEnd)
+          : actualStartDate
+      : null);
+  const plannedStartDate = actualStartDate ? timeline?.planned?.start || null : null;
+  const plannedEndDate = actualEndDate ? timeline?.planned?.end || null : null;
+  const hasDistinctPlanned = !!(
+    actualStartDate &&
+    actualEndDate &&
+    plannedStartDate &&
+    plannedEndDate &&
+    (plannedStartDate.getTime() !== actualStartDate.getTime() || plannedEndDate.getTime() !== actualEndDate.getTime())
+  );
+  const calDays = periodStartDate && periodEndDate ? diffDays(periodStartDate, periodEndDate) : null;
 
   // Team
   const team = teams?.find(tm => tm.id === node.team);
 
   // Assignees
-  const assignees = useMemo(() =>
-    (node.assign || []).map(id => members?.find(m => m.id === id) || { id, name: id }),
-    [node.assign, members]
+  const assignees = useMemo(
+    () => (node.assign || []).map(id => members?.find(m => m.id === id) || { id, name: id }),
+    [node.assign, members],
   );
 
   // Deps: predecessors
-  const preds = useMemo(() =>
-    (node.deps || []).map(id => {
-      const n = tree.find(r => r.id === id);
-      return { id, name: n?.name || id, status: n?.status || 'open' };
-    }),
-    [node.deps, tree]
+  const preds = useMemo(
+    () =>
+      (node.deps || []).map(id => {
+        const n = tree.find(r => r.id === id);
+        return { id, name: n?.name || id, status: n?.status || 'open' };
+      }),
+    [node.deps, tree],
   );
 
   // Successors: items that list this node as a dep
-  const succs = useMemo(() =>
-    tree.filter(r => (r.deps || []).includes(node.id)).map(r => ({ id: r.id, name: r.name, status: r.status || 'open' })),
-    [tree, node.id]
+  const succs = useMemo(
+    () => tree.filter(r => (r.deps || []).includes(node.id)).map(r => ({ id: r.id, name: r.name, status: r.status || 'open' })),
+    [tree, node.id],
   );
 
   // Inherited predecessors: deps declared on any ancestor block this node too
@@ -191,7 +249,10 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   const inheritedPreds = useMemo(() => {
     const ancestors = [];
     let pid = parentId(node.id);
-    while (pid) { ancestors.push(pid); pid = parentId(pid); }
+    while (pid) {
+      ancestors.push(pid);
+      pid = parentId(pid);
+    }
     const ownDepSet = new Set(node.deps || []);
     const seen = new Set();
     const out = [];
@@ -209,10 +270,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   }, [node.id, node.deps, tree]);
 
   // Custom fields with values
-  const filledCustomFields = useMemo(() =>
-    customFields.filter(cf => (node.customValues || {})[cf.id]),
-    [customFields, node.customValues]
-  );
+  const filledCustomFields = useMemo(() => customFields.filter(cf => (node.customValues || {})[cf.id]), [customFields, node.customValues]);
 
   const statusColor = S_COLOR[status] || 'var(--tx3)';
 
@@ -225,19 +283,32 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         {...activatable(detailsClick)}
         data-htip={detailsClick ? editLabel : undefined}
         style={{
-          padding: '6px 8px', margin: '0 -8px 8px', borderRadius: 'var(--r)',
-          cursor: detailsClick ? 'pointer' : 'default', transition: 'background .12s',
+          padding: '6px 8px',
+          margin: '0 -8px 8px',
+          borderRadius: 'var(--r)',
+          cursor: detailsClick ? 'pointer' : 'default',
+          transition: 'background .12s',
         }}
-        onMouseEnter={detailsClick ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
-        onMouseLeave={detailsClick ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+        onMouseEnter={
+          detailsClick
+            ? e => {
+                e.currentTarget.style.background = 'rgba(108,160,255,.07)';
+              }
+            : undefined
+        }
+        onMouseLeave={
+          detailsClick
+            ? e => {
+                e.currentTarget.style.background = 'transparent';
+              }
+            : undefined
+        }
       >
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--tx)', lineHeight: 1.25, marginBottom: 4 }}>
           {node.name || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('qe.name')}</span>}
         </div>
         {(node.description || node.note) && (
-          <div style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
-            {node.description || node.note}
-          </div>
+          <div style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{node.description || node.note}</div>
         )}
         {node.description && node.note && node.note !== node.description && (
           <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.4, marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
@@ -252,27 +323,58 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
         {...activatable(onEditSection ? () => onEditSection('status') : null)}
         data-htip={onEditSection ? editLabel : undefined}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap',
-          padding: '6px 8px', margin: '0 -8px 8px', borderRadius: 'var(--r)',
-          cursor: onEditSection ? 'pointer' : 'default', transition: 'background .12s',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8,
+          flexWrap: 'wrap',
+          padding: '6px 8px',
+          margin: '0 -8px 8px',
+          borderRadius: 'var(--r)',
+          cursor: onEditSection ? 'pointer' : 'default',
+          transition: 'background .12s',
         }}
-        onMouseEnter={onEditSection ? e => { e.currentTarget.style.background = 'rgba(108,160,255,.07)'; } : undefined}
-        onMouseLeave={onEditSection ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+        onMouseEnter={
+          onEditSection
+            ? e => {
+                e.currentTarget.style.background = 'rgba(108,160,255,.07)';
+              }
+            : undefined
+        }
+        onMouseLeave={
+          onEditSection
+            ? e => {
+                e.currentTarget.style.background = 'transparent';
+              }
+            : undefined
+        }
       >
         <span style={{ fontWeight: 700, color: statusColor, fontSize: 13 }}>
           {S_DOT[status]} {t(S_LABEL[status] || status)}
         </span>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>{progressPctLabel(progPct)}%</span>
         <div style={{ flex: '1 1 80px', height: 5, background: 'var(--bg4)', borderRadius: 3, minWidth: 60 }}>
-          <div style={{ width: `${progPct}%`, height: '100%', background: progPct >= 99.95 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }} />
+          <div
+            style={{ width: `${progPct}%`, height: '100%', background: progPct >= 99.95 ? 'var(--gr)' : 'var(--am)', borderRadius: 3 }}
+          />
         </div>
-        <span style={{ color: confColor, fontSize: 12, fontFamily: 'var(--mono)' }}>{confDot} {confLabel}</span>
+        <span style={{ color: confColor, fontSize: 12, fontFamily: 'var(--mono)' }}>
+          {confDot} {confLabel}
+        </span>
       </div>
 
       {/* Sections */}
 
       {/* Timing section */}
-      {(periodStartDate || periodEndDate || actualStartDate || actualEndDate || timeline?.deadline || node.pinnedStart || node.decideBy || node.due || sc?.blockedBy) && (
+      {(periodStartDate ||
+        periodEndDate ||
+        actualStartDate ||
+        actualEndDate ||
+        timeline?.deadline ||
+        node.pinnedStart ||
+        node.decideBy ||
+        node.due ||
+        sc?.blockedBy) && (
         <Section label={t('ins.timing')} onClick={sec('timing')} editLabel={editLabel}>
           {actualStartDate && actualEndDate && (
             <KVRow label={t('ins.actual')}>
@@ -317,100 +419,122 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
           )}
           {node.pinnedStart && (
             <KVRow label={t('ins.pinned')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={10} />{node.pinnedStart}</span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Icon name="pin" size={10} />
+                {node.pinnedStart}
+              </span>
             </KVRow>
           )}
           {node.decideBy && (
             <KVRow label={t('ins.decideBy')}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: new Date(node.decideBy) < new Date() ? 'var(--re)' : 'var(--tx)' }}>
+              <span
+                style={{ fontFamily: 'var(--mono)', fontSize: 12, color: new Date(node.decideBy) < new Date() ? 'var(--re)' : 'var(--tx)' }}
+              >
                 {node.decideBy}
               </span>
             </KVRow>
           )}
           {/* Due date — hard deadline. Red when scheduler's projected end blows
               past it (sc.dueOverdue) or already in the past for unfinished work. */}
-          {node.due && (() => {
-            const overdueByPlan = !!sc?.dueOverdue;
-            const pastNow = new Date(node.due) < new Date() && node.status !== 'done';
-            const bad = overdueByPlan || pastNow;
-            const latest = sc?.latestStart;
-            const infeasible = !!sc?.dueInfeasible;
-            const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';
-            return (
-              <>
-                <KVRow label={t('ins.due')}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: bad ? 'var(--re)' : 'var(--tx)', fontWeight: bad ? 600 : 400 }}>
-                    ~ {node.due}
-                    {overdueByPlan && (
-                      <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>
-                        ! {t('ins.dueOverdueByPlan')}
-                      </span>
-                    )}
-                  </span>
-                </KVRow>
-                {latest && node.status !== 'done' && (
-                  <KVRow label={t('ins.latestStart')}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: infeasible ? 'var(--re)' : 'var(--tx2)', fontWeight: infeasible ? 600 : 400 }}>
-                      ↶ {fmt(latest)}
-                      {infeasible && (
-                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>
-                          ! {t('ins.latestStartPast')}
-                        </span>
+          {node.due &&
+            (() => {
+              const overdueByPlan = !!sc?.dueOverdue;
+              const pastNow = new Date(node.due) < new Date() && node.status !== 'done';
+              const bad = overdueByPlan || pastNow;
+              const latest = sc?.latestStart;
+              const infeasible = !!sc?.dueInfeasible;
+              const fmt = d => (d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—');
+              return (
+                <>
+                  <KVRow label={t('ins.due')}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--mono)',
+                        fontSize: 12,
+                        color: bad ? 'var(--re)' : 'var(--tx)',
+                        fontWeight: bad ? 600 : 400,
+                      }}
+                    >
+                      ~ {node.due}
+                      {overdueByPlan && (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>! {t('ins.dueOverdueByPlan')}</span>
                       )}
                     </span>
                   </KVRow>
-                )}
-              </>
-            );
-          })()}
+                  {latest && node.status !== 'done' && (
+                    <KVRow label={t('ins.latestStart')}>
+                      <span
+                        style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 12,
+                          color: infeasible ? 'var(--re)' : 'var(--tx2)',
+                          fontWeight: infeasible ? 600 : 400,
+                        }}
+                      >
+                        ↶ {fmt(latest)}
+                        {infeasible && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--re)' }}>! {t('ins.latestStartPast')}</span>
+                        )}
+                      </span>
+                    </KVRow>
+                  )}
+                </>
+              );
+            })()}
           {/* Why does this row sit so far in the future? blockedBy surfaces the
               dep that pushed startD past the assignee's prior free date. Click
               the blocker to jump to it. */}
-          {sc?.blockedBy && (() => {
-            const blocker = scheduled?.find(x => x.id === sc.blockedBy.id);
-            // Only treat as a real label when it differs from the ID — `scheduled`
-            // doesn't include done tasks, so the fallback would just echo the ID.
-            const blockerName = blocker?.name && blocker.name !== sc.blockedBy.id ? blocker.name : '';
-            const blockerPerson = blocker?.person || blocker?.personShort || '';
-            const endIso = sc.blockedBy.endD instanceof Date
-              ? sc.blockedBy.endD.toISOString().slice(0, 10)
-              : String(sc.blockedBy.endD);
-            const meta = [blockerPerson, endIso].filter(Boolean).join(' · ');
-            return (
-              <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>
-                  ~{' '}
-                  <a href="#" style={{ color: 'var(--ac)', textDecoration: 'none' }} onClick={e => { e.preventDefault(); blocker && onOpenItem?.(blocker); }}>
-                    {sc.blockedBy.id}
-                  </a>
-                  {blockerName && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>{blockerName}</span>}
-                  {meta && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>· {meta}</span>}
-                </span>
-              </KVRow>
-            );
-          })()}
+          {sc?.blockedBy &&
+            (() => {
+              const blocker = scheduled?.find(x => x.id === sc.blockedBy.id);
+              // Only treat as a real label when it differs from the ID — `scheduled`
+              // doesn't include done tasks, so the fallback would just echo the ID.
+              const blockerName = blocker?.name && blocker.name !== sc.blockedBy.id ? blocker.name : '';
+              const blockerPerson = blocker?.person || blocker?.personShort || '';
+              const endIso = sc.blockedBy.endD instanceof Date ? sc.blockedBy.endD.toISOString().slice(0, 10) : String(sc.blockedBy.endD);
+              const meta = [blockerPerson, endIso].filter(Boolean).join(' · ');
+              return (
+                <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>
+                    ~{' '}
+                    <a
+                      href="#"
+                      style={{ color: 'var(--ac)', textDecoration: 'none' }}
+                      onClick={e => {
+                        e.preventDefault();
+                        blocker && onOpenItem?.(blocker);
+                      }}
+                    >
+                      {sc.blockedBy.id}
+                    </a>
+                    {blockerName && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>{blockerName}</span>}
+                    {meta && <span style={{ marginLeft: 6, color: 'var(--tx3)' }}>· {meta}</span>}
+                  </span>
+                </KVRow>
+              );
+            })()}
         </Section>
       )}
 
       {/* Effort section — leaf only */}
-      {isLeaf && (node.best > 0) && (
+      {isLeaf && node.best > 0 && (
         <Section label={t('ins.effort')} onClick={sec('effort')} editLabel={editLabel}>
           <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px 8px',
-              flexWrap: 'wrap',
-              padding: '4px 0 2px',
-            }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px 8px',
+                flexWrap: 'wrap',
+                padding: '4px 0 2px',
+              }}
+            >
               <span style={{ color: 'var(--tx3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em' }}>
                 {t('ins.effortBest')}
               </span>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700 }}>{effortBest}d</span>
               <span style={{ fontSize: 11, color: 'var(--tx3)' }}>× {node.factor || 1.5} =</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>
-                {effort?.toFixed(1)}d
-              </span>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--am)' }}>{effort?.toFixed(1)}d</span>
             </div>
             {effortStats.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -433,13 +557,20 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               <span style={{ color: 'var(--am)' }}>◐ {wipUnder}</span>
               <span style={{ color: 'var(--tx3)' }}> · </span>
               <span>○ {openUnder}</span>
-              <span style={{ color: 'var(--tx3)', fontSize: 11 }}> / {leafCount} {t('ins.leaves')}</span>
+              <span style={{ color: 'var(--tx3)', fontSize: 11 }}>
+                {' '}
+                / {leafCount} {t('ins.leaves')}
+              </span>
             </span>
           </KVRow>
-          {(effortBest != null && effortBest > 0) && (
+          {effortBest != null && effortBest > 0 && (
             <KVRow label={t('qe.realistic')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--am)' }}>{effort?.toFixed(0)}d</span>
-              {effortBest > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginLeft: 4 }}>({effortBest?.toFixed(0)}d best)</span>}
+              {effortBest > 0 && (
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginLeft: 4 }}>
+                  ({effortBest?.toFixed(0)}d best)
+                </span>
+              )}
             </KVRow>
           )}
         </Section>
@@ -453,11 +584,7 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
               {(assignees.length > 0 || sc?.autoAssigned) && (
                 <span>{assignees.length > 0 ? assignees.map(m => m.name).join(', ') : sc?.person}</span>
               )}
-              {sc?.autoAssigned && (
-                <AutoAssignBadge title={t('ins.autoAssignedTip')}>
-                  {t('ins.autoAssigned')}
-                </AutoAssignBadge>
-              )}
+              {sc?.autoAssigned && <AutoAssignBadge title={t('ins.autoAssignedTip')}>{t('ins.autoAssigned')}</AutoAssignBadge>}
               {team && (
                 <>
                   <span style={{ color: 'var(--tx3)', fontSize: 11 }}>·</span>
@@ -475,41 +602,60 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       {/* Handoff / offboarding cascade — leaf only when the scheduler had to
           split work across multiple people (or flagged a truncation). */}
       {isLeaf && sc?.segments && (sc.segments.length > 1 || sc.truncatedByOffboard) && (
-        <Section label={sc.segments.length > 1 ? 'Handoff-Kette' : t('ins.offboardWarn')} extra={
-          // Cascade chain present → splitHandoff. Cascade-free truncation →
-          // splitTaskAtProgress at the consumed/total ratio so the split
-          // produces a "done" original (consumed in the past) plus a
-          // follow-up for the unassigned tail.
-          (() => {
-            const hasChain = sc.segments.slice(1).some(s => !s.unscheduled);
-            if (hasChain && onSplitHandoff) {
-              return <button className="btn btn-sec btn-xs"
-                data-htip={t('split.handoff.tip')}
-                onClick={() => onSplitHandoff(node.id)}
-                style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
-            }
-            if (sc.truncatedByOffboard && onSplitTaskAtProgress) {
-              const consumed = sc.segments[0]?.effort || 0;
-              const total = consumed + sc.truncatedByOffboard.remainingEffort;
-              const pct = total > 0 ? Math.max(1, Math.min(99, Math.round(consumed / total * 100))) : 50;
-              return <button className="btn btn-sec btn-xs"
-                data-htip={t('split.task.tip')}
-                onClick={() => onSplitTaskAtProgress(node.id, pct)}
-                style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="subtask" size={11} />{t('split.btn')}</button>;
-            }
-            return null;
-          })()
-        }>
+        <Section
+          label={sc.segments.length > 1 ? 'Handoff-Kette' : t('ins.offboardWarn')}
+          extra={
+            // Cascade chain present → splitHandoff. Cascade-free truncation →
+            // splitTaskAtProgress at the consumed/total ratio so the split
+            // produces a "done" original (consumed in the past) plus a
+            // follow-up for the unassigned tail.
+            (() => {
+              const hasChain = sc.segments.slice(1).some(s => !s.unscheduled);
+              if (hasChain && onSplitHandoff) {
+                return (
+                  <button
+                    className="btn btn-sec btn-xs"
+                    data-htip={t('split.handoff.tip')}
+                    onClick={() => onSplitHandoff(node.id)}
+                    style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <Icon name="subtask" size={11} />
+                    {t('split.btn')}
+                  </button>
+                );
+              }
+              if (sc.truncatedByOffboard && onSplitTaskAtProgress) {
+                const consumed = sc.segments[0]?.effort || 0;
+                const total = consumed + sc.truncatedByOffboard.remainingEffort;
+                const pct = total > 0 ? Math.max(1, Math.min(99, Math.round((consumed / total) * 100))) : 50;
+                return (
+                  <button
+                    className="btn btn-sec btn-xs"
+                    data-htip={t('split.task.tip')}
+                    onClick={() => onSplitTaskAtProgress(node.id, pct)}
+                    style={{ padding: '2px 7px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <Icon name="subtask" size={11} />
+                    {t('split.btn')}
+                  </button>
+                );
+              }
+              return null;
+            })()
+          }
+        >
           {sc.segments.map((seg, i) => {
             const isGhost = !!seg.unscheduled;
-            const fmt = d => d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—';
+            const fmt = d => (d ? (d instanceof Date ? d.toISOString().slice(0, 10) : d) : '—');
             return (
               <KVRow key={i} label={isGhost ? '!' : seg.handoff ? '↳' : '●'}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 600, color: isGhost ? 'var(--re)' : 'var(--tx)' }}>{seg.personName}</span>
                   <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{seg.effort.toFixed(1)}d</span>
                   <span style={{ color: 'var(--tx3)', fontSize: 11 }}>·</span>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{fmt(seg.startD)} → {fmt(seg.endD)}</span>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>
+                    {fmt(seg.startD)} → {fmt(seg.endD)}
+                  </span>
                   {seg.offboarded && <span style={{ fontSize: 11, color: 'var(--am)' }}>offboarded</span>}
                 </span>
               </KVRow>
@@ -531,11 +677,13 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
                   // the slot when locating it by literal match.
                   const idx = txt.indexOf(t('split.btn'));
                   if (idx < 0) return txt;
-                  return <>
-                    {txt.slice(0, idx)}
-                    <b>{t('split.btn')}</b>
-                    {txt.slice(idx + t('split.btn').length)}
-                  </>;
+                  return (
+                    <>
+                      {txt.slice(0, idx)}
+                      <b>{t('split.btn')}</b>
+                      {txt.slice(idx + t('split.btn').length)}
+                    </>
+                  );
                 })()}
               </span>
             </KVRow>
@@ -544,35 +692,74 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
       )}
 
       {/* Phases section — leaf only, if phases exist */}
-      {isLeaf && node.phases?.length > 0 && (() => {
-        const currentPhaseIdx = node.phases.findIndex(p => p.status !== 'done');
-        return (
-          <Section label={t('ins.phases')} onClick={sec('phases')} editLabel={editLabel}>
-            {node.phases.map((ph, idx) => {
-              const isCurrent = idx === currentPhaseIdx;
-              const dot = PH_DOT[ph.status] || '○';
-              const color = PH_COLOR[ph.status] || 'var(--tx3)';
-              const pct = ph.effortPct != null ? ph.effortPct : null;
-              return (
-                <KVRow key={ph.id || idx} label="">
-                  <span style={{ fontSize: 12, color: isCurrent ? 'var(--tx)' : 'var(--tx2)', fontWeight: isCurrent ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
+      {isLeaf &&
+        node.phases?.length > 0 &&
+        (() => {
+          const currentPhaseIdx = node.phases.findIndex(p => p.status !== 'done');
+          return (
+            <Section label={t('ins.phases')} onClick={sec('phases')} editLabel={editLabel}>
+              {node.phases.map((ph, idx) => {
+                const isCurrent = idx === currentPhaseIdx;
+                const dot = PH_DOT[ph.status] || '○';
+                const color = PH_COLOR[ph.status] || 'var(--tx3)';
+                const pct = ph.effortPct != null ? ph.effortPct : null;
+                return (
+                  <KVRow key={ph.id || idx} label="">
                     <span
-                      style={{ color, cursor: onPhaseToggle ? 'pointer' : 'default', transition: 'transform .1s', display: 'inline-block' }}
-                      data-htip={onPhaseToggle ? phaseToggleTip : undefined}
-                      onClick={onPhaseToggle ? e => { e.stopPropagation(); onPhaseToggle(ph.id); } : undefined}
-                      onMouseEnter={onPhaseToggle ? e => { e.currentTarget.style.transform = 'scale(1.4)'; } : undefined}
-                      onMouseLeave={onPhaseToggle ? e => { e.currentTarget.style.transform = 'scale(1)'; } : undefined}
-                    >{dot}</span>
-                    <span>{ph.name || ph.id}</span>
-                    {pct != null && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
-                    {isCurrent && <Icon name="chevronLeft" size={10} style={{ color: 'var(--ac)', marginLeft: 2, display: 'inline-block' }} />}
-                  </span>
-                </KVRow>
-              );
-            })}
-          </Section>
-        );
-      })()}
+                      style={{
+                        fontSize: 12,
+                        color: isCurrent ? 'var(--tx)' : 'var(--tx2)',
+                        fontWeight: isCurrent ? 600 : 400,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                    >
+                      <span
+                        style={{
+                          color,
+                          cursor: onPhaseToggle ? 'pointer' : 'default',
+                          transition: 'transform .1s',
+                          display: 'inline-block',
+                        }}
+                        data-htip={onPhaseToggle ? phaseToggleTip : undefined}
+                        onClick={
+                          onPhaseToggle
+                            ? e => {
+                                e.stopPropagation();
+                                onPhaseToggle(ph.id);
+                              }
+                            : undefined
+                        }
+                        onMouseEnter={
+                          onPhaseToggle
+                            ? e => {
+                                e.currentTarget.style.transform = 'scale(1.4)';
+                              }
+                            : undefined
+                        }
+                        onMouseLeave={
+                          onPhaseToggle
+                            ? e => {
+                                e.currentTarget.style.transform = 'scale(1)';
+                              }
+                            : undefined
+                        }
+                      >
+                        {dot}
+                      </span>
+                      <span>{ph.name || ph.id}</span>
+                      {pct != null && <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{pct}%</span>}
+                      {isCurrent && (
+                        <Icon name="chevronLeft" size={10} style={{ color: 'var(--ac)', marginLeft: 2, display: 'inline-block' }} />
+                      )}
+                    </span>
+                  </KVRow>
+                );
+              })}
+            </Section>
+          );
+        })()}
 
       {/* Dependencies section */}
       {(preds.length > 0 || succs.length > 0 || inheritedPreds.length > 0) && (
@@ -581,9 +768,15 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             <KVRow label={t('qe.predecessors')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {preds.map(p => (
-                  <span key={p.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}
-                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}>
+                  <span
+                    key={p.id}
+                    style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onOpenItem?.(p.id);
+                    }}
+                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}
+                  >
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
@@ -596,10 +789,16 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             <KVRow label={t('ins.inheritedDeps')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {inheritedPreds.map(p => (
-                  <span key={p.id + ':' + p.via} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
+                  <span
+                    key={p.id + ':' + p.via}
+                    style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
                     data-htip={t('ins.inheritedDepTip', p.via, p.id)}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(p.id); }}
-                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}>
+                    onClick={e => {
+                      e.stopPropagation();
+                      onOpenItem?.(p.id);
+                    }}
+                    {...activatable(onOpenItem ? () => onOpenItem(p.id) : null, 'link')}
+                  >
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--am)' }}>↰ {p.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[p.status] }}>{S_DOT[p.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{p.name}</span>
@@ -613,9 +812,15 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             <KVRow label={t('qe.successors')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {succs.map(s => (
-                  <span key={s.id} style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
-                    onClick={e => { e.stopPropagation(); onOpenItem?.(s.id); }}
-                    {...activatable(onOpenItem ? () => onOpenItem(s.id) : null, 'link')}>
+                  <span
+                    key={s.id}
+                    style={{ cursor: onOpenItem ? 'pointer' : 'default' }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onOpenItem?.(s.id);
+                    }}
+                    {...activatable(onOpenItem ? () => onOpenItem(s.id) : null, 'link')}
+                  >
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)' }}>{s.id}</span>
                     <span style={{ marginLeft: 4, color: S_COLOR[s.status] }}>{S_DOT[s.status]}</span>
                     <span style={{ marginLeft: 4, fontSize: 12, color: 'var(--tx2)' }}>{s.name}</span>
@@ -635,10 +840,20 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
             const url = cf.type === 'uri' ? resolveUri(cf, val) : null;
             return (
               <KVRow key={cf.id} label={cf.name}>
-                {url
-                  ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ color: 'var(--ac)', fontSize: 12 }}>{val}</a>
-                  : <span style={{ fontSize: 12 }}>{val}</span>
-                }
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    onMouseDown={e => e.stopPropagation()}
+                    style={{ color: 'var(--ac)', fontSize: 12 }}
+                  >
+                    {val}
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 12 }}>{val}</span>
+                )}
               </KVRow>
             );
           })}

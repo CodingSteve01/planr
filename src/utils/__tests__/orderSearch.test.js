@@ -15,10 +15,14 @@ import { sortTree } from '../treeEdit.js';
 
 const PS = '2026-01-05';
 const members = [{ id: 'X', name: 'Xaver', team: 'B', cap: 1, vac: 0, start: '2026-01-01' }];
-const reschedule = tree => schedule(tree, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS,
-  { now: PS, anchorToToday: false, discountProgress: false }).results;
+const reschedule = tree =>
+  schedule(tree, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS, { now: PS, anchorToToday: false, discountProgress: false })
+    .results;
 const leaf = (id, best, extra = {}) => ({ id, name: id, team: 'B', best, factor: 1, status: 'open', ...extra });
-const rootOrder = tree => sortTree(tree).filter(n => !n.id.includes('.')).map(n => n.id);
+const rootOrder = tree =>
+  sortTree(tree)
+    .filter(n => !n.id.includes('.'))
+    .map(n => n.id);
 const run = async (tree, opts = {}) => {
   const out = [];
   for await (const step of searchOrders({ tree, reschedule, ...opts })) out.push(step);
@@ -28,8 +32,10 @@ const run = async (tree, opts = {}) => {
 describe('working out the order of projects', () => {
   test('moves a project without a date behind the late one it holds back', async () => {
     const tree = [
-      { id: 'P1', name: 'Bookkeeping', displayOrder: 1 }, leaf('P1.1', 20),
-      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 }, leaf('P2.1', 10),
+      { id: 'P1', name: 'Bookkeeping', displayOrder: 1 },
+      leaf('P1.1', 20),
+      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 },
+      leaf('P2.1', 10),
     ];
     const result = await run(tree);
     expect(result.done).toBe(true);
@@ -44,8 +50,10 @@ describe('working out the order of projects', () => {
 
   test('proposes nothing when a dependency makes the order a fact', async () => {
     const tree = [
-      { id: 'P1', name: 'Bookkeeping', displayOrder: 1 }, leaf('P1.1', 20),
-      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 }, leaf('P2.1', 10, { deps: ['P1.1'] }),
+      { id: 'P1', name: 'Bookkeeping', displayOrder: 1 },
+      leaf('P1.1', 20),
+      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 },
+      leaf('P2.1', 10, { deps: ['P1.1'] }),
     ];
     const result = await run(tree);
     expect(result.alternatives).toEqual([]);
@@ -54,7 +62,8 @@ describe('working out the order of projects', () => {
   test('stops at its run budget and says how far it got', async () => {
     const tree = [
       ...['P1', 'P2', 'P3', 'P4', 'P5'].flatMap((id, i) => [
-        { id, name: id, displayOrder: i + 1, ...(i === 4 ? { date: '2026-01-20' } : {}) }, leaf(`${id}.1`, 5),
+        { id, name: id, displayOrder: i + 1, ...(i === 4 ? { date: '2026-01-20' } : {}) },
+        leaf(`${id}.1`, 5),
       ]),
     ];
     const steps = [];
@@ -67,8 +76,10 @@ describe('working out the order of projects', () => {
 
   test('applying an order writes it into the tree', () => {
     const tree = [
-      { id: 'P1', name: 'A', displayOrder: 1 }, leaf('P1.1', 1),
-      { id: 'P2', name: 'B', displayOrder: 2 }, leaf('P2.1', 1),
+      { id: 'P1', name: 'A', displayOrder: 1 },
+      leaf('P1.1', 1),
+      { id: 'P2', name: 'B', displayOrder: 2 },
+      leaf('P2.1', 1),
       { id: 'P3', name: 'C', displayOrder: 3, status: 'done' },
     ];
     expect(rootOrder(applyRootOrder(tree, ['P2', 'P1']))).toEqual(['P3', 'P2', 'P1']);
@@ -78,9 +89,12 @@ describe('working out the order of projects', () => {
 describe('moving a project to the very end', () => {
   test('is one of the orders tried', async () => {
     const tree = [
-      { id: 'P1', name: 'Big', displayOrder: 1 }, leaf('P1.1', 20),
-      { id: 'P2', name: 'Billing', date: '2026-01-23', displayOrder: 2 }, leaf('P2.1', 5),
-      { id: 'P3', name: 'Billing too', date: '2026-01-30', displayOrder: 3 }, leaf('P3.1', 5),
+      { id: 'P1', name: 'Big', displayOrder: 1 },
+      leaf('P1.1', 20),
+      { id: 'P2', name: 'Billing', date: '2026-01-23', displayOrder: 2 },
+      leaf('P2.1', 5),
+      { id: 'P3', name: 'Billing too', date: '2026-01-30', displayOrder: 3 },
+      leaf('P3.1', 5),
     ];
     const result = await run(tree);
     expect(result.alternatives[0].order).toEqual(['P2', 'P3', 'P1']);
@@ -94,12 +108,16 @@ describe('orders with the same outcome', () => {
       { id: 'X', name: 'Xaver', team: 'B', cap: 1, vac: 0, start: '2026-01-01' },
       { id: 'Y', name: 'Yvonne', team: 'F', cap: 1, vac: 0, start: '2026-01-01' },
     ];
-    const resched = tree => schedule(tree, two, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS,
-      { now: PS, anchorToToday: false, discountProgress: false }).results;
+    const resched = tree =>
+      schedule(tree, two, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS, { now: PS, anchorToToday: false, discountProgress: false })
+        .results;
     const tree = [
-      { id: 'P1', name: 'Big', displayOrder: 1 }, leaf('P1.1', 20),
-      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 }, leaf('P2.1', 10),
-      { id: 'P3', name: 'Elsewhere', displayOrder: 3 }, { ...leaf('P3.1', 5), team: 'F' },
+      { id: 'P1', name: 'Big', displayOrder: 1 },
+      leaf('P1.1', 20),
+      { id: 'P2', name: 'Billing', date: '2026-01-30', displayOrder: 2 },
+      leaf('P2.1', 10),
+      { id: 'P3', name: 'Elsewhere', displayOrder: 3 },
+      { ...leaf('P3.1', 5), team: 'F' },
     ];
     const out = [];
     for await (const s of searchOrders({ tree, reschedule: resched })) out.push(s);
@@ -114,7 +132,8 @@ describe('the moves of an order', () => {
   test('are named against projects that stay where they are', async () => {
     const { movesBetween } = await import('../orderSearch.js');
     expect(movesBetween(['A', 'B', 'C', 'D'], ['B', 'A', 'D', 'C'])).toEqual([
-      { id: 'B', before: 'A' }, { id: 'D', before: 'C' },
+      { id: 'B', before: 'A' },
+      { id: 'D', before: 'C' },
     ]);
     expect(movesBetween(['A', 'B', 'C'], ['B', 'C', 'A'])).toEqual([{ id: 'A', after: 'C' }]);
   });

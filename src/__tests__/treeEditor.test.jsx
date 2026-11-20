@@ -38,13 +38,14 @@ function Harness({ initialTree, initialSelectedId = null, initialMultiSelIds = [
   const onSelect = (node, e, visibleIds) => {
     spies.onSelect?.(node, e, visibleIds);
     if (e?.shiftKey && selected && visibleIds?.length) {
-      const ai = visibleIds.indexOf(selected.id), bi = visibleIds.indexOf(node.id);
+      const ai = visibleIds.indexOf(selected.id),
+        bi = visibleIds.indexOf(node.id);
       if (ai >= 0 && bi >= 0) {
         setMultiSel(new Set(visibleIds.slice(Math.min(ai, bi), Math.max(ai, bi) + 1)));
         return;
       }
     }
-    setSelected(node?.id ? (tree.find(r => r.id === node.id) || node) : node);
+    setSelected(node?.id ? tree.find(r => r.id === node.id) || node : node);
     setMultiSel(new Set());
   };
   const onTaskUpdate = patch => {
@@ -80,11 +81,17 @@ function Harness({ initialTree, initialSelectedId = null, initialMultiSelIds = [
       let insertAt = after ? idx + 1 : t.length;
       if (after) {
         for (let i = t.length - 1; i >= 0; i--) {
-          if (t[i].id === atIndexOf || t[i].id.startsWith(atIndexOf + '.')) { insertAt = i + 1; break; }
+          if (t[i].id === atIndexOf || t[i].id.startsWith(atIndexOf + '.')) {
+            insertAt = i + 1;
+            break;
+          }
         }
       } else {
         for (let i = t.length - 1; i >= 0; i--) {
-          if (t[i].id === atIndexOf || t[i].id.startsWith(atIndexOf + '.')) { insertAt = i + 1; break; }
+          if (t[i].id === atIndexOf || t[i].id.startsWith(atIndexOf + '.')) {
+            insertAt = i + 1;
+            break;
+          }
         }
       }
       next.splice(insertAt, 0, node);
@@ -115,12 +122,35 @@ function Harness({ initialTree, initialSelectedId = null, initialMultiSelIds = [
     });
   };
 
-  return <TreeView tree={tree} selected={selected} multiSel={multiSel} onSelect={onSelect}
-    search="" teamFilter="" rootFilter="" personFilter="" stats={{}} teams={[]} members={[]} scheduled={[]}
-    cpSet={new Set()} customFields={[]} sizes={sizes}
-    onQuickAdd={() => {}} onDelete={onDelete} onReorder={onReorder} onTaskUpdate={onTaskUpdate}
-    onMove={onMove} onCommand={onCommand} onInsertAfter={onInsertAfter} onInsertChild={onInsertChild}
-    onBulkDelete={onBulkDelete} onPasteRows={onPasteRows} />;
+  return (
+    <TreeView
+      tree={tree}
+      selected={selected}
+      multiSel={multiSel}
+      onSelect={onSelect}
+      search=""
+      teamFilter=""
+      rootFilter=""
+      personFilter=""
+      stats={{}}
+      teams={[]}
+      members={[]}
+      scheduled={[]}
+      cpSet={new Set()}
+      customFields={[]}
+      sizes={sizes}
+      onQuickAdd={() => {}}
+      onDelete={onDelete}
+      onReorder={onReorder}
+      onTaskUpdate={onTaskUpdate}
+      onMove={onMove}
+      onCommand={onCommand}
+      onInsertAfter={onInsertAfter}
+      onInsertChild={onInsertChild}
+      onBulkDelete={onBulkDelete}
+      onPasteRows={onPasteRows}
+    />
+  );
 }
 
 function renderHarness(props) {
@@ -153,7 +183,9 @@ describe('tree editor — keyboard model', () => {
     const onInsertAfter = vi.fn();
     const tree = [mk('P1', { name: 'Root' })];
     const { container, getByTestId, queryByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onTaskUpdate, onInsertAfter },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onTaskUpdate, onInsertAfter },
     });
 
     fireEvent.keyDown(container, { key: 'Enter' });
@@ -173,10 +205,12 @@ describe('tree editor — keyboard model', () => {
     const onInsertAfter = vi.fn();
     const tree = [mk('P1', { name: 'Root' })];
     const { container, getByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onInsertAfter },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onInsertAfter },
     });
 
-    fireEvent.keyDown(container, { key: 'Enter', shiftKey: true });   // new child, editing
+    fireEvent.keyDown(container, { key: 'Enter', shiftKey: true }); // new child, editing
     const first = getByTestId('tree-name-input-NEW100');
     fireEvent.change(first, { target: { value: 'First step' } });
     fireEvent.keyDown(first, { key: 'Enter' });
@@ -190,7 +224,9 @@ describe('tree editor — keyboard model', () => {
     const onTaskUpdate = vi.fn();
     const tree = [mk('P1', { name: 'Root' })];
     const { container, getByTestId, queryByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onDelete, onTaskUpdate },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onDelete, onTaskUpdate },
     });
 
     // ⇧Enter: an empty child, open for typing.
@@ -209,7 +245,9 @@ describe('tree editor — keyboard model', () => {
     const onInsertChild = vi.fn();
     const tree = [mk('P1')];
     const { container, getByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onInsertChild },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onInsertChild },
     });
 
     fireEvent.keyDown(container, { key: 'Enter', shiftKey: true });
@@ -222,7 +260,9 @@ describe('tree editor — keyboard model', () => {
     const onTaskUpdate = vi.fn();
     const tree = [mk('P1', { name: 'Original' })];
     const { container, getByTestId, queryByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onTaskUpdate },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onTaskUpdate },
     });
 
     fireEvent.keyDown(container, { key: 'Enter' });
@@ -241,7 +281,9 @@ describe('tree editor — keyboard model', () => {
     const onDelete = vi.fn();
     const tree = [mk('P1')];
     const { container, getByTestId, queryByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onDelete },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onDelete },
     });
 
     fireEvent.keyDown(container, { key: 'Enter', shiftKey: true });
@@ -306,7 +348,8 @@ describe('tree editor — keyboard model', () => {
     const onTaskUpdate = vi.fn();
     const tree = [mk('P1'), mk('P1.1', { prio: 3 }), mk('P1.2', { prio: 3 }), mk('P1.3', { prio: 3 })];
     const { container } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1.1',
+      initialTree: tree,
+      initialSelectedId: 'P1.1',
       initialMultiSelIds: ['P1.1', 'P1.2', 'P1.3'],
       spies: { onTaskUpdate },
     });
@@ -323,8 +366,13 @@ describe('tree editor — keyboard model', () => {
     const onTaskUpdate = vi.fn();
     const tree = [mk('P1.1')];
     const { container } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1.1', spies: { onTaskUpdate },
-      sizes: [{ label: 'S', days: 2, factor: 1.2 }, { label: 'M', days: 6, factor: 1.4 }],
+      initialTree: tree,
+      initialSelectedId: 'P1.1',
+      spies: { onTaskUpdate },
+      sizes: [
+        { label: 'S', days: 2, factor: 1.2 },
+        { label: 'M', days: 6, factor: 1.4 },
+      ],
     });
 
     fireEvent.keyDown(container, { key: 'm' });
@@ -336,7 +384,9 @@ describe('tree editor — keyboard model', () => {
     const onTaskUpdate = vi.fn();
     const tree = [mk('P1.1')];
     const { container } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1.1', spies: { onTaskUpdate },
+      initialTree: tree,
+      initialSelectedId: 'P1.1',
+      spies: { onTaskUpdate },
       sizes: [{ label: 'M', days: 6, factor: 1.4 }],
     });
 
@@ -370,7 +420,9 @@ describe('tree editor — keyboard model', () => {
     const onDelete = vi.fn();
     const tree = [mk('P1'), mk('P1.1'), mk('P1.2'), mk('P1.3')];
     const { container } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1.1', initialMultiSelIds: ['P1.1', 'P1.2', 'P1.3'],
+      initialTree: tree,
+      initialSelectedId: 'P1.1',
+      initialMultiSelIds: ['P1.1', 'P1.2', 'P1.3'],
       spies: { onBulkDelete, onDelete },
     });
 
@@ -405,7 +457,9 @@ describe('tree editor — keyboard model', () => {
     const onPasteRows = vi.fn();
     const tree = [mk('P1', { name: 'Root' })];
     const { container, getByTestId } = renderHarness({
-      initialTree: tree, initialSelectedId: 'P1', spies: { onPasteRows },
+      initialTree: tree,
+      initialSelectedId: 'P1',
+      spies: { onPasteRows },
     });
 
     fireEvent.keyDown(container, { key: 'Enter' });

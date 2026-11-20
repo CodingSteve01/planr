@@ -30,7 +30,11 @@ export async function writeWithRetry(handle, content, { delays = [0, 1200, 3500]
     } catch (e) {
       last = e;
       // A half-written stream leaves a swap file beside the plan.
-      try { await writable?.abort?.(); } catch { /* already closed */ }
+      try {
+        await writable?.abort?.();
+      } catch {
+        /* already closed */
+      }
       if (!isBusy(e)) throw e;
     }
   }
@@ -40,8 +44,11 @@ export async function writeWithRetry(handle, content, { delays = [0, 1200, 3500]
 // Is the handle still allowed to write? A failed write with the permission
 // intact is the file being busy, not the file being gone.
 export async function stillWritable(handle) {
-  try { return !handle.queryPermission || (await handle.queryPermission({ mode: 'readwrite' })) === 'granted'; }
-  catch { return false; }
+  try {
+    return !handle.queryPermission || (await handle.queryPermission({ mode: 'readwrite' })) === 'granted';
+  } catch {
+    return false;
+  }
 }
 
 // How often a busy file is waited for before the save is reported as failed.

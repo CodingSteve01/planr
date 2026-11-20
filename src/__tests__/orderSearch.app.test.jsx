@@ -7,7 +7,10 @@ import { PlanReview } from '../components/views/PlanReview.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { schedule } from '../utils/scheduler.js';
 
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 const PS = '2026-01-05';
 const members = [{ id: 'X', name: 'Xaver', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }];
@@ -17,18 +20,33 @@ const tree = [
   { id: 'P2', name: 'Billing', type: 'deadline', date: '2026-01-30', displayOrder: 2 },
   { id: 'P2.1', name: 'Masks', team: 'T1', best: 10, factor: 1, status: 'open' },
 ];
-const reschedule = t => schedule(t, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS,
-  { now: PS, anchorToToday: false, discountProgress: false }).results;
+const reschedule = t =>
+  schedule(t, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS, { now: PS, anchorToToday: false, discountProgress: false }).results;
 
 describe('working out the order in the planning review', () => {
   it('lists the better order and applies it on request', async () => {
     localStorage.setItem('planr_lang', 'en');
     const onApplyOrder = vi.fn();
-    render(<I18nProvider><ThemeProvider>
-      <PlanReview tree={tree} planTree={tree} scheduled={reschedule(tree)} members={members} teams={[{ id: 'T1', name: 'Team' }]}
-        confidence={{}} cpSet={new Set()} stats={{}} onOpenItem={() => {}} onUpdate={() => {}}
-        reschedule={reschedule} onApplyOrder={onApplyOrder} />
-    </ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <PlanReview
+            tree={tree}
+            planTree={tree}
+            scheduled={reschedule(tree)}
+            members={members}
+            teams={[{ id: 'T1', name: 'Team' }]}
+            confidence={{}}
+            cpSet={new Set()}
+            stats={{}}
+            onOpenItem={() => {}}
+            onUpdate={() => {}}
+            reschedule={reschedule}
+            onApplyOrder={onApplyOrder}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click(screen.getByText('Order'));
     fireEvent.click(screen.getByTestId('order-search-start'));
     const alt = await waitFor(() => {

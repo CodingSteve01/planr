@@ -30,11 +30,12 @@ export function planInconsistencies(tree) {
     }
     if (node.status === 'done' && childIds.has(node.id) && !droppedIds.has(node.id)) {
       const open = [];
-      const walk = id => (childIds.get(id) || []).forEach(cid => {
-        if (droppedIds.has(cid)) return;
-        if (childIds.has(cid)) walk(cid);
-        else if (byId.get(cid)?.status !== 'done') open.push(cid);
-      });
+      const walk = id =>
+        (childIds.get(id) || []).forEach(cid => {
+          if (droppedIds.has(cid)) return;
+          if (childIds.has(cid)) walk(cid);
+          else if (byId.get(cid)?.status !== 'done') open.push(cid);
+        });
       walk(node.id);
       if (open.length) out.push({ kind: 'doneOverOpen', id: node.id, openIds: open });
     }

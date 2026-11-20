@@ -10,7 +10,10 @@ const exported = [];
 let failNextExport = false;
 vi.mock('../utils/scenarioReport.js', () => ({
   exportScenarioComparePDF: async model => {
-    if (failNextExport) { failNextExport = false; throw new Error('pdf engine missing'); }
+    if (failNextExport) {
+      failNextExport = false;
+      throw new Error('pdf engine missing');
+    }
     exported.push(model);
   },
 }));
@@ -18,7 +21,13 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function renderApp() {
-  return render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+  return render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 }
 
 function seedProject(extra = {}) {
@@ -41,13 +50,20 @@ function seedProject(extra = {}) {
 const stored = () => JSON.parse(localStorage.getItem('planr_v2'));
 // The cache is written a moment after an edit (debounced, then on idle).
 const storedWhen = async check => {
-  await waitFor(() => { check(stored()); }, { timeout: 8000, interval: 100 });
+  await waitFor(
+    () => {
+      check(stored());
+    },
+    { timeout: 8000, interval: 100 },
+  );
   return stored();
 };
 
 async function undo() {
   const e = new KeyboardEvent('keydown', { key: 'z', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true });
-  await act(async () => { window.dispatchEvent(e); });
+  await act(async () => {
+    window.dispatchEvent(e);
+  });
 }
 
 async function createScenario(name) {
@@ -75,7 +91,10 @@ describe('scenarios in the App', () => {
     localStorage.setItem('planr_tab', 'tree');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('says where you are: no bar in the plan, a bar and a frame in a scenario', async () => {
     const { container } = renderApp();
@@ -232,14 +251,18 @@ describe('scenarios in the App', () => {
   it('looking at a scenario that no longer fully fits does not rewrite it', async () => {
     // The stored scenario changes P1.2 and an item the plan no longer has.
     const patch = { tree: { set: { 'P1.2': { best: 9 }, 'P1.9': { best: 3 } } } };
-    seedProject({ scenarios: [{ id: 's1', name: 'Old idea', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', patch }] });
+    seedProject({
+      scenarios: [{ id: 's1', name: 'Old idea', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', patch }],
+    });
     renderApp();
     fireEvent.click(await screen.findByTestId('scenario-switch'));
     fireEvent.click(screen.getByTestId('scenario-pick-s1'));
     await screen.findByTestId('scenario-bar');
     expect(screen.getByTestId('scenario-bar-conflicts').textContent).toContain('1 change no longer applies');
     // Long enough for a save to have happened.
-    await act(async () => { await new Promise(r => setTimeout(r, 2600)); });
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 2600));
+    });
     expect(stored().scenarios[0]).toMatchObject({ patch, updatedAt: '2026-01-02T00:00:00.000Z' });
     // Leaving and coming back still says so.
     fireEvent.click(screen.getByTestId('scenario-leave'));
@@ -253,10 +276,22 @@ describe('scenarios in the App', () => {
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     seedProject({
       meta: { name: 'Team Test', planStart: iso },
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 }, { id: 'M2', name: 'Ben', team: 'T1', cap: 1, vac: 0 }],
+      members: [
+        { id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 },
+        { id: 'M2', name: 'Ben', team: 'T1', cap: 1, vac: 0 },
+      ],
       tree: [
         { id: 'P1', name: 'Project', status: 'open', type: 'goal' },
-        ...[1, 2, 3, 4].map(i => ({ id: `P1.${i}`, name: `Task ${i}`, team: 'T1', best: 10, factor: 1, status: 'open', assign: [], deps: [] })),
+        ...[1, 2, 3, 4].map(i => ({
+          id: `P1.${i}`,
+          name: `Task ${i}`,
+          team: 'T1',
+          best: 10,
+          factor: 1,
+          status: 'open',
+          assign: [],
+          deps: [],
+        })),
       ],
       scenarios: [{ id: 's1', name: 'Without Ben', patch: { members: { del: ['M2'] } }, changes: 1 }],
     });
@@ -293,7 +328,8 @@ describe('scenarios in the App', () => {
 
   it('a failed export is reported once, and the report card shows no success', async () => {
     const alerts = [];
-    const realAlert = window.alert, realError = console.error;
+    const realAlert = window.alert,
+      realError = console.error;
     window.alert = msg => alerts.push(String(msg));
     console.error = () => {};
     failNextExport = true;
@@ -308,7 +344,11 @@ describe('scenarios in the App', () => {
       expect(alerts[0]).toContain('pdf engine missing');
       // Back to its label, not to a tick.
       await waitFor(() => expect(button.textContent).toBe('PDF'));
-    } finally { window.alert = realAlert; console.error = realError; failNextExport = false; }
+    } finally {
+      window.alert = realAlert;
+      console.error = realError;
+      failNextExport = false;
+    }
   });
 
   it('offers the comparison in the report view only while a scenario is on screen', async () => {

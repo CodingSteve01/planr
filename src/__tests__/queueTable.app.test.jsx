@@ -18,45 +18,60 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-      { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'B', name: 'Projekt B', status: 'open', team: 'T1' },
-      { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Queue table', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'B', name: 'Projekt B', status: 'open', team: 'T1' },
+        { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Queue table', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
-const rowIds = () => [...document.querySelectorAll('[data-queue-row]')]
-  .map(el => el.getAttribute('data-queue-row'));
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
+const rowIds = () => [...document.querySelectorAll('[data-queue-row]')].map(el => el.getAttribute('data-queue-row'));
 
 // Its own view. Resources is where people, teams and holidays are
 // administered; "in which order does who work" is planning, and it was filed
 // under admin because that is where the person records happened to live.
 async function openWorkOrder() {
   renderApp();
-  await waitFor(() => { if (!tabNamed('Work order')) throw new Error('no tab'); });
-  await act(async () => { fireEvent.mouseDown(tabNamed('Work order'), { button: 0 }); });
-  await waitFor(() => { if (!rowIds().length) throw new Error('no rows'); });
+  await waitFor(() => {
+    if (!tabNamed('Work order')) throw new Error('no tab');
+  });
+  await act(async () => {
+    fireEvent.mouseDown(tabNamed('Work order'), { button: 0 });
+  });
+  await waitFor(() => {
+    if (!rowIds().length) throw new Error('no rows');
+  });
 }
 
 const press = async (id, key, opts = {}) => {
   const row = document.querySelector(`[data-queue-row="${id}"]`);
-  await act(async () => { fireEvent.keyDown(row, { key, bubbles: true, ...opts }); });
+  await act(async () => {
+    fireEvent.keyDown(row, { key, bubbles: true, ...opts });
+  });
 };
 
-describe('a person\'s work order as a table', () => {
+describe("a person's work order as a table", () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -65,7 +80,10 @@ describe('a person\'s work order as a table', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('lists what one person has, in the order they will do it', async () => {
     await openWorkOrder();
@@ -75,33 +93,45 @@ describe('a person\'s work order as a table', () => {
   it('⌥↑ moves a task up, the same key as in the tree', async () => {
     await openWorkOrder();
     await press('B.1', 'ArrowUp', { altKey: true });
-    await waitFor(() => { if (rowIds()[1] !== 'B.1') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[1] !== 'B.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.1', 'B.1', 'A.2']);
   });
 
   it('⌥⇧↑ takes it to the front — across the project boundary', async () => {
     await openWorkOrder();
     await press('B.1', 'ArrowUp', { altKey: true, shiftKey: true });
-    await waitFor(() => { if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['B.1', 'A.1', 'A.2']);
   });
 
   it('⌥↓ moves it back down', async () => {
     await openWorkOrder();
     await press('A.1', 'ArrowDown', { altKey: true });
-    await waitFor(() => { if (rowIds()[0] !== 'A.2') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.2') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.2', 'A.1', 'B.1']);
   });
 
-  it('says when the order is no longer the plan\'s, and gives it back', async () => {
+  it("says when the order is no longer the plan's, and gives it back", async () => {
     await openWorkOrder();
     expect(screen.queryByTestId('queue-reset-M1')).toBeNull();
 
     await press('B.1', 'ArrowUp', { altKey: true, shiftKey: true });
-    await waitFor(() => { if (!screen.queryByTestId('queue-reset-M1')) throw new Error('no reset'); });
+    await waitFor(() => {
+      if (!screen.queryByTestId('queue-reset-M1')) throw new Error('no reset');
+    });
 
-    await act(async () => { fireEvent.click(screen.getByTestId('queue-reset-M1')); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.1') throw new Error(rowIds().join()); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('queue-reset-M1'));
+    });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.1', 'A.2', 'B.1']);
   });
 });
@@ -121,24 +151,33 @@ describe('working from the queue, not just looking at it', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
   const press = async (id, key, opts = {}) => {
-    await act(async () => { fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts }); });
+    await act(async () => {
+      fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts });
+    });
   };
 
   it('Space cycles the status, as on a tree row', async () => {
     await openWorkOrder();
     expect(rowOf('A.1').getAttribute('data-status')).toBe('open');
     await press('A.1', ' ');
-    await waitFor(() => { if (rowOf('A.1').getAttribute('data-status') === 'open') throw new Error('unchanged'); });
+    await waitFor(() => {
+      if (rowOf('A.1').getAttribute('data-status') === 'open') throw new Error('unchanged');
+    });
   });
 
   it('1-4 sets the priority', async () => {
     await openWorkOrder();
     await press('A.2', '1');
-    await waitFor(() => { if (rowOf('A.2').getAttribute('data-prio') !== '1') throw new Error('unchanged'); });
+    await waitFor(() => {
+      if (rowOf('A.2').getAttribute('data-prio') !== '1') throw new Error('unchanged');
+    });
   });
 
   it('E opens the full editor for the row under the cursor', async () => {
@@ -162,14 +201,24 @@ describe('dragging a row', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
 
   // happy-dom has no DataTransfer, so carry the payload the way the handlers do.
   const dt = () => {
     const store = {};
-    return { setData: (k, v) => { store[k] = String(v); }, getData: k => store[k] || '', effectAllowed: '', dropEffect: '' };
+    return {
+      setData: (k, v) => {
+        store[k] = String(v);
+      },
+      getData: k => store[k] || '',
+      effectAllowed: '',
+      dropEffect: '',
+    };
   };
 
   it('drops a task onto another and lands it there', async () => {
@@ -183,7 +232,9 @@ describe('dragging a row', () => {
       fireEvent.drop(rowOf('A.1'), { dataTransfer: data });
     });
 
-    await waitFor(() => { if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'B.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['B.1', 'A.1', 'A.2']);
   });
 
@@ -200,12 +251,18 @@ describe('dragging a row', () => {
     const data = dt();
     // Separate ticks, as a real drag delivers them: dragstart has to have
     // landed in state before dragover can know what is being dragged.
-    await act(async () => { fireEvent.dragStart(rowOf('B.1'), { dataTransfer: data }); });
-    await act(async () => { fireEvent.dragOver(rowOf('A.1'), { dataTransfer: data }); });
+    await act(async () => {
+      fireEvent.dragStart(rowOf('B.1'), { dataTransfer: data });
+    });
+    await act(async () => {
+      fireEvent.dragOver(rowOf('A.1'), { dataTransfer: data });
+    });
     expect(rowOf('A.1').getAttribute('data-drop')).toBe('before');
     expect(rowOf('B.1').getAttribute('data-drop')).toBeNull();
 
-    await act(async () => { fireEvent.dragEnd(rowOf('B.1'), { dataTransfer: data }); });
+    await act(async () => {
+      fireEvent.dragEnd(rowOf('B.1'), { dataTransfer: data });
+    });
     expect(rowOf('A.1').getAttribute('data-drop')).toBeNull();
   });
 
@@ -225,14 +282,20 @@ describe('dragging a row', () => {
     await openWorkOrder();
     expect(document.querySelector('[data-testid="wo-picked"]')).toBeNull();
 
-    await act(async () => { fireEvent.click(rowOf('A.1')); });
-    await act(async () => { fireEvent.click(rowOf('B.1'), { shiftKey: true }); });
+    await act(async () => {
+      fireEvent.click(rowOf('A.1'));
+    });
+    await act(async () => {
+      fireEvent.click(rowOf('B.1'), { shiftKey: true });
+    });
 
     const chip = document.querySelector('[data-testid="wo-picked"]');
     expect(chip, 'no selection count after a shift-click').toBeTruthy();
     expect(chip.textContent).toContain('3');
 
-    await act(async () => { fireEvent.click(rowOf('A.2')); });
+    await act(async () => {
+      fireEvent.click(rowOf('A.2'));
+    });
     expect(document.querySelector('[data-testid="wo-picked"]')).toBeNull();
   });
 
@@ -270,11 +333,16 @@ describe('where it sits and what a row says', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is the tab right after the work tree', async () => {
     renderApp();
-    await waitFor(() => { if (!document.querySelectorAll('.tab').length) throw new Error('no tabs'); });
+    await waitFor(() => {
+      if (!document.querySelectorAll('.tab').length) throw new Error('no tabs');
+    });
     const labels = [...document.querySelectorAll('.tab')].map(el => (el.firstChild?.textContent || '').trim());
     expect(labels[labels.indexOf('Work Tree') + 1]).toBe('Work order');
   });
@@ -289,15 +357,18 @@ describe('where it sits and what a row says', () => {
 
   it('shows the whole chain, not just the project', async () => {
     // A task three levels down is ambiguous without the middle of the path.
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...JSON.parse(localStorage.getItem('planr_v2')),
-      tree: [
-        { id: 'A', name: 'Rechnungen', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'Preise', status: 'wip', team: 'T1' },
-        { id: 'A.1.1', name: 'Page: Wochenplan', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.1.2', name: 'Dialoge', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      ],
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...JSON.parse(localStorage.getItem('planr_v2')),
+        tree: [
+          { id: 'A', name: 'Rechnungen', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'Preise', status: 'wip', team: 'T1' },
+          { id: 'A.1.1', name: 'Page: Wochenplan', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.1.2', name: 'Dialoge', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        ],
+      }),
+    );
     await openWorkOrder();
     const path = document.querySelector('[data-queue-row="A.1.1"] [data-queue-path]').textContent;
     expect(path).toContain('Rechnungen');
@@ -314,7 +385,7 @@ describe('where it sits and what a row says', () => {
 
   // Reported: the queue could not be walked with the arrow keys the way the
   // tree can. Same keys, same meaning now.
-  describe('with the tree\'s keys', () => {
+  describe("with the tree's keys", () => {
     const focused = () => document.activeElement?.getAttribute('data-queue-row');
 
     it('walks the rows with ↑/↓, across owners too', async () => {
@@ -350,7 +421,7 @@ describe('where it sits and what a row says', () => {
       expect((await screen.findByTestId('node-modal')).getAttribute('data-node-id')).toBe('A.2');
     });
 
-    it('reorders with the tree\'s ⌘⇧↓ as well as ⌥↓', async () => {
+    it("reorders with the tree's ⌘⇧↓ as well as ⌥↓", async () => {
       await openWorkOrder();
       const before = rowIds();
       await press(before[0], 'ArrowDown', { metaKey: true, shiftKey: true });
@@ -375,7 +446,10 @@ describe('working in the list', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   // Reported: rows in the queue that are nowhere to be seen in the tree. They
   // were dropped work — one of them still at 63% and "in progress" — and the
@@ -383,7 +457,17 @@ describe('working in the list', () => {
   it('leaves dropped work out, and work under something dropped', async () => {
     const plan = JSON.parse(localStorage.getItem('planr_v2'));
     plan.tree.push(
-      { id: 'A.3', name: 'A drei (verworfen)', status: 'wip', progress: 63, dropped: true, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      {
+        id: 'A.3',
+        name: 'A drei (verworfen)',
+        status: 'wip',
+        progress: 63,
+        dropped: true,
+        team: 'T1',
+        best: 10,
+        factor: 1,
+        assign: ['M1'],
+      },
       { id: 'C', name: 'Projekt C', status: 'open', team: 'T1', dropped: true },
       { id: 'C.1', name: 'C eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
     );
@@ -396,7 +480,9 @@ describe('working in the list', () => {
 
   it('has a visible way into the dialog, not only a key', async () => {
     await openWorkOrder();
-    await act(async () => { fireEvent.click(screen.getByTestId('wo-edit-A.2')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('wo-edit-A.2'));
+    });
     const dialog = await screen.findByTestId('node-modal');
     expect(dialog.getAttribute('data-node-id')).toBe('A.2');
   });
@@ -406,14 +492,18 @@ describe('working in the list', () => {
   it('opens the dialog on a double-click on the row', async () => {
     await openWorkOrder();
     const row = document.querySelector('[data-queue-row="A.2"]');
-    await act(async () => { fireEvent.doubleClick(row.querySelector('[data-queue-title]')); });
+    await act(async () => {
+      fireEvent.doubleClick(row.querySelector('[data-queue-title]'));
+    });
     const dialog = await screen.findByTestId('node-modal');
     expect(dialog.getAttribute('data-node-id')).toBe('A.2');
   });
 
   it('keeps a single click as selection, without opening anything', async () => {
     await openWorkOrder();
-    await act(async () => { fireEvent.click(document.querySelector('[data-queue-row="A.2"]')); });
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-queue-row="A.2"]'));
+    });
     expect(screen.queryByTestId('node-modal')).toBeNull();
   });
 
@@ -421,7 +511,9 @@ describe('working in the list', () => {
     // The button sits on a draggable row; a click must not read as a drop.
     await openWorkOrder();
     const before = rowIds();
-    await act(async () => { fireEvent.click(screen.getByTestId('wo-edit-A.2')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('wo-edit-A.2'));
+    });
     expect(rowIds()).toEqual(before);
   });
 
@@ -458,33 +550,42 @@ describe('finished work', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is not in the order at all', async () => {
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...JSON.parse(localStorage.getItem('planr_v2')),
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-        { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      ],
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...JSON.parse(localStorage.getItem('planr_v2')),
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+          { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+          { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        ],
+      }),
+    );
     await openWorkOrder();
     expect(rowIds()).toEqual(['A.2', 'A.3']);
   });
 
   it('and a queue that still names it keeps naming it', async () => {
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...JSON.parse(localStorage.getItem('planr_v2')),
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-        { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      ],
-      personQueues: { M1: ['A.3', 'A.1', 'A.2'] },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...JSON.parse(localStorage.getItem('planr_v2')),
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'A eins', status: 'done', progress: 100, team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+          { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+          { id: 'A.3', name: 'A drei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        ],
+        personQueues: { M1: ['A.3', 'A.1', 'A.2'] },
+      }),
+    );
     await openWorkOrder();
     // Shown: the unfinished two, in the order that was set.
     expect(rowIds()).toEqual(['A.3', 'A.2']);
@@ -506,36 +607,50 @@ describe('moving several at once', () => {
     localStorage.setItem('planr_lang', 'en');
     localStorage.setItem('planr_tab', 'order');
     localStorage.setItem('planr_tour_done', '1');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.4', name: 'vier', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Multi', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.4', name: 'vier', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Multi', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      }),
+    );
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
   const click = async (id, opts = {}) => {
-    await act(async () => { fireEvent.click(rowOf(id), opts); });
+    await act(async () => {
+      fireEvent.click(rowOf(id), opts);
+    });
   };
   const press = async (id, key, opts = {}) => {
-    await act(async () => { fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts }); });
+    await act(async () => {
+      fireEvent.keyDown(rowOf(id), { key, bubbles: true, ...opts });
+    });
   };
 
   it('shift-click takes the range', async () => {
     await openWorkOrder();
     await click('A.2');
     await click('A.4', { shiftKey: true });
-    expect([...document.querySelectorAll('[data-queue-row].sel')].map(r => r.getAttribute('data-queue-row')))
-      .toEqual(['A.2', 'A.3', 'A.4']);
+    expect([...document.querySelectorAll('[data-queue-row].sel')].map(r => r.getAttribute('data-queue-row'))).toEqual([
+      'A.2',
+      'A.3',
+      'A.4',
+    ]);
   });
 
   it('moves the whole selection in one step, keeping its own order', async () => {
@@ -544,7 +659,9 @@ describe('moving several at once', () => {
     await click('A.4', { shiftKey: true });
     await press('A.4', 'ArrowUp', { altKey: true, shiftKey: true });
 
-    await waitFor(() => { if (rowIds()[0] !== 'A.3') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.3') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.3', 'A.4', 'A.1', 'A.2']);
   });
 
@@ -554,7 +671,9 @@ describe('moving several at once', () => {
     await click('A.4', { metaKey: true });
     await press('A.4', 'ArrowDown', { altKey: true, shiftKey: true });
 
-    await waitFor(() => { if (rowIds()[0] === 'A.1') throw new Error(rowIds().join()); });
+    await waitFor(() => {
+      if (rowIds()[0] === 'A.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.2', 'A.3', 'A.1', 'A.4']);
   });
 });
@@ -579,24 +698,31 @@ describe('work nobody is on yet', () => {
     localStorage.setItem('planr_lang', 'en');
     localStorage.setItem('planr_tab', 'order');
     localStorage.setItem('planr_tour_done', '1');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
-        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
-      ],
-      members: [
-        { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-        { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-      ],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Auto', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+          { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
+        ],
+        members: [
+          { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+          { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        ],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Auto', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      }),
+    );
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
-  it('says who the schedule picked, and marks it as the schedule\'s answer', async () => {
+  it("says who the schedule picked, and marks it as the schedule's answer", async () => {
     await openWorkOrder();
     const who = document.querySelector('[data-queue-row="A.1"] [data-queue-who]');
     expect(who).toBeTruthy();
@@ -604,18 +730,25 @@ describe('work nobody is on yet', () => {
     expect(who.getAttribute('data-auto')).toBe('true');
   });
 
-  it('still orders it, as the team\'s queue', async () => {
+  it("still orders it, as the team's queue", async () => {
     await openWorkOrder();
     const rowOf = id => document.querySelector(`[data-queue-row="${id}"]`);
-    await act(async () => { fireEvent.keyDown(rowOf('A.2'), { key: 'ArrowUp', altKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.2') throw new Error(rowIds().join()); });
+    await act(async () => {
+      fireEvent.keyDown(rowOf('A.2'), { key: 'ArrowUp', altKey: true, bubbles: true });
+    });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.2') throw new Error(rowIds().join());
+    });
     // The localStorage mirror is debounced, so wait for it rather than for a
     // wall-clock guess.
-    await waitFor(() => {
-      const q = JSON.parse(localStorage.getItem('planr_v2') || '{}').personQueues;
-      if (!q) throw new Error('not stored yet');
-      expect(Object.keys(q)).toEqual(['team:T1']);
-    }, { timeout: 4000 });
+    await waitFor(
+      () => {
+        const q = JSON.parse(localStorage.getItem('planr_v2') || '{}').personQueues;
+        if (!q) throw new Error('not stored yet');
+        expect(Object.keys(q)).toEqual(['team:T1']);
+      },
+      { timeout: 4000 },
+    );
   });
 });
 
@@ -640,23 +773,30 @@ describe('one flat queue per owner', () => {
     localStorage.setItem('planr_lang', 'en');
     localStorage.setItem('planr_tab', 'order');
     localStorage.setItem('planr_tour_done', '1');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'Paket eins', status: 'wip', team: 'T1' },
-        { id: 'A.1.1', name: 'a', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.1.2', name: 'b', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.2', name: 'Paket zwei', status: 'wip', team: 'T1' },
-        { id: 'A.2.1', name: 'c', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-        { id: 'A.2.2', name: 'd', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      ],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'TopDown', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'Paket eins', status: 'wip', team: 'T1' },
+          { id: 'A.1.1', name: 'a', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.1.2', name: 'b', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.2', name: 'Paket zwei', status: 'wip', team: 'T1' },
+          { id: 'A.2.1', name: 'c', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+          { id: 'A.2.2', name: 'd', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'TopDown', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      }),
+    );
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('puts nothing between the rows', async () => {
     await openWorkOrder();
@@ -677,8 +817,12 @@ describe('one flat queue per owner', () => {
     // header, into the next.
     await openWorkOrder();
     const row = document.querySelector('[data-queue-row="A.2.1"]');
-    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true });
+    });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.2.1', 'A.1.1', 'A.1.2', 'A.2.2']);
   });
 
@@ -688,10 +832,18 @@ describe('one flat queue per owner', () => {
     await openWorkOrder();
     const first = document.querySelector('[data-queue-row="A.2.1"]');
     const last = document.querySelector('[data-queue-row="A.2.2"]');
-    await act(async () => { fireEvent.click(first); });
-    await act(async () => { fireEvent.click(last, { shiftKey: true }); });
-    await act(async () => { fireEvent.keyDown(last, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join()); });
+    await act(async () => {
+      fireEvent.click(first);
+    });
+    await act(async () => {
+      fireEvent.click(last, { shiftKey: true });
+    });
+    await act(async () => {
+      fireEvent.keyDown(last, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true });
+    });
+    await waitFor(() => {
+      if (rowIds()[0] !== 'A.2.1') throw new Error(rowIds().join());
+    });
     expect(rowIds()).toEqual(['A.2.1', 'A.2.2', 'A.1.1', 'A.1.2']);
   });
 });
@@ -706,23 +858,30 @@ describe('filtering to who will actually do it', () => {
     localStorage.setItem('planr_lang', 'en');
     localStorage.setItem('planr_tab', 'order');
     localStorage.setItem('planr_tour_done', '1');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [
-        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
-        { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
-        { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M2'] },
-      ],
-      members: [
-        { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-        { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-      ],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'AutoFilter', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+          { id: 'A.2', name: 'zwei', status: 'open', team: 'T1', best: 5, factor: 1 },
+          { id: 'A.3', name: 'drei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M2'] },
+        ],
+        members: [
+          { id: 'M1', name: 'Anna Berg', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+          { id: 'M2', name: 'Bert Cole', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        ],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'AutoFilter', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      }),
+    );
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('shows the work the schedule gave somebody, not just what was assigned', async () => {
     localStorage.setItem('planr_person_filter', 'M1');
@@ -740,7 +899,11 @@ describe('filtering to who will actually do it', () => {
     const last = rowIds()[rowIds().length - 1];
     if (first === last) return;
     const row = document.querySelector(`[data-queue-row="${last}"]`);
-    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
-    await waitFor(() => { if (rowIds()[0] !== last) throw new Error(rowIds().join()); });
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true });
+    });
+    await waitFor(() => {
+      if (rowIds()[0] !== last) throw new Error(rowIds().join());
+    });
   });
 });

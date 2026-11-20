@@ -30,12 +30,22 @@ const SCHEDULED = [
   { id: 'P1.2.1', name: 'Import', status: 'open', effort: 10, startD: d('2026-03-02'), endD: d('2026-04-03') },
 ];
 
-const mount = props => render(
-  <I18nProvider><ThemeProvider>
-    <PlanRoadmap tree={TREE} scheduled={SCHEDULED} stats={treeStats(TREE)} rootId="P1"
-      color="#3d7ab0" onOpenItem={() => {}} {...props} />
-  </ThemeProvider></I18nProvider>,
-);
+const mount = props =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <PlanRoadmap
+          tree={TREE}
+          scheduled={SCHEDULED}
+          stats={treeStats(TREE)}
+          rootId="P1"
+          color="#3d7ab0"
+          onOpenItem={() => {}}
+          {...props}
+        />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 describe('the project lens and the review window', () => {
   afterEach(() => cleanup());

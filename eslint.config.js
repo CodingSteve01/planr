@@ -37,8 +37,14 @@ export default [
         ...globals.browser,
         ...globals.node,
         // The test files' own vocabulary.
-        describe: 'readonly', it: 'readonly', test: 'readonly', expect: 'readonly',
-        beforeEach: 'readonly', afterEach: 'readonly', beforeAll: 'readonly', afterAll: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
         vi: 'readonly',
       },
     },
@@ -50,7 +56,10 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       'no-undef': 'error',
-      'no-unused-vars': ['error', { args: 'after-used', argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
+      'no-unused-vars': [
+        'error',
+        { args: 'after-used', argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },
+      ],
       // The dependency arrays in this codebase are deliberate in several
       // places; arguing with them is a piece of work of its own.
       'react-hooks/exhaustive-deps': 'off',

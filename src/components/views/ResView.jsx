@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { LazyInput } from '../shared/LazyInput.jsx';
 import { buildMemberShortMap } from '../../App.jsx';
@@ -13,27 +13,29 @@ import { inTeam, memberTeams, realisedTeamShares, withTeams } from '../../utils/
 function initials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
-  return parts.length >= 2
-    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase();
+  return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
 /* ─── TeamEditModal ───────────────────────────────────────────────────── */
 function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t }) {
   const describe = useDescribeChange(meetingPlans);
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
+    const h = e => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
   return (
     <div className="overlay" onClick={onClose}>
-<div className="modal" onClick={e => e.stopPropagation()}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t('rv.editTeam')}</span>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>
+            <Icon name="x" size={11} />
+          </button>
         </div>
 
         {/* Body */}
@@ -48,11 +50,7 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
         </div>
         <div className="field">
           <label>{t('rv.teamName')}</label>
-          <LazyInput
-            value={team.name || ''}
-            onCommit={v => onUpd(idx, 'name', v)}
-            placeholder={t('rv.teamName')}
-          />
+          <LazyInput value={team.name || ''} onCommit={v => onUpd(idx, 'name', v)} placeholder={t('rv.teamName')} />
         </div>
 
         {/* Meeting-Plans für das Team (werden allen Mitgliedern zugewiesen). */}
@@ -61,7 +59,8 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
           hint="Wirken auf alle Team-Mitglieder mit derived-Cap."
           plans={meetingPlans}
           selected={team.meetingPlanIds || []}
-          onChange={ids => onUpd(idx, 'meetingPlanIds', ids)} />
+          onChange={ids => onUpd(idx, 'meetingPlanIds', ids)}
+        />
         <DatedHint />
         <PlannedChanges kind="teams" id={team.id} describe={describe} />
 
@@ -69,12 +68,17 @@ function TeamEditModal({ team, idx, meetingPlans = [], onUpd, onDel, onClose, t 
         <div className="modal-footer">
           <button
             className="btn btn-danger"
-            onClick={() => { onDel(idx); onClose(); }}
+            onClick={() => {
+              onDel(idx);
+              onClose();
+            }}
           >
             {t('rv.remove')}
           </button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-sec" onClick={onClose}>{t('rv.close')}</button>
+          <button className="btn btn-sec" onClick={onClose}>
+            {t('rv.close')}
+          </button>
         </div>
       </div>
     </div>
@@ -92,10 +96,26 @@ function MemberTeamsField({ member, teams, onUpd, t }) {
       {ids.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
           {ids.map((tid, i) => (
-            <span key={tid} className="tag" style={i === 0 && ids.length > 1 ? { fontWeight: 600 } : undefined}
-              data-htip={i === 0 && ids.length > 1 ? t('rv.primaryTeam') : undefined}>
+            <span
+              key={tid}
+              className="tag"
+              style={i === 0 && ids.length > 1 ? { fontWeight: 600 } : undefined}
+              data-htip={i === 0 && ids.length > 1 ? t('rv.primaryTeam') : undefined}
+            >
               {teams.find(tm => tm.id === tid)?.name || tid}
-              <span className="tag-x" onClick={() => onUpd(withTeams(member, ids.filter(id => id !== tid)))}><Icon name="x" size={9} /></span>
+              <span
+                className="tag-x"
+                onClick={() =>
+                  onUpd(
+                    withTeams(
+                      member,
+                      ids.filter(id => id !== tid),
+                    ),
+                  )
+                }
+              >
+                <Icon name="x" size={9} />
+              </span>
             </span>
           ))}
         </div>
@@ -103,7 +123,8 @@ function MemberTeamsField({ member, teams, onUpd, t }) {
       <SearchSelect
         options={teams.filter(tm => !ids.includes(tm.id)).map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
         onSelect={tid => tid && onUpd(withTeams(member, [...ids, tid]))}
-        placeholder={ids.length ? t('rv.addTeam') : t('rv.chooseTeam')} />
+        placeholder={ids.length ? t('rv.addTeam') : t('rv.chooseTeam')}
+      />
     </div>
   );
 }
@@ -116,13 +137,20 @@ function DatedHint() {
   const fmt = useDayFormat();
   const { date } = useEffective();
   if (!date) return null;
-  return <div className="eff-dialog-hint" data-testid="dated-hint"><Icon name="calendar" size={13} />{t('eff.dialogHint', fmt(date))}</div>;
+  return (
+    <div className="eff-dialog-hint" data-testid="dated-hint">
+      <Icon name="calendar" size={13} />
+      {t('eff.dialogHint', fmt(date))}
+    </div>
+  );
 }
 
 function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocusName = false, onUpd, onClone, onDel, onClose, t }) {
   const describe = useDescribeChange(meetingPlans);
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
+    const h = e => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
@@ -149,27 +177,40 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
               )}
             </span>
           </div>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>
+            <Icon name="x" size={11} />
+          </button>
         </div>
 
         <div className="member-cols">
           <div className="member-fields">
-            <label className="mf mf-wide">{t('rv.fullName')}
-              <LazyInput autoFocus={autoFocusName} data-testid="rv-new-member-name" value={member.name || ''} onCommit={v => onUpd({ ...member, name: v })} />
+            <label className="mf mf-wide">
+              {t('rv.fullName')}
+              <LazyInput
+                autoFocus={autoFocusName}
+                data-testid="rv-new-member-name"
+                value={member.name || ''}
+                onCommit={v => onUpd({ ...member, name: v })}
+              />
             </label>
-            <div className="mf mf-wide"><span className="mf-l">{t('rv.teams')}</span>
+            <div className="mf mf-wide">
+              <span className="mf-l">{t('rv.teams')}</span>
               <MemberTeamsField member={member} teams={teams} onUpd={onUpd} t={t} />
             </div>
-            <label className="mf mf-wide">{t('rv.role')}
+            <label className="mf mf-wide">
+              {t('rv.role')}
               <LazyInput value={member.role || ''} onCommit={v => onUpd({ ...member, role: v })} placeholder={t('rv.rolePlaceholder')} />
             </label>
-            <label className="mf">{t('rv.vacDays')}
+            <label className="mf">
+              {t('rv.vacDays')}
               <LazyInput type="number" min="0" max="40" value={member.vac || 25} onCommit={v => onUpd({ ...member, vac: v })} />
             </label>
-            <label className="mf">{t('rv.startDate')}
+            <label className="mf">
+              {t('rv.startDate')}
               <LazyInput type="date" value={member.start || ''} onCommit={v => onUpd({ ...member, start: v })} />
             </label>
-            <label className="mf">{t('rv.endDate')}
+            <label className="mf">
+              {t('rv.endDate')}
               <LazyInput type="date" value={member.end || ''} onCommit={v => onUpd({ ...member, end: v })} />
             </label>
           </div>
@@ -190,21 +231,29 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
         <div className="modal-footer">
           <button
             className="btn btn-danger"
-            onClick={() => { onDel(member.id); onClose(); }}
+            onClick={() => {
+              onDel(member.id);
+              onClose();
+            }}
           >
             {t('rv.remove')}
           </button>
           {onClone && (
             <button
               className="btn btn-sec"
-              onClick={() => { onClone(member); onClose(); }}
+              onClick={() => {
+                onClone(member);
+                onClose();
+              }}
               data-htip={t('rv.clone')}
             >
               {t('rv.clone')}
             </button>
           )}
           <div style={{ flex: 1 }} />
-          <button className="btn btn-sec" onClick={onClose}>{t('rv.close')}</button>
+          <button className="btn btn-sec" onClick={onClose}>
+            {t('rv.close')}
+          </button>
         </div>
       </div>
     </div>
@@ -215,12 +264,14 @@ function MemberEditModal({ member, teams, shortMap, meetingPlans = [], autoFocus
 function MeetingPlanReadRow({ plan, teamCount, memberCount, totalHours, onClick, t }) {
   return (
     <tr onClick={onClick}>
-      <td className="res-td-avatar"><span className="res-dot" style={{ background: 'var(--ac)' }} /></td>
-      <td className="res-row-name">{plan.name || t('rv.planUnnamed')}</td>
-      <td className="res-row-meta">
-        {t('rv.planTermCount', (plan.meetings || []).length, totalHours.toFixed(2))}
+      <td className="res-td-avatar">
+        <span className="res-dot" style={{ background: 'var(--ac)' }} />
       </td>
-      <td className="res-row-meta" style={{ textAlign: 'right' }}>{t('rv.planAssignCount', teamCount, memberCount)}</td>
+      <td className="res-row-name">{plan.name || t('rv.planUnnamed')}</td>
+      <td className="res-row-meta">{t('rv.planTermCount', (plan.meetings || []).length, totalHours.toFixed(2))}</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>
+        {t('rv.planAssignCount', teamCount, memberCount)}
+      </td>
     </tr>
   );
 }
@@ -229,65 +280,111 @@ function MeetingPlanEditModal({ plan, onUpd, onDel, onClose }) {
   const describe = useDescribeChange([]);
   const { t } = useT();
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
+    const h = e => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
-  const addMeeting = () => onUpd({
-    ...plan,
-    meetings: [...(plan.meetings || []), { id: 'mt_' + Math.random().toString(36).slice(2, 8), name: '', hours: 0.5, frequency: 'weekly' }],
-  });
-  const updMeeting = (mid, patch) => onUpd({
-    ...plan,
-    meetings: (plan.meetings || []).map(m => m.id === mid ? { ...m, ...patch } : m),
-  });
-  const delMeeting = (mid) => onUpd({
-    ...plan,
-    meetings: (plan.meetings || []).filter(m => m.id !== mid),
-  });
+  const addMeeting = () =>
+    onUpd({
+      ...plan,
+      meetings: [
+        ...(plan.meetings || []),
+        { id: 'mt_' + Math.random().toString(36).slice(2, 8), name: '', hours: 0.5, frequency: 'weekly' },
+      ],
+    });
+  const updMeeting = (mid, patch) =>
+    onUpd({
+      ...plan,
+      meetings: (plan.meetings || []).map(m => (m.id === mid ? { ...m, ...patch } : m)),
+    });
+  const delMeeting = mid =>
+    onUpd({
+      ...plan,
+      meetings: (plan.meetings || []).filter(m => m.id !== mid),
+    });
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal cap-card" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Meeting-Plan</span>
-          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} title={t('rv.close')}>
+            <Icon name="x" size={11} />
+          </button>
         </div>
         <div className="field">
           <label>Name</label>
           <LazyInput value={plan.name || ''} onCommit={v => onUpd({ ...plan, name: v })} placeholder={t('rv.planNamePlaceholder')} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6,
-            fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
-          }}>
-            <span>Meeting</span><span>Stunden</span><span>Rhythmus</span><span />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 90px 130px 28px',
+              gap: 6,
+              fontSize: 11,
+              color: 'var(--tx3)',
+              textTransform: 'uppercase',
+              letterSpacing: '.06em',
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            <span>Meeting</span>
+            <span>Stunden</span>
+            <span>Rhythmus</span>
+            <span />
           </div>
           {(plan.meetings || []).map(mt => (
-            <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-              <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder={t('rv.meetingNamePlaceholder')} />
-              <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
-                onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
-              <select value={mt.frequency || 'weekly'}
-                onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
+            <div
+              key={mt.id}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 28px', gap: 6, alignItems: 'center', marginBottom: 4 }}
+            >
+              <LazyInput
+                value={mt.name || ''}
+                onCommit={v => updMeeting(mt.id, { name: v })}
+                placeholder={t('rv.meetingNamePlaceholder')}
+              />
+              <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0} onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
+              <select value={mt.frequency || 'weekly'} onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
                 <option value="daily">täglich</option>
                 <option value="weekly">wöchentl.</option>
                 <option value="biweekly">14-tägl.</option>
                 <option value="monthly">monatl.</option>
               </select>
-              <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)} aria-label={t('delete')} style={{ color: 'var(--re)', padding: '2px 6px' }}><Icon name="x" size={11} /></button>
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => delMeeting(mt.id)}
+                aria-label={t('delete')}
+                style={{ color: 'var(--re)', padding: '2px 6px' }}
+              >
+                <Icon name="x" size={11} />
+              </button>
             </div>
           ))}
-          <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
+          <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>
+            + Meeting
+          </button>
         </div>
         <DatedHint />
         <PlannedChanges kind="meetingPlans" id={plan.id} describe={describe} />
         <div className="modal-footer">
-          <button className="btn btn-danger" onClick={() => { if (confirm('Plan löschen? Zuweisungen bleiben als tote Referenz zurück.')) { onDel(plan.id); onClose(); } }}>
+          <button
+            className="btn btn-danger"
+            onClick={() => {
+              if (confirm('Plan löschen? Zuweisungen bleiben als tote Referenz zurück.')) {
+                onDel(plan.id);
+                onClose();
+              }
+            }}
+          >
             Entfernen
           </button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-sec" onClick={onClose}>Schließen</button>
+          <button className="btn btn-sec" onClick={onClose}>
+            Schließen
+          </button>
         </div>
       </div>
     </div>
@@ -312,9 +409,9 @@ function PlanPicker({ label, hint, plans, selected, onChange }) {
         {plans.map(p => {
           const on = selected.includes(p.id);
           return (
-            <button key={p.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`}
-              onClick={() => toggle(p.id)} style={{ fontSize: 11 }}>
-              {on ? '● ' : ''}{p.name}
+            <button key={p.id} className={`btn btn-xs ${on ? 'btn-pri' : 'btn-sec'}`} onClick={() => toggle(p.id)} style={{ fontSize: 11 }}>
+              {on ? '● ' : ''}
+              {p.name}
             </button>
           );
         })}
@@ -337,33 +434,49 @@ function CapacityField({ member, onUpd, t, meetingPlans = [], teams = [] }) {
   const derivedPct = Math.round(deriveCap(member, capCtx) * 100);
   const tone = derivedPct > 100 ? 'var(--re)' : derivedPct >= 80 ? 'var(--gr)' : 'var(--am)';
   return (
-    <div className="cap-card" style={{
-      marginTop: 10, padding: 12, background: 'var(--bg3)',
-      border: '1px solid var(--b)', borderRadius: 'var(--r)',
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8, marginBottom: 10,
-      }}>
+    <div
+      className="cap-card"
+      style={{
+        marginTop: 10,
+        padding: 12,
+        background: 'var(--bg3)',
+        border: '1px solid var(--b)',
+        borderRadius: 'var(--r)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>{t('rv.capacityPct')}</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: tone }}>
-            {derivedPct}%
-          </span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: tone }}>{derivedPct}%</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button className={`btn btn-xs ${mode === 'manual' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setMode('manual')}>{t('rv.manualCap')}</button>
-          <button className={`btn btn-xs ${mode === 'derived' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setMode('derived')}>{t('rv.derivedCap')}</button>
+          <button className={`btn btn-xs ${mode === 'manual' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setMode('manual')}>
+            {t('rv.manualCap')}
+          </button>
+          <button className={`btn btn-xs ${mode === 'derived' ? 'btn-pri' : 'btn-sec'}`} onClick={() => setMode('derived')}>
+            {t('rv.derivedCap')}
+          </button>
         </div>
       </div>
       {mode === 'manual' ? (
         <div className="rf" style={{ marginBottom: 0 }}>
           <label>%</label>
-          <LazyInput type="number" min="0" max="100" step="5"
+          <LazyInput
+            type="number"
+            min="0"
+            max="100"
+            step="5"
             value={Math.round((member.cap || 1) * 100)}
-            onCommit={v => onUpd({ ...member, cap: v / 100 })} />
+            onCommit={v => onUpd({ ...member, cap: v / 100 })}
+          />
         </div>
       ) : (
         <DerivedCapacity member={member} onUpd={onUpd} t={t} meetingPlans={meetingPlans} teams={teams} />
@@ -378,12 +491,11 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
   // Inherited meetings: from the plans of every team the member is in, plus
   // member-level plans.
   const teamPlanIds = new Set(memberTeams(member).flatMap(tid => teams.find(t => t.id === tid)?.meetingPlanIds || []));
-  const planIdSet = new Set([
-    ...teamPlanIds,
-    ...((member.meetingPlanIds) || []),
-  ]);
+  const planIdSet = new Set([...teamPlanIds, ...(member.meetingPlanIds || [])]);
   const inheritedPlans = meetingPlans.filter(p => planIdSet.has(p.id));
-  const inheritedMeetings = inheritedPlans.flatMap(p => (p.meetings || []).map(m => ({ ...m, _planName: p.name, _fromTeam: teamPlanIds.has(p.id) })));
+  const inheritedMeetings = inheritedPlans.flatMap(p =>
+    (p.meetings || []).map(m => ({ ...m, _planName: p.name, _fromTeam: teamPlanIds.has(p.id) })),
+  );
   const allMeetingsWeekly = sumMeetingHours([...inheritedMeetings, ...meetings]);
   const meetingH = allMeetingsWeekly; // keep legacy name for display
   const avail = Math.max(0, wh - meetingH);
@@ -392,7 +504,7 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
     onUpd({ ...member, meetings: [...meetings, { id, name: '', hours: 0.5, frequency: 'weekly' }] });
   };
   const updMeeting = (id, patch) => {
-    onUpd({ ...member, meetings: meetings.map(m => m.id === id ? { ...m, ...patch } : m) });
+    onUpd({ ...member, meetings: meetings.map(m => (m.id === id ? { ...m, ...patch } : m)) });
   };
   const delMeeting = id => onUpd({ ...member, meetings: meetings.filter(m => m.id !== id) });
   const COLS = '1fr 90px 130px 28px';
@@ -401,75 +513,100 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
       <div className="rf" style={{ marginBottom: 0 }}>
         <label>{t('rv.hoursWeek')}</label>
         <div style={{ width: 150, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <LazyInput type="number" min="0" max="80" step="0.5" value={wh}
-            onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
+          <LazyInput type="number" min="0" max="80" step="0.5" value={wh} onCommit={v => onUpd({ ...member, weeklyHours: Number(v) })} />
           <span style={{ fontSize: 12, color: 'var(--tx3)' }}>h</span>
         </div>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: -4 }}>
-        {t('rv.hoursDefault', FTE_HOURS)}
-      </div>
+      <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: -4 }}>{t('rv.hoursDefault', FTE_HOURS)}</div>
 
       {/* Plan-Picker für Member (zusätzlich zu Team-geerbten Plänen). */}
       <PlanPicker
         label="Meeting-Pläne (zusätzlich)"
-        hint={teamPlanIds.size
-          ? `${teamPlanIds.size} Plan(e) automatisch vom Team „${memberTeams(member).map(tid => teams.find(tm => tm.id === tid)?.name || tid).join(' + ')}" geerbt.`
-          : 'Pläne bündeln wiederkehrende Termine — verwalten unter „Meeting-Pläne".'}
+        hint={
+          teamPlanIds.size
+            ? `${teamPlanIds.size} Plan(e) automatisch vom Team „${memberTeams(member)
+                .map(tid => teams.find(tm => tm.id === tid)?.name || tid)
+                .join(' + ')}" geerbt.`
+            : 'Pläne bündeln wiederkehrende Termine — verwalten unter „Meeting-Pläne".'
+        }
         plans={meetingPlans}
         selected={member.meetingPlanIds || []}
-        onChange={ids => onUpd({ ...member, meetingPlanIds: ids })} />
+        onChange={ids => onUpd({ ...member, meetingPlanIds: ids })}
+      />
 
       {inheritedMeetings.length > 0 && (
         <div style={{ fontSize: 11, color: 'var(--tx3)', padding: '6px 8px', background: 'var(--bg3)', borderRadius: 4 }}>
           <div style={{ fontWeight: 600, marginBottom: 2 }}>Aus Plänen:</div>
           {inheritedMeetings.map((m, i) => (
             <div key={i} style={{ fontFamily: 'var(--mono)' }}>
-              − {(m.hours ?? 0)} h{m.frequency && m.frequency !== 'weekly' ? `/${m.frequency}` : ''} {m.name}
-              <span style={{ opacity: 0.6 }}> [{m._planName}{m._fromTeam ? ' · Team' : ''}]</span>
+              − {m.hours ?? 0} h{m.frequency && m.frequency !== 'weekly' ? `/${m.frequency}` : ''} {m.name}
+              <span style={{ opacity: 0.6 }}>
+                {' '}
+                [{m._planName}
+                {m._fromTeam ? ' · Team' : ''}]
+              </span>
             </div>
           ))}
         </div>
       )}
       <div>
-        <div style={{
-          display: 'grid', gridTemplateColumns: COLS, gap: 6,
-          fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase',
-          letterSpacing: '.06em', fontWeight: 600, marginBottom: 4,
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: COLS,
+            gap: 6,
+            fontSize: 11,
+            color: 'var(--tx3)',
+            textTransform: 'uppercase',
+            letterSpacing: '.06em',
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
           <span>Meeting</span>
           <span>Stunden</span>
           <span>Rhythmus</span>
           <span />
         </div>
         {meetings.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 0' }}>
-            Noch keine Meetings erfasst.
-          </div>
+          <div style={{ fontSize: 12, color: 'var(--tx3)', fontStyle: 'italic', padding: '4px 0' }}>Noch keine Meetings erfasst.</div>
         )}
         {meetings.map(mt => (
           <div key={mt.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center', marginBottom: 4 }}>
             <LazyInput value={mt.name || ''} onCommit={v => updMeeting(mt.id, { name: v })} placeholder={t('rv.meetingNamePlaceholder')} />
-            <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0}
-              onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
-            <select value={mt.frequency || 'weekly'}
-              onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
+            <LazyInput type="number" min="0" step="0.25" value={mt.hours ?? 0} onCommit={v => updMeeting(mt.id, { hours: Number(v) })} />
+            <select value={mt.frequency || 'weekly'} onChange={e => updMeeting(mt.id, { frequency: e.target.value })}>
               <option value="daily">täglich</option>
               <option value="weekly">wöchentl.</option>
               <option value="biweekly">14-tägl.</option>
               <option value="monthly">monatl.</option>
             </select>
-            <button className="btn btn-ghost btn-xs" onClick={() => delMeeting(mt.id)}
-              style={{ padding: '2px 6px', color: 'var(--re)' }} title={t('rv.deleteMeeting')}><Icon name="x" size={11} /></button>
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={() => delMeeting(mt.id)}
+              style={{ padding: '2px 6px', color: 'var(--re)' }}
+              title={t('rv.deleteMeeting')}
+            >
+              <Icon name="x" size={11} />
+            </button>
           </div>
         ))}
-        <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>+ Meeting</button>
+        <button className="btn btn-sec btn-xs" onClick={addMeeting} style={{ marginTop: 6 }}>
+          + Meeting
+        </button>
       </div>
-      <div style={{
-        fontSize: 12, color: 'var(--tx2)', borderTop: '1px solid var(--b)',
-        paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6,
-        alignItems: 'baseline',
-      }}>
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--tx2)',
+          borderTop: '1px solid var(--b)',
+          paddingTop: 8,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          alignItems: 'baseline',
+        }}
+      >
         <span style={{ fontFamily: 'var(--mono)' }}>{wh} h</span>
         <span style={{ color: 'var(--tx3)' }}>−</span>
         <span style={{ fontFamily: 'var(--mono)' }}>{meetingH.toFixed(2)} h Meetings</span>
@@ -483,27 +620,45 @@ function DerivedCapacity({ member, onUpd, t, meetingPlans = [], teams = [] }) {
 
 /* ─── Teams ───────────────────────────────────────────────────────────── */
 function TeamReadRow({ team, memberCount, meetingPlans = [], teamLockCount = 0, onClick, t }) {
-  const plans = (team.meetingPlanIds || [])
-    .map(id => meetingPlans.find(p => p.id === id))
-    .filter(Boolean);
+  const plans = (team.meetingPlanIds || []).map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
     <tr onClick={onClick}>
-      <td className="res-td-avatar"><span className="res-dot" style={{ background: team.color || 'var(--ac)' }} /></td>
+      <td className="res-td-avatar">
+        <span className="res-dot" style={{ background: team.color || 'var(--ac)' }} />
+      </td>
       <td className="res-row-name">
         {team.name || team.id}
         {teamLockCount > 0 && (
-          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--am)', background: 'rgba(245,158,11,.10)', color: 'var(--am)' }}
-            data-htip={t('rv.teamLockTip', teamLockCount)}> {teamLockCount}</span>
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 6px',
+              borderRadius: 3,
+              border: '1px solid var(--am)',
+              background: 'rgba(245,158,11,.10)',
+              color: 'var(--am)',
+            }}
+            data-htip={t('rv.teamLockTip', teamLockCount)}
+          >
+            {' '}
+            {teamLockCount}
+          </span>
         )}
       </td>
       <td>
         <span className="res-plan-tags">
           {plans.map(p => (
-            <span key={p.id} className="res-plan-tag res-plan-tag-team" title={t('rv.planTeamWideTip')}>{p.name}</span>
+            <span key={p.id} className="res-plan-tag res-plan-tag-team" title={t('rv.planTeamWideTip')}>
+              {p.name}
+            </span>
           ))}
         </span>
       </td>
-      <td className="res-row-meta" style={{ textAlign: 'right' }}>{memberCount} {t('rv.members')}</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>
+        {memberCount} {t('rv.members')}
+      </td>
     </tr>
   );
 }
@@ -520,7 +675,9 @@ function Avatar({ member, teams }) {
 }
 
 function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled = [], weeks = [], onClick, t }) {
-  const rowTeams = memberTeams(member).map(tid => teams.find(t => t.id === tid)).filter(Boolean);
+  const rowTeams = memberTeams(member)
+    .map(tid => teams.find(t => t.id === tid))
+    .filter(Boolean);
   const shares = useMemo(() => realisedTeamShares(member, scheduled), [member, scheduled]);
   const cap = Math.round(deriveCap(member, { plans: meetingPlans, teams }) * 100);
   const vac = member.vac ?? 25;
@@ -531,12 +688,14 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
   const dates = [member.start, member.end].filter(Boolean).join(' – ');
   // Build plan tag list: team-inherited plans flagged, member plans plain.
   const teamPlanIds = new Set(rowTeams.flatMap(tm => tm.meetingPlanIds || []));
-  const memberPlanIds = new Set((member.meetingPlanIds) || []);
+  const memberPlanIds = new Set(member.meetingPlanIds || []);
   const allPlanIds = [...teamPlanIds, ...[...memberPlanIds].filter(id => !teamPlanIds.has(id))];
   const planObjs = allPlanIds.map(id => meetingPlans.find(p => p.id === id)).filter(Boolean);
   return (
     <tr onClick={onClick} style={{ opacity: offboarded ? 0.5 : 1 }}>
-      <td className="res-td-avatar"><Avatar member={member} teams={teams} /></td>
+      <td className="res-td-avatar">
+        <Avatar member={member} teams={teams} />
+      </td>
       <td className="res-row-name">
         {member.name || member.id}
         {shortMap[member.id] && (
@@ -545,12 +704,36 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
           </span>
         )}
         {offboarded && (
-          <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--re)', color: '#fff' }}
-            data-htip={t('rv.offboardedOn', member.end)}>{t('rv.offboarded')}</span>
+          <span
+            style={{
+              marginLeft: 6,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: 'var(--re)',
+              color: '#fff',
+            }}
+            data-htip={t('rv.offboardedOn', member.end)}
+          >
+            {t('rv.offboarded')}
+          </span>
         )}
         {offboardingSoon && (
-          <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'var(--am)', color: '#fff' }}
-            data-htip={t('rv.leavingOn', member.end)}>{t('rv.leavingSoon')}</span>
+          <span
+            style={{
+              marginLeft: 6,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: 'var(--am)',
+              color: '#fff',
+            }}
+            data-htip={t('rv.leavingOn', member.end)}
+          >
+            {t('rv.leavingSoon')}
+          </span>
         )}
       </td>
       <td className="res-td-teams">
@@ -564,25 +747,35 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
         <span className="res-team-chips" data-htip={shares.length > 1 ? `${t('rv.teamShareTip')}` : undefined}>
           {rowTeams.map(team => {
             const share = shares.length > 1 ? shares.find(sh => sh.team === team.id) : null;
-            return <span key={team.id} className="res-team-badge" data-team-chip={team.id} style={{ borderColor: team.color, color: team.color }}>
-              {team.name}{share && <span className="res-team-share">{Math.round(share.pct * 100)} %</span>}
-            </span>;
+            return (
+              <span
+                key={team.id}
+                className="res-team-badge"
+                data-team-chip={team.id}
+                style={{ borderColor: team.color, color: team.color }}
+              >
+                {team.name}
+                {share && <span className="res-team-share">{Math.round(share.pct * 100)} %</span>}
+              </span>
+            );
           })}
           {/* Work on tasks of a team the person is not in (or of no team):
               still part of the split, so it gets a chip of its own. */}
-          {shares.length > 1 && shares.filter(sh => !rowTeams.some(tm => tm.id === sh.team)).map(sh => (
-            <span key={sh.team || '-'} className="res-team-badge res-team-badge-other" data-team-chip={sh.team || ''}>
-              {teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}
-              <span className="res-team-share">{Math.round(sh.pct * 100)} %</span>
-            </span>
-          ))}
+          {shares.length > 1 &&
+            shares
+              .filter(sh => !rowTeams.some(tm => tm.id === sh.team))
+              .map(sh => (
+                <span key={sh.team || '-'} className="res-team-badge res-team-badge-other" data-team-chip={sh.team || ''}>
+                  {teams.find(tm => tm.id === sh.team)?.name || sh.team || t('noTeam')}
+                  <span className="res-team-share">{Math.round(sh.pct * 100)} %</span>
+                </span>
+              ))}
         </span>
       </td>
       <td>
         <span className="res-plan-tags">
           {planObjs.map(p => (
-            <span key={p.id}
-              className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}>
+            <span key={p.id} className={`res-plan-tag${teamPlanIds.has(p.id) ? ' res-plan-tag-team' : ''}`}>
               {p.name}
             </span>
           ))}
@@ -591,32 +784,60 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
       <td className="res-row-meta" style={{ textAlign: 'right' }}>
         {cap}% · {vac}d
       </td>
-      <td className="res-row-meta" style={{ textAlign: 'right' }}>{dates || ''}</td>
+      <td className="res-row-meta" style={{ textAlign: 'right' }}>
+        {dates || ''}
+      </td>
     </tr>
   );
 }
 
-
 /* ─── Main component ──────────────────────────────────────────────────── */
 export const RES_JOB_EVENT = 'planr:resources:job';
 
-function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter = '', personFilter = '', tree = [], scheduled = [], weeks = [], onMeetingPlansUpd, onUpd, onAdd, onClone, onDel, onVac, onTeamUpd, onTeamAdd, onTeamDel }) {
+function ResViewImpl({
+  members,
+  teams,
+  vacations,
+  meetingPlans = [],
+  teamFilter = '',
+  personFilter = '',
+  tree = [],
+  scheduled = [],
+  weeks = [],
+  onMeetingPlansUpd,
+  onUpd,
+  onAdd,
+  onClone,
+  onDel,
+  onVac,
+  onTeamUpd,
+  onTeamAdd,
+  onTeamDel,
+}) {
   const { t } = useT();
   const shortMap = buildMemberShortMap(members);
 
   const [section, setSection] = useState('members');
-  const [editingTeamId, setEditingTeamId]     = useState(null);
+  const [editingTeamId, setEditingTeamId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
-  const [editingVacIdx, setEditingVacIdx]     = useState(null);
-  const [editingPlanId, setEditingPlanId]     = useState(null);
+  const [editingVacIdx, setEditingVacIdx] = useState(null);
+  const [editingPlanId, setEditingPlanId] = useState(null);
   const editingPlan = editingPlanId != null ? meetingPlans.find(p => p.id === editingPlanId) : null;
   // Offboarded toggle — persisted so the view sticks across navigations.
   // Default off: most planning happens against the current roster.
   const [showOffboarded, setShowOffboarded] = useState(() => {
-    try { return localStorage.getItem('planr_res_show_offboarded') === '1'; } catch { return false; }
+    try {
+      return localStorage.getItem('planr_res_show_offboarded') === '1';
+    } catch {
+      return false;
+    }
   });
   useEffect(() => {
-    try { localStorage.setItem('planr_res_show_offboarded', showOffboarded ? '1' : '0'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_res_show_offboarded', showOffboarded ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
   }, [showOffboarded]);
   const todayIso = iso(new Date());
   const isOffboarded = m => !!m.end && m.end < todayIso;
@@ -645,34 +866,59 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
     }
     return true;
   });
-  const fVacations = vacations.filter(v => !personFilter && !teamFilter ? true : visibleMemberIds.has(v.person));
-  const fMeetingPlans = (personFilter || teamFilter)
-    ? meetingPlans.filter(p => {
-        const onTeam = fTeams.some(tm => (tm.meetingPlanIds || []).includes(p.id));
-        const onMember = fMembers.some(m => (m.meetingPlanIds || []).includes(p.id));
-        return onTeam || onMember;
-      })
-    : meetingPlans;
+  const fVacations = vacations.filter(v => (!personFilter && !teamFilter ? true : visibleMemberIds.has(v.person)));
+  const fMeetingPlans =
+    personFilter || teamFilter
+      ? meetingPlans.filter(p => {
+          const onTeam = fTeams.some(tm => (tm.meetingPlanIds || []).includes(p.id));
+          const onMember = fMembers.some(m => (m.meetingPlanIds || []).includes(p.id));
+          return onTeam || onMember;
+        })
+      : meetingPlans;
 
   const memberCountForTeam = tid => fMembers.filter(m => inTeam(m, tid)).length;
 
-  const editingTeam   = editingTeamId   != null ? teams.find(tm => tm.id === editingTeamId)   : null;
-  const editingTeamIdx = editingTeam    != null ? teams.indexOf(editingTeam)                   : -1;
-  const editingMember = editingMemberId != null ? members.find(m => m.id === editingMemberId)  : null;
+  const editingTeam = editingTeamId != null ? teams.find(tm => tm.id === editingTeamId) : null;
+  const editingTeamIdx = editingTeam != null ? teams.indexOf(editingTeam) : -1;
+  const editingMember = editingMemberId != null ? members.find(m => m.id === editingMemberId) : null;
 
   // Local vacation filters — narrow on top of the global topbar filters.
   // Persisted across tab switches so a long vacation list stays focused on
   // the slice the user is currently triaging.
-  const [vacMember, setVacMember] = useState(() => { try { return localStorage.getItem('planr_vac_member') || ''; } catch { return ''; } });
-  const [vacYear, setVacYear] = useState(() => { try { return localStorage.getItem('planr_vac_year') || ''; } catch { return ''; } });
-  useEffect(() => { try { localStorage.setItem('planr_vac_member', vacMember); } catch { /* ignore */ } }, [vacMember]);
-  useEffect(() => { try { localStorage.setItem('planr_vac_year', vacYear); } catch { /* ignore */ } }, [vacYear]);
+  const [vacMember, setVacMember] = useState(() => {
+    try {
+      return localStorage.getItem('planr_vac_member') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [vacYear, setVacYear] = useState(() => {
+    try {
+      return localStorage.getItem('planr_vac_year') || '';
+    } catch {
+      return '';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_vac_member', vacMember);
+    } catch {
+      /* ignore */
+    }
+  }, [vacMember]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_vac_year', vacYear);
+    } catch {
+      /* ignore */
+    }
+  }, [vacYear]);
 
   /* sort vacations: latest first within year */
   const sortedVacs = [...fVacations]
     .filter(v => !vacMember || v.person === vacMember)
     .filter(v => !vacYear || (v.from || '').slice(0, 4) === vacYear)
-    .sort((a, b) => (a.from || '') < (b.from || '') ? 1 : -1);
+    .sort((a, b) => ((a.from || '') < (b.from || '') ? 1 : -1));
   const vacsByYear = sortedVacs.reduce((acc, v) => {
     const y = (v.from || '').slice(0, 4) || '—';
     (acc[y] ||= []).push(v);
@@ -683,8 +929,12 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   // doesn't shrink as the user narrows the list.
   const allVacYears = [...new Set(fVacations.map(v => (v.from || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
   // Drop stale filter values when the underlying option is gone.
-  useEffect(() => { if (vacMember && !fMembers.some(m => m.id === vacMember)) setVacMember(''); }, [fMembers, vacMember]);
-  useEffect(() => { if (vacYear && !allVacYears.includes(vacYear)) setVacYear(''); }, [allVacYears, vacYear]);
+  useEffect(() => {
+    if (vacMember && !fMembers.some(m => m.id === vacMember)) setVacMember('');
+  }, [fMembers, vacMember]);
+  useEffect(() => {
+    if (vacYear && !allVacYears.includes(vacYear)) setVacYear('');
+  }, [allVacYears, vacYear]);
 
   const addVacation = () => {
     const newVacs = [...vacations, { person: members[0]?.id || '', from: '', to: '', note: '' }];
@@ -703,7 +953,11 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
   useEffect(() => {
     const onJob = e => {
       const job = e.detail?.job;
-      if (job === 'vacation') { setSection('vacations'); addVacation(); return; }
+      if (job === 'vacation') {
+        setSection('vacations');
+        addVacation();
+        return;
+      }
       if (job === 'onboard') {
         setSection('members');
         // `onAdd` appends to the members array in App, so the new id is not
@@ -731,198 +985,296 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           ['teams', `${t('rv.teams')} (${fTeams.length})`],
           ['members', `${t('rv.members')} (${fMembers.length})`],
           ['vacations', `${t('rv.vacations')} (${fVacations.length})`],
-        ].map(([k, l]) =>
-          <button key={k} data-testid={`rv-section-${k}`} className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
-            style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setSection(k)}>{l}</button>)}
+        ].map(([k, l]) => (
+          <button
+            key={k}
+            data-testid={`rv-section-${k}`}
+            className={`btn btn-xs ${section === k ? 'btn-pri' : 'btn-sec'}`}
+            style={{ padding: '4px 10px', fontSize: 12 }}
+            onClick={() => setSection(k)}
+          >
+            {l}
+          </button>
+        ))}
         <div style={{ flex: 1 }} />
         {(section === 'members' || section === 'teams') && (
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--tx2)', cursor: 'pointer', marginRight: 8 }}
-            data-htip={t('q.includeOffboardedTip')}>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 12,
+              color: 'var(--tx2)',
+              cursor: 'pointer',
+              marginRight: 8,
+            }}
+            data-htip={t('q.includeOffboardedTip')}
+          >
             <input type="checkbox" checked={showOffboarded} onChange={e => setShowOffboarded(e.target.checked)} style={{ margin: 0 }} />
             {t('q.includeOffboarded')}
           </label>
         )}
-        {section === 'teams' && <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>{t('rv.addTeam')}</button>}
-        {section === 'vacations' && <button className="btn btn-sec btn-sm" onClick={addVacation}>{t('rv.addVacation')}</button>}
-        {section === 'plans' && <button className="btn btn-sec btn-sm" onClick={() => {
-          const id = 'mp_' + Math.random().toString(36).slice(2, 8);
-          onMeetingPlansUpd([...meetingPlans, { id, name: t('rv.newPlan'), meetings: [] }]);
-          setEditingPlanId(id);
-        }}>{t('rv.addPlan')}</button>}
+        {section === 'teams' && (
+          <button className="btn btn-sec btn-sm" onClick={onTeamAdd}>
+            {t('rv.addTeam')}
+          </button>
+        )}
+        {section === 'vacations' && (
+          <button className="btn btn-sec btn-sm" onClick={addVacation}>
+            {t('rv.addVacation')}
+          </button>
+        )}
+        {section === 'plans' && (
+          <button
+            className="btn btn-sec btn-sm"
+            onClick={() => {
+              const id = 'mp_' + Math.random().toString(36).slice(2, 8);
+              onMeetingPlansUpd([...meetingPlans, { id, name: t('rv.newPlan'), meetings: [] }]);
+              setEditingPlanId(id);
+            }}
+          >
+            {t('rv.addPlan')}
+          </button>
+        )}
       </div>
 
       {/* ═══════════════ MEETING-PLÄNE ═══════════════ */}
-      {section === 'plans' && (
-        fMeetingPlans.length === 0
-          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
-              {t('rv.plansEmpty')}
-            </div>
-          : (
-              <table className="res-table">
-                <colgroup>
-                  <col style={{ width: 30 }} />
-                  <col />
-                  <col style={{ width: '40%' }} />
-                  <col style={{ width: 200 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th />
-                    <th>{t('rv.name')}</th>
-                    <th>{t('rv.appointments')}</th>
-                    <th style={{ textAlign: 'right' }}>{t('rv.assigns')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fMeetingPlans.map(pl => {
-                    const teamCount = fTeams.filter(tm => (tm.meetingPlanIds || []).includes(pl.id)).length;
-                    const memberCount = fMembers.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
-                    const totalH = sumMeetingHours(pl.meetings || []);
-                    return (
-                      <MeetingPlanReadRow key={pl.id} plan={pl}
-                        teamCount={teamCount} memberCount={memberCount} totalHours={totalH}
-                        onClick={() => setEditingPlanId(pl.id)} t={t} />
-                    );
-                  })}
-                </tbody>
-              </table>
-            )
-      )}
+      {section === 'plans' &&
+        (fMeetingPlans.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.plansEmpty')}</div>
+        ) : (
+          <table className="res-table">
+            <colgroup>
+              <col style={{ width: 30 }} />
+              <col />
+              <col style={{ width: '40%' }} />
+              <col style={{ width: 200 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th />
+                <th>{t('rv.name')}</th>
+                <th>{t('rv.appointments')}</th>
+                <th style={{ textAlign: 'right' }}>{t('rv.assigns')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fMeetingPlans.map(pl => {
+                const teamCount = fTeams.filter(tm => (tm.meetingPlanIds || []).includes(pl.id)).length;
+                const memberCount = fMembers.filter(m => (m.meetingPlanIds || []).includes(pl.id)).length;
+                const totalH = sumMeetingHours(pl.meetings || []);
+                return (
+                  <MeetingPlanReadRow
+                    key={pl.id}
+                    plan={pl}
+                    teamCount={teamCount}
+                    memberCount={memberCount}
+                    totalHours={totalH}
+                    onClick={() => setEditingPlanId(pl.id)}
+                    t={t}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        ))}
 
       {/* ═══════════════ TEAMS ═══════════════ */}
-      {section === 'teams' && (
-        fTeams.length === 0
-          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
-          : (
-              <table className="res-table">
-                <colgroup>
-                  <col style={{ width: 30 }} />
-                  <col style={{ width: 220 }} />
-                  <col />
-                  <col style={{ width: 120 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th />
-                    <th>{t('rv.name')}</th>
-                    <th>{t('rv.plans')}</th>
-                    <th style={{ textAlign: 'right' }}>{t('rv.members')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fTeams.map(tm => {
-                    // Count leaves locked to this team so users see at a
-                    // glance which teams have whole-team-blocking work in
-                    // the pipeline.
-                    const lockCount = (tree || []).filter(r => r.teamLock && r.team === tm.id && r.status !== 'done').length;
-                    return (
-                      <TeamReadRow
-                        key={tm.id}
-                        team={tm}
-                        memberCount={memberCountForTeam(tm.id)}
-                        meetingPlans={meetingPlans}
-                        teamLockCount={lockCount}
-                        onClick={() => setEditingTeamId(tm.id)}
-                        t={t}
-                      />
-                    );
-                  })}
-                </tbody>
-              </table>
-            )
-      )}
+      {section === 'teams' &&
+        (fTeams.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('rv.noTeams') || '—'}</div>
+        ) : (
+          <table className="res-table">
+            <colgroup>
+              <col style={{ width: 30 }} />
+              <col style={{ width: 220 }} />
+              <col />
+              <col style={{ width: 120 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th />
+                <th>{t('rv.name')}</th>
+                <th>{t('rv.plans')}</th>
+                <th style={{ textAlign: 'right' }}>{t('rv.members')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fTeams.map(tm => {
+                // Count leaves locked to this team so users see at a
+                // glance which teams have whole-team-blocking work in
+                // the pipeline.
+                const lockCount = (tree || []).filter(r => r.teamLock && r.team === tm.id && r.status !== 'done').length;
+                return (
+                  <TeamReadRow
+                    key={tm.id}
+                    team={tm}
+                    memberCount={memberCountForTeam(tm.id)}
+                    meetingPlans={meetingPlans}
+                    teamLockCount={lockCount}
+                    onClick={() => setEditingTeamId(tm.id)}
+                    t={t}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        ))}
 
       {/* ═══════════════ MEMBERS ═══════════════ */}
-      {section === 'members' && (<>
-        {!fMembers.length && !fTeams.length && (
-          <div className="empty">
-            <div style={{ fontSize: 24, marginBottom: 8 }}></div>
-            {t('rv.noMembers')}
-            <p>{t('rv.noMembersHint')}</p>
-          </div>
-        )}
-        {[...fTeams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
-          // A member in several teams is listed under each of them.
-          const teamMembers = fMembers.filter(m => tm.id ? inTeam(m, tm.id) : !m.team);
-          if (!teamMembers.length && tm.id === '') return null;
-          if (teamFilter && tm.id && tm.id !== teamFilter) return null;
-          return (
-            <div key={tm.id || '__none__'} style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${tm.color || 'var(--b)'}` }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: tm.color || 'var(--tx2)' }}>{tm.name}</span>
-                <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
-                {tm.id && <button className="btn btn-ghost btn-xs" style={{ marginLeft: 'auto', padding: '2px 8px' }} onClick={() => onAdd(tm.id)}>+ {t('rv.addPerson')}</button>}
-              </div>
-              <table className="res-table">
-                <colgroup>
-                  <col style={{ width: 30 }} />
-                  <col style={{ width: '32%' }} />
-                  <col style={{ width: 120 }} />
-                  <col />
-                  <col style={{ width: 110 }} />
-                  <col style={{ width: 140 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th />
-                    <th>{t('rv.name')}</th>
-                    <th>{t('rv.team')}</th>
-                    <th>{t('rv.plans')}</th>
-                    <th style={{ textAlign: 'right' }} data-htip={t('rv.capVacTip')}>{t('rv.capVac')}</th>
-                    <th style={{ textAlign: 'right' }} data-htip={t('rv.windowTip')}>{t('rv.window')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teamMembers.map(m => (
-                    <MemberReadRow
-                      key={m.id}
-                      member={m}
-                      teams={teams}
-                      shortMap={shortMap}
-                      meetingPlans={meetingPlans}
-                      scheduled={scheduled}
-                      weeks={weeks}
-                      onClick={() => setEditingMemberId(m.id)}
-                      t={t}
-                    />
-                  ))}
-                </tbody>
-              </table>
+      {section === 'members' && (
+        <>
+          {!fMembers.length && !fTeams.length && (
+            <div className="empty">
+              <div style={{ fontSize: 24, marginBottom: 8 }}></div>
+              {t('rv.noMembers')}
+              <p>{t('rv.noMembersHint')}</p>
             </div>
-          );
-        })}
-      </>)}
+          )}
+          {[...fTeams, { id: '', name: t('noTeam'), color: 'var(--tx3)' }].map(tm => {
+            // A member in several teams is listed under each of them.
+            const teamMembers = fMembers.filter(m => (tm.id ? inTeam(m, tm.id) : !m.team));
+            if (!teamMembers.length && tm.id === '') return null;
+            if (teamFilter && tm.id && tm.id !== teamFilter) return null;
+            return (
+              <div key={tm.id || '__none__'} style={{ marginBottom: 14 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 6,
+                    paddingBottom: 4,
+                    borderBottom: `2px solid ${tm.color || 'var(--b)'}`,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 600, color: tm.color || 'var(--tx2)' }}>{tm.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{teamMembers.length}</span>
+                  {tm.id && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      style={{ marginLeft: 'auto', padding: '2px 8px' }}
+                      onClick={() => onAdd(tm.id)}
+                    >
+                      + {t('rv.addPerson')}
+                    </button>
+                  )}
+                </div>
+                <table className="res-table">
+                  <colgroup>
+                    <col style={{ width: 30 }} />
+                    <col style={{ width: '32%' }} />
+                    <col style={{ width: 120 }} />
+                    <col />
+                    <col style={{ width: 110 }} />
+                    <col style={{ width: 140 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th />
+                      <th>{t('rv.name')}</th>
+                      <th>{t('rv.team')}</th>
+                      <th>{t('rv.plans')}</th>
+                      <th style={{ textAlign: 'right' }} data-htip={t('rv.capVacTip')}>
+                        {t('rv.capVac')}
+                      </th>
+                      <th style={{ textAlign: 'right' }} data-htip={t('rv.windowTip')}>
+                        {t('rv.window')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamMembers.map(m => (
+                      <MemberReadRow
+                        key={m.id}
+                        member={m}
+                        teams={teams}
+                        shortMap={shortMap}
+                        meetingPlans={meetingPlans}
+                        scheduled={scheduled}
+                        weeks={weeks}
+                        onClick={() => setEditingMemberId(m.id)}
+                        t={t}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </>
+      )}
 
       {/* ═══════════════ VACATIONS ═══════════════ */}
-      {section === 'vacations' && (<>
-        <p className="helper" style={{ marginBottom: 10 }}>{t('rv.vacHint')}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-          <div style={{ width: 200 }}>
-            <SearchSelect value={vacMember}
-              options={fMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
-              onSelect={setVacMember}
-              placeholder={t('tv.allPeople')}
-              allowEmpty emptyLabel={t('tv.allPeople')} />
+      {section === 'vacations' && (
+        <>
+          <p className="helper" style={{ marginBottom: 10 }}>
+            {t('rv.vacHint')}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+            <div style={{ width: 200 }}>
+              <SearchSelect
+                value={vacMember}
+                options={fMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
+                onSelect={setVacMember}
+                placeholder={t('tv.allPeople')}
+                allowEmpty
+                emptyLabel={t('tv.allPeople')}
+              />
+            </div>
+            <select
+              value={vacYear}
+              onChange={e => setVacYear(e.target.value)}
+              style={{
+                padding: '5px 8px',
+                fontSize: 12,
+                background: 'var(--bg3)',
+                color: 'var(--tx)',
+                border: '1px solid var(--b2)',
+                borderRadius: 'var(--r)',
+                minWidth: 100,
+              }}
+            >
+              <option value="">{t('rv.allYears')}</option>
+              {allVacYears.map(y => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            {(vacMember || vacYear) && (
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => {
+                  setVacMember('');
+                  setVacYear('');
+                }}
+                data-htip={t('rv.clearFilters')}
+                aria-label={t('rv.clearFilters')}
+                style={{ padding: '2px 7px', fontSize: 12 }}
+              >
+                <Icon name="x" size={11} />
+              </button>
+            )}
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+              {sortedVacs.length} / {fVacations.length}
+            </span>
           </div>
-          <select value={vacYear} onChange={e => setVacYear(e.target.value)}
-            style={{ padding: '5px 8px', fontSize: 12, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
-            <option value="">{t('rv.allYears')}</option>
-            {allVacYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          {(vacMember || vacYear) && (
-            <button className="btn btn-ghost btn-xs" onClick={() => { setVacMember(''); setVacYear(''); }}
-              data-htip={t('rv.clearFilters')} aria-label={t('rv.clearFilters')}
-              style={{ padding: '2px 7px', fontSize: 12 }}><Icon name="x" size={11} /></button>
-          )}
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
-            {sortedVacs.length} / {fVacations.length}
-          </span>
-        </div>
-        {sortedVacs.length === 0
-          ? <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>
-          : vacYears.map(year => (
+          {sortedVacs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>
+          ) : (
+            vacYears.map(year => (
               <div key={year} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 6,
+                    paddingBottom: 4,
+                    borderBottom: '2px solid var(--b)',
+                  }}
+                >
                   <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{year}</span>
                   <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{vacsByYear[year].length}</span>
                 </div>
@@ -946,7 +1298,9 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
                       const origIdx = vacations.indexOf(v);
                       const mem = members.find(m => m.id === v.person);
                       const team = mem ? teams.find(tm => tm.id === mem.team) : null;
-                      const range = [v.from, v.to].filter(Boolean).join(' – ') || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>;
+                      const range = [v.from, v.to].filter(Boolean).join(' – ') || (
+                        <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.vacDateRange')}</span>
+                      );
                       return (
                         <tr key={origIdx} data-testid={`rv-vac-row-${origIdx}`} onClick={() => setEditingVacIdx(origIdx)}>
                           <td className="res-td-avatar">
@@ -954,17 +1308,25 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
                               {initials(mem?.name || v.person || '?')}
                             </span>
                           </td>
-                          <td className="res-row-name">{mem?.name || v.person || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>}</td>
+                          <td className="res-row-name">
+                            {mem?.name || v.person || (
+                              <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('rv.choosePerson')}</span>
+                            )}
+                          </td>
                           <td className="res-row-meta">{range}</td>
-                          <td className="res-row-meta" style={{ opacity: .7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>{v.note || ''}</td>
+                          <td className="res-row-meta" style={{ opacity: 0.7, fontStyle: 'italic', fontFamily: 'var(--font)' }}>
+                            {v.note || ''}
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-            ))}
-      </>)}
+            ))
+          )}
+        </>
+      )}
 
       {/* ═══════════════ MODALS ═══════════════ */}
       {editingTeam && (
@@ -987,8 +1349,14 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
           autoFocusName={focusNewMember}
           onUpd={onUpd}
           onClone={onClone}
-          onDel={id => { onDel(id); setEditingMemberId(null); }}
-          onClose={() => { setEditingMemberId(null); setFocusNewMember(false); }}
+          onDel={id => {
+            onDel(id);
+            setEditingMemberId(null);
+          }}
+          onClose={() => {
+            setEditingMemberId(null);
+            setFocusNewMember(false);
+          }}
           t={t}
         />
       )}
@@ -996,8 +1364,11 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
         <VacationEditModal
           vacation={vacations[editingVacIdx]}
           members={members}
-          onUpd={patch => onVac(vacations.map((x, j) => j === editingVacIdx ? { ...x, ...patch } : x))}
-          onDel={() => { onVac(vacations.filter((_, j) => j !== editingVacIdx)); setEditingVacIdx(null); }}
+          onUpd={patch => onVac(vacations.map((x, j) => (j === editingVacIdx ? { ...x, ...patch } : x)))}
+          onDel={() => {
+            onVac(vacations.filter((_, j) => j !== editingVacIdx));
+            setEditingVacIdx(null);
+          }}
           onClose={() => setEditingVacIdx(null)}
           t={t}
         />
@@ -1005,7 +1376,7 @@ function ResViewImpl({ members, teams, vacations, meetingPlans = [], teamFilter 
       {editingPlan && (
         <MeetingPlanEditModal
           plan={editingPlan}
-          onUpd={p => onMeetingPlansUpd(meetingPlans.map(x => x.id === p.id ? p : x))}
+          onUpd={p => onMeetingPlansUpd(meetingPlans.map(x => (x.id === p.id ? p : x)))}
           onDel={pid => onMeetingPlansUpd(meetingPlans.filter(x => x.id !== pid))}
           onClose={() => setEditingPlanId(null)}
         />
@@ -1029,15 +1400,16 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
   // Escape path flushes the buffer instead of dropping it on the floor.
   const flushRef = useRef(null);
   flushRef.current = () => {
-    const changed = ['person', 'from', 'to', 'note']
-      .some(k => (draft[k] ?? '') !== (vacation[k] ?? ''));
+    const changed = ['person', 'from', 'to', 'note'].some(k => (draft[k] ?? '') !== (vacation[k] ?? ''));
     if (changed) onUpd({ person: draft.person, from: draft.from, to: draft.to, note: draft.note });
     onClose();
   };
   const flushAndClose = () => flushRef.current();
 
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') flushRef.current(); };
+    const h = e => {
+      if (e.key === 'Escape') flushRef.current();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
@@ -1047,7 +1419,9 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t('rv.editVacation')}</span>
-          <button className="btn btn-ghost btn-xs" onClick={flushAndClose} title={t('rv.close')}><Icon name="x" size={11} /></button>
+          <button className="btn btn-ghost btn-xs" onClick={flushAndClose} title={t('rv.close')}>
+            <Icon name="x" size={11} />
+          </button>
         </div>
         <div className="field">
           <label>{t('rv.person')}</label>
@@ -1073,9 +1447,13 @@ function VacationEditModal({ vacation, members, onUpd, onDel, onClose, t }) {
           <input type="text" value={draft.note || ''} onChange={e => setField('note', e.target.value)} />
         </div>
         <div className="modal-footer">
-          <button className="btn btn-danger btn-xs" onClick={onDel}>{t('rv.remove')}</button>
+          <button className="btn btn-danger btn-xs" onClick={onDel}>
+            {t('rv.remove')}
+          </button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-sec" onClick={flushAndClose}>{t('rv.close')}</button>
+          <button className="btn btn-sec" onClick={flushAndClose}>
+            {t('rv.close')}
+          </button>
         </div>
       </div>
     </div>

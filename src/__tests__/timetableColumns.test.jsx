@@ -14,16 +14,41 @@ const tree = [
   { id: 'P1.1', name: 'Preise', status: 'wip' },
   ...[1, 2, 3].map(i => ({ id: `P1.1.${i}`, name: `Task ${i}`, status: i === 1 ? 'done' : 'open', best: 5, factor: 1, team: 'T1' })),
 ];
-const scheduled = [1, 2, 3].map(i => ({ id: `P1.1.${i}`, treeId: `P1.1.${i}`, startD: day(i * 7), endD: day(i * 7 + 4), status: 'open', team: 'T1', effort: 5 }));
-const show = props => render(<I18nProvider><TimetableView tree={tree} scheduled={scheduled} stats={treeStats(tree)} teams={[{ id: 'T1', name: 'Dev' }]} members={[]} {...props} /></I18nProvider>);
+const scheduled = [1, 2, 3].map(i => ({
+  id: `P1.1.${i}`,
+  treeId: `P1.1.${i}`,
+  startD: day(i * 7),
+  endD: day(i * 7 + 4),
+  status: 'open',
+  team: 'T1',
+  effort: 5,
+}));
+const show = props =>
+  render(
+    <I18nProvider>
+      <TimetableView
+        tree={tree}
+        scheduled={scheduled}
+        stats={treeStats(tree)}
+        teams={[{ id: 'T1', name: 'Dev' }]}
+        members={[]}
+        {...props}
+      />
+    </I18nProvider>,
+  );
 
 describe('the timetable keeps its columns', () => {
   afterEach(() => cleanup());
 
-  it('gives the review window\'s badges a column of their own', () => {
+  it("gives the review window's badges a column of their own", () => {
     show({ sinceDate: new Date(2026, 10, 5), diffDoneIds: ['P1.1.1'], diffProgressedIds: ['P1.1.2'] });
     const cells = screen.getAllByTestId('tt-window');
-    expect(cells.map(el => el.textContent).filter(Boolean).sort()).toEqual(['▲1', '●1']);
+    expect(
+      cells
+        .map(el => el.textContent)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(['▲1', '●1']);
     const badges = cells.find(el => el.textContent === '●1');
     const abbrev = badges.parentElement.querySelector('[data-testid="tt-abbrev"]');
     // The abbreviation (and its count, when it has one), and nothing else.
@@ -45,10 +70,20 @@ describe('the timetable keeps its columns', () => {
 describe('the timetable marks what a scenario moves', () => {
   afterEach(() => cleanup());
 
-  it('in the scenario\'s colour, with the furthest shift, and says so in the tooltip', () => {
-    show({ scenarioShifts: new Map([['P1.1.2', 91], ['P1.1.3', 12]]) });
+  it("in the scenario's colour, with the furthest shift, and says so in the tooltip", () => {
+    show({
+      scenarioShifts: new Map([
+        ['P1.1.2', 91],
+        ['P1.1.3', 12],
+      ]),
+    });
     const marks = screen.getAllByTestId('tt-scenario');
-    expect(marks.map(el => el.textContent).filter(Boolean).sort()).toEqual(['+12 d', '+13 wk']);
+    expect(
+      marks
+        .map(el => el.textContent)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(['+12 d', '+13 wk']);
     const row = marks.find(el => el.textContent === '+13 wk').parentElement;
     expect(row.style.borderLeft).toContain('var(--sc)');
     expect(row.getAttribute('data-htip')).toContain('Moved by the scenario: 1 of 1');
@@ -60,10 +95,15 @@ describe('the timetable marks what a scenario moves', () => {
 
   it('a task that is new or gone is marked without a number', () => {
     show({ scenarioShifts: new Map([['P1.1.2', null]]) });
-    expect(screen.getAllByTestId('tt-scenario').map(el => el.textContent).filter(Boolean)).toEqual(['×1']);
+    expect(
+      screen
+        .getAllByTestId('tt-scenario')
+        .map(el => el.textContent)
+        .filter(Boolean),
+    ).toEqual(['×1']);
   });
 
-  it('never shows the review window\'s badges beside it', () => {
+  it("never shows the review window's badges beside it", () => {
     show({ scenarioShifts: new Map([['P1.1.2', 5]]), sinceDate: new Date(2026, 10, 5), diffDoneIds: ['P1.1.1'] });
     expect(screen.queryByTestId('tt-window')).toBeNull();
   });

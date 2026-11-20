@@ -36,7 +36,15 @@ describe('computeDiff historical fallback', () => {
   test('legacy actual bars seed past state even when later imported history exists', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
-      { id: 'P1.1', name: 'Already done before cutoff', status: 'done', best: 5, factor: 1, completedStart: '2026-04-01', completedAt: '2026-04-20' },
+      {
+        id: 'P1.1',
+        name: 'Already done before cutoff',
+        status: 'done',
+        best: 5,
+        factor: 1,
+        completedStart: '2026-04-01',
+        completedAt: '2026-04-20',
+      },
       { id: 'P1.2', name: 'Open work', status: 'open', best: 5, factor: 1 },
     ];
     const historyEvents = [
@@ -149,9 +157,7 @@ describe('computeDiff historical fallback', () => {
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
       { id: 'P1.1', name: 'Backfilled progress', status: 'wip', progress: 50, best: 5, factor: 1 },
     ];
-    const historyEvents = [
-      { ts: '2026-05-25T12:00:00.000Z', id: 'P1.1', status: 'wip', progress: 50, effectiveAt: '2026-05-01' },
-    ];
+    const historyEvents = [{ ts: '2026-05-25T12:00:00.000Z', id: 'P1.1', status: 'wip', progress: 50, effectiveAt: '2026-05-01' }];
 
     const afterEffectiveDate = computeDiff({
       tree,

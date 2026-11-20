@@ -16,16 +16,22 @@ function busyPlan() {
       for (let b = 1; b <= 4; b++) {
         const done = ri < 3 && a <= 3;
         tree.push({
-          id: `${root}.${a}.${b}`, name: `Aufgabe ${a}.${b}`, team: 'T1',
+          id: `${root}.${a}.${b}`,
+          name: `Aufgabe ${a}.${b}`,
+          team: 'T1',
           status: done ? 'done' : b === 1 ? 'wip' : 'open',
-          best: 2 + ((a * b) % 9), factor: 1.4, assign: ['M1'],
+          best: 2 + ((a * b) % 9),
+          factor: 1.4,
+          assign: ['M1'],
           deps: b > 1 ? [`${root}.${a}.${b - 1}`] : [],
           progress: done ? 100 : b === 1 ? 40 : 0,
-          ...(done ? {
-            completedStart: '2026-01-05',
-            completedEnd: `2026-0${2 + (a % 5)}-14`,
-            completedAt: `2026-0${2 + (a % 5)}-14`,
-          } : {}),
+          ...(done
+            ? {
+                completedStart: '2026-01-05',
+                completedEnd: `2026-0${2 + (a % 5)}-14`,
+                completedAt: `2026-0${2 + (a % 5)}-14`,
+              }
+            : {}),
         });
       }
     }
@@ -70,12 +76,19 @@ describe('stations of different lines do not sit on top of each other', () => {
     // Stations are nudged ALONG their route, so the chronological sequence
     // along each line has to come out exactly as it went in.
     model.lines.forEach(line => {
-      const ts = stationsOf(line).map(s => s.t).sort((a, b) => a - b);
+      const ts = stationsOf(line)
+        .map(s => s.t)
+        .sort((a, b) => a - b);
       const byDate = stationsOf(line)
         .slice()
         .sort((a, b) => (+(a.milestoneDate || a.endDate) || 0) - (+(b.milestoneDate || b.endDate) || 0));
       // Same set of positions, and done work still sits before open work.
-      expect(stationsOf(line).map(s => s.t).slice().sort((a, b) => a - b)).toEqual(ts);
+      expect(
+        stationsOf(line)
+          .map(s => s.t)
+          .slice()
+          .sort((a, b) => a - b),
+      ).toEqual(ts);
       const firstOpenIdx = byDate.findIndex(s => !s.allDone);
       if (firstOpenIdx > 0) {
         const lastDoneT = Math.max(...byDate.slice(0, firstOpenIdx).map(s => s.t));
@@ -149,7 +162,7 @@ describe('station labels', () => {
       const owner = allStations.find(entry => entry.station.id === id).station;
       const box = boxFor(pos, owner.abbrev);
       allStations.forEach(({ station }) => {
-        if (station.id === id) return;   // its own dot is allowed to be adjacent
+        if (station.id === id) return; // its own dot is allowed to be adjacent
         const dot = { x0: station.x - 9, x1: station.x + 9, y0: station.y - 9, y1: station.y + 9 };
         if (overlaps(box, dot)) clashes.push(`${id} over ${station.id}`);
       });
@@ -190,12 +203,15 @@ describe('station labels', () => {
   test('drops a label rather than printing it on top of something', () => {
     // Twelve stations packed into a 30px square: most labels cannot fit.
     const crowd = Array.from({ length: 12 }, (_, i) => ({
-      id: `C.${i}`, abbrev: 'LONGISH', kind: 'major', t: 0.5,
-      x: 700 + (i % 4) * 8, y: 400 + Math.floor(i / 4) * 8, allDone: false,
+      id: `C.${i}`,
+      abbrev: 'LONGISH',
+      kind: 'major',
+      t: 0.5,
+      x: 700 + (i % 4) * 8,
+      y: 400 + Math.floor(i / 4) * 8,
+      allDone: false,
     }));
-    const placed = placeStationLabels(
-      crowd.map(station => ({ currentId: null, majorStations: [station], minorStations: [], route: [] })),
-    );
+    const placed = placeStationLabels(crowd.map(station => ({ currentId: null, majorStations: [station], minorStations: [], route: [] })));
 
     expect(placed.size).toBeGreaterThan(0);
     expect(placed.size).toBeLessThan(12);
@@ -203,12 +219,19 @@ describe('station labels', () => {
 
   test('the station the train is approaching gets a slot before the others', () => {
     const crowd = Array.from({ length: 8 }, (_, i) => ({
-      id: `C.${i}`, abbrev: 'WIDELABEL', kind: 'major', t: 0.5,
-      x: 700 + (i % 3) * 9, y: 400 + Math.floor(i / 3) * 9, allDone: false,
+      id: `C.${i}`,
+      abbrev: 'WIDELABEL',
+      kind: 'major',
+      t: 0.5,
+      x: 700 + (i % 3) * 9,
+      y: 400 + Math.floor(i / 3) * 9,
+      allDone: false,
     }));
     const lines = crowd.map(station => ({
       currentId: station.id === 'C.7' ? 'C.7' : null,
-      majorStations: [station], minorStations: [], route: [],
+      majorStations: [station],
+      minorStations: [],
+      route: [],
     }));
 
     expect(placeStationLabels(lines).has('C.7')).toBe(true);
@@ -223,7 +246,10 @@ describe('the line name', () => {
   test('is kept clear of station labels', () => {
     const lineWithEarlyStop = {
       root: { id: 'AB', name: 'Rechnungen im Portal' },
-      route: [{ x: 60, y: 200 }, { x: 1340, y: 200 }],
+      route: [
+        { x: 60, y: 200 },
+        { x: 1340, y: 200 },
+      ],
       currentId: null,
       majorStations: [
         { id: 'AB.1', abbrev: 'PRI', x: 120, y: 200, kind: 'major', allDone: false },

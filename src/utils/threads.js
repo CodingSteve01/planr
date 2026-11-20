@@ -15,27 +15,25 @@ function ancestorsOf(id) {
 function dependencyIds(id, iMap, includeSoft) {
   const node = iMap[id];
   if (!node) return EMPTY_ARR;
-  const own = includeSoft
-    ? [...(node.deps || []), ...(node.softDeps || [])]
-    : [...(node.deps || [])];
-  const inherited = ancestorsOf(id).flatMap((ancestorId) => {
+  const own = includeSoft ? [...(node.deps || []), ...(node.softDeps || [])] : [...(node.deps || [])];
+  const inherited = ancestorsOf(id).flatMap(ancestorId => {
     const ancestor = iMap[ancestorId];
     if (!ancestor) return EMPTY_ARR;
-    return includeSoft
-      ? [...(ancestor.deps || []), ...(ancestor.softDeps || [])]
-      : [...(ancestor.deps || [])];
+    return includeSoft ? [...(ancestor.deps || []), ...(ancestor.softDeps || [])] : [...(ancestor.deps || [])];
   });
   return [...new Set([...own, ...inherited])];
 }
 
 function branchKey(id, depth = 2) {
-  return String(id || '').split('.').slice(0, depth).join('.');
+  return String(id || '')
+    .split('.')
+    .slice(0, depth)
+    .join('.');
 }
 
 function naturalCompare(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
-
 
 function ownSoftDependencyIds(id, iMap) {
   return [...(iMap[id]?.softDeps || [])];
@@ -57,7 +55,7 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
   const itemIds = new Set();
   for (const item of allItems || []) itemIds.add(item.treeId || item.id);
   const leafIds = new Set([...itemIds].filter(Boolean));
-  const nodeMap = iMap || Object.fromEntries((tree || []).map((item) => [item.id, item]));
+  const nodeMap = iMap || Object.fromEntries((tree || []).map(item => [item.id, item]));
 
   const undirected = new Map();
   const incident = new Map();
@@ -215,8 +213,8 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     }
   }
 
-  const rank = new Map([...leafIds].map((id) => [id, 0]));
-  const queue = [...leafIds].filter((id) => indeg.get(id) === 0);
+  const rank = new Map([...leafIds].map(id => [id, 0]));
+  const queue = [...leafIds].filter(id => indeg.get(id) === 0);
   const indegMut = new Map(indeg);
   while (queue.length) {
     const current = queue.shift();
@@ -263,7 +261,7 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     return naturalCompare(a, b);
   };
 
-  const sortThreadIds = (ids) => {
+  const sortThreadIds = ids => {
     const idSet = new Set(ids);
     const localSucc = new Map(ids.map(id => [id, []]));
     const localIndeg = new Map(ids.map(id => [id, 0]));
@@ -277,19 +275,18 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
     const originalIndeg = new Map(localIndeg);
     const ordered = [];
     const seen = new Set();
-    const queue = ids
-      .filter(id => (localIndeg.get(id) || 0) === 0)
-      .sort(compareItems);
+    const queue = ids.filter(id => (localIndeg.get(id) || 0) === 0).sort(compareItems);
 
-    const resourceKey = (id) => {
+    const resourceKey = id => {
       const node = nodeMap[id] || {};
-      const scheduledItem = (allItems || []).find(item => (item.treeId || item.id) === id)
-        || (scheduled || []).find(item => (item.treeId || item.id) === id)
-        || {};
+      const scheduledItem =
+        (allItems || []).find(item => (item.treeId || item.id) === id) ||
+        (scheduled || []).find(item => (item.treeId || item.id) === id) ||
+        {};
       const assign = node.assign || scheduledItem.assign || [];
       return assign[0] || node.personId || scheduledItem.personId || node.team || scheduledItem.team || '';
     };
-    const compareSuccessor = (from) => (a, b) => {
+    const compareSuccessor = from => (a, b) => {
       const sameParentA = parentId(a) === parentId(from);
       const sameParentB = parentId(b) === parentId(from);
       if (sameParentA !== sameParentB) return sameParentA ? -1 : 1;
@@ -299,13 +296,13 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
       return compareItems(a, b);
     };
 
-    const pushReady = (id) => {
+    const pushReady = id => {
       if (seen.has(id) || queue.includes(id)) return;
       queue.push(id);
       queue.sort(compareItems);
     };
 
-    const emitPath = (id) => {
+    const emitPath = id => {
       if (seen.has(id)) return;
       seen.add(id);
       ordered.push(id);
@@ -316,12 +313,8 @@ export function buildThreadStructure({ groupBy = 'thread', allItems = [], tree =
         if (localIndeg.get(next) === 0) ready.push(next);
       }
 
-      const continuations = ready
-        .filter(next => (originalIndeg.get(next) || 0) <= 1)
-        .sort(compareSuccessor(id));
-      const joins = ready
-        .filter(next => (originalIndeg.get(next) || 0) > 1)
-        .sort(compareSuccessor(id));
+      const continuations = ready.filter(next => (originalIndeg.get(next) || 0) <= 1).sort(compareSuccessor(id));
+      const joins = ready.filter(next => (originalIndeg.get(next) || 0) > 1).sort(compareSuccessor(id));
 
       continuations.forEach(emitPath);
       joins.forEach(pushReady);

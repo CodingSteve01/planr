@@ -116,7 +116,18 @@ function estimateCompletedAtFromPinnedStart({ item, completedPersonId, members, 
   return clampCompletedDate(lastWorkDay);
 }
 
-export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, workDays, planStart, completedPersonId, members, vacations, hm }) {
+export function inferCompletedAt({
+  item,
+  tree,
+  scheduledMap,
+  scheduledSnap,
+  workDays,
+  planStart,
+  completedPersonId,
+  members,
+  vacations,
+  hm,
+}) {
   if (item?.completedAt) return clampCompletedDate(item.completedAt);
   if (item?.completedEnd) return clampCompletedDate(item.completedEnd);
   if (scheduledSnap?.endD) return clampCompletedDate(scheduledSnap.endD);
@@ -128,8 +139,7 @@ export function inferCompletedAt({ item, tree, scheduledMap, scheduledSnap, work
     if (!candidate || candidate.id === item?.id || !isLeafNode(tree || [], candidate.id) || candidate.status === 'done') return;
     const scheduled = scheduledMap?.get(candidate.id);
     if (!scheduled?.startD) return;
-    const dependsOnItem = effectiveDeps(tree || [], candidate)
-      .some(depId => resolveToLeafIds(tree || [], depId).includes(item.id));
+    const dependsOnItem = effectiveDeps(tree || [], candidate).some(depId => resolveToLeafIds(tree || [], depId).includes(item.id));
     if (!dependsOnItem) return;
     if (!earliestSuccessorStart || scheduled.startD < earliestSuccessorStart) earliestSuccessorStart = scheduled.startD;
   });
@@ -192,15 +202,15 @@ export function deriveCompletedWindow({ item, completedAt, completedPersonId, me
 export function statusChangePatch(node, status) {
   const today = iso(new Date());
   if (status === 'done') {
-    const completedAt = (node.completedAt && node.completedAt <= today) ? node.completedAt : today;
-    const completedEnd = (node.completedEnd && node.completedEnd <= completedAt) ? node.completedEnd : completedAt;
+    const completedAt = node.completedAt && node.completedAt <= today ? node.completedAt : today;
+    const completedEnd = node.completedEnd && node.completedEnd <= completedAt ? node.completedEnd : completedAt;
     const seedCandidate = node.completedStart || node.plannedStart || completedEnd;
-    const completedStart = (seedCandidate && seedCandidate <= completedEnd) ? seedCandidate : completedEnd;
+    const completedStart = seedCandidate && seedCandidate <= completedEnd ? seedCandidate : completedEnd;
     return { status: 'done', progress: 100, completedAt, completedEnd, completedStart };
   }
   if (status === 'wip') {
-    const completedStart = node.completedStart || ((node.plannedStart && node.plannedStart <= today) ? node.plannedStart : today);
-    const progress = (node.progress && node.progress > 0 && node.progress < 100) ? node.progress : 50;
+    const completedStart = node.completedStart || (node.plannedStart && node.plannedStart <= today ? node.plannedStart : today);
+    const progress = node.progress && node.progress > 0 && node.progress < 100 ? node.progress : 50;
     return { status: 'wip', progress, completedStart };
   }
   return { status: 'open', progress: 0 };

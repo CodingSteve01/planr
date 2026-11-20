@@ -36,11 +36,7 @@ describe('an item that is not going to happen', () => {
   });
 
   test('is not one of the leaves the plan is made of', () => {
-    const tree = [
-      { id: 'P', name: 'Root', best: 0 },
-      leaf('P.A'),
-      leaf('P.B', { dropped: true }),
-    ];
+    const tree = [{ id: 'P', name: 'Root', best: 0 }, leaf('P.A'), leaf('P.B', { dropped: true })];
     expect(leafNodes(tree).map(l => l.id)).toEqual(['P.A']);
   });
 
@@ -50,8 +46,17 @@ describe('an item that is not going to happen', () => {
       leaf('P.A', { assign: ['M1'] }),
       leaf('P.B', { assign: ['M1'], dropped: true }),
     ];
-    const r = schedule(tree, [{ id: 'M1', name: 'Anna', team: 'T', cap: 1, vac: 0, start: '2026-01-01' }],
-      [], '2026-01-05', '2026-12-31', {}, [1, 2, 3, 4, 5], '2026-01-05', { now: '2026-01-05' });
+    const r = schedule(
+      tree,
+      [{ id: 'M1', name: 'Anna', team: 'T', cap: 1, vac: 0, start: '2026-01-01' }],
+      [],
+      '2026-01-05',
+      '2026-12-31',
+      {},
+      [1, 2, 3, 4, 5],
+      '2026-01-05',
+      { now: '2026-01-05' },
+    );
 
     expect(r.results.find(x => x.id === 'P.B')).toBeUndefined();
     // And the work that remains does not wait for it.
@@ -59,12 +64,7 @@ describe('an item that is not going to happen', () => {
   });
 
   test('a whole dropped package takes its children with it', () => {
-    const tree = [
-      { id: 'P', name: 'Root', best: 0 },
-      { id: 'P.1', name: 'Package', best: 0, dropped: true },
-      leaf('P.1.1'),
-      leaf('P.2'),
-    ];
+    const tree = [{ id: 'P', name: 'Root', best: 0 }, { id: 'P.1', name: 'Package', best: 0, dropped: true }, leaf('P.1.1'), leaf('P.2')];
     expect(leafNodes(tree).map(l => l.id)).toEqual(['P.2']);
   });
 });

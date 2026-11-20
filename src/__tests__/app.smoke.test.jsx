@@ -21,7 +21,11 @@ function renderApp() {
 describe('App smoke', () => {
   beforeEach(() => {
     cleanup();
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('mounts on a fresh state without crashing', () => {
@@ -37,7 +41,11 @@ describe('App smoke', () => {
       meetingPlans: [],
       meta: { name: 'Smoke', planStart: '2026-01-01', planEnd: '2027-01-01' },
     };
-    try { localStorage.setItem('planr_v2', JSON.stringify(project)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_v2', JSON.stringify(project));
+    } catch {
+      /* ignore */
+    }
     expect(() => renderApp()).not.toThrow();
   });
 });

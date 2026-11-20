@@ -19,30 +19,42 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'done', progress: 100, team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      { id: 'P1.2', name: 'Masks', status: 'wip', progress: 40, team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Roadmap click', planStart: '2026-01-05', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Prices', status: 'done', progress: 100, team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'P1.2', name: 'Masks', status: 'wip', progress: 40, team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Roadmap click', planStart: '2026-01-05', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 const activeTabName = () => document.querySelector('.tab.on')?.firstChild?.textContent?.trim();
-const itemInMap = id => [...document.querySelectorAll('[data-item-id]')]
-  .find(el => el.getAttribute('data-item-id') === id);
+const itemInMap = id => [...document.querySelectorAll('[data-item-id]')].find(el => el.getAttribute('data-item-id') === id);
 
 async function clickInMap(id) {
-  await waitFor(() => { if (!itemInMap(id)) throw new Error(`not on the map: ${id}`); });
-  await act(async () => { fireEvent.click(itemInMap(id)); });
+  await waitFor(() => {
+    if (!itemInMap(id)) throw new Error(`not on the map: ${id}`);
+  });
+  await act(async () => {
+    fireEvent.click(itemInMap(id));
+  });
 }
 
 describe('clicking an item on the Overview subway map', () => {
@@ -55,7 +67,10 @@ describe('clicking an item on the Overview subway map', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('opens a leaf in the dialog, with what the schedule knows about it', async () => {
     renderApp();
@@ -100,7 +115,10 @@ describe('a station on the map', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is a click target, like every other thing on the map that offers a pointer', async () => {
     renderApp();
@@ -116,7 +134,9 @@ describe('a station on the map', () => {
       expect(stop.getAttribute('data-item-id')).toBeTruthy();
     }
 
-    await act(async () => { fireEvent.click(stops[0]); });
+    await act(async () => {
+      fireEvent.click(stops[0]);
+    });
     const dialog = await screen.findByTestId('node-modal');
     expect(dialog.getAttribute('data-node-id')).toBe(stops[0].getAttribute('data-item-id'));
   });
@@ -145,15 +165,19 @@ describe('what the map says on hover', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('shows the app-wide item tooltip for a station that is one item', async () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
-    await waitFor(() => { if (!document.querySelector('.rm-stop')) throw new Error('no stations'); });
+    await waitFor(() => {
+      if (!document.querySelector('.rm-stop')) throw new Error('no stations');
+    });
 
-    const stop = [...document.querySelectorAll('.rm-stop')]
-      .find(el => el.getAttribute('data-cluster-size') === '1');
+    const stop = [...document.querySelectorAll('.rm-stop')].find(el => el.getAttribute('data-cluster-size') === '1');
     expect(stop).toBeTruthy();
     const id = stop.getAttribute('data-item-id');
     const name = { 'P1.1': 'Prices', 'P1.2': 'Masks' }[id];
@@ -173,10 +197,11 @@ describe('what the map says on hover', () => {
   it('keeps its own summary where a station stands for several items', async () => {
     renderApp();
     await screen.findByTestId('view-filters-trigger');
-    await waitFor(() => { if (!document.querySelector('.rm-stop')) throw new Error('no stations'); });
+    await waitFor(() => {
+      if (!document.querySelector('.rm-stop')) throw new Error('no stations');
+    });
 
-    const cluster = [...document.querySelectorAll('.rm-stop')]
-      .find(el => Number(el.getAttribute('data-cluster-size') || 1) > 1);
+    const cluster = [...document.querySelectorAll('.rm-stop')].find(el => Number(el.getAttribute('data-cluster-size') || 1) > 1);
     if (!cluster) return; // this fixture may not produce one; the rule is what matters
 
     await act(async () => {

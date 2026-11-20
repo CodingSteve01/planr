@@ -33,7 +33,10 @@ export function ExportModal({
         <h2>Export</h2>
         <ExportCards
           tab={tab}
-          onOpenJira={() => { onClose(); onOpenJira(); }}
+          onOpenJira={() => {
+            onClose();
+            onOpenJira();
+          }}
           onSummaryPDF={onSummaryPDF}
           onGanttPDF={onGanttPDF}
           onWhatWhenPDF={onWhatWhenPDF}
@@ -46,7 +49,9 @@ export function ExportModal({
           onJSON={onJSON}
         />
         <div className="modal-footer">
-          <button className="btn btn-sec" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn btn-sec" onClick={onClose}>
+            {t('cancel')}
+          </button>
         </div>
       </div>
     </div>

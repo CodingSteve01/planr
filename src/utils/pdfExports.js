@@ -9,7 +9,9 @@ import { sanitizePdfDoc, PDF_GLYPH_MAP } from './pdfGlyphs.js';
 import { buildGanttSvg, svgToDataUrl } from './exports.js';
 import { progressPctLabel } from './progress.js';
 
-export function slug(name) { return (name || 'planr').toLowerCase().replace(/\s+/g, '-'); }
+export function slug(name) {
+  return (name || 'planr').toLowerCase().replace(/\s+/g, '-');
+}
 
 let _pdfMake = null;
 export async function loadPdfMake() {
@@ -19,11 +21,12 @@ export async function loadPdfMake() {
   const vfsMod = await import('pdfmake/build/vfs_fonts');
   // pdfmake 0.3.x exports the vfs dict directly as module.exports; older
   // builds wrap it in { pdfMake: { vfs } }.
-  const vfs = vfsMod.default?.pdfMake?.vfs
-    || vfsMod.pdfMake?.vfs
-    || (vfsMod.default && !vfsMod.default.pdfMake ? vfsMod.default : null)
-    || vfsMod.vfs
-    || null;
+  const vfs =
+    vfsMod.default?.pdfMake?.vfs ||
+    vfsMod.pdfMake?.vfs ||
+    (vfsMod.default && !vfsMod.default.pdfMake ? vfsMod.default : null) ||
+    vfsMod.vfs ||
+    null;
   if (vfs) {
     if (typeof pdfMake.addVirtualFileSystem === 'function') pdfMake.addVirtualFileSystem(vfs);
     else pdfMake.vfs = vfs;
@@ -38,9 +41,7 @@ export async function loadPdfMake() {
   const { PLEX_VFS, PLEX_FONTS } = await import('./pdfFonts.js');
   if (typeof pdfMake.addVirtualFileSystem === 'function') pdfMake.addVirtualFileSystem(PLEX_VFS);
   else pdfMake.vfs = { ...(pdfMake.vfs || {}), ...PLEX_VFS };
-  pdfMake.addFonts
-    ? pdfMake.addFonts(PLEX_FONTS)
-    : (pdfMake.fonts = { ...(pdfMake.fonts || {}), ...PLEX_FONTS });
+  pdfMake.addFonts ? pdfMake.addFonts(PLEX_FONTS) : (pdfMake.fonts = { ...(pdfMake.fonts || {}), ...PLEX_FONTS });
   _pdfMake = pdfMake;
   return pdfMake;
 }
@@ -102,15 +103,15 @@ export const STYLES = {
 };
 
 const TABLE_LAYOUT = {
-  hLineWidth: (i, node) => i === 0 || i === 1 || i === node.table.body.length ? 0.8 : 0.4,
+  hLineWidth: (i, node) => (i === 0 || i === 1 || i === node.table.body.length ? 0.8 : 0.4),
   vLineWidth: () => 0.4,
-  hLineColor: (i) => i === 1 ? PRINT.rule2 : PRINT.rule,
+  hLineColor: i => (i === 1 ? PRINT.rule2 : PRINT.rule),
   vLineColor: () => PRINT.rule,
   paddingTop: () => 4,
   paddingBottom: () => 4,
   paddingLeft: () => 6,
   paddingRight: () => 6,
-  fillColor: (rowIndex) => rowIndex === 0 ? PRINT.band : rowIndex % 2 === 0 ? PRINT.ground : null,
+  fillColor: rowIndex => (rowIndex === 0 ? PRINT.band : rowIndex % 2 === 0 ? PRINT.ground : null),
 };
 
 function td(value, opts = {}) {
@@ -133,10 +134,22 @@ function th(value) {
 // carries `headlineLevel`, which makes that worse rather than better.
 export function headerTable(headers, rows, widths, title) {
   const width = widths || headers.map(() => '*');
-  const titleRow = title ? [[
-    { text: title, fontSize: 14, bold: true, color: PRINT.accent, colSpan: headers.length, margin: [0, 2, 0, 6], border: [false, false, false, false] },
-    ...headers.slice(1).map(() => ({ text: '', border: [false, false, false, false] })),
-  ]] : [];
+  const titleRow = title
+    ? [
+        [
+          {
+            text: title,
+            fontSize: 14,
+            bold: true,
+            color: PRINT.accent,
+            colSpan: headers.length,
+            margin: [0, 2, 0, 6],
+            border: [false, false, false, false],
+          },
+          ...headers.slice(1).map(() => ({ text: '', border: [false, false, false, false] })),
+        ],
+      ]
+    : [];
   return {
     table: {
       headerRows: title ? 2 : 1,
@@ -181,39 +194,35 @@ function prepareRoadmapSvg(svgStr) {
   // registered with pdfmake; svg-to-pdfkit silently swaps fonts which can
   // suppress the text. Drop the stroke entirely and use Roboto (the bundled
   // VFS font) so the labels actually render and stay readable.
-  patched = patched.replace(
-    /\.rm-abbrev\{[^}]*\}/,
-    `.rm-abbrev{font:700 10.5px/1 Roboto,sans-serif;fill:${PRINT.ink};stroke:none}`,
-  );
+  patched = patched.replace(/\.rm-abbrev\{[^}]*\}/, `.rm-abbrev{font:700 10.5px/1 Roboto,sans-serif;fill:${PRINT.ink};stroke:none}`);
   // The end-of-line route badges also pull JetBrains Mono — keep the white
   // fill but pin them to Roboto so the text doesn't disappear.
-  patched = patched.replace(
-    /\.rm-badge\{[^}]*\}/,
-    `.rm-badge{font:800 13px/1 Roboto,sans-serif;fill:#fff;letter-spacing:.04em}`,
-  );
+  patched = patched.replace(/\.rm-badge\{[^}]*\}/, `.rm-badge{font:800 13px/1 Roboto,sans-serif;fill:#fff;letter-spacing:.04em}`);
   // Symbols the bundled Roboto does not carry render as a missing-glyph box.
   // Embedded SVG bypasses the docDefinition sanitizer (svg-to-pdfkit does its
   // own text handling), so apply the same substitution by hand — including the
   // SVG-only swaps, because this is drawn in Roboto rather than Plex.
   patched = swapUnsupportedGlyphs(patched);
-  return patched
-    .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
-    .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
-    // Dark enough to read on white — original #7a839a + thin halo was too faint.
-    .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
-    .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
-    .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
-    .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
-    .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
-    .replace(/var\(--re,([^)]*)\)/g, PRINT.risk)
-    .replace(/var\(--ac,([^)]*)\)/g, PRINT.accent)
-    .replace(/var\(--tx[^)]*\)/g, PRINT.ink)
-    .replace(/var\(--tx2[^)]*\)/g, PRINT.ink2)
-    .replace(/var\(--tx3[^)]*\)/g, PRINT.ink2)
-    .replace(/var\(--bg[^)]*\)/g, PRINT.paper)
-    .replace(/var\(--b[^)]*\)/g, PRINT.rule)
-    .replace(/var\(--re[^)]*\)/g, PRINT.risk)
-    .replace(/var\(--ac[^)]*\)/g, PRINT.accent);
+  return (
+    patched
+      .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
+      .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
+      // Dark enough to read on white — original #7a839a + thin halo was too faint.
+      .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
+      .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
+      .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
+      .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
+      .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
+      .replace(/var\(--re,([^)]*)\)/g, PRINT.risk)
+      .replace(/var\(--ac,([^)]*)\)/g, PRINT.accent)
+      .replace(/var\(--tx[^)]*\)/g, PRINT.ink)
+      .replace(/var\(--tx2[^)]*\)/g, PRINT.ink2)
+      .replace(/var\(--tx3[^)]*\)/g, PRINT.ink2)
+      .replace(/var\(--bg[^)]*\)/g, PRINT.paper)
+      .replace(/var\(--b[^)]*\)/g, PRINT.rule)
+      .replace(/var\(--re[^)]*\)/g, PRINT.risk)
+      .replace(/var\(--ac[^)]*\)/g, PRINT.accent)
+  );
 }
 
 // Same job as prepareRoadmapSvg, for the project-roadmap renderer: pin the
@@ -223,20 +232,25 @@ function prepareRoadmapSvg(svgStr) {
 function prepareProjectRoadmapSvg(svgStr, height) {
   if (!svgStr || !svgStr.startsWith('<svg')) return null;
   const H = Math.max(120, Math.round(height || 320));
-  return swapUnsupportedGlyphs(svgStr)
-    .replace(/^<svg [^>]*>/, `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="${H}" viewBox="0 0 1400 ${H}" preserveAspectRatio="xMidYMid meet">`)
-    // svg-to-pdfkit only has the bundled Roboto — anything else silently
-    // drops the text (see prepareRoadmapSvg).
-    .replace(/'JetBrains Mono',ui-monospace,monospace/g, 'Roboto,sans-serif')
-    .replace(/'Inter',system-ui,sans-serif/g, 'Roboto,sans-serif')
-    .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
-    .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
-    .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
-    .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
-    .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
-    .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
-    .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
-    .replace(/var\(--[a-z0-9]+[^)]*\)/g, PRINT.ink);
+  return (
+    swapUnsupportedGlyphs(svgStr)
+      .replace(
+        /^<svg [^>]*>/,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="${H}" viewBox="0 0 1400 ${H}" preserveAspectRatio="xMidYMid meet">`,
+      )
+      // svg-to-pdfkit only has the bundled Roboto — anything else silently
+      // drops the text (see prepareRoadmapSvg).
+      .replace(/'JetBrains Mono',ui-monospace,monospace/g, 'Roboto,sans-serif')
+      .replace(/'Inter',system-ui,sans-serif/g, 'Roboto,sans-serif')
+      .replace(/var\(--tx,([^)]*)\)/g, PRINT.ink)
+      .replace(/var\(--tx2,([^)]*)\)/g, PRINT.ink2)
+      .replace(/var\(--tx3,([^)]*)\)/g, PRINT.ink2)
+      .replace(/var\(--bg2,([^)]*)\)/g, PRINT.ground)
+      .replace(/var\(--bg,([^)]*)\)/g, PRINT.paper)
+      .replace(/var\(--b2,([^)]*)\)/g, PRINT.rule2)
+      .replace(/var\(--b,([^)]*)\)/g, PRINT.rule)
+      .replace(/var\(--[a-z0-9]+[^)]*\)/g, PRINT.ink)
+  );
 }
 
 // Same substitution pass the docDefinition gets, for the glyphs that can end
@@ -251,8 +265,12 @@ const SVG_ONLY_SWAPS = { '→': '–', '←': '–', '↑': '^', '↓': 'v', '�
 
 function swapUnsupportedGlyphs(svgStr) {
   let out = svgStr;
-  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => { out = out.split(from).join(to); });
-  Object.entries(SVG_ONLY_SWAPS).forEach(([from, to]) => { out = out.split(from).join(to); });
+  Object.entries(PDF_GLYPH_MAP).forEach(([from, to]) => {
+    out = out.split(from).join(to);
+  });
+  Object.entries(SVG_ONLY_SWAPS).forEach(([from, to]) => {
+    out = out.split(from).join(to);
+  });
   return out;
 }
 
@@ -263,8 +281,13 @@ function buildRoadmapSvgForPdf(ctx) {
   // scratch, drops diff/horizon overlays, and rebuilds train positions —
   // making the export disagree with what the user sees on screen.
   const svgStr = renderRoadmapSvg({
-    tree, scheduled, stats,
-    diff, horizonIds, horizonEnd, futureProgressByRootId,
+    tree,
+    scheduled,
+    stats,
+    diff,
+    horizonIds,
+    horizonEnd,
+    futureProgressByRootId,
     assignment: roadmapAssignment,
     expandedLegendIds: new Set(),
   });
@@ -312,22 +335,28 @@ function fmtInt(n, de) {
 // programme's name — true, and no use to anyone deciding about any one of them.
 function projectStatus(m) {
   const { rootData, deadlineStates } = m;
-  return rootData.map(r => {
-    const ds = deadlineStates?.[r.id] || null;
-    const days = (ds?.dateD && ds?.end) ? Math.round((ds.end - ds.dateD) / 86400000) : null;
-    const late = !!ds?.isLate && days !== null && days > 0;
-    const unclear = r.openPt > 0 ? r.ccPt.exploratory / r.openPt : 0;
-    return {
-      ...r, ds, days, late, unclear,
-      color: late ? PRINT.risk : unclear > 0.25 ? PRINT.wip : PRINT.done,
-    };
-  }).sort((a, b) => {
-    // Missed dates first, worst by days; then everything else by how much of
-    // it is still unscoped.
-    if (a.late !== b.late) return a.late ? -1 : 1;
-    if (a.late && b.late) return b.days - a.days;
-    return b.unclear - a.unclear;
-  });
+  return rootData
+    .map(r => {
+      const ds = deadlineStates?.[r.id] || null;
+      const days = ds?.dateD && ds?.end ? Math.round((ds.end - ds.dateD) / 86400000) : null;
+      const late = !!ds?.isLate && days !== null && days > 0;
+      const unclear = r.openPt > 0 ? r.ccPt.exploratory / r.openPt : 0;
+      return {
+        ...r,
+        ds,
+        days,
+        late,
+        unclear,
+        color: late ? PRINT.risk : unclear > 0.25 ? PRINT.wip : PRINT.done,
+      };
+    })
+    .sort((a, b) => {
+      // Missed dates first, worst by days; then everything else by how much of
+      // it is still unscoped.
+      if (a.late !== b.late) return a.late ? -1 : 1;
+      if (a.late && b.late) return b.days - a.days;
+      return b.unclear - a.unclear;
+    });
 }
 
 // The sentence the whole page exists to deliver.
@@ -337,12 +366,13 @@ function summaryVerdict(m, projects) {
   const unclearShare = openPt > 0 ? ccPt.exploratory / openPt : 0;
   const withTarget = projects.filter(p => p.ds?.dateD);
   const lateOnes = projects.filter(p => p.late);
-  const last = projects.reduce((acc, p) => (p.endD && (!acc || !acc.endD || p.endD > acc.endD)) ? p : acc, null);
+  const last = projects.reduce((acc, p) => (p.endD && (!acc || !acc.endD || p.endD > acc.endD) ? p : acc), null);
   const lastTxt = last ? `${fmtMonth(last.endD)} (${(last.name || '').trim()})` : '—';
   if (lateOnes.length) {
     const worst = lateOnes[0];
     return {
-      word: t('RED', 'ROT'), color: PRINT.risk,
+      word: t('RED', 'ROT'),
+      color: PRINT.risk,
       line: t(
         `${lateOnes.length} of ${projects.length} projects miss their date — worst "${(worst.name || '').trim()}" by ${worst.days} days. Last project ends ${lastTxt}.`,
         `${lateOnes.length} von ${projects.length} Projekten verfehlen ihren Termin — am stärksten „${(worst.name || '').trim()}" um ${worst.days} Tage. Letztes Projekt endet ${lastTxt}.`,
@@ -351,7 +381,8 @@ function summaryVerdict(m, projects) {
   }
   if (!withTarget.length) {
     return {
-      word: t('NO TARGET', 'KEIN ZIEL'), color: PRINT.wip,
+      word: t('NO TARGET', 'KEIN ZIEL'),
+      color: PRINT.wip,
       line: t(
         `No project carries a target date, so none can be measured against one. Last project ends ${lastTxt}.`,
         `Kein Projekt hat einen hinterlegten Zieltermin, also lässt sich keines an einem messen. Letztes Projekt endet ${lastTxt}.`,
@@ -360,7 +391,8 @@ function summaryVerdict(m, projects) {
   }
   if (unclearShare > 0.25) {
     return {
-      word: t('AMBER', 'GELB'), color: PRINT.wip,
+      word: t('AMBER', 'GELB'),
+      color: PRINT.wip,
       line: t(
         `All ${withTarget.length} recorded dates hold, but ${Math.round(unclearShare * 100)}% of the open effort is not scoped yet. Last project ends ${lastTxt}.`,
         `Alle ${withTarget.length} hinterlegten Termine halten, aber ${Math.round(unclearShare * 100)}% des offenen Aufwands sind noch nicht geklärt. Letztes Projekt endet ${lastTxt}.`,
@@ -368,9 +400,12 @@ function summaryVerdict(m, projects) {
     };
   }
   return {
-    word: t('GREEN', 'GRÜN'), color: PRINT.done,
-    line: t(`Every recorded date holds under the current plan. Last project ends ${lastTxt}.`,
-            `Alle hinterlegten Termine werden nach aktueller Planung gehalten. Letztes Projekt endet ${lastTxt}.`),
+    word: t('GREEN', 'GRÜN'),
+    color: PRINT.done,
+    line: t(
+      `Every recorded date holds under the current plan. Last project ends ${lastTxt}.`,
+      `Alle hinterlegten Termine werden nach aktueller Planung gehalten. Letztes Projekt endet ${lastTxt}.`,
+    ),
   };
 }
 
@@ -381,10 +416,12 @@ function summaryVerdict(m, projects) {
 // fragments. Done stations are marked with a check, not struck through:
 // a line through a name reads as cancelled, which is the opposite of what
 // a finished station means.
-function truncateStr(s, n) { return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || ''); }
+function truncateStr(s, n) {
+  return (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : s || '';
+}
 function buildRoadmapLegendPdf(model) {
   if (!model?.lines?.length) return null;
-  const statusGlyph = (s) => s === 'done' ? '✓' : s === 'wip' ? '●' : '○';
+  const statusGlyph = s => (s === 'done' ? '✓' : s === 'wip' ? '●' : '○');
   const columns = model.lines.map(line => {
     const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
     if (!allStations.length) return { text: '', width: '*' };
@@ -404,7 +441,13 @@ function buildRoadmapLegendPdf(model) {
       const badge = st.allDone ? '' : ` ${st.done}/${st.total}`;
       stack.push({
         columns: [
-          { text: statusGlyph(stStatus), color: stStatus === 'open' ? PRINT.muted : line.color, fontSize: 8, width: 10, margin: [0, 1, 0, 0] },
+          {
+            text: statusGlyph(stStatus),
+            color: stStatus === 'open' ? PRINT.muted : line.color,
+            fontSize: 8,
+            width: 10,
+            margin: [0, 1, 0, 0],
+          },
           { text: st.abbrev, color: line.color, bold: true, fontSize: 8, width: 30, noWrap: true, margin: [0, 1, 0, 0] },
           { text: truncateStr(st.name, 24) + badge, color: st.allDone ? PRINT.muted : PRINT.ink, fontSize: 7.5, margin: [0, 1, 0, 0] },
         ],
@@ -429,7 +472,9 @@ async function rasterizeGantt(ctx, scale = 3) {
   try {
     const url = await svgToDataUrl(r.svg, r.width, r.height, scale, PRINT.paper);
     return { url, width: r.width, height: r.height };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ── Summary (Management) PDF ────────────────────────────────────────────────
@@ -439,7 +484,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
   const m = buildReportModel(ctx);
   const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
-  const { meta, t, dateStr,  totalPt,  progLabel,  roots, rootData,  ccPt,  teamCap, cpItems, risks, deadlineStates,  scheduled, teams } = m;
+  const { meta, t, dateStr, totalPt, progLabel, roots, rootData, ccPt, teamCap, cpItems, risks, deadlineStates, scheduled, teams } = m;
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const de = m.de;
   const projects = projectStatus(m);
@@ -456,7 +501,7 @@ export async function exportSummaryPDF(ctx, options = {}) {
     if (!(total > 0)) return { text: '', width };
     let x = 0;
     const rects = CONF.map(([, key, col]) => {
-      const w = width * (ccPtOf[key] || 0) / total;
+      const w = (width * (ccPtOf[key] || 0)) / total;
       const r = { type: 'rect', x, y: 0, w, h: 7, color: col };
       x += w;
       return r;
@@ -466,20 +511,32 @@ export async function exportSummaryPDF(ctx, options = {}) {
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('Management summary for the board', 'Management-Zusammenfassung für den Vorstand'), fontSize: 11, color: PRINT.ink2, margin: [0, 1, 0, 1] },
+    {
+      text: t('Management summary for the board', 'Management-Zusammenfassung für den Vorstand'),
+      fontSize: 11,
+      color: PRINT.ink2,
+      margin: [0, 1, 0, 1],
+    },
     {
       // The progress figure is its own text node rather than part of the
       // sentence: exportParity holds the PDF to printing the very percentage
       // the Overview shows, and it looks for it as a standalone token.
       text: [
-        t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`)
-          + (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '')
-          + ' · ' + projects.length + ' ' + t('projects', 'Projekte')
-          + ' · ' + fmtInt(totalPt, de) + ' PT · ',
+        t(`Data as of ${fmtDay(new Date(), de)}`, `Datenstand ${fmtDay(new Date(), de)}`) +
+          (meta.planStart ? ' · ' + t('plan base', 'Planungsbasis') + ' ' + fmtDay(new Date(meta.planStart), de) : '') +
+          ' · ' +
+          projects.length +
+          ' ' +
+          t('projects', 'Projekte') +
+          ' · ' +
+          fmtInt(totalPt, de) +
+          ' PT · ',
         { text: progLabel + '%' },
         ' ' + t('delivered', 'erledigt'),
       ],
-      fontSize: 9, color: PRINT.muted, margin: [0, 0, 0, 10],
+      fontSize: 9,
+      color: PRINT.muted,
+      margin: [0, 0, 0, 10],
     },
     // The verdict. The only traffic-light word in the whole document.
     {
@@ -509,25 +566,44 @@ export async function exportSummaryPDF(ctx, options = {}) {
           { text: t('Open effort', 'Offener Aufwand'), fontSize: 8, color: PRINT.muted, margin: [0, 0, 0, 3] },
         ].map(c => ({ ...c, border: [false, false, false, true] })),
         ...projects.map(p => {
-          const delta = p.days === null ? '—'
-            : p.days > 0 ? '+' + Math.max(1, Math.round(p.days / 30)) + ' ' + t('mo.', 'Mon.')
-              : t('on time', 'im Plan');
+          const delta =
+            p.days === null
+              ? '—'
+              : p.days > 0
+                ? '+' + Math.max(1, Math.round(p.days / 30)) + ' ' + t('mo.', 'Mon.')
+                : t('on time', 'im Plan');
           return [
             { text: '', fillColor: p.color },
             { text: p.id, fontSize: 9, bold: true, color: PRINT.ink, margin: [6, 3, 0, 3] },
             { text: (p.name || '').trim(), fontSize: 9, color: PRINT.ink, margin: [0, 3, 6, 3] },
-            { text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'), fontSize: 9, color: p.endD ? PRINT.ink : PRINT.muted, alignment: 'right', margin: [0, 3, 0, 3] },
+            {
+              text: p.endD ? fmtMonth(p.endD) : t('done', 'erledigt'),
+              fontSize: 9,
+              color: p.endD ? PRINT.ink : PRINT.muted,
+              alignment: 'right',
+              margin: [0, 3, 0, 3],
+            },
             { text: p.ds?.dateD ? fmtDay(p.ds.dateD, de) : '—', fontSize: 9, color: PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
             { text: delta, fontSize: 9, color: p.days > 0 ? PRINT.risk : PRINT.ink2, alignment: 'right', margin: [0, 3, 0, 3] },
-            { text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT', fontSize: 9, color: PRINT.ink2, alignment: 'right', noWrap: true, margin: [0, 3, 10, 3] },
+            {
+              text: Math.round(p.prog) + '% · ' + fmtInt(p.pt, de) + ' PT',
+              fontSize: 9,
+              color: PRINT.ink2,
+              alignment: 'right',
+              noWrap: true,
+              margin: [0, 3, 10, 3],
+            },
             { ...confBar(p.ccPt, p.openPt, 104), margin: [0, 5, 0, 3] },
           ].map(c => ({ ...c, border: [false, false, false, false] }));
         }),
       ],
     },
     layout: {
-      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
-      hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 0 : 0.5,
+      paddingLeft: () => 0,
+      paddingRight: () => 0,
+      paddingTop: () => 0,
+      paddingBottom: () => 0,
+      hLineWidth: (i, node) => (i === 0 || i === node.table.body.length ? 0 : 0.5),
       hLineColor: () => PRINT.rule,
       vLineWidth: () => 0,
     },
@@ -554,15 +630,20 @@ export async function exportSummaryPDF(ctx, options = {}) {
   // a second aggregate bar would say the same thing a third time. What is left
   // is the one line that says what the three steps mean.
   content.push({
-    text: t('Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
-            'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen'),
-    fontSize: 8, color: PRINT.muted, margin: [25, 0, 0, 14],
+    text: t(
+      'Committed = person and a solid estimate · Estimated = effort known, person open · Exploratory = scope still open',
+      'Verbindlich = Person und belastbare Schätzung · Geschätzt = Aufwand bekannt, Person offen · Explorativ = Scope noch offen',
+    ),
+    fontSize: 8,
+    color: PRINT.muted,
+    margin: [25, 0, 0, 14],
   });
 
   // Sorted by severity then magnitude, and capped. report.js pushes rule by
   // rule, so without this a medium could sit above a critical — which it did.
-  const ranked = [...risks].sort((a, b) =>
-    (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || (b.rank || 0) - (a.rank || 0));
+  const ranked = [...risks].sort(
+    (a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || (b.rank || 0) - (a.rank || 0),
+  );
   const shown = ranked.slice(0, MAX_RISKS);
   if (shown.length) {
     // The heading is the table's FIRST ROW, spanning every column. pdfmake
@@ -582,12 +663,20 @@ export async function exportSummaryPDF(ctx, options = {}) {
             // stays with what follows — and inside a table that threw the
             // whole table onto the next page with two thirds of this one
             // still empty. Same size, weight and colour, no headlineLevel.
-            { text: t('What threatens the date', 'Was den Termin gefährdet'), fontSize: 14, bold: true, color: PRINT.accent, colSpan: 3, margin: [8, 2, 0, 6] },
+            {
+              text: t('What threatens the date', 'Was den Termin gefährdet'),
+              fontSize: 14,
+              bold: true,
+              color: PRINT.accent,
+              colSpan: 3,
+              margin: [8, 2, 0, 6],
+            },
             // The two cells a colSpan swallows still have to be present, and
             // they have to carry `text` — an object of nothing but `border`
             // is rejected outright ("Unrecognized document structure"), which
             // aborted the whole export.
-            { text: '' }, { text: '' },
+            { text: '' },
+            { text: '' },
           ].map(c => ({ ...c, border: [false, false, false, false] })),
           ...shown.map(r => {
             const color = r.severity === 'critical' ? PRINT.risk : r.severity === 'high' ? PRINT.wip : PRINT.muted;
@@ -604,10 +693,13 @@ export async function exportSummaryPDF(ctx, options = {}) {
         ],
       },
       layout: {
-        paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+        paddingLeft: () => 0,
+        paddingRight: () => 0,
+        paddingTop: () => 0,
+        paddingBottom: () => 0,
         // No rule under the heading row, none above the first finding, none
         // below the last.
-        hLineWidth: (i, node) => (i <= 1 || i === node.table.body.length) ? 0 : 0.5,
+        hLineWidth: (i, node) => (i <= 1 || i === node.table.body.length ? 0 : 0.5),
         hLineColor: () => PRINT.rule,
         vLineWidth: () => 0,
       },
@@ -615,11 +707,14 @@ export async function exportSummaryPDF(ctx, options = {}) {
     });
     if (ranked.length > shown.length) {
       content.push({
-        text: (n => t(
-          `+${n} further ${n === 1 ? 'finding' : 'findings'} of lower urgency, not shown`,
-          `+${n} ${n === 1 ? 'weiterer Hinweis' : 'weitere Hinweise'} geringerer Dringlichkeit, hier nicht gezeigt`,
-        ))(ranked.length - shown.length),
-        fontSize: 9, color: PRINT.muted, margin: [11, 0, 0, 14],
+        text: (n =>
+          t(
+            `+${n} further ${n === 1 ? 'finding' : 'findings'} of lower urgency, not shown`,
+            `+${n} ${n === 1 ? 'weiterer Hinweis' : 'weitere Hinweise'} geringerer Dringlichkeit, hier nicht gezeigt`,
+          ))(ranked.length - shown.length),
+        fontSize: 9,
+        color: PRINT.muted,
+        margin: [11, 0, 0, 14],
       });
     } else {
       content.push({ text: '', margin: [0, 0, 0, 10] });
@@ -630,8 +725,12 @@ export async function exportSummaryPDF(ctx, options = {}) {
   // station progress, and diff overlays in lockstep with the on-screen
   // Roadmap.jsx instead of letting computeRoadmapModel re-derive them.
   const rmModelArgs = {
-    tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats,
-    diff: ctx.diff, horizonIds: ctx.horizonIds, horizonEnd: ctx.horizonEnd,
+    tree: ctx.tree,
+    scheduled: ctx.scheduled,
+    stats: ctx.stats,
+    diff: ctx.diff,
+    horizonIds: ctx.horizonIds,
+    horizonEnd: ctx.horizonEnd,
     futureProgressByRootId: ctx.futureProgressByRootId,
     assignment: ctx.roadmapAssignment || null,
     expandedLegendIds: new Set(),
@@ -677,7 +776,10 @@ export async function exportSummaryPDF(ctx, options = {}) {
       const model = computeProjectRoadmap({ tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats, rootId: root.id });
       if (!model?.rows?.length) return;
       const svgStr = renderProjectRoadmapSvg({
-        tree: ctx.tree, scheduled: ctx.scheduled, stats: ctx.stats, rootId: root.id,
+        tree: ctx.tree,
+        scheduled: ctx.scheduled,
+        stats: ctx.stats,
+        rootId: root.id,
         color: getLineColor(root.id, ctx.roadmapAssignment) || PRINT.accent,
         labels,
       });
@@ -686,9 +788,12 @@ export async function exportSummaryPDF(ctx, options = {}) {
       if (first) {
         content.push({ text: t('Project roadmaps', 'Projekt-Roadmaps'), style: 'h2', pageBreak: 'before' });
         content.push({
-          text: t('One row per work package, on a calendar. Stops are the individual tasks.',
-            'Eine Zeile je Arbeitspaket, auf dem Kalender. Haltestellen sind die einzelnen Aufgaben.'),
-          style: 'cap', margin: [0, 0, 0, 8],
+          text: t(
+            'One row per work package, on a calendar. Stops are the individual tasks.',
+            'Eine Zeile je Arbeitspaket, auf dem Kalender. Haltestellen sind die einzelnen Aufgaben.',
+          ),
+          style: 'cap',
+          margin: [0, 0, 0, 8],
         });
         first = false;
       }
@@ -705,7 +810,14 @@ export async function exportSummaryPDF(ctx, options = {}) {
       const rmModel = computeRoadmapModel(rmModelArgs);
       if (rmModel?.lines?.length) {
         content.push({ text: t('Timetable', 'Fahrplan'), style: 'h2' });
-        content.push({ text: t('Station abbreviations reference the Subway-Map legend above.', 'Stations-Kürzel verweisen auf die Legende der Subway-Map oben.'), style: 'cap', margin: [0, 0, 0, 8] });
+        content.push({
+          text: t(
+            'Station abbreviations reference the Subway-Map legend above.',
+            'Stations-Kürzel verweisen auf die Legende der Subway-Map oben.',
+          ),
+          style: 'cap',
+          margin: [0, 0, 0, 8],
+        });
         // Aggregate all handoff segments for a tree item so cross-team chains show up.
         const segsByTree = {};
         (ctx.scheduled || []).forEach(s => {
@@ -715,20 +827,22 @@ export async function exportSummaryPDF(ctx, options = {}) {
         const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
 
         // 2-col layout: split the lines down the middle per page.
-        const buildLineBlock = (line) => {
+        const buildLineBlock = line => {
           const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
-          const rows = allStations.map(st => {
-            const items = st.clusterItems || [];
-            const allSegs = items.flatMap(it => segsByTree[it.id] || []);
-            const dated = allSegs.filter(s => s && s.startD && s.endD);
-            const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
-            const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
-            const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
-            const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
-            // ◐ ◆ both missing in pdfmake Roboto. ● + amber color marks WIP.
-            const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '●' : '○';
-            return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
-          }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
+          const rows = allStations
+            .map(st => {
+              const items = st.clusterItems || [];
+              const allSegs = items.flatMap(it => segsByTree[it.id] || []);
+              const dated = allSegs.filter(s => s && s.startD && s.endD);
+              const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
+              const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
+              const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
+              const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
+              // ◐ ◆ both missing in pdfmake Roboto. ● + amber color marks WIP.
+              const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '●' : '○';
+              return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
+            })
+            .sort((a, b) => (a.startD || 0) - (b.startD || 0));
 
           // A timetable answers "when". A station with no scheduled segment has
           // no answer, and printing it filled whole pages with "— / —" rows.
@@ -745,22 +859,34 @@ export async function exportSummaryPDF(ctx, options = {}) {
                   { text: line.root.id + '  ', color: line.color, bold: true },
                   { text: line.root.name, color: PRINT.ink, bold: true },
                 ],
-                fontSize: 10, margin: [0, 0, 0, 3],
+                fontSize: 10,
+                margin: [0, 0, 0, 3],
               },
-              dated.length ? headerTable(
-                [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
-                dated.map(r => [
-                  { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
-                  { text: `${kwTag(r.startD)} ${iso(r.startD).slice(5)}`, fontSize: 8 },
-                  { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
-                  { text: r.status, alignment: 'center', fontSize: 9, color: r.status === '✓' ? PRINT.done : r.status === '●' ? PRINT.wip : PRINT.muted },
-                ]),
-                [45, 80, 60, 20],
-              ) : { text: t('No scheduled stations.', 'Keine terminierten Haltestellen.'), fontSize: 8, color: PRINT.muted, italics: true },
-              undated.length ? {
-                text: t('Not scheduled: ', 'Nicht terminiert: ') + undated.map(r => r.abbrev).join(', '),
-                fontSize: 7.5, color: PRINT.muted, margin: [0, 3, 0, 0],
-              } : '',
+              dated.length
+                ? headerTable(
+                    [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
+                    dated.map(r => [
+                      { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
+                      { text: `${kwTag(r.startD)} ${iso(r.startD).slice(5)}`, fontSize: 8 },
+                      { text: r.calDays ? `${r.calDays}d/${r.workDays.toFixed(0)}PT` : '—', fontSize: 8 },
+                      {
+                        text: r.status,
+                        alignment: 'center',
+                        fontSize: 9,
+                        color: r.status === '✓' ? PRINT.done : r.status === '●' ? PRINT.wip : PRINT.muted,
+                      },
+                    ]),
+                    [45, 80, 60, 20],
+                  )
+                : { text: t('No scheduled stations.', 'Keine terminierten Haltestellen.'), fontSize: 8, color: PRINT.muted, italics: true },
+              undated.length
+                ? {
+                    text: t('Not scheduled: ', 'Nicht terminiert: ') + undated.map(r => r.abbrev).join(', '),
+                    fontSize: 7.5,
+                    color: PRINT.muted,
+                    margin: [0, 3, 0, 0],
+                  }
+                : '',
             ],
             margin: [0, 0, 0, 10],
           };
@@ -786,32 +912,44 @@ export async function exportSummaryPDF(ctx, options = {}) {
   // something is not a focus.
   const goals = roots.filter(r => !r.dropped);
   if (goals.length) {
-    content.push(headerTable(
-      ['ID', t('Name', 'Name'), t('Deadline', 'Deadline'), t('Progress', 'Fortschritt'), t('Scheduled End', 'Geplantes Ende'), t('Risk', 'Risiko')],
-      goals.map(g => {
-        const rd = rootData.find(x => x.id === g.id);
-        // Same state machine as the Overview cards (utils/timeline.js):
-        // completed work is reported as done, never as "at risk".
-        const ds = deadlineStates?.[g.id];
-        const riskCell = ds?.state === 'atRisk'
-          ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: PRINT.risk, bold: true }
-          : ds?.state === 'doneLate'
-            ? { text: '✓ ' + t('done · late', 'abgeschl. · verspätet'), color: PRINT.wip, bold: true }
-            : ds?.state === 'done'
-              ? { text: '✓ ' + t('done', 'abgeschlossen'), color: PRINT.done, bold: true }
-              : rd?.endD ? { text: '✓ ' + t('on track', 'im Plan'), color: PRINT.done } : '—';
-        return [
-          g.id,
-          { text: g.name, bold: true },
-          g.date || '—',
-          progressPctLabel(rd?.prog || 0) + '%  ·  ' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ' ' + t('tasks', 'Aufgaben'),
-          rd?.endD ? iso(rd.endD) : '—',
-          riskCell,
-        ];
-      }),
-      [40, '*', 70, 80, 70, 80],
-      t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines'),
-    ));
+    content.push(
+      headerTable(
+        [
+          'ID',
+          t('Name', 'Name'),
+          t('Deadline', 'Deadline'),
+          t('Progress', 'Fortschritt'),
+          t('Scheduled End', 'Geplantes Ende'),
+          t('Risk', 'Risiko'),
+        ],
+        goals.map(g => {
+          const rd = rootData.find(x => x.id === g.id);
+          // Same state machine as the Overview cards (utils/timeline.js):
+          // completed work is reported as done, never as "at risk".
+          const ds = deadlineStates?.[g.id];
+          const riskCell =
+            ds?.state === 'atRisk'
+              ? { text: '■ ' + t('AT RISK', 'GEFÄHRDET'), color: PRINT.risk, bold: true }
+              : ds?.state === 'doneLate'
+                ? { text: '✓ ' + t('done · late', 'abgeschl. · verspätet'), color: PRINT.wip, bold: true }
+                : ds?.state === 'done'
+                  ? { text: '✓ ' + t('done', 'abgeschlossen'), color: PRINT.done, bold: true }
+                  : rd?.endD
+                    ? { text: '✓ ' + t('on track', 'im Plan'), color: PRINT.done }
+                    : '—';
+          return [
+            g.id,
+            { text: g.name, bold: true },
+            g.date || '—',
+            progressPctLabel(rd?.prog || 0) + '%  ·  ' + (rd?.doneCount || 0) + '/' + (rd?.leafCount || 0) + ' ' + t('tasks', 'Aufgaben'),
+            rd?.endD ? iso(rd.endD) : '—',
+            riskCell,
+          ];
+        }),
+        [40, '*', 70, 80, 70, 80],
+        t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines'),
+      ),
+    );
   }
 
   // Team capacity as per-team cards
@@ -844,9 +982,10 @@ export async function exportSummaryPDF(ctx, options = {}) {
           // from those same shares. The dots are the bar's legend — which is
           // the whole reason they are there.
           const shades = memberShades(tc.color, tc.members.length);
-          const shareOf = id => scheduled
-            .filter(r => r.status !== 'done' && !r.unscheduled && r.personId === id && (r.team || '') === (tc.id || ''))
-            .reduce((acc, r) => acc + (r.effort || 0), 0);
+          const shareOf = id =>
+            scheduled
+              .filter(r => r.status !== 'done' && !r.unscheduled && r.personId === id && (r.team || '') === (tc.id || ''))
+              .reduce((acc, r) => acc + (r.effort || 0), 0);
           const memberShares = tc.members.map((mb, mi) => ({ mb, pt: shareOf(mb.id), color: shades[mi] || tc.color || PRINT.muted }));
           const staffedPt = memberShares.reduce((acc, x) => acc + x.pt, 0);
           const teamTotal = staffedPt + (tc.unassigned || 0);
@@ -858,28 +997,49 @@ export async function exportSummaryPDF(ctx, options = {}) {
             ],
             columnGap: 4,
           }));
-          const barCanvas = teamTotal > 0 ? {
-            canvas: (() => {
-              let x = 0;
-              const segs = memberShares.map(({ pt, color }) => {
-                const w = wBar * pt / teamTotal;
-                const r = { type: 'rect', x, y: 0, w, h: 8, color };
-                x += w;
-                return r;
-              });
-              if (tc.unassigned > 0) segs.push({ type: 'rect', x, y: 0, w: wBar * tc.unassigned / teamTotal, h: 8, color: PRINT.rule2 });
-              return segs.filter(r => r.w > 0.2);
-            })(),
-            margin: [0, 5, 0, 3],
-          } : null;
-          const footerCol = teamTotal > 0 ? {
-            columns: [
-              { text: fmtInt(teamTotal, de) + ' PT ' + t('open in this team', 'offen in diesem Team'), fontSize: 8, color: PRINT.ink2 },
-              tc.unassigned > 0
-                ? { text: fmtInt(tc.unassigned, de) + ' PT ' + t('nobody on it', 'ohne Person') + ' · ' + tc.count + ' Items', fontSize: 8, color: PRINT.muted, alignment: 'right' }
-                : { text: t('everything has a person', 'alles hat eine Person'), fontSize: 8, color: PRINT.muted, alignment: 'right' },
-            ],
-          } : null;
+          const barCanvas =
+            teamTotal > 0
+              ? {
+                  canvas: (() => {
+                    let x = 0;
+                    const segs = memberShares.map(({ pt, color }) => {
+                      const w = (wBar * pt) / teamTotal;
+                      const r = { type: 'rect', x, y: 0, w, h: 8, color };
+                      x += w;
+                      return r;
+                    });
+                    if (tc.unassigned > 0)
+                      segs.push({ type: 'rect', x, y: 0, w: (wBar * tc.unassigned) / teamTotal, h: 8, color: PRINT.rule2 });
+                    return segs.filter(r => r.w > 0.2);
+                  })(),
+                  margin: [0, 5, 0, 3],
+                }
+              : null;
+          const footerCol =
+            teamTotal > 0
+              ? {
+                  columns: [
+                    {
+                      text: fmtInt(teamTotal, de) + ' PT ' + t('open in this team', 'offen in diesem Team'),
+                      fontSize: 8,
+                      color: PRINT.ink2,
+                    },
+                    tc.unassigned > 0
+                      ? {
+                          text: fmtInt(tc.unassigned, de) + ' PT ' + t('nobody on it', 'ohne Person') + ' · ' + tc.count + ' Items',
+                          fontSize: 8,
+                          color: PRINT.muted,
+                          alignment: 'right',
+                        }
+                      : {
+                          text: t('everything has a person', 'alles hat eine Person'),
+                          fontSize: 8,
+                          color: PRINT.muted,
+                          alignment: 'right',
+                        },
+                  ],
+                }
+              : null;
           return {
             stack: [
               {
@@ -887,16 +1047,20 @@ export async function exportSummaryPDF(ctx, options = {}) {
                   { canvas: [{ type: 'rect', x: 0, y: 2, w: 8, h: 8, r: 1.5, color: tc.color || PRINT.muted }], width: 12 },
                   { text: tc.name, bold: true, color: PRINT.ink, fontSize: 11 },
                 ],
-                columnGap: 2, margin: [0, 0, 0, 4],
+                columnGap: 2,
+                margin: [0, 0, 0, 4],
               },
-              memRows.length ? {
-                columns: [
-                  { text: '', width: 10 },
-                  { text: t('Person', 'Person'), fontSize: 7.5, color: PRINT.muted },
-                  { text: t('open in this team', 'offen in diesem Team'), fontSize: 7.5, color: PRINT.muted, alignment: 'right' },
-                ],
-                columnGap: 4, margin: [0, 0, 0, 2],
-              } : '',
+              memRows.length
+                ? {
+                    columns: [
+                      { text: '', width: 10 },
+                      { text: t('Person', 'Person'), fontSize: 7.5, color: PRINT.muted },
+                      { text: t('open in this team', 'offen in diesem Team'), fontSize: 7.5, color: PRINT.muted, alignment: 'right' },
+                    ],
+                    columnGap: 4,
+                    margin: [0, 0, 0, 2],
+                  }
+                : '',
               ...memRows,
               ...(barCanvas ? [barCanvas] : []),
               ...(footerCol ? [footerCol] : []),
@@ -911,13 +1075,27 @@ export async function exportSummaryPDF(ctx, options = {}) {
   }
 
   if (cpItems.length) {
-    content.push({ text: t('Any delay to these items delays the project end.', 'Jede Verzögerung dieser Items verzögert das Projektende.'), style: 'cap', margin: [0, 8, 0, 4] });
-    content.push(headerTable(
-      ['ID', t('Name', 'Name'), t('Team', 'Team'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
-      cpItems.map(s => [s.id, s.name, teamName(s.team), s.person || '—', s.startD ? iso(s.startD) : '—', s.endD ? iso(s.endD) : '—', s.effort?.toFixed(1) || '—']),
-      [40, '*', 70, 80, 60, 60, 30],
-      t('Critical Path', 'Kritischer Pfad'),
-    ));
+    content.push({
+      text: t('Any delay to these items delays the project end.', 'Jede Verzögerung dieser Items verzögert das Projektende.'),
+      style: 'cap',
+      margin: [0, 8, 0, 4],
+    });
+    content.push(
+      headerTable(
+        ['ID', t('Name', 'Name'), t('Team', 'Team'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
+        cpItems.map(s => [
+          s.id,
+          s.name,
+          teamName(s.team),
+          s.person || '—',
+          s.startD ? iso(s.startD) : '—',
+          s.endD ? iso(s.endD) : '—',
+          s.effort?.toFixed(1) || '—',
+        ]),
+        [40, '*', 70, 80, 60, 60, 30],
+        t('Critical Path', 'Kritischer Pfad'),
+      ),
+    );
   }
 
   const dd = {
@@ -938,7 +1116,10 @@ export async function exportGanttPDF(ctx) {
   ctx = projectScopedCtx(ctx, 'exportGanttPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, weeks, teams } = m;
-  if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
+  if (!scheduled.length) {
+    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
+    return;
+  }
   const pdfMake = await loadPdfMake();
   const gantt = await rasterizeGantt(ctx, 3);
 
@@ -956,25 +1137,59 @@ export async function exportGanttPDF(ctx) {
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('Schedule / Gantt', 'Zeitplan / Gantt') + ' · ' + dateStr + ' · ' + scheduled.length + ' ' + t('tasks', 'Tasks') + ' · ' + weeks.length + ' ' + t('weeks', 'Wochen'), style: 'sub' },
+    {
+      text:
+        t('Schedule / Gantt', 'Zeitplan / Gantt') +
+        ' · ' +
+        dateStr +
+        ' · ' +
+        scheduled.length +
+        ' ' +
+        t('tasks', 'Tasks') +
+        ' · ' +
+        weeks.length +
+        ' ' +
+        t('weeks', 'Wochen'),
+      style: 'sub',
+    },
   ];
   if (gantt) content.push({ image: gantt.url, width: imgWidth, margin: [0, 0, 0, 14] });
-  else content.push({ text: t('The timeline image could not be rendered; the table below carries the same schedule.', 'Das Timeline-Bild konnte nicht erzeugt werden; die Tabelle unten trägt denselben Zeitplan.'), style: 'cap', margin: [0, 6, 0, 0] });
+  else
+    content.push({
+      text: t(
+        'The timeline image could not be rendered; the table below carries the same schedule.',
+        'Das Timeline-Bild konnte nicht erzeugt werden; die Tabelle unten trägt denselben Zeitplan.',
+      ),
+      style: 'cap',
+      margin: [0, 6, 0, 0],
+    });
 
   // Only break when there is actually a picture above to break away from —
   // otherwise page 1 was a title, a subtitle and nothing else.
   content.push({ text: t('Schedule Table', 'Terminübersicht'), style: 'h2', ...(gantt ? { pageBreak: 'before' } : {}) });
   const byTeam = {};
-  scheduled.forEach(s => { const k = s.team || '__none'; (byTeam[k] || (byTeam[k] = [])).push(s); });
+  scheduled.forEach(s => {
+    const k = s.team || '__none';
+    (byTeam[k] || (byTeam[k] = [])).push(s);
+  });
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
     items.sort((a, b) => (a.startD || 0) - (b.startD || 0));
-    content.push(headerTable(
-      ['ID', t('Name', 'Name'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
-      items.map(s => [s.id, s.name, s.person || '—', s.startD ? iso(s.startD) : '—', s.endD ? iso(s.endD) : '—', s.effort?.toFixed(1) || '—']),
-      [50, '*', 100, 65, 65, 35],
-      (tm?.name || t('No team', 'Kein Team')) + ' · ' + items.length + ' ' + t('tasks', 'Aufgaben'),
-    ));
+    content.push(
+      headerTable(
+        ['ID', t('Name', 'Name'), t('Person', 'Person'), t('Start', 'Start'), t('End', 'Ende'), 'PT'],
+        items.map(s => [
+          s.id,
+          s.name,
+          s.person || '—',
+          s.startD ? iso(s.startD) : '—',
+          s.endD ? iso(s.endD) : '—',
+          s.effort?.toFixed(1) || '—',
+        ]),
+        [50, '*', 100, 65, 65, 35],
+        (tm?.name || t('No team', 'Kein Team')) + ' · ' + items.length + ' ' + t('tasks', 'Aufgaben'),
+      ),
+    );
   });
 
   const dd = {
@@ -995,64 +1210,124 @@ export async function exportTodoPDF(ctx, horizonDays) {
   ctx = projectScopedCtx(ctx, 'exportTodoPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence } = m;
-  if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
+  if (!scheduled.length) {
+    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
+    return;
+  }
   const horizon = horizonDays ? Math.max(1, parseInt(horizonDays) || 30) : 30;
   const now = new Date();
-  const end = new Date(); end.setDate(end.getDate() + horizon);
-  const up = scheduled.filter(s => s.status !== 'done' && s.startD && s.startD <= end).sort((a, b) => (a.startD - b.startD) || (a.prio || 4) - (b.prio || 4));
-  if (!up.length) { alert((m.de ? 'Keine Aufgaben in ' : 'No tasks within ') + horizon + (m.de ? ' Tagen.' : ' days.')); return; }
+  const end = new Date();
+  end.setDate(end.getDate() + horizon);
+  const up = scheduled
+    .filter(s => s.status !== 'done' && s.startD && s.startD <= end)
+    .sort((a, b) => a.startD - b.startD || (a.prio || 4) - (b.prio || 4));
+  if (!up.length) {
+    alert((m.de ? 'Keine Aufgaben in ' : 'No tasks within ') + horizon + (m.de ? ' Tagen.' : ' days.'));
+    return;
+  }
   const pdfMake = await loadPdfMake();
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
   // Group by person (preferred) or team-unassigned.
   const groups = new Map();
   up.forEach(s => {
-    const key = s.personId || ('team:' + (s.team || 'none'));
-    if (!groups.has(key)) groups.set(key, { key, isPerson: !!s.personId, label: s.personId ? s.person : (teamName(s.team) || (m.de ? 'Kein Team' : 'No team')) + ' (' + t('unassigned', 'unzugewiesen') + ')', items: [] });
+    const key = s.personId || 'team:' + (s.team || 'none');
+    if (!groups.has(key))
+      groups.set(key, {
+        key,
+        isPerson: !!s.personId,
+        label: s.personId
+          ? s.person
+          : (teamName(s.team) || (m.de ? 'Kein Team' : 'No team')) + ' (' + t('unassigned', 'unzugewiesen') + ')',
+        items: [],
+      });
     groups.get(key).items.push(s);
   });
-  const sorted = [...groups.values()].sort((a, b) => a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1);
+  const sorted = [...groups.values()].sort((a, b) => (a.isPerson === b.isPerson ? a.label.localeCompare(b.label) : a.isPerson ? -1 : 1));
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + dateStr + ' · ' + t('Horizon', 'Horizont') + ': ' + horizon + ' ' + t('days', 'Tage') + ' (' + iso(now) + ' → ' + iso(end) + ') · ' + up.length + ' ' + t('tasks', 'Tasks') + ', ' + sorted.length + ' ' + t('lanes', 'Lanes'), style: 'sub' },
+    {
+      text:
+        t('TODO / Sprint', 'TODO / Sprint') +
+        ' · ' +
+        dateStr +
+        ' · ' +
+        t('Horizon', 'Horizont') +
+        ': ' +
+        horizon +
+        ' ' +
+        t('days', 'Tage') +
+        ' (' +
+        iso(now) +
+        ' → ' +
+        iso(end) +
+        ') · ' +
+        up.length +
+        ' ' +
+        t('tasks', 'Tasks') +
+        ', ' +
+        sorted.length +
+        ' ' +
+        t('lanes', 'Lanes'),
+      style: 'sub',
+    },
   ];
   sorted.forEach(g => {
-    content.push(headerTable(
-      [t('Start', 'Start'), t('End', 'Ende'), 'ID', t('Task', 'Task'), t('Team', 'Team'), t('Effort', 'Aufw.'), t('Status', 'Status'), 'Conf.'],
-      g.items.map(s => {
-        const node = tree.find(r => r.id === (s.treeId || s.id));
-        const conf = confidence[s.id] || 'committed';
-        const label = horizonLabel(s.startD, conf, m.de, now);
-        const endLabel = horizonLabel(s.endD, conf, m.de, now);
-        const decide = node?.decideBy ? { text: ' ! ' + node.decideBy, color: PRINT.wip, fontSize: 8, bold: true } : null;
-        const nameCell = decide ? { text: [{ text: s.name }, decide] } : s.name;
-        return [
-          { text: label, fontSize: 8.5 },
-          { text: endLabel, fontSize: 8.5 },
-          { text: s.id, fontSize: 8.5 },
-          nameCell,
-          teamName(s.team),
-          s.effort?.toFixed(1) || '—',
-          s.status === 'wip' ? { text: '● WIP', color: PRINT.wip, bold: true } : { text: t('Open', 'Offen'), color: PRINT.ink2 },
-          // Confidence in its own ramp, not the status hues: the same scale
-          // the summary and the screen use.
-          { text: '●', color: conf === 'committed' ? PRINT.confHi : conf === 'estimated' ? PRINT.confMid : PRINT.confLo, alignment: 'center' },
-        ];
-      }),
-      [75, 75, 45, '*', 80, 40, 50, 25],
-      g.label + '  ·  ' + g.items.length + ' ' + t('tasks', 'Aufgaben'),
-    ));
+    content.push(
+      headerTable(
+        [
+          t('Start', 'Start'),
+          t('End', 'Ende'),
+          'ID',
+          t('Task', 'Task'),
+          t('Team', 'Team'),
+          t('Effort', 'Aufw.'),
+          t('Status', 'Status'),
+          'Conf.',
+        ],
+        g.items.map(s => {
+          const node = tree.find(r => r.id === (s.treeId || s.id));
+          const conf = confidence[s.id] || 'committed';
+          const label = horizonLabel(s.startD, conf, m.de, now);
+          const endLabel = horizonLabel(s.endD, conf, m.de, now);
+          const decide = node?.decideBy ? { text: ' ! ' + node.decideBy, color: PRINT.wip, fontSize: 8, bold: true } : null;
+          const nameCell = decide ? { text: [{ text: s.name }, decide] } : s.name;
+          return [
+            { text: label, fontSize: 8.5 },
+            { text: endLabel, fontSize: 8.5 },
+            { text: s.id, fontSize: 8.5 },
+            nameCell,
+            teamName(s.team),
+            s.effort?.toFixed(1) || '—',
+            s.status === 'wip' ? { text: '● WIP', color: PRINT.wip, bold: true } : { text: t('Open', 'Offen'), color: PRINT.ink2 },
+            // Confidence in its own ramp, not the status hues: the same scale
+            // the summary and the screen use.
+            {
+              text: '●',
+              color: conf === 'committed' ? PRINT.confHi : conf === 'estimated' ? PRINT.confMid : PRINT.confLo,
+              alignment: 'center',
+            },
+          ];
+        }),
+        [75, 75, 45, '*', 80, 40, 50, 25],
+        g.label + '  ·  ' + g.items.length + ' ' + t('tasks', 'Aufgaben'),
+      ),
+    );
   });
 
   content.push({
     text: [
-      { text: '● ', color: PRINT.confHi }, t('Committed', 'Verbindlich') + '  ',
-      { text: '● ', color: PRINT.confMid }, t('Estimated', 'Geschätzt') + '  ',
-      { text: '● ', color: PRINT.confLo }, t('Exploratory', 'Explorativ'),
+      { text: '● ', color: PRINT.confHi },
+      t('Committed', 'Verbindlich') + '  ',
+      { text: '● ', color: PRINT.confMid },
+      t('Estimated', 'Geschätzt') + '  ',
+      { text: '● ', color: PRINT.confLo },
+      t('Exploratory', 'Explorativ'),
       '  ·  ' + t('dates are rounded to match confidence', 'Daten sind der Belastbarkeit entsprechend gerundet'),
     ],
-    style: 'cap', margin: [0, 4, 0, 0],
+    style: 'cap',
+    margin: [0, 4, 0, 0],
   });
 
   const dd = {
@@ -1075,8 +1350,11 @@ export async function exportTodoPDF(ctx, horizonDays) {
 export async function exportWhatWhenPDF(ctx) {
   ctx = projectScopedCtx(ctx, 'exportWhatWhenPDF');
   const m = buildReportModel(ctx);
-  const { meta, t, dateStr, scheduled,  teams, confidence, rootData, lvs, deadlineStates } = m;
-  if (!scheduled.length) { alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.'); return; }
+  const { meta, t, dateStr, scheduled, teams, confidence, rootData, lvs, deadlineStates } = m;
+  if (!scheduled.length) {
+    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
+    return;
+  }
   const pdfMake = await loadPdfMake();
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const now = new Date();
@@ -1099,7 +1377,14 @@ export async function exportWhatWhenPDF(ctx) {
         if (CONF_ORDER[c] > CONF_ORDER[worst]) worst = c;
       });
       // Teams involved
-      const teamIds = [...new Set(scheduled.filter(s => s.id === rd.id || s.id.startsWith(rd.id + '.')).map(s => s.team).filter(Boolean))];
+      const teamIds = [
+        ...new Set(
+          scheduled
+            .filter(s => s.id === rd.id || s.id.startsWith(rd.id + '.'))
+            .map(s => s.team)
+            .filter(Boolean),
+        ),
+      ];
       // Forecast-only: a finished deadline is not "late", it is delivered.
       const ds = deadlineStates?.[rd.id];
       const deadlineLate = ds?.state === 'atRisk';
@@ -1125,9 +1410,20 @@ export async function exportWhatWhenPDF(ctx) {
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
-    { text: t('What comes when', 'Was kommt wann') + ' · ' + dateStr + ' · ' + t('projected end per topic, horizon-adjusted', 'prognostiziertes Ende je Thema, horizontgerecht'), style: 'sub' },
     {
-      text: t('Each row is a top-level topic with its projected completion date. Date granularity collapses to weeks, months or quarters for distant or lower-confidence topics.', 'Jede Zeile ist ein Top-Level-Thema mit prognostiziertem Fertigstellungsdatum. Entfernte oder unsichere Themen werden zu Wochen, Monaten oder Quartalen gerundet.'),
+      text:
+        t('What comes when', 'Was kommt wann') +
+        ' · ' +
+        dateStr +
+        ' · ' +
+        t('projected end per topic, horizon-adjusted', 'prognostiziertes Ende je Thema, horizontgerecht'),
+      style: 'sub',
+    },
+    {
+      text: t(
+        'Each row is a top-level topic with its projected completion date. Date granularity collapses to weeks, months or quarters for distant or lower-confidence topics.',
+        'Jede Zeile ist ein Top-Level-Thema mit prognostiziertem Fertigstellungsdatum. Entfernte oder unsichere Themen werden zu Wochen, Monaten oder Quartalen gerundet.',
+      ),
       style: 'cap',
       margin: [0, 0, 0, 10],
     },
@@ -1135,30 +1431,59 @@ export async function exportWhatWhenPDF(ctx) {
 
   sorted.forEach(bucket => {
     bucket.items.sort((a, b) => (a.rd.endD || 0) - (b.rd.endD || 0));
-    content.push(headerTable(
-      [t('Projected End', 'Ende prognost.'), 'ID', t('Topic', 'Thema'), t('Teams', 'Teams'), t('Progress', 'Fortschritt'), 'PT', 'Conf.'],
-      bucket.items.map(({ rd, worst, teamNames, deadlineLate, deadlineDone }) => [
-        { text: horizonLabel(rd.endD, worst, m.de, now), fontSize: 9 },
-        { text: rd.id, fontSize: 9 },
-        {
-          text: [
-            rd.type ? { text: GT[rd.type] + ' ', fontSize: 10 } : '',
-            { text: rd.name, bold: true },
-            rd.type === 'deadline' && rd.date ? { text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')', fontSize: 8, color: deadlineLate ? PRINT.risk : PRINT.muted } : '',
-            deadlineLate ? { text: '  ■', color: PRINT.risk, bold: true } : deadlineDone ? { text: '  ✓', color: PRINT.done, bold: true } : '',
-          ],
-        },
-        { text: teamNames, fontSize: 9 },
-        { text: progressPctLabel(rd.prog) + '%  ·  ' + rd.doneCount + '/' + rd.leafCount, fontSize: 9 },
-        { text: rd.pt.toFixed(0), fontSize: 9 },
-        { text: '● ' + (worst === 'committed' ? t('committed', 'verbindlich') : worst === 'estimated' ? t('estimated', 'geschätzt') : t('exploratory', 'explorativ')), fontSize: 8.5, color: worst === 'committed' ? PRINT.confHi : worst === 'estimated' ? PRINT.confMid : PRINT.confLo },
-      ]),
-      [90, 45, '*', 100, 80, 35, 85],
-      bucket.label + '  ·  ' + bucket.items.length + ' ' + t('topics', 'Themen'),
-    ));
+    content.push(
+      headerTable(
+        [t('Projected End', 'Ende prognost.'), 'ID', t('Topic', 'Thema'), t('Teams', 'Teams'), t('Progress', 'Fortschritt'), 'PT', 'Conf.'],
+        bucket.items.map(({ rd, worst, teamNames, deadlineLate, deadlineDone }) => [
+          { text: horizonLabel(rd.endD, worst, m.de, now), fontSize: 9 },
+          { text: rd.id, fontSize: 9 },
+          {
+            text: [
+              rd.type ? { text: GT[rd.type] + ' ', fontSize: 10 } : '',
+              { text: rd.name, bold: true },
+              rd.type === 'deadline' && rd.date
+                ? {
+                    text: '  (' + t('deadline', 'Deadline') + ': ' + rd.date + ')',
+                    fontSize: 8,
+                    color: deadlineLate ? PRINT.risk : PRINT.muted,
+                  }
+                : '',
+              deadlineLate
+                ? { text: '  ■', color: PRINT.risk, bold: true }
+                : deadlineDone
+                  ? { text: '  ✓', color: PRINT.done, bold: true }
+                  : '',
+            ],
+          },
+          { text: teamNames, fontSize: 9 },
+          { text: progressPctLabel(rd.prog) + '%  ·  ' + rd.doneCount + '/' + rd.leafCount, fontSize: 9 },
+          { text: rd.pt.toFixed(0), fontSize: 9 },
+          {
+            text:
+              '● ' +
+              (worst === 'committed'
+                ? t('committed', 'verbindlich')
+                : worst === 'estimated'
+                  ? t('estimated', 'geschätzt')
+                  : t('exploratory', 'explorativ')),
+            fontSize: 8.5,
+            color: worst === 'committed' ? PRINT.confHi : worst === 'estimated' ? PRINT.confMid : PRINT.confLo,
+          },
+        ]),
+        [90, 45, '*', 100, 80, 35, 85],
+        bucket.label + '  ·  ' + bucket.items.length + ' ' + t('topics', 'Themen'),
+      ),
+    );
   });
 
-  content.push({ text: t('● Committed (green): person assigned, solid estimate · ● Estimated (amber): effort known, no person · ○ Exploratory: scope unclear · ■ deadline at risk', '● Verbindlich (grün): Person zugewiesen, belastbare Schätzung · ● Geschätzt (amber): Aufwand bekannt, keine Person · ○ Explorativ: Scope unklar · ■ Deadline gefährdet'), style: 'cap', margin: [0, 6, 0, 0] });
+  content.push({
+    text: t(
+      '● Committed (green): person assigned, solid estimate · ● Estimated (amber): effort known, no person · ○ Exploratory: scope unclear · ■ deadline at risk',
+      '● Verbindlich (grün): Person zugewiesen, belastbare Schätzung · ● Geschätzt (amber): Aufwand bekannt, keine Person · ○ Explorativ: Scope unklar · ■ Deadline gefährdet',
+    ),
+    style: 'cap',
+    margin: [0, 6, 0, 0],
+  });
 
   const dd = {
     pageSize: 'A4',

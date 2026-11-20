@@ -21,12 +21,11 @@
 import { describe, it, expect } from 'vitest';
 import { buildRoutes, boardHeight } from '../utils/roadmap.js';
 
-const MIN_DIST = 50;  // the spacing pass's own threshold
+const MIN_DIST = 50; // the spacing pass's own threshold
 const seg = route => route.slice(1).map((b, i) => [route[i], b]);
 const isHoriz = ([a, b]) => Math.abs(a.y - b.y) <= 2 && Math.abs(b.x - a.x) > 8;
 const isVert = ([a, b]) => Math.abs(a.x - b.x) <= 2 && Math.abs(b.y - a.y) > 8;
-const span1D = (lo1, hi1, lo2, hi2) =>
-  Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
+const span1D = (lo1, hi1, lo2, hi2) => Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
 
 describe('the board', () => {
   it('keeps the familiar eight lanes for a small plan', () => {

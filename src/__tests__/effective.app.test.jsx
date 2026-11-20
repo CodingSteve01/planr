@@ -8,20 +8,35 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seed(extra = {}) {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Project', status: 'open', type: 'goal' },
-      { id: 'P1.1', name: 'Alpha Task', team: 'T1', best: 5, factor: 1, status: 'open', assign: ['M1'], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 }, { id: 'M2', name: 'Bo', team: 'T1', cap: 1, vac: 25 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Dated Test', planStart: '2026-01-05' },
-    ...extra,
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Project', status: 'open', type: 'goal' },
+        { id: 'P1.1', name: 'Alpha Task', team: 'T1', best: 5, factor: 1, status: 'open', assign: ['M1'], deps: [] },
+      ],
+      members: [
+        { id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 },
+        { id: 'M2', name: 'Bo', team: 'T1', cap: 1, vac: 25 },
+      ],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Dated Test', planStart: '2026-01-05' },
+      ...extra,
+    }),
+  );
 }
 const stored = () => JSON.parse(localStorage.getItem('planr_v2'));
-const storedWhen = async check => { await waitFor(() => { check(stored()); }, { timeout: 8000, interval: 100 }); return stored(); };
+const storedWhen = async check => {
+  await waitFor(
+    () => {
+      check(stored());
+    },
+    { timeout: 8000, interval: 100 },
+  );
+  return stored();
+};
 
 async function pickDate(day) {
   fireEvent.click(await screen.findByTestId('effective-switch'));
@@ -40,11 +55,26 @@ async function setCapacity(name, pct) {
 }
 
 describe('working on a date', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tab', 'resources'); seed(); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'resources');
+    seed();
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is quiet while it is today, and says the date when it is not', async () => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     expect((await screen.findByTestId('effective-switch')).textContent).toContain('Today');
     expect(screen.queryByTestId('effective-bar')).toBeNull();
     await pickDate('2027-03-01');
@@ -54,8 +84,14 @@ describe('working on a date', () => {
     await waitFor(() => expect(screen.queryByTestId('effective-bar')).toBeNull());
   });
 
-  it('an edit to a person\'s capacity on a date lands in that date, not in the plan', async () => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+  it("an edit to a person's capacity on a date lands in that date, not in the plan", async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await pickDate('2027-03-01');
     const modal = await setCapacity('Anna', 50);
     expect(within(modal).getByTestId('dated-hint').textContent).toContain('01/03/2027');
@@ -67,9 +103,15 @@ describe('working on a date', () => {
     expect(screen.getByTestId('effective-bar').textContent).toContain('1 change');
   });
 
-  it('today still shows today\'s value, and the planned change is one click away', async () => {
+  it("today still shows today's value, and the planned change is one click away", async () => {
     seed({ changes: [{ from: '2027-03-01', patch: { members: { set: { M1: { cap: 0.5 } } } } }] });
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findAllByText('Anna'))[0].closest('tr'));
     const modal = await screen.findByTestId('member-modal');
     expect(modal.querySelector('.member-cap input[type="number"]').value).toBe('100');
@@ -82,7 +124,13 @@ describe('working on a date', () => {
   });
 
   it('removing somebody on a date makes them leave the day before, and they stay in the plan', async () => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await pickDate('2027-03-01');
     fireEvent.click((await screen.findAllByText('Bo'))[0].closest('tr'));
     const modal = await screen.findByTestId('member-modal');
@@ -92,12 +140,20 @@ describe('working on a date', () => {
   });
 
   it('removing on a date never keeps somebody longer, and deletes who was never there', async () => {
-    seed({ members: [
-      { id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 },
-      { id: 'M2', name: 'Bo', team: 'T1', cap: 1, vac: 25, end: '2026-12-31' },      // already leaving earlier
-      { id: 'M3', name: 'Cy', team: 'T1', cap: 1, vac: 25, start: '2027-06-01' },    // joins after the date
-    ] });
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    seed({
+      members: [
+        { id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 },
+        { id: 'M2', name: 'Bo', team: 'T1', cap: 1, vac: 25, end: '2026-12-31' }, // already leaving earlier
+        { id: 'M3', name: 'Cy', team: 'T1', cap: 1, vac: 25, start: '2027-06-01' }, // joins after the date
+      ],
+    });
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await pickDate('2027-03-01');
     for (const name of ['Bo', 'Cy']) {
       fireEvent.click((await screen.findAllByText(name))[0].closest('tr'));
@@ -108,8 +164,19 @@ describe('working on a date', () => {
   });
 
   it('the menu lists the dates something changes on', async () => {
-    seed({ changes: [{ from: '2027-03-01', patch: { members: { set: { M1: { cap: 0.5 } } } } }, { from: '2027-09-01', patch: { members: { set: { M1: { cap: 1 }, M2: { cap: 0.8 } } } } }] });
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    seed({
+      changes: [
+        { from: '2027-03-01', patch: { members: { set: { M1: { cap: 0.5 } } } } },
+        { from: '2027-09-01', patch: { members: { set: { M1: { cap: 1 }, M2: { cap: 0.8 } } } } },
+      ],
+    });
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click(await screen.findByTestId('effective-switch'));
     expect(screen.getByTestId('effective-pick-2027-03-01').textContent).toContain('1 change');
     expect(screen.getByTestId('effective-pick-2027-09-01').textContent).toContain('2 changes');

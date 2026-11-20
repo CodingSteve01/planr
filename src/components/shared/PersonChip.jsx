@@ -35,7 +35,11 @@ export function PersonChip({ short, auto = false, chain = false, title, style = 
       }}
     >
       {chain && <Icon name="swap" size={11} />}
-      {auto && <span aria-hidden="true" style={{ opacity: .7 }}>~</span>}
+      {auto && (
+        <span aria-hidden="true" style={{ opacity: 0.7 }}>
+          ~
+        </span>
+      )}
       {short}
     </span>
   );

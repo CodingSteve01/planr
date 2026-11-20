@@ -40,7 +40,11 @@ describe('without a host', () => {
 
   it('reports the viewport as the frame, so nothing shifts on the web', () => {
     expect(fixedFrame()).toMatchObject({
-      left: 0, top: 0, scale: 1, width: window.innerWidth, height: window.innerHeight,
+      left: 0,
+      top: 0,
+      scale: 1,
+      width: window.innerWidth,
+      height: window.innerHeight,
     });
     expect(toFixedPoint(120, 40)).toEqual({ x: 120, y: 40 });
   });

@@ -21,7 +21,7 @@ const before = [
 ];
 
 describe('restructuring as of last Monday', () => {
-  test('the split does not show up as this week\'s movement', () => {
+  test("the split does not show up as this week's movement", () => {
     // Today: the task is split in three. With the switch on, that counts as of
     // the 14th — before the review window opened.
     const after = [
@@ -57,7 +57,10 @@ describe('restructuring as of last Monday', () => {
   });
 
   test('a removed item is dated too — a deletion is a restructuring', () => {
-    const pruned = [{ id: 'P1', name: 'Rechnungen' }, { id: 'P1.2', name: 'Anderes', status: 'open', progress: 0 }];
+    const pruned = [
+      { id: 'P1', name: 'Rechnungen' },
+      { id: 'P1.2', name: 'Anderes', status: 'open', progress: 0 },
+    ];
     const events = diffSnapshots(leafSnapshot(before), leafSnapshot(pruned), TODAY, BACKDATE);
     const removed = events.find(ev => ev.kind === 'removed');
     expect(removed).toBeDefined();

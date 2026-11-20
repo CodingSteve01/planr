@@ -28,9 +28,7 @@ afterEach(() => cleanup());
 
 describe('the drawing and what follows it', () => {
   it('ends the drawing at the tag that closes it, not the first one it sees', () => {
-    const [svg, rest] = splitSvgMarkup(
-      '<svg><g><svg><circle/></svg></g></svg><div>legend</div>',
-    );
+    const [svg, rest] = splitSvgMarkup('<svg><g><svg><circle/></svg></g></svg><div>legend</div>');
     expect(svg).toBe('<svg><g><svg><circle/></svg></g></svg>');
     expect(rest).toBe('<div>legend</div>');
   });

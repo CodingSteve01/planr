@@ -78,7 +78,9 @@ export function canTreeCommand(visibleIds, id, command) {
 export function subtreeIdMap(tree, nodeId, newParentId) {
   const newBase = nextChildId(tree, newParentId);
   const map = { [nodeId]: newBase };
-  tree.forEach(r => { if (r.id.startsWith(nodeId + '.')) map[r.id] = newBase + r.id.slice(nodeId.length); });
+  tree.forEach(r => {
+    if (r.id.startsWith(nodeId + '.')) map[r.id] = newBase + r.id.slice(nodeId.length);
+  });
   return map;
 }
 
@@ -94,7 +96,9 @@ export function moveSubtree(tree, nodeId, newParentId) {
   const remapLabels = labels => {
     if (!labels) return labels;
     const out = {};
-    Object.entries(labels).forEach(([k, v]) => { out[idMap[k] || k] = v; });
+    Object.entries(labels).forEach(([k, v]) => {
+      out[idMap[k] || k] = v;
+    });
     return out;
   };
   const renamed = tree.map(r => {
@@ -109,10 +113,12 @@ export function moveSubtree(tree, nodeId, newParentId) {
   // Parent-then-children, by id — the storage order the rest of the app
   // (and the markdown writer) expects. Screen order is sortTree's business.
   renamed.sort((a, b) => {
-    const ap = a.id.split('.'), bp = b.id.split('.');
+    const ap = a.id.split('.'),
+      bp = b.id.split('.');
     for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
       if (ap[i] !== bp[i]) {
-        const an = parseInt(ap[i].replace(/\D/g, '')) || 0, bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
+        const an = parseInt(ap[i].replace(/\D/g, '')) || 0,
+          bn = parseInt(bp[i].replace(/\D/g, '')) || 0;
         return an !== bn ? an - bn : ap[i].localeCompare(bp[i]);
       }
     }
@@ -191,12 +197,11 @@ export function applyTreeCommand(tree, id, command, visibleIds = sortTree(tree).
   }
   // The anchor of an outdent is the old parent, which is never inside the
   // moved subtree, so its id holds. Map it anyway rather than rely on that.
-  const place = typeof plan.place === 'object'
-    ? { ...plan.place, targetId: idMap[plan.place.targetId] || plan.place.targetId }
-    : plan.place;
+  const place =
+    typeof plan.place === 'object' ? { ...plan.place, targetId: idMap[plan.place.targetId] || plan.place.targetId } : plan.place;
   const placed = placeAmongSiblings(next, newId, place, { force: plan.parentId !== undefined });
   if (placed) next = placed;
-  else if (plan.parentId === undefined) return null;   // a reorder that moved nothing
+  else if (plan.parentId === undefined) return null; // a reorder that moved nothing
   return { tree: next, id: newId, idMap };
 }
 
@@ -230,7 +235,10 @@ export function selectionRoots(ids, visibleIds) {
 const ancestorsOf = id => {
   const out = [];
   let p = parentOf(id);
-  while (p) { out.push(p); p = parentOf(p); }
+  while (p) {
+    out.push(p);
+    p = parentOf(p);
+  }
   return out;
 };
 
@@ -256,18 +264,27 @@ export function applyTreeCommandMany(tree, ids, command, visibleIds = sortTree(t
   const follow = id => idMap[id] || id;
   for (const original of order) {
     const id = follow(original);
-    const onScreen = sortTree(next).map(r => r.id).filter(v => visible.has(v));
+    const onScreen = sortTree(next)
+      .map(r => r.id)
+      .filter(v => visible.has(v));
     const plan = planTreeCommand(onScreen, id, command);
     const blocker = plan && (plan.parentId || (typeof plan.place === 'object' ? plan.place.targetId : null));
     const blockerIsStuckMate = blocker && [...stuck].some(s => follow(s) === blocker);
     const res = plan && !blockerIsStuckMate ? applyTreeCommand(next, id, command, onScreen) : null;
-    if (!res) { stuck.add(original); continue; }
+    if (!res) {
+      stuck.add(original);
+      continue;
+    }
     moved = true;
     next = res.tree;
     if (Object.keys(res.idMap).length) {
       // Compose: earlier renumberings point at their newest id.
-      Object.keys(idMap).forEach(k => { if (res.idMap[idMap[k]]) idMap[k] = res.idMap[idMap[k]]; });
-      Object.entries(res.idMap).forEach(([from, to]) => { if (!(from in idMap) && !Object.values(idMap).includes(from)) idMap[from] = to; });
+      Object.keys(idMap).forEach(k => {
+        if (res.idMap[idMap[k]]) idMap[k] = res.idMap[idMap[k]];
+      });
+      Object.entries(res.idMap).forEach(([from, to]) => {
+        if (!(from in idMap) && !Object.values(idMap).includes(from)) idMap[from] = to;
+      });
       visible = new Set([...visible].map(v => res.idMap[v] || v));
     }
   }
@@ -281,9 +298,7 @@ export function applyTreeCommandMany(tree, ids, command, visibleIds = sortTree(t
 // `dropRows` below; this stays the plain sibling reorder.
 export function placeManyAmongSiblings(tree, ids, { targetId, position }) {
   const parent = parentOf(targetId);
-  const siblings = tree
-    .filter(r => (parent ? parentOf(r.id) === parent : !r.id.includes('.')))
-    .sort(compareSiblings);
+  const siblings = tree.filter(r => (parent ? parentOf(r.id) === parent : !r.id.includes('.'))).sort(compareSiblings);
   const moving = siblings.filter(s => ids.includes(s.id) && s.id !== targetId);
   if (!moving.length) return null;
   const rest = siblings.filter(s => !moving.includes(s));
@@ -335,15 +350,11 @@ export function dropRows(tree, ids, { targetId, position }, visibleIds = sortTre
   }
   const moved = roots.map(id => idMap[id] || id);
 
-  const siblings = next
-    .filter(r => (newParent ? parentOf(r.id) === newParent : !r.id.includes('.')))
-    .sort(compareSiblings);
+  const siblings = next.filter(r => (newParent ? parentOf(r.id) === newParent : !r.id.includes('.'))).sort(compareSiblings);
   // In the order they were on screen, whatever order they were picked in.
   const block = moved.map(id => siblings.find(s => s.id === id)).filter(Boolean);
   const rest = siblings.filter(s => !moved.includes(s.id));
-  const at = position === 'inside'
-    ? rest.length
-    : rest.findIndex(s => s.id === targetId) + (position === 'after' ? 1 : 0);
+  const at = position === 'inside' ? rest.length : rest.findIndex(s => s.id === targetId) + (position === 'after' ? 1 : 0);
   if (at < 0) return null;
   const reordered = [...rest.slice(0, at), ...block, ...rest.slice(at)];
   const reparented = Object.keys(idMap).length > 0;

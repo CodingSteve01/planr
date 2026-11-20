@@ -17,9 +17,12 @@ export function Tour({ steps, step, onNext, onPrev, onSkip }) {
   const { t } = useT();
 
   // Close on Escape
-  const onKey = useCallback(e => {
-    if (e.key === 'Escape') onSkip();
-  }, [onSkip]);
+  const onKey = useCallback(
+    e => {
+      if (e.key === 'Escape') onSkip();
+    },
+    [onSkip],
+  );
   useEffect(() => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -41,12 +44,12 @@ export function Tour({ steps, step, onNext, onPrev, onSkip }) {
         </div>
 
         {/* Step counter */}
-        <div className="tour-counter">
-          {t('tour.step', step + 1, steps.length)}
-        </div>
+        <div className="tour-counter">{t('tour.step', step + 1, steps.length)}</div>
 
         {/* Content */}
-        <div className="tour-icon"><Icon name={current.icon} size={26} strokeWidth={1.6} /></div>
+        <div className="tour-icon">
+          <Icon name={current.icon} size={26} strokeWidth={1.6} />
+        </div>
         <h2 className="tour-title">{current.title}</h2>
         <p className="tour-body">{current.body}</p>
 

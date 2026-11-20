@@ -2,11 +2,14 @@ import { describe, test, expect } from 'vitest';
 import { changeDates, compileMembers, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from '../effective.js';
 import { deriveCap, memberAtDate } from '../capacity.js';
 
-const standup = { id: 'mt1', name: 'Stand-up', hours: 0.5, frequency: 'daily' };   // 2.5 h/week
-const retro = { id: 'mt2', name: 'Retro', hours: 2, frequency: 'weekly' };         // 2 h/week
+const standup = { id: 'mt1', name: 'Stand-up', hours: 0.5, frequency: 'daily' }; // 2.5 h/week
+const retro = { id: 'mt2', name: 'Retro', hours: 2, frequency: 'weekly' }; // 2 h/week
 const plan = () => ({
   teams: [{ id: 'T1', name: 'Dev', meetingPlanIds: ['mp1'] }],
-  meetingPlans: [{ id: 'mp1', name: 'dev', meetings: [standup] }, { id: 'mp2', name: 'extra', meetings: [retro] }],
+  meetingPlans: [
+    { id: 'mp1', name: 'dev', meetings: [standup] },
+    { id: 'mp2', name: 'extra', meetings: [retro] },
+  ],
   members: [
     { id: 'm1', name: 'Noah', team: 'T1', cap: 1, capMode: 'derived', weeklyHours: 40 },
     { id: 'm2', name: 'Alex', team: 'T1', cap: 1, capMode: 'derived', weeklyHours: 40 },
@@ -15,7 +18,13 @@ const plan = () => ({
 const TODAY = new Date(2026, 10, 20);
 const member = (data, id, date) => resourcesAsOf(data, date).members.find(m => m.id === id);
 // Weekly capacity the SCHEDULER sees for a person on a date: no catalogue, only the compiled member.
-const schedCap = (data, id, date) => deriveCap(memberAtDate(compileMembers(data).find(m => m.id === id), new Date(date)));
+const schedCap = (data, id, date) =>
+  deriveCap(
+    memberAtDate(
+      compileMembers(data).find(m => m.id === id),
+      new Date(date),
+    ),
+  );
 
 describe('an edit through the lens of a date', () => {
   test('goes into the change at that date and leaves the base alone', () => {
@@ -46,16 +55,25 @@ describe('an edit through the lens of a date', () => {
   test('later changes build on earlier ones, and each is measured against the day before it', () => {
     let d = foldEdit(plan(), 'members', { ...member(plan(), 'm1', '2027-03-01'), weeklyHours: 24 }, '2027-03-01', TODAY);
     d = foldEdit(d, 'members', { ...member(d, 'm1', '2027-09-01'), weeklyHours: 40 }, '2027-09-01', TODAY);
-    expect(d.changes.map(c => [c.from, c.patch.members.set.m1.weeklyHours])).toEqual([['2027-03-01', 24], ['2027-09-01', 40]]);
+    expect(d.changes.map(c => [c.from, c.patch.members.set.m1.weeklyHours])).toEqual([
+      ['2027-03-01', 24],
+      ['2027-09-01', 40],
+    ]);
     // A change slotted in between does not disturb the one after it.
     d = foldEdit(d, 'members', { ...member(d, 'm1', '2027-06-01'), weeklyHours: 32 }, '2027-06-01', TODAY);
     expect(['2027-02-01', '2027-04-01', '2027-07-01', '2027-10-01'].map(day => member(d, 'm1', day).weeklyHours)).toEqual([40, 24, 32, 40]);
   });
 
-  test('a team\'s plans and a plan\'s content can be dated too', () => {
+  test("a team's plans and a plan's content can be dated too", () => {
     let d = plan();
     d = foldEdit(d, 'teams', { ...resourcesAsOf(d, '2027-04-01').teams[0], meetingPlanIds: ['mp1', 'mp2'] }, '2027-04-01', TODAY);
-    d = foldEdit(d, 'meetingPlans', { ...resourcesAsOf(d, '2027-07-01').meetingPlans[0], meetings: [{ ...standup, hours: 1 }] }, '2027-07-01', TODAY);
+    d = foldEdit(
+      d,
+      'meetingPlans',
+      { ...resourcesAsOf(d, '2027-07-01').meetingPlans[0], meetings: [{ ...standup, hours: 1 }] },
+      '2027-07-01',
+      TODAY,
+    );
     expect(d.teams[0].meetingPlanIds).toEqual(['mp1']);
     expect(d.meetingPlans[0].meetings).toEqual([standup]);
     expect(changeDates(d).map(c => c.from)).toEqual(['2027-04-01', '2027-07-01']);
@@ -70,7 +88,7 @@ describe('an edit without a date is about now', () => {
   });
 
   test('is not overruled by an older change, and leaves future ones as planned', () => {
-    let d = foldEdit(plan(), 'members', { ...plan().members[0], weeklyHours: 24 }, '2026-06-01', TODAY);   // in the past
+    let d = foldEdit(plan(), 'members', { ...plan().members[0], weeklyHours: 24 }, '2026-06-01', TODAY); // in the past
     d = foldEdit(d, 'members', { ...member(d, 'm1', '2027-03-01'), weeklyHours: 16 }, '2027-03-01', TODAY); // in the future
     expect(member(d, 'm1', TODAY).weeklyHours).toBe(24);
     d = foldEdit(d, 'members', { ...member(d, 'm1', TODAY), weeklyHours: 36 }, null, TODAY);
@@ -97,7 +115,7 @@ describe('what the scheduler gets', () => {
     expect(schedCap(d, 'm2', '2027-03-15')).toBeCloseTo((40 - 2.5) / 40, 5);
   });
 
-  test('a dated meeting change keeps the team\'s plan meetings — they used to vanish', () => {
+  test("a dated meeting change keeps the team's plan meetings — they used to vanish", () => {
     // Noah gets the extra plan from April. The team stand-up still applies.
     const d = foldEdit(plan(), 'members', { ...plan().members[0], meetingPlanIds: ['mp2'] }, '2027-04-01', TODAY);
     expect(schedCap(d, 'm1', '2027-03-15')).toBeCloseTo((40 - 2.5) / 40, 5);
@@ -129,7 +147,14 @@ describe('what the scheduler gets', () => {
 describe('the lists that used to live on the person', () => {
   test('move into the one timeline, once', () => {
     const base = plan();
-    base.members[0] = { ...base.members[0], capChanges: [{ from: '2027-03-01', weeklyHours: 24 }, { from: '2027-09-01', weeklyHours: 40 }], meetingChanges: [{ from: '2027-03-01', meetingPlanIds: ['mp2'] }] };
+    base.members[0] = {
+      ...base.members[0],
+      capChanges: [
+        { from: '2027-03-01', weeklyHours: 24 },
+        { from: '2027-09-01', weeklyHours: 40 },
+      ],
+      meetingChanges: [{ from: '2027-03-01', meetingPlanIds: ['mp2'] }],
+    };
     const d = migrateLegacyChanges(base);
     expect(d.members[0].capChanges).toBeUndefined();
     expect(d.members[0].meetingChanges).toBeUndefined();
@@ -167,10 +192,17 @@ describe('the Markdown file', () => {
     const base = {
       meta: { name: 'X', planStart: '2026-01-05', version: '2' },
       teams: [{ id: 'T1', name: 'Dev', color: '#10b981', meetingPlanIds: ['mp1'] }],
-      meetingPlans: [{ id: 'mp1', name: 'dev', meetings: [standup] }, { id: 'mp2', name: 'extra', meetings: [retro] }],
+      meetingPlans: [
+        { id: 'mp1', name: 'dev', meetings: [standup] },
+        { id: 'mp2', name: 'extra', meetings: [retro] },
+      ],
       members: [{ id: 'm-old', name: 'Noah Berg', team: 'T1', capMode: 'derived', weeklyHours: 40, cap: 1, vac: 25 }],
-      tree: [{ id: 'P1', name: 'Project', status: 'open' }, { id: 'P1.1', name: 'Task', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['m-old'], deps: [] }],
-      vacations: [], holidays: [],
+      tree: [
+        { id: 'P1', name: 'Project', status: 'open' },
+        { id: 'P1.1', name: 'Task', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['m-old'], deps: [] },
+      ],
+      vacations: [],
+      holidays: [],
     };
     let d = foldEdit(base, 'members', { ...base.members[0], weeklyHours: 24, meetingPlanIds: ['mp2'] }, '2027-03-01', TODAY);
     d = foldEdit(d, 'teams', { ...d.teams[0], meetingPlanIds: ['mp1', 'mp2'] }, '2027-06-01', TODAY);
@@ -194,7 +226,9 @@ describe('the Markdown file', () => {
       expect(schedCap(again, noah.id, day)).toBeCloseTo(schedCap(d, 'm-old', day), 5);
     }
     // No changes, no section.
-    expect(buildMarkdownText({ tree: base.tree, members: base.members, teams: base.teams, vacations: [], meta: base.meta, data: base })).not.toContain('## Changes');
+    expect(
+      buildMarkdownText({ tree: base.tree, members: base.members, teams: base.teams, vacations: [], meta: base.meta, data: base }),
+    ).not.toContain('## Changes');
   });
 
   test('the old per-person lines in a file are read and become dated changes on load', async () => {
@@ -221,7 +255,7 @@ describe('edge cases the review found', () => {
 });
 
 describe('one answer for what is drawn and what is scheduled', () => {
-  test('the lookup the views use gives the scheduler\'s figure on every day', async () => {
+  test("the lookup the views use gives the scheduler's figure on every day", async () => {
     const { capacityLookup } = await import('../capacityLens.js');
     let d = foldEdit(plan(), 'members', { ...plan().members[0], weeklyHours: 24 }, '2027-03-01', TODAY);
     d = foldEdit(d, 'teams', { ...d.teams[0], meetingPlanIds: ['mp1', 'mp2'] }, '2027-06-01', TODAY);
@@ -237,15 +271,27 @@ describe('one answer for what is drawn and what is scheduled', () => {
   test('the load matrix shows somebody at half capacity from the day it starts', async () => {
     const { buildResourceLoadMatrix } = await import('../../components/shared/ResourceLoadMatrix.jsx');
     const { capacityLookup } = await import('../capacityLens.js');
-    const base = { ...plan(), teams: [{ id: 'T1', name: 'Dev' }], meetingPlans: [], members: [{ id: 'm1', name: 'Noah', team: 'T1', cap: 1 }] };
+    const base = {
+      ...plan(),
+      teams: [{ id: 'T1', name: 'Dev' }],
+      meetingPlans: [],
+      members: [{ id: 'm1', name: 'Noah', team: 'T1', cap: 1 }],
+    };
     const d = foldEdit(base, 'members', { ...base.members[0], cap: 0.5 }, '2027-03-01', TODAY);
-    const week = start => ({ mon: new Date(start), wds: [0, 1, 2, 3, 4].map(i => { const x = new Date(start); x.setDate(x.getDate() + i); return x; }) });
+    const week = start => ({
+      mon: new Date(start),
+      wds: [0, 1, 2, 3, 4].map(i => {
+        const x = new Date(start);
+        x.setDate(x.getDate() + i);
+        return x;
+      }),
+    });
     const weeks = [week('2027-02-22T00:00:00'), week('2027-03-01T00:00:00')];
     const args = { members: d.members, teams: d.teams, vacations: [], meetingPlans: [], scheduled: [], weeks };
     const blind = buildResourceLoadMatrix(args);
     const seeing = buildResourceLoadMatrix({ ...args, capacityAt: capacityLookup(compileMembers(d)) });
     const avail = m => (m.get ? m.get('m1') : m.m1).map(r => r.availability);
-    expect(avail(blind)).toEqual([5, 5]);     // what it showed without the lookup: wrong from March
+    expect(avail(blind)).toEqual([5, 5]); // what it showed without the lookup: wrong from March
     expect(avail(seeing)).toEqual([5, 2.5]);
   });
 });

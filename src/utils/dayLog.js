@@ -25,10 +25,17 @@ import { stateAsOf, pendingDate, leafSnapshot } from './history.js';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const pad = n => String(n).padStart(2, '0');
 export const localDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const endOf = day => { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d, 23, 59, 59, 999); };
+const endOf = day => {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999);
+};
 
 // The plan without its own log: what patches are measured on.
-const plain = data => { if (!data || !('dayLog' in data)) return data; const { dayLog, ...rest } = data; return rest; };
+const plain = data => {
+  if (!data || !('dayLog' in data)) return data;
+  const { dayLog, ...rest } = data;
+  return rest;
+};
 const sorted = log => [...(log || [])].filter(e => e && DAY.test(e.day || '')).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 const back = (state, patch) => applyPatch(state, patch).data;
 
@@ -51,13 +58,19 @@ export function statusAsOf(tree, events, day) {
     if (!node?.id || !known.has(node.id)) return node;
     const s = state.get(node.id) || { status: 'open', progress: 0, completedAt: null };
     const progress = s.status === 'done' ? 100 : (s.progress ?? 0);
-    const completedAt = s.status === 'done' ? (s.completedAt || node.completedAt) : undefined;
-    const same = (node.status || 'open') === s.status && (node.progress ?? (node.status === 'done' ? 100 : 0)) === progress
-      && (node.completedAt || undefined) === (completedAt || undefined);
+    const completedAt = s.status === 'done' ? s.completedAt || node.completedAt : undefined;
+    const same =
+      (node.status || 'open') === s.status &&
+      (node.progress ?? (node.status === 'done' ? 100 : 0)) === progress &&
+      (node.completedAt || undefined) === (completedAt || undefined);
     if (same) return node;
     changed = true;
     const next = { ...node, status: s.status, progress };
-    if (completedAt) next.completedAt = completedAt; else { delete next.completedAt; delete next.completedEnd; }
+    if (completedAt) next.completedAt = completedAt;
+    else {
+      delete next.completedAt;
+      delete next.completedEnd;
+    }
     return next;
   });
   return changed ? out : tree;
@@ -118,7 +131,10 @@ export function applyPastEdit(base, baseScreen, screen, day) {
   const later = log.filter(e => e.day > day);
   const ends = []; // old end states, aligned with `later`
   let state = plain(base);
-  for (let i = later.length - 1; i >= 0; i--) { ends[i] = state; state = back(state, later[i].back); }
+  for (let i = later.length - 1; i >= 0; i--) {
+    ends[i] = state;
+    state = back(state, later[i].back);
+  }
   const endOfDay = state; // old plan at the end of `day`
   const own = log.find(e => e.day === day);
   const startOfDay = own ? back(endOfDay, own.back) : endOfDay;
@@ -145,21 +161,29 @@ export function applyPastEdit(base, baseScreen, screen, day) {
     if (!now || (was && sameState(leafState(was), now))) continue;
     if (!was && now.status === 'open' && now.progress === 0) continue;
     const done = now.status === 'done';
-    forced.set(node.id, done
-      ? { status: 'done', progress: 100, completedAt: day, completedEnd: day }
-      : { status: now.status, progress: now.progress, completedAt: undefined, completedEnd: undefined });
+    forced.set(
+      node.id,
+      done
+        ? { status: 'done', progress: 100, completedAt: day, completedEnd: day }
+        : { status: now.status, progress: now.progress, completedAt: undefined, completedEnd: undefined },
+    );
     const p = pendingDate(day, { id: node.id, status: now.status, progress: now.progress });
     if (p) pending[node.id] = p;
   }
   if (forced.size) {
-    real = { ...real, tree: (real.tree || []).map(n => {
-      const f = forced.get(n.id);
-      if (!f) return n;
-      const next = { ...n, ...f };
-      if (!f.completedAt) { delete next.completedAt; delete next.completedEnd; }
-      else if (!next.completedStart || next.completedStart > day) next.completedStart = day;
-      return next;
-    }) };
+    real = {
+      ...real,
+      tree: (real.tree || []).map(n => {
+        const f = forced.get(n.id);
+        if (!f) return n;
+        const next = { ...n, ...f };
+        if (!f.completedAt) {
+          delete next.completedAt;
+          delete next.completedEnd;
+        } else if (!next.completedStart || next.completedStart > day) next.completedStart = day;
+        return next;
+      }),
+    };
   }
 
   // Keys a patch does not carry (the history log, the scenario list) are
@@ -175,7 +199,9 @@ export function applyPastEdit(base, baseScreen, screen, day) {
 // One JSON line per day. People, teams and meeting plans are named, not
 // numbered, because a Markdown plan hands out new ids on every load.
 export function formatDayLogBlock(log, base) {
-  return sorted(log).map(e => JSON.stringify({ day: e.day, back: toPortablePatch(e.back, base) })).join('\n');
+  return sorted(log)
+    .map(e => JSON.stringify({ day: e.day, back: toPortablePatch(e.back, base) }))
+    .join('\n');
 }
 export function parseDayLogBlock(text, base) {
   const out = [];
@@ -183,7 +209,11 @@ export function parseDayLogBlock(text, base) {
     const trimmed = line.trim();
     if (!trimmed || trimmed === 'v1') continue;
     let raw;
-    try { raw = JSON.parse(trimmed); } catch { continue; }
+    try {
+      raw = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
     if (!raw || !DAY.test(raw.day || '')) continue;
     const { patch } = fromPortablePatch(raw.back, base);
     if (!isEmptyPatch(patch)) out.push({ day: raw.day, back: patch });

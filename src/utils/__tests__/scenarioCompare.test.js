@@ -1,12 +1,23 @@
 import { beforeAll, describe, test, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { baselineWindows, compareScenario, schedulePlanData, shiftDays, projectDiffers, teamDiffers, teamStory } from '../scenarioCompare.js';
+import {
+  baselineWindows,
+  compareScenario,
+  schedulePlanData,
+  shiftDays,
+  projectDiffers,
+  teamDiffers,
+  teamStory,
+} from '../scenarioCompare.js';
 import { applyPatch, diffPlan } from '../scenario.js';
 import { parseMdToProject } from '../markdownParse.js';
 
 // The scheduler plans from the real today, so the fixture's dates hang off it.
 const NOW = new Date();
-const day = n => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const day = n => {
+  const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 const plan = () => ({
   meta: { name: 'X', planStart: day(0), version: '2' },
   teams: [{ id: 'T1', name: 'Dev', color: '#10b981' }],
@@ -22,9 +33,11 @@ const plan = () => ({
     { id: 'P2', name: 'Other', status: 'open', type: 'goal' },
     { id: 'P2.1', name: 'Side work', status: 'open', team: 'T1', best: 5, factor: 1, prio: 2, assign: ['m2'], deps: [] },
   ],
-  vacations: [], holidays: [],
+  vacations: [],
+  holidays: [],
 });
-const compare = (base, work) => compareScenario({ base, work, baseScheduled: schedulePlanData(base, NOW), workScheduled: schedulePlanData(work, NOW) });
+const compare = (base, work) =>
+  compareScenario({ base, work, baseScheduled: schedulePlanData(base, NOW), workScheduled: schedulePlanData(work, NOW) });
 const edit = (data, id, patch) => ({ ...data, tree: data.tree.map(n => (n.id === id ? { ...n, ...patch } : n)) });
 
 describe('compareScenario', () => {
@@ -37,11 +50,12 @@ describe('compareScenario', () => {
     expect(baselineWindows(c).size).toBe(0);
   });
 
-  test('an absence pushes the person\'s project, and only that one', () => {
+  test("an absence pushes the person's project, and only that one", () => {
     const base = plan();
     const work = { ...base, vacations: [{ person: 'm1', from: day(7), to: day(27), note: '' }] };
     const c = compare(base, work);
-    const p1 = c.projects.find(p => p.id === 'P1'), p2 = c.projects.find(p => p.id === 'P2');
+    const p1 = c.projects.find(p => p.id === 'P1'),
+      p2 = c.projects.find(p => p.id === 'P2');
     expect(p1.shift).toBeGreaterThanOrEqual(10);
     expect(p2.shift).toBe(0);
     expect(c.totals.later).toBe(1);
@@ -64,7 +78,8 @@ describe('compareScenario', () => {
     expect(moved.peopleChanged).toBe(true);
     expect(moved.basePeople).toEqual(['m1']);
     expect(moved.workPeople).toEqual(['m2']);
-    const alex = c.people.find(p => p.id === 'm1'), bo = c.people.find(p => p.id === 'm2');
+    const alex = c.people.find(p => p.id === 'm1'),
+      bo = c.people.find(p => p.id === 'm2');
     expect(alex.effortShift).toBeLessThan(0);
     expect(bo.effortShift).toBeGreaterThan(0);
     expect(alex.effortShift + bo.effortShift).toBeCloseTo(0, 5);
@@ -79,7 +94,13 @@ describe('compareScenario', () => {
 
   test('added and removed work is named as such', () => {
     const base = plan();
-    const work = { ...base, tree: [...base.tree.filter(n => n.id !== 'P2.1'), { id: 'P1.3', name: 'Extra', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['m2'], deps: [] }] };
+    const work = {
+      ...base,
+      tree: [
+        ...base.tree.filter(n => n.id !== 'P2.1'),
+        { id: 'P1.3', name: 'Extra', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['m2'], deps: [] },
+      ],
+    };
     const c = compare(base, work);
     expect(c.items.find(i => i.id === 'P1.3').presence).toBe('added');
     expect(c.items.find(i => i.id === 'P2.1').presence).toBe('removed');
@@ -100,7 +121,17 @@ describe('compareScenario', () => {
       ...plan(),
       tree: [
         { id: 'P1', name: 'Launch', status: 'open', type: 'goal' },
-        ...[1, 2, 3, 4].map(i => ({ id: `P1.${i}`, name: `Task ${i}`, status: 'open', team: 'T1', best: 10, factor: 1, prio: 2, assign: [], deps: [] })),
+        ...[1, 2, 3, 4].map(i => ({
+          id: `P1.${i}`,
+          name: `Task ${i}`,
+          status: 'open',
+          team: 'T1',
+          best: 10,
+          factor: 1,
+          prio: 2,
+          assign: [],
+          deps: [],
+        })),
       ],
     };
     const work = { ...base, members: base.members.filter(m => m.id !== 'm2') };
@@ -113,7 +144,22 @@ describe('compareScenario', () => {
     // scheduler had given to the person who stays.
     expect(dev.moved).toBe(3);
     expect(dev.workEffort).toBe(dev.baseEffort);
-    expect(teamStory(c.teams)).toEqual([{ id: 'T1', name: 'Dev', people: [2, 1], capPct: -50, capNew: false, moved: 3, total: 4, gone: 0, added: 0, movedProjects: 1, end: 'later', shift: dev.untilShift }]);
+    expect(teamStory(c.teams)).toEqual([
+      {
+        id: 'T1',
+        name: 'Dev',
+        people: [2, 1],
+        capPct: -50,
+        capNew: false,
+        moved: 3,
+        total: 4,
+        gone: 0,
+        added: 0,
+        movedProjects: 1,
+        end: 'later',
+        shift: dev.untilShift,
+      },
+    ]);
   });
 
   test('a team whose work all goes has no end to compare, and is not said to finish "the same day"', () => {
@@ -137,7 +183,11 @@ describe('compareScenario', () => {
 
   test('a team that is new has capacity where there was none, not "±0"', () => {
     const base = plan();
-    let work = { ...base, teams: [...base.teams, { id: 'T2', name: 'Ops', color: '#8b5cf6' }], members: [...base.members, { id: 'm3', name: 'Cy', team: 'T2', cap: 1, vac: 0 }] };
+    let work = {
+      ...base,
+      teams: [...base.teams, { id: 'T2', name: 'Ops', color: '#8b5cf6' }],
+      members: [...base.members, { id: 'm3', name: 'Cy', team: 'T2', cap: 1, vac: 0 }],
+    };
     work = edit(work, 'P2.1', { team: 'T2', assign: ['m3'] });
     const c = compare(base, work);
     const ops = c.teams.find(tm => tm.id === 'T2');
@@ -147,10 +197,15 @@ describe('compareScenario', () => {
   });
 
   test('a task handed to another team counts once, with the team it had in the plan', () => {
-    const base = { ...plan(), teams: [...plan().teams, { id: 'T2', name: 'Ops', color: '#8b5cf6' }], members: [...plan().members, { id: 'm3', name: 'Cy', team: 'T2', cap: 1, vac: 0 }] };
+    const base = {
+      ...plan(),
+      teams: [...plan().teams, { id: 'T2', name: 'Ops', color: '#8b5cf6' }],
+      members: [...plan().members, { id: 'm3', name: 'Cy', team: 'T2', cap: 1, vac: 0 }],
+    };
     const work = edit(base, 'P1.2', { team: 'T2', assign: ['m3'], deps: [] });
     const c = compare(base, work);
-    const dev = c.teams.find(tm => tm.id === 'T1'), ops = c.teams.find(tm => tm.id === 'T2');
+    const dev = c.teams.find(tm => tm.id === 'T1'),
+      ops = c.teams.find(tm => tm.id === 'T2');
     expect(dev.total).toBe(3);
     expect(ops.total).toBe(0);
     for (const tm of c.teams) expect(tm.moved + tm.gone + tm.added).toBeLessThanOrEqual(tm.total);
@@ -196,14 +251,23 @@ describe('compareScenario', () => {
     const base = plan();
     // Build gets longer (Ship slips behind it); Side work is pulled in front of nothing new but shortened.
     let work = edit(base, 'P1.1', { best: 14 });
-    work = { ...work, tree: [...work.tree, { id: 'P1.3', name: 'Quick', status: 'open', team: 'T1', best: 2, factor: 1, prio: 1, assign: ['m2'], deps: [] }] };
+    work = {
+      ...work,
+      tree: [
+        ...work.tree,
+        { id: 'P1.3', name: 'Quick', status: 'open', team: 'T1', best: 2, factor: 1, prio: 1, assign: ['m2'], deps: [] },
+      ],
+    };
     work = edit(work, 'P2.1', { assign: ['m1'], deps: [] });
     const c = compare(base, work);
     const later = c.items.filter(i => i.presence === 'both' && (i.endShift || i.startShift) > 0);
     expect(later.length).toBeGreaterThan(0);
     const p1 = c.projects.find(p => p.id === 'P1');
     expect(p1.maxItemLater).toBe(Math.max(...later.filter(i => i.id.startsWith('P1.')).map(i => i.endShift || i.startShift)));
-    for (const p of c.projects) { expect(p.maxItemLater).toBeGreaterThanOrEqual(0); expect(p.maxItemEarlier).toBeLessThanOrEqual(0); }
+    for (const p of c.projects) {
+      expect(p.maxItemLater).toBeGreaterThanOrEqual(0);
+      expect(p.maxItemEarlier).toBeLessThanOrEqual(0);
+    }
   });
 
   test('a team nothing happened to reads the same on both sides', () => {

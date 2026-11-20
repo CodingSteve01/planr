@@ -10,10 +10,16 @@
 
 export async function persistMountedFileHandle() {}
 
-export async function loadMountedFileHandle() { return null; }
+export async function loadMountedFileHandle() {
+  return null;
+}
 
 export async function clearMountedFileHandle() {}
 
-export async function queryHandlePermission() { return 'granted'; }
+export async function queryHandlePermission() {
+  return 'granted';
+}
 
-export async function requestHandlePermission() { return 'granted'; }
+export async function requestHandlePermission() {
+  return 'granted';
+}

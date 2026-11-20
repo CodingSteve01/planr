@@ -16,6 +16,10 @@ export function setDragBadge(e, text) {
   document.body.appendChild(badge);
   // Some environments declare setDragImage and throw from it; the drag
   // works without the badge, so it is never allowed to stop one.
-  try { dt.setDragImage(badge, -10, -10); } catch { /* keep the default image */ }
+  try {
+    dt.setDragImage(badge, -10, -10);
+  } catch {
+    /* keep the default image */
+  }
   setTimeout(() => badge.remove(), 0);
 }

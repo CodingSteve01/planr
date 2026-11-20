@@ -18,11 +18,23 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
   // Year filter — persisted across tab switches. Default to current year so
   // imports of multiple NRW years don't bury the page in scroll.
   const [yearFilter, setYearFilter] = useState(() => {
-    try { return localStorage.getItem('planr_hol_year') ?? String(nowY); } catch { return String(nowY); }
+    try {
+      return localStorage.getItem('planr_hol_year') ?? String(nowY);
+    } catch {
+      return String(nowY);
+    }
   });
-  useEffect(() => { try { localStorage.setItem('planr_hol_year', yearFilter); } catch { /* ignore */ } }, [yearFilter]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('planr_hol_year', yearFilter);
+    } catch {
+      /* ignore */
+    }
+  }, [yearFilter]);
   const allYears = [...new Set(list.map(h => (h.date || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
-  useEffect(() => { if (yearFilter && !allYears.includes(yearFilter)) setYearFilter(''); }, [allYears, yearFilter]);
+  useEffect(() => {
+    if (yearFilter && !allYears.includes(yearFilter)) setYearFilter('');
+  }, [allYears, yearFilter]);
   const filtered = yearFilter ? list.filter(h => (h.date || '').slice(0, 4) === yearFilter) : list;
   const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
   const byYear = sorted.reduce((acc, h) => {
@@ -39,7 +51,7 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
   }
 
   function upd(idx, k, v) {
-    onUpdate(list.map((h, i) => i === idx ? { ...h, [k]: v, auto: false } : h));
+    onUpdate(list.map((h, i) => (i === idx ? { ...h, [k]: v, auto: false } : h)));
   }
 
   function del(idx) {
@@ -49,7 +61,16 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
   const aC = list.filter(h => h.auto).length;
   const mC = list.filter(h => !h.auto).length;
 
-  const smallInput = { background: 'var(--bg3)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx)', fontSize: 12, padding: '2px 6px', fontFamily: 'var(--mono)', outline: 'none' };
+  const smallInput = {
+    background: 'var(--bg3)',
+    border: '1px solid var(--b2)',
+    borderRadius: 4,
+    color: 'var(--tx)',
+    fontSize: 12,
+    padding: '2px 6px',
+    fontFamily: 'var(--mono)',
+    outline: 'none',
+  };
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -59,46 +80,97 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
             them, in a label wider than the rest of the row put together.
             A range says the same thing. */}
         <button className="btn btn-pri btn-sm" onClick={importNRW} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Icon name="download" size={12} />{t('hv.importNRW')}
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: .7 }}>{planYears[0]}–{planYears[planYears.length - 1]}</span>
+          <Icon name="download" size={12} />
+          {t('hv.importNRW')}
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.7 }}>
+            {planYears[0]}–{planYears[planYears.length - 1]}
+          </span>
         </button>
-        <button className="btn btn-sec btn-sm" onClick={() => onUpdate([...list, { date: iso(new Date()), name: '', auto: false }])} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="plus" size={12} />{t('hv.addManual')}</button>
+        <button
+          className="btn btn-sec btn-sm"
+          onClick={() => onUpdate([...list, { date: iso(new Date()), name: '', auto: false }])}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Icon name="plus" size={12} />
+          {t('hv.addManual')}
+        </button>
         {list.length > 0 && (
-          <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(t('hv.confirmClear'))) onUpdate([]); }}>{t('hv.clearAll')}</button>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => {
+              if (confirm(t('hv.confirmClear'))) onUpdate([]);
+            }}
+          >
+            {t('hv.clearAll')}
+          </button>
         )}
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{t('hv.stats').replace('{0}', aC).replace('{1}', mC)}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+          {t('hv.stats').replace('{0}', aC).replace('{1}', mC)}
+        </span>
       </div>
 
-      <p className="helper" style={{ marginBottom: 10 }}>{t('hv.desc')}</p>
+      <p className="helper" style={{ marginBottom: 10 }}>
+        {t('hv.desc')}
+      </p>
 
       {list.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
-            style={{ padding: '5px 8px', fontSize: 12, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--b2)', borderRadius: 'var(--r)', minWidth: 100 }}>
+          <select
+            value={yearFilter}
+            onChange={e => setYearFilter(e.target.value)}
+            style={{
+              padding: '5px 8px',
+              fontSize: 12,
+              background: 'var(--bg3)',
+              color: 'var(--tx)',
+              border: '1px solid var(--b2)',
+              borderRadius: 'var(--r)',
+              minWidth: 100,
+            }}
+          >
             <option value="">{t('rv.allYears')}</option>
-            {allYears.map(y => <option key={y} value={y}>{y}</option>)}
+            {allYears.map(y => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
           {yearFilter && (
-            <button className="btn btn-ghost btn-xs" onClick={() => setYearFilter('')}
-              data-htip={t('rv.clearFilters')} aria-label={t('rv.clearFilters')}
-              style={{ padding: '2px 7px', fontSize: 12 }}><Icon name="x" size={11} /></button>
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={() => setYearFilter('')}
+              data-htip={t('rv.clearFilters')}
+              aria-label={t('rv.clearFilters')}
+              style={{ padding: '2px 7px', fontSize: 12 }}
+            >
+              <Icon name="x" size={11} />
+            </button>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{filtered.length} / {list.length}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>
+            {filtered.length} / {list.length}
+          </span>
         </div>
       )}
 
       {!list.length && (
         <div className="empty">
-          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}><Icon name="calendar" size={28} strokeWidth={1.4} /></div>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'var(--tx3)' }}>
+            <Icon name="calendar" size={28} strokeWidth={1.4} />
+          </div>
           <div style={{ fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>{t('hv.empty')}</div>
-          <button className="btn btn-pri" onClick={importNRW} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="download" size={13} />{t('hv.emptyBtn')}</button>
+          <button className="btn btn-pri" onClick={importNRW} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="download" size={13} />
+            {t('hv.emptyBtn')}
+          </button>
         </div>
       )}
 
       {years.map(y => (
         <div key={y} style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 4, borderBottom: '2px solid var(--b)' }}
+          >
             <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--mono)', color: 'var(--tx2)' }}>{y}</span>
             <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{byYear[y].length}</span>
           </div>
@@ -117,21 +189,27 @@ export function HolView({ holidays, planStart, planEnd, onUpdate }) {
               return (
                 <li key={h.date + gi} className="res-row res-row-hol" style={{ cursor: 'default' }}>
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>{dow}</span>
-                  {h.auto
-                    ? <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{h.date}</span>
-                    : <LazyInput type="date" value={h.date} onCommit={v => upd(gi, 'date', v)}
-                        style={smallInput} />
-                  }
-                  {h.auto
-                    ? <span className="res-row-name">{h.name}</span>
-                    : <LazyInput value={h.name} onCommit={v => upd(gi, 'name', v)}
-                        style={{ ...smallInput, fontFamily: 'var(--font)', fontSize: 12 }}
-                        placeholder={t('hv.name')} />
-                  }
+                  {h.auto ? (
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{h.date}</span>
+                  ) : (
+                    <LazyInput type="date" value={h.date} onCommit={v => upd(gi, 'date', v)} style={smallInput} />
+                  )}
+                  {h.auto ? (
+                    <span className="res-row-name">{h.name}</span>
+                  ) : (
+                    <LazyInput
+                      value={h.name}
+                      onCommit={v => upd(gi, 'name', v)}
+                      style={{ ...smallInput, fontFamily: 'var(--font)', fontSize: 12 }}
+                      placeholder={t('hv.name')}
+                    />
+                  )}
                   <span className={`badge ${h.auto ? 'bo' : 'bw'}`} style={{ fontSize: 10, justifySelf: 'start' }}>
                     {h.auto ? t('hv.srcNRW') : t('hv.srcCustom')}
                   </span>
-                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)} aria-label={t('delete')}><Icon name="x" size={11} /></button>
+                  <button className="btn btn-danger btn-xs" style={{ padding: '2px 5px' }} onClick={() => del(gi)} aria-label={t('delete')}>
+                    <Icon name="x" size={11} />
+                  </button>
                 </li>
               );
             })}

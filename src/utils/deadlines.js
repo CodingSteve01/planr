@@ -42,8 +42,7 @@ export function isDeadlineRelevantNode(tree, nodeOrId) {
 
 export function deadlineScopedLeafIds(tree, rootId) {
   if (!rootId) return [];
-  return resolveToLeafIds(tree, rootId)
-    .filter(id => isDeadlineRelevantForRoot(tree, rootId, id));
+  return resolveToLeafIds(tree, rootId).filter(id => isDeadlineRelevantForRoot(tree, rootId, id));
 }
 
 export function deadlineScopedScheduledItems(tree, scheduled, rootId) {

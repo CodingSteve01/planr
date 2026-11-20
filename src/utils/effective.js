@@ -50,7 +50,8 @@ export const addDays = (day, n) => {
   return dayOf(new Date(y, m - 1, d + n));
 };
 
-const sorted = changes => [...(changes || [])].filter(c => c && isDay(c.from)).sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+const sorted = changes =>
+  [...(changes || [])].filter(c => c && isDay(c.from)).sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
 const isEmpty = o => !o || Object.keys(o).length === 0;
 
 function applySet(list, set) {
@@ -74,10 +75,12 @@ export function resourcesAsOf(data, date, { before = false } = {}) {
 
 // Every date something changes on, ascending — with how many things change.
 export function changeDates(data) {
-  return sorted(data?.changes).map(c => ({
-    from: c.from,
-    count: LISTS.reduce((n, key) => n + Object.keys(c.patch?.[key]?.set || {}).length, 0),
-  })).filter(c => c.count > 0);
+  return sorted(data?.changes)
+    .map(c => ({
+      from: c.from,
+      count: LISTS.reduce((n, key) => n + Object.keys(c.patch?.[key]?.set || {}).length, 0),
+    }))
+    .filter(c => c.count > 0);
 }
 
 function withChange(changes, from, patch) {
@@ -91,7 +94,8 @@ function withChange(changes, from, patch) {
 }
 
 const splitFields = (kind, entity) => {
-  const dated = {}, timeless = {};
+  const dated = {},
+    timeless = {};
   for (const [k, v] of Object.entries(entity || {})) (DATED[kind].includes(k) ? dated : timeless)[k] = v;
   return { dated, timeless };
 };
@@ -135,7 +139,12 @@ export function foldEdit(data, kind, edited, date, today = new Date()) {
       const v = touched.includes(k) ? dated[k] : base[k];
       if (v !== undefined) nextBase[k] = v;
     }
-    return finish(data, kind, baseList.map(e => (e.id === edited.id ? nextBase : e)), changes);
+    return finish(
+      data,
+      kind,
+      baseList.map(e => (e.id === edited.id ? nextBase : e)),
+      changes,
+    );
   }
   const prior = resourcesAsOf(data, day, { before: true })[kind].find(e => e.id === edited.id) || base;
   // A field cleared at a date ("back to the default from then on") is a value
@@ -150,12 +159,18 @@ export function foldEdit(data, kind, edited, date, today = new Date()) {
   patch[kind] = { set: { ...(patch[kind]?.set || {}), [edited.id]: set } };
   const nextBase = { ...timeless };
   for (const k of DATED[kind]) if (base[k] !== undefined) nextBase[k] = base[k];
-  return finish(data, kind, baseList.map(e => (e.id === edited.id ? nextBase : e)), withChange(data.changes, day, patch));
+  return finish(
+    data,
+    kind,
+    baseList.map(e => (e.id === edited.id ? nextBase : e)),
+    withChange(data.changes, day, patch),
+  );
 }
 
 function finish(data, kind, list, changes) {
   const out = { ...data, [kind]: list };
-  if (changes.length) out.changes = changes; else delete out.changes;
+  if (changes.length) out.changes = changes;
+  else delete out.changes;
   return out;
 }
 
@@ -172,7 +187,8 @@ export function dropChange(data, from, kind = null, id = null) {
   }
   const changes = withChange(data.changes, from, patch);
   const out = { ...data };
-  if (changes.length) out.changes = changes; else delete out.changes;
+  if (changes.length) out.changes = changes;
+  else delete out.changes;
   return out;
 }
 
@@ -193,7 +209,8 @@ export function pruneChanges(data) {
   }, []);
   if (!dirty && changes.length === data.changes.length) return data;
   const out = { ...data };
-  if (changes.length) out.changes = changes; else delete out.changes;
+  if (changes.length) out.changes = changes;
+  else delete out.changes;
   return out;
 }
 
@@ -214,16 +231,23 @@ export function migrateLegacyChanges(data) {
   const next = members.map(m => {
     if (!m?.capChanges?.length && !m?.meetingChanges?.length) return m;
     for (const c of m.capChanges || []) {
-      put(c.from || c.date, m.id, { ...(typeof c.cap === 'number' ? { cap: c.cap } : {}), ...(typeof c.weeklyHours === 'number' ? { weeklyHours: c.weeklyHours } : {}) });
+      put(c.from || c.date, m.id, {
+        ...(typeof c.cap === 'number' ? { cap: c.cap } : {}),
+        ...(typeof c.weeklyHours === 'number' ? { weeklyHours: c.weeklyHours } : {}),
+      });
     }
     for (const c of m.meetingChanges || []) {
-      put(c.from || c.date, m.id, { ...(Array.isArray(c.meetings) ? { meetings: c.meetings } : {}), ...(Array.isArray(c.meetingPlanIds) ? { meetingPlanIds: c.meetingPlanIds } : {}) });
+      put(c.from || c.date, m.id, {
+        ...(Array.isArray(c.meetings) ? { meetings: c.meetings } : {}),
+        ...(Array.isArray(c.meetingPlanIds) ? { meetingPlanIds: c.meetingPlanIds } : {}),
+      });
     }
     const { capChanges: _c, meetingChanges: _m, ...rest } = m;
     return rest;
   });
   const out = { ...data, members: next };
-  if (changes.length) out.changes = changes; else delete out.changes;
+  if (changes.length) out.changes = changes;
+  else delete out.changes;
   return out;
 }
 
@@ -248,7 +272,8 @@ export function compileMembers(source) {
   return base.members.map(m => {
     const first = { ...m, meetings: resolve(m, base), meetingPlanIds: [] };
     let prev = { cap: m.cap, weeklyHours: m.weeklyHours, meetings: first.meetings };
-    const capChanges = [], meetingChanges = [];
+    const capChanges = [],
+      meetingChanges = [];
     for (const { from, state } of states) {
       const at = state.members.find(x => x.id === m.id);
       if (!at) continue;
@@ -257,16 +282,25 @@ export function compileMembers(source) {
         // Always both, and a cleared value as its default: `memberAtDate`
         // keeps whatever an entry does not mention, so leaving one out would
         // let an earlier figure live on past the day it was cleared.
-        capChanges.push({ from, cap: typeof at.cap === 'number' ? at.cap : 1, weeklyHours: typeof at.weeklyHours === 'number' ? at.weeklyHours : FTE_HOURS });
+        capChanges.push({
+          from,
+          cap: typeof at.cap === 'number' ? at.cap : 1,
+          weeklyHours: typeof at.weeklyHours === 'number' ? at.weeklyHours : FTE_HOURS,
+        });
       }
       if (!deepEqual(meetings, prev.meetings)) meetingChanges.push({ from, meetings, meetingPlanIds: [] });
       prev = { cap: at.cap, weeklyHours: at.weeklyHours, meetings };
     }
-    if (capChanges.length) first.capChanges = capChanges; else delete first.capChanges;
-    if (meetingChanges.length) first.meetingChanges = meetingChanges; else delete first.meetingChanges;
+    if (capChanges.length) first.capChanges = capChanges;
+    else delete first.capChanges;
+    if (meetingChanges.length) first.meetingChanges = meetingChanges;
+    else delete first.meetingChanges;
     return first;
   });
 }
 
 // The same day of the month before, or that month's last day when it is shorter.
-export const monthAgo = today => { const last = new Date(today.getFullYear(), today.getMonth(), 0).getDate(); return dayOf(new Date(today.getFullYear(), today.getMonth() - 1, Math.min(today.getDate(), last))); };
+export const monthAgo = today => {
+  const last = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  return dayOf(new Date(today.getFullYear(), today.getMonth() - 1, Math.min(today.getDate(), last)));
+};

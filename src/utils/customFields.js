@@ -2,9 +2,7 @@
 // Each field: { id, name, type: 'text'|'number'|'uri'|'select', uriTemplate?, options? }
 // Values stored on TreeItem as `customValues: { [fieldId]: value }`
 
-export const DEFAULT_CUSTOM_FIELDS = [
-  { id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: '' },
-];
+export const DEFAULT_CUSTOM_FIELDS = [{ id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: '' }];
 
 /**
  * Resolve the clickable URL for a URI field.

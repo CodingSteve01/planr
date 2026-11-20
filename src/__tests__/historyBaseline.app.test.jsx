@@ -39,7 +39,13 @@ function hostFile(initial) {
     queryPermission: async () => 'granted',
     requestPermission: async () => 'granted',
     getFile: async () => ({ name: 'baseline.planr.md', lastModified: Date.now(), text: async () => state.text }),
-    createWritable: async () => ({ write: async content => { state.text = String(content); state.writes.push(state.text); }, close: async () => {} }),
+    createWritable: async () => ({
+      write: async content => {
+        state.text = String(content);
+        state.writes.push(state.text);
+      },
+      close: async () => {},
+    }),
   };
   return { handle, state };
 }
@@ -53,12 +59,27 @@ const historyOf = text => {
 };
 
 describe('the history baseline', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tab', 'tree'); localStorage.setItem('planr_tree_ids', 'true'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+    localStorage.setItem('planr_tree_ids', 'true');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('a plan that was opened and then edited records the edit, not the whole plan', async () => {
     const { handle, state } = hostFile(PLAN);
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     const row = (await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr');
     fireEvent.click(row);
     fireEvent.click(screen.getByTestId('tv-delete-selected'));

@@ -46,13 +46,12 @@ describe('no component file is left without an importer', () => {
     // Count references from every OTHER source file. A file mentioning its
     // own name (a component referring to itself recursively, a string) is
     // not an importer.
-    const importers = ALL.filter(other => other !== file)
-      .filter(other => {
-        const src = readFileSync(other, 'utf8');
-        // `from '.../Name.jsx'` or `from '.../Name'` — the import specifier,
-        // not a coincidental mention of the word in a comment.
-        return new RegExp(`from\\s+['"][^'"]*/${name}(\\.jsx?)?['"]`).test(src);
-      });
+    const importers = ALL.filter(other => other !== file).filter(other => {
+      const src = readFileSync(other, 'utf8');
+      // `from '.../Name.jsx'` or `from '.../Name'` — the import specifier,
+      // not a coincidental mention of the word in a comment.
+      return new RegExp(`from\\s+['"][^'"]*/${name}(\\.jsx?)?['"]`).test(src);
+    });
     expect(importers.length, `${name} has no importer — dead file, remove it`).toBeGreaterThan(0);
   });
 
@@ -66,7 +65,15 @@ describe('no component file is left without an importer', () => {
         const spec = m[1];
         const resolved = join(file, '..', spec);
         const candidates = [resolved, `${resolved}.js`, `${resolved}.jsx`, join(resolved, 'index.js')];
-        if (!candidates.some(c => { try { return statSync(c).isFile(); } catch { return false; } })) {
+        if (
+          !candidates.some(c => {
+            try {
+              return statSync(c).isFile();
+            } catch {
+              return false;
+            }
+          })
+        ) {
           missing.push(`${file.slice(SRC.length + 1)} → ${spec}`);
         }
       }
@@ -90,7 +97,11 @@ describe('the removed files stay removed', () => {
 
   it.each(Object.entries(REMOVED))('%s is gone (%s)', rel => {
     let exists = true;
-    try { statSync(join(SRC, rel)); } catch { exists = false; }
+    try {
+      statSync(join(SRC, rel));
+    } catch {
+      exists = false;
+    }
     expect(exists).toBe(false);
   });
 });

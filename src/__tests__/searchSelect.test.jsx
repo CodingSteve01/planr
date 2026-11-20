@@ -33,7 +33,11 @@ function renderTwo() {
 const popups = () => document.querySelectorAll('[data-searchselect-popup]');
 
 describe('tabbing from one dropdown to the next', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+  });
   afterEach(() => cleanup());
 
   it('leaves exactly one open', () => {
@@ -74,7 +78,11 @@ describe('tabbing from one dropdown to the next', () => {
 });
 
 describe('the keys that belong to the caret', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+  });
   afterEach(() => cleanup());
 
   it('leaves Home and End to the text field', () => {
@@ -143,7 +151,11 @@ describe('placing a tooltip', () => {
 // that every newly mounted view overwrote; it now travels down the tree, so
 // each instance portals into the container it was rendered in.
 describe('two app instances side by side', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+  });
   afterEach(() => cleanup());
 
   it('each portals its popup into its own root', () => {

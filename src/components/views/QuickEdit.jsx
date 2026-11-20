@@ -36,12 +36,45 @@ export function QuickEdit(props) {
   return props.node ? <QuickEditBody {...props} /> : null;
 }
 
-function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: projectSizes, customFields: projectCustomFields, scheduled, cpSet, cpLabels = {}, stats, confidence = {}, confReasons = {}, workDays, holidayIso, onUpdate, onDelete, onEstimate, onDuplicate, onSplitHandoff, onSplitTaskAtProgress, onAddDep, onRemoveDep, onOpenItem, historyEvents = [], onHistoryChange, viewDay = '', tab: tabProp, onTabChange }) {
+function QuickEditBody({
+  node,
+  tree,
+  members,
+  teams,
+  taskTemplates,
+  sizes: projectSizes,
+  customFields: projectCustomFields,
+  scheduled,
+  cpSet,
+  cpLabels = {},
+  stats,
+  confidence = {},
+  confReasons = {},
+  workDays,
+  holidayIso,
+  onUpdate,
+  onDelete,
+  onEstimate,
+  onDuplicate,
+  onSplitHandoff,
+  onSplitTaskAtProgress,
+  onAddDep,
+  onRemoveDep,
+  onOpenItem,
+  historyEvents = [],
+  onHistoryChange,
+  viewDay = '',
+  tab: tabProp,
+  onTabChange,
+}) {
   const { t } = useT();
   const REASON_TIP = {
-    'manual': t('g.reasonManual'), 'done': t('g.reasonDone'),
-    'auto:person+estimate': t('g.reasonPersonEstimate'), 'auto:no-person': t('g.reasonNoPerson'),
-    'auto:high-risk': t('g.reasonHighRisk'), 'auto:no-estimate': t('g.reasonNoEstimate'),
+    'manual': t('g.reasonManual'),
+    'done': t('g.reasonDone'),
+    'auto:person+estimate': t('g.reasonPersonEstimate'),
+    'auto:no-person': t('g.reasonNoPerson'),
+    'auto:high-risk': t('g.reasonHighRisk'),
+    'auto:no-estimate': t('g.reasonNoEstimate'),
     'inherited': t('g.reasonInherited'),
   };
   const [f, setF] = useState({ ...node });
@@ -74,8 +107,10 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
         if (el.select) el.select();
       } else {
         const inner = el.querySelector('input, textarea');
-        if (inner) { inner.focus(); if (inner.select) inner.select(); }
-        else el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        if (inner) {
+          inner.focus();
+          if (inner.select) inner.select();
+        } else el.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }
     }
     setFocusHint(null);
@@ -96,12 +131,15 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
     setF({ ...node });
   }, [node]);
 
-  const CONF_OPTS = useMemo(() => [
-    { id: '', label: t('auto') },
-    { id: 'committed', label: `${t('conf.committed.dot')} ${t('conf.committed')}` },
-    { id: 'estimated', label: `${t('conf.estimated.dot')} ${t('conf.estimated')}` },
-    { id: 'exploratory', label: `${t('conf.exploratory.dot')} ${t('conf.exploratory')}` },
-  ], [t]);
+  const CONF_OPTS = useMemo(
+    () => [
+      { id: '', label: t('auto') },
+      { id: 'committed', label: `${t('conf.committed.dot')} ${t('conf.committed')}` },
+      { id: 'estimated', label: `${t('conf.estimated.dot')} ${t('conf.estimated')}` },
+      { id: 'exploratory', label: `${t('conf.exploratory.dot')} ${t('conf.exploratory')}` },
+    ],
+    [t],
+  );
 
   const sc = scheduled?.find(s => s.id === node?.id);
   const isCp = cpSet?.has(node?.id);
@@ -109,7 +147,7 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
   const isLeaf = isLeafNode(tree, node.id);
   const isRoot = !node.id.includes('.');
   const deadlineRootId = useMemo(() => deadlineRootIdForNode(tree, node.id), [tree, node.id]);
-  const deadlineRoot = useMemo(() => deadlineRootId ? tree.find(entry => entry.id === deadlineRootId) : null, [tree, deadlineRootId]);
+  const deadlineRoot = useMemo(() => (deadlineRootId ? tree.find(entry => entry.id === deadlineRootId) : null), [tree, deadlineRootId]);
   const deadlineParentExcluded = useMemo(() => {
     if (!deadlineRootId || node.id === deadlineRootId) return false;
     const parent = parentId(node.id);
@@ -118,7 +156,8 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
   const showDeadlineRelevant = !!deadlineRootId && node.id !== deadlineRootId;
   const allIds = tree.map(r => r.id).filter(id => id !== node.id);
   const SIZES = (projectSizes?.length ? projectSizes : DEFAULT_SIZES).map(s => [s.label, s.days, s.factor, s.desc || '']);
-  const nearestSize = f.best > 0 ? SIZES.reduce((best, size) => Math.abs(size[1] - f.best) < Math.abs(best[1] - f.best) ? size : best, SIZES[0]) : null;
+  const nearestSize =
+    f.best > 0 ? SIZES.reduce((best, size) => (Math.abs(size[1] - f.best) < Math.abs(best[1] - f.best) ? size : best), SIZES[0]) : null;
   const phases = normalizePhases(f.phases);
   const memberLabel = member => `${member.name || member.id}${member.team ? ' — ' + memberTeamNames(member, teams).join(' + ') : ''}`;
   const memberName = id => members.find(member => member.id === id)?.name || id;
@@ -137,7 +176,9 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
 
   const activeTab = tabs.find(item => item.id === tabProp) ? tabProp : 'insights';
   const setTab = onTabChange || (() => {});
-  useEffect(() => { if (activeTab !== tabProp && onTabChange) onTabChange(activeTab); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== tabProp && onTabChange) onTabChange(activeTab);
+  }, [activeTab]);
 
   // Remembers the exact object this panel last wrote, so the sync effect
   // below can tell our own change coming back (nothing to do — `f` already
@@ -246,7 +287,7 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
   // only the explicit graph edges, which is what the user drew.
   const directSuccessors = (() => {
     const out = [];
-    for (const r of (tree || [])) {
+    for (const r of tree || []) {
       if (r.id === node.id) continue;
       const hard = (r.deps || []).includes(node.id);
       const soft = (r.softDeps || []).includes(node.id);
@@ -255,529 +296,1145 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
     return out;
   })();
 
-  return <>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-      {isLeaf && <SBadge s={node.status} />}
-      {!isLeaf && <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>{SL[f.status] || f.status} <span style={{ fontSize: 10, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span></span>}
-      {!isRoot && phases.length > 0 && <span className="badge bo">{phases.length} {t('ph.phases').toLowerCase()}</span>}
-      {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-      {isLeaf && onEstimate && <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => onEstimate(node)}>{t('qe.estimateNow')}</button>}
-    </div>
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        {isLeaf && <SBadge s={node.status} />}
+        {!isLeaf && (
+          <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>
+            {SL[f.status] || f.status} <span style={{ fontSize: 10, color: 'var(--tx3)', fontWeight: 400 }}>{t('qe.autoStatus')}</span>
+          </span>
+        )}
+        {!isRoot && phases.length > 0 && (
+          <span className="badge bo">
+            {phases.length} {t('ph.phases').toLowerCase()}
+          </span>
+        )}
+        {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
+        {isLeaf && onEstimate && (
+          <button className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => onEstimate(node)}>
+            {t('qe.estimateNow')}
+          </button>
+        )}
+      </div>
 
-    <div className="qe-tabs" role="tablist">
-      {tabs.map(item => <button
-        key={item.id}
-        role="tab"
-        aria-selected={activeTab === item.id}
-        className={`qe-tab${activeTab === item.id ? ' active' : ''}`}
-        onMouseDown={e => activateTab(e, () => setTab(item.id))}
-        onClick={e => { if (e.detail === 0) setTab(item.id); }}
-      >{item.label}</button>)}
-    </div>
+      <div className="qe-tabs" role="tablist">
+        {tabs.map(item => (
+          <button
+            key={item.id}
+            role="tab"
+            aria-selected={activeTab === item.id}
+            className={`qe-tab${activeTab === item.id ? ' active' : ''}`}
+            onMouseDown={e => activateTab(e, () => setTab(item.id))}
+            onClick={e => {
+              if (e.detail === 0) setTab(item.id);
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
-    {/* ══════ INSIGHTS TAB ══════ */}
-    {/* Insights renders from `f`, the panel's local copy — which is exactly
+      {/* ══════ INSIGHTS TAB ══════ */}
+      {/* Insights renders from `f`, the panel's local copy — which is exactly
         what went stale when an edit arrived from somewhere else. Tagged with
         the copy's own status so a test can hold it to following along. */}
-    {activeTab === 'insights' && <div data-testid="qe-insights" data-status={f.status || 'open'} style={{ display: 'contents' }}><TaskInsights
-      node={f}
-      tree={tree}
-      members={members}
-      teams={teams}
-      scheduled={scheduled}
-      cpSet={cpSet}
-      stats={stats}
-      confidence={confidence}
-      confReasons={confReasons}
-      customFields={customFields}
-      onPhaseToggle={togglePhase}
-      // The blocker link and the dependency chips open the item they name —
-      // here that means selecting it, so the panel shows it. Without this they
-      // were drawn as links and did nothing on click.
-      onOpenItem={onOpenItem}
-      onSplitHandoff={onSplitHandoff}
-      onSplitTaskAtProgress={onSplitTaskAtProgress}
-      onEditSection={sectionId => {
-        const target = insightTarget(sectionId, tabs);
-        setTab(target.tab);
-        setFocusHint(target.focus);
-      }}
-    /></div>}
-
-    {/* ══════ OVERVIEW TAB ══════ */}
-    {activeTab === 'overview' && <>
-      <div className="field"><label>{t('qe.name')}</label><input ref={focusRefs.name} value={f.name || ''} onChange={e => bufferNode({ name: e.target.value })} onBlur={flushNode} /></div>
-      {/* Team and assignee are attributes of the item, like its name, so they
-          sit on Overview — the same place NodeModal keeps them, which is where
-          the Insights "People" section jumps to in both editors. */}
-      <div className="field"><label>{t('qe.team')}</label>
-        <SearchSelect value={f.team || ''} options={teams.map(team => ({ id: team.id, label: team.name || team.id }))} onSelect={value => patchNode({ team: value })} allowEmpty />
-        {/* Team-lock pill — bordered chip next to the team picker, no
-            orphan slider. Same styling as the NodeModal counterpart. */}
-        {isLeaf && f.team && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`, background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.teamLockTip')}>
-            <span>{t('qe.teamLock')}</span>
-            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} /><span className="slider" /></label>
-          </div>
-        )}
-        {isLeaf && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 6, padding: '2px 8px', borderRadius: 4, border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`, background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent', fontSize: 12, color: 'var(--tx2)' }} data-htip={t('qe.parallelTip')}>
-            <span>{t('qe.parallel') || 'Parallel'}</span>
-            <label className="toggle" style={{ margin: 0 }}><input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} /><span className="slider" /></label>
-          </div>
-        )}
-      </div>
-
-      <div className="field"><label>{t('qe.assignee')}</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
-          {(f.assign || []).map(id => <span key={id} className="tag">{memberName(id)}<span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}><Icon name="x" size={9} /></span></span>)}
-        </div>
-        {isLeaf && <AutoAssignHint node={f} scheduled={scheduled} members={members}
-          onAccept={({ assign, team }) => patchNode({ assign, team })} />
-        }
-        <div ref={focusRefs.assign}>
-          <SearchSelect
-            options={members.filter(member => !(f.assign || []).includes(member.id)).map(member => ({ id: member.id, label: memberLabel(member) }))}
-            onSelect={id => {
-              const member = members.find(entry => entry.id === id);
-              patchNode({ assign: [...new Set([...(f.assign || []), id])], team: teamForAssignment(member, f.team) });
+      {activeTab === 'insights' && (
+        <div data-testid="qe-insights" data-status={f.status || 'open'} style={{ display: 'contents' }}>
+          <TaskInsights
+            node={f}
+            tree={tree}
+            members={members}
+            teams={teams}
+            scheduled={scheduled}
+            cpSet={cpSet}
+            stats={stats}
+            confidence={confidence}
+            confReasons={confReasons}
+            customFields={customFields}
+            onPhaseToggle={togglePhase}
+            // The blocker link and the dependency chips open the item they name —
+            // here that means selecting it, so the panel shows it. Without this they
+            // were drawn as links and did nothing on click.
+            onOpenItem={onOpenItem}
+            onSplitHandoff={onSplitHandoff}
+            onSplitTaskAtProgress={onSplitTaskAtProgress}
+            onEditSection={sectionId => {
+              const target = insightTarget(sectionId, tabs);
+              setTab(target.tab);
+              setFocusHint(target.focus);
             }}
-            placeholder={t('qe.assignPerson')}
           />
         </div>
-      </div>
+      )}
 
-      <div className="field"><label>{t('qe.priority')}</label>
-        <SearchSelect value={String(f.prio || 2)} options={[{ id: '1', label: `1 ${t('critical')}` }, { id: '2', label: `2 ${t('high')}` }, { id: '3', label: `3 ${t('medium')}` }, { id: '4', label: `4 ${t('low')}` }]} onSelect={value => patchNode({ prio: +value })} />
-      </div>
-      <div className="field"><label>{t('qe.notes')}</label><textarea value={f.note || ''} onChange={e => bufferNode({ note: e.target.value })} onBlur={flushNode} rows={2} /></div>
-
-      {isRoot && <>
-        <div className="field"><label>{t('qe.focusType')}</label>
-          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-            {['', 'goal', 'painpoint', 'deadline'].map(ft =>
-              <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} style={{ fontSize: 11, padding: '3px 7px' }}
-                onClick={() => patchNode({ type: ft })}>{ft ? <><Icon name={GT_ICON[ft]} size={12} />{t(ft)}</> : t('none')}</button>)}
+      {/* ══════ OVERVIEW TAB ══════ */}
+      {activeTab === 'overview' && (
+        <>
+          <div className="field">
+            <label>{t('qe.name')}</label>
+            <input ref={focusRefs.name} value={f.name || ''} onChange={e => bufferNode({ name: e.target.value })} onBlur={flushNode} />
           </div>
-        </div>
-        {f.type && <div className="frow">
-          <div className="field"><label>{t('qe.severity')}</label>
-            <SearchSelect value={f.severity || 'high'} options={[{ id: 'critical', label: t('critical') }, { id: 'high', label: t('high') }, { id: 'medium', label: t('medium') }]} onSelect={value => patchNode({ severity: value })} />
+          {/* Team and assignee are attributes of the item, like its name, so they
+          sit on Overview — the same place NodeModal keeps them, which is where
+          the Insights "People" section jumps to in both editors. */}
+          <div className="field">
+            <label>{t('qe.team')}</label>
+            <SearchSelect
+              value={f.team || ''}
+              options={teams.map(team => ({ id: team.id, label: team.name || team.id }))}
+              onSelect={value => patchNode({ team: value })}
+              allowEmpty
+            />
+            {/* Team-lock pill — bordered chip next to the team picker, no
+            orphan slider. Same styling as the NodeModal counterpart. */}
+            {isLeaf && f.team && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 6,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`,
+                  background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent',
+                  fontSize: 12,
+                  color: 'var(--tx2)',
+                }}
+                data-htip={t('qe.teamLockTip')}
+              >
+                <span>{t('qe.teamLock')}</span>
+                <label className="toggle" style={{ margin: 0 }}>
+                  <input type="checkbox" checked={!!f.teamLock} onChange={e => patchNode({ teamLock: e.target.checked })} />
+                  <span className="slider" />
+                </label>
+              </div>
+            )}
+            {isLeaf && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 6,
+                  marginLeft: 6,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`,
+                  background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent',
+                  fontSize: 12,
+                  color: 'var(--tx2)',
+                }}
+                data-htip={t('qe.parallelTip')}
+              >
+                <span>{t('qe.parallel') || 'Parallel'}</span>
+                <label className="toggle" style={{ margin: 0 }}>
+                  <input type="checkbox" checked={!!f.parallel} onChange={e => patchNode({ parallel: e.target.checked || undefined })} />
+                  <span className="slider" />
+                </label>
+              </div>
+            )}
           </div>
-          {f.type === 'deadline' && <div className="field"><label>{t('qe.date')}</label><input type="date" value={f.date || ''} onChange={e => patchNode({ date: e.target.value })} /></div>}
-        </div>}
-        {f.type && <div className="field"><label>{t('qe.description')}</label><input value={f.description || ''} onChange={e => bufferNode({ description: e.target.value })} onBlur={flushNode} placeholder={t('qe.descPlaceholder')} /></div>}
-      </>}
 
-      {/* ── Custom fields ── */}
-      {customFields.length > 0 && <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>{t('cf.fieldValues')}</div>
-        {customFields.map(cf => <div key={cf.id} className="field">
-          <label>{cf.name}</label>
-          <CustomFieldInput field={cf} value={(f.customValues || {})[cf.id] ?? ''}
-            onChange={val => patchNode({ customValues: { ...(f.customValues || {}), [cf.id]: val } })} />
-        </div>)}
-      </div>}
-    </>}
-
-    {/* ══════ WORKFLOW TAB ══════ */}
-    {activeTab === 'workflow' && <>
-      {/* What a package's status is made of. */}
-      {!isLeaf && phases.length === 0 && (() => {
-        const st = stats?.[node.id];
-        const leafCount = leafNodes(tree).filter(child => child.id.startsWith(node.id + '.')).length;
-        const doneCount = leafNodes(tree).filter(child => child.id.startsWith(node.id + '.') && child.status === 'done').length;
-        return <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>{doneCount}/{leafCount} {t('qe.leafItems')} {t('done')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 12 }}>
-            <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span><span>{st?._b?.toFixed(0) || 0}d</span>
-            <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span><span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
-            {timeline?.period && <><span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span><span>{timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}</span></>}
-            {timeline?.deadline && <><span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span><span>{timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}</span></>}
+          <div className="field">
+            <label>{t('qe.assignee')}</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: (f.assign || []).length ? 6 : 0 }}>
+              {(f.assign || []).map(id => (
+                <span key={id} className="tag">
+                  {memberName(id)}
+                  <span className="tag-x" onClick={() => patchNode({ assign: (f.assign || []).filter(entry => entry !== id) })}>
+                    <Icon name="x" size={9} />
+                  </span>
+                </span>
+              ))}
+            </div>
+            {isLeaf && (
+              <AutoAssignHint
+                node={f}
+                scheduled={scheduled}
+                members={members}
+                onAccept={({ assign, team }) => patchNode({ assign, team })}
+              />
+            )}
+            <div ref={focusRefs.assign}>
+              <SearchSelect
+                options={members
+                  .filter(member => !(f.assign || []).includes(member.id))
+                  .map(member => ({ id: member.id, label: memberLabel(member) }))}
+                onSelect={id => {
+                  const member = members.find(entry => entry.id === id);
+                  patchNode({ assign: [...new Set([...(f.assign || []), id])], team: teamForAssignment(member, f.team) });
+                }}
+                placeholder={t('qe.assignPerson')}
+              />
+            </div>
           </div>
-        </div>;
-      })()}
 
-      {/* Status + Progress — manual only when NO phases */}
-      {isLeaf && phases.length === 0 && <div ref={focusRefs.status} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ flex: '0 0 100px' }}>
-          <SearchSelect value={f.status || 'open'} options={[{ id: 'open', label: t('open') }, { id: 'wip', label: t('wip') }, { id: 'done', label: t('done') }]} onSelect={value => {
-            // Sync progress when status changes manually. Done → completedAt
-            // clamps to today: a task marked done now is finished now, never
-            // in the future (would otherwise inherit a stale planned-end).
-            if (value === 'done') {
-              patchNode(donePatch());
-            }
-            else if (value === 'open') patchNode({ status: 'open', progress: 0 });
-            else if (value === 'wip') patchNode(statusChangePatch(f, 'wip'));
-          }} />
-        </div>
-        {/* Slider buffers locally on every onChange (so the thumb tracks) but
+          <div className="field">
+            <label>{t('qe.priority')}</label>
+            <SearchSelect
+              value={String(f.prio || 2)}
+              options={[
+                { id: '1', label: `1 ${t('critical')}` },
+                { id: '2', label: `2 ${t('high')}` },
+                { id: '3', label: `3 ${t('medium')}` },
+                { id: '4', label: `4 ${t('low')}` },
+              ]}
+              onSelect={value => patchNode({ prio: +value })}
+            />
+          </div>
+          <div className="field">
+            <label>{t('qe.notes')}</label>
+            <textarea value={f.note || ''} onChange={e => bufferNode({ note: e.target.value })} onBlur={flushNode} rows={2} />
+          </div>
+
+          {isRoot && (
+            <>
+              <div className="field">
+                <label>{t('qe.focusType')}</label>
+                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                  {['', 'goal', 'painpoint', 'deadline'].map(ft => (
+                    <button
+                      key={ft}
+                      className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`}
+                      style={{ fontSize: 11, padding: '3px 7px' }}
+                      onClick={() => patchNode({ type: ft })}
+                    >
+                      {ft ? (
+                        <>
+                          <Icon name={GT_ICON[ft]} size={12} />
+                          {t(ft)}
+                        </>
+                      ) : (
+                        t('none')
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {f.type && (
+                <div className="frow">
+                  <div className="field">
+                    <label>{t('qe.severity')}</label>
+                    <SearchSelect
+                      value={f.severity || 'high'}
+                      options={[
+                        { id: 'critical', label: t('critical') },
+                        { id: 'high', label: t('high') },
+                        { id: 'medium', label: t('medium') },
+                      ]}
+                      onSelect={value => patchNode({ severity: value })}
+                    />
+                  </div>
+                  {f.type === 'deadline' && (
+                    <div className="field">
+                      <label>{t('qe.date')}</label>
+                      <input type="date" value={f.date || ''} onChange={e => patchNode({ date: e.target.value })} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {f.type && (
+                <div className="field">
+                  <label>{t('qe.description')}</label>
+                  <input
+                    value={f.description || ''}
+                    onChange={e => bufferNode({ description: e.target.value })}
+                    onBlur={flushNode}
+                    placeholder={t('qe.descPlaceholder')}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Custom fields ── */}
+          {customFields.length > 0 && (
+            <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--tx3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '.07em',
+                  marginBottom: 6,
+                }}
+              >
+                {t('cf.fieldValues')}
+              </div>
+              {customFields.map(cf => (
+                <div key={cf.id} className="field">
+                  <label>{cf.name}</label>
+                  <CustomFieldInput
+                    field={cf}
+                    value={(f.customValues || {})[cf.id] ?? ''}
+                    onChange={val => patchNode({ customValues: { ...(f.customValues || {}), [cf.id]: val } })}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══════ WORKFLOW TAB ══════ */}
+      {activeTab === 'workflow' && (
+        <>
+          {/* What a package's status is made of. */}
+          {!isLeaf &&
+            phases.length === 0 &&
+            (() => {
+              const st = stats?.[node.id];
+              const leafCount = leafNodes(tree).filter(child => child.id.startsWith(node.id + '.')).length;
+              const doneCount = leafNodes(tree).filter(child => child.id.startsWith(node.id + '.') && child.status === 'done').length;
+              return (
+                <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--tx2)' }}>
+                    {doneCount}/{leafCount} {t('qe.leafItems')} {t('done')}
+                  </div>
+                  <div
+                    style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontFamily: 'var(--mono)', fontSize: 12 }}
+                  >
+                    <span style={{ color: 'var(--tx3)' }}>{t('qe.best')}</span>
+                    <span>{st?._b?.toFixed(0) || 0}d</span>
+                    <span style={{ color: 'var(--tx3)' }}>{t('qe.realistic')}</span>
+                    <span style={{ color: 'var(--am)' }}>{st?._r?.toFixed(1) || 0}d</span>
+                    {timeline?.period && (
+                      <>
+                        <span style={{ color: 'var(--tx3)' }}>{t('ins.period')}</span>
+                        <span>
+                          {timeline.period.start.toLocaleDateString('de-DE')} — {timeline.period.end.toLocaleDateString('de-DE')}
+                        </span>
+                      </>
+                    )}
+                    {timeline?.deadline && (
+                      <>
+                        <span style={{ color: 'var(--tx3)' }}>{t('qe.affectsDeadline')}</span>
+                        <span>
+                          {timeline.deadline.start.toLocaleDateString('de-DE')} — {timeline.deadline.end.toLocaleDateString('de-DE')}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* Status + Progress — manual only when NO phases */}
+          {isLeaf && phases.length === 0 && (
+            <div ref={focusRefs.status} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ flex: '0 0 100px' }}>
+                <SearchSelect
+                  value={f.status || 'open'}
+                  options={[
+                    { id: 'open', label: t('open') },
+                    { id: 'wip', label: t('wip') },
+                    { id: 'done', label: t('done') },
+                  ]}
+                  onSelect={value => {
+                    // Sync progress when status changes manually. Done → completedAt
+                    // clamps to today: a task marked done now is finished now, never
+                    // in the future (would otherwise inherit a stale planned-end).
+                    if (value === 'done') {
+                      patchNode(donePatch());
+                    } else if (value === 'open') patchNode({ status: 'open', progress: 0 });
+                    else if (value === 'wip') patchNode(statusChangePatch(f, 'wip'));
+                  }}
+                />
+              </div>
+              {/* Slider buffers locally on every onChange (so the thumb tracks) but
             only commits to the parent — and re-runs the scheduler — when the
             user releases the pointer or blurs. Without this every drag step
             triggered a full setData → reschedule loop. */}
-        <input type="range" min="0" max="100" step="5" value={f.progress ?? leafProgress(f)}
-          onChange={e => {
-            const value = +e.target.value;
-            const next = { ...f, progress: value };
-            if (value >= 100 && f.status !== 'done') {
-              Object.assign(next, donePatch());
-            }
-            // Only borrow completedStart here, not the whole wip patch — the
-            // slider's own value is the progress we want, not the "keep
-            // current progress, else default 50" rule statusChangePatch uses
-            // when there is no slider to read from.
-            else if (value > 0 && value < 100 && f.status !== 'wip') { next.status = 'wip'; next.completedStart = statusChangePatch(f, 'wip').completedStart; }
-            else if (value === 0 && f.status !== 'open') next.status = 'open';
-            bufferNode(next);
-          }}
-          onPointerUp={() => flushNode()}
-          onKeyUp={() => flushNode()}
-          onBlur={() => flushNode()}
-          style={{ flex: 1, accentColor: 'var(--ac)' }} />
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>{f.progress ?? leafProgress(f)}%</span>
-      </div>}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={f.progress ?? leafProgress(f)}
+                onChange={e => {
+                  const value = +e.target.value;
+                  const next = { ...f, progress: value };
+                  if (value >= 100 && f.status !== 'done') {
+                    Object.assign(next, donePatch());
+                  }
+                  // Only borrow completedStart here, not the whole wip patch — the
+                  // slider's own value is the progress we want, not the "keep
+                  // current progress, else default 50" rule statusChangePatch uses
+                  // when there is no slider to read from.
+                  else if (value > 0 && value < 100 && f.status !== 'wip') {
+                    next.status = 'wip';
+                    next.completedStart = statusChangePatch(f, 'wip').completedStart;
+                  } else if (value === 0 && f.status !== 'open') next.status = 'open';
+                  bufferNode(next);
+                }}
+                onPointerUp={() => flushNode()}
+                onKeyUp={() => flushNode()}
+                onBlur={() => flushNode()}
+                style={{ flex: 1, accentColor: 'var(--ac)' }}
+              />
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx3)', flexShrink: 0, width: 28, textAlign: 'right' }}>
+                {f.progress ?? leafProgress(f)}%
+              </span>
+            </div>
+          )}
 
-      {/* Phases — define status + progress when present */}
-      {isLeaf && <div ref={focusRefs.phases}><PhaseList
-        phases={f.phases}
-        templates={taskTemplates}
-        teams={teams}
-        members={members}
-        templateId={f.templateId}
-        onChange={commitPhases}
-      /></div>}
+          {/* Phases — define status + progress when present */}
+          {isLeaf && (
+            <div ref={focusRefs.phases}>
+              <PhaseList
+                phases={f.phases}
+                templates={taskTemplates}
+                teams={teams}
+                members={members}
+                templateId={f.templateId}
+                onChange={commitPhases}
+              />
+            </div>
+          )}
 
-      {/* HandoffPlanEditor disabled — auto-cascade is off by default;
+          {/* HandoffPlanEditor disabled — auto-cascade is off by default;
           users handle offboard truncation via the explicit ↳ Split flow.
           Re-enable here only if pre-planned multi-stage handoffs become
           a real workflow again. */}
 
-      {/* The history under the fields that write it, as in the dialog. The
+          {/* The history under the fields that write it, as in the dialog. The
           panel saves with every change, so there is no day to pick here:
           an entry's day is moved in the list, or backdating is switched on. */}
-      {onHistoryChange && <div style={{ marginTop: 14 }}><ItemHistoryTimeline item={f} events={historyEvents} onEventsChange={onHistoryChange} viewDay={viewDay} /></div>}
+          {onHistoryChange && (
+            <div style={{ marginTop: 14 }}>
+              <ItemHistoryTimeline item={f} events={historyEvents} onEventsChange={onHistoryChange} viewDay={viewDay} />
+            </div>
+          )}
 
-      {/* Last on the tab: the rarest thing done here. */}
-      <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button type="button" data-testid="qe-drop-toggle" className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
-          data-htip={t('nm.dropHint')} onClick={() => patchNode({ dropped: f.dropped ? undefined : true })}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-          <Icon name={f.dropped ? 'undo' : 'x'} size={13} />{f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
-        </button>
-      </div>
-    </>}
-
-    {/* ══════ EFFORT TAB ══════ */}
-    {activeTab === 'effort' && isLeaf && <>
-      <div className="field">
-        <label>{t('qe.quickEstimate')}</label>
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
-          {SIZES.map(([sizeLabel, days, factor, desc]) => {
-            const exact = f.best === days;
-            const nearest = !exact && nearestSize?.[0] === sizeLabel && f.best > 0;
-            return <button key={sizeLabel} className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
-              style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
-              data-htip={desc || undefined}
-              onClick={() => patchNode({ best: days, factor })}>{sizeLabel}<span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{days}d</span></button>;
-          })}
-        </div>
-        {onEstimate && <button className="btn btn-pri btn-sm" onClick={() => onEstimate(node)}>{t('qe.estimateNow')}</button>}
-      </div>
-
-      <div className="frow">
-        <div className="field"><label>{t('qe.bestDays')}</label><input ref={focusRefs.bestDays} type="number" min="0" step="0.1" value={f.best || 0} onChange={e => bufferNode({ best: +e.target.value })} onBlur={flushNode} /></div>
-        <div className="field"><label>{t('qe.factor')}</label><input type="number" step="0.1" min="1" max="5" value={f.factor || 1.5} onChange={e => bufferNode({ factor: +e.target.value })} onBlur={flushNode} /></div>
-      </div>
-
-      <div className="field">
-        <label>{t('qe.fixedDuration')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label className="toggle" style={{ margin: 0 }}>
-            <input type="checkbox" checked={(f.fixedDurationDays || 0) > 0}
-              onChange={e => patchNode({ fixedDurationDays: e.target.checked ? (f.fixedDurationDays || Math.max(1, Math.ceil(f.best || 1))) : 0 })} />
-            <span className="slider" />
-          </label>
-          <input type="number" min="1" step="1" disabled={!(f.fixedDurationDays > 0)}
-            value={f.fixedDurationDays || ''}
-            onChange={e => patchNode({ fixedDurationDays: Math.max(1, Math.ceil(+e.target.value || 1)) })}
-            style={{ maxWidth: 110, fontFamily: 'var(--mono)' }} />
-          <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
-        </div>
-        <div className="helper">{t('qe.fixedDurationHint')}</div>
-      </div>
-
-      <div className="field"><label>{t('qe.confidence')}</label>
-        <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={value => patchNode({ confidence: value })} />
-        {/* Effective confidence tag — same style as AutoAssignHint */}
-        {(() => {
-          const eff = confidence[node.id] || 'committed';
-          const reason = confReasons[node.id];
-          const isAuto = !f.confidence;
-          return <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '6px 8px', background: 'var(--bg3)', border: `1px dashed ${CONF_COLOR[eff]}`, borderRadius: 'var(--r)', fontSize: 12 }}>
-            <span style={{ color: CONF_COLOR[eff] }}>{CONF_DOT[eff]}</span>
-            <span style={{ color: CONF_COLOR[eff], fontWeight: 600 }}>{CONF_LABEL[eff]}</span>
-            {isAuto && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>auto</span>}
-            <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{REASON_TIP[reason] || ''}</span>
-          </div>;
-        })()}
-      </div>
-
-      {sc && <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
-        {f.fixedDurationDays > 0
-          ? <><span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span><b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b></>
-          : <><span style={{ color: 'var(--tx3)' }}>{f.best}d × {f.factor || 1.5} = </span><b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b><span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span></>}
-        <br />
-        <span style={{ color: 'var(--tx3)' }}>{iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w · {((f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person)}</span>
-      </div>}
-      {!sc && (f.best > 0 || f.fixedDurationDays > 0) && <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
-        {f.fixedDurationDays > 0 ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d` : `${f.best}d × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`} · {t('qe.notScheduled')}
-      </div>}
-    </>}
-
-    {/* ══════ TIMING TAB ══════ */}
-    {activeTab === 'timing' && <>
-      {isLeaf && <>
-        <div className="frow">
-          <div className="field"><label>{t('qe.decideBy')}</label>
-            <input type="date" value={f.decideBy || ''} onChange={e => patchNode({ decideBy: e.target.value })} />
+          {/* Last on the tab: the rarest thing done here. */}
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              data-testid="qe-drop-toggle"
+              className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
+              data-htip={t('nm.dropHint')}
+              onClick={() => patchNode({ dropped: f.dropped ? undefined : true })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}
+            >
+              <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
+              {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
+            </button>
           </div>
-          <div className="field"><label>{t('qe.due')} {f.due && <span style={{ fontSize: 11, color: 'var(--re)' }}>~</span>}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
-              {f.due && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}><Icon name="x" size={11} /></button>}
+        </>
+      )}
+
+      {/* ══════ EFFORT TAB ══════ */}
+      {activeTab === 'effort' && isLeaf && (
+        <>
+          <div className="field">
+            <label>{t('qe.quickEstimate')}</label>
+            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
+              {SIZES.map(([sizeLabel, days, factor, desc]) => {
+                const exact = f.best === days;
+                const nearest = !exact && nearestSize?.[0] === sizeLabel && f.best > 0;
+                return (
+                  <button
+                    key={sizeLabel}
+                    className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
+                    style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
+                    data-htip={desc || undefined}
+                    onClick={() => patchNode({ best: days, factor })}
+                  >
+                    {sizeLabel}
+                    <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{days}d</span>
+                  </button>
+                );
+              })}
+            </div>
+            {onEstimate && (
+              <button className="btn btn-pri btn-sm" onClick={() => onEstimate(node)}>
+                {t('qe.estimateNow')}
+              </button>
+            )}
+          </div>
+
+          <div className="frow">
+            <div className="field">
+              <label>{t('qe.bestDays')}</label>
+              <input
+                ref={focusRefs.bestDays}
+                type="number"
+                min="0"
+                step="0.1"
+                value={f.best || 0}
+                onChange={e => bufferNode({ best: +e.target.value })}
+                onBlur={flushNode}
+              />
+            </div>
+            <div className="field">
+              <label>{t('qe.factor')}</label>
+              <input
+                type="number"
+                step="0.1"
+                min="1"
+                max="5"
+                value={f.factor || 1.5}
+                onChange={e => bufferNode({ factor: +e.target.value })}
+                onBlur={flushNode}
+              />
             </div>
           </div>
-          <div className="field"><label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t('qe.pinnedStart')}{f.pinnedStart && <Icon name="pin" size={10} style={{ color: 'var(--am)' }} />}</label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input ref={focusRefs.pinnedStart} type="date" value={f.pinnedStart || ''} onChange={e => patchNode({ pinnedStart: e.target.value })} style={{ flex: 1 }} />
-              {f.pinnedStart && <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}><Icon name="x" size={11} /></button>}
+
+          <div className="field">
+            <label>{t('qe.fixedDuration')}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="toggle" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={(f.fixedDurationDays || 0) > 0}
+                  onChange={e =>
+                    patchNode({ fixedDurationDays: e.target.checked ? f.fixedDurationDays || Math.max(1, Math.ceil(f.best || 1)) : 0 })
+                  }
+                />
+                <span className="slider" />
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                disabled={!(f.fixedDurationDays > 0)}
+                value={f.fixedDurationDays || ''}
+                onChange={e => patchNode({ fixedDurationDays: Math.max(1, Math.ceil(+e.target.value || 1)) })}
+                style={{ maxWidth: 110, fontFamily: 'var(--mono)' }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
             </div>
+            <div className="helper">{t('qe.fixedDurationHint')}</div>
           </div>
-        </div>
-        <div className="frow">
-          <div className="field"><label>{t('qe.completedStart')}</label>
-            <input type="date" value={f.completedStart || ''} disabled={f.status === 'open'} onChange={e => patchCompletion({ completedStart: e.target.value })} />
+
+          <div className="field">
+            <label>{t('qe.confidence')}</label>
+            <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={value => patchNode({ confidence: value })} />
+            {/* Effective confidence tag — same style as AutoAssignHint */}
+            {(() => {
+              const eff = confidence[node.id] || 'committed';
+              const reason = confReasons[node.id];
+              const isAuto = !f.confidence;
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 6,
+                    padding: '6px 8px',
+                    background: 'var(--bg3)',
+                    border: `1px dashed ${CONF_COLOR[eff]}`,
+                    borderRadius: 'var(--r)',
+                    fontSize: 12,
+                  }}
+                >
+                  <span style={{ color: CONF_COLOR[eff] }}>{CONF_DOT[eff]}</span>
+                  <span style={{ color: CONF_COLOR[eff], fontWeight: 600 }}>{CONF_LABEL[eff]}</span>
+                  {isAuto && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>auto</span>}
+                  <span style={{ fontSize: 10, color: 'var(--tx3)', marginLeft: 'auto' }}>{REASON_TIP[reason] || ''}</span>
+                </div>
+              );
+            })()}
           </div>
-          <div className="field"><label>{t('qe.completedEnd')}</label>
-            <input type="date" value={f.completedEnd || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedEnd: e.target.value })} />
-          </div>
-          <div className="field"><label>{t('qe.completedAt')}</label>
-            <input type="date" value={f.completedAt || ''} disabled={f.status !== 'done'} onChange={e => patchCompletion({ completedAt: e.target.value })} />
-          </div>
-        </div>
-        <div className="helper" style={{ marginTop: -8, marginBottom: 10 }}>{t('qe.completedHint')}</div>
-        {/* Soll/Ist: planned window (Soll) vs actual completion (Ist).
+
+          {sc && (
+            <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
+              {f.fixedDurationDays > 0 ? (
+                <>
+                  <span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span>
+                  <b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: 'var(--tx3)' }}>
+                    {f.best}d × {f.factor || 1.5} ={' '}
+                  </span>
+                  <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
+                  <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span>
+                </>
+              )}
+              <br />
+              <span style={{ color: 'var(--tx3)' }}>
+                {iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w ·{' '}
+                {(f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person}
+              </span>
+            </div>
+          )}
+          {!sc && (f.best > 0 || f.fixedDurationDays > 0) && (
+            <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
+              {f.fixedDurationDays > 0
+                ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d`
+                : `${f.best}d × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`}{' '}
+              · {t('qe.notScheduled')}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══════ TIMING TAB ══════ */}
+      {activeTab === 'timing' && (
+        <>
+          {isLeaf && (
+            <>
+              <div className="frow">
+                <div className="field">
+                  <label>{t('qe.decideBy')}</label>
+                  <input type="date" value={f.decideBy || ''} onChange={e => patchNode({ decideBy: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>
+                    {t('qe.due')} {f.due && <span style={{ fontSize: 11, color: 'var(--re)' }}>~</span>}
+                  </label>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input type="date" value={f.due || ''} onChange={e => patchNode({ due: e.target.value })} style={{ flex: 1 }} />
+                    {f.due && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ due: '' })}>
+                        <Icon name="x" size={11} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="field">
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {t('qe.pinnedStart')}
+                    {f.pinnedStart && <Icon name="pin" size={10} style={{ color: 'var(--am)' }} />}
+                  </label>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input
+                      ref={focusRefs.pinnedStart}
+                      type="date"
+                      value={f.pinnedStart || ''}
+                      onChange={e => patchNode({ pinnedStart: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
+                    {f.pinnedStart && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => patchNode({ pinnedStart: '' })}>
+                        <Icon name="x" size={11} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="frow">
+                <div className="field">
+                  <label>{t('qe.completedStart')}</label>
+                  <input
+                    type="date"
+                    value={f.completedStart || ''}
+                    disabled={f.status === 'open'}
+                    onChange={e => patchCompletion({ completedStart: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>{t('qe.completedEnd')}</label>
+                  <input
+                    type="date"
+                    value={f.completedEnd || ''}
+                    disabled={f.status !== 'done'}
+                    onChange={e => patchCompletion({ completedEnd: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>{t('qe.completedAt')}</label>
+                  <input
+                    type="date"
+                    value={f.completedAt || ''}
+                    disabled={f.status !== 'done'}
+                    onChange={e => patchCompletion({ completedAt: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="helper" style={{ marginTop: -8, marginBottom: 10 }}>
+                {t('qe.completedHint')}
+              </div>
+              {/* Soll/Ist: planned window (Soll) vs actual completion (Ist).
             Renders for done tasks AND for in-flight tasks where the user
             captured plan-start/end before the task slipped. Diff in working
             days exposed so the user sees overrun/underrun at a glance. */}
-        {(f.plannedStart || f.plannedEnd || f.completedStart || f.completedEnd) && (
-          <div className="frow">
-            <div className="field"><label>{t('qe.plannedStart')}</label>
-              <input type="date" value={f.plannedStart || ''} onChange={e => patchNode({ plannedStart: e.target.value })} />
-            </div>
-            <div className="field"><label>{t('qe.plannedEnd')}</label>
-              <input type="date" value={f.plannedEnd || ''} onChange={e => patchNode({ plannedEnd: e.target.value })} />
-            </div>
-          </div>
-        )}
-        {f.status === 'done' && (f.completedStart || f.completedEnd) && (() => {
-          // Workday-aware Soll/Ist: estimate (best × factor) vs actual workdays
-          // between completedStart and completedEnd, with weekends + holidays
-          // filtered out so the delta reflects real effort overrun rather
-          // than chronological gap.
-          const si = computeSollIst(f, { workDays, holidayIso });
-          if (!si) return null;
-          const tone = si.delta?.tone === 'over' ? 'var(--re)'
-            : si.delta?.tone === 'under' ? 'var(--gr)'
-            : si.delta?.tone === 'on' ? 'var(--am)' : 'var(--tx3)';
-          const sign = si.delta?.workDays > 0 ? `+${si.delta.workDays}d` : `${si.delta?.workDays ?? 0}d`;
-          const confTip = t('qe.sollIstCalendarTip', si.ist.calDays, si.confounders.weekends, si.confounders.holidays);
-          return (
-            <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: si.delta ? 4 : 0 }}>
-                <span style={{ color: 'var(--tx3)' }}>Soll:</span>
-                <span style={{ fontFamily: 'var(--mono)' }} data-htip={t('qe.sollBestFactorTip', si.soll.best, si.soll.factor)}>
-                  {si.soll.realistic > 0 ? `${si.soll.realistic}d` : '—'}
-                </span>
-                <span style={{ color: 'var(--tx3)', marginLeft: 14 }}>Ist:</span>
-                <span style={{ fontFamily: 'var(--mono)' }} data-htip={confTip}>
-                  {si.ist.workDays}d
-                </span>
-                <span style={{ color: 'var(--tx3)', fontSize: 11 }}>
-                  ({si.ist.startD.toISOString().slice(0,10)} → {si.ist.endD.toISOString().slice(0,10)})
-                </span>
-                {si.delta && (
-                  <span style={{ marginLeft: 'auto', color: tone, fontWeight: 700 }}
-                    data-htip={t('qe.sollIstFactorTip', si.soll.realistic, si.ist.workDays, (si.ist.workDays / Math.max(1, si.soll.best)).toFixed(2))}>
-                    Δ {sign} ({si.delta.percent > 0 ? '+' : ''}{si.delta.percent}%)
-                  </span>
-                )}
-              </div>
-              {si.planned && si.planned.workDays > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--tx3)', display: 'flex', gap: 6 }}>
-                  <span>Plan:</span>
-                  <span style={{ fontFamily: 'var(--mono)' }}>{si.planned.startD.toISOString().slice(0,10)} → {si.planned.endD.toISOString().slice(0,10)} ({si.planned.workDays}d)</span>
+              {(f.plannedStart || f.plannedEnd || f.completedStart || f.completedEnd) && (
+                <div className="frow">
+                  <div className="field">
+                    <label>{t('qe.plannedStart')}</label>
+                    <input type="date" value={f.plannedStart || ''} onChange={e => patchNode({ plannedStart: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>{t('qe.plannedEnd')}</label>
+                    <input type="date" value={f.plannedEnd || ''} onChange={e => patchNode({ plannedEnd: e.target.value })} />
+                  </div>
                 </div>
               )}
+              {f.status === 'done' &&
+                (f.completedStart || f.completedEnd) &&
+                (() => {
+                  // Workday-aware Soll/Ist: estimate (best × factor) vs actual workdays
+                  // between completedStart and completedEnd, with weekends + holidays
+                  // filtered out so the delta reflects real effort overrun rather
+                  // than chronological gap.
+                  const si = computeSollIst(f, { workDays, holidayIso });
+                  if (!si) return null;
+                  const tone =
+                    si.delta?.tone === 'over'
+                      ? 'var(--re)'
+                      : si.delta?.tone === 'under'
+                        ? 'var(--gr)'
+                        : si.delta?.tone === 'on'
+                          ? 'var(--am)'
+                          : 'var(--tx3)';
+                  const sign = si.delta?.workDays > 0 ? `+${si.delta.workDays}d` : `${si.delta?.workDays ?? 0}d`;
+                  const confTip = t('qe.sollIstCalendarTip', si.ist.calDays, si.confounders.weekends, si.confounders.holidays);
+                  return (
+                    <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--bg3)', borderRadius: 6, fontSize: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: si.delta ? 4 : 0 }}>
+                        <span style={{ color: 'var(--tx3)' }}>Soll:</span>
+                        <span style={{ fontFamily: 'var(--mono)' }} data-htip={t('qe.sollBestFactorTip', si.soll.best, si.soll.factor)}>
+                          {si.soll.realistic > 0 ? `${si.soll.realistic}d` : '—'}
+                        </span>
+                        <span style={{ color: 'var(--tx3)', marginLeft: 14 }}>Ist:</span>
+                        <span style={{ fontFamily: 'var(--mono)' }} data-htip={confTip}>
+                          {si.ist.workDays}d
+                        </span>
+                        <span style={{ color: 'var(--tx3)', fontSize: 11 }}>
+                          ({si.ist.startD.toISOString().slice(0, 10)} → {si.ist.endD.toISOString().slice(0, 10)})
+                        </span>
+                        {si.delta && (
+                          <span
+                            style={{ marginLeft: 'auto', color: tone, fontWeight: 700 }}
+                            data-htip={t(
+                              'qe.sollIstFactorTip',
+                              si.soll.realistic,
+                              si.ist.workDays,
+                              (si.ist.workDays / Math.max(1, si.soll.best)).toFixed(2),
+                            )}
+                          >
+                            Δ {sign} ({si.delta.percent > 0 ? '+' : ''}
+                            {si.delta.percent}%)
+                          </span>
+                        )}
+                      </div>
+                      {si.planned && si.planned.workDays > 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--tx3)', display: 'flex', gap: 6 }}>
+                          <span>Plan:</span>
+                          <span style={{ fontFamily: 'var(--mono)' }}>
+                            {si.planned.startD.toISOString().slice(0, 10)} → {si.planned.endD.toISOString().slice(0, 10)} (
+                            {si.planned.workDays}d)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              <p className="helper" style={{ marginBottom: 12 }}>
+                {t('qe.horizonHint')}
+              </p>
+            </>
+          )}
+          {showDeadlineRelevant && (
+            <div className="field">
+              <label>{t('qe.affectsDeadline')}</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={f.deadlineRelevant !== false}
+                    disabled={deadlineParentExcluded}
+                    onChange={e => patchNode({ deadlineRelevant: e.target.checked ? undefined : false })}
+                  />
+                  <span className="slider" />
+                </label>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: deadlineParentExcluded ? 'var(--tx3)' : f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)',
+                  }}
+                >
+                  {f.deadlineRelevant === false ? t('no') : t('yes')}
+                </span>
+              </div>
+              <div className="helper">
+                {deadlineParentExcluded
+                  ? t('qe.affectsDeadlineInheritedOff')
+                  : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
+              </div>
             </div>
-          );
-        })()}
-        <p className="helper" style={{ marginBottom: 12 }}>{t('qe.horizonHint')}</p>
-      </>}
-      {showDeadlineRelevant && <div className="field">
-        <label>{t('qe.affectsDeadline')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={f.deadlineRelevant !== false}
-              disabled={deadlineParentExcluded}
-              onChange={e => patchNode({ deadlineRelevant: e.target.checked ? undefined : false })}
-            />
-            <span className="slider" />
-          </label>
-          <span style={{ fontSize: 12, color: deadlineParentExcluded ? 'var(--tx3)' : (f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)') }}>
-            {f.deadlineRelevant === false ? t('no') : t('yes')}
-          </span>
-        </div>
-        <div className="helper">
-          {deadlineParentExcluded ? t('qe.affectsDeadlineInheritedOff') : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
-        </div>
-      </div>}
+          )}
 
-      <div className="field"><label>{t('qe.predecessors')}{!isLeaf ? ` (${t('qe.allLeaves')})` : ''}</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
-          {(f.deps || []).map(dep => {
-            const target = tree.find(entry => entry.id === dep);
-            const label = (f._depLabels || {})[dep] || '';
-            return <div key={'h_' + dep} className="dep-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title={t('qe.dep.hardTip')} style={{ fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>H</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>{dep}</span>
-                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <input value={label} onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })} onBlur={flushNode} placeholder="label" style={{ width: 50, background: 'var(--bg)', border: '1px solid var(--b2)', borderRadius: 4, color: 'var(--tx3)', fontSize: 10, padding: '1px 4px', outline: 'none', fontFamily: 'var(--mono)' }} />
-                <span title={t('qe.dep.convertToSoft')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }} onClick={() => {
-                  patchNode({
-                    deps: (f.deps || []).filter(id => id !== dep),
-                    softDeps: [...new Set([...(f.softDeps || []), dep])],
-                  });
-                }}>→S</span>
-                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => {
-                  const nextDeps = (f.deps || []).filter(id => id !== dep);
-                  const nextLabels = { ...(f._depLabels || {}) };
-                  delete nextLabels[dep];
-                  patchNode({ deps: nextDeps, _depLabels: nextLabels });
-                }}><Icon name="x" size={9} /></span>
-              </div>
-            </div>;
-          })}
-          {(f.softDeps || []).map(dep => {
-            const target = tree.find(entry => entry.id === dep);
-            return <div key={'s_' + dep} className="dep-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span title={t('qe.dep.softTip')} style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>S</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, fontWeight: 500, fontStyle: 'italic' }}>~{dep}</span>
-                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: 'italic' }}>{target.name}</span>}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <span title={t('qe.dep.convertToHard')} style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--am)', fontFamily: 'var(--mono)' }} onClick={() => {
-                  patchNode({
-                    softDeps: (f.softDeps || []).filter(id => id !== dep),
-                    deps: [...new Set([...(f.deps || []), dep])],
-                  });
-                }}>→H</span>
-                <span className="tag-x" style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }} onClick={() => {
-                  patchNode({ softDeps: (f.softDeps || []).filter(id => id !== dep) });
-                }}><Icon name="x" size={9} /></span>
-              </div>
-            </div>;
-          })}
+          <div className="field">
+            <label>
+              {t('qe.predecessors')}
+              {!isLeaf ? ` (${t('qe.allLeaves')})` : ''}
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 4 }}>
+              {(f.deps || []).map(dep => {
+                const target = tree.find(entry => entry.id === dep);
+                const label = (f._depLabels || {})[dep] || '';
+                return (
+                  <div key={'h_' + dep} className="dep-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span
+                        title={t('qe.dep.hardTip')}
+                        style={{ fontSize: 10, color: 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}
+                      >
+                        H
+                      </span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>
+                        {dep}
+                      </span>
+                      {target?.name && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--tx2)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            minWidth: 0,
+                          }}
+                        >
+                          {target.name}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                      <input
+                        value={label}
+                        onChange={e => bufferNode({ _depLabels: { ...(f._depLabels || {}), [dep]: e.target.value } })}
+                        onBlur={flushNode}
+                        placeholder="label"
+                        style={{
+                          width: 50,
+                          background: 'var(--bg)',
+                          border: '1px solid var(--b2)',
+                          borderRadius: 4,
+                          color: 'var(--tx3)',
+                          fontSize: 10,
+                          padding: '1px 4px',
+                          outline: 'none',
+                          fontFamily: 'var(--mono)',
+                        }}
+                      />
+                      <span
+                        title={t('qe.dep.convertToSoft')}
+                        style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                        onClick={() => {
+                          patchNode({
+                            deps: (f.deps || []).filter(id => id !== dep),
+                            softDeps: [...new Set([...(f.softDeps || []), dep])],
+                          });
+                        }}
+                      >
+                        →S
+                      </span>
+                      <span
+                        className="tag-x"
+                        style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }}
+                        onClick={() => {
+                          const nextDeps = (f.deps || []).filter(id => id !== dep);
+                          const nextLabels = { ...(f._depLabels || {}) };
+                          delete nextLabels[dep];
+                          patchNode({ deps: nextDeps, _depLabels: nextLabels });
+                        }}
+                      >
+                        <Icon name="x" size={9} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {(f.softDeps || []).map(dep => {
+                const target = tree.find(entry => entry.id === dep);
+                return (
+                  <div key={'s_' + dep} className="dep-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span
+                        title={t('qe.dep.softTip')}
+                        style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}
+                      >
+                        S
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 11,
+                          color: 'var(--tx3)',
+                          flexShrink: 0,
+                          fontWeight: 500,
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        ~{dep}
+                      </span>
+                      {target?.name && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--tx3)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            minWidth: 0,
+                            fontStyle: 'italic',
+                          }}
+                        >
+                          {target.name}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                      <span
+                        title={t('qe.dep.convertToHard')}
+                        style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: 'var(--am)', fontFamily: 'var(--mono)' }}
+                        onClick={() => {
+                          patchNode({
+                            softDeps: (f.softDeps || []).filter(id => id !== dep),
+                            deps: [...new Set([...(f.deps || []), dep])],
+                          });
+                        }}
+                      >
+                        →H
+                      </span>
+                      <span
+                        className="tag-x"
+                        style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }}
+                        onClick={() => {
+                          patchNode({ softDeps: (f.softDeps || []).filter(id => id !== dep) });
+                        }}
+                      >
+                        <Icon name="x" size={9} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
 
-          {inheritedDeps.map(({ dep, from }) => {
-            const target = tree.find(entry => entry.id === dep);
-            return <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.5 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0 }}>{dep}</span>
-                {target?.name && <span style={{ fontSize: 11, color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{target.name}</span>}
+              {inheritedDeps.map(({ dep, from }) => {
+                const target = tree.find(entry => entry.id === dep);
+                return (
+                  <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0 }}>{dep}</span>
+                      {target?.name && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--tx3)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            minWidth: 0,
+                          }}
+                        >
+                          {target.name}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <SearchSelect
+                options={allIds.map(id => {
+                  const entry = tree.find(row => row.id === id);
+                  return { id, label: entry?.name || '' };
+                })}
+                onSelect={id => {
+                  if (depAddKind === 'hard') patchNode({ deps: [...new Set([...(f.deps || []), id])] });
+                  else patchNode({ softDeps: [...new Set([...(f.softDeps || []), id])] });
+                }}
+                placeholder={`+ ${depAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`}
+                showIds
+              />
+              <div className="btn-group" style={{ display: 'flex', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`}
+                  style={{ padding: '2px 6px', fontSize: 10 }}
+                  onClick={() => setDepAddKind('hard')}
+                  title={t('qe.dep.hard')}
+                >
+                  H
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`}
+                  style={{ padding: '2px 6px', fontSize: 10 }}
+                  onClick={() => setDepAddKind('soft')}
+                  title={t('qe.dep.soft')}
+                >
+                  S
+                </button>
               </div>
-              <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
-            </div>;
-          })}
-        </div>
-        <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <SearchSelect options={allIds.map(id => {
-            const entry = tree.find(row => row.id === id);
-            return { id, label: entry?.name || '' };
-          })} onSelect={id => {
-            if (depAddKind === 'hard') patchNode({ deps: [...new Set([...(f.deps || []), id])] });
-            else patchNode({ softDeps: [...new Set([...(f.softDeps || []), id])] });
-          }} placeholder={`+ ${depAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.predecessors')}`} showIds />
-          <div className="btn-group" style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setDepAddKind('hard')} title={t('qe.dep.hard')}>H</button>
-            <button type="button" className={`btn btn-xs ${depAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setDepAddKind('soft')} title={t('qe.dep.soft')}>S</button>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="field"><label>{t('qe.successors')}</label>
-        {directSuccessors.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-          {directSuccessors.map(s => <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.85 : 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <span title={s.soft ? 'Soft' : 'Hard'} style={{ fontSize: 10, color: s.soft ? 'var(--tx3)' : 'var(--am)', flexShrink: 0, fontWeight: 700, letterSpacing: '.05em' }}>{s.soft ? 'S' : 'H'}</span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: s.soft ? 'var(--tx3)' : 'var(--ac)', flexShrink: 0, fontWeight: 600, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.id}</span>
-              {s.name && <span style={{ fontSize: 11, color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, fontStyle: s.soft ? 'italic' : 'normal' }}>{s.name}</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              {onAddDep && onRemoveDep && <span title={s.soft ? t('qe.dep.convertToHard') : t('qe.dep.convertToSoft')}
-                style={{ cursor: 'pointer', opacity: 0.7, fontSize: 10, color: s.soft ? 'var(--am)' : 'var(--tx3)', fontFamily: 'var(--mono)' }}
-                onClick={() => {
-                  onRemoveDep(s.id, node.id);
-                  onAddDep(s.id, node.id, s.soft ? 'hard' : 'soft');
-                }}>{s.soft ? '→H' : '→S'}</span>}
-              {onRemoveDep && <span className="tag-x" title={t('qe.dep.removeSuccessor')}
-                style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }}
-                onClick={() => onRemoveDep(s.id, node.id)}><Icon name="x" size={9} /></span>}
-            </div>
-          </div>)}
-        </div>}
-        {onAddDep && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <SearchSelect options={allIds.filter(i => i !== node.id && !directSuccessors.some(s => s.id === i)).map(i => {
-            const entry = tree.find(row => row.id === i);
-            return { id: i, label: entry?.name || '' };
-          })} onSelect={id => onAddDep(id, node.id, succAddKind)} placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.successors')}`} showIds />
-          <div style={{ display: 'flex', flexShrink: 0 }}>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setSuccAddKind('hard')} title={t('qe.dep.hard')}>H</button>
-            <button type="button" className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`} style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => setSuccAddKind('soft')} title={t('qe.dep.soft')}>S</button>
+          <div className="field">
+            <label>{t('qe.successors')}</label>
+            {directSuccessors.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                {directSuccessors.map(s => (
+                  <div key={s.id} className="dep-row" style={{ opacity: s.soft ? 0.85 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span
+                        title={s.soft ? 'Soft' : 'Hard'}
+                        style={{
+                          fontSize: 10,
+                          color: s.soft ? 'var(--tx3)' : 'var(--am)',
+                          flexShrink: 0,
+                          fontWeight: 700,
+                          letterSpacing: '.05em',
+                        }}
+                      >
+                        {s.soft ? 'S' : 'H'}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 11,
+                          color: s.soft ? 'var(--tx3)' : 'var(--ac)',
+                          flexShrink: 0,
+                          fontWeight: 600,
+                          fontStyle: s.soft ? 'italic' : 'normal',
+                        }}
+                      >
+                        {s.id}
+                      </span>
+                      {s.name && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--tx2)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            minWidth: 0,
+                            fontStyle: s.soft ? 'italic' : 'normal',
+                          }}
+                        >
+                          {s.name}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                      {onAddDep && onRemoveDep && (
+                        <span
+                          title={s.soft ? t('qe.dep.convertToHard') : t('qe.dep.convertToSoft')}
+                          style={{
+                            cursor: 'pointer',
+                            opacity: 0.7,
+                            fontSize: 10,
+                            color: s.soft ? 'var(--am)' : 'var(--tx3)',
+                            fontFamily: 'var(--mono)',
+                          }}
+                          onClick={() => {
+                            onRemoveDep(s.id, node.id);
+                            onAddDep(s.id, node.id, s.soft ? 'hard' : 'soft');
+                          }}
+                        >
+                          {s.soft ? '→H' : '→S'}
+                        </span>
+                      )}
+                      {onRemoveDep && (
+                        <span
+                          className="tag-x"
+                          title={t('qe.dep.removeSuccessor')}
+                          style={{ cursor: 'pointer', opacity: 0.6, fontSize: 12, color: 'var(--tx3)' }}
+                          onClick={() => onRemoveDep(s.id, node.id)}
+                        >
+                          <Icon name="x" size={9} />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onAddDep && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <SearchSelect
+                  options={allIds
+                    .filter(i => i !== node.id && !directSuccessors.some(s => s.id === i))
+                    .map(i => {
+                      const entry = tree.find(row => row.id === i);
+                      return { id: i, label: entry?.name || '' };
+                    })}
+                  onSelect={id => onAddDep(id, node.id, succAddKind)}
+                  placeholder={`+ ${succAddKind === 'hard' ? 'Hard' : 'Soft'} ${t('qe.successors')}`}
+                  showIds
+                />
+                <div style={{ display: 'flex', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className={`btn btn-xs ${succAddKind === 'hard' ? 'btn-pri' : 'btn-sec'}`}
+                    style={{ padding: '2px 6px', fontSize: 10 }}
+                    onClick={() => setSuccAddKind('hard')}
+                    title={t('qe.dep.hard')}
+                  >
+                    H
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-xs ${succAddKind === 'soft' ? 'btn-pri' : 'btn-sec'}`}
+                    style={{ padding: '2px 6px', fontSize: 10 }}
+                    onClick={() => setSuccAddKind('soft')}
+                    title={t('qe.dep.soft')}
+                  >
+                    S
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>}
-      </div>
-    </>}
+        </>
+      )}
 
-    <hr className="divider" />
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      {onDuplicate && <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }} onClick={() => onDuplicate(node.id)} style={{ flex: 1, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Icon name="copy" size={12} />{t('qe.duplicate')}</button>}
-      {/* Split — only when wip with progress > 0. The button asks for the
+      <hr className="divider" />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {onDuplicate && (
+          <button
+            className="btn btn-sec"
+            style={{ flex: 1, minWidth: 100 }}
+            onClick={() => onDuplicate(node.id)}
+            style={{ flex: 1, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <Icon name="copy" size={12} />
+            {t('qe.duplicate')}
+          </button>
+        )}
+        {/* Split — only when wip with progress > 0. The button asks for the
           consumed % (defaults to current progress) and creates a new
           sibling task with the remaining effort + dep on the original. */}
-      {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100
-        && !hasChildren(tree, node.id) && (
-        <button className="btn btn-sec" style={{ flex: 1, minWidth: 100 }}
-          data-htip={t('split.task.tip')}
-          onClick={() => {
-            const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
-            if (raw == null) return;
-            const p = parseInt(raw, 10);
-            if (!Number.isFinite(p) || p <= 0 || p >= 100) {
-              alert(t('split.task.invalid'));
-              return;
-            }
-            onSplitTaskAtProgress(node.id, p);
-          }} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Icon name="subtask" size={12} />{t('split.btn')}</button>
-      )}
-      {onDelete && <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => onDelete(node.id)}>{t('delete')}</button>}
-    </div>
-  </>;
+        {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100 && !hasChildren(tree, node.id) && (
+          <button
+            className="btn btn-sec"
+            style={{ flex: 1, minWidth: 100 }}
+            data-htip={t('split.task.tip')}
+            onClick={() => {
+              const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
+              if (raw == null) return;
+              const p = parseInt(raw, 10);
+              if (!Number.isFinite(p) || p <= 0 || p >= 100) {
+                alert(t('split.task.invalid'));
+                return;
+              }
+              onSplitTaskAtProgress(node.id, p);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <Icon name="subtask" size={12} />
+            {t('split.btn')}
+          </button>
+        )}
+        {onDelete && (
+          <button className="btn btn-danger" style={{ flex: 1, minWidth: 100 }} onClick={() => onDelete(node.id)}>
+            {t('delete')}
+          </button>
+        )}
+      </div>
+    </>
+  );
 }

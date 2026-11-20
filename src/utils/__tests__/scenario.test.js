@@ -1,16 +1,29 @@
 import { describe, test, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import {
-  applyPatch, deepEqual, describeChanges, diffPlan, formatScenariosBlock, fromPortablePatch,
-  isEmptyPatch, newScenarioId, parseScenariosBlock, revertChange, toPortablePatch,
-  uniqueScenarioName, withScenarioPatch,
+  applyPatch,
+  deepEqual,
+  describeChanges,
+  diffPlan,
+  formatScenariosBlock,
+  fromPortablePatch,
+  isEmptyPatch,
+  newScenarioId,
+  parseScenariosBlock,
+  revertChange,
+  toPortablePatch,
+  uniqueScenarioName,
+  withScenarioPatch,
 } from '../scenario.js';
 import { buildMarkdownText } from '../markdown.js';
 import { parseMdToProject } from '../markdownParse.js';
 
 const plan = () => ({
   meta: { name: 'X', planStart: '2026-01-05', version: '2' },
-  teams: [{ id: 'T1', name: 'Backend', color: '#10b981' }, { id: 'T2', name: 'Frontend', color: '#3b82f6' }],
+  teams: [
+    { id: 'T1', name: 'Backend', color: '#10b981' },
+    { id: 'T2', name: 'Frontend', color: '#3b82f6' },
+  ],
   members: [
     { id: 'm1', name: 'Alex Noor', team: 'T1', cap: 1, vac: 25 },
     { id: 'm2', name: 'Bo Lund', team: 'T2', cap: 1, vac: 25 },
@@ -46,10 +59,30 @@ describe('diffPlan / applyPatch', () => {
   test('applying the diff gives back the scenario, for every kind of change', () => {
     const base = plan();
     let work = edit(base, 'P1.1', { best: 10, pinnedStart: '2026-02-02' });
-    work = { ...work, tree: [...work.tree.filter(n => n.id !== 'P1.2').map(n => { if (n.id !== 'P1.1') return n; const { prio: _p, ...rest } = n; return rest; }), { id: 'P1.3', name: 'New', status: 'open', best: 2, assign: ['m3'] }] };
-    work = { ...work, members: [...work.members.map(m => (m.id === 'm2' ? { ...m, cap: 0.5 } : m)), { id: 'm3', name: 'Cy New', team: 'T1', cap: 1 }] };
+    work = {
+      ...work,
+      tree: [
+        ...work.tree
+          .filter(n => n.id !== 'P1.2')
+          .map(n => {
+            if (n.id !== 'P1.1') return n;
+            const { prio: _p, ...rest } = n;
+            return rest;
+          }),
+        { id: 'P1.3', name: 'New', status: 'open', best: 2, assign: ['m3'] },
+      ],
+    };
+    work = {
+      ...work,
+      members: [...work.members.map(m => (m.id === 'm2' ? { ...m, cap: 0.5 } : m)), { id: 'm3', name: 'Cy New', team: 'T1', cap: 1 }],
+    };
     work = { ...work, vacations: [{ person: 'm2', from: '2026-04-06', to: '2026-04-17', note: 'what if' }] };
-    work = { ...work, personQueues: { m1: ['P1.3', 'P1.1'] }, meta: { ...work.meta, planStart: '2026-02-02' }, sizes: [{ label: 'M', days: 7 }] };
+    work = {
+      ...work,
+      personQueues: { m1: ['P1.3', 'P1.1'] },
+      meta: { ...work.meta, planStart: '2026-02-02' },
+      sizes: [{ label: 'M', days: 7 }],
+    };
     const patch = diffPlan(base, work);
     const { data, conflicts } = applyPatch(base, patch);
     expect(conflicts).toEqual([]);
@@ -65,7 +98,12 @@ describe('diffPlan / applyPatch', () => {
 
   test('history never enters a patch — a what-if records nothing as having happened', () => {
     const base = plan();
-    const work = { ...edit(base, 'P1.1', { status: 'done' }), historyEvents: [...base.historyEvents, { ts: 'x', id: 'P1.1', status: 'done' }], scenarios: [{ id: 's1' }], roadmapAssignment: { P1: { routeIdx: 0, colorIdx: 0 } } };
+    const work = {
+      ...edit(base, 'P1.1', { status: 'done' }),
+      historyEvents: [...base.historyEvents, { ts: 'x', id: 'P1.1', status: 'done' }],
+      scenarios: [{ id: 's1' }],
+      roadmapAssignment: { P1: { routeIdx: 0, colorIdx: 0 } },
+    };
     const patch = diffPlan(base, work);
     expect(Object.keys(patch)).toEqual(['tree']);
   });
@@ -131,7 +169,10 @@ describe('describeChanges / revertChange', () => {
     work = { ...work, vacations: [...work.vacations, { person: 'm2', from: '2026-05-04', to: '2026-05-08', note: '' }] };
     const patch = diffPlan(base, work);
     const changes = describeChanges(base, work, patch);
-    const without = revertChange(patch, changes.find(c => c.id === 'P1.1'));
+    const without = revertChange(
+      patch,
+      changes.find(c => c.id === 'P1.1'),
+    );
     const { data } = applyPatch(base, without);
     expect(data.tree.find(n => n.id === 'P1.1').best).toBe(5);
     expect(data.tree.find(n => n.id === 'P1.2').assign).toEqual(['m1']);
@@ -147,7 +188,13 @@ describe('describeChanges / revertChange', () => {
     const patch = diffPlan(base, work);
     const changes = describeChanges(base, work, patch);
     expect(changes.map(c => `${c.op}:${c.id}`).sort()).toEqual(['add:P1.3', 'change:P1', 'remove:P1.2']);
-    const { data } = applyPatch(base, revertChange(patch, changes.find(c => c.id === 'P1')));
+    const { data } = applyPatch(
+      base,
+      revertChange(
+        patch,
+        changes.find(c => c.id === 'P1'),
+      ),
+    );
     expect(data.tree.find(n => n.id === 'P1').name).toBe('Project');
     expect(data.tree.map(n => n.id).sort()).toEqual(['P1', 'P1.1', 'P1.3']);
   });
@@ -170,8 +217,18 @@ describe('describeChanges / revertChange', () => {
 
 describe('the Markdown file: people and teams by name', () => {
   const scenarioWork = base => {
-    let work = edit(base, 'P1.2', { assign: ['m1', 'm9'], team: 'T1', phases: [{ id: 'ph1', name: 'Dev', team: 'T2', teams: ['T2'], assign: ['m2'] }] });
-    work = { ...work, members: [...work.members.map(m => (m.id === 'm2' ? { ...m, cap: 0.5, teams: ['T2', 'T1'] } : m)), { id: 'm9', name: 'Cy New', team: 'T1', cap: 1 }] };
+    let work = edit(base, 'P1.2', {
+      assign: ['m1', 'm9'],
+      team: 'T1',
+      phases: [{ id: 'ph1', name: 'Dev', team: 'T2', teams: ['T2'], assign: ['m2'] }],
+    });
+    work = {
+      ...work,
+      members: [
+        ...work.members.map(m => (m.id === 'm2' ? { ...m, cap: 0.5, teams: ['T2', 'T1'] } : m)),
+        { id: 'm9', name: 'Cy New', team: 'T1', cap: 1 },
+      ],
+    };
     work = { ...work, vacations: [...work.vacations, { person: 'm9', from: '2026-05-04', to: '2026-05-08', note: '' }] };
     work = { ...work, personQueues: { m1: ['P1.2', 'P1.1'], 'team:T2': ['P1.2'] } };
     return work;
@@ -227,7 +284,13 @@ describe('the Markdown file: people and teams by name', () => {
   });
 
   test('two people with one name stay two people', () => {
-    const base = { ...plan(), members: [{ id: 'm1', name: 'Sam', team: 'T1' }, { id: 'm2', name: 'Sam', team: 'T2' }] };
+    const base = {
+      ...plan(),
+      members: [
+        { id: 'm1', name: 'Sam', team: 'T1' },
+        { id: 'm2', name: 'Sam', team: 'T2' },
+      ],
+    };
     const work = edit(base, 'P1.1', { assign: ['m2'] });
     const portable = toPortablePatch(diffPlan(base, work), base);
     expect(portable.tree.set['P1.1'].assign).toEqual(['@Sam~2']);
@@ -237,8 +300,18 @@ describe('the Markdown file: people and teams by name', () => {
   test('the block round-trips through the real writer and parser', () => {
     const base = plan();
     const work = scenarioWork(base);
-    const scenarios = [{ id: 's1', name: 'Bo halbtags, Cy kommt', createdAt: '2026-11-20T08:00:00.000Z', patch: diffPlan(base, work) }, { id: 's2', name: 'leer', patch: null }];
-    const md = buildMarkdownText({ tree: base.tree, members: base.members, teams: base.teams, vacations: base.vacations, meta: base.meta, data: { ...base, scenarios } });
+    const scenarios = [
+      { id: 's1', name: 'Bo halbtags, Cy kommt', createdAt: '2026-11-20T08:00:00.000Z', patch: diffPlan(base, work) },
+      { id: 's2', name: 'leer', patch: null },
+    ];
+    const md = buildMarkdownText({
+      tree: base.tree,
+      members: base.members,
+      teams: base.teams,
+      vacations: base.vacations,
+      meta: base.meta,
+      data: { ...base, scenarios },
+    });
     expect(md).toContain('## Scenarios');
     const parsed = parseMdToProject(md);
     expect(parsed.scenarios.map(s => s.name)).toEqual(['Bo halbtags, Cy kommt', 'leer']);
@@ -251,12 +324,28 @@ describe('the Markdown file: people and teams by name', () => {
     expect(data.members.find(m => m.name === 'Bo Lund').cap).toBe(0.5);
     expect(data.vacations.map(v => nameOf(v.person))).toEqual(['Alex Noor', 'Cy New']);
     // Writing it again from the reloaded plan gives the same block: the format is stable.
-    const again = buildMarkdownText({ tree: parsed.tree, members: parsed.members, teams: parsed.teams, vacations: parsed.vacations, meta: parsed.meta, data: parsed });
+    const again = buildMarkdownText({
+      tree: parsed.tree,
+      members: parsed.members,
+      teams: parsed.teams,
+      vacations: parsed.vacations,
+      meta: parsed.meta,
+      data: parsed,
+    });
     const block = text => text.slice(text.indexOf('```planr-scenarios'));
     const stripStamps = text => text.replace(/s\d{13,}\d*/g, 'sN');
     expect(stripStamps(block(again))).toBe(stripStamps(block(md)));
     // A plan without scenarios writes no section.
-    expect(buildMarkdownText({ tree: base.tree, members: base.members, teams: base.teams, vacations: base.vacations, meta: base.meta, data: base })).not.toContain('Scenarios');
+    expect(
+      buildMarkdownText({
+        tree: base.tree,
+        members: base.members,
+        teams: base.teams,
+        vacations: base.vacations,
+        meta: base.meta,
+        data: base,
+      }),
+    ).not.toContain('Scenarios');
   });
 
   test('a damaged line costs one scenario, not the file', () => {
@@ -268,7 +357,10 @@ describe('the Markdown file: people and teams by name', () => {
 
 describe('the list of scenarios', () => {
   test('ids and names do not collide', () => {
-    const list = [{ id: 's1', name: 'Plan B' }, { id: 's3', name: 'Plan B 2' }];
+    const list = [
+      { id: 's1', name: 'Plan B' },
+      { id: 's3', name: 'Plan B 2' },
+    ];
     expect(newScenarioId(list)).toBe('s4');
     expect(newScenarioId([{ id: 's1' }, { id: 's2' }])).toBe('s3');
     expect(uniqueScenarioName('plan b', list)).toBe('plan b 3');
@@ -294,7 +386,10 @@ describe.skipIf(!REAL || !existsSync(REAL))('a real plan file', () => {
     const open = base.tree.filter(n => n.assign?.length && n.status !== 'done' && !base.tree.some(o => o.id.startsWith(n.id + '.')));
     expect(open.length).toBeGreaterThan(5);
     const [a, b] = base.members;
-    let work = { ...base, tree: base.tree.map(n => (open.slice(0, 5).some(o => o.id === n.id) ? { ...n, assign: [b.id], best: (n.best || 1) + 3 } : n)) };
+    let work = {
+      ...base,
+      tree: base.tree.map(n => (open.slice(0, 5).some(o => o.id === n.id) ? { ...n, assign: [b.id], best: (n.best || 1) + 3 } : n)),
+    };
     work = { ...work, members: work.members.map(m => (m.id === a.id ? { ...m, cap: 0.5 } : m)) };
     work = { ...work, vacations: [...work.vacations, { person: a.id, from: '2027-02-01', to: '2027-02-12', note: 'Szenario' }] };
     const patch = diffPlan(base, work);
@@ -316,7 +411,10 @@ describe.skipIf(!REAL || !existsSync(REAL))('a real plan file', () => {
     expect(data.vacations.some(v => nameIn(data, v.person) === a.name && v.from === '2027-02-01')).toBe(true);
     // Everything the scenario did not touch is the plan's, to the field.
     const touched = new Set(open.slice(0, 5).map(o => o.id));
-    const strip = n => { const { assign: _a, ...rest } = n; return rest; };
+    const strip = n => {
+      const { assign: _a, ...rest } = n;
+      return rest;
+    };
     for (const n of again.tree) if (!touched.has(n.id)) expect(deepEqual(strip(n), strip(data.tree.find(x => x.id === n.id)))).toBe(true);
     // And the plan itself is written exactly as it was without the scenario.
     expect(md.slice(0, md.indexOf('\n## Scenarios'))).toBe(write(base));

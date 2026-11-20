@@ -23,14 +23,30 @@ import { useT } from '../../i18n.jsx';
 //
 // No second renderer: everything below is chrome (a project picker) around
 // the same `<Roadmap soloRootId>` call SumView used to make.
-export function RoadmapLens({ tree, scheduled, stats, teams, members, cpSet, cpLabels, roadmapAssignment, focusId, onFocusChange, onOpenItem,
-  diffDoneIds = null, diffProgressedIds = null, sinceDate = null, onlyChanged = false,
-  projectWaitsOf = null, onMoveBehind = null }) {
+export function RoadmapLens({
+  tree,
+  scheduled,
+  stats,
+  teams,
+  members,
+  cpSet,
+  cpLabels,
+  roadmapAssignment,
+  focusId,
+  onFocusChange,
+  onOpenItem,
+  diffDoneIds = null,
+  diffProgressedIds = null,
+  sinceDate = null,
+  onlyChanged = false,
+  projectWaitsOf = null,
+  onMoveBehind = null,
+}) {
   const { t } = useT();
   const roots = useMemo(() => tree.filter(node => !String(node.id).includes('.')), [tree]);
   // A remembered focus that no longer exists (renamed, deleted, archived)
   // falls back to the first project rather than rendering nothing.
-  const effectiveId = focusId && roots.some(root => root.id === focusId) ? focusId : (roots[0]?.id || '');
+  const effectiveId = focusId && roots.some(root => root.id === focusId) ? focusId : roots[0]?.id || '';
   const color = effectiveId ? getLineColor(effectiveId, roadmapAssignment) : null;
 
   if (!roots.length) return null;
@@ -39,7 +55,9 @@ export function RoadmapLens({ tree, scheduled, stats, teams, members, cpSet, cpL
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* No title here: the tab is called Roadmap, so repeating it above the
           picker just spends a line saying where you already know you are. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--b)', flexShrink: 0 }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--b)', flexShrink: 0 }}
+      >
         <span style={{ width: 280, flexShrink: 0 }} data-testid="gantt-roadmap-lens-picker">
           <SearchSelect
             value={effectiveId}

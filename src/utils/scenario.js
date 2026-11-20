@@ -32,8 +32,14 @@ const VALUE_LISTS = {
 // not correct without them — but nobody changed them, so the list of changes
 // and its count leave them out.
 export const DERIVED_NODE_FIELDS = new Set([
-  'completedAt', 'completedStart', 'completedEnd', 'completedPersonId', 'completedPerson',
-  'completedAutoAssigned', 'plannedStart', 'plannedEnd',
+  'completedAt',
+  'completedStart',
+  'completedEnd',
+  'completedPersonId',
+  'completedPerson',
+  'completedAutoAssigned',
+  'plannedStart',
+  'plannedEnd',
 ]);
 
 export function deepEqual(a, b) {
@@ -69,9 +75,13 @@ function diffIdList(baseList, workList) {
     if (!w || w.id == null) continue;
     workIds.add(w.id);
     const b = baseById.get(w.id);
-    if (!b) { out.add.push(w); continue; }
+    if (!b) {
+      out.add.push(w);
+      continue;
+    }
     if (b === w) continue;
-    const set = {}, unset = [];
+    const set = {},
+      unset = [];
     for (const k of Object.keys(w)) {
       if (k === 'id' || w[k] === undefined) continue;
       if (!deepEqual(b[k], w[k])) set[k] = w[k];
@@ -107,7 +117,8 @@ function diffMap(baseMap, workMap) {
   const base = baseMap && typeof baseMap === 'object' ? baseMap : {};
   const work = workMap && typeof workMap === 'object' ? workMap : {};
   if (base === work) return null;
-  const set = {}, del = [];
+  const set = {},
+    del = [];
   for (const k of Object.keys(work)) if (!deepEqual(base[k], work[k])) set[k] = work[k];
   for (const k of Object.keys(base)) if (!(k in work)) del.push(k);
   if (isEmptyObj(set) && !del.length) return null;
@@ -132,7 +143,8 @@ export function diffPlan(base, work) {
   const meta = diffMap(base.meta, work.meta);
   if (meta) patch.meta = meta;
   const handled = new Set([...ID_LISTS, ...Object.keys(VALUE_LISTS), 'personQueues', 'meta']);
-  const top = {}, topDel = [];
+  const top = {},
+    topDel = [];
   for (const k of Object.keys(work)) {
     if (handled.has(k) || SCENARIO_IGNORED_KEYS.has(k)) continue;
     if (!deepEqual(base[k], work[k])) top[k] = work[k];
@@ -162,13 +174,19 @@ function applyIdList(baseList, d, kind, conflicts) {
     if (del.has(b.id)) continue;
     const set = d.set?.[b.id];
     const unset = d.unset?.[b.id];
-    if (!set && !unset) { out.push(b); continue; }
+    if (!set && !unset) {
+      out.push(b);
+      continue;
+    }
     const next = { ...b, ...(set || {}) };
     for (const k of unset || []) delete next[k];
     out.push(next);
   }
   for (const a of d.add || []) {
-    if (known.has(a.id) && !del.has(a.id)) { conflicts.push({ kind, id: a.id, why: 'taken' }); continue; }
+    if (known.has(a.id) && !del.has(a.id)) {
+      conflicts.push({ kind, id: a.id, why: 'taken' });
+      continue;
+    }
     out.push(a);
   }
   return out;
@@ -210,12 +228,16 @@ function renumberTakenAdds(patch, base) {
     let next;
     if (parent) {
       let i = 1;
-      do { next = `${parent}.${i++}`; } while (taken.has(next) || addedIds.has(next));
+      do {
+        next = `${parent}.${i++}`;
+      } while (taken.has(next) || addedIds.has(next));
     } else {
       const m = String(n.id).match(/^(.*?)(\d+)$/);
       const stem = m ? m[1] : `${n.id}-`;
       let i = m ? parseInt(m[2], 10) + 1 : 2;
-      do { next = `${stem}${i++}`; } while (taken.has(next) || addedIds.has(next));
+      do {
+        next = `${stem}${i++}`;
+      } while (taken.has(next) || addedIds.has(next));
     }
     map.set(n.id, next);
     taken.add(next);
@@ -242,7 +264,10 @@ function renumberTakenAdds(patch, base) {
   if (tree.set) tree.set = Object.fromEntries(Object.entries(tree.set).map(([id, s]) => [id, fixNode(s)]));
   const out = { ...patch, tree };
   if (patch.queues?.set) {
-    out.queues = { ...patch.queues, set: Object.fromEntries(Object.entries(patch.queues.set).map(([k, ids]) => [k, Array.isArray(ids) ? ids.map(remap) : ids])) };
+    out.queues = {
+      ...patch.queues,
+      set: Object.fromEntries(Object.entries(patch.queues.set).map(([k, ids]) => [k, Array.isArray(ids) ? ids.map(remap) : ids])),
+    };
   }
   return out;
 }
@@ -265,7 +290,8 @@ export function applyPatch(base, patch) {
   }
   if (p.queues) {
     const q = applyMap(base.personQueues, p.queues);
-    if (isEmptyObj(q)) delete data.personQueues; else data.personQueues = q;
+    if (isEmptyObj(q)) delete data.personQueues;
+    else data.personQueues = q;
   }
   if (p.meta) data.meta = applyMap(base.meta, p.meta);
   for (const [k, v] of Object.entries(p.top || {})) data[k] = v;
@@ -341,7 +367,8 @@ const nodeIsLeaf = (tree, id) => !tree.some(o => o.id !== id && o.id.startsWith(
 export function describeChanges(base, work, patch = diffPlan(base, work)) {
   const out = [];
   if (isEmptyPatch(patch) || !base || !work) return out;
-  const baseTree = base.tree || [], workTree = work.tree || [];
+  const baseTree = base.tree || [],
+    workTree = work.tree || [];
   const baseNode = new Map(baseTree.map(n => [n.id, n]));
   const workNode = new Map(workTree.map(n => [n.id, n]));
 
@@ -350,7 +377,8 @@ export function describeChanges(base, work, patch = diffPlan(base, work)) {
   for (const id of t.del || []) out.push({ kind: 'item', op: 'remove', id, name: baseNode.get(id)?.name || '', fields: [] });
   const touched = new Set([...Object.keys(t.set || {}), ...Object.keys(t.unset || {})]);
   for (const id of touched) {
-    const b = baseNode.get(id), w = workNode.get(id);
+    const b = baseNode.get(id),
+      w = workNode.get(id);
     if (!b || !w) continue;
     const keys = new Set([...Object.keys(t.set?.[id] || {}), ...(t.unset?.[id] || [])]);
     const fields = [];
@@ -373,7 +401,8 @@ export function describeChanges(base, work, patch = diffPlan(base, work)) {
     for (const id of d.del || []) out.push({ kind: label, op: 'remove', id, name: bById.get(id)?.name || '', fields: [] });
     const ids = new Set([...Object.keys(d.set || {}), ...Object.keys(d.unset || {})]);
     for (const id of ids) {
-      const b = bById.get(id), w = wById.get(id);
+      const b = bById.get(id),
+        w = wById.get(id);
       if (!b || !w) continue;
       const keys = new Set([...Object.keys(d.set?.[id] || {}), ...(d.unset?.[id] || [])]);
       const fields = [...keys].map(key => ({ key, from: b[key], to: w[key] }));
@@ -381,19 +410,52 @@ export function describeChanges(base, work, patch = diffPlan(base, work)) {
     }
   }
 
-  for (const v of patch.vacations?.add || []) out.push({ kind: 'absence', op: 'add', id: VALUE_LISTS.vacations(v), person: v.person, from: v.from, to: v.to, note: v.note || '', fields: [] });
-  for (const v of patch.vacations?.del || []) out.push({ kind: 'absence', op: 'remove', id: VALUE_LISTS.vacations(v), person: v.person, from: v.from, to: v.to, note: v.note || '', fields: [] });
-  for (const h of patch.holidays?.add || []) out.push({ kind: 'holiday', op: 'add', id: VALUE_LISTS.holidays(h), name: h.name || '', date: h.date, fields: [] });
-  for (const h of patch.holidays?.del || []) out.push({ kind: 'holiday', op: 'remove', id: VALUE_LISTS.holidays(h), name: h.name || '', date: h.date, fields: [] });
+  for (const v of patch.vacations?.add || [])
+    out.push({
+      kind: 'absence',
+      op: 'add',
+      id: VALUE_LISTS.vacations(v),
+      person: v.person,
+      from: v.from,
+      to: v.to,
+      note: v.note || '',
+      fields: [],
+    });
+  for (const v of patch.vacations?.del || [])
+    out.push({
+      kind: 'absence',
+      op: 'remove',
+      id: VALUE_LISTS.vacations(v),
+      person: v.person,
+      from: v.from,
+      to: v.to,
+      note: v.note || '',
+      fields: [],
+    });
+  for (const h of patch.holidays?.add || [])
+    out.push({ kind: 'holiday', op: 'add', id: VALUE_LISTS.holidays(h), name: h.name || '', date: h.date, fields: [] });
+  for (const h of patch.holidays?.del || [])
+    out.push({ kind: 'holiday', op: 'remove', id: VALUE_LISTS.holidays(h), name: h.name || '', date: h.date, fields: [] });
 
   const queueKeys = new Set([...Object.keys(patch.queues?.set || {}), ...(patch.queues?.del || [])]);
   for (const key of queueKeys) {
-    out.push({ kind: 'order', op: 'change', id: key, fields: [{ key: 'order', from: base.personQueues?.[key] || null, to: work.personQueues?.[key] || null }] });
+    out.push({
+      kind: 'order',
+      op: 'change',
+      id: key,
+      fields: [{ key: 'order', from: base.personQueues?.[key] || null, to: work.personQueues?.[key] || null }],
+    });
   }
 
   const metaKeys = new Set([...Object.keys(patch.meta?.set || {}), ...(patch.meta?.del || [])]);
   for (const key of metaKeys) {
-    out.push({ kind: 'setting', op: 'change', id: `meta.${key}`, name: key, fields: [{ key, from: base.meta?.[key], to: work.meta?.[key] }] });
+    out.push({
+      kind: 'setting',
+      op: 'change',
+      id: `meta.${key}`,
+      name: key,
+      fields: [{ key, from: base.meta?.[key], to: work.meta?.[key] }],
+    });
   }
   for (const key of [...Object.keys(patch.top || {}), ...(patch.topDel || [])]) {
     out.push({ kind: 'setting', op: 'change', id: `top.${key}`, name: key, fields: [] });
@@ -425,11 +487,18 @@ export function revertChange(patch, change) {
       }
     }
     if (change.op === 'remove' && next.del) next.del = next.del.filter(x => x !== id && !below(x));
-    if (next.set) { next.set = { ...next.set }; delete next.set[id]; }
-    if (next.unset) { next.unset = { ...next.unset }; delete next.unset[id]; }
+    if (next.set) {
+      next.set = { ...next.set };
+      delete next.set[id];
+    }
+    if (next.unset) {
+      next.unset = { ...next.unset };
+      delete next.unset[id];
+    }
     for (const k of ['add', 'del']) if (next[k] && !next[k].length) delete next[k];
     for (const k of ['set', 'unset']) if (next[k] && isEmptyObj(next[k])) delete next[k];
-    if (isEmptyObj(next)) delete out[key]; else out[key] = next;
+    if (isEmptyObj(next)) delete out[key];
+    else out[key] = next;
   };
   if (change.kind === 'item') dropFromIdList('tree', change.id);
   else if (change.kind === 'person') dropFromIdList('members', change.id);
@@ -444,24 +513,48 @@ export function revertChange(patch, change) {
         ...(d.del ? { del: d.del.filter(e => keyOf(e) !== change.id) } : {}),
       };
       for (const k of ['add', 'del']) if (next[k] && !next[k].length) delete next[k];
-      if (isEmptyObj(next)) delete out[key]; else out[key] = next;
+      if (isEmptyObj(next)) delete out[key];
+      else out[key] = next;
     }
   } else if (change.kind === 'order' && out.queues) {
     const next = { ...out.queues };
-    if (next.set) { next.set = { ...next.set }; delete next.set[change.id]; if (isEmptyObj(next.set)) delete next.set; }
-    if (next.del) { next.del = next.del.filter(k => k !== change.id); if (!next.del.length) delete next.del; }
-    if (isEmptyObj(next)) delete out.queues; else out.queues = next;
+    if (next.set) {
+      next.set = { ...next.set };
+      delete next.set[change.id];
+      if (isEmptyObj(next.set)) delete next.set;
+    }
+    if (next.del) {
+      next.del = next.del.filter(k => k !== change.id);
+      if (!next.del.length) delete next.del;
+    }
+    if (isEmptyObj(next)) delete out.queues;
+    else out.queues = next;
   } else if (change.kind === 'setting') {
     if (change.id.startsWith('meta.') && out.meta) {
       const key = change.id.slice(5);
       const next = { ...out.meta };
-      if (next.set) { next.set = { ...next.set }; delete next.set[key]; if (isEmptyObj(next.set)) delete next.set; }
-      if (next.del) { next.del = next.del.filter(k => k !== key); if (!next.del.length) delete next.del; }
-      if (isEmptyObj(next)) delete out.meta; else out.meta = next;
+      if (next.set) {
+        next.set = { ...next.set };
+        delete next.set[key];
+        if (isEmptyObj(next.set)) delete next.set;
+      }
+      if (next.del) {
+        next.del = next.del.filter(k => k !== key);
+        if (!next.del.length) delete next.del;
+      }
+      if (isEmptyObj(next)) delete out.meta;
+      else out.meta = next;
     } else if (change.id.startsWith('top.')) {
       const key = change.id.slice(4);
-      if (out.top) { out.top = { ...out.top }; delete out.top[key]; if (isEmptyObj(out.top)) delete out.top; }
-      if (out.topDel) { out.topDel = out.topDel.filter(k => k !== key); if (!out.topDel.length) delete out.topDel; }
+      if (out.top) {
+        out.top = { ...out.top };
+        delete out.top[key];
+        if (isEmptyObj(out.top)) delete out.top;
+      }
+      if (out.topDel) {
+        out.topDel = out.topDel.filter(k => k !== key);
+        if (!out.topDel.length) delete out.topDel;
+      }
     }
   }
   return isEmptyObj(out) ? null : out;
@@ -501,7 +594,10 @@ function mapPatchRefs(patch, fn) {
   const one = (kind, v) => {
     if (typeof v !== 'string' || !v) return v;
     const r = fn(kind, v);
-    if (r == null) { lost.n++; return null; }
+    if (r == null) {
+      lost.n++;
+      return null;
+    }
     return r;
   };
   const many = (kind, arr) => (Array.isArray(arr) ? arr.map(v => one(kind, v)).filter(v => v != null) : arr);
@@ -539,7 +635,9 @@ function mapPatchRefs(patch, fn) {
     if ('teams' in o) o.teams = many('team', o.teams);
     if ('meetingPlanIds' in o) o.meetingPlanIds = many('plan', o.meetingPlanIds);
     if (Array.isArray(o.meetingChanges)) {
-      o.meetingChanges = o.meetingChanges.map(c => ('meetingPlanIds' in (c || {}) ? { ...c, meetingPlanIds: many('plan', c.meetingPlanIds) } : c));
+      o.meetingChanges = o.meetingChanges.map(c =>
+        'meetingPlanIds' in (c || {}) ? { ...c, meetingPlanIds: many('plan', c.meetingPlanIds) } : c,
+      );
     }
     return o;
   };
@@ -561,8 +659,10 @@ function mapPatchRefs(patch, fn) {
       for (const [id, v] of Object.entries(d[part])) {
         const key = kind ? one(kind, id) : id;
         if (key == null) continue;
-        if (part === 'set') { const { id: _id, ...rest } = each({ ...v }); entries.push([key, rest]); }
-        else entries.push([key, v]);
+        if (part === 'set') {
+          const { id: _id, ...rest } = each({ ...v });
+          entries.push([key, rest]);
+        } else entries.push([key, v]);
       }
       if (entries.length) o[part] = Object.fromEntries(entries);
     }
@@ -570,7 +670,10 @@ function mapPatchRefs(patch, fn) {
     return isEmptyObj(o) ? null : o;
   };
   const out = { ...patch };
-  const put = (key, value) => { if (value == null || isEmptyObj(value)) delete out[key]; else out[key] = value; };
+  const put = (key, value) => {
+    if (value == null || isEmptyObj(value)) delete out[key];
+    else out[key] = value;
+  };
   if (patch.tree) put('tree', idList(patch.tree, null, node));
   if (patch.members) put('members', idList(patch.members, 'member', member));
   if (patch.teams) put('teams', idList(patch.teams, 'team', team));
@@ -586,20 +689,30 @@ function mapPatchRefs(patch, fn) {
   if (patch.queues) {
     const q = {};
     if (patch.queues.set) {
-      const entries = Object.entries(patch.queues.set).map(([k, ids]) => [queueKey(k), ids]).filter(([k]) => k != null);
+      const entries = Object.entries(patch.queues.set)
+        .map(([k, ids]) => [queueKey(k), ids])
+        .filter(([k]) => k != null);
       if (entries.length) q.set = Object.fromEntries(entries);
     }
-    if (patch.queues.del) { const del = patch.queues.del.map(queueKey).filter(k => k != null); if (del.length) q.del = del; }
+    if (patch.queues.del) {
+      const del = patch.queues.del.map(queueKey).filter(k => k != null);
+      if (del.length) q.del = del;
+    }
     put('queues', q);
   }
   if (patch.top) {
     const top = { ...patch.top };
     if (Array.isArray(top.changes)) top.changes = mapChanges(top.changes, one, many);
-    if (Array.isArray(top.meetingPlans)) top.meetingPlans = top.meetingPlans.map(p => ({ ...p, id: one('plan', p.id) })).filter(p => p.id != null);
+    if (Array.isArray(top.meetingPlans))
+      top.meetingPlans = top.meetingPlans.map(p => ({ ...p, id: one('plan', p.id) })).filter(p => p.id != null);
     if (Array.isArray(top.taskTemplates)) {
       top.taskTemplates = top.taskTemplates.map(tpl => ({
         ...tpl,
-        phases: (tpl.phases || []).map(p => ({ ...p, ...('teams' in p ? { teams: many('team', p.teams) } : {}), ...('team' in p ? { team: one('team', p.team) ?? '' } : {}) })),
+        phases: (tpl.phases || []).map(p => ({
+          ...p,
+          ...('teams' in p ? { teams: many('team', p.teams) } : {}),
+          ...('team' in p ? { team: one('team', p.team) ?? '' } : {}),
+        })),
       }));
     }
     out.top = top;
@@ -639,7 +752,9 @@ export function formatChangesBlock(changes, base) {
   const table = { member: members, team: teams, plan: plans };
   const one = (kind, id) => table[kind].get(id) ?? id;
   const many = (kind, arr) => (Array.isArray(arr) ? arr.map(v => one(kind, v)) : arr);
-  return mapChanges(changes, one, many).map(c => JSON.stringify({ from: c.from, patch: c.patch })).join('\n');
+  return mapChanges(changes, one, many)
+    .map(c => JSON.stringify({ from: c.from, patch: c.patch }))
+    .join('\n');
 }
 
 export function parseChangesBlock(text, base) {
@@ -655,7 +770,11 @@ export function parseChangesBlock(text, base) {
     const trimmed = line.trim();
     if (!trimmed || trimmed === 'v1') continue;
     let c;
-    try { c = JSON.parse(trimmed); } catch { continue; }
+    try {
+      c = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
     if (c && /^\d{4}-\d{2}-\d{2}$/.test(c.from || '') && c.patch) raw.push({ from: c.from, patch: c.patch });
   }
   return mapChanges(raw, one, many).sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
@@ -705,14 +824,19 @@ export function fromPortablePatch(portable, base) {
 // One scenario per line, as JSON: machine-written, human-skimmable, and a
 // merge conflict stays inside the one scenario that caused it.
 export function formatScenariosBlock(scenarios, base) {
-  return (scenarios || []).map(s => JSON.stringify({
-    id: s.id, name: s.name || '',
-    ...(s.note ? { note: s.note } : {}),
-    ...(s.createdAt ? { createdAt: s.createdAt } : {}),
-    ...(s.updatedAt ? { updatedAt: s.updatedAt } : {}),
-    ...(Number.isFinite(s.changes) ? { changes: s.changes } : {}),
-    patch: toPortablePatch(s.patch, base),
-  })).join('\n');
+  return (scenarios || [])
+    .map(s =>
+      JSON.stringify({
+        id: s.id,
+        name: s.name || '',
+        ...(s.note ? { note: s.note } : {}),
+        ...(s.createdAt ? { createdAt: s.createdAt } : {}),
+        ...(s.updatedAt ? { updatedAt: s.updatedAt } : {}),
+        ...(Number.isFinite(s.changes) ? { changes: s.changes } : {}),
+        patch: toPortablePatch(s.patch, base),
+      }),
+    )
+    .join('\n');
 }
 
 export function parseScenariosBlock(text, base) {
@@ -721,11 +845,16 @@ export function parseScenariosBlock(text, base) {
     const trimmed = line.trim();
     if (!trimmed || trimmed === 'v1') continue;
     let raw;
-    try { raw = JSON.parse(trimmed); } catch { continue; }
+    try {
+      raw = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
     if (!raw || typeof raw !== 'object' || !raw.id) continue;
     const { patch, lost } = fromPortablePatch(raw.patch, base);
     out.push({
-      id: String(raw.id), name: String(raw.name || ''),
+      id: String(raw.id),
+      name: String(raw.name || ''),
       ...(raw.note ? { note: String(raw.note) } : {}),
       ...(raw.createdAt ? { createdAt: raw.createdAt } : {}),
       ...(raw.updatedAt ? { updatedAt: raw.updatedAt } : {}),

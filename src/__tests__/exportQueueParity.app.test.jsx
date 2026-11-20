@@ -19,7 +19,10 @@ const captured = [];
 vi.mock('pdfmake/build/pdfmake', () => ({
   default: {
     addVirtualFileSystem: () => {},
-    createPdf: (dd) => { captured.push(dd); return { download: () => {} }; },
+    createPdf: dd => {
+      captured.push(dd);
+      return { download: () => {} };
+    },
   },
 }));
 vi.mock('pdfmake/build/vfs_fonts', () => ({ default: { pdfMake: { vfs: {} } }, pdfMake: { vfs: {} }, vfs: {} }));
@@ -37,7 +40,8 @@ const PLAN = {
   ],
   members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
   teams: [{ id: 'T1', name: 'Team Eins', color: '#3b82f6' }],
-  vacations: [], meetingPlans: [],
+  vacations: [],
+  meetingPlans: [],
   meta: { name: 'Queue-Parity', planStart: '2026-01-05', planEnd: '2027-06-30' },
 };
 
@@ -52,8 +56,14 @@ function seed(personQueues) {
 // Every string pdfmake would draw, in document order.
 function pdfText(node, out = []) {
   if (node == null) return out;
-  if (Array.isArray(node)) { node.forEach(n => pdfText(n, out)); return out; }
-  if (typeof node === 'string') { out.push(node); return out; }
+  if (Array.isArray(node)) {
+    node.forEach(n => pdfText(n, out));
+    return out;
+  }
+  if (typeof node === 'string') {
+    out.push(node);
+    return out;
+  }
   if (typeof node === 'object') {
     if (typeof node.text === 'string') out.push(node.text);
     else if (node.text) pdfText(node.text, out);
@@ -66,15 +76,20 @@ function pdfText(node, out = []) {
 }
 
 const cardButton = title => {
-  const card = [...document.querySelectorAll('div')]
-    .find(el => el.textContent.trim().startsWith(title) && el.querySelector('button'));
+  const card = [...document.querySelectorAll('div')].find(el => el.textContent.trim().startsWith(title) && el.querySelector('button'));
   return card?.querySelector('button');
 };
 
 // The "what comes when" PDF is the one a stakeholder reads for dates, so it is
 // the sharpest place to catch a schedule/export split.
 async function exportWhatWhen() {
-  render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
   const btn = await waitFor(() => {
     const b = cardButton('PDF') || [...document.querySelectorAll('button')].find(x => x.textContent === 'PDF');
     if (!b) throw new Error('export cards not rendered');
@@ -83,14 +98,25 @@ async function exportWhatWhen() {
   expect(btn).toBeTruthy();
   const all = [...document.querySelectorAll('button')].filter(b => b.textContent === 'PDF');
   // Card order in ExportCards.jsx: summary, gantt, what-when, todo.
-  await act(async () => { fireEvent.click(all[2]); });
-  await waitFor(() => { if (!captured.length) throw new Error('no pdf'); });
+  await act(async () => {
+    fireEvent.click(all[2]);
+  });
+  await waitFor(() => {
+    if (!captured.length) throw new Error('no pdf');
+  });
   return pdfText(captured[0].content).join(' | ');
 }
 
 describe('the work order reaches the PDF', () => {
-  beforeEach(() => { captured.length = 0; });
-  afterEach(() => { cleanup(); captured.length = 0; localStorage.clear(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    captured.length = 0;
+  });
+  afterEach(() => {
+    cleanup();
+    captured.length = 0;
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
 
   it('changes the exported order, exactly as it changes the screen', async () => {
     seed(null);
@@ -104,11 +130,12 @@ describe('the work order reaches the PDF', () => {
     // This PDF lists top-level topics by projected completion, which is
     // exactly the level a stakeholder reads — and the level the work order
     // visibly moves.
-    const orderIn = txt => ['Projekt Alpha', 'Projekt Beta']
-      .map(n => [n, txt.indexOf(n)])
-      .filter(([, i]) => i >= 0)
-      .sort((a, b) => a[1] - b[1])
-      .map(([n]) => n);
+    const orderIn = txt =>
+      ['Projekt Alpha', 'Projekt Beta']
+        .map(n => [n, txt.indexOf(n)])
+        .filter(([, i]) => i >= 0)
+        .sort((a, b) => a[1] - b[1])
+        .map(([n]) => n);
 
     // Without a queue the tree decides: Alpha's two items before Beta's one,
     // so Alpha finishes first.
@@ -127,18 +154,36 @@ describe('the work order reaches the PDF', () => {
     localStorage.setItem('planr_lang', 'de');
     localStorage.setItem('planr_tour_done', '1');
     localStorage.setItem('planr_tab', 'summary');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...PLAN,
-      tree: [
-        ...PLAN.tree,
-        { id: 'A.3', name: 'Alpha drei', status: 'done', team: 'T1', best: 5, factor: 1, assign: ['M1'],
-          completedStart: '2026-01-05', completedEnd: '2026-01-09' },
-        { id: 'B.2', name: 'Beta zwei, verworfen', status: 'open', team: 'T1', best: 40, factor: 1, assign: ['M1'], dropped: true },
-      ],
-      personQueues: { M1: ['B.1', 'A.1', 'A.2'] },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...PLAN,
+        tree: [
+          ...PLAN.tree,
+          {
+            id: 'A.3',
+            name: 'Alpha drei',
+            status: 'done',
+            team: 'T1',
+            best: 5,
+            factor: 1,
+            assign: ['M1'],
+            completedStart: '2026-01-05',
+            completedEnd: '2026-01-09',
+          },
+          { id: 'B.2', name: 'Beta zwei, verworfen', status: 'open', team: 'T1', best: 40, factor: 1, assign: ['M1'], dropped: true },
+        ],
+        personQueues: { M1: ['B.1', 'A.1', 'A.2'] },
+      }),
+    );
 
-    const { container } = render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    const { container } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     const onScreen = await waitFor(() => {
       const el = container.querySelector('[data-testid="overview-progress"]');
       if (!el) throw new Error('no headline on the Overview');
@@ -146,16 +191,22 @@ describe('the work order reaches the PDF', () => {
     });
 
     await act(async () => {
-      fireEvent.mouseDown([...document.querySelectorAll('.tab')]
-        .find(el => (el.firstChild?.textContent || '').trim().startsWith('Bericht')), { button: 0 });
+      fireEvent.mouseDown(
+        [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim().startsWith('Bericht')),
+        { button: 0 },
+      );
     });
     const btns = await waitFor(() => {
       const b = [...document.querySelectorAll('button')].filter(x => x.textContent === 'PDF');
       if (b.length < 3) throw new Error('export cards not rendered');
       return b;
     });
-    await act(async () => { fireEvent.click(btns[0]); }); // Management Summary
-    await waitFor(() => { if (!captured.length) throw new Error('no pdf'); });
+    await act(async () => {
+      fireEvent.click(btns[0]);
+    }); // Management Summary
+    await waitFor(() => {
+      if (!captured.length) throw new Error('no pdf');
+    });
 
     const pcts = pdfText(captured[0].content).filter(x => /^\d+(\.\d+)?%$/.test(x));
     expect(pcts.length).toBeGreaterThan(0);
@@ -172,8 +223,14 @@ describe('the work order reaches the PDF', () => {
 // Management Summary PDF. Dropped work must leave both fractions, or the PDF
 // shows a projection that silently still counts work nobody will do.
 describe('dropped work leaves the forward projection too', () => {
-  beforeEach(() => { captured.length = 0; });
-  afterEach(() => { cleanup(); captured.length = 0; localStorage.clear(); });
+  beforeEach(() => {
+    captured.length = 0;
+  });
+  afterEach(() => {
+    cleanup();
+    captured.length = 0;
+    localStorage.clear();
+  });
 
   const seedFinishedExceptDropped = () => {
     localStorage.clear();
@@ -181,21 +238,38 @@ describe('dropped work leaves the forward projection too', () => {
     localStorage.setItem('planr_tour_done', '1');
     localStorage.setItem('planr_tab', 'summary');
     localStorage.setItem('planr_horizon', '90');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...PLAN,
-      tree: [
-        { id: 'A', name: 'Projekt Alpha', status: 'wip', team: 'T1' },
-        { id: 'A.1', name: 'Alpha eins', status: 'done', team: 'T1', best: 10, factor: 1, assign: ['M1'],
-          completedStart: '2026-01-05', completedEnd: '2026-01-16' },
-        { id: 'A.2', name: 'Alpha zwei, verworfen', status: 'open', team: 'T1', best: 90, factor: 1,
-          assign: ['M1'], dropped: true },
-      ],
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...PLAN,
+        tree: [
+          { id: 'A', name: 'Projekt Alpha', status: 'wip', team: 'T1' },
+          {
+            id: 'A.1',
+            name: 'Alpha eins',
+            status: 'done',
+            team: 'T1',
+            best: 10,
+            factor: 1,
+            assign: ['M1'],
+            completedStart: '2026-01-05',
+            completedEnd: '2026-01-16',
+          },
+          { id: 'A.2', name: 'Alpha zwei, verworfen', status: 'open', team: 'T1', best: 90, factor: 1, assign: ['M1'], dropped: true },
+        ],
+      }),
+    );
   };
 
   it('a project whose only open work was dropped reads done in both figures', async () => {
     seedFinishedExceptDropped();
-    const { container } = render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    const { container } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     const now = await waitFor(() => {
       const el = container.querySelector('[data-testid="overview-progress"]');
       if (!el) throw new Error('no headline');

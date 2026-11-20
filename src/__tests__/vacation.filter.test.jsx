@@ -20,18 +20,36 @@ const vacations = [
 
 const noop = () => {};
 const baseProps = {
-  members, teams, vacations, meetingPlans: [],
-  onMeetingPlansUpd: noop, onUpd: noop, onAdd: noop, onClone: noop, onDel: noop,
-  onVac: noop, onTeamUpd: noop, onTeamAdd: noop, onTeamDel: noop,
+  members,
+  teams,
+  vacations,
+  meetingPlans: [],
+  onMeetingPlansUpd: noop,
+  onUpd: noop,
+  onAdd: noop,
+  onClone: noop,
+  onDel: noop,
+  onVac: noop,
+  onTeamUpd: noop,
+  onTeamAdd: noop,
+  onTeamDel: noop,
 };
 function wrap(ui) {
-  return render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+  return render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 }
 
 describe('Vacation filter', () => {
   beforeEach(() => {
     cleanup();
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('shows all vacations by default and switches to vacations section', () => {
@@ -45,7 +63,11 @@ describe('Vacation filter', () => {
   });
 
   it('narrows by year filter', () => {
-    try { localStorage.setItem('planr_vac_year', '2026'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_vac_year', '2026');
+    } catch {
+      /* ignore */
+    }
     wrap(<ResView {...baseProps} />);
     fireEvent.click(screen.getByRole('button', { name: /Urlaub|Vacation/ }));
     expect(screen.queryByText('A 2025')).toBeNull();
@@ -54,7 +76,11 @@ describe('Vacation filter', () => {
   });
 
   it('narrows by member filter', () => {
-    try { localStorage.setItem('planr_vac_member', 'M1'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('planr_vac_member', 'M1');
+    } catch {
+      /* ignore */
+    }
     wrap(<ResView {...baseProps} />);
     fireEvent.click(screen.getByRole('button', { name: /Urlaub|Vacation/ }));
     expect(screen.queryByText('A 2025')).toBeTruthy();
@@ -66,7 +92,9 @@ describe('Vacation filter', () => {
     try {
       localStorage.setItem('planr_vac_member', 'M1');
       localStorage.setItem('planr_vac_year', '2026');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     wrap(<ResView {...baseProps} />);
     fireEvent.click(screen.getByRole('button', { name: /Urlaub|Vacation/ }));
     expect(screen.queryByText('A 2025')).toBeNull();

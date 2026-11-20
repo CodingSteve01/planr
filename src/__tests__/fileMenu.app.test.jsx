@@ -17,21 +17,30 @@ import { openPalette } from './openPalette.js';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'File menu', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1.5, assign: [], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'File menu', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 describe('the file operations have a visible home', () => {
   beforeEach(() => {
@@ -42,7 +51,9 @@ describe('the file operations have a visible home', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('is reachable from the topbar without touching the keyboard', async () => {
     renderApp();
@@ -129,7 +140,9 @@ describe('the palette is scannable, not a wall of text', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('gives every command an icon', async () => {
     renderApp();

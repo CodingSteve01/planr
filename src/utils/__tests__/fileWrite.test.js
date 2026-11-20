@@ -11,7 +11,12 @@ function handle(failures, permission = 'granted') {
     createWritable: async () => {
       state.tries++;
       if (state.tries <= failures) throw new DOMException('busy', 'NoModificationAllowedError');
-      return { write: async c => { state.written = c; }, close: async () => {} };
+      return {
+        write: async c => {
+          state.written = c;
+        },
+        close: async () => {},
+      };
     },
   };
 }
@@ -27,7 +32,12 @@ describe('writing a file a sync service is touching', () => {
   test('waits between the attempts, and not before the first', async () => {
     const waits = [];
     const h = handle(2);
-    await writeWithRetry(h, 'plan', { delays: [0, 10, 20], sleep: async ms => { waits.push(ms); } });
+    await writeWithRetry(h, 'plan', {
+      delays: [0, 10, 20],
+      sleep: async ms => {
+        waits.push(ms);
+      },
+    });
     expect(waits).toEqual([10, 20]);
   });
 
@@ -40,27 +50,53 @@ describe('writing a file a sync service is touching', () => {
   test('a busy file is still writable; a lost permission is not', async () => {
     expect(await stillWritable(handle(9))).toBe(true);
     expect(await stillWritable(handle(0, 'prompt'))).toBe(false);
-    expect(await stillWritable({ queryPermission: async () => { throw new Error('gone'); } })).toBe(false);
+    expect(
+      await stillWritable({
+        queryPermission: async () => {
+          throw new Error('gone');
+        },
+      }),
+    ).toBe(false);
     // A host without the permission API (the plugin's own file object).
     expect(await stillWritable({})).toBe(true);
   });
 
   test('a file that is gone is reported at once, not waited for', async () => {
     const state = { tries: 0 };
-    const gone = { createWritable: async () => { state.tries++; throw new DOMException('gone', 'NotFoundError'); } };
+    const gone = {
+      createWritable: async () => {
+        state.tries++;
+        throw new DOMException('gone', 'NotFoundError');
+      },
+    };
     await expect(writeWithRetry(gone, 'plan', { sleep: noSleep })).rejects.toThrow('gone');
     expect(state.tries).toBe(1);
-    expect([isBusy(new DOMException('x', 'NoModificationAllowedError')), isBusy(new DOMException('x', 'NotFoundError')), isBusy(new DOMException('x', 'NotAllowedError')), isBusy(new DOMException('x', 'InvalidStateError')), isBusy(null)])
-      .toEqual([true, false, false, false, false]);
+    expect([
+      isBusy(new DOMException('x', 'NoModificationAllowedError')),
+      isBusy(new DOMException('x', 'NotFoundError')),
+      isBusy(new DOMException('x', 'NotAllowedError')),
+      isBusy(new DOMException('x', 'InvalidStateError')),
+      isBusy(null),
+    ]).toEqual([true, false, false, false, false]);
   });
 
   test('a stream that failed half way is thrown away before the next attempt', async () => {
     const aborted = [];
     let tries = 0;
-    const h = { createWritable: async () => {
-      const n = ++tries;
-      return { write: async () => { if (n === 1) throw new DOMException('busy', 'NoModificationAllowedError'); }, close: async () => {}, abort: async () => { aborted.push(n); } };
-    } };
+    const h = {
+      createWritable: async () => {
+        const n = ++tries;
+        return {
+          write: async () => {
+            if (n === 1) throw new DOMException('busy', 'NoModificationAllowedError');
+          },
+          close: async () => {},
+          abort: async () => {
+            aborted.push(n);
+          },
+        };
+      },
+    };
     await writeWithRetry(h, 'plan', { sleep: noSleep });
     expect(aborted).toEqual([1]);
     expect(tries).toBe(2);

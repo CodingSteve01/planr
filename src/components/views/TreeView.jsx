@@ -22,7 +22,9 @@ import { setDragBadge } from '../../utils/dragBadge.js';
 import { withKey, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
-function depth(id) { return id.split('.').length; }
+function depth(id) {
+  return id.split('.').length;
+}
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 // Four marks from one family. Priority 1 used to be a media-control glyph, which macOS and
@@ -49,7 +51,10 @@ const NON_TEXT_INPUT = new Set(['checkbox', 'radio', 'button', 'submit', 'reset'
 export function stickyTops(heights) {
   const tops = [];
   let acc = 0;
-  for (const h of heights) { tops.push(acc); acc += h > 0 ? h : 0; }
+  for (const h of heights) {
+    tops.push(acc);
+    acc += h > 0 ? h : 0;
+  }
   tops.push(acc);
   return tops;
 }
@@ -83,7 +88,52 @@ export function isTypingTarget(el) {
   return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
 }
 
-function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, rootFilter, personFilter, stats, teams, members, scheduled, cpSet, cpLabels = {}, customFields, sizes = [], historyEvents = [], sinceDays = '', persistSince, sinceDate = null, diff = null, onlyChanged = false, horizonIds = null, horizonEnd = null, horizonOnlyPlanned = true, roadmapAssignment = null, onDelete, onTaskUpdate, onClearSelection, onOpenBulkEdit, onMove, onCommand, onCommandMany, onDropRows, onSelectAll, onRevealHidden, onInsertAfter, onInsertChild, onBulkDelete, onPasteRows, onFullEdit, editorInDialog = false, showIds = true, changedIds = null }) {
+function TreeViewImpl({
+  tree,
+  selected,
+  multiSel,
+  onSelect,
+  search,
+  teamFilter,
+  rootFilter,
+  personFilter,
+  stats,
+  teams,
+  members,
+  scheduled,
+  cpSet,
+  cpLabels = {},
+  customFields,
+  sizes = [],
+  historyEvents = [],
+  sinceDays = '',
+  persistSince,
+  sinceDate = null,
+  diff = null,
+  onlyChanged = false,
+  horizonIds = null,
+  horizonEnd = null,
+  horizonOnlyPlanned = true,
+  roadmapAssignment = null,
+  onDelete,
+  onTaskUpdate,
+  onClearSelection,
+  onOpenBulkEdit,
+  onMove,
+  onCommand,
+  onCommandMany,
+  onDropRows,
+  onSelectAll,
+  onRevealHidden,
+  onInsertAfter,
+  onInsertChild,
+  onBulkDelete,
+  onPasteRows,
+  onFullEdit,
+  editorInDialog = false,
+  showIds = true,
+  changedIds = null,
+}) {
   const { t } = useT();
   const statusLbl = { open: t('tv.statusOpen'), wip: t('tv.statusWip'), done: t('tv.statusDone') };
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
@@ -130,9 +180,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (editing?.id && editInputRef.current) {
       // ⇧Tab from the row below arrives at this row's LAST field, so ⇧Tab
       // walks back through every field exactly as Tab walks forward.
-      const fields = editing.at === 'last'
-        ? [...(editInputRef.current.closest('tr')?.querySelectorAll('input[data-testid^="tree-edit-"]') || [])]
-        : [];
+      const fields =
+        editing.at === 'last' ? [...(editInputRef.current.closest('tr')?.querySelectorAll('input[data-testid^="tree-edit-"]') || [])] : [];
       const target = fields[fields.length - 1] || editInputRef.current;
       target.focus();
       if (target === editInputRef.current) target.select();
@@ -143,21 +192,29 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // diff bag flow in from App.jsx so every view stays in sync. We still
   // resolve the per-leaf past state locally — used by the per-row diff badge
   // and the "Only changed" filter below.
-  const pastLeafState = useMemo(() => sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : (diff?.pastLeafState || null), [historyEvents, sinceDate, diff]);
+  const pastLeafState = useMemo(
+    () => (sinceDate && historyEvents.length ? stateAsOf(historyEvents, sinceDate) : diff?.pastLeafState || null),
+    [historyEvents, sinceDate, diff],
+  );
   // "Only with changes" filter — global state, set inside ViewFilters
   // popup. When on, hide every leaf whose state matches the cutoff (no new,
   // done-in-window, or progress jump). Parents kept when they have at least
   // one matching descendant so the tree shape reads.
   // Per-row diff: returns null when no change, else badge descriptor.
-  const computeDiffBadge = (r) => {
+  const computeDiffBadge = r => {
     if (!pastLeafState) return null;
     const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
     if (!isLeaf) return null;
     const past = pastLeafState.get(r.id);
     const nowStatus = r.status || 'open';
-    const nowProg = typeof r.progress === 'number' ? r.progress : (nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0);
+    const nowProg = typeof r.progress === 'number' ? r.progress : nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0;
     if (!past) return { kind: 'new', label: t('diff.labelNew'), tip: t('diff.tipNew') };
-    if (past.status !== 'done' && nowStatus === 'done') return { kind: 'done', label: t('diff.labelDone'), tip: r.completedAt ? t('diff.tipDone') + ' (' + r.completedAt + ')' : t('diff.tipDone') };
+    if (past.status !== 'done' && nowStatus === 'done')
+      return {
+        kind: 'done',
+        label: t('diff.labelDone'),
+        tip: r.completedAt ? t('diff.tipDone') + ' (' + r.completedAt + ')' : t('diff.tipDone'),
+      };
     if (nowProg > (past.progress || 0)) {
       const delta = Math.round(nowProg - (past.progress || 0));
       if (delta >= 1) return { kind: 'progress', label: `+${delta}%`, tip: t('diff.tipProgress', past.progress || 0, nowProg) };
@@ -177,7 +234,6 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       }
     }
     return keep;
-     
   }, [onlyChanged, pastLeafState, tree]);
 
   // Parent-then-children, displayOrder-aware sort — see utils/treeEdit.js
@@ -217,15 +273,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   function keepRowInView(row) {
     if (!row) return;
     const box = scrollParentOf(row);
-    if (!box) { row.scrollIntoView({ behavior: 'auto', block: 'nearest' }); return; }
+    if (!box) {
+      row.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      return;
+    }
     const rowRect = row.getBoundingClientRect();
     const boxRect = box.getBoundingClientRect();
     // The table head sticks to the top of the scroller; anything under it is
     // as invisible as anything above the scroller itself.
     const headRect = box.querySelector('.tree-tbl thead')?.getBoundingClientRect();
     const delta = scrollAdjustment({
-      rowTop: rowRect.top, rowBottom: rowRect.bottom,
-      boxTop: boxRect.top, boxBottom: boxRect.bottom,
+      rowTop: rowRect.top,
+      rowBottom: rowRect.bottom,
+      boxTop: boxRect.top,
+      boxBottom: boxRect.bottom,
       headBottom: headRect?.bottom ?? null,
       margin: ROW_MARGIN,
     });
@@ -241,29 +302,53 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       const anc = parts.slice(0, i).join('.');
       if (collapsed.has(anc)) toExpand.push(anc);
     }
-    if (toExpand.length) setCollapsed(s => { const n = new Set(s); toExpand.forEach(a => n.delete(a)); return n; });
+    if (toExpand.length)
+      setCollapsed(s => {
+        const n = new Set(s);
+        toExpand.forEach(a => n.delete(a));
+        return n;
+      });
     setTimeout(() => keepRowInView(selRef.current), 50);
   }, [selected?.id]);
 
   // Scroll to first search match whenever the query changes (and the filtered list updates).
   useEffect(() => {
     if (!search) return;
-    setTimeout(() => { firstMatchRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' }); }, 50);
+    setTimeout(() => {
+      firstMatchRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }, 50);
   }, [search]);
 
-  const toggle = (id) => setCollapsed(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = id =>
+    setCollapsed(s => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
   // If there's a selection, collapse/expand only acts on selected items + their descendants. Otherwise, all items.
   const targetIds = () => {
     if (!multiSel || multiSel.size === 0) return tree.filter(r => hasChildren(tree, r.id)).map(r => r.id);
     const ids = new Set();
     multiSel.forEach(id => {
       if (hasChildren(tree, id)) ids.add(id);
-      tree.forEach(r => { if (r.id.startsWith(id + '.') && hasChildren(tree, r.id)) ids.add(r.id); });
+      tree.forEach(r => {
+        if (r.id.startsWith(id + '.') && hasChildren(tree, r.id)) ids.add(r.id);
+      });
     });
     return [...ids];
   };
-  const collapseAll = () => setCollapsed(s => { const n = new Set(s); targetIds().forEach(id => n.add(id)); return n; });
-  const expandAll = () => setCollapsed(s => { const n = new Set(s); targetIds().forEach(id => n.delete(id)); return n; });
+  const collapseAll = () =>
+    setCollapsed(s => {
+      const n = new Set(s);
+      targetIds().forEach(id => n.add(id));
+      return n;
+    });
+  const expandAll = () =>
+    setCollapsed(s => {
+      const n = new Set(s);
+      targetIds().forEach(id => n.delete(id));
+      return n;
+    });
 
   // Every filter EXCEPT the collapse state. Kept apart from `filt` below
   // because the two answer different questions: a row inside a folded branch
@@ -279,7 +364,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       f.forEach(r => {
         if ((r.team || '') === teamFilter) {
           matchIds.add(r.id);
-          const parts = r.id.split('.'); for (let i = 1; i < parts.length; i++) { matchIds.add(parts.slice(0, i).join('.')); }
+          const parts = r.id.split('.');
+          for (let i = 1; i < parts.length; i++) {
+            matchIds.add(parts.slice(0, i).join('.'));
+          }
         }
       });
       f = f.filter(r => matchIds.has(r.id));
@@ -289,12 +377,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       f.forEach(r => {
         if ((r.assign || []).includes(personFilter)) {
           matchIds.add(r.id);
-          const parts = r.id.split('.'); for (let i = 1; i < parts.length; i++) { matchIds.add(parts.slice(0, i).join('.')); }
+          const parts = r.id.split('.');
+          for (let i = 1; i < parts.length; i++) {
+            matchIds.add(parts.slice(0, i).join('.'));
+          }
         }
       });
       f = f.filter(r => matchIds.has(r.id));
     }
-    if (search) { const q = search.toLowerCase(); f = f.filter(r => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.note || '').toLowerCase().includes(q)); }
+    if (search) {
+      const q = search.toLowerCase();
+      f = f.filter(r => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.note || '').toLowerCase().includes(q));
+    }
     if (diffKeepIds) {
       f = f.filter(r => diffKeepIds.has(r.id));
     }
@@ -343,23 +437,34 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
   // Resolve member ID to short initials with collision handling
   const shortMap = useMemo(() => {
-    const map = {}, counts = {};
+    const map = {},
+      counts = {};
     const bases = (members || []).map(m => {
       const words = (m.name || '').trim().split(/\s+/).filter(Boolean);
       if (!words.length) return '?';
-      return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : words.map(w => w[0]).join('').toUpperCase();
+      return words.length === 1
+        ? words[0].slice(0, 2).toUpperCase()
+        : words
+            .map(w => w[0])
+            .join('')
+            .toUpperCase();
     });
-    bases.forEach(b => { counts[b] = (counts[b] || 0) + 1; });
+    bases.forEach(b => {
+      counts[b] = (counts[b] || 0) + 1;
+    });
     const seen = {};
     (members || []).forEach((m, i) => {
       const base = bases[i];
       if (counts[base] === 1) map[m.id] = base;
-      else { seen[base] = (seen[base] || 0) + 1; map[m.id] = base + seen[base]; }
+      else {
+        seen[base] = (seen[base] || 0) + 1;
+        map[m.id] = base + seen[base];
+      }
     });
     return map;
   }, [members]);
-  const memberShort = (id) => shortMap[id] || '?';
-  const sMap = useMemo(() => scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}, [scheduled]);
+  const memberShort = id => shortMap[id] || '?';
+  const sMap = useMemo(() => (scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}), [scheduled]);
   // Effective team per node — own team falls back to nearest ancestor team.
   // Used to suppress the "● Team" pill when it is the same as the inherited
   // parent team (kills repeated "Backend" labels on every descendant row).
@@ -367,15 +472,15 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const m = {};
     sorted.forEach(node => {
       const pid = node.id.split('.').slice(0, -1).join('.');
-      const parentEff = pid ? (m[pid] || '') : '';
+      const parentEff = pid ? m[pid] || '' : '';
       m[node.id] = node.team || parentEff;
     });
     return m;
   }, [sorted]);
-  const memberFullName = (id) => (members || []).find(x => x.id === id)?.name || id;
-  const teamColor = (tid) => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
-  const teamName = (tid) => teams?.find(x => x.id === pt(tid))?.name || tid || '';
-  const fmtDate = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
+  const memberFullName = id => (members || []).find(x => x.id === id)?.name || id;
+  const teamColor = tid => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
+  const teamName = tid => teams?.find(x => x.id === pt(tid))?.name || tid || '';
+  const fmtDate = d => (d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '');
   const scheduleRangeById = useMemo(() => {
     const childrenByParent = {};
     tree.forEach(node => {
@@ -396,12 +501,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       if (!node) return null;
       const childIds = childrenByParent[id] || [];
       if (!childIds.length) {
-        const actual = node.status === 'done'
-          ? makeWindow(node.completedStart || node.completedAt, node.completedAt || node.completedEnd || node.completedStart)
-          : null;
-        const scheduledWindow = sMap[id]?.startD && sMap[id]?.endD
-          ? makeWindow(sMap[id].startD, sMap[id].endD)
-          : null;
+        const actual =
+          node.status === 'done'
+            ? makeWindow(node.completedStart || node.completedAt, node.completedAt || node.completedEnd || node.completedStart)
+            : null;
+        const scheduledWindow = sMap[id]?.startD && sMap[id]?.endD ? makeWindow(sMap[id].startD, sMap[id].endD) : null;
         map[id] = actual || scheduledWindow;
         return map[id];
       }
@@ -426,16 +530,16 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (!selected?.id) return null;
     const parts = selected.id.split('.');
     const isRoot = parts.length === 1;
-    const myPrefix = isRoot ? (selected.id.match(/^[A-Za-z]+/)?.[0] || '') : '';
-    const rank = r => typeof r.displayOrder === 'number'
-      ? r.displayOrder
-      : (parseInt(r.id.split('.').pop().replace(/\D/g, '')) || 0);
-    const siblings = tree.filter(x => {
-      if (isRoot) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
-      return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
-    }).sort((a, b) => {
-      return rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true });
-    });
+    const myPrefix = isRoot ? selected.id.match(/^[A-Za-z]+/)?.[0] || '' : '';
+    const rank = r => (typeof r.displayOrder === 'number' ? r.displayOrder : parseInt(r.id.split('.').pop().replace(/\D/g, '')) || 0);
+    const siblings = tree
+      .filter(x => {
+        if (isRoot) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
+        return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
+      })
+      .sort((a, b) => {
+        return rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true });
+      });
     const idx = siblings.findIndex(x => x.id === selected.id);
     return { idx, count: siblings.length };
   }, [selected?.id, tree]);
@@ -471,7 +575,9 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
-    bars.forEach(ref => { if (ref.current) ro.observe(ref.current); });
+    bars.forEach(ref => {
+      if (ref.current) ro.observe(ref.current);
+    });
     return () => ro.disconnect();
   }, [selected?.id, !!selPos]);
 
@@ -505,7 +611,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   };
   const onRowDragStart = (e, r) => {
     if (!onDropRows) return;
-    if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) { e.preventDefault(); return; }
+    if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
+      e.preventDefault();
+      return;
+    }
     const dragIds = dragIdsFor(r.id);
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
@@ -522,18 +631,27 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const position = dropZone(e, targetId);
     let valid = live.valid;
     if (live.targetId !== targetId || live.position !== position) {
-      valid = !!dropRows(liveTree, live.dragIds, { targetId, position }, rows.map(x => x.id));
+      valid = !!dropRows(
+        liveTree,
+        live.dragIds,
+        { targetId, position },
+        rows.map(x => x.id),
+      );
       const next = { ...live, targetId, position, valid };
       dragLive.current.orderDrop = next;
       setOrderDrop(next);
     }
-    if (valid) e.preventDefault();   // no preventDefault = the browser's "not here" cursor
+    if (valid) e.preventDefault(); // no preventDefault = the browser's "not here" cursor
   };
   const onOrderDrop = (e, targetId) => {
     const { orderDrop: live, filt: rows } = dragLive.current;
     if (!onDropRows || !live?.dragIds || live.targetId !== targetId || !live.valid) return;
     e.preventDefault();
-    const res = onDropRows(live.dragIds, { targetId, position: live.position }, rows.map(x => x.id));
+    const res = onDropRows(
+      live.dragIds,
+      { targetId, position: live.position },
+      rows.map(x => x.id),
+    );
     if (res?.idMap) {
       setCollapsed(c => {
         const n = remapIds(c, res.idMap);
@@ -546,13 +664,29 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   };
   // `shortcutId` names the ⌘⇧ chord for aria-keyshortcuts, so a screen
   // reader announces the key as well as the tooltip shows it.
-  const toolBtn = (label, title, onClick, disabled, icon, testId, shortcutId) => <button
-    className="btn btn-sec btn-xs" disabled={disabled} onClick={onClick} data-htip={title}
-    data-testid={testId} aria-label={label ? undefined : title}
-    aria-keyshortcuts={shortcutId ? ariaChord(shortcutId) : undefined}
-    style={{ padding: '2px 7px', fontSize: 12, opacity: disabled ? .35 : 1, cursor: disabled ? 'default' : 'pointer',
-      display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-    {icon && <Icon name={icon} size={11} />}{label}</button>;
+  const toolBtn = (label, title, onClick, disabled, icon, testId, shortcutId) => (
+    <button
+      className="btn btn-sec btn-xs"
+      disabled={disabled}
+      onClick={onClick}
+      data-htip={title}
+      data-testid={testId}
+      aria-label={label ? undefined : title}
+      aria-keyshortcuts={shortcutId ? ariaChord(shortcutId) : undefined}
+      style={{
+        padding: '2px 7px',
+        fontSize: 12,
+        opacity: disabled ? 0.35 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+      }}
+    >
+      {icon && <Icon name={icon} size={11} />}
+      {label}
+    </button>
+  );
 
   // ── Keyboard model (docs/principles.md, principle 5) ────────────────────
   // The row order the cursor travels through is exactly what's on screen —
@@ -572,7 +706,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
   function moveCursor(dir, extend) {
     if (!visibleIds.length) return;
-    const fromId = extend ? (shiftCursorRef.current || selected?.id) : selected?.id;
+    const fromId = extend ? shiftCursorRef.current || selected?.id : selected?.id;
     const curIdx = fromId ? visibleIds.indexOf(fromId) : -1;
     let nextIdx;
     if (curIdx < 0) nextIdx = dir === 'down' ? 0 : visibleIds.length - 1;
@@ -591,7 +725,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // `opts` reaches fieldPatchForKey — today only { back }, for ⇧Space.
   function applyToTargets(patchOf) {
     if (!onTaskUpdate) return;
-    const ids = hasSelection ? multiSel : (selected?.id ? new Set([selected.id]) : null);
+    const ids = hasSelection ? multiSel : selected?.id ? new Set([selected.id]) : null;
     if (!ids || !ids.size) return;
     tree.forEach(node => {
       if (!ids.has(node.id)) return;
@@ -637,9 +771,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // (utils/treeMove.js, applyTreeCommandMany) — they used to take only the
   // row clicked last.
   const multiMove = !!onCommandMany && multiSel && multiSel.size > 1;
-  const canRun = (id, command) => multiMove
-    ? canTreeCommandMany(tree, visibleIds, [...multiSel], command)
-    : !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
+  const canRun = (id, command) =>
+    multiMove
+      ? canTreeCommandMany(tree, visibleIds, [...multiSel], command)
+      : !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
 
   function runCommand(command, id = selected?.id) {
     if (!canRun(id, command)) return;
@@ -694,8 +829,11 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     const node = tree.find(r => r.id === id);
     if (node && node.name !== name) onTaskUpdate?.({ ...node, name });
     // 'next' (⌘↵, or Tab off the last field) always goes on to a new row.
-    if (advance === 'sibling' && !isNew) { setEditing(null); return; }
-    const inserter = advance === 'child' ? onInsertChild : onInsertAfter;   // 'sibling' | 'next'
+    if (advance === 'sibling' && !isNew) {
+      setEditing(null);
+      return;
+    }
+    const inserter = advance === 'child' ? onInsertChild : onInsertAfter; // 'sibling' | 'next'
     const newId = inserter?.(id);
     if (newId) {
       setEditing({ id: newId, draft: '', isNew: true, fromId: id });
@@ -718,7 +856,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       // where the new row came from — otherwise backing out of an accidental
       // ⇧Enter leaves you with no cursor at all and a mouse trip to recover.
       const origin = editing.fromId && filt.find(r => r.id === editing.fromId);
-      if (origin) onSelect(origin, {}, visibleIds.filter(id => id !== editing.id));
+      if (origin)
+        onSelect(
+          origin,
+          {},
+          visibleIds.filter(id => id !== editing.id),
+        );
     }
     setEditing(null);
   }
@@ -741,7 +884,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   }
 
   function handleEditBlur() {
-    if (suppressBlurRef.current) { suppressBlurRef.current = false; return; }
+    if (suppressBlurRef.current) {
+      suppressBlurRef.current = false;
+      return;
+    }
     finishEditing();
   }
 
@@ -769,12 +915,19 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     if (!draft.trim()) {
       // An empty row this session created is removed, same rule Enter and
       // blur follow — and the row indices below it shift, so stop here.
-      if (isNew) { onDelete?.(id); setEditing(null); return; }
+      if (isNew) {
+        onDelete?.(id);
+        setEditing(null);
+        return;
+      }
     } else {
       commitDraftInPlace();
     }
     const nextRow = filt[idx + delta];
-    if (!nextRow) { setEditing(null); return; }
+    if (!nextRow) {
+      setEditing(null);
+      return;
+    }
     setEditing({ id: nextRow.id, draft: nextRow.name || '', isNew: false, ...(at ? { at } : {}) });
     onSelect(nextRow, {}, visibleIds);
   }
@@ -802,14 +955,25 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
 
   // ⇧↵ a child, ⌘↵ the next row, plain ↵ saves (and carries on only on a
   // row that was just added — see commitEdit).
-  const enterAdvance = e => (e.shiftKey ? 'child' : (e.metaKey || e.ctrlKey) ? 'next' : 'sibling');
+  const enterAdvance = e => (e.shiftKey ? 'child' : e.metaKey || e.ctrlKey ? 'next' : 'sibling');
 
   function handleEditKeyDown(e) {
     const alt = e.altKey && !e.ctrlKey && !e.metaKey;
-    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    const stop = () => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
 
-    if (e.key === 'Escape') { stop(); cancelEdit(); return; }
-    if (e.key === 'Enter' && !alt) { stop(); commitEdit(enterAdvance(e)); return; }
+    if (e.key === 'Escape') {
+      stop();
+      cancelEdit();
+      return;
+    }
+    if (e.key === 'Enter' && !alt) {
+      stop();
+      commitEdit(enterAdvance(e));
+      return;
+    }
 
     // Tab walks the row's fields — name → priority → size → status → team —
     // which is what Tab means inside a field everywhere else. Native focus
@@ -818,8 +982,12 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // off the last field on to the name of the row below (see
     // handleFieldKeyDown) — one path through every field of every row, in
     // either direction.
-    if (e.key === 'Tab' && e.shiftKey && !alt) { stop(); commitAndEditNeighbour(-1, { at: 'last' }); return; }
-    if (e.key === 'Tab') return;   // let the browser move to the next field
+    if (e.key === 'Tab' && e.shiftKey && !alt) {
+      stop();
+      commitAndEditNeighbour(-1, { at: 'last' });
+      return;
+    }
+    if (e.key === 'Tab') return; // let the browser move to the next field
 
     // No structural gestures in here. Moving or re-parenting a row happens
     // from the tree with the row selected — ⌥←/⌥→ and ⌘⇧+arrows mean
@@ -836,20 +1004,46 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // ⌥+digit/letter reports a DIFFERENT e.key on macOS (⌥1 is "¡", ⌥s is
     // "ß"), so the physical key is the only reliable read here.
     const digit = /^Digit([1-4])$/.exec(e.code || '');
-    if (digit) { stop(); applyFieldWhileEditing(digit[1]); return; }
+    if (digit) {
+      stop();
+      applyFieldWhileEditing(digit[1]);
+      return;
+    }
     const letter = /^Key([SMLX])$/.exec(e.code || '');
-    if (letter) { stop(); applyFieldWhileEditing(letter[1]); return; }
-    if (e.code === 'Space') { stop(); applyFieldWhileEditing(' ', { back: e.shiftKey }); return; }
-    if (e.code === 'KeyT') { stop(); teamSelRef.current?.focus(); }
+    if (letter) {
+      stop();
+      applyFieldWhileEditing(letter[1]);
+      return;
+    }
+    if (e.code === 'Space') {
+      stop();
+      applyFieldWhileEditing(' ', { back: e.shiftKey });
+      return;
+    }
+    if (e.code === 'KeyT') {
+      stop();
+      teamSelRef.current?.focus();
+    }
   }
 
   // The dropdowns' own key handling. Plain ↑/↓ and Home/End are the select's
   // business (that is how you pick a value), so only the row-level gestures
   // are intercepted here.
   function handleFieldKeyDown(e, isLast) {
-    const stop = () => { e.preventDefault(); e.stopPropagation(); };
-    if (e.key === 'Escape') { stop(); cancelEdit(); return; }
-    if (e.key === 'Enter') { stop(); commitEdit(enterAdvance(e)); return; }
+    const stop = () => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    if (e.key === 'Escape') {
+      stop();
+      cancelEdit();
+      return;
+    }
+    if (e.key === 'Enter') {
+      stop();
+      commitEdit(enterAdvance(e));
+      return;
+    }
     // Tab off the last field finishes this row and goes on, so a whole item
     // is one uninterrupted run of Tabs. On to the NEXT ROW when there is one
     // — the mirror of ⇧Tab off the name, which goes to the row above. It
@@ -891,7 +1085,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // value), so the rows are still the PREVIOUS result and the cursor would
   // land on the first row of the old list. Instead the event carries the
   // query it wants, and the jump waits until our own rows are that query's.
-  const [jumpTo, setJumpTo] = useState(null);   // { query, at } | null
+  const [jumpTo, setJumpTo] = useState(null); // { query, at } | null
 
   useEffect(() => {
     const el = containerRef.current;
@@ -901,24 +1095,22 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     }
     const onEvent = e => {
       const node = containerRef.current;
-      if (!node || node.offsetParent === null) return;   // this tab isn't showing
+      if (!node || node.offsetParent === null) return; // this tab isn't showing
       node.focus();
       setJumpTo({ query: e?.detail?.query ?? '', at: Date.now() });
     };
     window.addEventListener(TREE_FOCUS_EVENT, onEvent);
     return () => window.removeEventListener(TREE_FOCUS_EVENT, onEvent);
-     
   }, []);
 
   useEffect(() => {
     if (!jumpTo) return;
-    if ((search || '') !== jumpTo.query) return;   // our rows are not that query's yet
+    if ((search || '') !== jumpTo.query) return; // our rows are not that query's yet
     setJumpTo(null);
     const first = filt[0];
     // `filt` is already narrowed to matches, so its first row IS the first
     // hit. The existing scroll-on-selection effect brings it into view.
     if (first) onSelect(first, {}, visibleIds);
-     
   }, [jumpTo, search, filt]);
 
   // Bound to the editing <tr>: focus moving between the row's own cells is
@@ -947,14 +1139,20 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   }
 
   function doDelete() {
-    const ids = hasSelection ? [...multiSel] : (selected?.id ? [selected.id] : []);
+    const ids = hasSelection ? [...multiSel] : selected?.id ? [selected.id] : [];
     if (!ids.length) return;
     // Descendants disappear with their parent, so they count as gone too.
     const alsoGone = tree.filter(r => ids.some(id => r.id.startsWith(id + '.'))).map(r => r.id);
     const next = rowAfterDeleting([...ids, ...alsoGone]);
-    if (hasSelection) onBulkDelete?.(ids); else onDelete?.(ids[0]);
+    if (hasSelection) onBulkDelete?.(ids);
+    else onDelete?.(ids[0]);
     // After App's own setSel(null) — so this wins, and the cursor stays put.
-    if (next) onSelect(next, {}, visibleIds.filter(id => !ids.includes(id)));
+    if (next)
+      onSelect(
+        next,
+        {},
+        visibleIds.filter(id => !ids.includes(id)),
+      );
   }
 
   function handleContainerKeyDown(e) {
@@ -1029,7 +1227,8 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // what it does with none — it used to do nothing until a row was picked.
     if ((key === 'ArrowLeft' || key === 'ArrowRight') && e.shiftKey && bare && !e.altKey) {
       e.preventDefault();
-      if (key === 'ArrowLeft') collapseAll(); else expandAll();
+      if (key === 'ArrowLeft') collapseAll();
+      else expandAll();
       return;
     }
     if (!bare || e.altKey || !selected?.id) return;
@@ -1042,12 +1241,18 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       const id = selected.id;
       const kids = hasChildren(tree, id);
       if (key === 'ArrowRight') {
-        if (kids && collapsed.has(id)) { toggle(id); return; }
+        if (kids && collapsed.has(id)) {
+          toggle(id);
+          return;
+        }
         const firstChild = filt.find(r => r.id.startsWith(id + '.') && depth(r.id) === depth(id) + 1);
         if (firstChild) onSelect(firstChild, {}, visibleIds);
         return;
       }
-      if (kids && !collapsed.has(id)) { toggle(id); return; }
+      if (kids && !collapsed.has(id)) {
+        toggle(id);
+        return;
+      }
       const pid = id.split('.').slice(0, -1).join('.');
       const parentRow = pid ? filt.find(r => r.id === pid) : null;
       if (parentRow) onSelect(parentRow, {}, visibleIds);
@@ -1138,7 +1343,10 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // phase list instead: it shows where the task stands, and Space walks
     // the same sequence one step at a time.
     const statusField = r.phases?.length
-      ? { key: 'phase', column: 'progress', label: t('tv.fldPhase'),
+      ? {
+          key: 'phase',
+          column: 'progress',
+          label: t('tv.fldPhase'),
           value: currentPhase(r.phases)?.id || '',
           options: r.phases.map(ph => ({
             id: ph.id,
@@ -1150,29 +1358,52 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
             if (!phases) return;
             const st = statusFromPhases(phases);
             writeFieldWhileEditing({ ...statusChangePatch(r, st), phases, progress: phaseProgress(phases) });
-          } }
-      : { key: 'status', column: 'progress', label: t('tv.fldStatus'), value: r.status || 'open',
+          },
+        }
+      : {
+          key: 'status',
+          column: 'progress',
+          label: t('tv.fldStatus'),
+          value: r.status || 'open',
           options: ['open', 'wip', 'done'].map(st => ({ id: st, label: statusLbl[st] })),
-          onSelect: v => writeFieldWhileEditing(statusChangePatch(r, v)) };
+          onSelect: v => writeFieldWhileEditing(statusChangePatch(r, v)),
+        };
     const fields = [
-      { key: 'team', column: 'team', label: t('tv.fldTeam'), value: r.team || '',
+      {
+        key: 'team',
+        column: 'team',
+        label: t('tv.fldTeam'),
+        value: r.team || '',
         options: (teams || []).map(tm => ({ id: tm.id, label: tm.name })),
         emptyLabel: t('tv.teamNone'),
-        onSelect: v => writeFieldWhileEditing({ team: v || '' }) },
+        onSelect: v => writeFieldWhileEditing({ team: v || '' }),
+      },
       // The priority is drawn in the signal column, so that is where it is set.
-      { key: 'prio', column: 'signal', label: t('tv.fldPrio'), value: r.prio ? String(r.prio) : '',
+      {
+        key: 'prio',
+        column: 'signal',
+        label: t('tv.fldPrio'),
+        value: r.prio ? String(r.prio) : '',
         options: [1, 2, 3, 4].map(pv => ({ id: String(pv), label: prioLbl[pv] })),
         // A row you just typed has no priority yet — say so, rather than
         // pre-filling one and calling it a decision.
         emptyLabel: t('tv.prioNone'),
-        onSelect: v => writeFieldWhileEditing({ prio: v ? Number(v) : undefined }) },
-      { key: 'size', column: 'effort', label: t('tv.fldSize'),
+        onSelect: v => writeFieldWhileEditing({ prio: v ? Number(v) : undefined }),
+      },
+      {
+        key: 'size',
+        column: 'effort',
+        label: t('tv.fldSize'),
         value: sizeCatalogue.find(sz => sz.days === r.best && sz.factor === r.factor)?.label || '',
         options: sizeCatalogue.map(sz => ({ id: sz.label, label: `${sz.label} · ${sz.days}d` })),
         // An estimate from the wizard matches no catalogue entry — say so
         // rather than showing the nearest size.
         emptyLabel: t('tv.sizeCustom'),
-        onSelect: v => { const sz = sizeCatalogue.find(x => x.label === v); if (sz) writeFieldWhileEditing({ best: sz.days, factor: sz.factor }); } },
+        onSelect: v => {
+          const sz = sizeCatalogue.find(x => x.label === v);
+          if (sz) writeFieldWhileEditing({ best: sz.days, factor: sz.factor });
+        },
+      },
       statusField,
     ];
     return Object.fromEntries(fields.map(f => [f.column, f]));
@@ -1182,473 +1413,864 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
   // priority, size, status — which is the order they sit in on screen.
   function editCell(f, isLast) {
     if (!f) return null;
-    return <span className="tv-cell-edit" onClick={e => e.stopPropagation()}
-      // SearchSelect owns ↑/↓/Enter/Esc while its popup is open and calls
-      // preventDefault when it acts, so the row-level keys run only on what
-      // it left alone.
-      onKeyDown={e => { if (!e.defaultPrevented) handleFieldKeyDown(e, isLast); }}>
-      <SearchSelect
-        compact
-        testId={`tree-edit-${f.key}`}
-        ariaLabel={f.label}
-        inputRef={f.key === 'team' ? teamSelRef : undefined}
-        value={f.value}
-        options={f.options}
-        allowEmpty={!!f.emptyLabel}
-        emptyLabel={f.emptyLabel}
-        onSelect={f.onSelect}
-      />
-    </span>;
+    return (
+      <span
+        className="tv-cell-edit"
+        onClick={e => e.stopPropagation()}
+        // SearchSelect owns ↑/↓/Enter/Esc while its popup is open and calls
+        // preventDefault when it acts, so the row-level keys run only on what
+        // it left alone.
+        onKeyDown={e => {
+          if (!e.defaultPrevented) handleFieldKeyDown(e, isLast);
+        }}
+      >
+        <SearchSelect
+          compact
+          testId={`tree-edit-${f.key}`}
+          ariaLabel={f.label}
+          inputRef={f.key === 'team' ? teamSelRef : undefined}
+          value={f.value}
+          options={f.options}
+          allowEmpty={!!f.emptyLabel}
+          emptyLabel={f.emptyLabel}
+          onSelect={f.onSelect}
+        />
+      </span>
+    );
   }
 
   // The row itself. Called only for rows whose signature changed — see
   // the cache at the call site.
   function renderRow(r, idx) {
     const s = stats[r.id] || r;
-          const isLeaf = isLeafNode(tree, r.id);
-          const isCp = isLeaf && cpSet?.has(r.id);
-          const childNodes = hasChildren(tree, r.id);
-          const isCollapsed = collapsed.has(r.id);
-          const d = depth(r.id);
-          const isMulti = multiSel?.has(r.id);
-          const effStatus = isLeaf ? r.status : (s._autoStatus || r.status || 'open');
-          const assignees = r.assign || [];
-          const tColor = r.team ? teamColor(r.team) : null;
-          const tName = r.team ? teamName(r.team) : '';
-          const prog = s._progress || 0;
-          const effortDays = isLeaf ? (s._r > 0 ? s._r.toFixed(1) : '') : (s._r > 0 ? s._r.toFixed(0) + 'd' : '');
-          // Always show team when set. Hiding inherited teams (parent matches)
-          // saved a few pixels but made it impossible to read team assignment
-          // at a glance on deep leaves where the parent label sat far away.
-          const showTeam = !!r.team;
-          const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
-          // Diff-since badge — shared helper keeps the same rule used by the
-          // "only with changes" filter so the two views stay in sync.
-          const diffBadge = computeDiffBadge(r);
-          const dropHere = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
-          const inHand = !!orderDrop?.dragIds?.includes(r.id);
-          // Subway-Map line color for root items — same hex the Roadmap view
-          // assigns to the line's start/end badges. Falls back to null when no
-          // assignment has been computed yet (user hasn't opened Subway view).
-          // For child rows we colorize the leading root segment of the id
-          // (e.g. the "P1" in "P1.2.3") so the chain back to the line stays
-          // visible without spamming color on every cell.
-          const rootIdSeg = r.id.split('.')[0];
-          const lineColor = getLineColor(rootIdSeg, roadmapAssignment);
-          // In edit mode the row stays the row: same indentation, same
-          // columns, each value swapped for its control in place.
-          const isEditingRow = editing?.id === r.id;
-          const edit = isEditingRow ? editFieldsFor(r) : null;
-          const lastEditCol = edit ? ['progress', 'effort', 'signal', 'team'].find(c => edit[c]) : null;
-          return <tr key={r.id} ref={selected?.id === r.id ? selRef : (search && idx === 0 ? firstMatchRef : null)}
-            className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}${changedIds?.has(r.id) ? ' scn-row' : ''}`}
-            data-prio={r.prio || ''}
-            data-dropped={r.dropped ? 'true' : undefined}
-            data-status={effStatus}
-            data-team={r.team || ''}
-            data-editing={isEditingRow ? 'true' : undefined}
-            onBlur={isEditingRow ? handleEditorFocusOut : undefined}
-            onClick={e => { if (isEditingRow) return; onSelect(r, e, filt.map(x => x.id)); containerRef.current?.focus(); }}
-            draggable={!!onDropRows && !isEditingRow}
-            onDragStart={e => onRowDragStart(e, r)}
-            onDragEnd={() => setOrderDrop(null)}
-            onDragOver={e => onOrderDragOver(e, r.id)}
-            onDragLeave={() => setOrderDrop(prev => prev?.targetId === r.id ? { ...prev, targetId: null, position: null, valid: false } : prev)}
-            onDrop={e => onOrderDrop(e, r.id)}
-            data-dragging={inHand ? 'true' : undefined}
-            data-drop={dropHere || undefined}>
-            {/* ID column — when on critical path, show CP labels via tooltip on the critical-path marker */}
-            <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
-              {/* The grip is the cue; the whole row drags (onRowDragStart). */}
-              {onDropRows && <span
-                className="tv-drag-handle"
-                data-htip={t('tv.dragTip', r.id)}><Icon name="grip" size={11} /></span>}
-              {/* The id is the tool's spine — dependencies, the tooltip and
+    const isLeaf = isLeafNode(tree, r.id);
+    const isCp = isLeaf && cpSet?.has(r.id);
+    const childNodes = hasChildren(tree, r.id);
+    const isCollapsed = collapsed.has(r.id);
+    const d = depth(r.id);
+    const isMulti = multiSel?.has(r.id);
+    const effStatus = isLeaf ? r.status : s._autoStatus || r.status || 'open';
+    const assignees = r.assign || [];
+    const tColor = r.team ? teamColor(r.team) : null;
+    const tName = r.team ? teamName(r.team) : '';
+    const prog = s._progress || 0;
+    const effortDays = isLeaf ? (s._r > 0 ? s._r.toFixed(1) : '') : s._r > 0 ? s._r.toFixed(0) + 'd' : '';
+    // Always show team when set. Hiding inherited teams (parent matches)
+    // saved a few pixels but made it impossible to read team assignment
+    // at a glance on deep leaves where the parent label sat far away.
+    const showTeam = !!r.team;
+    const cpTip = isCp && cpLabels[r.id]?.length ? cpLabels[r.id].join(', ') : null;
+    // Diff-since badge — shared helper keeps the same rule used by the
+    // "only with changes" filter so the two views stay in sync.
+    const diffBadge = computeDiffBadge(r);
+    const dropHere = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
+    const inHand = !!orderDrop?.dragIds?.includes(r.id);
+    // Subway-Map line color for root items — same hex the Roadmap view
+    // assigns to the line's start/end badges. Falls back to null when no
+    // assignment has been computed yet (user hasn't opened Subway view).
+    // For child rows we colorize the leading root segment of the id
+    // (e.g. the "P1" in "P1.2.3") so the chain back to the line stays
+    // visible without spamming color on every cell.
+    const rootIdSeg = r.id.split('.')[0];
+    const lineColor = getLineColor(rootIdSeg, roadmapAssignment);
+    // In edit mode the row stays the row: same indentation, same
+    // columns, each value swapped for its control in place.
+    const isEditingRow = editing?.id === r.id;
+    const edit = isEditingRow ? editFieldsFor(r) : null;
+    const lastEditCol = edit ? ['progress', 'effort', 'signal', 'team'].find(c => edit[c]) : null;
+    return (
+      <tr
+        key={r.id}
+        ref={selected?.id === r.id ? selRef : search && idx === 0 ? firstMatchRef : null}
+        className={`tr${isLeaf ? '' : d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}${idx % 2 ? ' alt' : ''}${selected?.id === r.id || isMulti ? ' sel' : ''}${isCp ? ' cp-row' : ''}${changedIds?.has(r.id) ? ' scn-row' : ''}`}
+        data-prio={r.prio || ''}
+        data-dropped={r.dropped ? 'true' : undefined}
+        data-status={effStatus}
+        data-team={r.team || ''}
+        data-editing={isEditingRow ? 'true' : undefined}
+        onBlur={isEditingRow ? handleEditorFocusOut : undefined}
+        onClick={e => {
+          if (isEditingRow) return;
+          onSelect(
+            r,
+            e,
+            filt.map(x => x.id),
+          );
+          containerRef.current?.focus();
+        }}
+        draggable={!!onDropRows && !isEditingRow}
+        onDragStart={e => onRowDragStart(e, r)}
+        onDragEnd={() => setOrderDrop(null)}
+        onDragOver={e => onOrderDragOver(e, r.id)}
+        onDragLeave={() =>
+          setOrderDrop(prev => (prev?.targetId === r.id ? { ...prev, targetId: null, position: null, valid: false } : prev))
+        }
+        onDrop={e => onOrderDrop(e, r.id)}
+        data-dragging={inHand ? 'true' : undefined}
+        data-drop={dropHere || undefined}
+      >
+        {/* ID column — when on critical path, show CP labels via tooltip on the critical-path marker */}
+        <td {...(cpTip ? { 'data-htip': `${t('tv.criticalPath')}: ${cpTip}` } : {})}>
+          {/* The grip is the cue; the whole row drags (onRowDragStart). */}
+          {onDropRows && (
+            <span className="tv-drag-handle" data-htip={t('tv.dragTip', r.id)}>
+              <Icon name="grip" size={11} />
+            </span>
+          )}
+          {/* The id is the tool's spine — dependencies, the tooltip and
                   every export speak it — and on a narrow screen it is also
                   five dotted segments in front of every name you are trying
                   to read. Hiding it keeps the drag handle and the column;
                   the id stays one selection away, in the bar and the editor. */}
-              {showIds && (d === 1 && lineColor
-                ? <span className="tid" style={{ background: lineColor, color: '#fff', padding: '1px 6px', borderRadius: 3, fontWeight: 700, letterSpacing: '.02em' }} data-htip={t('tv.lineTip', rootIdSeg)}>{r.id}</span>
-                : lineColor
-                  ? <span className="tid"><span style={{ color: lineColor, fontWeight: 600 }}>{rootIdSeg}</span>{r.id.slice(rootIdSeg.length)}</span>
-                  : <span className="tid">{r.id}</span>)}
-            </td>
+          {showIds &&
+            (d === 1 && lineColor ? (
+              <span
+                className="tid"
+                style={{
+                  background: lineColor,
+                  color: '#fff',
+                  padding: '1px 6px',
+                  borderRadius: 3,
+                  fontWeight: 700,
+                  letterSpacing: '.02em',
+                }}
+                data-htip={t('tv.lineTip', rootIdSeg)}
+              >
+                {r.id}
+              </span>
+            ) : lineColor ? (
+              <span className="tid">
+                <span style={{ color: lineColor, fontWeight: 600 }}>{rootIdSeg}</span>
+                {r.id.slice(rootIdSeg.length)}
+              </span>
+            ) : (
+              <span className="tid">{r.id}</span>
+            ))}
+        </td>
 
-            {/* Name column — flex container so badges wrap as a single trailing
+        {/* Name column — flex container so badges wrap as a single trailing
                 group instead of breaking individually under the name when the row
                 runs out of horizontal space. */}
-            <td data-col="name" style={{ whiteSpace: 'normal' }}>
-              {/* nowrap + min-width:0 is what actually keeps a row one line
+        <td data-col="name" style={{ whiteSpace: 'normal' }}>
+          {/* nowrap + min-width:0 is what actually keeps a row one line
                   tall. The badges after the name used to be allowed to wrap
                   under it, which meant a long name pushed them down and took
                   the row with it — and without min-width:0 a flex item never
                   shrinks below its content, so the name overflowed the cell
                   instead of ellipsising inside it. The badges now shrink
                   away; the name never does. */}
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, minWidth: 0 }}>
-              <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
-              {childNodes
-                ? <span data-testid={`tree-caret-${r.id}`} data-open={isCollapsed ? 'false' : 'true'} style={{ display: 'inline-flex', width: 14, cursor: 'pointer', color: 'var(--tx3)', userSelect: 'none', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
-                    // Folding a branch selects it as well. The triangle is only
-                    // drawn on a row that has children, and it used to stop the
-                    // click before the row's own handler ran — so the most
-                    // natural thing to click on a parent was the one thing that
-                    // left the cursor on whatever was selected before, and the
-                    // next keystroke went somewhere else entirely. It stops
-                    // propagation (a second click on the name would open the
-                    // rename editor) and does the selecting itself.
-                    onClick={e => { e.stopPropagation(); onSelect(r, {}, filt.map(x => x.id)); containerRef.current?.focus(); toggle(r.id); }}><Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} /></span>
-                : <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />}
-
-              {/* Status icon — SVG matching the network graph's symbology */}
-              <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} data-htip={statusLbl[effStatus]}>
-                <StatusIcon status={effStatus} progress={prog} />
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, minWidth: 0 }}>
+            <span style={{ display: 'inline-block', width: (d - 1) * 20, flexShrink: 0 }} />
+            {childNodes ? (
+              <span
+                data-testid={`tree-caret-${r.id}`}
+                data-open={isCollapsed ? 'false' : 'true'}
+                style={{
+                  display: 'inline-flex',
+                  width: 14,
+                  cursor: 'pointer',
+                  color: 'var(--tx3)',
+                  userSelect: 'none',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                }}
+                // Folding a branch selects it as well. The triangle is only
+                // drawn on a row that has children, and it used to stop the
+                // click before the row's own handler ran — so the most
+                // natural thing to click on a parent was the one thing that
+                // left the cursor on whatever was selected before, and the
+                // next keystroke went somewhere else entirely. It stops
+                // propagation (a second click on the name would open the
+                // rename editor) and does the selecting itself.
+                onClick={e => {
+                  e.stopPropagation();
+                  onSelect(
+                    r,
+                    {},
+                    filt.map(x => x.id),
+                  );
+                  containerRef.current?.focus();
+                  toggle(r.id);
+                }}
+              >
+                <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} />
               </span>
+            ) : (
+              <span style={{ display: 'inline-block', width: 14, flexShrink: 0 }} />
+            )}
 
-              {/* Root type emoji */}
-              {d === 1 && r.type && <span style={{ marginRight: 5, display: 'inline-flex', color: 'var(--tx3)' }}><Icon name={GT_ICON[r.type]} size={12} /></span>}
+            {/* Status icon — SVG matching the network graph's symbology */}
+            <span style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} data-htip={statusLbl[effStatus]}>
+              <StatusIcon status={effStatus} progress={prog} />
+            </span>
 
-              {/* Name — a real <input> while this row is the keyboard editor's
+            {/* Root type emoji */}
+            {d === 1 && r.type && (
+              <span style={{ marginRight: 5, display: 'inline-flex', color: 'var(--tx3)' }}>
+                <Icon name={GT_ICON[r.type]} size={12} />
+              </span>
+            )}
+
+            {/* Name — a real <input> while this row is the keyboard editor's
                   active edit (see handleContainerKeyDown's Enter/⇧Enter and
                   the commit/cancel helpers above). */}
-              {isEditingRow
-                ? <input
-                    ref={editInputRef}
-                    className="tn-edit-input"
-                    value={editing.draft}
-                    data-testid={`tree-name-input-${r.id}`}
-                    onChange={e => { const v = e.target.value; setEditing(cur => cur ? { ...cur, draft: v } : cur); }}
-                    aria-label={t('col.name')}
-                    onKeyDown={handleEditKeyDown}
-                    onClick={e => e.stopPropagation()}
-                  />
-                : <span
-                    className={`tn tn-editable${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}
-                    data-testid="tree-row-name"
-                    data-htip={selected?.id === r.id ? t('tv.clickToRename') : undefined}
-                    onClick={e => {
-                      // First click selects the row (the <tr> handler), a click
-                      // on the name of the row that is ALREADY selected opens
-                      // the editor. Finder's rename gesture — and it leaves
-                      // click/⇧-click selection of other rows untouched.
-                      if (selected?.id !== r.id || isMulti) return;
-                      e.stopPropagation();
-                      startEdit(r.id);
-                    }}>{r.name || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('tv.unnamed')}</span>}</span>}
+            {isEditingRow ? (
+              <input
+                ref={editInputRef}
+                className="tn-edit-input"
+                value={editing.draft}
+                data-testid={`tree-name-input-${r.id}`}
+                onChange={e => {
+                  const v = e.target.value;
+                  setEditing(cur => (cur ? { ...cur, draft: v } : cur));
+                }}
+                aria-label={t('col.name')}
+                onKeyDown={handleEditKeyDown}
+                onClick={e => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className={`tn tn-editable${d <= 1 ? ' l1' : d <= 2 ? ' l2' : ''}`}
+                data-testid="tree-row-name"
+                data-htip={selected?.id === r.id ? t('tv.clickToRename') : undefined}
+                onClick={e => {
+                  // First click selects the row (the <tr> handler), a click
+                  // on the name of the row that is ALREADY selected opens
+                  // the editor. Finder's rename gesture — and it leaves
+                  // click/⇧-click selection of other rows untouched.
+                  if (selected?.id !== r.id || isMulti) return;
+                  e.stopPropagation();
+                  startEdit(r.id);
+                }}
+              >
+                {r.name || <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>{t('tv.unnamed')}</span>}
+              </span>
+            )}
 
-              {/* Team — small colored dot + name (subtle). Suppressed when team equals
+            {/* Team — small colored dot + name (subtle). Suppressed when team equals
                   the inherited parent team to avoid repeating the same label down a subtree. */}
-{/* Collapsed children count */}
-              {/* Collapsed leaf count comes from stats, which is built on the
+            {/* Collapsed children count */}
+            {/* Collapsed leaf count comes from stats, which is built on the
                   UNFILTERED tree. Counting the local `tree` prop instead
                   reported the post-filter remainder ("30 leafs" for a 51-leaf
                   package with hide-done on) next to a full-tree percentage. */}
-              {isCollapsed && (() => {
+            {isCollapsed &&
+              (() => {
                 const visibleLeaves = leafNodes(tree).filter(c => c.id.startsWith(r.id + '.')).length;
                 const allLeaves = s._leafCount ?? visibleLeaves;
-                return <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
-                  data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}>
-                  {t('tv.leafCount', allLeaves)}{visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''}
-                </span>;
+                return (
+                  <span
+                    style={{ marginLeft: 8, fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
+                    data-htip={visibleLeaves < allLeaves ? `${visibleLeaves} ${t('tv.ofVisible')} ${allLeaves}` : null}
+                  >
+                    {t('tv.leafCount', allLeaves)}
+                    {visibleLeaves < allLeaves ? `, ${visibleLeaves} ${t('tv.visible')}` : ''}
+                  </span>
+                );
               })()}
+          </div>
+        </td>
 
-              </div>
-            </td>
-
-            {/* Team, who, and the signals: a column each, so a row with
+        {/* Team, who, and the signals: a column each, so a row with
                 nothing to show still occupies the same slots and the columns
                 after it do not move. This is the whole fix — everything here
                 used to trail behind the name with `marginLeft: 8`, eleven
                 optional things deep, and no two rows ended in the same place. */}
-            <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
-{edit ? editCell(edit.team, lastEditCol === 'team') : tName && showTeam && <span style={{ marginLeft: 8, fontSize: 11, color: tColor, fontWeight: 500, opacity: .85 }} data-htip={`${t('tv.team')}: ${tName}`}>● {tName}</span>}
-            </td>
-            <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'var(--mono)' }}>
-{/* Assignees — initials, with handoff chain appended when the
+        <td data-col="team" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
+          {edit
+            ? editCell(edit.team, lastEditCol === 'team')
+            : tName &&
+              showTeam && (
+                <span
+                  style={{ marginLeft: 8, fontSize: 11, color: tColor, fontWeight: 500, opacity: 0.85 }}
+                  data-htip={`${t('tv.team')}: ${tName}`}
+                >
+                  ● {tName}
+                </span>
+              )}
+        </td>
+        <td data-col="who" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'var(--mono)' }}>
+          {/* Assignees — initials, with handoff chain appended when the
                   scheduler split work across multiple people. */}
-              {assignees.length > 0 && (() => {
-                const sc = sMap[r.id];
-                const primary = assignees.map(memberShort).join(' ');
-                const chain = hasChain(sc);
-                const label = chain ? chainShorts(sc, shortMap, primary) : primary;
-                const tip = chain ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
-                return <PersonChip chain={!!chain} short={label} title={tip} style={{ marginLeft: 8 }} />;
-              })()}
-              {/* Auto-assigned suggestion from scheduler */}
-              {assignees.length === 0 && sMap[r.id]?.autoAssigned && sMap[r.id]?.personId && (() => {
-                const sc = sMap[r.id];
-                const primary = memberShort(sc.personId);
-                const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
-                const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : `${t('aa.suggestion')} ${memberFullName(sc.personId)}`;
-                return <PersonChip auto short={label} title={tip} style={{ marginLeft: 8 }} />;
-              })()}
+          {assignees.length > 0 &&
+            (() => {
+              const sc = sMap[r.id];
+              const primary = assignees.map(memberShort).join(' ');
+              const chain = hasChain(sc);
+              const label = chain ? chainShorts(sc, shortMap, primary) : primary;
+              const tip = chain ? chainTooltip(sc, memberFullName) : assignees.map(memberFullName).join(', ');
+              return <PersonChip chain={!!chain} short={label} title={tip} style={{ marginLeft: 8 }} />;
+            })()}
+          {/* Auto-assigned suggestion from scheduler */}
+          {assignees.length === 0 &&
+            sMap[r.id]?.autoAssigned &&
+            sMap[r.id]?.personId &&
+            (() => {
+              const sc = sMap[r.id];
+              const primary = memberShort(sc.personId);
+              const label = hasChain(sc) ? chainShorts(sc, shortMap, primary) : primary;
+              const tip = hasChain(sc) ? chainTooltip(sc, memberFullName) : `${t('aa.suggestion')} ${memberFullName(sc.personId)}`;
+              return <PersonChip auto short={label} title={tip} style={{ marginLeft: 8 }} />;
+            })()}
 
-              {/* Priority — chevron icon for all leaves */}
-            </td>
-            <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
-{edit && editCell(edit.signal, lastEditCol === 'signal')}
-{!edit && isLeaf && r.prio && <span style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }} data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}><Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} /></span>}
+          {/* Priority — chevron icon for all leaves */}
+        </td>
+        <td data-col="signal" className="nc" style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
+          {edit && editCell(edit.signal, lastEditCol === 'signal')}
+          {!edit && isLeaf && r.prio && (
+            <span
+              style={{ marginLeft: 8, color: PRIO_COL[r.prio], display: 'inline-flex' }}
+              data-htip={`${t('tv.priority')}: ${prioLbl[r.prio]}`}
+            >
+              <Icon name={PRIO_ICON[r.prio]} size={13} strokeWidth={2.2} />
+            </span>
+          )}
 
-              {/* Severity for roots */}
-{/* Diff-since badge (newly done / new leaf / progress jump) */}
-              {diffBadge && <span data-htip={diffBadge.tip}
-                style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
-                  background: diffBadge.kind === 'new' ? 'var(--diff)'
-                    : diffBadge.kind === 'done' ? 'rgba(16,185,129,.85)'
-                    : 'rgba(245,158,11,.85)',
-                  color: '#1a1a1a',
-                  fontFamily: 'var(--mono)' }}>{diffBadge.label}</span>}
-{/* Custom field indicator — show link icon if any uri field has a value */}
-              {customFields?.length > 0 && (() => {
-                const vals = r.customValues || {};
-                const filledUriFields = customFields.filter(cf => cf.type === 'uri' && vals[cf.id]);
-                const filledOtherFields = customFields.filter(cf => cf.type !== 'uri' && vals[cf.id] != null && vals[cf.id] !== '');
-                if (!filledUriFields.length && !filledOtherFields.length) return null;
-                const tipParts = [
-                  ...filledUriFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
-                  ...filledOtherFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
-                ];
-                return <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', opacity: 0.8 }}
-                  data-htip={tipParts.join(' · ')}>
-                  {filledUriFields.length > 0 && '↗'}{filledOtherFields.length > 0 && filledUriFields.length === 0 && '·'}
-                </span>;
-              })()}
-            </td>
-              {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
-            {/* Effort: single number (realistic days) */}
-            <td data-col="effort" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}>{edit ? editCell(edit.effort, lastEditCol === 'effort') : effortDays}</td>
+          {/* Severity for roots */}
+          {/* Diff-since badge (newly done / new leaf / progress jump) */}
+          {diffBadge && (
+            <span
+              data-htip={diffBadge.tip}
+              style={{
+                marginLeft: 8,
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '1px 6px',
+                borderRadius: 3,
+                background:
+                  diffBadge.kind === 'new' ? 'var(--diff)' : diffBadge.kind === 'done' ? 'rgba(16,185,129,.85)' : 'rgba(245,158,11,.85)',
+                color: '#1a1a1a',
+                fontFamily: 'var(--mono)',
+              }}
+            >
+              {diffBadge.label}
+            </span>
+          )}
+          {/* Custom field indicator — show link icon if any uri field has a value */}
+          {customFields?.length > 0 &&
+            (() => {
+              const vals = r.customValues || {};
+              const filledUriFields = customFields.filter(cf => cf.type === 'uri' && vals[cf.id]);
+              const filledOtherFields = customFields.filter(cf => cf.type !== 'uri' && vals[cf.id] != null && vals[cf.id] !== '');
+              if (!filledUriFields.length && !filledOtherFields.length) return null;
+              const tipParts = [
+                ...filledUriFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
+                ...filledOtherFields.map(cf => `${cf.name}: ${vals[cf.id]}`),
+              ];
+              return (
+                <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--tx3)', opacity: 0.8 }} data-htip={tipParts.join(' · ')}>
+                  {filledUriFields.length > 0 && '↗'}
+                  {filledOtherFields.length > 0 && filledUriFields.length === 0 && '·'}
+                </span>
+              );
+            })()}
+        </td>
+        {/* Description and note are hidden in tree view; visible in QuickEdit/NodeModal. */}
+        {/* Effort: single number (realistic days) */}
+        <td
+          data-col="effort"
+          className="nc"
+          style={{ fontFamily: 'var(--mono)', fontSize: 11, color: isLeaf ? 'var(--gr)' : 'var(--tx2)' }}
+        >
+          {edit ? editCell(edit.effort, lastEditCol === 'effort') : effortDays}
+        </td>
 
-            {/* Progress */}
-            <td data-col="progress" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}>{edit ? editCell(edit.progress, lastEditCol === 'progress') : prog > 0 ? `${progressPctLabel(prog)}%` : ''}</td>
+        {/* Progress */}
+        <td
+          data-col="progress"
+          className="nc"
+          style={{ fontFamily: 'var(--mono)', fontSize: 11, color: prog >= 99.95 ? 'var(--gr)' : prog > 0 ? 'var(--am)' : 'var(--tx3)' }}
+        >
+          {edit ? editCell(edit.progress, lastEditCol === 'progress') : prog > 0 ? `${progressPctLabel(prog)}%` : ''}
+        </td>
 
-            {/* Schedule range — start to end */}
-            <td data-col="schedule" className="nc" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
-              {/* A due date is a date, so it belongs in the column about dates,
+        {/* Schedule range — start to end */}
+        <td
+          data-col="schedule"
+          className="nc"
+          style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}
+        >
+          {/* A due date is a date, so it belongs in the column about dates,
                   and it turns red once the schedule runs past it. Behind the
                   name it was one more thing pushing the next marker sideways. */}
-              {r.due && (() => {
-                const endIso = scheduleRangeById[r.id]?.end || null;
-                const overdue = r.status !== 'done' && endIso && endIso > r.due;
-                return <span style={{ marginRight: 6, color: overdue ? 'var(--re)' : 'var(--am)', fontWeight: overdue ? 700 : 400 }}
-                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}>{fmtDate(localDate(r.due))} ·</span>;
-              })()}
-              {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && <>{fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}</>}
-            </td>
+          {r.due &&
+            (() => {
+              const endIso = scheduleRangeById[r.id]?.end || null;
+              const overdue = r.status !== 'done' && endIso && endIso > r.due;
+              return (
+                <span
+                  style={{ marginRight: 6, color: overdue ? 'var(--re)' : 'var(--am)', fontWeight: overdue ? 700 : 400 }}
+                  data-htip={overdue ? t('tv.dueOverdueTip', r.due, endIso) : t('tv.dueTip', r.due)}
+                >
+                  {fmtDate(localDate(r.due))} ·
+                </span>
+              );
+            })()}
+          {scheduleRangeById[r.id]?.start && scheduleRangeById[r.id]?.end && (
+            <>
+              {fmtDate(scheduleRangeById[r.id].start)} → {fmtDate(scheduleRangeById[r.id].end)}
+            </>
+          )}
+        </td>
 
-            {/* Actions — the three creation/rename moves, on the row itself.
+        {/* Actions — the three creation/rename moves, on the row itself.
                 They fade in with the row (CSS .tv-row-act) so a resting table
                 stays quiet, and each one is the same callback the keyboard
                 uses. Reorder, indent and delete live in the contextual
                 toolbar above and act on the selected item. */}
-            <td data-col="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
-              {/* Save / cancel for the mouse. Out of the Tab order: Tab walks
+        <td data-col="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right', padding: '0 4px' }}>
+          {/* Save / cancel for the mouse. Out of the Tab order: Tab walks
                   the fields, Enter and Esc are these two buttons. */}
-              {isEditingRow ? <span className="tv-row-act tv-row-act-edit">
-                <button className="tv-act-btn" tabIndex={-1} data-testid={`tree-edit-save-${r.id}`}
-                  aria-label={t('tv.editSave')} data-htip={`${t('tv.editSave')} · ↵`}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={e => { e.stopPropagation(); finishEditing(); }}><Icon name="check" size={12} /></button>
-                <button className="tv-act-btn" tabIndex={-1} data-testid={`tree-edit-cancel-${r.id}`}
-                  aria-label={t('tv.editCancel')} data-htip={`${t('tv.editCancel')} · Esc`}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={e => { e.stopPropagation(); cancelEdit(); }}><Icon name="x" size={12} /></button>
-              </span> : <span className="tv-row-act">
-                {/* Open this row in the editor. The standard move for a table
+          {isEditingRow ? (
+            <span className="tv-row-act tv-row-act-edit">
+              <button
+                className="tv-act-btn"
+                tabIndex={-1}
+                data-testid={`tree-edit-save-${r.id}`}
+                aria-label={t('tv.editSave')}
+                data-htip={`${t('tv.editSave')} · ↵`}
+                onMouseDown={e => e.preventDefault()}
+                onClick={e => {
+                  e.stopPropagation();
+                  finishEditing();
+                }}
+              >
+                <Icon name="check" size={12} />
+              </button>
+              <button
+                className="tv-act-btn"
+                tabIndex={-1}
+                data-testid={`tree-edit-cancel-${r.id}`}
+                aria-label={t('tv.editCancel')}
+                data-htip={`${t('tv.editCancel')} · Esc`}
+                onMouseDown={e => e.preventDefault()}
+                onClick={e => {
+                  e.stopPropagation();
+                  cancelEdit();
+                }}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          ) : (
+            <span className="tv-row-act">
+              {/* Open this row in the editor. The standard move for a table
                     row, and the one path that does not depend on there being
                     a panel on the right: with the editor docked as a dialog
                     it is how you get to it at all. */}
-                {onFullEdit && <button className="tv-act-btn" data-testid={`tree-row-edit-${r.id}`}
+              {onFullEdit && (
+                <button
+                  className="tv-act-btn"
+                  data-testid={`tree-row-edit-${r.id}`}
                   data-htip={withKey(t('tv.editRowTip', r.id), 'fullEdit')}
-                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); onFullEdit(r); }}><Icon name="maximize" size={12} /></button>}
-                <button className="tv-act-btn" data-testid={`tree-row-rename-${r.id}`}
-                  data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
-                  onClick={e => { e.stopPropagation(); onSelect(r, {}, visibleIds); startEdit(r.id); }}><Icon name="pencil" size={12} /></button>
-                <button className="tv-act-btn" data-testid={`tree-row-add-sibling-${r.id}`}
-                  data-htip={withKey(t('tv.newRowTip', r.id), 'newRow')}
-                  onClick={e => { e.stopPropagation(); startNewSibling(r.id); }}><Icon name="plus" size={12} /></button>
-                <button className="tv-act-btn" data-testid={`tree-row-add-child-${r.id}`}
-                  data-htip={withKey(t('tv.newChildTip', r.id), 'newChild')}
-                  onClick={e => { e.stopPropagation(); startNewChild(r.id); }}><Icon name="subtask" size={12} /></button>
-              </span>}
-            </td>
-          </tr>;
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSelect(r, {}, visibleIds);
+                    onFullEdit(r);
+                  }}
+                >
+                  <Icon name="maximize" size={12} />
+                </button>
+              )}
+              <button
+                className="tv-act-btn"
+                data-testid={`tree-row-rename-${r.id}`}
+                data-htip={withKey(t('tv.renameTip', r.id), 'rename')}
+                onClick={e => {
+                  e.stopPropagation();
+                  onSelect(r, {}, visibleIds);
+                  startEdit(r.id);
+                }}
+              >
+                <Icon name="pencil" size={12} />
+              </button>
+              <button
+                className="tv-act-btn"
+                data-testid={`tree-row-add-sibling-${r.id}`}
+                data-htip={withKey(t('tv.newRowTip', r.id), 'newRow')}
+                onClick={e => {
+                  e.stopPropagation();
+                  startNewSibling(r.id);
+                }}
+              >
+                <Icon name="plus" size={12} />
+              </button>
+              <button
+                className="tv-act-btn"
+                data-testid={`tree-row-add-child-${r.id}`}
+                data-htip={withKey(t('tv.newChildTip', r.id), 'newChild')}
+                onClick={e => {
+                  e.stopPropagation();
+                  startNewChild(r.id);
+                }}
+              >
+                <Icon name="subtask" size={12} />
+              </button>
+            </span>
+          )}
+        </td>
+      </tr>
+    );
   }
 
-  return <div
-    ref={containerRef}
-    tabIndex={0}
-    onKeyDown={handleContainerKeyDown}
-    onPaste={handlePaste}
-    className="tv-surface"
-    style={{ outline: 'none' }}
-    data-testid="tree-editor-surface">
-    <div ref={toolbarRef} style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg2)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar0-top)', zIndex: 12 }}>
-      <button className="btn btn-sec btn-xs" onClick={collapseAll} data-htip={withKey(hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll'), 'collapseAll')}>{hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}</button>
-      <button className="btn btn-sec btn-xs" onClick={expandAll} data-htip={withKey(hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll'), 'expandAll')}>{hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}</button>
-      {/* One help affordance, not two. The shortcuts used to be printed above
+  return (
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleContainerKeyDown}
+      onPaste={handlePaste}
+      className="tv-surface"
+      style={{ outline: 'none' }}
+      data-testid="tree-editor-surface"
+    >
+      <div
+        ref={toolbarRef}
+        style={{
+          display: 'flex',
+          gap: 6,
+          padding: '6px 10px',
+          borderBottom: '1px solid var(--b)',
+          background: 'var(--bg2)',
+          alignItems: 'center',
+          position: 'sticky',
+          top: 'var(--tv-bar0-top)',
+          zIndex: 12,
+        }}
+      >
+        <button
+          className="btn btn-sec btn-xs"
+          onClick={collapseAll}
+          data-htip={withKey(hasSelection ? t('tv.collapseSelectionTitle', multiSel.size) : t('tv.collapseAll'), 'collapseAll')}
+        >
+          {hasSelection ? t('tv.collapseSelection', multiSel.size) : t('tv.collapseAll')}
+        </button>
+        <button
+          className="btn btn-sec btn-xs"
+          onClick={expandAll}
+          data-htip={withKey(hasSelection ? t('tv.expandSelectionTitle', multiSel.size) : t('tv.expandAll'), 'expandAll')}
+        >
+          {hasSelection ? t('tv.expandSelection', multiSel.size) : t('tv.expandAll')}
+        </button>
+        {/* One help affordance, not two. The shortcuts used to be printed above
           the table as a dense line of glyphs, and the symbol legend was a
           separate hover-only `?` beside it — same question, two places. Both
           now open the same dialog, under the key that opens it. */}
-      <button className="btn btn-sec btn-xs" data-testid="tree-keymap-btn"
-        onClick={() => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT))}
-        data-htip={withKey(t('km.title'), 'keymap')}
-        style={{ padding: '2px 8px', fontSize: 12, marginLeft: 4 }}>?</button>
-      {/* Diff picker lives in the App-level sub-toolbar so it stays
+        <button
+          className="btn btn-sec btn-xs"
+          data-testid="tree-keymap-btn"
+          onClick={() => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT))}
+          data-htip={withKey(t('km.title'), 'keymap')}
+          style={{ padding: '2px 8px', fontSize: 12, marginLeft: 4 }}
+        >
+          ?
+        </button>
+        {/* Diff picker lives in the App-level sub-toolbar so it stays
           available next to the root/team/person filters. Toggling the
           "Only changed" checkbox there reaches this view via the
           `onlyChanged` prop. */}
-      <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>{filt.length}/{tree.length} {t('tv.items')}</span>
-    </div>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>
+          {filt.length}/{tree.length} {t('tv.items')}
+        </span>
+      </div>
 
-    {/* Contextual action row — only when a single item is selected. Acts on that item. */}
-    {selected?.id && selPos && (
-      <div ref={selBarRef} style={{ display: 'flex', flexWrap: 'wrap', rowGap: 3, gap: 4, padding: '4px 10px', borderBottom: '1px solid var(--b)', background: 'var(--bg3)', alignItems: 'center', position: 'sticky', top: 'var(--tv-bar1-top)', zIndex: 11 }}>
-        <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>{t('tv.selected')}</span>
-        {multiMove
-          ? <span data-testid="tv-moves-selection" style={{ fontSize: 12, color: 'var(--ac)', marginRight: 8 }}
-              data-htip={t('tv.movesSelectionTip')}>{t('tv.movesSelection', multiSel.size)}</span>
-          : <>
-            <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
-            <span style={{ fontSize: 12, color: 'var(--tx3)', marginRight: 8, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
-          </>}
-        {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
-        {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
-        {/* With the editor docked as a dialog there is no panel on the right
+      {/* Contextual action row — only when a single item is selected. Acts on that item. */}
+      {selected?.id && selPos && (
+        <div
+          ref={selBarRef}
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            rowGap: 3,
+            gap: 4,
+            padding: '4px 10px',
+            borderBottom: '1px solid var(--b)',
+            background: 'var(--bg3)',
+            alignItems: 'center',
+            position: 'sticky',
+            top: 'var(--tv-bar1-top)',
+            zIndex: 11,
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 4 }}>
+            {t('tv.selected')}
+          </span>
+          {multiMove ? (
+            <span
+              data-testid="tv-moves-selection"
+              style={{ fontSize: 12, color: 'var(--ac)', marginRight: 8 }}
+              data-htip={t('tv.movesSelectionTip')}
+            >
+              {t('tv.movesSelection', multiSel.size)}
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 12, color: 'var(--tx2)', fontFamily: 'var(--mono)', marginRight: 4 }}>{selected.id}</span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--tx3)',
+                  marginRight: 8,
+                  maxWidth: 220,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {selected.name}
+              </span>
+            </>
+          )}
+          {/* Edit & create — the mouse twin of Enter / ⇧Enter. */}
+          {toolBtn(t('tv.rename'), withKey(t('tv.renameTip', selected.id), 'rename'), () => startEdit(selected.id), false, 'pencil')}
+          {/* With the editor docked as a dialog there is no panel on the right
             to carry the selection — this is the way in. */}
-        {onFullEdit && editorInDialog && toolBtn(t('tv.editItem'), t('nm.fullEditTip'), () => onFullEdit(selected), false, 'maximize', 'tv-edit-selected')}
-        {onInsertAfter && toolBtn(t('tv.newRow'), withKey(t('tv.newRowTip', selected.id), 'newRow'), () => startNewSibling(selected.id), false, 'plus')}
-        {onInsertChild && toolBtn(t('tv.newChild'), withKey(t('tv.newChildTip', selected.id), 'newChild'), () => startNewChild(selected.id), false, 'subtask')}
-        {/* Structure — move up / down among the siblings, then indent /
+          {onFullEdit &&
+            editorInDialog &&
+            toolBtn(t('tv.editItem'), t('nm.fullEditTip'), () => onFullEdit(selected), false, 'maximize', 'tv-edit-selected')}
+          {onInsertAfter &&
+            toolBtn(t('tv.newRow'), withKey(t('tv.newRowTip', selected.id), 'newRow'), () => startNewSibling(selected.id), false, 'plus')}
+          {onInsertChild &&
+            toolBtn(
+              t('tv.newChild'),
+              withKey(t('tv.newChildTip', selected.id), 'newChild'),
+              () => startNewChild(selected.id),
+              false,
+              'subtask',
+            )}
+          {/* Structure — move up / down among the siblings, then indent /
             outdent. Four commands, four buttons, each disabled exactly when
             its command cannot run (canRun is the command's own check). */}
-        {onCommand && <>
-          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn(t('tv.moveFirst'), withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'), () => runCommand('moveFirst'), !canRun(selected.id, 'moveFirst'), 'moveTop', 'tv-move-first')}
-          {toolBtn(t('tv.moveUp'), withKey(t('tv.moveUpTip', selected.id), 'moveUp'), () => runCommand('moveUp'), !canRun(selected.id, 'moveUp'), 'moveUp', 'tv-move-up', 'moveUp')}
-          {toolBtn(t('tv.moveDown'), withKey(t('tv.moveDownTip', selected.id), 'moveDown'), () => runCommand('moveDown'), !canRun(selected.id, 'moveDown'), 'moveDown', 'tv-move-down', 'moveDown')}
-          {toolBtn(t('tv.moveLast'), withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'), () => runCommand('moveLast'), !canRun(selected.id, 'moveLast'), 'moveBottom', 'tv-move-last')}
-          <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
-          {toolBtn('', withKey(t('tv.outdentTip', selected.id), 'outdent'), () => runCommand('outdent'), !canRun(selected.id, 'outdent'), 'outdent', 'tv-outdent', 'outdent')}
-          {toolBtn('', withKey(t('tv.indentTip', selected.id), 'indent'), () => runCommand('indent'), !canRun(selected.id, 'indent'), 'indent', 'tv-indent', 'indent')}
-        </>}
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-sec btn-xs" data-testid="tv-delete-selected" onClick={() => onDelete(selected.id)}
-          data-htip={withKey((hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id)), 'delete')}
-          style={{ padding: '2px 7px', fontSize: 12, color: 'var(--re)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="trash" size={11} />{t('tv.deleteItem')}</button>
-      </div>
-    )}
-    <table className="tree-tbl">
-      <thead><tr>
-        <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{showIds ? 'ID' : ''}</th>
-        <th data-col="name" style={{ background: 'var(--bg)', width: '100%' }}>{t('col.name')}</th>
-        <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.team')}</th>
-        <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.who')}</th>
-        <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.signal')}</th>
-        <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.effort')}</th>
-        <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>%</th>
-        <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>{t('col.schedule')}</th>
-        <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center' }}></th>
-      </tr></thead>
-      <tbody>
-        {filt.map((r, idx) => {
-          // ── Why this row is cached ────────────────────────────────────
-          // Moving the cursor one row changes exactly two rows, but it
-          // re-rendered every visible one: measured at 82 ms per arrow press
-          // on a 300-row plan (13 rows: no long task at all — the cost
-          // scales with what is on screen, which is what ruled out saving,
-          // syncing and the side panel). Holding the key queues presses at
-          // 82 ms each, which is where "half a second to a second behind"
-          // comes from.
-          //
-          // React bails out of re-rendering a subtree when it is handed the
-          // SAME element reference, so unchanged rows return their previous
-          // element. The signature below therefore has to name everything
-          // this row's output reads — anything missed here shows up as a
-          // row that quietly stops updating, which is worse than the lag.
-          // Per-row state is kept per-row on purpose: taking `editing` or
-          // `orderDrop` whole would rebuild all rows on every keystroke of
-          // a rename.
-          const isSel = selected?.id === r.id;
-          const isEditingRow = editing?.id === r.id;
-          const dropOn = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
-          const inHandSig = !!orderDrop?.dragIds?.includes(r.id);
-          const sig = [
-            r, idx, isSel, multiSel?.has(r.id), collapsed.has(r.id),
-            isEditingRow ? editing.draft : false,
-            dropOn, inHandSig, search && idx === 0,
-            // Anything shared that changes the row's content.
-            stats, sMap, scheduleRangeById, cpSet, cpLabels, roadmapAssignment,
-            customFields, teams, sizeCatalogue, tree, t,
-          ];
-          const cached = rowCacheRef.current.get(r.id);
-          if (cached && cached.sig.length === sig.length && cached.sig.every((v, i) => v === sig[i])) {
-            return cached.el;
-          }
-          const el = renderRow(r, idx);
-          rowCacheRef.current.set(r.id, { sig, el });
-          return el;
-        })}
-      </tbody>
-    </table>
-    <SelectionActionBar
-      count={multiSel?.size || 0}
-      onClear={() => onClearSelection?.()}
-      testId="tree-selection-actionbar"
-    >
-      <button
-        type="button"
-        className="sab-assign-trigger"
-        onClick={() => onOpenBulkEdit?.()}
-        data-htip={t('g.bulkEditTip')}
-        data-testid="tree-bulk-edit-trigger">
-        <span className="sab-icon"><Icon name="checkSquare" size={13} /></span>
-        <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
-      </button>
-      <span className="sab-divider" />
-      {[['open', t('tv.statusOpen') || 'open'], ['wip', t('tv.statusWip') || 'wip'], ['done', t('tv.statusDone') || 'done']].map(([stVal, label]) => (
+          {onCommand && (
+            <>
+              <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
+              {toolBtn(
+                t('tv.moveFirst'),
+                withKey(t('tv.moveFirstTip', selected.id), 'reorderEnds'),
+                () => runCommand('moveFirst'),
+                !canRun(selected.id, 'moveFirst'),
+                'moveTop',
+                'tv-move-first',
+              )}
+              {toolBtn(
+                t('tv.moveUp'),
+                withKey(t('tv.moveUpTip', selected.id), 'moveUp'),
+                () => runCommand('moveUp'),
+                !canRun(selected.id, 'moveUp'),
+                'moveUp',
+                'tv-move-up',
+                'moveUp',
+              )}
+              {toolBtn(
+                t('tv.moveDown'),
+                withKey(t('tv.moveDownTip', selected.id), 'moveDown'),
+                () => runCommand('moveDown'),
+                !canRun(selected.id, 'moveDown'),
+                'moveDown',
+                'tv-move-down',
+                'moveDown',
+              )}
+              {toolBtn(
+                t('tv.moveLast'),
+                withKey(t('tv.moveLastTip', selected.id), 'reorderEnds'),
+                () => runCommand('moveLast'),
+                !canRun(selected.id, 'moveLast'),
+                'moveBottom',
+                'tv-move-last',
+              )}
+              <span className="sab-divider" style={{ height: 16, margin: '0 2px' }} />
+              {toolBtn(
+                '',
+                withKey(t('tv.outdentTip', selected.id), 'outdent'),
+                () => runCommand('outdent'),
+                !canRun(selected.id, 'outdent'),
+                'outdent',
+                'tv-outdent',
+                'outdent',
+              )}
+              {toolBtn(
+                '',
+                withKey(t('tv.indentTip', selected.id), 'indent'),
+                () => runCommand('indent'),
+                !canRun(selected.id, 'indent'),
+                'indent',
+                'tv-indent',
+                'indent',
+              )}
+            </>
+          )}
+          <span style={{ flex: 1 }} />
+          <button
+            className="btn btn-sec btn-xs"
+            data-testid="tv-delete-selected"
+            onClick={() => onDelete(selected.id)}
+            data-htip={withKey(
+              hasChildren(tree, selected.id) ? t('tv.deleteSubtreeTip', selected.id) : t('tv.deleteRowTip', selected.id),
+              'delete',
+            )}
+            style={{ padding: '2px 7px', fontSize: 12, color: 'var(--re)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <Icon name="trash" size={11} />
+            {t('tv.deleteItem')}
+          </button>
+        </div>
+      )}
+      <table className="tree-tbl">
+        <thead>
+          <tr>
+            <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {showIds ? 'ID' : ''}
+            </th>
+            <th data-col="name" style={{ background: 'var(--bg)', width: '100%' }}>
+              {t('col.name')}
+            </th>
+            <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {t('col.team')}
+            </th>
+            <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {t('col.who')}
+            </th>
+            <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {t('col.signal')}
+            </th>
+            <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {t('col.effort')}
+            </th>
+            <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              %
+            </th>
+            <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
+              {t('col.schedule')}
+            </th>
+            <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center' }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {filt.map((r, idx) => {
+            // ── Why this row is cached ────────────────────────────────────
+            // Moving the cursor one row changes exactly two rows, but it
+            // re-rendered every visible one: measured at 82 ms per arrow press
+            // on a 300-row plan (13 rows: no long task at all — the cost
+            // scales with what is on screen, which is what ruled out saving,
+            // syncing and the side panel). Holding the key queues presses at
+            // 82 ms each, which is where "half a second to a second behind"
+            // comes from.
+            //
+            // React bails out of re-rendering a subtree when it is handed the
+            // SAME element reference, so unchanged rows return their previous
+            // element. The signature below therefore has to name everything
+            // this row's output reads — anything missed here shows up as a
+            // row that quietly stops updating, which is worse than the lag.
+            // Per-row state is kept per-row on purpose: taking `editing` or
+            // `orderDrop` whole would rebuild all rows on every keystroke of
+            // a rename.
+            const isSel = selected?.id === r.id;
+            const isEditingRow = editing?.id === r.id;
+            const dropOn = orderDrop?.targetId === r.id && orderDrop.valid ? orderDrop.position : '';
+            const inHandSig = !!orderDrop?.dragIds?.includes(r.id);
+            const sig = [
+              r,
+              idx,
+              isSel,
+              multiSel?.has(r.id),
+              collapsed.has(r.id),
+              isEditingRow ? editing.draft : false,
+              dropOn,
+              inHandSig,
+              search && idx === 0,
+              // Anything shared that changes the row's content.
+              stats,
+              sMap,
+              scheduleRangeById,
+              cpSet,
+              cpLabels,
+              roadmapAssignment,
+              customFields,
+              teams,
+              sizeCatalogue,
+              tree,
+              t,
+            ];
+            const cached = rowCacheRef.current.get(r.id);
+            if (cached && cached.sig.length === sig.length && cached.sig.every((v, i) => v === sig[i])) {
+              return cached.el;
+            }
+            const el = renderRow(r, idx);
+            rowCacheRef.current.set(r.id, { sig, el });
+            return el;
+          })}
+        </tbody>
+      </table>
+      <SelectionActionBar count={multiSel?.size || 0} onClear={() => onClearSelection?.()} testId="tree-selection-actionbar">
         <button
-          key={stVal}
           type="button"
-          className="btn btn-sec"
-          onClick={() => {
+          className="sab-assign-trigger"
+          onClick={() => onOpenBulkEdit?.()}
+          data-htip={t('g.bulkEditTip')}
+          data-testid="tree-bulk-edit-trigger"
+        >
+          <span className="sab-icon">
+            <Icon name="checkSquare" size={13} />
+          </span>
+          <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
+        </button>
+        <span className="sab-divider" />
+        {[
+          ['open', t('tv.statusOpen') || 'open'],
+          ['wip', t('tv.statusWip') || 'wip'],
+          ['done', t('tv.statusDone') || 'done'],
+        ].map(([stVal, label]) => (
+          <button
+            key={stVal}
+            type="button"
+            className="btn btn-sec"
+            onClick={() => {
+              (tree || []).forEach(node => {
+                if (!multiSel?.has(node.id) || !onTaskUpdate) return;
+                if (node.status === stVal) return;
+                // statusChangePatch, not a bare { status } — see the Space
+                // branch in utils/treeEdit.js. Setting a row to done here has
+                // to stamp the same dates the dropdown does, or the Soll/Ist
+                // comparison silently misses everything changed in bulk.
+                onTaskUpdate({ ...node, ...statusChangePatch(node, stVal) });
+              });
+            }}
+            data-htip={t('tv.bulkStatusTip', label)}
+          >
+            {label}
+          </button>
+        ))}
+      </SelectionActionBar>
+      {showAssignModal && (
+        <AssignModal
+          count={multiSel?.size || 0}
+          teams={teams}
+          members={members}
+          onClose={() => setShowAssignModal(false)}
+          onApply={({ team, persons }) => {
             (tree || []).forEach(node => {
               if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-              if (node.status === stVal) return;
-              // statusChangePatch, not a bare { status } — see the Space
-              // branch in utils/treeEdit.js. Setting a row to done here has
-              // to stamp the same dates the dropdown does, or the Soll/Ist
-              // comparison silently misses everything changed in bulk.
-              onTaskUpdate({ ...node, ...statusChangePatch(node, stVal) });
+              const patch = { ...node };
+              let changed = false;
+              if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
+                patch.team = team || '';
+                changed = true;
+              }
+              if (Array.isArray(persons)) {
+                const cur = (node.assign || []).slice().sort().join(',');
+                const nxt = persons.slice().sort().join(',');
+                if (cur !== nxt) {
+                  patch.assign = persons.slice();
+                  changed = true;
+                }
+              }
+              if (changed) onTaskUpdate(patch);
             });
           }}
-          data-htip={t('tv.bulkStatusTip', label)}>{label}</button>
-      ))}
-    </SelectionActionBar>
-    {showAssignModal && <AssignModal
-      count={multiSel?.size || 0}
-      teams={teams}
-      members={members}
-      onClose={() => setShowAssignModal(false)}
-      onApply={({ team, persons }) => {
-        (tree || []).forEach(node => {
-          if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-          const patch = { ...node };
-          let changed = false;
-          if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
-            patch.team = team || '';
-            changed = true;
-          }
-          if (Array.isArray(persons)) {
-            const cur = (node.assign || []).slice().sort().join(',');
-            const nxt = persons.slice().sort().join(',');
-            if (cur !== nxt) { patch.assign = persons.slice(); changed = true; }
-          }
-          if (changed) onTaskUpdate(patch);
-        });
-      }}
-    />}
-  </div>;
+        />
+      )}
+    </div>
+  );
 }
 
 export const TreeView = memo(TreeViewImpl);

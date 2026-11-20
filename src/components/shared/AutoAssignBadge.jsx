@@ -23,7 +23,10 @@ export function AutoAssignBadge({ children, title, style = {} }) {
         ...style,
       }}
     >
-      <span aria-hidden="true" style={{ opacity: .7 }}>~</span>{children}
+      <span aria-hidden="true" style={{ opacity: 0.7 }}>
+        ~
+      </span>
+      {children}
     </span>
   );
 }

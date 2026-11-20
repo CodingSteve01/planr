@@ -26,8 +26,7 @@ describe('scopeCss', () => {
   it('keeps the light palette keyed to the <html> attribute i18n.jsx sets', () => {
     // `.planr-view[data-theme=light]` would never match: the attribute lives
     // on the document element, not on the container.
-    expect(scopeCss(':root[data-theme="light"]{--bg:#fff}'))
-      .toContain('html[data-theme="light"] .planr-view');
+    expect(scopeCss(':root[data-theme="light"]{--bg:#fff}')).toContain('html[data-theme="light"] .planr-view');
   });
 
   it('keeps a bare theme condition on <html>, where i18n.jsx sets it', () => {
@@ -35,13 +34,15 @@ describe('scopeCss', () => {
     // `.planr-view [data-theme=light] .tr.l1 td` — a themed element inside
     // Planr, which never exists — and the light palette silently vanishes
     // while the tokens themselves flip. Half-light app, dark tree rows.
-    expect(scopeCss('[data-theme="light"] .tr.l1 td{background:#f5f7fa}'))
-      .toBe('html[data-theme="light"] .planr-view .tr.l1 td{background:#f5f7fa}');
+    expect(scopeCss('[data-theme="light"] .tr.l1 td{background:#f5f7fa}')).toBe(
+      'html[data-theme="light"] .planr-view .tr.l1 td{background:#f5f7fa}',
+    );
   });
 
   it('reads a themed body as the app frame, not a body inside it', () => {
-    expect(scopeCss('[data-theme="light"] body{-webkit-font-smoothing:auto}'))
-      .toBe('html[data-theme="light"] .planr-view{-webkit-font-smoothing:auto}');
+    expect(scopeCss('[data-theme="light"] body{-webkit-font-smoothing:auto}')).toBe(
+      'html[data-theme="light"] .planr-view{-webkit-font-smoothing:auto}',
+    );
   });
 
   it('scopes attribute selectors that are app markup', () => {
@@ -53,24 +54,20 @@ describe('scopeCss', () => {
   });
 
   it('keeps the universal reset inside the container', () => {
-    expect(selectorsOf(scopeCss('*,*::before{margin:0}')))
-      .toEqual(['.planr-view *', '.planr-view *::before']);
+    expect(selectorsOf(scopeCss('*,*::before{margin:0}'))).toEqual(['.planr-view *', '.planr-view *::before']);
   });
 
   it('scopes rules nested in at-rules', () => {
-    expect(scopeCss('@media print{.topbar{display:none}}'))
-      .toContain('.planr-view .topbar');
+    expect(scopeCss('@media print{.topbar{display:none}}')).toContain('.planr-view .topbar');
   });
 
   it('leaves keyframe stops alone', () => {
-    expect(scopeCss('@keyframes pulse{0%,100%{opacity:1}}'))
-      .toBe('@keyframes pulse{0%,100%{opacity:1}}');
+    expect(scopeCss('@keyframes pulse{0%,100%{opacity:1}}')).toBe('@keyframes pulse{0%,100%{opacity:1}}');
   });
 
   it('trades viewport height for container height', () => {
     // A leaf is not the window: 100vh would run out the bottom of the tab.
-    expect(scopeCss('.app{height:100vh;max-height:calc(100vh - 48px)}'))
-      .toBe('.planr-view .app{height:100%;max-height:calc(100% - 48px)}');
+    expect(scopeCss('.app{height:100vh;max-height:calc(100vh - 48px)}')).toBe('.planr-view .app{height:100%;max-height:calc(100% - 48px)}');
   });
 
   it('lets no selector out of the container', () => {
@@ -113,8 +110,7 @@ describe('container queries', () => {
     const scoped = scopeCss(readFileSync(path.join(repo, 'src', 'App.css'), 'utf8'));
     // A container-type on an unscoped selector would make the VAULT a query
     // container, which is exactly the leak this file exists to prevent.
-    const containerRules = scoped.split('}')
-      .filter(chunk => /container-type\s*:/.test(chunk));
+    const containerRules = scoped.split('}').filter(chunk => /container-type\s*:/.test(chunk));
     expect(containerRules.length, 'no container declared at all').toBeGreaterThan(0);
     containerRules.forEach(chunk => {
       expect(chunk).toContain('.planr-view');

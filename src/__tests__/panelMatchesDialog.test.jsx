@@ -14,10 +14,24 @@ const tree = [
   { id: 'P1.1', name: 'Selected task', status: 'wip', progress: 40, best: 3, factor: 1.3, team: 'T1', assign: ['m1'], deps: [] },
 ];
 const common = {
-  tree, members: [{ id: 'm1', name: 'Noah Berg', team: 'T1', cap: 1 }], teams: [{ id: 'T1', name: 'Backend', color: '#2563eb' }],
-  taskTemplates: [], sizes: [], customFields: [], scheduled: [], cpSet: new Set(), stats: {}, confidence: {}, confReasons: {},
+  tree,
+  members: [{ id: 'm1', name: 'Noah Berg', team: 'T1', cap: 1 }],
+  teams: [{ id: 'T1', name: 'Backend', color: '#2563eb' }],
+  taskTemplates: [],
+  sizes: [],
+  customFields: [],
+  scheduled: [],
+  cpSet: new Set(),
+  stats: {},
+  confidence: {},
+  confReasons: {},
 };
-const wrap = ui => render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+const wrap = ui =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 const tabLabels = () => [...document.querySelectorAll('[role="tab"]')].map(x => x.textContent);
 
 function Panel({ node = tree[1], start = 'insights', ...props }) {
@@ -26,7 +40,11 @@ function Panel({ node = tree[1], start = 'insights', ...props }) {
 }
 
 describe('the side panel matches the item dialog', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+  });
 
   it('shows the same tabs in the same order, for a task and for a package', () => {
     for (const node of [tree[1], tree[0]]) {
@@ -50,8 +68,14 @@ describe('the side panel matches the item dialog', () => {
 
   it('has the history and dropping on Status, dropping last', () => {
     const onUpdate = vi.fn();
-    wrap(<Panel start="workflow" onUpdate={onUpdate} onHistoryChange={() => {}}
-      historyEvents={[{ ts: '2026-05-01T10:00:00.000Z', id: 'P1.1', kind: 'added', status: 'wip', progress: 40 }]} />);
+    wrap(
+      <Panel
+        start="workflow"
+        onUpdate={onUpdate}
+        onHistoryChange={() => {}}
+        historyEvents={[{ ts: '2026-05-01T10:00:00.000Z', id: 'P1.1', kind: 'added', status: 'wip', progress: 40 }]}
+      />,
+    );
     const history = screen.getByTestId('item-history');
     const drop = screen.getByTestId('qe-drop-toggle');
     expect(history.textContent).toContain('Created (In Progress)');

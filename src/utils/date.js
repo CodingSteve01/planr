@@ -16,7 +16,11 @@ export const iso = d => {
   const r = d instanceof Date ? d : new Date(d);
   return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}-${String(r.getDate()).padStart(2, '0')}`;
 };
-export const addD = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+export const addD = (d, n) => {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+};
 // Step `n` working days forward (positive) or backward (negative).
 // Skips non-working days. `workDays` is an optional Set of day-of-week numbers
 // (0=Sun…6=Sat); defaults to Mon–Fri if omitted.
@@ -39,8 +43,10 @@ export const workDaysBetween = (from, to, workDays, holidayIso) => {
   if (!from || !to) return 0;
   const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;
   const hol = holidayIso instanceof Set ? holidayIso : new Set(holidayIso || []);
-  const start = new Date(from); start.setHours(0, 0, 0, 0);
-  const end = new Date(to); end.setHours(23, 59, 59, 999);
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
   if (start > end) return 0;
   let count = 0;
   const cur = new Date(start);
@@ -55,10 +61,13 @@ export const offDaysBetween = (from, to, workDays, holidayIso) => {
   if (!from || !to) return { weekends: 0, holidays: 0 };
   const wd = workDays instanceof Set ? workDays : DEFAULT_WD_SET;
   const hol = holidayIso instanceof Set ? holidayIso : new Set(holidayIso || []);
-  const start = new Date(from); start.setHours(0, 0, 0, 0);
-  const end = new Date(to); end.setHours(23, 59, 59, 999);
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
   if (start > end) return { weekends: 0, holidays: 0 };
-  let weekends = 0, holidays = 0;
+  let weekends = 0,
+    holidays = 0;
   const cur = new Date(start);
   while (cur <= end) {
     const isWeekend = !wd.has(cur.getDay());
@@ -69,9 +78,15 @@ export const offDaysBetween = (from, to, workDays, holidayIso) => {
   }
   return { weekends, holidays };
 };
-export const monOf = d => { const r = new Date(d), w = r.getDay(); r.setDate(r.getDate() - (w === 0 ? 6 : w - 1)); return r; };
+export const monOf = d => {
+  const r = new Date(d),
+    w = r.getDay();
+  r.setDate(r.getDate() - (w === 0 ? 6 : w - 1));
+  return r;
+};
 export const isoWeek = d => {
-  const j4 = new Date(d.getFullYear(), 0, 4), sw = new Date(j4);
+  const j4 = new Date(d.getFullYear(), 0, 4),
+    sw = new Date(j4);
   sw.setDate(j4.getDate() - ((j4.getDay() + 6) % 7));
   return Math.round((monOf(d) - sw) / (7 * 864e5)) + 1;
 };

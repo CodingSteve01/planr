@@ -17,7 +17,9 @@ export async function openPalette() {
   document.activeElement?.blur?.();
   await waitFor(async () => {
     if (screen.queryByTestId('palette-input')) return;
-    await act(async () => { fireEvent.keyDown(window, { key: '/', bubbles: true }); });
+    await act(async () => {
+      fireEvent.keyDown(window, { key: '/', bubbles: true });
+    });
     if (!screen.queryByTestId('palette-input')) throw new Error('palette did not open');
   });
   return screen.getByTestId('palette-input');
@@ -26,6 +28,10 @@ export async function openPalette() {
 /** Open it, type `query`, take the first hit. */
 export async function runCommand(query) {
   const input = await openPalette();
-  await act(async () => { fireEvent.change(input, { target: { value: query } }); });
-  await act(async () => { fireEvent.keyDown(input, { key: 'Enter', bubbles: true }); });
+  await act(async () => {
+    fireEvent.change(input, { target: { value: query } });
+  });
+  await act(async () => {
+    fireEvent.keyDown(input, { key: 'Enter', bubbles: true });
+  });
 }

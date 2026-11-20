@@ -44,6 +44,6 @@ export function filterCommands(commands, query) {
     const hit = (cmd.keywords || []).find(k => String(k).toLowerCase().includes(q));
     if (hit) scored.push({ cmd, tier: 2, key: l.length });
   }
-  scored.sort((a, b) => (a.tier - b.tier) || (a.key - b.key));
+  scored.sort((a, b) => a.tier - b.tier || a.key - b.key);
   return scored.map(s => s.cmd);
 }

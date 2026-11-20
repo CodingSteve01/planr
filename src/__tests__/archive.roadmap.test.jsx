@@ -27,9 +27,14 @@ import { treeStats } from '../utils/scheduler.js';
 // a way to persist the line assignment.
 vi.mock('../components/shared/Roadmap.jsx', () => ({
   Roadmap: ({ tree, onAssignmentChange }) => (
-    <div data-testid="map"
-      data-roots={tree.filter(node => !String(node.id).includes('.')).map(node => node.id).join(',')}
-      data-persists={onAssignmentChange ? '1' : '0'} />
+    <div
+      data-testid="map"
+      data-roots={tree
+        .filter(node => !String(node.id).includes('.'))
+        .map(node => node.id)
+        .join(',')}
+      data-persists={onAssignmentChange ? '1' : '0'}
+    />
   ),
 }));
 
@@ -40,14 +45,45 @@ const tree = [
   { id: 'A1.1', name: 'Offenes Paket', team: 'T1', status: 'open', best: 10, factor: 1.5, deps: [], assign: [] },
   { id: 'A1.2', name: 'Laufendes Paket', team: 'T1', status: 'wip', progress: 40, best: 10, factor: 1.5, deps: [], assign: [] },
   { id: 'Z1', name: 'Alte Umfirmierung', type: 'goal', status: 'done', best: 0, factor: 1.5, completedAt: '2026-03-01' },
-  { id: 'Z1.1', name: 'Altes Paket', team: 'T1', status: 'done', best: 10, factor: 1.5, deps: [], assign: [],
-    completedAt: '2026-03-01', completedStart: '2026-02-20', completedEnd: '2026-03-01' },
+  {
+    id: 'Z1.1',
+    name: 'Altes Paket',
+    team: 'T1',
+    status: 'done',
+    best: 10,
+    factor: 1.5,
+    deps: [],
+    assign: [],
+    completedAt: '2026-03-01',
+    completedStart: '2026-02-20',
+    completedEnd: '2026-03-01',
+  },
 ];
 const scheduled = [
-  { id: 'A1.1', treeId: 'A1.1', name: 'Offenes Paket', team: 'T1', personId: 'M1', person: 'Anna', status: 'open',
-    effort: 15, startD: new Date('2026-09-14'), endD: new Date('2026-09-25') },
-  { id: 'A1.2', treeId: 'A1.2', name: 'Laufendes Paket', team: 'T1', personId: 'M1', person: 'Anna', status: 'wip',
-    effort: 15, startD: new Date('2026-10-05'), endD: new Date('2026-10-16') },
+  {
+    id: 'A1.1',
+    treeId: 'A1.1',
+    name: 'Offenes Paket',
+    team: 'T1',
+    personId: 'M1',
+    person: 'Anna',
+    status: 'open',
+    effort: 15,
+    startD: new Date('2026-09-14'),
+    endD: new Date('2026-09-25'),
+  },
+  {
+    id: 'A1.2',
+    treeId: 'A1.2',
+    name: 'Laufendes Paket',
+    team: 'T1',
+    personId: 'M1',
+    person: 'Anna',
+    status: 'wip',
+    effort: 15,
+    startD: new Date('2026-10-05'),
+    endD: new Date('2026-10-16'),
+  },
 ];
 const goals = tree.filter(node => !node.id.includes('.') && node.type);
 const teams = [{ id: 'T1', name: 'Team A', color: '#3b82f6' }];
@@ -55,7 +91,11 @@ const members = [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25 }];
 const noop = () => {};
 
 function wrap(node) {
-  return render(<I18nProvider><ThemeProvider>{node}</ThemeProvider></I18nProvider>);
+  return render(
+    <I18nProvider>
+      <ThemeProvider>{node}</ThemeProvider>
+    </I18nProvider>,
+  );
 }
 
 function mount(extra = {}) {
@@ -63,10 +103,24 @@ function mount(extra = {}) {
   return {
     archive,
     ...wrap(
-      <SumView tree={tree} scheduled={scheduled} goals={goals} members={members} teams={teams}
-        cpSet={new Set()} goalPaths={{}} stats={treeStats(tree)}
-        archive={archive} showArchived={false} setShowArchived={noop} archiveDays={90}
-        onNavigate={noop} onOpenItem={noop} onExportTodo={noop} {...extra} />,
+      <SumView
+        tree={tree}
+        scheduled={scheduled}
+        goals={goals}
+        members={members}
+        teams={teams}
+        cpSet={new Set()}
+        goalPaths={{}}
+        stats={treeStats(tree)}
+        archive={archive}
+        showArchived={false}
+        setShowArchived={noop}
+        archiveDays={90}
+        onNavigate={noop}
+        onOpenItem={noop}
+        onExportTodo={noop}
+        {...extra}
+      />,
     ),
   };
 }
@@ -75,7 +129,10 @@ const mapRoots = () => screen.getByTestId('map').getAttribute('data-roots').spli
 const mapPersists = () => screen.getByTestId('map').getAttribute('data-persists') === '1';
 
 describe('Overview archive filter', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('keeps the long-finished project off the roadmap', () => {
     const { container, archive } = mount();
@@ -121,11 +178,15 @@ describe('Overview archive filter', () => {
 });
 
 describe('Overview portfolio lens is always every project', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('shows every project regardless of a stored roadmap assignment', () => {
     mount({
-      showArchived: true, onAssignmentChange: noop,
+      showArchived: true,
+      onAssignmentChange: noop,
       roadmapAssignment: { A1: { routeIdx: 3, colorIdx: 2 }, Z1: { routeIdx: 1, colorIdx: 5 } },
     });
 
@@ -146,7 +207,10 @@ describe('Overview portfolio lens is always every project', () => {
 // no other view lists one project's dates as a schedule, so the picker there
 // was not a duplicate of anything. It stays, scoped to the view that needs it.
 describe('the timetable can still be narrowed to one project', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('offers the picker on the schedule view and not on the map', () => {
     mount({ showArchived: true });
@@ -155,8 +219,7 @@ describe('the timetable can still be narrowed to one project', () => {
 
     // Switch to the schedule; the picker is there because no other view
     // lists one project's dates as a schedule.
-    const scheduleBtn = [...document.querySelectorAll('button')]
-      .find(b => /Fahrplan|Timetable|Schedule/i.test(b.textContent));
+    const scheduleBtn = [...document.querySelectorAll('button')].find(b => /Fahrplan|Timetable|Schedule/i.test(b.textContent));
     expect(scheduleBtn, 'schedule switch not found').toBeTruthy();
     fireEvent.click(scheduleBtn);
 

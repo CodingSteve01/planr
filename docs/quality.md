@@ -4,11 +4,31 @@ What the pipeline holds the code to, and how to work with it. One command runs
 everything that does not need the test suite:
 
 ```bash
-npm run quality        # lint, duplicates, dead code, versions, semgrep, private terms
+npm run quality        # format, lint, duplicates, dead code, versions, semgrep, private terms
 npm run test:coverage  # the suite, with the coverage floor
 ```
 
 `.github/workflows/ci.yml` runs the same on every pull request and on `main`.
+
+## Formatting
+
+Prettier formats the code (`npm run format`), and `npm run format:check` fails
+when a file is not as Prettier would write it. The settings are four lines in
+`.prettierrc.json`: single quotes, 140 columns, trailing commas, no parentheses
+around a single arrow parameter. Left alone on purpose (`.prettierignore`):
+the stylesheets, which are written one rule per line and read as text by a
+dozen tests; Markdown, which keeps its author's line breaks; the embedded
+fonts; and the semgrep fixtures.
+
+Nobody argues about layout in a review, and a diff shows what changed.
+
+The day the code was first formatted, the baseline was taken again: breaking
+long lines made 35 functions and files longer than their limit that were under
+it before (343 findings instead of 308, all of the difference in the two
+length rules). That is the one time the baseline went up, and it went up
+without a rule or a limit changing. Since then it only goes down.
+The coverage floor for lines moved for the same reason, from 74 to 72: the
+same tests cover the same code, counted over more lines.
 
 ## The baseline, and why the numbers only go down
 
@@ -35,7 +55,7 @@ with the longest entry is the one to split next.
 | Function length | 80 lines (`.js`), 200 (`.jsx`) | a component carries its markup, a utility does not |
 | File length | 800 lines | beyond that a file has more than one job |
 | Duplicated code | 1.5 % of lines | measured by jscpd, clones of 8 lines or more |
-| Coverage | lines 74 %, statements 69 %, functions 63 %, branches 60 % | a floor under the totals: it catches the suite sliding, not one untested change |
+| Coverage | lines 72 %, statements 69 %, functions 63 %, branches 60 % | a floor under the totals: it catches the suite sliding, not one untested change |
 
 Correctness rules (ESLint's recommended set, `eqeqeq`, `no-unused-vars`,
 `react-hooks/rules-of-hooks`, no duplicate imports or dictionary keys) apply to
@@ -48,7 +68,8 @@ size limits: one is a dictionary, the other is data.
 `npm install` installs three git hooks (`scripts/install-hooks.mjs`, also
 `npm run hooks`):
 
-- **pre-commit** lints the staged files and checks them for private terms;
+- **pre-commit** checks that the staged files are formatted, lints them and
+  checks them for private terms;
 - **commit-msg** checks the message for private terms;
 - **pre-push** runs `npm run quality`.
 
